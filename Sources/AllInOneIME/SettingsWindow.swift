@@ -534,7 +534,7 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
             }
 
-            Section(tr("输入", "Input")) {
+            Section {
                 // The input languages added, in the user's order: the first is the default; with two, Shift
                 // switches between them.
                 LabeledContent(tr("输入语言", "Input languages")) {
@@ -557,10 +557,12 @@ struct SettingsView: View {
                      ? tr("拖动排序，第一个是新输入框的默认。单按 Shift 切换中英文。", "Drag to reorder: new text fields start in the first. Tap Shift to switch.")
                      : tr("只有一种输入语言时 Shift 不切换。", "With one input language, Shift doesn't switch."))
                     .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
             }
             .disabled(!model.canSave)
 
-            Section(tr("翻译（@translate）", "Translate (@translate)")) {
+            Section {
                 // @translate writes a line in each, in this order (three versions with only one).
                 LabeledContent(tr("翻译语言", "Languages")) {
                     HStack(spacing: 6) {
@@ -578,10 +580,12 @@ struct SettingsView: View {
                 Text(tr("@translate 按这个顺序每种语言出一行（只有一种就出 3 个版本），和原文同一种语言的跳过。拖动排序。",
                         "@translate writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. Drag to reorder."))
                     .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                SectionTitle(tr("翻译（@translate）", "Translate (@translate)"), icon: CommandIcons.translate)
             }
             .disabled(!model.canSave)
 
-            Section(tr("改写风格（@improve）", "Rewrite Styles (@improve)")) {
+            Section {
                 // Like the languages: the styles added, in the order they're shown; drag to reorder.
                 LabeledContent(tr("风格", "Styles")) {
                     HStack(spacing: 6) {
@@ -611,9 +615,11 @@ struct SettingsView: View {
                        isOn: $model.config.improveTranslates)
                     .disabled(!model.canSave)
                 Text(inputSummary).font(.caption).foregroundStyle(.secondary)
+            } header: {
+                SectionTitle(tr("改写风格（@improve）", "Rewrite Styles (@improve)"), icon: CommandIcons.improve)
             }
 
-            Section(tr("黑话库", "Jargon List")) {
+            Section {
                 LabeledContent(tr("黑话库", "Jargon list")) {
                     HStack(spacing: 8) {
                         Text(model.jargonExists ? tr("\(model.jargonCount) 个词", "\(model.jargonCount) terms") : tr("未设置", "Not set"))
@@ -627,11 +633,14 @@ struct SettingsView: View {
                         "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
                      + (model.jargonExists ? tr("\n文件：", "\nFile: ") + model.jargonPath : ""))
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            } header: {
+                SectionTitle(tr("黑话库", "Jargon List"), icon: CommandIcons.jargon)
             }
 
-            Section(tr("自定义 @ 命令", "Custom @ Commands")) {
+            Section {
                 ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
                     HStack {
+                        IconTile(icon: CommandIcons.icon(for: command))
                         Text("@" + command.name).font(.body.monospaced())
                         Text(UIText.customKind(command)).foregroundStyle(.secondary)
                         if let summary = command.summary {
@@ -648,13 +657,16 @@ struct SettingsView: View {
                 Text(tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
                         "Once saved, type @ and its name at the start of any text field, like @improve."))
                     .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                SectionTitle(tr("自定义 @ 命令", "Custom @ Commands"), icon: CommandIcons.commands)
             }
             .disabled(!model.canSave)
 
-            Section(tr("插件", "Plugins")) {
+            Section {
                 ForEach(model.plugins, id: \.name) { plugin in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
+                            IconTile(icon: CommandIcons.icon(for: plugin))
                             Text("@" + plugin.name).font(.body.monospaced())
                             Text(plugin.manifest.summary?.text(chinese: UIText.chinese) ?? "").foregroundStyle(.secondary).lineLimit(1)
                             Spacer()
@@ -682,10 +694,12 @@ struct SettingsView: View {
                 }
                 if let error = model.pluginError { Text(error).foregroundStyle(.red) }
                 pluginLibrary
+            } header: {
+                SectionTitle(tr("插件", "Plugins"), icon: CommandIcons.plugins)
             }
             .disabled(!model.canSave)
 
-            Section(tr("语音输入", "Voice Input")) {
+            Section {
                 Toggle(tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"), isOn: $model.config.voiceInput)
                     .disabled(!model.canSave)
                 if VoiceInput.isSupported {
@@ -708,9 +722,11 @@ struct SettingsView: View {
                 } else {
                     Text(tr("需要 macOS 26 或更新版本。", "Needs macOS 26 or later.")).font(.caption).foregroundStyle(.secondary)
                 }
+            } header: {
+                SectionTitle(tr("语音输入", "Voice Input"), icon: CommandIcons.voice)
             }
 
-            Section(tr("AI 服务", "AI Provider")) {
+            Section {
                 Picker(tr("服务", "Provider"), selection: $model.config.provider) {
                     ForEach(Provider.offered, id: \.self) { provider in
                         Text(UIText.name(provider)).tag(provider)
@@ -733,10 +749,12 @@ struct SettingsView: View {
                     case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
                     }
                 }
+            } header: {
+                SectionTitle(tr("AI 服务", "AI Provider"), icon: CommandIcons.provider)
             }
             .disabled(!model.canSave)
 
-            Section(tr("高级", "Advanced")) {
+            Section {
                 Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
                     Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
                 }
@@ -750,6 +768,8 @@ struct SettingsView: View {
                 Stepper(value: $model.config.timeoutSeconds, in: 5...60, step: 5) {
                     Text(tr("超时 \(Int(model.config.timeoutSeconds)) 秒", "Timeout \(Int(model.config.timeoutSeconds)) s"))
                 }
+            } header: {
+                SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
             }
             .disabled(!model.canSave)
 
@@ -1510,5 +1530,38 @@ private struct KeyRecorder: View {
             0x65: "F9", 0x6D: "F10", 0x67: "F11", 0x6F: "F12",
         ]
         return name + (keys[event.keyCode] ?? (event.charactersIgnoringModifiers ?? "?").uppercased())
+    }
+}
+
+/// A colored rounded square with a white symbol, as in System Settings and the command list.
+struct IconTile: View {
+    let icon: CandidateView.Icon
+    var size: CGFloat = 20
+
+    var body: some View {
+        Image(systemName: icon.symbol)
+            .font(.system(size: size * 0.55, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(Color(nsColor: icon.color), in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// A section heading with its icon.
+private struct SectionTitle: View {
+    let title: String
+    let icon: CandidateView.Icon
+
+    init(_ title: String, icon: CandidateView.Icon) {
+        self.title = title
+        self.icon = icon
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            IconTile(icon: icon, size: 22)
+            Text(title)
+        }
     }
 }
