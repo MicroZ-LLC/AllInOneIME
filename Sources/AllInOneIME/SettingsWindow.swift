@@ -509,7 +509,6 @@ struct SettingsView: View {
             }
 
             Section {
-                Text(commandsSummary).font(.caption).foregroundStyle(.secondary)
                 // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
                 LabeledContent(tr("执行键", "Action key")) {
                     HStack(spacing: 8) {
@@ -527,6 +526,12 @@ struct SettingsView: View {
                 Text(tr("开着：交给 Claude Code 后台去做，做完弹通知，点通知或用 @tasks 查看；关掉：在终端打开 Claude Code 接着聊。",
                         "On: Claude Code works in the background and you get a notification when it's done (click it, or @tasks); off: Claude Code opens in Terminal to talk."))
                     .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                // An introduction above the settings, not one of them.
+                Text(commandsSummary)
+                    .font(.callout).fontWeight(.regular).foregroundStyle(.secondary)
+                    .textCase(nil).fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 4)
             }
 
             Section(tr("输入", "Input")) {
