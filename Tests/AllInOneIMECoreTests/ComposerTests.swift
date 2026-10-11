@@ -173,6 +173,25 @@ struct ComposerTests {
         return (c, e)
     }
 
+    @Test func improveInsideTranslateIsOffered() {
+        let (c, _) = composer(key: .optionTap)
+        c.commands = Command.builtins
+        _ = c.handleKeyDown(at)
+        type("t", c)
+        _ = c.handleKeyDown(tab)
+        #expect(c.draft == "@translate ")
+        _ = c.handleKeyDown(at)
+        // Inside @translate: @improve is offered (with the commands that fetch something), and "i" stays a letter.
+        #expect(c.paletteMatches.contains(.improve) && !c.paletteMatches.contains(.question))
+        type("i", c)
+        #expect(c.draft == "@translate @i" && c.paletteMatches == [.improve])
+        _ = c.handleKeyDown(tab)
+        #expect(c.draft == "@translate @improve ")
+        // Once there, it isn't offered again.
+        _ = c.handleKeyDown(at)
+        #expect(!c.paletteMatches.contains(.improve) && !c.paletteMatches.contains(.translate))
+    }
+
     @Test func translationsAreRowsWithTheirLanguage() {
         let (c, _) = translating()
         let result = ConversionResult(translations: [Translation(language: OutputLanguage("ja"), line: CandidateLine("すごいね")),

@@ -131,7 +131,8 @@ enum UIText {
     }
 
     /// What the action key does with a command draft, after "⏎ →".
-    static func action(_ command: Command, input: Language, config: Config) -> String {
+    /// `draft`: the text typed, so `@translate @improve …` reads as both.
+    static func action(_ command: Command, input: Language, config: Config, draft: String = "") -> String {
         if command.plugin != nil, command.kind == .run { return tr("运行插件", "run the plugin") }
         if command.kind == .link { return tr("在浏览器打开", "open in the browser") }
         switch command.custom?.type {
@@ -141,8 +142,7 @@ enum UIText {
         case .link?, nil: break
         }
         switch command {
-        case .improve: return action(WritingMode.improve, input: input, config: config)
-        case .translate: return action(WritingMode.translate, input: input, config: config)
+        case .improve, .translate: return action(WritingMode.parse(command, draft).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
         case .claude: return config.claudeInBackground ? tr("交给 Claude 在后台做", "hand it to Claude in the background")
                                                        : tr("在终端打开 Claude Code", "open Claude Code in Terminal")

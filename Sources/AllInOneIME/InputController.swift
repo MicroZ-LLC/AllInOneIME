@@ -942,7 +942,7 @@ final class AllInOneIMEInputController: IMKInputController {
         if composer.sentText.isEmpty {
             return "\(how) → " + tr("用剪贴板里的文字", "use the clipboard text")
         }
-        return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config)
+        return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config, draft: composer.draft)
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -1075,7 +1075,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let command = composer.draftCommand {
                 // Pinyin in an @ command: the action key converts it and runs the command.
                 let input: Language = composer.sentText.containsHan || !composer.engineState.isAsciiMode ? .chinese : .english
-                let action = UIText.action(command, input: input, config: config)
+                let action = UIText.action(command, input: input, config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
                 model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")

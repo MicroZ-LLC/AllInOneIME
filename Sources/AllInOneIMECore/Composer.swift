@@ -462,9 +462,16 @@ public final class Composer {
         return (String(query), true, at)
     }
 
-    /// The commands the list can offer: all of them at the start, inside a text the ones that run there.
+    /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
+    /// and inside `@translate` `@improve` (or the other way round): written together, one request does both.
     private var paletteCommands: [Command] {
-        palette?.nested == true ? commands.filter(CommandPlan.canBeInner) : commands
+        guard palette?.nested == true else { return commands }
+        return commands.filter { CommandPlan.canBeInner($0) || pairsWithDraft($0) }
+    }
+
+    private func pairsWithDraft(_ command: Command) -> Bool {
+        guard let draftCommand, draftCommand.kind == .convert, command.kind == .convert, command != draftCommand else { return false }
+        return !draft.components(separatedBy: " ").contains("@" + command.name)
     }
 
     /// Commands offered for `paletteQuery`, and the highlighted one.
