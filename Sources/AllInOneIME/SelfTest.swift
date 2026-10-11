@@ -1608,6 +1608,13 @@ enum SelfTest {
             print("✗ could not create AllInOneIMEInputController")
             return 1
         }
+        // The user's settings, but results inserted at once: checks read what went in right away (the
+        // typing-out section turns it on for itself).
+        controller.loadSettings = {
+            var config = LiveConfig.current
+            config.typeOut = false
+            return config
+        }
         controller.clientOverride = client
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.saveCommandUsage = { _ in }
@@ -1617,6 +1624,7 @@ enum SelfTest {
         // English only), and the user's back afterwards.
         let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
         settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
         settings.uiLanguage = .chinese
         controller.loadSettings = { SelfTest.settings }
@@ -1662,6 +1670,7 @@ enum SelfTest {
         // The real config (model, styles, credentials) with the new options pinned to known values;
         // sections below change `settings` and the controller follows (nothing is written to disk).
         settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])  // Shift switches
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background

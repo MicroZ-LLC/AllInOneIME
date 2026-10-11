@@ -10,6 +10,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- `@question` (and custom AI commands) put every answer on one line, so code lost its line breaks and indentation; answers keep their lines now (code as plain lines, no Markdown fences). In a terminal it is still one line, since a terminal runs each line it is given.
 - `@translate` into several languages highlighted the original (row 0), so ⏎ at once inserted the untranslated sentence; the first translation is highlighted now.
 
 ## 0.5.0 (2026-10-11)

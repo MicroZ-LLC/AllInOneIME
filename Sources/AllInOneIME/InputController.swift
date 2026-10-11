@@ -1083,7 +1083,9 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         // Model answers are one line already (`Converter.oneLine`); a program's output, a page from
         // @read and code results may have several, and a terminal would run all but the last.
-        let inserted = terminal && command?.kind == .run ? Self.oneLine(stream) : stream
+        // A terminal runs each line it is given: a program's output, and an answer with line breaks (code),
+        // go in as one line there.
+        let inserted = terminal && (command?.kind == .run || command?.kind == .generate) ? Self.oneLine(stream) : stream
         conversionTask = Task { @MainActor [weak self] in
             do {
                 for try await update in inserted {
