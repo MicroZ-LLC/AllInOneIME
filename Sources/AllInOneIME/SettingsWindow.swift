@@ -600,13 +600,18 @@ struct SettingsView: View {
                 // Results typed in character by character, like a person typing.
                 Toggle(tr("逐字上屏", "Type results out"), isOn: $model.config.typeOut)
                 if model.config.typeOut {
-                    Picker(tr("打字速度", "Typing speed"), selection: $model.config.typeOutSpeed) {
-                        Text(tr("慢", "Slow")).tag(TypeOut.Speed.slow)
-                        Text(tr("中", "Normal")).tag(TypeOut.Speed.normal)
-                        Text(tr("快", "Fast")).tag(TypeOut.Speed.fast)
-                        Text(tr("随机", "Random")).tag(TypeOut.Speed.random)
+                    // A log scale: from 6 s a character to 40 a second, the slow end as easy to set.
+                    LabeledContent(tr("打字速度", "Typing speed")) {
+                        HStack(spacing: 8) {
+                            Text(tr("慢", "Slow")).font(.caption).foregroundStyle(.secondary)
+                            Slider(value: Binding(get: { TypeOut.position(of: model.config.typeOutRate) },
+                                                  set: { model.config.typeOutRate = Self.roundedRate(TypeOut.rate(at: $0)) }))
+                                .frame(width: 180)
+                            Text(tr("快", "Fast")).font(.caption).foregroundStyle(.secondary)
+                            Text(Self.rateLabel(model.config.typeOutRate)).monospacedDigit().frame(minWidth: 92, alignment: .trailing)
+                        }
                     }
-                    .pickerStyle(.segmented)
+                    Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
                 }
                 Text(tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。打的时候按 Esc 停下，按别的键就把剩下的一次打完。",
                         "A command's result (a translation, a polish, an answer…) is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
@@ -1015,7 +1020,8 @@ struct SettingsView: View {
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
         .onChange(of: model.config.typeOut) { model.save() }
-        .onChange(of: model.config.typeOutSpeed) { model.save() }
+        .onChange(of: model.config.typeOutRate) { model.save() }
+        .onChange(of: model.config.typeOutVaries) { model.save() }
         .onAppear {
             model.refreshPlugins()
             model.refreshKeys()
@@ -1076,6 +1082,21 @@ struct SettingsView: View {
     private func removeOutputLanguage(_ language: OutputLanguage) {
         guard model.config.outputLanguages.count > 1 else { return }
         model.config.setOrder(model.config.outputLanguages.filter { $0 != language })
+    }
+
+    /// The typing speed as shown: "每秒 16 个字" / "16 a second", or slower than one a second "6 秒一个字" / "6 s each".
+    static func rateLabel(_ rate: Double) -> String {
+        if rate >= 1 { return tr("每秒 \(Int(rate.rounded())) 个字", "\(Int(rate.rounded())) a second") }
+        let seconds = 1 / rate
+        let shown = seconds < 2 ? String(format: "%.1f", seconds) : String(Int(seconds.rounded()))
+        return tr("\(shown) 秒一个字", "\(shown) s each")
+    }
+
+    /// Slider values rounded to what the label shows (whole characters a second, or whole / tenth seconds each).
+    static func roundedRate(_ rate: Double) -> Double {
+        if rate >= 1 { return rate.rounded() }
+        let seconds = 1 / rate
+        return 1 / (seconds < 2 ? (seconds * 10).rounded() / 10 : seconds.rounded())
     }
 
     /// How the chosen action key works, and what Space does with it.

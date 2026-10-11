@@ -256,8 +256,9 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Typing a result out
 
-    /// `Config.typeOut`: how fast (the self-test waits less).
-    var typeOutSpeed: TypeOut.Speed = .normal
+    /// `Config.typeOutRate`, `typeOutVaries`: how fast (the self-test waits less).
+    var typeOutRate = TypeOut.defaultRate
+    var typeOutVaries = false
     var typeOutSleep: @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
     private var typingTask: Task<Void, Never>?
     private var typingRest: [Character] = []
@@ -269,7 +270,7 @@ final class AllInOneIMEInputController: IMKInputController {
         stopTyping(insertingRest: true)
         typingRest = Array(text)
         typingClient = client
-        let delays = TypeOut.delays(for: text, speed: typeOutSpeed)
+        let delays = TypeOut.delays(for: text, rate: typeOutRate, varies: typeOutVaries)
         let sleep = typeOutSleep
         log.notice("typing out \(text.count) characters")
         typingTask = Task { @MainActor [weak self] in
@@ -358,7 +359,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.actionKey = config.actionKey
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
-        typeOutSpeed = config.typeOutSpeed
+        (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
         setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true)), recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
