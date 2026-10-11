@@ -1,7 +1,8 @@
 import Foundation
 
 /// User-editable settings stored as JSON at `~/.config/allinoneime/config.json`.
-/// Every key is optional in the file; missing keys fall back to `Config.default`.
+/// Every key is optional in the file; missing keys fall back to `Config.default`. Keys of older
+/// versions that are gone are ignored, and not written back.
 public struct Config: Codable, Equatable, Sendable {
     /// Where requests go: Amazon Bedrock (the settings below), or an API-key provider with its own
     /// settings (`anthropic`, `gemini`, `openai`).
@@ -26,18 +27,24 @@ public struct Config: Codable, Equatable, Sendable {
     /// Rewrites are in the language the sentence was typed in.
     public var rewriteStyles: [String]
     /// Language of the three main versions (1–3): a sentence in another language is translated,
-    /// one already in this language is polished.
-    public var outputLanguage: Language
-    /// Mode a new text field starts in: pinyin (Chinese) or English letters.
+    /// one already in this language is polished. Always the first of `outputLanguages`.
+    public var outputLanguage: OutputLanguage
+    /// The output languages the user added, in the user's order (dragged in the settings); the first
+    /// is the one in use. A new user has one.
+    public var outputLanguages: [OutputLanguage]
+    /// The input languages added, in the user's order: pinyin (Chinese), English letters, or both
+    /// (Shift switches). The first is the default. A new user has one; with one, Shift doesn't switch.
+    public var inputLanguages: [Language]
+    /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
     public var defaultInput: Language
-    /// In sentence mode, English typed in English mode also collects into a draft that the action key
-    /// sends to the model (false: English letters go straight to the application).
-    public var englishAI: Bool
-    /// Hold the right Option key to dictate into the draft (on-device speech recognition).
+    /// `@improve` also translates, as `@translate @improve` (one request with both).
+    public var improveTranslates: Bool
+    /// Hold the right Option key to dictate (on-device speech recognition): the text is inserted, or
+    /// added to the @ command being written.
     public var voiceInput: Bool
     /// The user's own jargon list for the jargon (黑话) style (see `JargonLibrary`); nil = the default file.
     public var jargonFile: String?
-    /// The key that sends a finished sentence to the model.
+    /// The key that runs the @ command at the start of the draft.
     public var actionKey: ActionKey
     /// Language of the settings window; nil follows the system.
     public var uiLanguage: Language?
@@ -46,6 +53,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
+    /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
+    public var menuBarIcon: Bool
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -75,8 +84,9 @@ public struct Config: Codable, Equatable, Sendable {
         awsProfile: String, region: String?, modelId: String,
         maxTokens: Int, temperature: Double?, timeoutSeconds: Double,
         rewriteStyles: [String] = RewriteStyle.defaultNames,
-        outputLanguage: Language = .english, defaultInput: Language = .chinese,
-        englishAI: Bool = true, voiceInput: Bool = true, jargonFile: String? = nil,
+        outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
+        inputLanguages: [Language] = [.chinese], defaultInput: Language = .chinese,
+        voiceInput: Bool = true, jargonFile: String? = nil,
         actionKey: ActionKey = .enter, uiLanguage: Language? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
         gemini: ProviderSettings = ProviderSettings(), openai: ProviderSettings = ProviderSettings()
@@ -93,14 +103,18 @@ public struct Config: Codable, Equatable, Sendable {
         self.timeoutSeconds = timeoutSeconds
         self.rewriteStyles = rewriteStyles
         self.outputLanguage = outputLanguage
+        self.outputLanguages = outputLanguages ?? [outputLanguage]
+        self.inputLanguages = inputLanguages
         self.defaultInput = defaultInput
-        self.englishAI = englishAI
+        self.improveTranslates = false
         self.voiceInput = voiceInput
         self.jargonFile = jargonFile
         self.actionKey = actionKey
         self.uiLanguage = uiLanguage
         self.customCommands = customCommands
         self.claudeInBackground = true
+        self.menuBarIcon = true
+        normalizeLanguages()
     }
 
     public static let `default` = Config(
@@ -116,7 +130,8 @@ public struct Config: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, defaultInput, englishAI, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
+        case menuBarIcon
         case provider, anthropic, gemini, openai
     }
 
@@ -133,19 +148,60 @@ public struct Config: Codable, Equatable, Sendable {
             : d.temperature
         timeoutSeconds = try c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) ?? d.timeoutSeconds
         rewriteStyles = try c.decodeIfPresent([String].self, forKey: .rewriteStyles) ?? d.rewriteStyles
-        outputLanguage = try c.decodeIfPresent(Language.self, forKey: .outputLanguage) ?? d.outputLanguage
-        defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput) ?? d.defaultInput
-        englishAI = try c.decodeIfPresent(Bool.self, forKey: .englishAI) ?? d.englishAI
+        // A file from before languages could be added had both, in the menu and on Shift: it keeps them.
+        outputLanguages = try c.decodeIfPresent([OutputLanguage].self, forKey: .outputLanguages) ?? [.english, .chinese]
+        inputLanguages = try c.decodeIfPresent([Language].self, forKey: .inputLanguages) ?? [.chinese, .english]
+        // Without the chosen one named, it's the first of the list.
+        outputLanguage = try c.decodeIfPresent(OutputLanguage.self, forKey: .outputLanguage)
+            ?? (c.contains(.outputLanguages) ? outputLanguages.first : nil) ?? d.outputLanguage
+        defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput)
+            ?? (c.contains(.inputLanguages) ? inputLanguages.first : nil) ?? d.defaultInput
+        improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
         uiLanguage = try c.decodeIfPresent(Language.self, forKey: .uiLanguage)
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
+        menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
         openai = try c.decodeIfPresent(ProviderSettings.self, forKey: .openai) ?? d.openai
+        normalizeLanguages()
+    }
+
+    /// The chosen output language and the default input lead their lists (whoever sets
+    /// `outputLanguage` or `defaultInput` moves it to the front); at least one input language; no
+    /// language twice. To reorder, set the list and then its first as the chosen one (`setOrder`).
+    public mutating func normalizeLanguages() {
+        var seenOutput = Set<OutputLanguage>()
+        outputLanguages = [outputLanguage] + outputLanguages.filter { $0 != outputLanguage }
+        outputLanguages = outputLanguages.filter { seenOutput.insert($0).inserted }
+        var seenInput = Set<Language>()
+        inputLanguages = inputLanguages.filter { seenInput.insert($0).inserted }
+        if inputLanguages.isEmpty { inputLanguages = [.chinese] }
+        if inputLanguages.contains(defaultInput) {
+            inputLanguages = [defaultInput] + inputLanguages.filter { $0 != defaultInput }
+        } else {
+            defaultInput = inputLanguages[0]
+        }
+    }
+
+    /// The output languages in this order: the first becomes the one in use.
+    public mutating func setOrder(_ languages: [OutputLanguage]) {
+        guard let first = languages.first else { return }
+        outputLanguages = languages
+        outputLanguage = first
+        normalizeLanguages()
+    }
+
+    /// The input languages in this order: the first becomes the default.
+    public mutating func setOrder(_ languages: [Language]) {
+        guard let first = languages.first else { return }
+        inputLanguages = languages
+        defaultInput = first
+        normalizeLanguages()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -158,14 +214,17 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(timeoutSeconds, forKey: .timeoutSeconds)
         try c.encode(rewriteStyles, forKey: .rewriteStyles)
         try c.encode(outputLanguage, forKey: .outputLanguage)
+        try c.encode(outputLanguages, forKey: .outputLanguages)
+        try c.encode(inputLanguages, forKey: .inputLanguages)
+        try c.encode(improveTranslates, forKey: .improveTranslates)
         try c.encode(defaultInput, forKey: .defaultInput)
-        try c.encode(englishAI, forKey: .englishAI)
         try c.encode(voiceInput, forKey: .voiceInput)
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file
         try c.encode(actionKey, forKey: .actionKey)
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
         try c.encode(customCommands, forKey: .customCommands)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
+        try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

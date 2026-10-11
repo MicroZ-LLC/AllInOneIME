@@ -3,20 +3,18 @@ import Foundation
 /// Two-level input state machine.
 ///
 /// Level one is a local pinyin engine (Rime): typing, selecting and committing words works like any
-/// pinyin input method, and without an @ command that is all it does. A sentence that starts with an
-/// @ command (`Command`, e.g. "@question …") collects into a *draft* (shown inline, not yet in the
-/// document) instead of being inserted; in `sentenceMode` (the original flow) every sentence does. In
-/// English mode, typed letters can start a draft too (`englishAI`), and holding the right Option key
-/// dictates into the draft. The action key (`ActionKey`: Return by default, an Option tap, ⌥Space, or Space on a finished draft) starts
-/// level two: pinyin still being typed is converted first, then the sentence goes to the model, which
-/// streams three versions in the output language and rewrites in the configured styles, or to the
-/// @ command at its start (`Command`).
+/// pinyin input method, and without an @ command that is all it does (commits go straight in). A
+/// sentence that starts with an @ command (`Command`, e.g. "@question …") collects into a *draft*
+/// (shown inline, not yet in the document) instead of being inserted, typed in Chinese or English
+/// mode or dictated (hold the right Option key). The action key (`ActionKey`: Return by default, an
+/// Option tap, ⌥Space, or Space on a finished draft) starts level two: pinyin still being typed is
+/// converted first, then the command runs on the rest of the sentence; `@improve` sends it to the
+/// model, which streams three versions in the output language and rewrites in the configured styles.
 ///
 ///     idle ─letters / voice─▶ drafting ─action key─▶ translating ─final─▶ choosing
 ///      ▲               │   ▲ ◀──────────── Esc / ⌫ / typing more ────────────────────────┘ │
-///      └── ⏎ commits draft ┘ ◀──────────────── Space / digits / ⏎ commit ──────────────────┘
+///      └── ⇧⏎ / Esc ───────┘ ◀──────────────── Space / digits / ⏎ commit ──────────────────┘
 ///
-/// Without sentence mode or an @ command, level one is a plain Rime input method (commits go straight in).
 /// The input controller performs the returned `Effect`s in order. Main thread only.
 public final class Composer {
     public enum Phase: Equatable, Sendable {
@@ -63,6 +61,8 @@ public final class Composer {
         case search(query: String, id: Int)
         /// Open a file or app (an `@open` result was picked).
         case open(path: String)
+        /// Open a `link` command's web address, with the text in it, in the default browser.
+        case openLink(URL)
         /// Start a Claude Code session in a terminal window with `prompt` as its first message (`@claude`).
         case runInTerminal(prompt: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
@@ -73,14 +73,23 @@ public final class Composer {
         case listAgents(id: Int)
         /// Show the settings window (`@settings`).
         case openSettings
+        /// Save `text` to Apple Notes (`@note`); nothing is inserted.
+        case saveNote(text: String)
+        /// Read the reminder in `input` (`@reminder`), by the real clock; it arrives via `receiveReminder`.
+        case previewReminder(input: String, id: Int)
+        /// Add a confirmed reminder to Apple Reminders; `input` is the text it was read from (back in the
+        /// draft if it can't be added).
+        case addReminder(ReminderDraft, input: String)
         /// Run a custom `run` command's program on `input`; what it prints arrives via `receive`.
         case startRun(Command, input: String, id: Int)
+        /// Send `text` to `recipient` with a send command (`@imessage`): the user confirmed it in the panel.
+        case sendMessage(Recipient, text: String, command: Command)
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
         case commandUsed(String)
         /// A text with commands inside it (`CommandPlan`): run the inner ones, then `outer` (nil: improve)
         /// on the result; it arrives via `receive`.
         case startPlan(outer: Command?, plan: CommandPlan, id: Int)
-        /// Put `text` on the clipboard (⌘C on a result).
+        /// Put `text` on the clipboard (⌘C on a result, or a note that can't be inserted: `Messages.noteNotSaved`).
         case copy(String)
         /// Read the clipboard's text for the draft (⌘V) and hand it to `pasted(_:id:)`, after the key
         /// has been answered: the system may ask the user first.
@@ -91,8 +100,6 @@ public final class Composer {
         case hidePanel
         /// Briefly show a status message near the caret.
         case notice(String)
-        /// Sentence mode was toggled; persist it.
-        case sentenceModeChanged(Bool)
         /// The right Option key went down on its own: call `voiceHoldElapsed` after `delay` seconds.
         case armVoice(delay: Double)
         /// Start recording and recognizing speech in `language`.
@@ -126,10 +133,16 @@ public final class Composer {
             case version
             /// A rewrite in the sentence's own language; the value is the style's Chinese name ("简洁", …).
             case rewrite(String)
+            /// The sentence in one of several translation languages (`@translate`); the value is its code.
+            case translation(String)
             /// What a `.generate` command (`@question`) wrote, or a `.run` command's program printed.
             case answer
             /// A file or app found by `@open`; picking it opens it instead of inserting anything.
             case file(path: String)
+            /// The reminder read from an `@reminder` text; picking it adds it to Reminders.
+            case reminder(ReminderDraft)
+            /// The message a send command (`@imessage`) will send, to confirm; picking it sends it.
+            case send
 
             public var isRewrite: Bool {
                 if case .rewrite = self { return true }
@@ -153,8 +166,6 @@ public final class Composer {
         public var didNotHear: String
         public var chineseMode: String
         public var englishMode: String
-        public var sentenceModeOn: String
-        public var sentenceModeOff: String
         public var noResult: String
         public var typeAfterCommand: String
         public var nothingFound: String
@@ -172,10 +183,23 @@ public final class Composer {
         public var pasteTooLong: String
         /// ⌘V in a draft with no text on the clipboard (or reading it isn't allowed).
         public var nothingToPaste: String
+        /// `@reminder` with only a time ("@reminder 明天下午3点"): nothing to be reminded of.
+        public var reminderWithoutTitle: String
+        /// ⌘V in an `@note` draft with more on the clipboard than `Composer.maxNoteLength`.
+        public var noteTooLong: String
+        /// A `link` command's text is longer than `LinkTemplate.maxInputLength`.
+        public var linkTooLong: String
+        /// `@py` / `@js` code that printed nothing and ended without a value.
+        public var noOutput: String
+        /// A note with line breaks was left unsaved (the text field lost focus, ⇧⏎): it isn't inserted, its text
+        /// is on the clipboard instead.
+        public var noteNotSaved: String
+        /// ⏎ on a send command (`@imessage`) before a recipient was picked.
+        public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
 
         public static let chinese = Messages(
             notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
-            chineseMode: "中", englishMode: "英", sentenceModeOn: "整句模式：开", sentenceModeOff: "整句模式：关", noResult: "没有得到结果",
+            chineseMode: "中", englishMode: "英", noResult: "没有得到结果",
             typeAfterCommand: "在命令后面写上内容", nothingFound: "没有找到", copied: "已复制",
             openedTerminal: "已在终端打开 Claude Code",
             secureInputTerminal: "系统安全输入已开启（密码框或锁屏），没有打开 Claude Code",
@@ -183,11 +207,16 @@ public final class Composer {
             startedInBackground: "已在后台开始，做完会通知你；@tasks 查看",
             secureInputCommand: "系统安全输入已开启（密码框或锁屏），没有运行命令",
             pasteTooLong: "剪贴板里的文字太长：最多 \(Composer.maxPasteLength) 字",
-            nothingToPaste: "剪贴板里没有能用的文字")
+            nothingToPaste: "剪贴板里没有能用的文字",
+            reminderWithoutTitle: "写上要提醒的事，比如「明天下午3点给张三打电话」",
+            noteTooLong: "剪贴板里的文字太长：最多 \(Composer.maxNoteLength) 字",
+            linkTooLong: "文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字",
+            noOutput: "代码没有输出：最后写一个表达式，或者把结果打印出来",
+            noteNotSaved: "笔记还没存，原文已复制到剪贴板")
         public static let english = Messages(
             notReady: "Loading the dictionaries, one moment", holdToTalk: "Hold right ⌥ to talk",
             didNotHear: "Didn't catch that, try again", chineseMode: "Chinese", englishMode: "English",
-            sentenceModeOn: "Sentence mode: on", sentenceModeOff: "Sentence mode: off", noResult: "No result",
+            noResult: "No result",
             typeAfterCommand: "Type something after the command", nothingFound: "Nothing found", copied: "Copied",
             openedTerminal: "Opened Claude Code in Terminal",
             secureInputTerminal: "Secure input is on (a password field or the lock screen): Claude Code was not opened",
@@ -195,9 +224,15 @@ public final class Composer {
             startedInBackground: "Started in the background; you'll be notified when it's done (@tasks)",
             secureInputCommand: "Secure input is on (a password field or the lock screen): the command was not run",
             pasteTooLong: "The clipboard text is too long: \(Composer.maxPasteLength) characters at most",
-            nothingToPaste: "No text on the clipboard to use")
+            nothingToPaste: "No text on the clipboard to use",
+            reminderWithoutTitle: "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”",
+            noteTooLong: "The clipboard text is too long: \(Composer.maxNoteLength) characters at most",
+            linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
+            noOutput: "The code printed nothing: end it with an expression, or print the result",
+            noteNotSaved: "The note wasn't saved; its text is on the clipboard",
+            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)")
     }
-    /// The command of the request in level two (nil: improve, as without one).
+    /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
     /// The commands "@" offers: the built-in ones and the user's (`Command.catalog`).
     public var commands: [Command] = Command.builtins
@@ -206,12 +241,26 @@ public final class Composer {
     public var commandUsage = CommandUsage()
     /// `@claude` starts a background session instead of a Terminal window.
     public var claudeInBackground = false
+    /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
+    public private(set) var pendingReminder: ReminderDraft?
     /// Files and apps found for `@open`.
     public private(set) var searchResults: [SearchResult] = []
     /// Results for the `@open` text as it is typed (`liveQuery`), and the highlighted one.
     public private(set) var liveResults: [SearchResult] = []
     private var liveResultsQuery: String?
     public private(set) var liveHighlight = 0
+    /// ↑↓ moved the highlight among these results (back to the first counts too): it opens (`opensLiveResult`).
+    /// Reset with the highlight when the results or the text change.
+    private var liveHighlightMoved = false
+    /// A send command's recipient (`@imessage`), once picked; until then the text after the command
+    /// finds one (`recipientQuery`).
+    public private(set) var messageRecipient: Recipient?
+    /// Recipients found for `recipientQuery` (`receiveRecipients`), what the panel says about them (no
+    /// access to Contacts …), and the highlighted one.
+    public private(set) var recipientResults: [Recipient] = []
+    public private(set) var recipientNote: String?
+    private var recipientResultsQuery: String?
+    public private(set) var recipientHighlight = 0
     /// A command that types Latin letters (`@open`, code) switched the engine to them; Chinese comes back after.
     private var restoreChineseAfterOpen = false
     /// Letters were switched on for a command inside the text, whose argument starts at this offset:
@@ -236,22 +285,24 @@ public final class Composer {
     public var pastesIntoDraft = true
     /// Whether secure input is on anywhere (set by the input controller). Nothing is sent to a model
     /// then: a terminal command doesn't start Claude Code, and its text stays in the draft. (The other
-    /// commands are refused by the controller, which sends their requests.)
+    /// commands are refused by the controller, which sends their requests; `@note` and `@reminder`
+    /// stay on this Mac and go ahead.)
     public var secureInputActive: () -> Bool = { false }
-    /// Confirmed text waiting for level two (an @ command, or any sentence in sentence mode).
-    public private(set) var draft = ""
+    /// Confirmed text waiting for level two: an @ command and the sentence after it.
+    public private(set) var draft = "" {
+        // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
+        // highlight starts at the first again (`opensLiveResult`).
+        didSet { if draft != oldValue { resetLiveHighlight() } }
+    }
     /// Last known state of the level-one engine.
     public private(set) var engineState = EngineSnapshot.empty
     public private(set) var result = ConversionResult.empty
     public private(set) var voice = Voice.off
-    /// Sentence mode (the original flow): text collects into a draft without an @ command too, and
-    /// the action key improves it. Off: a regular input method, with drafts only for @ commands.
-    public var sentenceMode: Bool
-    /// In sentence mode, English-mode typing starts a draft (otherwise letters go to the application).
-    public var englishAI: Bool
+    /// The input languages on (`Config.inputLanguages`): with one, a tap of Shift doesn't switch.
+    public var inputLanguages: [Language] = Language.allCases
     /// Holding the right Option key records speech.
     public var voiceEnabled: Bool
-    /// The key that sends the sentence to the model.
+    /// The key that runs the @ command at the start of the draft.
     public var actionKey: ActionKey
     /// The action key was pressed during dictation: the sentence goes once the transcript is final.
     public private(set) var actsAfterVoice = false
@@ -272,16 +323,11 @@ public final class Composer {
     /// Which Option key went down on its own, and when (nil once anything else happens).
     private var optionPressed: (keyCode: UInt16, at: TimeInterval)?
     private var warnedNotReady = false
-    /// The draft was started by English-mode typing or English dictation.
-    private var draftStartedLatin = false
-    /// The last thing added to the draft was a transcript (Space then translates right away).
+    /// The last thing added to the draft was a transcript (Space then runs the command right away).
     private var draftEndsWithVoice = false
 
-    public init(engine: PinyinEngine? = nil, sentenceMode: Bool = false, englishAI: Bool = true, voiceEnabled: Bool = true,
-                actionKey: ActionKey = .enter) {
+    public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = true, actionKey: ActionKey = .enter) {
         self.engine = engine
-        self.sentenceMode = sentenceMode
-        self.englishAI = englishAI
         self.voiceEnabled = voiceEnabled
         self.actionKey = actionKey
         engineState = engine?.snapshot() ?? .empty
@@ -298,10 +344,10 @@ public final class Composer {
         }
     }
 
-    /// An English draft: started in English mode and still free of Chinese text. Keys that end
-    /// typing (Return, Tab, arrows, Esc, shortcuts) insert it as typed and then reach the application;
-    /// ⌘V instead takes the clipboard's text into the draft (`pasted`).
-    public var isLatinDraft: Bool { draftStartedLatin && !draft.isEmpty && !draft.containsHan }
+    /// A draft still free of Chinese text, e.g. "@improve this is …" typed in English mode: a shortcut
+    /// (⌘A, ⌘⏎ …) inserts it as typed and then reaches the application; ⌘V instead takes the
+    /// clipboard's text into the draft (`pasted`).
+    public var isLatinDraft: Bool { !draft.isEmpty && !draft.containsHan }
 
     /// Whether Space on the draft starts level two now. Only with the `space` action key (in English
     /// mode the first Space after a word is a space; right after dictation one Space is enough);
@@ -335,11 +381,15 @@ public final class Composer {
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
+        // In a note, a reminder, a search, code or a terminal command, an "@name" after the command is just text:
+        // none runs there (`@py x = "@stock AAPL"`).
+        let asTyped = takesTextAsTyped
         var out = ""
         var i = 0
         while i < chars.count {
             guard chars[i] == "@" else {
-                out.append(chars[i])
+                // A note keeps its lines (`pasted`); the draft is shown on one line.
+                if chars[i].isNewline { out += Self.lineBreak } else { out.append(chars[i]) }
                 i += 1
                 continue
             }
@@ -347,7 +397,7 @@ public final class Composer {
             while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
             let name = String(chars[(i + 1)..<j]).lowercased()
             let afterWord = i > 0 && chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)
-            if !afterWord, names.contains(name), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
+            if !afterWord, i == 0 || !asTyped, names.contains(name), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
                 out += String(chars[(i + 1)..<j]) + " › "  // a chosen command
                 i = chars[j] == " " ? j + 1 : j
             } else if i == paletteAt, pickingCommand {
@@ -361,13 +411,18 @@ public final class Composer {
                 i += 1
             }
         }
+        // A send command's recipient, picked: "imessage › 张三 › 你好".
+        if let recipient = messageRecipient, let command = draftCommand, out.hasPrefix(command.name + " › ") {
+            out.insert(contentsOf: recipient.displayName + " › ", at: out.index(out.startIndex, offsetBy: command.name.count + 3))
+        }
         return out
     }
 
     /// Level-two rows: "0" the sentence as typed, "1"–"3" the versions in the output language, then
     /// the rewrites in the configured styles, numbered on from 4. A rewrite is shown once it has fully
     /// arrived, and only if it changes the wording (not just punctuation) and repeats no other row.
-    /// For `@question` / `@claude`: "0" the text sent and "1" the answer; for `@open`: the files found.
+    /// For `@question` / `@claude`: "0" the text sent and "1" the answer; for `@open`: the files found;
+    /// for `@reminder`: "1" the reminder to add.
     public var choices: [Choice] {
         guard isLevelTwo else { return [] }
         switch activeCommand?.kind {
@@ -376,13 +431,18 @@ public final class Composer {
                 Choice(label: String($0.offset + 1), kind: .file(path: $0.element.path), text: $0.element.name,
                        isComplete: true)
             }
-        case .generate?, .run?:
+        case .reminder?:
+            return pendingReminder.map { [Choice(label: "1", kind: .reminder($0), text: $0.title, isComplete: true)] } ?? []
+        case .generate?, .run?, .link?:
             var out = [Choice(label: "0", kind: .original, text: sentText, isComplete: true)]
             if let line = result.versions.first {
                 out.append(Choice(label: "1", kind: .answer, text: line.text, isComplete: line.isComplete))
             }
             return out
-        case .convert?, .terminal?, .settings?, nil:
+        case .message?:
+            guard let line = result.versions.first, !line.text.isEmpty else { return [] }
+            return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
+        case .convert?, .terminal?, .settings?, .note?, nil:
             break
         }
         let original = sentText
@@ -395,7 +455,12 @@ public final class Composer {
             out.append(Choice(label: String(label), kind: .version, text: line.text, isComplete: line.isComplete))
             label += 1
         }
-        var next = 4
+        for translation in result.translations where label <= 9 {
+            out.append(Choice(label: String(label), kind: .translation(translation.language.code), text: translation.line.text,
+                              isComplete: translation.line.isComplete))
+            label += 1
+        }
+        var next = max(4, label)
         for rewrite in result.rewrites where rewrite.line.isComplete && next <= 9 {
             let key = rewrite.line.text.wordingKey
             guard !key.isEmpty, shownWordings.insert(key).inserted else { continue }
@@ -410,15 +475,15 @@ public final class Composer {
     public var highlighted: Int {
         let all = choices
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
-        if activeCommand?.kind == .search || activeCommand?.kind == .agents { return 0 }
+        if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
+            || activeCommand?.kind == .message { return 0 }
         if case .translating = phase { return 1 }
         if let i = all.firstIndex(where: { $0.kind == .version || $0.kind == .answer }) { return i }
         if let i = all.firstIndex(where: { $0.kind.isRewrite }) { return i }
         return 0
     }
 
-    /// What level two works on: the draft, or for a command draft ("@question 量子计算") the text after
-    /// the command.
+    /// What level two works on: the text after the draft's command ("@question 量子计算" → "量子计算").
     public var sentText: String {
         Command.parse(draft, in: commands).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
     }
@@ -431,19 +496,36 @@ public final class Composer {
 
     /// The "@letters" being typed: at the start of the draft, or (`nested`) inside a command's text
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
+    /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
         guard !isLevelTwo, voice == .off, !engineState.isComposing, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
         guard query.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
         let before = draft[draft.index(before: at)]
-        guard draftCommand != nil, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
+        guard draftCommand != nil, !takesTextAsTyped, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
         return (String(query), true, at)
     }
 
-    /// The commands the list can offer: all of them at the start, inside a text the ones that run there.
+    /// The draft is a note, a reminder, a search, code (`@py`, `@js`) or a terminal command (`@claude`, a custom
+    /// one): no command inside its text runs first (`startAction`; Terminal and Claude Code get the text as typed),
+    /// so an "@" in it is just text (no list to pick a command from, none shown as picked).
+    private var takesTextAsTyped: Bool {
+        guard let command = draftCommand else { return false }
+        return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
+            || command.isCode
+    }
+
+    /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
+    /// and inside `@translate` `@improve` (or the other way round): written together, one request does both.
     private var paletteCommands: [Command] {
-        palette?.nested == true ? commands.filter(CommandPlan.canBeInner) : commands
+        guard palette?.nested == true else { return commands }
+        return commands.filter { CommandPlan.canBeInner($0) || pairsWithDraft($0) }
+    }
+
+    private func pairsWithDraft(_ command: Command) -> Bool {
+        guard let draftCommand, draftCommand.kind == .convert, command.kind == .convert, command != draftCommand else { return false }
+        return !draft.components(separatedBy: " ").contains("@" + command.name)
     }
 
     /// Commands offered for `paletteQuery`, and the highlighted one.
@@ -498,13 +580,96 @@ public final class Composer {
         liveQuery != nil && liveResultsQuery == liveQuery ? liveResults : []
     }
 
-    /// Files and apps for `query` (`liveQuery`): ↑↓ pick, Tab completes the path, the action key opens.
+    /// Whether the action key opens the highlighted result as you type. Not the first when every row is a
+    /// content match: nothing is named like the text, so the first may have little to do with it, and the
+    /// key lists them to choose from instead, as before the results arrive. One picked with ↑↓ opens, the
+    /// first too (↓ then ↑, or round from the last): what the user moved to, not where the highlight started.
+    public var opensLiveResult: Bool {
+        let live = currentLiveResults
+        return live.indices.contains(liveHighlight) && (liveHighlightMoved || !live.allSatisfy(\.matchedContent))
+    }
+
+    /// The text after a send command (`@imessage zs`) while no recipient is picked: what finds one
+    /// (`receiveRecipients`). Empty right after the command: the recent recipients.
+    public var recipientQuery: String? {
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, pickingRecipient else { return nil }
+        return sentText
+    }
+
+    /// A send command without its recipient yet.
+    private var pickingRecipient: Bool { messageRecipient == nil && draftCommand?.kind == .message }
+
+    /// The recipients found that belong to the current `recipientQuery`.
+    public var currentRecipients: [Recipient] {
+        recipientQuery != nil && recipientResultsQuery == recipientQuery ? recipientResults : []
+    }
+
+    /// Recipients for `query` (`recipientQuery`) and a note for the panel (nil: none): ↑↓ pick, Tab, ⏎,
+    /// a digit or a click chooses one.
+    public func receiveRecipients(_ results: [Recipient], note: String? = nil, for query: String) -> [Effect] {
+        guard query == recipientQuery else { return [] }
+        recipientResults = results
+        recipientNote = note
+        recipientResultsQuery = query
+        recipientHighlight = 0
+        return [.showPanel]
+    }
+
+    /// Picks a found recipient: the text typed to find them goes, and the message follows (in the input
+    /// mode from before the command).
+    private func pickRecipient(at index: Int) -> [Effect] {
+        let found = currentRecipients
+        guard found.indices.contains(index), let command = draftCommand else { return [] }
+        messageRecipient = found[index]
+        draft = "@\(command.name) "
+        clearRecipientResults()
+        setLevelOnePhase()
+        return [.updateMarkedText, .showPanel]
+    }
+
+    private func clearRecipientResults() {
+        recipientResults = []
+        recipientNote = nil
+        recipientResultsQuery = nil
+        recipientHighlight = 0
+    }
+
+    /// Keys while a recipient is picked: ↑↓ move, Tab picks, so do digits after a name (a number
+    /// being typed takes them). Nil: the key acts as usual.
+    private func handleRecipientKey(_ event: KeyEvent) -> Response? {
+        guard let query = recipientQuery, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
+        let found = currentRecipients
+        guard !found.isEmpty else { return nil }
+        switch event.keyCode {
+        case VirtualKey.up, VirtualKey.down:
+            recipientHighlight = (recipientHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + found.count) % found.count
+            return .consumed([.showPanel])
+        case VirtualKey.tab:
+            return .consumed(pickRecipient(at: recipientHighlight))
+        default:
+            break
+        }
+        if let text = event.printableText, text.count == 1, let n = text.first?.wholeNumberValue, n >= 1, found.indices.contains(n - 1),
+           !query.isEmpty, !query.contains(where: { $0.isNumber }) {
+            return .consumed(pickRecipient(at: n - 1))
+        }
+        return nil
+    }
+
+    /// Files and apps for `query` (`liveQuery`): ↑↓ pick, Tab completes the path, the action key opens
+    /// (`opensLiveResult`).
     public func receiveLive(_ results: [SearchResult], for query: String) -> [Effect] {
         guard query == liveQuery else { return [] }
         liveResults = results
         liveResultsQuery = query
-        liveHighlight = 0
+        resetLiveHighlight()
         return [.showPanel]
+    }
+
+    /// The highlight back on the first result as you type, where it starts rather than moved to.
+    private func resetLiveHighlight() {
+        liveHighlight = 0
+        liveHighlightMoved = false
     }
 
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.
@@ -574,17 +739,17 @@ public final class Composer {
             return response
         }
         if modifiers.contains(.command) {
-            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …).
-            return isLatinDraft && !isLevelTwo ? Response(effects: commitAll(), handled: false) : .passThrough
+            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
+            // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
+            // the clipboard as it was, not the note put there by `commitAll`).
+            return isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
         }
         if event.keyCode == VirtualKey.space, modifiers == [.shift] {
-            // Typing English, Shift is often still down for the Space after a capital ("I am").
-            if isLatinDraft && !isLevelTwo {
-                return handleLevelOne(KeyEvent(keyCode: VirtualKey.space, characters: " "), afterVoice: afterVoice)
-            }
-            // English typed straight into the app (no draft): ⇧Space is the app's space.
-            if engineState.isAsciiMode, draft.isEmpty, !isLevelTwo { return .passThrough }
-            return toggleSentenceMode()
+            // ⇧Space is Space in every state (Shift is often still down after a capital: "I am").
+            // librime never sees Shift+space, which a schema may bind (e.g. to full-width).
+            var space = event
+            space.modifiers.remove(.shift)
+            return isLevelTwo ? handleLevelTwo(space) : handleLevelOne(space, afterVoice: afterVoice)
         }
         return isLevelTwo ? handleLevelTwo(event) : handleLevelOne(event, afterVoice: afterVoice)
     }
@@ -613,7 +778,10 @@ public final class Composer {
         let toggle = isShift && !modifiers.contains(.shift)
             && shiftPressedAt.map { timestamp - $0 <= Self.shiftTapWindow } == true
         shiftPressedAt = nil
-        return toggle && voice == .off ? toggleLatin() : []
+        // With one input language Shift stays put, except to leave the letters a command switched to
+        // (Chinese inside `@python print("…")`).
+        let switches = inputLanguages.count > 1 || restoreChineseAfterOpen || nestedLatinFrom != nil
+        return toggle && voice == .off && switches ? toggleLatin() : []
     }
 
     static let shiftTapWindow: TimeInterval = 0.5
@@ -689,13 +857,14 @@ public final class Composer {
     /// A candidate clicked in the panel.
     public func choose(index: Int) -> [Effect] {
         if isLevelTwo { return commitChoice(at: index) }
+        if recipientQuery != nil { return pickRecipient(at: index) }
         // A command in the list (`index` among the rows shown).
         if paletteQuery != nil {
             let matches = paletteMatches
             return matches.indices.contains(paletteFirstVisible + index) ? complete(matches, at: paletteFirstVisible + index) : []
         }
         guard let engine, engineState.isComposing, engine.selectCandidate(onPage: index) else { return [] }
-        return afterEngineChange(engine, effects: [], picked: true)
+        return afterEngineChange(engine, effects: [])
     }
 
     /// Switches level one to Chinese (pinyin) or English input, e.g. to the configured default.
@@ -713,10 +882,21 @@ public final class Composer {
     public func receive(_ newResult: ConversionResult, isFinal: Bool, id: Int) -> [Effect] {
         guard phase == .translating(id: id) else { return [] }
         result = newResult
+        if isFinal, activeCommand?.kind == .link {
+            // The commands inside a link's text have run: open it with their outputs.
+            let text = result.versions.first?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            // Counted when it started (with the commands inside).
+            switch link(activeCommand!, text, counted: true) {
+            case let .opened(effects): return effects
+            case let .refused(message):
+                phase = .failed(message)
+                return [.showPanel]
+            }
+        }
         if isFinal {
             // Versions that only repeat the original are hidden, but the answer still counts.
             let answered = !result.versions.isEmpty || choices.contains { $0.kind != .original && !$0.text.isEmpty }
-            phase = answered ? .choosing : .failed(messages.noResult)
+            phase = answered ? .choosing : .failed(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
         }
         return [.showPanel]
     }
@@ -735,6 +915,30 @@ public final class Composer {
         return [.showPanel]
     }
 
+    /// The reminder read from the `@reminder` text (`.previewReminder`): one row to confirm (Space, ⏎ or 1
+    /// adds it, Esc or another digit goes back to the wording), or a hint when the text holds only a time
+    /// (⏎, Space and Esc then go back to it).
+    public func receiveReminder(_ reminder: ReminderDraft, id: Int) -> [Effect] {
+        guard phase == .translating(id: id) else { return [] }
+        if reminder.title.isEmpty {
+            phase = .failed(messages.reminderWithoutTitle)
+        } else {
+            pendingReminder = reminder
+            phase = .choosing
+        }
+        return [.showPanel]
+    }
+
+    /// A note or reminder that couldn't be saved (no permission, no account, a script error): its text comes
+    /// back as the draft it was ("@note …", "@reminder …"), to fix and send again, if nothing is being typed
+    /// here. Nil otherwise: the controller then puts the text on the clipboard instead.
+    public func restoreDraft(_ command: Command, text: String) -> [Effect]? {
+        guard phase == .idle, draft.isEmpty, voice == .off, !(engine?.snapshot().isComposing ?? false) else { return nil }
+        draft = "@\(command.name) " + text
+        setLevelOnePhase()
+        return [.updateMarkedText, .showPanel]
+    }
+
     // MARK: - Voice feedback
 
     /// Speech recognized so far (shown inline while recording).
@@ -747,8 +951,8 @@ public final class Composer {
         return [.updateMarkedText, .showPanel]
     }
 
-    /// The final transcript: it continues the draft (one is pending, or sentence mode is on) or is
-    /// inserted. If the action key was pressed during dictation, the sentence then goes to the model.
+    /// The final transcript: it continues the draft (an @ command is pending) or is inserted. If the
+    /// action key was pressed during dictation, the command then runs.
     public func voiceFinished(_ text: String, id: Int) -> [Effect] {
         guard voice.id == id else { return [] }
         voice = .off
@@ -759,11 +963,10 @@ public final class Composer {
             setLevelOnePhase()
             return [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel, .notice(messages.didNotHear)]
         }
-        guard !draft.isEmpty || sentenceMode else {
+        guard !draft.isEmpty else {
             setLevelOnePhase()
             return [.commit(spoken), wantsPanel ? .showPanel : .hidePanel]
         }
-        if draft.isEmpty { draftStartedLatin = engineState.isAsciiMode && !spoken.containsHan }
         draft += appendix(spoken)
         draftEndsWithVoice = true
         setLevelOnePhase()
@@ -783,7 +986,8 @@ public final class Composer {
     // MARK: - Ending the composition from outside
 
     /// The application ends the composition (focus change, click elsewhere, input source switch):
-    /// everything pending is committed as converted text, including speech recognized so far.
+    /// everything pending is committed as converted text, including speech recognized so far (but not a
+    /// note with line breaks: `finishAsTyped`).
     public func commitAll() -> [Effect] {
         var effects: [Effect] = []
         var spoken = ""
@@ -796,11 +1000,11 @@ public final class Composer {
             text += engine.commitComposition() ?? ""
         }
         text += spoken.isEmpty ? "" : separator(before: spoken, after: text) + spoken
-        return effects + finish(committing: text)
+        return effects + finishAsTyped(text)
     }
 
-    /// Commits everything exactly as typed (draft plus raw letters), without converting.
-    /// Speech being recognized is dropped (this runs when a password field takes over).
+    /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
+    /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over).
     public func commitAsTyped() -> [Effect] {
         var effects: [Effect] = []
         if let id = voice.id { effects = cancelVoice(id, refresh: false) }
@@ -808,7 +1012,24 @@ public final class Composer {
         if !isLevelTwo, let engine, engine.snapshot().isComposing {
             text += engine.rawInput
         }
-        return effects + finish(committing: text)
+        return effects + finishAsTyped(text)
+    }
+
+    /// The draft is a note with line breaks (pasted, or back from a save that failed). Inserted as typed, each
+    /// break would be a Return: in a terminal every line would run as a command.
+    private var draftIsNoteWithLines: Bool {
+        draftCommand?.kind == .note && draft.contains(where: \.isNewline)
+    }
+
+    /// Ends the composition inserting `text`, the draft as typed (and what is still being typed after it). A note
+    /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
+    /// says it wasn't saved. A one-line note goes in like any other draft.
+    private func finishAsTyped(_ text: String) -> [Effect] {
+        guard draftIsNoteWithLines, let content = Command.parse(text, in: commands)?.content else {
+            return finish(committing: text)
+        }
+        let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return finish(committing: "") + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
     }
 
     /// Re-reads the engine (e.g. after it became available).
@@ -838,7 +1059,6 @@ public final class Composer {
                 // "@" first: the command palette ("@question …").
                 if event.printableText == "@" {
                     draft = "@"
-                    draftStartedLatin = true
                     paletteHighlight = 0
                     setLevelOnePhase()
                     return .consumed([.updateMarkedText, .showPanel])
@@ -858,25 +1078,21 @@ public final class Composer {
         if event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter { rimeEvent.modifiers.remove(.shift) }
         guard let key = RimeKey.map(rimeEvent) else {
             // Characters librime has no key for (é, ß, other scripts) belong to the sentence too.
-            if !composing, let text = event.printableText, takesIntoDraft(text) {
+            if !composing, !draft.isEmpty, let text = event.printableText {
                 appendTyped(text, afterVoice: afterVoice)
                 return .consumed([.updateMarkedText, .showPanel])
             }
             return pending ? .consumed() : .passThrough
         }
-        let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
         let handled = engine.processKey(key.keycode, mask: key.mask)
         var effects: [Effect] = []
         if let committed = engine.takeCommit(), !committed.isEmpty {
-            // Words picked from a composition (Space, digits, punctuation) belong to the sentence;
-            // Return commits the letters as typed.
-            effects += accept(committed, picked: composing && !isReturn)
+            effects += accept(committed)
         }
         engineState = engine.snapshot()
         var consumed = handled
-        if !handled, !engineState.isComposing, let text = event.printableText, takesIntoDraft(text) {
-            // Digits, Latin-mode letters etc. after Chinese text stay part of the sentence; in English
-            // mode they can start one.
+        if !handled, !engineState.isComposing, !draft.isEmpty, let text = event.printableText {
+            // Digits, Latin-mode letters etc. continue the draft.
             appendTyped(text, afterVoice: afterVoice)
             consumed = true
         }
@@ -895,7 +1111,7 @@ public final class Composer {
     /// The most text ⌘V puts into a draft, in Characters (a long paragraph; the answer grows with it).
     public static let maxPasteLength = 2000
 
-    /// ⌘V or ⌃V with a draft pending ("@improve ", a command name being typed, a sentence-mode draft):
+    /// ⌘V or ⌃V with a draft pending ("@improve ", a command name being typed):
     /// the clipboard's text will join the draft instead of the document (`pasted`), so the action key
     /// then runs on it. Pinyin still being typed is converted first, and "@imp" picks its command. Nil
     /// without a draft, and after "@" alone (a mention): the key then does what it does in the app.
@@ -924,14 +1140,33 @@ public final class Composer {
         guard pendingPaste == id else { return [] }
         pendingPaste = nil
         guard !isLevelTwo, voice == .off, !draft.isEmpty else { return [] }
+        // A note keeps its lines and may be longer; every other command takes one line (its answer has one per row).
+        let note = draftCommand?.kind == .note
+        let limit = note ? Self.maxNoteLength : Self.maxPasteLength
+        let tooLong = note ? messages.noteTooLong : messages.pasteTooLong
         // Far too much is refused before it is looked at (this runs on the main thread).
-        if let clipboard, clipboard.utf16.count > Self.maxPasteLength * 8 { return [.notice(messages.pasteTooLong)] }
-        let text = clipboard.map(Self.oneLine) ?? ""
+        if let clipboard, clipboard.utf16.count > limit * 8 { return [.notice(tooLong)] }
+        let text = clipboard.map(note ? Self.noteText : Self.oneLine) ?? ""
         guard !text.isEmpty else { return [.notice(pasteForEmptyCommand ? messages.typeAfterCommand : messages.nothingToPaste)] }
-        guard text.count <= Self.maxPasteLength else { return [.notice(messages.pasteTooLong)] }
+        guard text.count <= limit else { return [.notice(tooLong)] }
         draft += text
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
+    }
+
+    /// The most text a note takes from the clipboard, in Characters (it keeps its lines).
+    public static let maxNoteLength = 20_000
+
+    /// How a line break of a note shows in the one-line draft.
+    static let lineBreak = " ↵ "
+
+    /// Clipboard text for a note: as it is, its lines too, without the blank space at its ends and without
+    /// control characters other than tabs and line breaks (they would only garble the draft and the note).
+    static func noteText(_ text: String) -> String {
+        let kept = String(String.UnicodeScalarView(text.unicodeScalars.filter { scalar in
+            scalar.properties.generalCategory != .control || scalar == "\t" || scalar == "\n" || scalar == "\r" || scalar == "\u{85}"
+        }))
+        return kept.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Clipboard text as one line for the draft (the improve answer has one line per version): line
@@ -1021,7 +1256,7 @@ public final class Composer {
         paletteHighlight = 0
         // File names, paths and code are typed as letters; the input mode comes back when the command is
         // done (inside a text: once its argument is typed and a space follows).
-        if command.typesLatin, let engine, !engine.snapshot().isAsciiMode {
+        if command.typesLatin || command.kind == .message && !nested, let engine, !engine.snapshot().isAsciiMode {
             engine.setAsciiMode(true)
             restoreChineseAfterOpen = true
             engineState = engine.snapshot()
@@ -1039,7 +1274,7 @@ public final class Composer {
         draft = "@open " + (result.path as NSString).abbreviatingWithTildeInPath + (result.isFolder ? "/" : "")
         liveResults = []
         liveResultsQuery = nil
-        liveHighlight = 0
+        resetLiveHighlight()
         return [.updateMarkedText, .showPanel]
     }
 
@@ -1050,15 +1285,7 @@ public final class Composer {
         return Response(effects: typed + next.effects, handled: next.handled)
     }
 
-    /// Whether typed text the engine passed on goes into the draft: it continues a draft, or in
-    /// sentence mode starts an English one (English mode with `englishAI`; a leading space is just a space).
-    private func takesIntoDraft(_ text: String) -> Bool {
-        if !draft.isEmpty { return true }
-        return sentenceMode && englishAI && engineState.isAsciiMode && !text.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
     private func appendTyped(_ text: String, afterVoice: Bool = false) {
-        if draft.isEmpty { draftStartedLatin = engineState.isAsciiMode }
         draft += afterVoice ? appendix(text) : text  // "hello world" + "and" → "hello world and"
         // The argument of a command inside the text is done: back to Chinese for the rest of the sentence.
         if let from = nestedLatinFrom, text == " ", draft.count > from + 1 {
@@ -1070,13 +1297,13 @@ public final class Composer {
     /// Keys with a meaning for the draft itself, when the engine has nothing left to convert.
     private func handleDraftKey(_ event: KeyEvent, afterVoice: Bool) -> Response? {
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
-        // A command draft ("@question …") isn't text to insert as typed: Esc clears it like a Chinese draft.
-        let latin = isLatinDraft && draftCommand == nil
+        if let response = handleRecipientKey(event) { return response }
         let live = currentLiveResults
         if !live.isEmpty, plain {
             switch event.keyCode {
             case VirtualKey.up, VirtualKey.down:
                 liveHighlight = (liveHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + live.count) % live.count
+                liveHighlightMoved = true
                 return .consumed([.showPanel])
             case VirtualKey.tab:
                 return .consumed(completeLivePath())
@@ -1084,12 +1311,9 @@ public final class Composer {
                 break
             }
         }
-        if latin, event.modifiers.contains(.control) {
-            return commitDraftAndPassThrough()  // ⌃ shortcuts act on the text as typed
-        }
         switch event.keyCode {
         case VirtualKey.space where plain && actionKey == .space:
-            // In English (Latin) mode Space separates words; a second Space in a row translates.
+            // In English (Latin) mode Space separates words; a second Space in a row runs the command.
             // Right after dictation the sentence is finished, so one Space does. (With the other
             // action keys, Space in a draft is just a space: it goes on below.)
             if engineState.isAsciiMode, !draft.hasSuffix(" "), !afterVoice {
@@ -1098,35 +1322,39 @@ public final class Composer {
             }
             return startAction()
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
-            return latin ? commitDraftAndPassThrough() : .consumed(finish(committing: draft))
+            // ⇧⏎ (⏎ alone runs the command): as typed, except a note with line breaks (`finishAsTyped`).
+            return .consumed(finishAsTyped(draft))
         case VirtualKey.delete:
-            if latin, event.modifiers.contains(.option) { return commitDraftAndPassThrough() }  // ⌥⌫ deletes a word
+            // Right after a picked recipient: back to picking one.
+            if messageRecipient != nil, let command = draftCommand, draft == "@\(command.name) " {
+                messageRecipient = nil
+                if let engine, !engine.snapshot().isAsciiMode {  // names, pinyin, numbers: typed as letters
+                    engine.setAsciiMode(true)
+                    restoreChineseAfterOpen = true
+                    engineState = engine.snapshot()
+                }
+                return .consumed([.updateMarkedText, .showPanel])
+            }
             draft.removeLast()
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
         case VirtualKey.escape:
-            if latin { return commitDraftAndPassThrough() }  // never throws away what was typed
             draft = ""
             setLevelOnePhase()
             return .consumed([.updateMarkedText, .hidePanel])
         case VirtualKey.tab, VirtualKey.left, VirtualKey.right, VirtualKey.up, VirtualKey.down,
              VirtualKey.home, VirtualKey.end, VirtualKey.pageUp, VirtualKey.pageDown, VirtualKey.forwardDelete:
-            return latin ? commitDraftAndPassThrough() : .consumed()
+            return .consumed()
         default:
             return nil
         }
     }
 
-    /// Inserts the draft as typed and lets the application handle the key as if nothing was pending.
-    private func commitDraftAndPassThrough() -> Response {
-        Response(effects: finish(committing: draft), handled: false)
-    }
-
     /// Collects the engine's commit and new state after it processed something.
-    private func afterEngineChange(_ engine: PinyinEngine, effects: [Effect], picked: Bool = false) -> [Effect] {
+    private func afterEngineChange(_ engine: PinyinEngine, effects: [Effect]) -> [Effect] {
         var effects = effects
         if let committed = engine.takeCommit(), !committed.isEmpty {
-            effects += accept(committed, picked: picked)
+            effects += accept(committed)
         }
         engineState = engine.snapshot()
         setLevelOnePhase()
@@ -1134,12 +1362,9 @@ public final class Composer {
         return effects
     }
 
-    /// Engine output continues a draft (an @ command, or in sentence mode any sentence); in sentence
-    /// mode Chinese text and anything picked from a composition (words, English words, emoji, dates)
-    /// also start one, so the sentence stays whole. Otherwise it is inserted, as in any input method.
-    private func accept(_ text: String, picked: Bool = false) -> [Effect] {
-        if !draft.isEmpty || sentenceMode && (text.containsHan || picked) {
-            if draft.isEmpty { draftStartedLatin = false }
+    /// Engine output continues a draft (an @ command); otherwise it is inserted, as in any input method.
+    private func accept(_ text: String) -> [Effect] {
+        if !draft.isEmpty {
             draft += text
             return []
         }
@@ -1148,14 +1373,15 @@ public final class Composer {
 
     private func setLevelOnePhase() {
         phase = draft.isEmpty && !engineState.isComposing && voice == .off ? .idle : .drafting
-        if draft.isEmpty { draftStartedLatin = false }
+        if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
+        if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
         restoreInputModeAfterOpen()
     }
 
     /// Back to Chinese once the draft is no longer a command typed in letters (`@open`, code).
     private func restoreInputModeAfterOpen() {
         if draft.isEmpty { nestedLatinFrom = nil }
-        guard restoreChineseAfterOpen, draft.isEmpty || draftCommand?.typesLatin != true && nestedLatinFrom == nil,
+        guard restoreChineseAfterOpen, draft.isEmpty || draftCommand?.typesLatin != true && nestedLatinFrom == nil && !pickingRecipient,
               let engine else { return }
         restoreChineseAfterOpen = false
         engine.setAsciiMode(false)
@@ -1166,7 +1392,6 @@ public final class Composer {
         guard let engine, !isLevelTwo else { return [] }
         let before = engine.snapshot()
         let latin = before.isAsciiMode
-        let raw = engine.rawInput
         // librime's own Shift handling (rime-ice: `Shift_L: commit_code`) keeps the words already
         // picked and commits the remaining letters as typed. rime-ice ignores Shift_R, so Shift_L
         // stands for either key.
@@ -1174,8 +1399,7 @@ public final class Composer {
         _ = engine.processKey(RimeKey.shiftL, mask: RimeKey.releaseMask)
         var effects: [Effect] = []
         if let committed = engine.takeCommit(), !committed.isEmpty {
-            // Only the letters as typed: not a pick. Anything else includes picked candidates.
-            effects += accept(committed, picked: before.isComposing && committed != raw)
+            effects += accept(committed)
         }
         if engine.snapshot().isAsciiMode == latin {
             // The schema has no Shift binding: switch directly, keeping the typed letters.
@@ -1190,29 +1414,6 @@ public final class Composer {
         return effects + [.notice(latin ? messages.chineseMode : messages.englishMode)]
     }
 
-    private func toggleSentenceMode() -> Response {
-        .consumed(setSentenceMode(!sentenceMode))
-    }
-
-    /// Sentence mode on or off (⇧Space or the menu): with it, text collects into a draft without an
-    /// @ command, and the action key improves it. Turning it off inserts such a draft as is; an @
-    /// command being typed stays.
-    public func setSentenceMode(_ on: Bool) -> [Effect] {
-        guard on != sentenceMode else { return [] }
-        sentenceMode = on
-        var effects: [Effect] = []
-        if !on, !draft.isEmpty, draftCommand == nil, paletteQuery == nil, activeCommand == nil {
-            if case .translating = phase { effects.append(.cancelConversion) }
-            effects += [.hidePanel, .commit(draft)]
-            draft = ""
-            result = .empty
-            highlightOverride = nil
-            setLevelOnePhase()
-            if engineState.isComposing || voice != .off { effects += [.updateMarkedText, .showPanel] }
-        }
-        return effects + [.sentenceModeChanged(on), .notice(on ? messages.sentenceModeOn : messages.sentenceModeOff)]
-    }
-
     // MARK: - Voice
 
     private func startVoice() -> [Effect] {
@@ -1222,7 +1423,7 @@ public final class Composer {
         if paletteQuery != nil, !paletteMatches.isEmpty { effects += complete(paletteMatches) }
         // Pinyin still being typed is converted first; the transcript follows it.
         if let engine, engine.snapshot().isComposing, let text = engine.commitComposition(), !text.isEmpty {
-            effects += accept(text, picked: true)
+            effects += accept(text)
             engineState = engine.snapshot()
         }
         voiceCounter += 1
@@ -1264,12 +1465,19 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         switch event.keyCode {
         case VirtualKey.space:
+            // A message is sent by ⏎ (or the action key), never by a Space typed on the way.
+            if activeCommand?.kind == .message, actionKey != .space, phase == .choosing { return .consumed() }
             return .consumed(acceptInLevelTwo())
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
             // Like Space: the highlighted row (row 0 is the sentence as typed). After a failure
             // nothing is highlighted, and Return keeps the sentence as typed (as the Return action
-            // key it retries instead, before reaching here).
-            if case .failed = phase { return .consumed(finish(committing: sentText)) }
+            // key it retries instead, before reaching here). A reminder with nothing to be reminded of
+            // goes back to its text instead: typed into the app, it would only be the time.
+            if case .failed = phase {
+                // A message is never inserted: ⏎ tries again.
+                if activeCommand?.kind == .message { return .consumed(startAction().effects) }
+                return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: sentText))
+            }
             return .consumed(commitChoice(at: highlighted))
         case VirtualKey.escape, VirtualKey.delete:
             return .consumed(backToDraft())
@@ -1286,8 +1494,9 @@ public final class Composer {
         }
         guard let text = event.printableText else { return .consumed() }
         if text.count == 1, let c = text.first, c.isASCII, c.isNumber {
-            guard let index = choices.firstIndex(where: { $0.label == text }) else { return .consumed() }
-            return .consumed(commitChoice(at: index))
+            if let index = choices.firstIndex(where: { $0.label == text }) { return .consumed(commitChoice(at: index)) }
+            // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
+            guard activeCommand?.kind == .reminder else { return .consumed() }
         }
         // Typing more: back to the draft and continue the sentence with this key.
         let back = backToDraft()
@@ -1297,7 +1506,10 @@ public final class Composer {
 
     private func startAction() -> Response {
         let parsed = Command.parse(draft, in: commands)
+        // Only an @ command is ever sent: without one the input method just types.
+        guard parsed != nil else { return .consumed() }
         let input = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let command = parsed?.command, command.kind == .message { return startMessage(command, input: input) }
         if parsed?.command.kind == .settings, !isLevelTwo {
             return .consumed(finish(committing: "") + [.openSettings, used(parsed!.command)])
         }
@@ -1313,8 +1525,8 @@ public final class Composer {
         }
         // A command with nothing after it takes the clipboard's text (shown in the draft first; the
         // action key again runs it). This works where ⌘V can't (terminals paste on their own).
-        if input.isEmpty, parsed != nil, !isLevelTwo { return .consumed([requestClipboard(forEmptyCommand: true)]) }
-        guard !input.isEmpty else { return parsed == nil ? .consumed() : .consumed([.notice(messages.typeAfterCommand)]) }
+        if input.isEmpty, !isLevelTwo { return .consumed([requestClipboard(forEmptyCommand: true)]) }
+        guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if let command = parsed?.command, command.kind == .terminal {
             guard !secureInputActive() else {
                 return .consumed([.updateMarkedText, .notice(command.custom == nil ? messages.secureInputTerminal : messages.secureInputCommand)])
@@ -1331,25 +1543,86 @@ public final class Composer {
             }
             return .consumed(finish(committing: "") + [.runInTerminal(prompt: input), .notice(messages.openedTerminal), usage])
         }
+        if let command = parsed?.command, command.kind == .note {
+            // Saved on this Mac (Apple Notes) and nothing goes to a model, so secure input doesn't hold it
+            // back. The controller says when it is saved, or why not.
+            let usage = used(command)
+            return .consumed(finish(committing: "") + [.saveNote(text: input), usage])
+        }
+        // Commands inside the text (`@stock AAPL`) run first; not inside a search's text, nor a reminder's
+        // (it stays on this Mac), and never inside code: it runs exactly as typed, so no command's output (a
+        // web page, a program's) is executed.
+        let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
+        let plan = local || parsed?.command.isCode == true ? nil : CommandPlan.make(input, commands: commands)
+        if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
+            // A password field's text must not end up in an address (and the browser's history).
+            guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
+            switch link(command, input) {
+            case let .opened(effects): return .consumed(effects)
+            case let .refused(message): return .consumed([.updateMarkedText, .notice(message)])  // the draft stays
+            }
+        }
         requestCounter += 1
         phase = .translating(id: requestCounter)
         result = .empty
         searchResults = []
+        pendingReminder = nil
         highlightOverride = nil
         activeCommand = parsed?.command
         let start: Effect
-        // Commands inside the text (`@stock AAPL`) run first; not inside a search's text.
-        let plan = parsed?.command.kind == .search ? nil : CommandPlan.make(input, commands: commands)
         switch parsed?.command {
         case _ where plan?.isEmpty == false:
             start = .startPlan(outer: parsed?.command, plan: plan!, id: requestCounter)
         case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: requestCounter)
         case let command? where command.kind == .run: start = .startRun(command, input: input, id: requestCounter)
         case .open?: start = .search(query: input, id: requestCounter)
+        // Read by the controller on this Mac (nothing is sent anywhere, so secure input doesn't hold it back).
+        case .reminder?: start = .previewReminder(input: input, id: requestCounter)
         default: start = .startConversion(input: input, id: requestCounter)
         }
         let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
         return .consumed([start, .updateMarkedText, .showPanel] + usage)
+    }
+
+    /// Opens a `link` command's address with `text` in it: the composition ends with nothing inserted,
+    /// as when `@open` opens something. A failure is a message (the text is too long for an address).
+    private func link(_ command: Command, _ text: String, counted: Bool = false) -> LinkOutcome {
+        guard text.count <= LinkTemplate.maxInputLength else { return .refused(messages.linkTooLong) }
+        guard let template = command.linkTemplate, let url = LinkTemplate.url(template, input: text) else {
+            return .refused(messages.noResult)  // not reached: the catalog only has valid templates
+        }
+        return .opened(finish(committing: "") + [.openLink(url)] + (counted ? [] : [used(command)]))
+    }
+
+    private enum LinkOutcome {
+        case opened([Effect])
+        case refused(String)
+    }
+
+    /// A send command: picks the highlighted recipient while there is none; then runs the commands
+    /// inside the message (`@stock AAPL`) and shows the message to confirm (`Choice.Kind.send`).
+    private func startMessage(_ command: Command, input: String) -> Response {
+        guard messageRecipient != nil else {
+            if !isLevelTwo, !currentRecipients.isEmpty { return .consumed(pickRecipient(at: recipientHighlight)) }
+            return .consumed([.updateMarkedText, .showPanel, .notice(messages.pickRecipient)])
+        }
+        if input.isEmpty, !isLevelTwo { return .consumed([requestClipboard(forEmptyCommand: true)]) }
+        guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
+        guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
+        requestCounter += 1
+        result = .empty
+        searchResults = []
+        highlightOverride = nil
+        activeCommand = command
+        let plan = CommandPlan.make(input, commands: commands)
+        let usage = plan.inner.map(\.command).map(used)
+        guard !plan.isEmpty else {
+            phase = .choosing
+            result = ConversionResult(versions: [CandidateLine(input)])
+            return .consumed([.updateMarkedText, .showPanel])
+        }
+        phase = .translating(id: requestCounter)
+        return .consumed([.startPlan(outer: command, plan: plan, id: requestCounter), .updateMarkedText, .showPanel] + usage)
     }
 
     /// The app took the text being typed into the document on its own (`MarkedTextWatch`): start over
@@ -1358,6 +1631,7 @@ public final class Composer {
         let wasRequesting = isLevelTwo
         let recording = voice.id
         draft = ""
+        messageRecipient = nil
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
         voice = .off
@@ -1390,37 +1664,36 @@ public final class Composer {
                 && (modifiers.isEmpty || listening && modifiers == .option)
         case .optionSpace:
             return event.keyCode == VirtualKey.space && modifiers == .option
+        case let .shortcut(key):
+            return key.matches(event)
         case .optionTap, .space:
             return false
         }
     }
 
-    /// The action key: pinyin still being typed is converted as Space would pick it, then the draft
-    /// runs (its @ command, or in sentence mode the improve conversion). In level two it accepts like
-    /// Space; during dictation the sentence goes once the transcript is final. Nil when there is
-    /// nothing to run: without an @ command (and outside sentence mode) the key is the app's, as in
-    /// any input method.
+    /// The action key: pinyin still being typed is converted as Space would pick it, then the draft's
+    /// @ command runs. In level two it accepts like Space; during dictation the command runs once the
+    /// transcript is final. Nil without an @ command: the key is then the app's, as in any input method.
     private func actionKeyPressed() -> [Effect]? {
         guard let engine else { return nil }
         if isLevelTwo { return acceptInLevelTwo() }
         if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches) }
-        guard draftCommand != nil || sentenceMode else { return nil }
+        guard draftCommand != nil else { return nil }
         if voice != .off { return actAfterVoice() }
-        // @open with results as you type: open the highlighted one right away.
-        let live = currentLiveResults
-        if live.indices.contains(liveHighlight) { return finish(committing: "") + [.open(path: live[liveHighlight].path)] }
+        // @open with results as you type: open the highlighted one right away (only content matches: listed
+        // to choose from, below).
+        if opensLiveResult {
+            let path = currentLiveResults[liveHighlight].path  // before `finish` clears them
+            return finish(committing: "") + [.open(path: path)]
+        }
         let composing = engine.snapshot().isComposing
-        guard composing || !draft.isEmpty else { return nil }
         let effects = composing ? convertComposition(engine) : []
         setLevelOnePhase()
-        guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return effects + [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
-        }
         return effects + startAction().effects
     }
 
     /// The action key during dictation: recording stops (as if the key was released) and the
-    /// sentence goes to the model as soon as the final transcript is in.
+    /// command runs as soon as the final transcript is in.
     private func actAfterVoice() -> [Effect] {
         actsAfterVoice = true
         if case let .listening(id, text) = voice { return releaseVoice(id: id, text: text) }
@@ -1438,21 +1711,22 @@ public final class Composer {
             guard before.isComposing else { break }
             _ = engine.processKey(RimeKey.space, mask: 0)
             let committed = engine.takeCommit() ?? ""
-            if !committed.isEmpty { effects += accept(committed, picked: true) }
+            if !committed.isEmpty { effects += accept(committed) }
             if committed.isEmpty, engine.snapshot() == before { break }  // Space picks nothing here
         }
         // Whatever Space didn't convert goes in the way the engine commits a composition.
         if engine.snapshot().isComposing, let rest = engine.commitComposition(), !rest.isEmpty {
-            effects += accept(rest, picked: true)
+            effects += accept(rest)
         }
         engineState = engine.snapshot()
         return effects
     }
 
     /// Space (or the action key) in level two: inserts the highlighted line once it is complete;
-    /// after a failure, asks again.
+    /// after a failure, asks again (a reminder with nothing to be reminded of would fail again: back to
+    /// its text, like Esc).
     private func acceptInLevelTwo() -> [Effect] {
-        if case .failed = phase { return startAction().effects }
+        if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
         return commitChoice(at: highlighted)
     }
 
@@ -1461,6 +1735,7 @@ public final class Composer {
         if case .translating = phase { effects.append(.cancelConversion) }
         result = .empty
         searchResults = []
+        pendingReminder = nil
         activeCommand = nil
         highlightOverride = nil
         setLevelOnePhase()
@@ -1471,6 +1746,14 @@ public final class Composer {
         let all = choices
         guard all.indices.contains(index), all[index].isComplete, !all[index].text.isEmpty else { return [] }
         if case let .file(path) = all[index].kind { return finish(committing: "") + [.open(path: path)] }
+        if case let .reminder(reminder) = all[index].kind {
+            let input = sentText  // before the draft is cleared: it comes back if the reminder can't be added
+            return finish(committing: "") + [.addReminder(reminder, input: input)]
+        }
+        if case .send = all[index].kind, let recipient = messageRecipient, let command = activeCommand {
+            // Sent, not inserted: the draft goes.
+            return finish(committing: "") + [.sendMessage(recipient, text: all[index].text, command: command), used(command)]
+        }
         return finish(committing: all[index].text)
     }
 
@@ -1490,17 +1773,19 @@ public final class Composer {
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
         draft = ""
-        draftStartedLatin = false
+        messageRecipient = nil
+        clearRecipientResults()
         draftEndsWithVoice = false
         actsAfterVoice = false
         result = .empty
         searchResults = []
+        pendingReminder = nil
         activeCommand = nil
         paletteHighlight = 0
         pendingPaste = nil  // a paste still on its way is dropped
         liveResults = []
         liveResultsQuery = nil
-        liveHighlight = 0
+        resetLiveHighlight()
         highlightOverride = nil
         phase = .idle
         restoreInputModeAfterOpen()

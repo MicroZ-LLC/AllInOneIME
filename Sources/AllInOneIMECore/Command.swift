@@ -1,9 +1,10 @@
 import Foundation
+import os
 
 /// A command typed at the start of a draft, e.g. "@question 量子计算是什么". The action key then
-/// runs it on the rest of the draft. A draft without one is improved (translated or polished,
-/// with the rewrites), as `@improve` does. The built-in commands come first; the user's own
-/// (`Config.customCommands`) follow them (`catalog`).
+/// runs it on the rest of the draft. Without one, nothing is sent: the input method just types.
+/// The built-in commands come first; the user's own (`Config.customCommands`) follow them
+/// (`catalog`).
 public struct Command: Hashable, Sendable {
     public let name: String
     public let kind: Kind
@@ -27,6 +28,15 @@ public struct Command: Hashable, Sendable {
         case agents
         /// Opens the settings window (`@settings`), right when it is picked.
         case settings
+        /// The text is saved to Apple Notes; nothing is inserted.
+        case note
+        /// A reminder for Apple Reminders, its time read from the text (`ReminderParser`): shown to
+        /// confirm, then added; nothing is inserted.
+        case reminder
+        /// Opens a web address with the text in it (`LinkTemplate`) in the browser; nothing is inserted.
+        case link
+        /// Sends the text to someone picked in the panel (`@imessage`), after the user confirms it.
+        case message
     }
 
     init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil) {
@@ -36,8 +46,11 @@ public struct Command: Hashable, Sendable {
         self.plugin = plugin
     }
 
-    /// Translate or polish, with the rewrites: what the action key does without a command.
+    /// Polish in the sentence's own language, with the rewrite styles (`WritingMode.improve`).
     public static let improve = Command(name: "improve", kind: .convert)
+    /// Translate into the output languages the user added (`WritingMode.translate`); written together
+    /// with `@improve`, one request does both.
+    public static let translate = Command(name: "translate", kind: .convert)
     /// Answer a question; the answer can be inserted.
     public static let question = Command(name: "question", kind: .generate)
     /// Start a Claude Code session in Terminal with the text as its first message (long work,
@@ -49,6 +62,27 @@ public struct Command: Hashable, Sendable {
     /// A web page's title and text (`WebReader`), mostly inside another command's text as context:
     /// `@question 总结一下 @read https://…`.
     public static let read = Command(name: "read", kind: .run)
+    /// Save the text to Apple Notes (a folder named "AllInOneIME").
+    public static let note = Command(name: "note", kind: .note)
+    /// Add a reminder to Apple Reminders (a list named "AllInOneIME"), with the time written in the text:
+    /// `@reminder 明天下午3点给张三打电话`.
+    public static let reminder = Command(name: "reminder", kind: .reminder)
+
+    /// Arithmetic worked out on this Mac (`Calculator`): `@calculate 23*17` → `391`, also inside another
+    /// command's text: `@reply 总价是 @calculate 23*17 元`.
+    public static let calc = Command(name: "calculate", kind: .run)
+
+    /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
+    /// `@py 2**100`. It runs with the user's `python3`.
+    public static let py = Command(name: "py", kind: .run)
+    /// JavaScript code, the same way: `@js [1, 2, 3].map(x => x * 2)`. It runs in JavaScriptCore, in this
+    /// app's own child process (no files, programs or network).
+    public static let js = Command(name: "js", kind: .run)
+
+    /// `@search`: a web search with the user's own key (`WebSearch`). On its own, a list of the top
+    /// results to insert; inside another command's text, their titles, snippets and addresses as context:
+    /// `@question 用一句话总结 @search 苹果发布会`.
+    public static let webSearch = Command(name: "search", kind: .run)
 
     /// The background tasks `@claude` started: how they're doing and what they replied.
     public static let tasks = Command(name: "tasks", kind: .agents)
@@ -56,27 +90,56 @@ public struct Command: Hashable, Sendable {
     /// The settings window.
     public static let settings = Command(name: "settings", kind: .settings)
 
-    public static let builtins: [Command] = [.improve, .question, .claude, .open, .read, .tasks, .settings]
+    /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
+    public static let imessage = Command(name: "imessage", kind: .message)
+
+    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
+                                             .py, .js, .webSearch, .tasks, .settings, .imessage]
+
+    /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
+    /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and
+    /// `@read` (a web page's text): `@open` opens web addresses, which is enough. Take one out of here to
+    /// bring it back (with `@search`, its settings come back too).
+    public static let off: [Command] = [.webSearch, .read]
+
+    public static var webSearchOffered: Bool { !off.contains(.webSearch) }
+
+    /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
+    /// don't run, so nothing they return (a web page, a program's output) is ever executed.
+    public var isCode: Bool { self == .py || self == .js }
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
-    public var typesLatin: Bool { self == .open || self == .read || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
+    public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
-    /// The program this command needs on the Mac: `claude` for `@claude`, `argv[0]` for a custom
-    /// `run` or `terminal` command; nil when it needs none.
+    /// The program this command needs on the Mac: `claude` for `@claude`, `python3` for `@py`, `argv[0]`
+    /// for a custom `run` or `terminal` command, the app that sends for a send command (an absolute ".app"
+    /// path); nil when it needs none.
     public var program: String? {
         if self == .claude { return "claude" }
-        guard let custom, custom.type != .prompt else { return nil }
+        if self == .py { return InlineCode.python }
+        if self == .imessage { return "/System/Applications/Messages.app" }
+        guard let custom, custom.type == .run || custom.type == .terminal else { return nil }
         return custom.argv?.first
+    }
+
+    /// A `link` command's address, with `{input}` (`LinkTemplate`).
+    public var linkTemplate: String? {
+        guard kind == .link else { return nil }
+        return custom?.url ?? plugin?.manifest.url
     }
 
     /// The built-in commands, then the installed plugins, then the user's valid ones
     /// (`CustomCommand.isValid`) whose names are still free, in the order of the config. When names
-    /// clash, built-in > plugin > custom.
+    /// clash, built-in > plugin > custom; one hidden by a built-in is logged (`logHidden`).
     public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = []) -> [Command] {
-        var taken = Set(builtins.map(\.name))
+        let builtinNames = Set(builtins.map(\.name))
+        var taken = builtinNames
         let fromPlugins = plugins.compactMap { plugin -> Command? in
-            guard taken.insert(plugin.name).inserted else { return nil }
+            guard taken.insert(plugin.name).inserted else {
+                if builtinNames.contains(plugin.name) { logHidden("plugin", plugin.name) }
+                return nil
+            }
             switch plugin.manifest.type {
             case .script:
                 return Command(name: plugin.name, kind: .run, plugin: plugin)
@@ -85,19 +148,38 @@ public struct Command: Hashable, Sendable {
                 let definition = CustomCommand(name: plugin.name, type: .prompt, summary: plugin.manifest.summary?.en,
                                                prompt: plugin.manifest.prompt, ascii: plugin.manifest.ascii)
                 return Command(name: plugin.name, kind: .generate, custom: definition, plugin: plugin)
+            case .link:
+                return Command(name: plugin.name, kind: .link, plugin: plugin)
             }
         }
-        return builtins + fromPlugins + custom.compactMap { definition in
+        // A built-in that's off isn't offered, but its name stays taken.
+        let offered = builtins.filter { !off.contains($0) }
+        return offered + fromPlugins + custom.compactMap { definition in
             let name = definition.name.lowercased()
-            guard definition.isValid, taken.insert(name).inserted else { return nil }
+            guard definition.isValid, taken.insert(name).inserted else {
+                if definition.isValid, builtinNames.contains(name) { logHidden("custom command", name) }
+                return nil
+            }
             let kind: Kind
             switch definition.type {
             case .prompt: kind = .generate
             case .run: kind = .run
             case .terminal: kind = .terminal
+            case .link: kind = .link
             }
             return Command(name: name, kind: kind, custom: definition)
         }
+    }
+
+    private static let catalogLog = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
+    private static let loggedHidden = OSAllocatedUnfairLock(initialState: Set<String>())
+
+    /// A plugin or custom command a built-in one hides (say a custom "@note" from before @note was built in):
+    /// logged once per process, with no UI. The catalog is made on most keystrokes, hence once. The name is
+    /// the built-in's, so it may be logged.
+    private static func logHidden(_ kind: String, _ name: String) {
+        guard loggedHidden.withLock({ $0.insert(kind + " " + name).inserted }) else { return }
+        catalogLog.notice("\(kind, privacy: .public) @\(name, privacy: .public) is hidden: a built-in command has that name")
     }
 
     /// The draft's command and the text after it: "@question 量子计算" → (.question, "量子计算").
@@ -124,12 +206,14 @@ public struct Command: Hashable, Sendable {
 /// - `run`: `argv` runs in the background (no shell) with `{input}` replaced by the text, or the text
 ///   on standard input (`stdin`); what it prints can be inserted.
 /// - `terminal`: `argv` runs in a new Terminal window; nothing is inserted.
+/// - `link`: `url` (with `{input}` in its query) opens in the browser with the text in it; nothing is
+///   inserted (`LinkTemplate`): `{ "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }`.
 ///
 /// `{input}` always stays inside the one argument it is written in: the text is never parsed by a
 /// shell unless `argv` itself says so (`["zsh", "-c", "{input}"]`).
 public struct CustomCommand: Codable, Hashable, Sendable {
     public enum CommandType: String, Codable, Sendable {
-        case prompt, run, terminal
+        case prompt, run, terminal, link
     }
 
     /// Letters only, as typed after "@" (digits pick from the command list).
@@ -152,10 +236,12 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     /// name, "blue", or "#RRGGBB"); unset, one for its type.
     public var icon: String?
     public var color: String?
+    /// `link`: the web address, with `{input}` in its query (`LinkTemplate`).
+    public var url: String?
 
     public init(name: String, type: CommandType, summary: String? = nil, prompt: String? = nil,
                 argv: [String]? = nil, stdin: String? = nil, ascii: Bool? = nil, timeoutSeconds: Double? = nil,
-                icon: String? = nil, color: String? = nil) {
+                icon: String? = nil, color: String? = nil, url: String? = nil) {
         self.name = name
         self.type = type
         self.summary = summary
@@ -166,6 +252,7 @@ public struct CustomCommand: Codable, Hashable, Sendable {
         self.timeoutSeconds = timeoutSeconds
         self.icon = icon
         self.color = color
+        self.url = url
     }
 
     public static let placeholder = "{input}"
@@ -177,10 +264,14 @@ public struct CustomCommand: Codable, Hashable, Sendable {
         switch type {
         case .prompt: return !(prompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .run, .terminal: return !(argv?.first ?? "").isEmpty
+        case .link: return LinkTemplate.problem(url) == nil
         }
     }
 
-    public var typesLatin: Bool { ascii ?? (type != .prompt) }
+    public var typesLatin: Bool { ascii ?? Self.typesLatinByDefault(type) }
+
+    /// Programs take code and paths, typed as Latin letters; the AI and web pages take text as typed.
+    public static func typesLatinByDefault(_ type: CommandType) -> Bool { type == .run || type == .terminal }
 
     public var timeout: Double { max(timeoutSeconds ?? Self.defaultTimeout, 0.1) }
 
@@ -223,6 +314,8 @@ extension CustomCommand {
         case emptyCommand
         /// A quote in the command line isn't closed.
         case unbalancedQuote
+        /// A `link` command's address can't be used.
+        case link(LinkTemplate.Problem)
     }
 
     /// The first problem with this definition among `others` (the other custom commands) and the
@@ -240,6 +333,8 @@ extension CustomCommand {
             if (prompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .emptyPrompt }
         case .run, .terminal:
             if (argv?.first ?? "").isEmpty { return .emptyCommand }
+        case .link:
+            if let problem = LinkTemplate.problem(url) { return .link(problem) }
         }
         return nil
     }
@@ -302,15 +397,67 @@ public struct SearchResult: Equatable, Sendable {
     public var isFolder: Bool
     /// Shown next to the name; what ⌘C copies instead of the path (a task's reply).
     public var detail: String?
+    /// Found by what is in it, not by its name: its row says so (「内容」).
+    public var matchedContent: Bool
+    /// The name a Chinese interface shows instead of `name`, when known (an app's 计算器). Picked when the
+    /// row is drawn: the interface language may change while the results are up.
+    public var chineseName: String?
 
-    public init(name: String, path: String, isFolder: Bool = false, detail: String? = nil) {
+    public init(name: String, path: String, isFolder: Bool = false, detail: String? = nil, matchedContent: Bool = false,
+                chineseName: String? = nil) {
         self.name = name
         self.path = path
         self.isFolder = isFolder
         self.detail = detail
+        self.matchedContent = matchedContent
+        self.chineseName = chineseName
     }
 
     /// A background task in the list (`@tasks`): its "path" names the session to open.
     public static let agentPrefix = "claude-agent:"
     public var agentID: String? { path.hasPrefix(Self.agentPrefix) ? String(path.dropFirst(Self.agentPrefix.count)) : nil }
+
+    /// A web address in the list (`@open github.com`): opened in the default browser.
+    public var webURL: URL? {
+        guard path.hasPrefix("http://") || path.hasPrefix("https://") else { return nil }
+        return URL(string: path)
+    }
+
+    /// The query as a web address to open, or nil: "https://…" and "www.…" always; a bare
+    /// "name.tld/…" only for common top-level domains, so "report.pdf" or "Safari.app" stay file names;
+    /// localhost and IP addresses, with a port or not ("localhost:3000", "192.168.1.1"), over http: a server
+    /// on this Mac or the network, which mostly has no certificate.
+    public static func web(_ query: String) -> SearchResult? {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !text.contains(where: \.isWhitespace), !text.hasPrefix("/"), !text.hasPrefix("~") else { return nil }
+        let lower = text.lowercased()
+        let explicit = lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("www.")
+        if !explicit, let url = URL(string: "http://" + text), url.user == nil,
+           let host = url.host?.lowercased(), host == "localhost" || isIPv4(host) {
+            return SearchResult(name: name(of: url, host: host), path: url.absoluteString)
+        }
+        guard let url = WebReader.url(from: text), let host = url.host?.lowercased() else { return nil }
+        if !explicit {
+            guard let tld = host.split(separator: ".").last, commonDomains.contains(String(tld)) else { return nil }
+        }
+        return SearchResult(name: name(of: url, host: host), path: url.absoluteString)
+    }
+
+    /// How a web address is listed: its host, port and path ("github.com/…", "localhost:3000").
+    private static func name(of url: URL, host: String) -> String {
+        host + (url.port.map { ":\($0)" } ?? "") + (url.path.count > 1 ? url.path : "")
+    }
+
+    /// Four numbers from 0 to 255 with dots between: 127.0.0.1, 192.168.1.1 (not 1.2.3, 999.1.1.1).
+    static func isIPv4(_ host: String) -> Bool {
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts.allSatisfy { part in
+            (1...3).contains(part.count) && part.allSatisfy(\.isASCII) && part.allSatisfy(\.isNumber) && Int(part).map { $0 <= 255 } == true
+        }
+    }
+
+    static let commonDomains: Set<String> = [
+        "com", "org", "net", "io", "ai", "dev", "co", "me", "gov", "edu", "info", "xyz", "tech", "site", "so", "gg", "tv",
+        "cn", "hk", "tw", "jp", "kr", "sg", "uk", "us", "ca", "au", "de", "fr", "eu", "in", "ru", "br",
+    ]
 }

@@ -6,10 +6,13 @@
 
 A macOS input method. Day to day it's a regular pinyin input method that runs locally, built on Rime + rime-ice
 (雾凇拼音). Start a sentence with `@` for a command and press ⏎ when done to run it: `@improve` has a large language
-model on Amazon Bedrock give three idiomatic English versions and a few rewrites, `@question` asks a question,
-`@claude` opens Claude Code in Terminal, and `@open` finds files and apps. You can also hold right ⌥ and talk.
+model polish it and give a few rewrites, `@translate` translates into the languages you pick, `@question` asks a
+question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web address. You can also
+hold right ⌥ and talk.
 
-![Two steps: @improve plus pinyin, then ⏎ for English versions and Chinese rewrites](docs/en/demo.png)
+Author: [Weijian Zhang](https://weijianz.com)
+
+![Two steps: @improve plus pinyin, then ⏎ for polished versions and rewrites](docs/en/demo.png)
 
 ![@improve plus English: English polish (with Jargon); with the output set to Chinese: Chinese polish](docs/en/english.png)
 
@@ -26,28 +29,41 @@ Without `@`, it works like any other pinyin input method: picking a word inserts
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
-| ⌃V | In a command (e.g. after `@improve `, or in a sentence-mode draft): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time. Works in any app; without a command, the key goes to the app as usual |
+| ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
 | ⏎ (nothing written after the command yet) | Uses the clipboard text: it's shown in the command first, then ⏎ runs it. E.g. after copying a paragraph: `@i` ⏎ ⏎ ⏎. Works in any app |
 | Esc, ⌫ | Back to the sentence to keep editing; typing just continues it |
 | Tap Shift | Switch between Chinese and English |
 | Hold right ⌥ | Talk, release to stop. Chinese in Chinese mode, English in English mode. In a command, the text goes after it; otherwise it's inserted directly |
-| ⇧Space | Turn sentence mode on or off (see below) |
 
 ## @ commands (beta)
 
 | Command | What it does |
 |---|---|
-| `@improve` | Polish / translate: 1–3 are three versions in the output language, 4 onward are rewrites, 0 is the original |
+| `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
+| `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
 | `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it |
 | `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
-| `@open` | Lists matching files, folders and apps as you type (Spotlight). Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
-| `@read` | Reads a web page's title and text (up to 6000 characters; web pages, plain text and PDFs). Mostly inside a sentence as context for the AI: `@question summarize @read https://…` in one line |
+| `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's Chinese name counts for what's in it: `下载 pdf` finds the PDFs in Downloads). Apps are found by their Chinese names too (计算器 for Calculator, 系统设置 for System Settings; tap Shift to type Chinese), and so are Finder and the standard folders (访达, 下载 for Downloads, 桌面 for Desktop, 文稿 for Documents), and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
+| `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
+| `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
+| `@calculate` | Calculates on this Mac; the result appears in the candidates, ⏎ or Space inserts it: `@calculate 23*17` → `391`. It also works inside a sentence: `@reply 总价是 @calculate 23*17 元` ("the total is … yuan") |
+| `@py` | Runs a line of Python (the Mac's `python3`) and inserts the result: the value of the code's last expression, e.g. `@py 2**100`, `@py import math; math.sqrt(2)`, or else what it printed. Not offered without `python3` (Xcode's command line tools have it) |
+| `@js` | Runs a line of JavaScript and inserts the same: the value of the last expression or what `console.log` printed, e.g. `@js [1, 2, 3].map(x => x * 2)`. It uses macOS's built-in JavaScriptCore, so there's nothing to install; it can't read files, reach the network or run other programs |
+| `@imessage` | Sends an iMessage: type a name, its pinyin (in full or the initials, like `zs`), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first; a full number or address works too), then write the message (commands inside it such as `@stock AAPL` run first). ⏎ shows "Send to 张三 (…): message" in the panel, ⏎ again sends it, Esc goes back to editing; nothing is typed into the text field. The first time, macOS asks whether AllInOneIME may access Contacts and control Messages: click OK for both |
 
-Example: `@q` ⏎, type `什么是量子计算` ("what is quantum computing"), ⏎. Once the command is chosen, you can also hold right ⌥
-and talk. `@open` switches to English letters for the moment and goes back to Chinese when you're done.
+Example: `@q` ⏎, type `什么是量子计算` ("what is quantum computing"), ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
+`@reminder call Bob tomorrow at 3pm` ⏎, check the time it read, then ⏎ again to add it. Once the command is chosen, you can also hold right ⌥
+and talk. `@open` and `@calculate` switch to English letters for the moment and go back to Chinese when you're done.
+
+The code for `@py` and `@js` is typed in English letters too, and full-width punctuation becomes ASCII (`print（“牛逼”）` → `print("牛逼")`); write it on one line, with `;` between statements.
+It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
+Output with several lines is inserted as printed; in a terminal it goes in as one line (a terminal runs every line it is given).
+A terminal inside an editor (VS Code, Cursor, JetBrains) can't be told apart from the editor itself, so there any command's output with several lines goes in as it is.
+Both also work inside another command's sentence: `@reply 答案是 @py 2**100` ("the answer is …"); put code with spaces in 「」 or quotes: `@question explain @py「sum(x * x for x in range(10))」`.
+Not the other way round: the code of `@py` and `@js` always runs exactly as you typed it, and `@commands` in it don't run first.
 
 ![Typing @ opens the command list; @question plus a question, then ⏎ for the answer](docs/en/commands.png)
 
@@ -55,34 +71,63 @@ and talk. `@open` switches to English letters for the moment and goes back to Ch
 
 When `@` isn't followed by a command, as in `@张三` (a name) or `@john`, the `@` is inserted as usual, so @-mentioning
 people in chat apps still works.
-`@question` and `@improve` send to your own Bedrock only when you press the action key; `@open` searches only on this
-Mac; `@claude` uses the Claude Code installed on your Mac (the `claude` command) and its own account, and it asks you
+`@question`, `@improve` and `@translate` send to your own Bedrock only when you press the action key; `@open` searches only on this
+Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@claude` uses the Claude Code installed on your Mac (the `claude` command) and its own account, and it asks you
 first, as usual, before changing files or running commands. Without Claude Code installed, `@claude` isn't offered.
+`@imessage` reads Contacts on this Mac only (names, phone numbers, emails), never goes through the AI, and Messages sends
+the message; without the Messages app it isn't offered.
+
+`@calculate` works on this Mac, offline: `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, percent (`50%` is 0.5,
+`200*5%` is 10; as on a calculator, a percentage added or subtracted is of what comes before: `100+10%` is 110,
+`100-10%` is 90), the functions `sqrt abs round floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles
+are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too
+(`（１＋２）×３`). Arithmetic is exact in decimal, so `0.1+0.2` is `0.3`; results have at most 15 significant digits, and
+whole numbers of up to 38 digits are written out in full (`2^100` → `1267650600228229401496703205376`).
+
+### Notes and reminders
+
+`@note` makes a new note; its first line is the title. After copying some text, `@note` ⏎ ⏎ ⏎ (or ⌃V after `@note `) saves it with its line breaks, shown as ↵ in the command.
+If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed.
+
+`@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year`, and in Chinese `明天下午3点` (tomorrow 3 pm),
+`明晚7点` (tomorrow 7 pm), `3点半` (half past 3), `30分钟后` (in 30 minutes), `下周一 9:30` (next Monday 9:30), `15号` (the 15th), `月底` (the end of the month), `下个月` (next month), `月初` (the 1st), `年底` (the end of the year), `元旦` (New Year's Day), `圣诞节` (Christmas).
+Lunar holidays (`春节`, Chinese New Year; `中秋`, the Mid-Autumn Festival) fall on a different day each year and aren't read: write the date. `写3点建议` ("write 3 suggestions") counts points: no time.
+The day and the time can be apart (`tomorrow call Bob at 5`); weeks start on Monday, so `下周日` is next week's Sunday.
+A time without am or pm (`3点半`, `at 5`) is the next one, never between midnight and 6 a.m. unless `凌晨` (before dawn) is written; a time already past today is tomorrow, but a part of the day still going (`this afternoon`, `tonight`) is today, all day; a date already past this year is next year's.
+Written to repeat (`standup every Monday at 9`), it is added once, for the next time: the words stay in the title and the row says "once only".
+The row to confirm shows the time it read, e.g. "tomorrow 3:00 PM" (following the Mac's 12/24-hour setting); if it's wrong, Esc goes back to the text. With no time or date in it, it has none ("no date").
+
+`@stock` and the like inside these two aren't run: the text is saved as written (typing `@` there doesn't open the command list). The first time, macOS asks whether AllInOneIME may control Notes (`@note`) or access Reminders (`@reminder`): allow it.
+If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation (Notes) or → Reminders.
+When a save fails (no permission, say), the notice says why and the text comes back into the command, to fix and send again; when you have to fix something first (a permission, an account), it's also put on the clipboard (going to System Settings takes the focus from the text field). If you've moved to another text field or are typing something else, it goes on the clipboard instead ("Not saved; the text is on the clipboard.").
 
 ### Your own commands
 
 In the settings, under "Custom @ Commands", click "Add Command…": give it a name and choose what it does (an AI
-instruction, a program, or a program in Terminal), or start from an example. Your commands come after the built-in
+instruction, a program, a program in Terminal, or a web page), or start from an example. Your commands come after the built-in
 ones; names are English letters only and can't be a built-in command's; they work from the next sentence.
 They're kept in `customCommands` in the config file (`~/.config/allinoneime/config.json`), which you can also edit:
 
 ```json
 "customCommands": [
   { "name": "python", "type": "run", "argv": ["python3", "-c", "{input}"], "summary": "Run Python" },
-  { "name": "calc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
+  { "name": "bc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
-  { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." }
+  { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
+  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }
 ]
 ```
 
 | `type` | What it does |
 |---|---|
 | `prompt` | Goes to the AI with `prompt` as its instruction; the answer appears in the candidates, to insert or copy (⌘C) |
-| `run` | Runs `argv` in the background; what it prints appears in the candidates (several lines are inserted as printed). On an error, its last line is shown |
+| `run` | Runs `argv` in the background; what it prints appears in the candidates (several lines are inserted as printed, in a terminal as one line). On an error, its last line is shown |
 | `terminal` | Runs `argv` in a new Terminal window; nothing is inserted |
+| `link` | Puts the text into the web address `url` and opens it in the default browser; nothing is inserted |
 
 - `{input}` becomes what you wrote after the command, and it always stays within the one argument it's in: no shell is involved. For a shell, say so, like `sh` above (`zsh -c`).
 - `stdin`: what goes to the program's standard input, with `{input}` replaced too.
+- A `link`'s `url` must be `https://`, with `{input}` once, after the `?` or `#`; the text is encoded (a space is `%20`, a newline `%0A`), 4000 characters at most.
 - `run` and `terminal` type English letters by default (like `@open`; Chinese comes back after), and full-width punctuation becomes ASCII: `print（“牛逼”）` → `print("牛逼")`. Set `"ascii": false` to keep text as typed.
 - Programs run in your home folder with your login shell's PATH (so Homebrew, pyenv and nvm installs are found). `run` stops a program after 10 seconds (`timeoutSeconds`) or when it prints too much; Esc stops it at any time.
 - `summary` is the description in the command list (optional).
@@ -95,13 +140,23 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 Plugins are ready-made `@` commands for things not everyone needs, like `@stock AAPL 600519 700` for stock quotes.
 Installed, they work like any command; "Plugins" in the settings shows what's installed and where each sends your text,
 and removes them. Plugins are JavaScript run in a separate process: they can reach only the websites they declare
-(HTTPS), and can't read files or run other programs. The plugin library is on its way; for now a plugin folder goes in
-`~/.config/allinoneime/plugins/` ("Open Plugins Folder" in the settings). Writing one: [docs/plugins.md](docs/plugins.md).
+(HTTPS), and can't read files or run other programs. "Browse Library…" under Plugins in the settings installs them
+from the [plugin library](https://github.com/weijianz-opc/AllInOneIME-plugins): it shows which websites a plugin
+contacts before installing; the library's index is signed and every file must match it. A newer version shows an
+"Update" button; nothing updates by itself. Your own plugins go in `~/.config/allinoneime/plugins/` ("Open Plugins
+Folder"): local plugins, never overwritten by the library.
+"Link" plugins run no code: they put the text into a web address and open it in the browser, like `@x nice weather
+today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
+(`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 日元 人民币`, one line
+with the date of the rate (rates by ExchangeRate-API). Writing one: [docs/plugins.md](docs/plugins.md).
 
 Commands that fetch something (plugins and programs) also work inside a sentence: `@reply 告诉他 @stock AAPL 现在多少钱`.
 The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
 the word after the command, plus the uppercase codes or numbers right after it (`@stock AAPL TSLA`, `@stock 600519 700`);
 a lowercase word ends it (`@stock SNDK is good to buy` looks up SNDK). Quotes mark it exactly: `@stock「aapl tsla」`.
+`@calculate` works inside a sentence too; its argument is the whole expression after it, spaces included, up to other text:
+`@reply 总价是 @calculate 23 * 17 元`.
+Inside `@claude` and terminal commands they aren't run: those get the text as written (typing `@` there doesn't open the command list).
 
 ### Action key
 
@@ -111,26 +166,34 @@ are picked; twice in English mode).
 Whatever the action key, @ commands also run on ⏎. If ⌥Space is already a shortcut for Alfred, Raycast or the like,
 they get it first.
 
-### Sentence mode
+## Menu bar panel
 
-The original behavior: when it's on, text goes into a draft even without `@`, and the action key polishes / translates
-the finished sentence, as if every sentence started with `@improve`.
-To insert it as typed, press ⇧⏎ (⏎ when the action key isn't ⏎). Turn it on in the settings, or toggle it with ⇧Space
-(in Chinese mode). Off by default.
+<img src="docs/en/dashboard.png" width="300" alt="The menu bar panel: notes, reminders, Claude tasks">
 
-## Input and output
+Click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark, without a box; the boxed one is the input source) and the panel drops down under it; a click elsewhere closes it:
 
-Two choices in the settings:
+- Notes: the notes saved with `@note`, the newest 5; click one to open it in Notes.
+- Reminders: the reminders not done yet in the AllInOneIME list of Reminders (`@reminder` adds to that list), the soonest due first, 8 shown; click the circle to tick one off, or the title to open Reminders.
+- Claude Tasks: like `@tasks`, the background Claude tasks (what `@claude` hands off), up to 30, 5 shown at a time: scroll for more, or search their titles and replies in the search box; with their progress and the first line of the last reply; click one to open it in Terminal and go on.
 
-- **Default input**: Chinese (pinyin) or English; the mode a new text field starts in. Tap Shift to switch at any time.
-- **Output (lines 1–3)**: whether lines 1–3 of `@improve` are English (default) or Chinese. Text in the other language is translated; text in the same language is polished:
+The header has the counts (like "2 reminders · 1 task running"; tasks waiting for you are counted apart, like "1 waiting for you") and a refresh button.
+It never takes the focus from the app you're typing in: ticking off a reminder or refreshing leaves that app in front; only the Claude tasks' search box, once clicked, takes the keyboard.
+The icon is shown by default; turn it off under "Menu Bar Panel" in the settings.
 
-| | Output: English | Output: Chinese |
-|---|---|---|
-| Typing Chinese | Translate to English | Polish the Chinese |
-| Typing English | Polish the English | Translate to Chinese |
+What it reads, and when:
 
-In sentence mode, English goes into a draft too; if you don't want that, turn off "Sentence mode: English too" in the settings.
+- Notes: the list is the panel's own record (kept while it's closed too), and Notes is never launched: only when Notes is running already, and AllInOneIME was allowed to control it before, does the panel check it for edited titles and deleted notes.
+- Reminders: the AllInOneIME list is read when the panel drops down, every 60 seconds and when reminders change. The panel never makes macOS ask for access by itself: if macOS hasn't asked you yet, it shows "Allow Access to Reminders", and only that button asks; if you said no, it shows "Open System Settings".
+- Claude tasks: the panel runs `claude agents` only while it's down: once when it drops down, on Refresh, and when `@claude` hands off a task; and every 15 seconds while a task isn't done yet, no longer once they're all done. The last replies are read from the end of Claude Code's transcripts on this Mac (`~/.claude/projects`), and only when a transcript has changed.
+- While it's closed, none of this runs; it only keeps a record of the notes `@note` saves.
+
+## Input and translation
+
+In the settings:
+
+- **Input languages**: Chinese (pinyin), English, or both. Drag them into order: new text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch. A new user has Chinese only.
+- **Translate (@translate)**: add the languages to translate into (English, Japanese, Korean, French, Traditional Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new user has English only.
+- `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
 ## Rewrite styles
 
@@ -258,22 +321,27 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 | Key | What it does | Default |
 |---|---|---|
-| `defaultInput` | Default input: `"zh"` Chinese, `"en"` English | `"zh"` |
-| `outputLanguage` | Language of lines 1–3: `"en"` / `"zh"` | `"en"` |
-| `englishAI` | In sentence mode, English goes into a draft too | `true` |
+| `inputLanguages` | Input languages, the first is the default: `["zh"]`, `["zh", "en"]`, `["en"]` | `["zh"]` |
+| `outputLanguages` | What `@translate` translates into, in order: `["en", "ja"]`, … | `["en"]` |
+| `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
 | `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
 | `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"`, `"en"` | `null` (follow the system) |
 | `rewriteStyles` | Rewrite styles, e.g. `["润色", "简洁", "黑话"]` (Polish, Concise, Jargon) | `["润色", "简洁", "正式"]` (Polish, Concise, Formal) |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
+| `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 
 ## Privacy
 
-- Pinyin typing is entirely local. Only when you press the action key on `@improve` or `@question` (or on a sentence in sentence mode) is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
+- Pinyin typing and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
-- The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command (or a sentence-mode draft) or press the action key with nothing written after a command; content that password managers mark as concealed isn't read. The text is shown in the draft first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
+- The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command or press the action key with nothing written after a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
 - In password fields (secure input) it doesn't compose text and can't record. Whenever the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
+- `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well.
+- `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
+- To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
+- `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
 ## Development
@@ -290,7 +358,7 @@ make dmg          # the release installer, build/AllInOneIME-<version>.dmg (univ
 
 Code layout:
 
-- `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including English drafts and the voice gesture); no AppKit dependency
+- `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
 - `Sources/AllInOneIMERime`: librime wrapper
 - `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
@@ -300,5 +368,5 @@ The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to rem
 
 ## License
 
-GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
+Copyright © 2026 [Weijian Zhang](https://weijianz.com). GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
 are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

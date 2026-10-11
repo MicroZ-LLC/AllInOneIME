@@ -97,9 +97,10 @@ struct PluginTests {
                                    directory: URL(fileURLWithPath: "/tmp/tone"), isLocal: true)
         var open = stock
         open.manifest.name = "open"  // a built-in's name: the built-in wins
-        let custom = [CustomCommand(name: "stock", type: .run, argv: ["x"]), CustomCommand(name: "calc", type: .run, argv: ["bc"])]
+        let custom = [CustomCommand(name: "stock", type: .run, argv: ["x"]), CustomCommand(name: "bc", type: .run, argv: ["bc"])]
         let catalog = Command.catalog(custom, plugins: [stock, tone, open])
-        #expect(catalog.map(\.name) == ["improve", "question", "claude", "open", "read", "tasks", "settings", "stock", "tone", "calc"])
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "note", "reminder", "calculate", "py", "js", "tasks",
+                                        "settings", "imessage", "stock", "tone", "bc"])
         let stockCommand = try #require(catalog.first { $0.name == "stock" })
         #expect(stockCommand.kind == .run && stockCommand.plugin == stock && stockCommand.custom == nil)  // not the custom one
         #expect(stockCommand.typesLatin && stockCommand.program == nil)  // never hidden for a missing program

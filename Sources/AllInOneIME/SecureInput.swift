@@ -20,9 +20,14 @@ enum SecureInput {
         return pid_t(truncating: pid)
     }
 
+    /// Terminal apps, by bundle ID. A terminal runs every line it's given, so output goes in as one line there
+    /// (InputController.isTerminal); ⌘V is left to it (`pastesIntoDraft`), and nothing is composed in it during
+    /// secure input. A terminal inside an editor (VS Code, Cursor, JetBrains) has the editor's bundle ID, so it
+    /// can't be told apart from the editor.
     static let terminals: Set<String> = [
         "com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable",
-        "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper",
+        "dev.warp.Warp-Preview", "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm",
+        "co.zeit.hyper", "org.tabby", "com.raphaelamorim.rio", "dev.commandline.waveterm",
     ]
 
     /// True when nothing should be composed for `client` (keys then go to the app as typed).

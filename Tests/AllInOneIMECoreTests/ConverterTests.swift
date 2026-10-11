@@ -243,7 +243,7 @@ struct ConverterTests {
 
     @Test func chineseOutputPromptAndExamples() {
         var config = Config.default
-        config.outputLanguage = .chinese
+        config.setOrder([OutputLanguage.chinese])  // only Chinese: English is translated, Chinese polished
         config.rewriteStyles = ["黑话"]
         let request = Prompt.request(for: "this is a blocker bug", config: config)
         let system = request.system.first?.text ?? ""
@@ -258,6 +258,24 @@ struct ConverterTests {
             #expect(parsed.rewrites[0].line.text.containsHan == example.input.containsHan, "\(example.input)")
         }
         #expect(request.messages.last?.content.first?.text == "this is a blocker bug")
+    }
+
+    @Test func otherOutputLanguages() {
+        var config = Config.default
+        config.setOrder([OutputLanguage("ja")])
+        let request = Prompt.request(for: "辛苦了", config: config)
+        let system = request.system.first?.text ?? ""
+        #expect(system.contains("\nJA: <how a native Japanese speaker") && system.contains("always in Japanese"))
+        // The examples are in English and Chinese: none are sent for Japanese, just the sentence.
+        #expect(request.messages.count == 1 && request.messages.first?.content.first?.text == "辛苦了")
+        // The answer's JA lines are the versions; lines in another language are ignored.
+        let answer = "JA: お疲れさまです\nEN: Thanks\nja: ご苦労さま\n**JA:** お疲れ！\nPOLISH: 辛苦啦"
+        let parsed = CandidateParser.parse(answer, isFinal: true, output: OutputLanguage("ja"))
+        #expect(parsed.versions.map(\.text) == ["お疲れさまです", "ご苦労さま", "お疲れ！"])
+        #expect(parsed.rewrites.map(\.style) == ["润色"])
+        // Traditional Chinese, tagged ZHHANT (also read as ZH-HANT); a ZH line isn't one of its versions.
+        let traditional = CandidateParser.parse("ZH-HANT: 辛苦了\nZH: 辛苦了", isFinal: true, output: OutputLanguage("zh-Hant"))
+        #expect(traditional.versions.map(\.text) == ["辛苦了"])
     }
 
     @Test func everyExampleHasThreeVersionsInBothLanguages() {
@@ -276,7 +294,7 @@ struct ConverterTests {
         var config = Config.default
         config.region = region
         let english = config
-        config.outputLanguage = .chinese
+        config.setOrder([OutputLanguage.chinese])
         let chinese = config
         let output = OSAllocatedUnfairLock(initialState: english)
         let converter = Converter(

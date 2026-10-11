@@ -56,8 +56,18 @@ func runServer(showSettings: Bool = false) -> Never {
         exit(1)
     }
     log.info("IMKServer started: \(name, privacy: .public)")
+    // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
+    for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @claude tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
+    // The menu bar icon (on by default) and its panel, once the server and Rime are up. The notes @note
+    // saves are recorded whether the panel is shown or not, so that it lists them when it drops down.
+    DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+            FloatingPanel.shared.recordSavedNotes()
+            MenuBarIcon.shared.apply(LiveConfig.current.menuBarIcon)
+        }
+    }
     if showSettings {
         DispatchQueue.main.async { MainActor.assumeIsolated { SettingsWindow.shared.show() } }
     }
@@ -244,6 +254,10 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 // A script plugin's own process (started by the input method): nothing else runs, nothing else is printed.
 if arguments.first == "--run-plugin" {
     exit(arguments.count > 1 ? PluginHost.run(directory: arguments[1]) : 2)
+}
+// The same for `@js` code (`InlineCode`): the code on standard input, what it prints on standard output.
+if arguments.first == InlineCode.javaScriptHostOption {
+    exit(InlineCode.runJavaScriptHost())
 }
 
 // Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.

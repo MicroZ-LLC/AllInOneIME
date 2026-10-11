@@ -2,6 +2,50 @@
 
 [中文](CHANGELOG.md) | English
 
+## 0.5.0 (2026-10-11)
+
+### Added
+
+- `@translate`: translates into every language you added, in the order dragged in the settings, a line each (three versions when there is only one); the sentence's own language is skipped. `@translate @improve …` together (either order) translates and rewrites in one request; to make `@improve` always do that, turn on "@improve also translates" in the settings or the menu.
+- The menu bar panel: click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark) for the notes saved with `@note`, the reminders not done yet in the AllInOneIME list of Reminders (click the circle to tick one off) and the background Claude tasks (5 shown at a time, with scrolling and a search box when there are more); click a row to open it, a click elsewhere closes it. It never takes the focus from the app you're typing in (only its search box, once clicked, takes the keyboard); Notes is never launched; access to Reminders is asked for only from its "Allow Access to Reminders" button; `claude agents` runs only while it's down. The icon is shown by default and can be turned off in the settings.
+- Languages are added, not fixed: `@translate` can translate into Japanese, Korean, French, German, Spanish, Traditional Chinese and more, and input languages are added the same way: Chinese (pinyin) only, English only, or both. Drag them into order under "Input" and "Translate" in the settings: new text fields start in the first input language, and translations come in that order; with two input languages Shift switches, with one it doesn't. A new user starts with one of each: Chinese in, English out.
+- `@note` saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters.
+- `@reminder` adds a reminder to the Reminders app, in a list named AllInOneIME, with the time written in the text and read on the Mac (`明天下午3点`, `明晚7点`, `3点半`, `30分钟后`, `下周一 9:30`, `15号`, `下个月`, `年底`, `tomorrow at 3pm`, `in 2 hours`, `next month`). A row shows what was read; ⏎ or Space adds it, with an alarm at its time, or all day for a date alone. Neither `@note` nor `@reminder` goes to the AI; when a save fails, the text comes back into the command (onto the clipboard if you've moved to another text field), so nothing is lost.
+- `@open` searches by keywords: several words, separated by spaces; apps by their Chinese names too (计算器, 系统设置), and Finder and the standard folders (访达, 下载, 桌面, 文稿; `下载 pdf` finds the PDFs in Downloads), shown that way in a Chinese interface; what you opened with `@open` and recently used files first; and when the names find hardly anything, the contents of the files in your home folder, marked "content" (with only those, ⏎ lists them to pick from).
+- `@open` with a web address (`github.com`, `localhost:3000`, `https://…`, `www.…`): the first result opens it in the default browser, after a file named exactly that (`MANIFEST.in`).
+- `@imessage` sends an iMessage. Type a name, its pinyin (in full or the initials), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first), write the message and press ⏎: the panel shows what will be sent, and ⏎ again sends it (Esc goes back to editing). Nothing is typed into the text field. Commands inside the message such as `@stock AAPL` run first. The first time, macOS asks for two permissions: access to Contacts (only names, phone numbers and emails are read) and control of Messages to send.
+- A new plugin type, `link`: no code; the text after the command goes into a web address that opens in the default browser, and nothing is inserted. Commands inside the text (`@stock …`) run first and their output goes in; it doesn't run during secure input; 4000 characters at most.
+- Custom commands can open a web page too (`"type": "link"` with a `url` containing `{input}`), say `@google` to search.
+- `Plugins/` in the repository: `@x`, `@threads`, `@bsky` and `@weibo` open each site's composer with the text filled in. They aren't installed with the app: install them from the plugin library.
+- The `@xe` plugin converts currencies: `@xe 100 USD CNY` gives `100 USD = 670.69 CNY (1 USD = 6.7069 CNY · 2026-10-11)`. No amount means 1; codes in any case, and `100usd`, `100 USD to CNY`, `100美元 人民币`, `$`, `€`, `¥` work too; one currency converts to CNY (CNY to USD); several targets at once. Rates by ExchangeRate-API (daily), or the ECB's through Frankfurter when it can't be reached. Also in `Plugins/`, installed from the library.
+- The plugin library: "Browse Library…" under Plugins in the settings lists the plugins of the [plugin library](https://github.com/weijianz-opc/AllInOneIME-plugins) (icon, summary, version, the websites each contacts) and installs them in one click. The library's index is signed (Ed25519, the public key built into the app) and read only once the signature checks out; a plugin is installed only when every file matches its sha256, downloaded to a temporary folder first, so a failure changes nothing. A newer version shows "Update", updated by hand; the network is used only when the library is opened or refreshed. Local plugins in the plugins folder are never overwritten.
+- `@calculate <expression>`: calculates on this Mac and offers the result to insert, e.g. `@calculate 23*17` → `391`. `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, `50%`, the functions `sqrt`, `abs`, `round`, `floor`, `ceil`, `ln`, `log`, `exp`, `sin`, `cos`, `tan`, `min`, `max` and `pow`, the constants `pi` (`π`) and `e`, and full-width digits and signs; arithmetic is exact in decimal (`0.1+0.2` is `0.3`). It also works inside a sentence: `@reply 总价是 @calculate 23*17 元`. Nothing goes online and no other program runs.
+- `@py` and `@js`: run a line of Python or JavaScript and insert the result. When the code ends with an expression, its value is inserted (`@py 2**100`, `@js [1, 2, 3].map(x => x * 2)`), otherwise what it printed; on an error, the error's first line is shown. The code runs in a separate process (10-second timeout, Esc stops it), only when you press the action key and only as you typed or pasted it; it works inside a sentence too: `@reply 答案是 @py 2**100`. `@py` uses the Mac's `python3` and isn't offered without one (without Xcode's command line tools, `/usr/bin/python3` only offers to install them, so it doesn't count; the same goes for `python3`, `git` and the like in custom commands); `@js` uses macOS's built-in JavaScriptCore and can't read files, reach the network or run other programs.
+
+### Changed
+
+- The action key is Return by default; "Record…" in the settings takes the key you press next (⌃⏎, ⌘⏎, F5, a tap of ⌥…), "Use ⏎" goes back.
+- The settings regrouped: Input, Translate (@translate, "Languages"), Rewrite Styles (@improve) and the jargon list each have a section; the interface language is at the bottom, following the system by default.
+- Rewrite styles are a list like the languages: "Add…" to add, ⓧ to remove, drag to reorder (the candidates follow that order); the jargon list has its own section.
+- A shorter input menu: rewrite styles, output languages and input languages are submenus whose titles show what's set (e.g. "Rewrite Styles: Polish, Concise, Formal").
+
+### Removed
+
+- `@read` (a web page's text) is gone for now: `@open` with a web address opens it in the browser.
+- Sentence mode is gone (the flow where, without `@`, a sentence went into a draft and the action key produced the results). To translate or polish, start the sentence with `@improve` (`@i` ⏎). ⇧Space no longer toggles anything; it's now the same as Space. "Sentence mode (⇧Space)" in the settings window ("Sentence Mode (⇧Space)" in the input menu), "Sentence mode: English too" in the settings, and `englishAI` in the config are gone too; leaving that key in an old config.json does no harm.
+
+### Fixed
+
+- In a terminal (Ghostty, Terminal, iTerm2 and others), a command's output with several lines (custom `run` commands, plugins, `@read`) used to go in as printed, and the terminal ran every line but the last; now it goes in as one line, for `@py` and `@js` too. Other apps still get the lines as printed.
+
+### Upgrading
+
+- `@improve` now polishes and rewrites only, without translating: Chinese stays Chinese. Use `@translate` to translate, or `@translate @improve` for both as before.
+- Sentence mode is gone: without `@`, ⏎ is a plain Return and picked words go straight in; to translate or polish, start the sentence with `@improve` (`@i` ⏎). If you had sentence mode on, there's nothing to do: the setting is cleared.
+- Existing settings stay as they were: both input languages remain, and the translation languages are English and Chinese (Chinese is translated into English, English into Chinese); remove one under "Input" or "Translate" in the settings to keep just one.
+- The first time, `@note` makes macOS ask whether AllInOneIME may control Notes, and `@reminder` whether it may access Reminders: allow them. If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation, or → Reminders.
+- The new built-in commands `translate`, `note`, `reminder`, `imessage`, `calculate`, `py` and `js` hide a custom command or plugin with the same name (such as `@py` added from the examples in the settings), so yours no longer shows up: "Custom @ Commands" in the settings marks a custom command hidden this way ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
+
 ## 0.4.0 (2026-10-09)
 
 ### Added

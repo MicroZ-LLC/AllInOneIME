@@ -6,7 +6,7 @@
 // voice.png     dictation (hold right ⌥) after a command
 // commands.png  the @ command palette → @question's answer
 // open.png      @open: Spotlight as you type, and a path listing a folder (only macOS's own apps)
-// panel-dark.png, settings.png   copies of the renders
+// panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
 import AppKit
 
 let args = CommandLine.arguments
@@ -106,39 +106,39 @@ func composite(_ steps: [Step], to name: String) throws {
 
 try composite([
     Step(caption: tr("① 开头打 @improve，再打拼音", "① Type @improve, then pinyin"),
-         marked: "@improve wo jin tian you dian bu shu fu", panel: load("1b-sentence-pinyin")),
-    Step(caption: tr("② 按 ⏎：英文 + 中文改写", "② Press ⏎: English + Chinese rewrites"),
-         marked: "@improve 我今天有点不舒服", panel: load("4-final-light")),
+         marked: "improve › wo jin tian you dian bu shu fu", panel: load("1b-sentence-pinyin")),
+    Step(caption: tr("② 按 ⏎：润色 + 改写，不翻译", "② Press ⏎: polished, plus rewrites (no translation)"),
+         marked: "improve › 我今天有点不舒服", panel: load("4-final-light")),
 ], to: "demo.png")
 
 try composite([
     Step(caption: tr("@improve 加英文：英文润色（含黑话）", "@improve with English: English polish (incl. Jargon)"),
-         marked: "@improve this is a blocker bug your team need fix it asap", panel: load("7-english-light")),
+         marked: "improve › this is a blocker bug your team need fix it asap", panel: load("7-english-light")),
     Step(caption: tr("输出设成中文：中文润色 + 改写", "Output set to Chinese: Chinese polish + rewrites"),
-         marked: "@improve 这个项目的进度太慢了", panel: load("7b-chinese-output")),
+         marked: "improve › 这个项目的进度太慢了", panel: load("7b-chinese-output")),
 ], to: "english.png")
 
 try composite([
     Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
-         marked: "@improve 我今天有", panel: load("8-voice")),
+         marked: "improve › 我今天有", panel: load("8-voice")),
 ], to: "voice.png")
 
 try composite([
     Step(caption: tr("① 开头打 @：命令列表，打字母筛选", "① Type @ first: the command list; letters filter it"),
          marked: "@", panel: load("10-palette")),
     Step(caption: tr("② @question 加问题，按 ⏎：回答", "② @question and a question, press ⏎: the answer"),
-         marked: "@question 什么是量子计算", panel: load("11-question")),
+         marked: "question › 什么是量子计算", panel: load("11-question")),
 ], to: "commands.png")
 
 try composite([
     Step(caption: tr("① @open 加名字：边打边找", "① @open and a name: results as you type"),
-         marked: "@open calculator", panel: load("12-open")),
+         marked: "open › calculator", panel: load("12-open")),
     Step(caption: tr("② 以 / 开头是路径：列出文件夹，Tab 补全", "② A path (starts with /): lists the folder, Tab completes"),
-         marked: "@open /System/Applications/", panel: load("12b-open-path")),
+         marked: "open › /System/Applications/", panel: load("12b-open-path")),
 ], to: "open.png")
 
-for (from, to) in [("4-final-dark", "panel-dark.png"), ("6-settings", "settings.png")] {
+for (from, to) in [("4-final-dark", "panel-dark.png"), ("6-settings", "settings.png"), ("14-dashboard", "dashboard.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: render(from), to: output.appendingPathComponent(to))
 }
-print("wrote \(output.path)/demo.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png")
+print("wrote \(output.path)/demo.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png")

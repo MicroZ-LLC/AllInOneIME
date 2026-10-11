@@ -18,7 +18,19 @@ struct CommandTests {
         #expect(Command.matching("Q") == [.question])
         #expect(Command.matching("cl") == [.claude])
         #expect(Command.matching("x").isEmpty)
-        #expect(Command.builtins.map(\.kind) == [.convert, .generate, .terminal, .search, .run, .agents, .settings])
+        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run, .run,
+                                                      .agents, .settings, .message])
+    }
+
+    @Test func notesAndRemindersAreBuiltIn() {
+        #expect(Command.parse("@note 买牛奶")! == (.note, "买牛奶"))
+        #expect(Command.parse("@Reminder 明天下午3点开会")! == (.reminder, "明天下午3点开会"))
+        // Typed in Chinese, need no program, and don't run inside another command's text.
+        #expect(!Command.note.typesLatin && !Command.reminder.typesLatin)
+        #expect(Command.note.program == nil && Command.reminder.program == nil)
+        #expect(!CommandPlan.canBeInner(.note) && !CommandPlan.canBeInner(.reminder))
+        #expect(CustomCommand(name: "Note", type: .prompt, prompt: "x").problem(among: []) == .nameTaken)
+        #expect(CustomCommand(name: "reminder", type: .run, argv: ["x"]).problem(among: []) == .nameTaken)
     }
 
     let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
@@ -34,9 +46,10 @@ struct CommandTests {
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "question", "claude", "open", "read", "tasks", "settings", "python", "reply", "sh"])
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "note", "reminder", "calculate", "py", "js", "tasks",
+                                        "settings", "imessage", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
-        #expect(Command.matching("p", in: catalog).map(\.name) == ["python"])
+        #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
         #expect(Command.parse("@python print(1)", in: catalog)?.command.custom == python)
         #expect(Command.parse("@python print(1)") == nil)  // without the catalog it's not a command
     }
@@ -47,7 +60,7 @@ struct CommandTests {
         #expect(sh.arguments(for: "echo hi; rm -rf ~") == ["zsh", "-c", "echo hi; rm -rf ~"])
         let wrapped = CustomCommand(name: "say", type: .run, argv: ["say", "--", "Hi {input}!"], ascii: false)
         #expect(wrapped.arguments(for: "a b") == ["say", "--", "Hi a b!"])
-        let calc = CustomCommand(name: "calc", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
+        let calc = CustomCommand(name: "calculate", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
         #expect(calc.standardInput(for: "1+1") == "1+1\n" && python.standardInput(for: "x") == nil)
     }
 
@@ -127,14 +140,14 @@ struct CommandTests {
     @Test func usageCountsOftenAndLately() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         var usage = CommandUsage()
-        usage.record("calc", now: now)
-        usage.record("calc", now: now)
-        #expect(usage.score("calc", now: now) == 2)
-        #expect(abs(usage.score("calc", now: now + CommandUsage.halfLife) - 1) < 1e-9)  // halves in a week
+        usage.record("calculate", now: now)
+        usage.record("calculate", now: now)
+        #expect(usage.score("calculate", now: now) == 2)
+        #expect(abs(usage.score("calculate", now: now + CommandUsage.halfLife) - 1) < 1e-9)  // halves in a week
         #expect(usage.score("never", now: now) == 0)
         // Long unused commands are forgotten when another is used.
         usage.record("py", now: now + 60 * 86400)
-        #expect(usage.score("calc", now: now + 60 * 86400) == 0)
+        #expect(usage.score("calculate", now: now + 60 * 86400) == 0)
         // Kept as JSON between launches.
         let again = try? JSONDecoder().decode(CommandUsage.self, from: JSONEncoder().encode(usage))
         #expect(again == usage)
@@ -142,25 +155,49 @@ struct CommandTests {
 
     @Test func paletteShowsFiveByUse() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let custom = ["calc", "sh", "reply", "python", "japanese"].map {
+        let custom = ["calculate", "sh", "reply", "python", "japanese"].map {
             CustomCommand(name: $0, type: .run, argv: ["x"])
         }
-        let catalog = Command.catalog(custom)  // 4 built-in + 5
+        let catalog = Command.catalog(custom)  // 14 built-in + 4 (the custom calc gives way to the built-in)
         // Nothing used yet: the first five in catalog order.
         #expect(Command.palette("", in: catalog, usage: CommandUsage(), now: now).map(\.name)
-            == ["improve", "question", "claude", "open", "read"])
+            == ["improve", "translate", "question", "claude", "open"])
         // The most used first, the rest in catalog order.
         var usage = CommandUsage()
         for _ in 0..<3 { usage.record("python", now: now) }
         usage.record("sh", now: now)
         usage.record("japanese", now: now - 30 * 86400)  // long ago: less than sh today
         #expect(Command.palette("", in: catalog, usage: usage, now: now).map(\.name)
-            == ["python", "sh", "japanese", "improve", "question"])
+            == ["python", "sh", "japanese", "improve", "translate"])
         // Letters: names starting with them first, then names containing them; by use within each.
-        #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["python"])
-        #expect(Command.palette("p", in: catalog, usage: usage, now: now).map(\.name) == ["python", "japanese", "improve", "open", "reply"])
-        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["japanese", "claude", "read", "tasks", "calc"])
-        #expect(Command.palette("o", in: catalog, usage: usage, now: now).map(\.name) == ["open", "python", "improve", "question"])
+        #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py"])
+        #expect(Command.palette("p", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py", "japanese", "improve", "open"])
+        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["japanese", "translate", "claude", "calculate", "tasks"])
+        #expect(Command.palette("o", in: catalog, usage: usage, now: now).map(\.name) == ["open", "python", "improve", "question", "note"])
         #expect(Command.palette("zz", in: catalog, usage: usage, now: now).isEmpty)
+    }
+
+    @Test func openWebAddresses() {
+        #expect(SearchResult.web("github.com")?.path == "https://github.com")
+        #expect(SearchResult.web("github.com/weijianz-opc/AllInOneIME")?.name == "github.com/weijianz-opc/AllInOneIME")
+        #expect(SearchResult.web("www.example.app")?.path == "https://www.example.app")
+        #expect(SearchResult.web("http://localhost:8080/a")?.webURL?.port == 8080)
+        #expect(SearchResult.web("baidu.cn")?.webURL?.host == "baidu.cn")
+        // localhost and IP addresses, with a port or not: a server here or on the network, over http (it listed nothing).
+        #expect(SearchResult.web("localhost:3000") == SearchResult(name: "localhost:3000", path: "http://localhost:3000"))
+        #expect(SearchResult.web("localhost")?.path == "http://localhost")
+        #expect(SearchResult.web("localhost:3000/api/v1")?.name == "localhost:3000/api/v1")
+        #expect(SearchResult.web("127.0.0.1:8080")?.path == "http://127.0.0.1:8080")
+        #expect(SearchResult.web("192.168.1.1")?.webURL?.host == "192.168.1.1")
+        #expect(SearchResult.web("https://localhost:3000")?.path == "https://localhost:3000")  // as written
+        #expect(SearchResult.web("http://localhost:8080/a")?.name == "localhost:8080/a")
+        #expect(SearchResult.isIPv4("10.0.0.255") && !SearchResult.isIPv4("1.2.3") && !SearchResult.isIPv4("256.1.1.1")
+                && !SearchResult.isIPv4("1.2.3.4.5") && !SearchResult.isIPv4("1..2.3"))
+        // File names, paths and words stay a file search.
+        for query in ["report.pdf", "Safari.app", "notes.md", "~/Downloads", "/Applications/", "微信", "hello world.com", "file:///etc",
+                      "1.2.3", "999.1.1.1", "localhost.pem", "v1.2.3.4", "me@localhost"] {
+            #expect(SearchResult.web(query) == nil, "\(query)")
+        }
+        #expect(SearchResult(name: "", path: "/Users/me/a.txt").webURL == nil)
     }
 }

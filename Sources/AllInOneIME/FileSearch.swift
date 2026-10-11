@@ -2,15 +2,41 @@ import AllInOneIMECore
 import Foundation
 
 /// `@open`: files, folders and apps. A path ("~/Doc", "/Applications/") lists what is in that
-/// folder; anything else is a name, found with Spotlight (`mdfind -name`). Runs on this Mac only.
+/// folder; anything else is looked for by name: in the app index (`AppIndex`: every name an app goes
+/// by, 计算器 too, and Finder's names for the standard folders, 下载 too) and with Spotlight (`mdfind -name`,
+/// every keyword somewhere in the path, a standard folder's Finder name for what is in it: 「下载 pdf」); then, when
+/// that finds hardly anything and no app or folder of the index, in what the files of the home folder contain (not
+/// for a web address). Runs on this Mac only.
 enum FileSearch {
-    /// The best `limit` matches for `query`, off the main thread.
-    static func run(_ query: String, limit: Int = 8) async -> [SearchResult] {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let isPath = query.hasPrefix("/") || query.hasPrefix("~")
-                continuation.resume(returning: isPath ? complete(query, limit: limit) : search(query, limit: limit))
+    /// All the Spotlight searches for one query end by then (seconds).
+    static let timeLimit = 3.0
+
+    /// The best `limit` matches for `query`, off the main thread; what `@open` opened (`history`) first.
+    /// Cancelling the task stops the search and the mdfind processes it started; it then returns nothing.
+    static func run(_ query: String, history: OpenHistory, limit: Int = 8) async -> [SearchResult] {
+        // A web address comes first (opened in the browser), after a file named exactly like it
+        // (`FileSearchRanking.placing`); "https://…" is nothing else.
+        if let web = SearchResult.web(query) {
+            if query.contains("://") { return [web] }
+            let found = await files(query, history: history, limit: limit)
+            return FileSearchRanking.placing(web, in: found, query: query, limit: limit)
+        }
+        return await files(query, history: history, limit: limit)
+    }
+
+    /// Files, folders and apps for `query` (`run` without the web address).
+    private static func files(_ query: String, history: OpenHistory, limit: Int) async -> [SearchResult] {
+        let spotlight = Spotlight(until: .now() + timeLimit)
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let isPath = query.hasPrefix("/") || query.hasPrefix("~")
+                    let results = isPath ? complete(query, limit: limit) : search(query, limit: limit, history: history, with: spotlight)
+                    continuation.resume(returning: spotlight.isCancelled ? [] : results)
+                }
             }
+        } onCancel: {
+            spotlight.cancel()
         }
     }
 
@@ -27,51 +53,85 @@ enum FileSearch {
         return Array(results.prefix(limit))
     }
 
-    static func search(_ query: String, limit: Int) -> [SearchResult] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
-        process.arguments = ["-name", query]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return [] }
-        let stop = DispatchWorkItem { if process.isRunning { process.terminate() } }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 3, execute: stop)
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        stop.cancel()
-        let paths = String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init)
-        return rank(paths, query: query).prefix(limit).map(result(for:))
+    /// The app index and Spotlight by name (one search per keyword, all at once), then Spotlight by
+    /// content in the home folder, each file with when it was last used and changed; picked and ordered by
+    /// `FileSearchRanking.search`. Nothing once cancelled: what was printed until then isn't even read.
+    static func search(_ query: String, limit: Int, history: OpenHistory, with spotlight: Spotlight) -> [SearchResult] {
+        let index = AppIndex.shared.apps()
+        let keywords = FileSearchRanking.keywords(in: query)
+        let entries = index.map { FileSearchRanking.Found(path: $0.path, names: $0.names, isPlace: $0.isPlace) }
+        let places = FileSearchRanking.scopingPlaces(entries)
+        let apps = entries.map { found in
+            FileSearchRanking.matches(found.path, names: found.names, keywords: keywords, places: places) ? dated(found) : found
+        }
+        let found = FileSearchRanking.search(
+            query, limit: limit, history: history, apps: apps, isCandidate: isCandidate,
+            byName: { keywords in
+                let outputs = spotlight.mdfind(each: keywords.map { FileSearchRanking.attributes + ["-name", $0] }) ?? []
+                return outputs.flatMap(FileSearchRanking.parse)
+            },
+            byContent: { predicate in
+                guard spotlight.hasTimeLeft,
+                      let output = spotlight.mdfind(["-onlyin", home] + FileSearchRanking.attributes + [predicate]) else { return [] }
+                return FileSearchRanking.parse(output)
+            })
+        guard !spotlight.isCancelled else { return [] }
+        let byPath = Dictionary(index.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        return found.map { result(for: $0.path, matchedContent: $0.matchedContent, app: byPath[$0.path]) }
     }
 
-    static func result(for path: String) -> SearchResult {
+    /// `app` (or a place) with when it was last used and changed, as Spotlight keeps them. Its name search
+    /// knows an app by its file name and its name in the system language only: an app matched by another of
+    /// its names (计算器 on an English system) gets no dates from there.
+    static func dated(_ app: FileSearchRanking.Found) -> FileSearchRanking.Found {
+        guard let item = NSMetadataItem(url: URL(fileURLWithPath: app.path)) else { return app }
+        var app = app
+        app.lastUsed = item.value(forAttribute: "kMDItemLastUsedDate") as? Date
+        app.modified = item.value(forAttribute: "kMDItemContentModificationDate") as? Date
+        return app
+    }
+
+    /// Shown as Finder names it (`FileManager.displayName`, in the system language: Image Playground, not
+    /// its bundle's English "Playground"); an app or place of the index under its Chinese name in a Chinese
+    /// interface (`SearchResult.chineseName`).
+    static func result(for path: String, matchedContent: Bool = false, app: AppIndex.App? = nil) -> SearchResult {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
         return SearchResult(name: FileManager.default.displayName(atPath: path), path: path,
-                            isFolder: isDirectory.boolValue && !path.hasSuffix(".app"))
+                            isFolder: isDirectory.boolValue && !path.hasSuffix(".app"), matchedContent: matchedContent,
+                            chineseName: app?.chinese)
     }
 
     /// Where users keep things they open by name; everything else (system and library folders,
-    /// hidden folders, the inside of bundles, build output) is skipped.
+    /// hidden folders, the inside of bundles, build output) is skipped. (Finder and the home folder itself
+    /// come from the app index, which isn't filtered.)
     static func isCandidate(_ path: String) -> Bool {
-        let skipped = ["/.", ".app/", "/Library/", "/node_modules/", "/DerivedData/", "/.build/"]
-        guard !skipped.contains(where: path.contains) else { return false }
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return path.hasPrefix(home + "/") || path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/")
-            || path.hasPrefix("/Volumes/")
+        // Cheapest first: a one-letter name finds some 66,000 files.
+        guard path.hasPrefix(homePrefix) || path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/")
+            || path.hasPrefix("/Volumes/") else { return false }
+        return !skipped.contains { path.range(of: $0, options: .literal) != nil }
     }
 
-    /// Apps first, then names that start with the query, then shallower paths and shorter names.
-    static func rank(_ paths: [String], query: String) -> [String] {
-        let wanted = query.lowercased()
-        var seen = Set<String>()
-        let scored: [(path: String, key: (Int, Int, Int, Int))] = paths.compactMap { path in
-            guard isCandidate(path), seen.insert(path).inserted else { return nil }
-            let name = (path as NSString).lastPathComponent.lowercased()
-            let app = path.hasSuffix(".app") ? 0 : 1
-            let match = name.hasPrefix(wanted) ? 0 : name.contains(wanted) ? 1 : 2
-            return (path, (app, match, path.split(separator: "/").count, name.count))
-        }
-        return scored.sorted { $0.key < $1.key }.map(\.path)
+    private static let skipped = ["/Library/", "/.", ".app/", "/node_modules/", "/DerivedData/", "/.build/"]
+    private static let home = FileManager.default.homeDirectoryForCurrentUser.path
+    private static let homePrefix = home + "/"
+}
+
+/// What `@open` opened (`OpenHistory`), kept in the input method's defaults under "openHistory". Main
+/// thread only: the controller reads it for each search and records what is opened (the self-test
+/// supplies a history of its own instead, `loadOpenHistory` / `recordOpen`).
+enum OpenHistoryStore {
+    static let key = "openHistory"
+
+    static var history: OpenHistory = {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let history = try? JSONDecoder().decode(OpenHistory.self, from: data) else { return OpenHistory() }
+        return history
+    }()
+
+    /// `path` was opened through `@open` just now.
+    static func record(_ path: String) {
+        history.record(path)
+        if let data = try? JSONEncoder().encode(history) { UserDefaults.standard.set(data, forKey: key) }
     }
 }

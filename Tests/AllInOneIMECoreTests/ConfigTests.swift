@@ -107,12 +107,47 @@ struct ConfigTests {
     @Test func inputOutputAndVoiceSettings() throws {
         let missing = try decode("{}")
         #expect(missing.outputLanguage == .english && missing.defaultInput == .chinese)
-        #expect(missing.englishAI && missing.voiceInput)
-        let set = try decode(#"{"outputLanguage": "zh", "defaultInput": "en", "englishAI": false, "voiceInput": false}"#)
+        #expect(missing.voiceInput)
+        let set = try decode(#"{"outputLanguage": "zh", "defaultInput": "en", "voiceInput": false}"#)
         #expect(set.outputLanguage == .chinese && set.defaultInput == .english)
-        #expect(!set.englishAI && !set.voiceInput)
-        #expect(throws: DecodingError.self) { try decode(#"{"outputLanguage": "fr"}"#) }
+        #expect(!set.voiceInput)
         #expect(Language.of("我check一下") == .chinese && Language.of("check it") == .english)
+    }
+
+    @Test func addedLanguages() throws {
+        // A new user: one input language and one output language.
+        #expect(Config.default.inputLanguages == [.chinese] && Config.default.outputLanguages == [.english])
+        // A file from before languages could be added keeps both, as the menu and Shift had them.
+        let old = try decode(#"{"outputLanguage": "zh"}"#)
+        // The chosen one comes first.
+        #expect(old.inputLanguages == [.chinese, .english] && old.outputLanguages == [.chinese, .english] && old.outputLanguage == .chinese)
+        let englishFirst = try decode(#"{"defaultInput": "en"}"#)
+        #expect(englishFirst.inputLanguages == [.english, .chinese] && englishFirst.defaultInput == .english)
+        // Any output language can be added; the chosen one is always among them.
+        let japanese = try decode(#"{"outputLanguage": "ja", "outputLanguages": ["en"], "inputLanguages": ["en"], "defaultInput": "zh"}"#)
+        #expect(japanese.outputLanguages == [OutputLanguage("ja"), .english] && japanese.outputLanguage.code == "ja")
+        // The default input is one that's on; none on means Chinese; no duplicates.
+        #expect(japanese.inputLanguages == [.english] && japanese.defaultInput == .english)
+        let none = try decode(#"{"inputLanguages": [], "outputLanguages": ["fr", "fr", "en"]}"#)
+        #expect(none.inputLanguages == [.chinese] && none.outputLanguages.map(\.code) == ["fr", "en"] && none.outputLanguage.code == "fr")
+        // Reordering (dragging in the settings): the first becomes the one in use, the default input.
+        var dragged = none
+        dragged.setOrder([OutputLanguage.english, OutputLanguage("fr")])
+        dragged.setOrder([Language.english, .chinese])
+        #expect(dragged.outputLanguage == .english && dragged.outputLanguages.map(\.code) == ["en", "fr"])
+        #expect(dragged.defaultInput == .english && dragged.inputLanguages == [.english, .chinese])
+        // Choosing one elsewhere (the menu) moves it to the front.
+        dragged.defaultInput = .chinese
+        dragged.outputLanguage = OutputLanguage("fr")
+        dragged.normalizeLanguages()
+        #expect(dragged.inputLanguages == [.chinese, .english] && dragged.outputLanguages.map(\.code) == ["fr", "en"])
+        // Written back as codes.
+        let text = String(decoding: try JSONEncoder().encode(japanese), as: UTF8.self)
+        #expect(text.contains(#""outputLanguages":["ja","en"]"#) && text.contains(#""inputLanguages":["en"]"#))
+        // Names, prompt names and tags.
+        #expect(OutputLanguage("ja").name(chinese: true) == "日语" && OutputLanguage("ja").name(chinese: false) == "Japanese")
+        #expect(OutputLanguage("zh-Hant").promptName == "Traditional Chinese" && OutputLanguage("zh-Hant").tag == "ZHHANT")
+        #expect(Language.chinese.matches(.chinese) && !Language.chinese.matches(OutputLanguage("zh-Hant")))
     }
 
     @Test func actionKey() throws {
@@ -130,6 +165,20 @@ struct ConfigTests {
         #expect(try decode(#"{"uiLanguage": "en"}"#).uiLanguage == .english)
     }
 
+    /// The menu bar icon is on unless turned off; the key is written either way (discoverable). An old
+    /// file's `floatingPanel` (the floating window is gone) is ignored.
+    @Test func menuBarIcon() throws {
+        #expect(Config.default.menuBarIcon && Config.fresh.menuBarIcon)
+        #expect(try decode("{}").menuBarIcon)
+        #expect(try !decode(#"{"menuBarIcon": false}"#).menuBarIcon)
+        #expect(throws: DecodingError.self) { try decode(#"{"menuBarIcon": "yes"}"#) }
+        #expect(try decode(#"{"floatingPanel": true}"#) == decode("{}"))
+        var c = Config.default
+        c.menuBarIcon = false
+        let text = String(decoding: try JSONEncoder().encode(c), as: UTF8.self)
+        #expect(text.contains(#""menuBarIcon":false"#) && !text.contains("floatingPanel"))
+    }
+
     @Test func fileRoundTripAndMissingFile() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-test-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -143,9 +192,8 @@ struct ConfigTests {
         c.awsProfile = "work"
         c.temperature = nil
         c.rewriteStyles = ["口语", "正式"]
-        c.outputLanguage = .chinese
-        c.defaultInput = .english
-        c.englishAI = false
+        c.setOrder([OutputLanguage.chinese, .english, OutputLanguage("ja")])
+        c.setOrder([Language.english, .chinese])
         c.voiceInput = false
         c.actionKey = .optionSpace
         c.uiLanguage = .chinese
@@ -158,5 +206,25 @@ struct ConfigTests {
 
         try Data("{not json".utf8).write(to: url)
         #expect(throws: ConfigError.self) { try Config.load(from: url) }
+    }
+
+    /// A file from an older version still loads: a key that is gone (here the old switch for English
+    /// drafts; its name is split so a search for removed settings finds only the cleanup in main.swift)
+    /// is ignored, and saving doesn't write it back.
+    @Test func removedKeysInAnOldFileAreIgnored() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("config.json")
+        let removed = "english" + "AI"
+        try Data(#"{"awsProfile": "work", "\#(removed)": false, "voiceInput": false, "actionKey": "space"}"#.utf8).write(to: url)
+        var c = try Config.load(from: url)
+        #expect(c.awsProfile == "work" && !c.voiceInput && c.actionKey == .space)
+        c.outputLanguage = .chinese
+        c.normalizeLanguages()  // the chosen one leads the list, as when it's picked in the menu: it reads back the same
+        try c.write(to: url)
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(!text.contains(removed) && text.contains("\"outputLanguage\" : \"zh\""))
+        #expect(try Config.load(from: url) == c)
     }
 }

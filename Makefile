@@ -59,14 +59,14 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
 
-app: build Resources/icon.tiff Resources/AppIcon.icns
+app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/strip-rpaths.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
 	# The licenses travel with the binaries (librime's BSD license asks for its notice).
-	cp Resources/icon.tiff Resources/AppIcon.icns LICENSE THIRD_PARTY_NOTICES.md "$(APP)/Contents/Resources/"
+	cp Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns LICENSE THIRD_PARTY_NOTICES.md "$(APP)/Contents/Resources/"
 	for lang in en zh-Hans; do \
 		mkdir -p "$(APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/$$lang.lproj/InfoPlist.strings" "$(APP)/Contents/Resources/$$lang.lproj/"; \
@@ -76,8 +76,10 @@ app: build Resources/icon.tiff Resources/AppIcon.icns
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
 	cp -R $(RIME_DATA) "$(APP)/Contents/SharedSupport/rime"
 	# Hardened runtime: library validation then only loads code signed by the same team, and
-	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlement
-	# allows microphone access (voice input) under the hardened runtime.
+	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
+	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
+	# @claude, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
+	# (@imessage); the installer and `make dmg` ship this same build.
 	if security find-identity -v -p codesigning | grep -qF "$(SIGN_IDENTITY)"; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign "$(SIGN_IDENTITY)" "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \
 			"$(APP)/Contents/Frameworks/librime.1.dylib" && \
@@ -96,11 +98,15 @@ app: build Resources/icon.tiff Resources/AppIcon.icns
 Resources/icon.tiff: Scripts/make-icon.swift Resources/AppIcon.png
 	swift Scripts/make-icon.swift Resources/AppIcon.png $@
 
+Resources/panel-icon.tiff: Scripts/make-icon.swift Resources/AppIcon.png
+	swift Scripts/make-icon.swift Resources/AppIcon.png $@ bare
+
 Resources/AppIcon.icns: Scripts/make-app-icon.swift Resources/AppIcon.png
 	swift Scripts/make-app-icon.swift Resources/AppIcon.png $@
 
 icon:
 	swift Scripts/make-icon.swift Resources/AppIcon.png Resources/icon.tiff
+	swift Scripts/make-icon.swift Resources/AppIcon.png Resources/panel-icon.tiff bare
 	swift Scripts/make-app-icon.swift Resources/AppIcon.png Resources/AppIcon.icns
 
 # AllInOneIME Settings (「AllInOneIME 设置」): launcher app for ~/Applications (Spotlight / Launchpad /
