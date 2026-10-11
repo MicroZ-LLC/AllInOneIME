@@ -10,9 +10,11 @@
 
 作者：[Weijian Zhang](https://weijianz.com)
 
-![两步：@improve 加拼音，再按 ⏎ 出润色和改写](docs/demo.png)
+![两步：@translate 加拼音，再按 ⏎ 出三种地道的英文说法](docs/demo.png)
 
-![@improve 加英文：英文润色（含黑话）；输出设成中文：中文润色](docs/english.png)
+![@improve 加拼音，按 ⏎：原文语言的润色和改写](docs/improve.png)
+
+![@improve 加英文：英文润色（含黑话）；加中文：中文润色和改写](docs/english.png)
 
 更详细的说明（每个命令和设置、安装排查、隐私）见 [Wiki](https://github.com/weijianz-opc/AllInOneIME/wiki)。
 

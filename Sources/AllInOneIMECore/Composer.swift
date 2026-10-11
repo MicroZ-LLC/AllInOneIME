@@ -478,7 +478,11 @@ public final class Composer {
         if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
             || activeCommand?.kind == .message { return 0 }
         if case .translating = phase { return 1 }
-        if let i = all.firstIndex(where: { $0.kind == .version || $0.kind == .answer }) { return i }
+        // The first version, answer or translation (`@translate` into several languages has no versions).
+        if let i = all.firstIndex(where: {
+            if case .translation = $0.kind { return true }
+            return $0.kind == .version || $0.kind == .answer
+        }) { return i }
         if let i = all.firstIndex(where: { $0.kind.isRewrite }) { return i }
         return 0
     }

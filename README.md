@@ -12,9 +12,11 @@ hold right ⌥ and talk.
 
 Author: [Weijian Zhang](https://weijianz.com)
 
-![Two steps: @improve plus pinyin, then ⏎ for polished versions and rewrites](docs/en/demo.png)
+![Two steps: @translate plus pinyin, then ⏎ for three idiomatic English versions](docs/en/demo.png)
 
-![@improve plus English: English polish (with Jargon); with the output set to Chinese: Chinese polish](docs/en/english.png)
+![@improve plus pinyin, then ⏎: polished versions and rewrites in the same language](docs/en/improve.png)
+
+![@improve with English: English polish (with Jargon); with Chinese: Chinese polish and rewrites](docs/en/english.png)
 
 For more detail (every command and setting, installation troubleshooting, privacy), see the [Wiki](https://github.com/weijianz-opc/AllInOneIME/wiki).
 

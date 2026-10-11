@@ -105,16 +105,23 @@ func composite(_ steps: [Step], to name: String) throws {
 }
 
 try composite([
+    Step(caption: tr("① 开头打 @translate，再打拼音", "① Type @translate, then pinyin"),
+         marked: "translate › wo jin tian you dian bu shu fu", panel: load("2-translate-pinyin")),
+    Step(caption: tr("② 按 ⏎：三种地道的英文说法", "② Press ⏎: three idiomatic English versions"),
+         marked: "translate › 我今天有点不舒服", panel: load("3-translate")),
+], to: "demo.png")
+
+try composite([
     Step(caption: tr("① 开头打 @improve，再打拼音", "① Type @improve, then pinyin"),
          marked: "improve › wo jin tian you dian bu shu fu", panel: load("1b-sentence-pinyin")),
     Step(caption: tr("② 按 ⏎：润色 + 改写，不翻译", "② Press ⏎: polished, plus rewrites (no translation)"),
          marked: "improve › 我今天有点不舒服", panel: load("4-final-light")),
-], to: "demo.png")
+], to: "improve.png")
 
 try composite([
     Step(caption: tr("@improve 加英文：英文润色（含黑话）", "@improve with English: English polish (incl. Jargon)"),
          marked: "improve › this is a blocker bug your team need fix it asap", panel: load("7-english-light")),
-    Step(caption: tr("输出设成中文：中文润色 + 改写", "Output set to Chinese: Chinese polish + rewrites"),
+    Step(caption: tr("@improve 加中文：中文润色 + 改写", "@improve with Chinese: Chinese polish + rewrites"),
          marked: "improve › 这个项目的进度太慢了", panel: load("7b-chinese-output")),
 ], to: "english.png")
 
@@ -141,4 +148,4 @@ for (from, to) in [("4-final-dark", "panel-dark.png"), ("6-settings", "settings.
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: render(from), to: output.appendingPathComponent(to))
 }
-print("wrote \(output.path)/demo.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png")
+print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png")

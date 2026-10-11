@@ -201,6 +201,7 @@ struct ComposerTests {
         _ = c.receive(result, isFinal: true, id: 1)
         #expect(c.choices.map(\.kind) == [.original, .translation("ja"), .translation("en"), .rewrite("简洁")])
         #expect(c.choices.map(\.label) == ["0", "1", "2", "4"])
+        #expect(c.highlighted == 1)  // the first translation, not the original
     }
 
     @Test func idlePassesThroughNonLetters() {

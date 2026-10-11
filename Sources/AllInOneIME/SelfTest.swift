@@ -1566,13 +1566,29 @@ enum SelfTest {
         controller.clientOverride = client
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.saveCommandUsage = { _ in }
-        // @translate: into the output languages but the sentence's own (English here); with @improve, one request.
+        // @translate: into the output languages but the sentence's own; with @improve, one request. For the
+        // README image the live requests translate into English only (three versions), whatever the user added.
+        // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
+        // English only), and the user's back afterwards.
+        let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
+        settings = (try? Config.load()) ?? .default
+        settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
+        settings.uiLanguage = .chinese
+        controller.loadSettings = { SelfTest.settings }
+        controller.applySettings()
+        controller.converter = Converter(loadConfig: {
+            var config = try Config.load()
+            config.setOrder([OutputLanguage.english])
+            return config
+        })
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("t", controller, client)
         press(controller, client, "\t", code: VirtualKey.tab)
         type("wojintianyoudianbushufu", controller, client)
+        readmeSnapshot("2-translate-pinyin", controller, client, in: snapshotDirectory)  // README: the first image
         _ = enter(controller, client)
         if finishConversion(controller, "@translate") {
+            readmeSnapshot("3-translate", controller, client, in: snapshotDirectory)
             // The requests use the real config's languages: three versions with one, a line each with several.
             let lines = controller.composer.choices.filter {
                 if case .translation = $0.kind { return true }
@@ -1585,6 +1601,8 @@ enum SelfTest {
             _ = escape(controller, client)
         }
         controller.commitComposition(client)
+        (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
+        controller.applySettings()
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
         var openHistory = OpenHistory()
