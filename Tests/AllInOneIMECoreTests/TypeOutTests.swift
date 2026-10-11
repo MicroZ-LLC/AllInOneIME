@@ -20,6 +20,18 @@ struct TypeOutTests {
                 && TypeOut.Speed.normal.charactersPerSecond < TypeOut.Speed.fast.charactersPerSecond)
     }
 
+    @Test func randomSpeedVariesInBursts() {
+        // Bursts of 3–8 characters, each at its own pace between slow and fast (plus the usual 60–140 %).
+        let text = String(repeating: "a", count: 400)
+        let delays = TypeOut.delays(for: text, speed: .random)
+        let slowest = 1 / TypeOut.Speed.slow.charactersPerSecond * 1.4, fastest = 1 / TypeOut.Speed.fast.charactersPerSecond * 0.6
+        #expect(delays.count == 400 && delays.allSatisfy { $0 >= fastest - 1e-9 && $0 <= slowest + 1e-9 })
+        // It does change pace: both quick and slow characters in a long text.
+        #expect(delays.contains { $0 < 1 / 20.0 } && delays.contains { $0 > 1 / 12.0 })
+        // A fixed "random": every burst at the same pace, so the same as the middle speed.
+        #expect(TypeOut.delays(for: "abcdef", speed: .random, random: { 0.5 }).allSatisfy { abs($0 - 1 / 20.0) < 1e-9 })
+    }
+
     @Test func offByDefaultInTheConfig() throws {
         let config = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
         #expect(!config.typeOut && config.typeOutSpeed == .normal)

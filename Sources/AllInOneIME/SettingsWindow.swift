@@ -604,6 +604,7 @@ struct SettingsView: View {
                         Text(tr("慢", "Slow")).tag(TypeOut.Speed.slow)
                         Text(tr("中", "Normal")).tag(TypeOut.Speed.normal)
                         Text(tr("快", "Fast")).tag(TypeOut.Speed.fast)
+                        Text(tr("随机", "Random")).tag(TypeOut.Speed.random)
                     }
                     .pickerStyle(.segmented)
                 }

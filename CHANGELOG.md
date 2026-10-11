@@ -6,7 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
-- "Type results out" in the settings (off by default): a command's result (a translation, a polish, an answer…) is typed into the app character by character, like a person typing, at a slow, normal or fast pace with short breaks after punctuation; pinyin picks still go in at once. Esc stops it; any other key types the rest at once and then goes on as usual; moving to another field stops it.
+- "Type results out" in the settings (off by default): a command's result (a translation, a polish, an answer…) is typed into the app character by character, like a person typing, at a slow, normal (the default) or fast pace, or a random one that speeds up and slows down in short bursts, with breaks after punctuation; pinyin picks still go in at once. Esc stops it; any other key types the rest at once and then goes on as usual; moving to another field stops it.
 
 ### Fixed
 
