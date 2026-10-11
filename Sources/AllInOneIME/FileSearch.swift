@@ -3,9 +3,9 @@ import Foundation
 
 /// `@open`: files, folders and apps. A path ("~/Doc", "/Applications/") lists what is in that
 /// folder; anything else is looked for by name: in the app index (`AppIndex`: every name an app goes
-/// by, 计算器 too) and with Spotlight (`mdfind -name`, every keyword somewhere in the path); then, when
-/// that finds hardly anything and no app, in what the files of the home folder contain.
-/// Runs on this Mac only.
+/// by, 计算器 too, and Finder's names for the standard folders, 下载 too) and with Spotlight (`mdfind -name`,
+/// every keyword somewhere in the path); then, when that finds hardly anything and no app or folder of the
+/// index, in what the files of the home folder contain (not for a web address). Runs on this Mac only.
 enum FileSearch {
     /// All the Spotlight searches for one query end by then (seconds).
     static let timeLimit = 3.0
@@ -13,10 +13,12 @@ enum FileSearch {
     /// The best `limit` matches for `query`, off the main thread; what `@open` opened (`history`) first.
     /// Cancelling the task stops the search and the mdfind processes it started; it then returns nothing.
     static func run(_ query: String, history: OpenHistory, limit: Int = 8) async -> [SearchResult] {
-        // A web address comes first (opened in the browser); "https://…" is nothing else.
+        // A web address comes first (opened in the browser), after a file named exactly like it
+        // (`FileSearchRanking.placing`); "https://…" is nothing else.
         if let web = SearchResult.web(query) {
             if query.contains("://") { return [web] }
-            return [web] + (await files(query, history: history, limit: limit - 1)).filter { $0.path != web.path }
+            let found = await files(query, history: history, limit: limit)
+            return FileSearchRanking.placing(web, in: found, query: query, limit: limit)
         }
         return await files(query, history: history, limit: limit)
     }
@@ -57,7 +59,7 @@ enum FileSearch {
         let index = AppIndex.shared.apps()
         let keywords = FileSearchRanking.keywords(in: query)
         let apps = index.map { app in
-            let found = FileSearchRanking.Found(path: app.path, names: app.names)
+            let found = FileSearchRanking.Found(path: app.path, names: app.names, isPlace: app.isPlace)
             return FileSearchRanking.matches(app.path, names: app.names, keywords: keywords) ? dated(found) : found
         }
         let found = FileSearchRanking.search(
@@ -76,9 +78,9 @@ enum FileSearch {
         return found.map { result(for: $0.path, matchedContent: $0.matchedContent, app: byPath[$0.path]) }
     }
 
-    /// `app` with when it was last used and changed, as Spotlight keeps them. Its name search knows an app
-    /// by its file name and its name in the system language only: an app matched by another of its names
-    /// (计算器 on an English system) gets no dates from there.
+    /// `app` (or a place) with when it was last used and changed, as Spotlight keeps them. Its name search
+    /// knows an app by its file name and its name in the system language only: an app matched by another of
+    /// its names (计算器 on an English system) gets no dates from there.
     static func dated(_ app: FileSearchRanking.Found) -> FileSearchRanking.Found {
         guard let item = NSMetadataItem(url: URL(fileURLWithPath: app.path)) else { return app }
         var app = app
@@ -87,18 +89,20 @@ enum FileSearch {
         return app
     }
 
-    /// An app of the index is shown under its names from there (`SearchResult.chineseName` in a Chinese
-    /// interface), anything else as Finder names it.
+    /// Shown as Finder names it (`FileManager.displayName`, in the system language: Image Playground, not
+    /// its bundle's English "Playground"); an app or place of the index under its Chinese name in a Chinese
+    /// interface (`SearchResult.chineseName`).
     static func result(for path: String, matchedContent: Bool = false, app: AppIndex.App? = nil) -> SearchResult {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
-        return SearchResult(name: app?.english ?? FileManager.default.displayName(atPath: path), path: path,
+        return SearchResult(name: FileManager.default.displayName(atPath: path), path: path,
                             isFolder: isDirectory.boolValue && !path.hasSuffix(".app"), matchedContent: matchedContent,
                             chineseName: app?.chinese)
     }
 
     /// Where users keep things they open by name; everything else (system and library folders,
-    /// hidden folders, the inside of bundles, build output) is skipped.
+    /// hidden folders, the inside of bundles, build output) is skipped. (Finder and the home folder itself
+    /// come from the app index, which isn't filtered.)
     static func isCandidate(_ path: String) -> Bool {
         // Cheapest first: a one-letter name finds some 66,000 files.
         guard path.hasPrefix(homePrefix) || path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/")

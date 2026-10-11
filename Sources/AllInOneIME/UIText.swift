@@ -61,6 +61,9 @@ enum UIText {
         chinese ? language.displayName : language == .chinese ? "Chinese" : "English"
     }
 
+    /// An output language in the interface language: "日语" / "Japanese".
+    static func name(_ language: OutputLanguage) -> String { language.name(chinese: chinese) }
+
     /// A rewrite preset's name in the window ("简洁" / "Concise"); the config keeps the Chinese name.
     static func name(_ style: RewriteStyle) -> String { chinese ? style.name : english(style).name }
 
@@ -82,7 +85,7 @@ enum UIText {
     static func action(input: Language, config: Config) -> String {
         guard !chinese else { return AllInOneIMEInputController.actionText(input: input, config: config) }
         let output = config.outputLanguage
-        let action = input == output ? "polish the \(name(output))" : "translate to \(name(output))"
+        let action = input.matches(output) ? "polish the \(name(output))" : "translate to \(name(output))"
         return action + (RewriteStyle.resolve(config.rewriteStyles).isEmpty ? "" : " / rewrite")
     }
 
@@ -106,6 +109,7 @@ enum UIText {
         case .py: return tr("运行 Python，结果可以直接上屏", "Run Python; insert the result")
         case .js: return tr("运行 JavaScript，结果可以直接上屏", "Run JavaScript; insert the result")
         case .webSearch: return tr("搜索网页，可放在句中给 AI 当上下文", "Search the web; inside a sentence, context for the AI")
+        case .imessage: return tr("发 iMessage：选联系人，写好后确认再发", "Send an iMessage: pick someone, write, confirm")
         default: return ""
         }
     }
@@ -145,16 +149,22 @@ enum UIText {
         case .py: return tr("运行 Python", "run Python")
         case .js: return tr("运行 JavaScript", "run JavaScript")
         case .webSearch: return tr("搜索网页", "search the web")
+        case .imessage: return tr("确认后发送", "check, then send")
         default: return ""
         }
     }
 
     /// When a reminder is due, as its row and the notice say it: 「明天 15:00」 (or 「明天 下午3:00」, following the
-    /// Mac's 12/24-hour setting), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no date"),
-    /// with 「已过」 / "overdue" once that time is over.
+    /// Mac's 12/24-hour setting, or `clock24`), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no
+    /// date"), with 「已过」 / "overdue" once that time is over.
     static func when(_ reminder: ReminderDraft, now: Date = Date()) -> String {
-        reminder.when(now: now, chinese: chinese)
+        reminder.when(now: now, chinese: chinese, clock24: clock24 ?? ReminderDraft.systemUses24HourClock)
     }
+
+    /// Times shown with the 24-hour clock (true) or the 12-hour one (false) whatever the Mac uses; nil follows
+    /// the Mac (System Settings → General → Date & Time). The self-test pins it, so the README images read the
+    /// same on every Mac. Main thread only.
+    static var clock24: Bool?
 
     /// The row comment of an answer: "回答" / "answer", "Claude".
     static func answerLabel(_ command: Command?) -> String {
@@ -216,6 +226,17 @@ enum UIText {
             case let .badArguments(name): return tr("\(name) 的参数不对", "Wrong arguments for \(name)")
             case .divisionByZero: return tr("不能除以 0", "Division by zero")
             case .notFinite: return tr("结果不是有限的实数", "The result isn't a finite real number")
+            }
+        }
+        if let error = error as? MessageSendError {
+            switch error {
+            case .notPermitted:
+                return tr("没有控制「信息」的权限：系统设置 → 隐私与安全性 → 自动化 → AllInOneIME → 打开「信息」",
+                          "Not allowed to control Messages: System Settings → Privacy & Security → Automation → AllInOneIME → turn on Messages")
+            case .appMissing: return tr("这台 Mac 上没有「信息」App", "The Messages app isn't on this Mac")
+            case let .failed(code):
+                return tr("「信息」没有发出去（错误 \(code)）：看看「信息」里是否登录了 iMessage，号码 / 邮箱是否正确",
+                          "Messages didn't send it (error \(code)): check that iMessage is signed in and the number or email is right")
             }
         }
         if let error = error as? CommandRunner.RunError {

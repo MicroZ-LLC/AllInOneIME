@@ -85,6 +85,9 @@ struct FileSearchRankingTests {
         #expect(FileSearchRanking.contentPredicate([#"a\"#, #"b\" || kMDItemFSName == "x"#])
             == #"kMDItemTextContent == "a\\"cdw && kMDItemTextContent == "b\\\" || kMDItemFSName == \"x"cdw"#)
         #expect(FileSearchRanking.contentPredicate(["rep*", "*"]) == #"kMDItemTextContent == "rep\*"cdw && kMDItemTextContent == "\*"cdw"#)
+        // `?` is a one-character wildcard there: "what?" would find "whats" too.
+        #expect(FileSearchRanking.contentPredicate(["what?"]) == #"kMDItemTextContent == "what\?"cdw"#)
+        #expect(FileSearchRanking.contentPredicate(["??", "a?b"]) == #"kMDItemTextContent == "\?\?"cdw && kMDItemTextContent == "a\?b"cdw"#)
     }
 
     @Test func everyKeywordInThePathOneInTheName() {
@@ -372,6 +375,76 @@ struct FileSearchRankingTests {
         #expect(FileSearchRanking.isNoise("/Users/me/Downloads/My Page_files/x.png"))
         #expect(!FileSearchRanking.isNoise("/Users/me/Downloads/My Page_files"))  // the folder itself, by name
         #expect(!FileSearchRanking.isNoise("/Users/me/dist.md") && !FileSearchRanking.isNoise("/Users/me/builds/x.txt"))
+    }
+
+    @Test func nameMatchesSkipNoiseToo() {
+        // "finder": Python packages, caches and build output have files named like it. Finder itself comes
+        // from the app index, which isn't filtered (Spotlight's /System/Library/… isn't a candidate here).
+        let finder = Found(path: "/System/Library/CoreServices/Finder.app", names: ["Finder", "访达"])
+        let found = search("finder", apps: [finder], names: [
+            Found(path: "/Users/me/proj/venv/lib/python3.14/site-packages/mpl_toolkits/axisartist/grid_finder.py"),
+            Found(path: "/Users/me/proj/venv/lib/python3.14/site-packages/mpl_toolkits/axisartist/__pycache__/grid_finder.cpython-314.pyc"),
+            Found(path: "/Users/me/lib/site-packages/PIL/_tkinter_finder.py"),
+            Found(path: "/Users/me/code/__pycache__/finder.cpython-314.pyc"),
+            Found(path: "/Users/me/code/finder.pyc"),
+            Found(path: "/Users/me/code/build/finder.o"),
+            Found(path: "/Users/me/code/finder.py", modified: date("2026-10-01T00:00:00Z")),
+        ])
+        #expect(found.map(\.path) == [finder.path, "/Users/me/code/finder.py"])
+        // Several keywords too ("plan b"; the "b" is only checked in what "plan" finds).
+        let plans = search("plan b", names: [Found(path: "/Users/me/x/__pycache__/plan_b.cpython-314.pyc"), Found(path: "/Users/me/plan b.md")])
+        #expect(plans.map(\.path) == ["/Users/me/plan b.md"])
+    }
+
+    @Test func appsAreMatchedByTheirNamesNotByTheirExtension() {
+        // "@open app" matched every app through ".app".
+        #expect(!FileSearchRanking.matches(calculator.path, names: calculator.names, keywords: ["app"]))
+        #expect(!FileSearchRanking.matches("/Users/me/Downloads/Installer.app", keywords: ["app"]))
+        #expect(FileSearchRanking.matches("/Users/me/Downloads/Installer.app", keywords: ["installer", "app"]))  // "app" in the path
+        #expect(FileSearchRanking.matches("/Users/me/Downloads/WhatsApp.app", keywords: ["app"]))  // in the name itself
+        #expect(FileSearchRanking.matches("/Users/me/code/app.py", keywords: ["app"]))
+        let appStore = Found(path: "/System/Applications/App Store.app", names: ["App Store"])
+        let found = search("app", apps: apps + [appStore], names: [
+            Found(path: "/Users/me/Downloads/Installer.app"),  // only its ".app"
+            Found(path: "/Users/me/Downloads/WhatsApp.app"),
+            Found(path: "/Users/me/code/app.py"),
+            Found(path: calculator.path),  // an app of the index: as its names match
+        ])
+        #expect(found.map(\.path) == [appStore.path, "/Users/me/Downloads/WhatsApp.app", "/Users/me/code/app.py"])
+        // Not in its file name at all: Spotlight found it by its name in the system language, kept.
+        #expect(search("微信", names: [Found(path: "/Volumes/WeChat/WeChat.app")]).map(\.path) == ["/Volumes/WeChat/WeChat.app"])
+    }
+
+    @Test func aWebAddressIsntLookedForInWhatFilesContain() {
+        // What links to github.com isn't what "github.com" means; the browser's row is (`placing`).
+        var asked = 0
+        for query in ["github.com", "docs.google.com/document", "www.example.org", "brandlogo.ai"] {
+            let found = FileSearchRanking.search(query, limit: 8, history: OpenHistory(), isCandidate: { _ in true },
+                                                 byName: { _ in [] },
+                                                 byContent: { _ in asked += 1; return [Found(path: "/Users/me/links.docx")] })
+            #expect(found.isEmpty, "\(query)")
+        }
+        #expect(asked == 0)
+        // A file name without a common domain isn't an address: its content is searched as before.
+        #expect(search("notes.md", names: [], contents: [Found(path: "/Users/me/x.txt")]).map(\.path) == ["/Users/me/x.txt"])
+    }
+
+    @Test func aFileNamedLikeTheWebAddressComesBeforeIt() throws {
+        let web = try #require(SearchResult.web("brandlogo.ai"))
+        let logo = SearchResult(name: "brandlogo", path: "/Users/me/Design/brandlogo.ai")
+        let zip = SearchResult(name: "brandlogo.ai.zip", path: "/Users/me/Downloads/brandlogo.ai.zip")
+        #expect(FileSearchRanking.placing(web, in: [zip, logo], query: "brandlogo.ai", limit: 8) == [logo, web, zip])
+        #expect(FileSearchRanking.placing(web, in: [zip], query: "brandlogo.ai", limit: 8) == [web, zip])
+        #expect(FileSearchRanking.placing(web, in: [], query: "brandlogo.ai", limit: 8) == [web])
+        // Case doesn't matter, nor spaces around.
+        let manifest = SearchResult(name: "MANIFEST.in", path: "/Users/me/proj/MANIFEST.in")
+        let site = try #require(SearchResult.web("manifest.in"))
+        #expect(FileSearchRanking.placing(site, in: [manifest], query: " manifest.in ", limit: 8) == [manifest, site])
+        // A folder named like a site holds copies of its paths: the address stays first. The limit counts it.
+        let github = try #require(SearchResult.web("github.com"))
+        let go = SearchResult(name: "github.com", path: "/Users/me/go/src/github.com", isFolder: true)
+        #expect(FileSearchRanking.placing(github, in: [go], query: "github.com", limit: 8) == [github, go])
+        #expect(FileSearchRanking.placing(github, in: [go, zip, logo], query: "github.com", limit: 2) == [github, go])
     }
 
     @Test func historyKeepsTheLatestOpenOfEachPath() throws {

@@ -35,25 +35,32 @@ public struct OpenHistory: Codable, Equatable, Sendable {
 /// The parts of `@open`'s search that don't touch the disk: the keywords of a query, what is searched for
 /// them, which paths and apps match them, what `mdfind -attr` prints, and the order results are listed in.
 public enum FileSearchRanking {
-    /// A file Spotlight found, or an app of the app index (`AppIndex`), and when it was last used and changed.
+    /// A file Spotlight found, or an app or place of the app index (`AppIndex`), and when it was last used and changed.
     public struct Found: Equatable, Sendable {
         public var path: String
         /// kMDItemLastUsedDate (nil: never, or not known: editors and terminals don't record a use).
         public var lastUsed: Date?
         /// kMDItemContentModificationDate.
         public var modified: Date?
-        /// What else it is called, matched like its file name: an app's names (计算器 for Calculator.app).
+        /// What else it is called, matched like its file name: an app's names (计算器 for Calculator.app), a
+        /// folder's Finder names (下载 for Downloads).
         public var names: [String]
+        /// One of the folders Finder names in its sidebar (`AppIndex.places`): what the query names, like an app.
+        public var isPlace: Bool
 
-        public init(path: String, lastUsed: Date? = nil, modified: Date? = nil, names: [String] = []) {
+        public init(path: String, lastUsed: Date? = nil, modified: Date? = nil, names: [String] = [], isPlace: Bool = false) {
             self.path = path
             self.lastUsed = lastUsed
             self.modified = modified
             self.names = names
+            self.isPlace = isPlace
         }
 
         /// When it was last used or changed, whichever is later.
         public var latest: Date? { lastUsed.map { used in modified.map { max(used, $0) } ?? used } ?? modified }
+
+        /// An app or a place: listed before files, and no full-text search follows it.
+        var ranksAsApp: Bool { isPlace || FileSearchRanking.isApp(path) }
     }
 
     /// Name searches at most (one `mdfind -name` each).
@@ -96,26 +103,34 @@ public enum FileSearchRanking {
     }
 
     /// `keyword` inside a query's double quotes: a backslash before `\` and `"` (which would end it), and
-    /// before `*` (a wildcard there).
+    /// before the wildcards `*` and `?` (any characters, one character: "what?" would match "whats").
     static func escaped(_ keyword: String) -> String {
         var escaped = ""
         for character in keyword {
-            if character == "\\" || character == "\"" || character == "*" { escaped.append("\\") }
+            if character == "\\" || character == "\"" || character == "*" || character == "?" { escaped.append("\\") }
             escaped.append(character)
         }
         return escaped
     }
 
-    /// Whether every keyword is in `path` or one of `names`, and at least one in its file name or one of
-    /// `names` (case and accents don't matter). `names`: what else it is called (an app's 计算器).
+    /// Whether every keyword is in `path` or one of `names`, and at least one in its name (`name(of:)`) or
+    /// one of `names` (case and accents don't matter). `names`: what else it is called (an app's 计算器).
     public static func matches(_ path: String, names: [String] = [], keywords: [String]) -> Bool {
-        let name = (path as NSString).lastPathComponent
+        let name = name(of: path)
         return keywords.allSatisfy { keyword in contains(path, keyword) || names.contains { contains($0, keyword) } }
             && keywords.contains { keyword in contains(name, keyword) || names.contains { contains($0, keyword) } }
     }
 
-    /// What a full-text search turns up that nobody means: what is inside the folders of saved web pages
-    /// ("…_files"), Python's caches, packages and virtual environments, and build output; compiled Python.
+    /// The name a keyword is looked for in: the file name, an app's without ".app" (every app has that:
+    /// "@open app" isn't all of them).
+    static func name(of path: String) -> String {
+        let name = (path as NSString).lastPathComponent
+        return isApp(path) ? (name as NSString).deletingPathExtension : name
+    }
+
+    /// What a search by name or by content turns up that nobody means: what is inside the folders of saved
+    /// web pages ("…_files"), Python's caches, packages and virtual environments, and build output; compiled
+    /// Python. ("finder" finds matplotlib's grid_finder.py and its .pyc files.)
     public static func isNoise(_ path: String) -> Bool {
         path.hasSuffix(".pyc") || path.split(separator: "/").dropLast().contains { folder in
             let folder = folder.lowercased()
@@ -213,12 +228,12 @@ public enum FileSearchRanking {
         return first != second ? first < second : (a.length, a.index) < (b.length, b.index)
     }
 
-    /// The order results are listed in: what was opened through `@open` (the latest first), then apps,
-    /// then what was used or changed most recently (whichever is later; neither known: after those), then
-    /// names with more of the keywords, names that start with one (an app's other names count), shallower
-    /// paths, shorter names; ties keep their order. A path found twice is listed once. Only the first
-    /// `limit` are picked out, without sorting the rest (one letter finds thousands of files); with
-    /// `oneOfEachName`, only the first of the files with the same name.
+    /// The order results are listed in: what was opened through `@open` (the latest first), then apps and
+    /// places (`Found.isPlace`), then what was used or changed most recently (whichever is later; neither
+    /// known: after those), then names with more of the keywords, names that start with one (an app's other
+    /// names count), shallower paths, shorter names; ties keep their order. A path found twice is listed once.
+    /// Only the first `limit` are picked out, without sorting the rest (one letter finds thousands of files);
+    /// with `oneOfEachName`, only the first of the files with the same name.
     public static func rank(_ files: [Found], keywords: [String], history: OpenHistory, limit: Int = .max,
                             oneOfEachName: Bool = false) -> [Found] {
         let opened = history.lastOpened
@@ -265,7 +280,7 @@ public enum FileSearchRanking {
         score(name)
         file.names.forEach(score)
         return (opened: opened[file.path].map { -$0.timeIntervalSinceReferenceDate } ?? .infinity,
-                app: isApp(file.path) ? 0 : 1,
+                app: file.ranksAsApp ? 0 : 1,
                 date: file.latest.map { -$0.timeIntervalSinceReferenceDate } ?? .infinity,
                 inName: -inName,
                 startsWith: startsWith ? 0 : 1,
@@ -275,13 +290,15 @@ public enum FileSearchRanking {
     }
 
     /// `@open` for `query` (not a path), at most `limit` paths. First what has the keywords in its name:
-    /// the apps of the app index (`apps`: all of them, each with its `names`, and its dates when known)
-    /// whose names or paths have them all (`matches`), and what `byName` finds (it gets `nameSearches` and
-    /// returns all it found; with several keywords only what `matches` them all is kept, and an app of the
-    /// index only as matched by its names). When those are `maxNamesForContent` or fewer and none is an
-    /// app, `byContent` gets the full-text search (`contentPredicate`), and the files it finds follow,
-    /// marked as content matches: not noise (`isNoise`), not listed already, one of each file name. Both
-    /// parts are ranked (`rank`); only paths that `isCandidate` are listed.
+    /// the apps and places of the app index (`apps`: all of them, each with its `names`, and its dates when
+    /// known) whose names or paths have them all (`matches`), and what `byName` finds (it gets `nameSearches`
+    /// and returns all it found) where `isCandidate` and not noise (`isNoise`); with several keywords only
+    /// what `matches` them all is kept, with one an app only when the keyword is more than its ".app"
+    /// (`onlyByExtension`), and an app of the index only as matched by its names. When those are
+    /// `maxNamesForContent` or fewer, none is an app or a place, and the query isn't a web address
+    /// (`SearchResult.web`: what mentions github.com isn't what "github.com" means), `byContent` gets the
+    /// full-text search (`contentPredicate`), and the files it finds follow, marked as content matches: those
+    /// that `isCandidate`, not noise, not listed already, one of each file name. Both parts are ranked (`rank`).
     public static func search(_ query: String, limit: Int, history: OpenHistory, apps: [Found] = [],
                               isCandidate: (String) -> Bool,
                               byName: ([String]) -> [Found],
@@ -289,26 +306,49 @@ public enum FileSearchRanking {
         let words = keywords(in: query)
         let searched = nameSearches(words)
         guard !searched.isEmpty else { return [] }
-        var named = apps.filter { isCandidate($0.path) && matches($0.path, names: $0.names, keywords: words) }
+        // The index holds only what is opened by name (Finder and the home folder too, which `isCandidate` skips).
+        var named = apps.filter { matches($0.path, names: $0.names, keywords: words) }
         var position = Dictionary(named.enumerated().map { ($1.path, $0) }, uniquingKeysWith: { first, _ in first })
         let indexed = Set(apps.map(\.path))
-        for file in byName(searched) where isCandidate(file.path) {
+        for file in byName(searched) where isCandidate(file.path) && !isNoise(file.path) {
             if let at = position[file.path] {
                 // Found again (an app of the index, or by a second keyword): what Spotlight knows of its dates.
                 named[at].lastUsed = named[at].lastUsed ?? file.lastUsed
                 named[at].modified = named[at].modified ?? file.modified
-            } else if !indexed.contains(file.path), words.count == 1 || matches(file.path, keywords: words) {
+            } else if !indexed.contains(file.path),
+                      words.count == 1 ? !onlyByExtension(file.path, words[0]) : matches(file.path, keywords: words) {
                 position[file.path] = named.count
                 named.append(file)
             }
         }
         var listed = rank(named, keywords: words, history: history, limit: limit).map { (path: $0.path, matchedContent: false) }
-        guard named.count <= maxNamesForContent, !named.contains(where: { isApp($0.path) }), listed.count < limit,
-              let predicate = contentPredicate(words) else { return listed }
+        guard named.count <= maxNamesForContent, !named.contains(where: \.ranksAsApp), listed.count < limit,
+              SearchResult.web(query) == nil, let predicate = contentPredicate(words) else { return listed }
         let contents = byContent(predicate).filter { isCandidate($0.path) && !isNoise($0.path) && position[$0.path] == nil }
         listed += rank(contents, keywords: words, history: history, limit: limit - listed.count, oneOfEachName: true)
             .map { (path: $0.path, matchedContent: true) }
         return listed
+    }
+
+    /// Whether Spotlight found the app at `path` for `keyword` only through its ".app" ("@open app"): the
+    /// keyword is in its file name, but not without the extension. (When it isn't in the file name at all,
+    /// Spotlight found the app by its name in the system language: kept.)
+    static func onlyByExtension(_ path: String, _ keyword: String) -> Bool {
+        isApp(path) && contains((path as NSString).lastPathComponent, keyword) && !contains(name(of: path), keyword)
+    }
+
+    /// The rows for a query that is a web address too ("github.com", "brandlogo.ai": `SearchResult.web`),
+    /// given what `@open` found for it by name (`files`, in order): the address first, to open in the
+    /// browser, after any file named exactly like the query (MANIFEST.in, libfoo.so), which is what the text
+    /// means then. A folder named like a site doesn't count: it holds copies of the site's paths (Go keeps
+    /// ~/go/src/github.com). At most `limit` rows.
+    public static func placing(_ web: SearchResult, in files: [SearchResult], query: String, limit: Int) -> [SearchResult] {
+        let typed = folded(query.trimmingCharacters(in: .whitespacesAndNewlines))
+        func isNamedLikeIt(_ file: SearchResult) -> Bool {
+            !file.isFolder && folded((file.path as NSString).lastPathComponent) == typed
+        }
+        let others = files.filter { $0.path != web.path }
+        return Array((others.filter(isNamedLikeIt) + [web] + others.filter { !isNamedLikeIt($0) }).prefix(limit))
     }
 
     static func isApp(_ path: String) -> Bool { path.hasSuffix(".app") }

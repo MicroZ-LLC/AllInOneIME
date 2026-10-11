@@ -19,7 +19,7 @@ struct CommandTests {
         #expect(Command.matching("cl") == [.claude])
         #expect(Command.matching("x").isEmpty)
         #expect(Command.builtins.map(\.kind) == [.convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run, .run,
-                                                      .agents, .settings])
+                                                      .agents, .settings, .message])
     }
 
     @Test func notesAndRemindersAreBuiltIn() {
@@ -47,7 +47,7 @@ struct CommandTests {
             CustomCommand(name: "noargv", type: .run),
         ])
         #expect(catalog.map(\.name) == ["improve", "question", "claude", "open", "read", "note", "reminder", "calc", "py", "js", "search", "tasks",
-                                        "settings", "python", "reply", "sh"])
+                                        "settings", "imessage", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
         #expect(Command.parse("@python print(1)", in: catalog)?.command.custom == python)
@@ -158,7 +158,7 @@ struct CommandTests {
         let custom = ["calc", "sh", "reply", "python", "japanese"].map {
             CustomCommand(name: $0, type: .run, argv: ["x"])
         }
-        let catalog = Command.catalog(custom)  // 13 built-in + 4 (the custom calc gives way to the built-in)
+        let catalog = Command.catalog(custom)  // 14 built-in + 4 (the custom calc gives way to the built-in)
         // Nothing used yet: the first five in catalog order.
         #expect(Command.palette("", in: catalog, usage: CommandUsage(), now: now).map(\.name)
             == ["improve", "question", "claude", "open", "read"])

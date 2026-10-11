@@ -43,10 +43,12 @@ enum NotesBridge {
         return id
     }
 
-    /// The `limit` notes in the folder changed last, newest first (none while there is no folder).
-    static func recent(limit: Int = 10) async throws -> [Note] {
+    /// The `limit` notes in the folder changed last, newest first; nil when the default account has no
+    /// such folder (the user switched accounts or renamed it), which says nothing of the notes saved.
+    static func recent(limit: Int = 10) async throws -> [Note]? {
         try await run(recentScript, [folderName]) { result in
-            NotesFormat.entries(from: result, limit: limit).map { Note(id: $0.id, title: $0.title, modified: $0.modified) }
+            NotesFormat.isMissingValue(result) ? nil
+                : NotesFormat.entries(from: result, limit: limit).map { Note(id: $0.id, title: $0.title, modified: $0.modified) }
         }
     }
 
@@ -82,7 +84,7 @@ enum NotesBridge {
             set folderName to item 1 of argv
             tell application "Notes"
                 set theAccount to default account
-                if not (exists folder folderName of theAccount) then return {}
+                if not (exists folder folderName of theAccount) then return missing value
                 tell folder folderName of theAccount
                     return {id of every note, name of every note, modification date of every note}
                 end tell

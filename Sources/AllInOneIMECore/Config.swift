@@ -27,9 +27,15 @@ public struct Config: Codable, Equatable, Sendable {
     /// Rewrites are in the language the sentence was typed in.
     public var rewriteStyles: [String]
     /// Language of the three main versions (1–3): a sentence in another language is translated,
-    /// one already in this language is polished.
-    public var outputLanguage: Language
-    /// Mode a new text field starts in: pinyin (Chinese) or English letters.
+    /// one already in this language is polished. Always the first of `outputLanguages`.
+    public var outputLanguage: OutputLanguage
+    /// The output languages the user added, in the user's order (dragged in the settings); the first
+    /// is the one in use. A new user has one.
+    public var outputLanguages: [OutputLanguage]
+    /// The input languages added, in the user's order: pinyin (Chinese), English letters, or both
+    /// (Shift switches). The first is the default. A new user has one; with one, Shift doesn't switch.
+    public var inputLanguages: [Language]
+    /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
     public var defaultInput: Language
     /// Hold the right Option key to dictate (on-device speech recognition): the text is inserted, or
     /// added to the @ command being written.
@@ -74,7 +80,8 @@ public struct Config: Codable, Equatable, Sendable {
         awsProfile: String, region: String?, modelId: String,
         maxTokens: Int, temperature: Double?, timeoutSeconds: Double,
         rewriteStyles: [String] = RewriteStyle.defaultNames,
-        outputLanguage: Language = .english, defaultInput: Language = .chinese,
+        outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
+        inputLanguages: [Language] = [.chinese], defaultInput: Language = .chinese,
         voiceInput: Bool = true, jargonFile: String? = nil,
         actionKey: ActionKey = .enter, uiLanguage: Language? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
@@ -92,6 +99,8 @@ public struct Config: Codable, Equatable, Sendable {
         self.timeoutSeconds = timeoutSeconds
         self.rewriteStyles = rewriteStyles
         self.outputLanguage = outputLanguage
+        self.outputLanguages = outputLanguages ?? [outputLanguage]
+        self.inputLanguages = inputLanguages
         self.defaultInput = defaultInput
         self.voiceInput = voiceInput
         self.jargonFile = jargonFile
@@ -99,6 +108,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.uiLanguage = uiLanguage
         self.customCommands = customCommands
         self.claudeInBackground = true
+        normalizeLanguages()
     }
 
     public static let `default` = Config(
@@ -114,7 +124,7 @@ public struct Config: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, defaultInput, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case provider, anthropic, gemini, openai
     }
 
@@ -131,8 +141,14 @@ public struct Config: Codable, Equatable, Sendable {
             : d.temperature
         timeoutSeconds = try c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) ?? d.timeoutSeconds
         rewriteStyles = try c.decodeIfPresent([String].self, forKey: .rewriteStyles) ?? d.rewriteStyles
-        outputLanguage = try c.decodeIfPresent(Language.self, forKey: .outputLanguage) ?? d.outputLanguage
-        defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput) ?? d.defaultInput
+        // A file from before languages could be added had both, in the menu and on Shift: it keeps them.
+        outputLanguages = try c.decodeIfPresent([OutputLanguage].self, forKey: .outputLanguages) ?? [.english, .chinese]
+        inputLanguages = try c.decodeIfPresent([Language].self, forKey: .inputLanguages) ?? [.chinese, .english]
+        // Without the chosen one named, it's the first of the list.
+        outputLanguage = try c.decodeIfPresent(OutputLanguage.self, forKey: .outputLanguage)
+            ?? (c.contains(.outputLanguages) ? outputLanguages.first : nil) ?? d.outputLanguage
+        defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput)
+            ?? (c.contains(.inputLanguages) ? inputLanguages.first : nil) ?? d.defaultInput
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
@@ -143,6 +159,40 @@ public struct Config: Codable, Equatable, Sendable {
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
         openai = try c.decodeIfPresent(ProviderSettings.self, forKey: .openai) ?? d.openai
+        normalizeLanguages()
+    }
+
+    /// The chosen output language and the default input lead their lists (whoever sets
+    /// `outputLanguage` or `defaultInput` moves it to the front); at least one input language; no
+    /// language twice. To reorder, set the list and then its first as the chosen one (`setOrder`).
+    public mutating func normalizeLanguages() {
+        var seenOutput = Set<OutputLanguage>()
+        outputLanguages = [outputLanguage] + outputLanguages.filter { $0 != outputLanguage }
+        outputLanguages = outputLanguages.filter { seenOutput.insert($0).inserted }
+        var seenInput = Set<Language>()
+        inputLanguages = inputLanguages.filter { seenInput.insert($0).inserted }
+        if inputLanguages.isEmpty { inputLanguages = [.chinese] }
+        if inputLanguages.contains(defaultInput) {
+            inputLanguages = [defaultInput] + inputLanguages.filter { $0 != defaultInput }
+        } else {
+            defaultInput = inputLanguages[0]
+        }
+    }
+
+    /// The output languages in this order: the first becomes the one in use.
+    public mutating func setOrder(_ languages: [OutputLanguage]) {
+        guard let first = languages.first else { return }
+        outputLanguages = languages
+        outputLanguage = first
+        normalizeLanguages()
+    }
+
+    /// The input languages in this order: the first becomes the default.
+    public mutating func setOrder(_ languages: [Language]) {
+        guard let first = languages.first else { return }
+        inputLanguages = languages
+        defaultInput = first
+        normalizeLanguages()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -155,6 +205,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(timeoutSeconds, forKey: .timeoutSeconds)
         try c.encode(rewriteStyles, forKey: .rewriteStyles)
         try c.encode(outputLanguage, forKey: .outputLanguage)
+        try c.encode(outputLanguages, forKey: .outputLanguages)
+        try c.encode(inputLanguages, forKey: .inputLanguages)
         try c.encode(defaultInput, forKey: .defaultInput)
         try c.encode(voiceInput, forKey: .voiceInput)
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file

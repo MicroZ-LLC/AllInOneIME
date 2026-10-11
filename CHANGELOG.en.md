@@ -6,7 +6,12 @@
 
 ### Added
 
-- `@open` with a web address (`github.com`, `https://…`, `www.…`): the first result opens it in the default browser.
+- Languages are added, not fixed: the output (lines 1–3) can be Japanese, Korean, French, German, Spanish, Traditional Chinese and more; input languages are added the same way: Chinese (pinyin) only, English only, or both. Drag them into order under "Input and Output" in the settings: the first is the default input / the output in use (picking one in the menu moves it first); with two input languages Shift switches, with one it doesn't. A new user starts with one of each: Chinese in, English out.
+- `@note` saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters.
+- `@reminder` adds a reminder to the Reminders app, in a list named AllInOneIME, with the time written in the text and read on the Mac (`明天下午3点`, `明晚7点`, `3点半`, `30分钟后`, `下周一 9:30`, `15号`, `tomorrow at 3pm`, `in 2 hours`). A row shows what was read; ⏎ or Space adds it, with an alarm at its time, or all day for a date alone. Neither `@note` nor `@reminder` goes to the AI; when a save fails, the text comes back into the command (onto the clipboard if you've moved to another text field), so nothing is lost.
+- `@open` searches by keywords: several words, separated by spaces; apps by their Chinese names too (计算器, 系统设置), and Finder and the standard folders (访达, 下载, 桌面, 文稿), shown that way in a Chinese interface; what you opened with `@open` and recently used files first; and when the names find hardly anything, the contents of the files in your home folder, marked "content" (with only those, ⏎ lists them to pick from).
+- `@open` with a web address (`github.com`, `https://…`, `www.…`): the first result opens it in the default browser, after a file named exactly that (`MANIFEST.in`).
+- `@imessage` sends an iMessage. Type a name, its pinyin (in full or the initials), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first), write the message and press ⏎: the panel shows what will be sent, and ⏎ again sends it (Esc goes back to editing). Nothing is typed into the text field. Commands inside the message such as `@stock AAPL` run first. The first time, macOS asks for two permissions: access to Contacts (only names, phone numbers and emails are read) and control of Messages to send.
 - A new plugin type, `link`: no code; the text after the command goes into a web address that opens in the default browser, and nothing is inserted. Commands inside the text (`@stock …`) run first and their output goes in; it doesn't run during secure input; 4000 characters at most.
 - Custom commands can open a web page too (`"type": "link"` with a `url` containing `{input}`), say `@google` to search.
 - `Plugins/` in the repository: `@x`, `@threads`, `@bsky` and `@weibo` open each site's composer with the text filled in. They aren't installed with the app: install them from the plugin library.
@@ -14,6 +19,10 @@
 - `@calc <expression>`: calculates on this Mac and offers the result to insert, e.g. `@calc 23*17` → `391`. `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, `50%`, the functions `sqrt`, `abs`, `round`, `floor`, `ceil`, `ln`, `log`, `exp`, `sin`, `cos`, `tan`, `min`, `max` and `pow`, the constants `pi` (`π`) and `e`, and full-width digits and signs; arithmetic is exact in decimal (`0.1+0.2` is `0.3`). It also works inside a sentence: `@reply 总价是 @calc 23*17 元`. Nothing goes online and no other program runs.
 - `@py` and `@js`: run a line of Python or JavaScript and insert the result. When the code ends with an expression, its value is inserted (`@py 2**100`, `@js [1, 2, 3].map(x => x * 2)`), otherwise what it printed; on an error, the error's first line is shown. The code runs in a separate process (10-second timeout, Esc stops it), only when you press the action key and only as you typed or pasted it; it works inside a sentence too: `@reply 答案是 @py 2**100`. `@py` uses the Mac's `python3` and isn't offered without one (without Xcode's command line tools, `/usr/bin/python3` only offers to install them, so it doesn't count; the same goes for `python3`, `git` and the like in custom commands); `@js` uses macOS's built-in JavaScriptCore and can't read files, reach the network or run other programs.
 - `@search <query>`: searches the web with Brave Search, using your own API key (entered under "Web Search" in the settings and kept in the keychain, or `BRAVE_API_KEY` from your shell). On its own it lists the top 5 results, one "title — URL" per line (one line in a terminal); inside a sentence, the titles, snippets and addresses it finds are context for the AI, e.g. `@question 用一句话总结 @search 苹果发布会`. Only the query is sent to Brave.
+
+### Changed
+
+- A shorter input menu: rewrite styles, output languages and input languages are submenus whose titles show what's set (e.g. "Rewrite Styles: Polish, Concise, Formal").
 
 ### Removed
 
@@ -26,6 +35,9 @@
 ### Upgrading
 
 - Sentence mode is gone: without `@`, ⏎ is a plain Return and picked words go straight in; to translate or polish, start the sentence with `@improve` (`@i` ⏎). If you had sentence mode on, there's nothing to do: the setting is cleared.
+- Existing settings stay as they were: both input languages and both output languages remain; remove one under "Input and Output" in the settings to keep just one.
+- The first time, `@note` makes macOS ask whether AllInOneIME may control Notes, and `@reminder` whether it may access Reminders: allow them. If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation, or → Reminders.
+- If you added a command of your own named `note`, `reminder` or `imessage`, the built-in one now has that name and yours no longer shows up: "Custom @ Commands" in the settings marks it ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
 - A custom command or plugin named `calc`, `py`, `js` or `search` (such as `@calc` or `@py` added from the examples in the settings) is now hidden by the new built-in one; to keep a custom command, rename it in the settings.
 
 ## 0.4.0 (2026-10-09)

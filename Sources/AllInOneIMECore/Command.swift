@@ -35,6 +35,8 @@ public struct Command: Hashable, Sendable {
         case reminder
         /// Opens a web address with the text in it (`LinkTemplate`) in the browser; nothing is inserted.
         case link
+        /// Sends the text to someone picked in the panel (`@imessage`), after the user confirms it.
+        case message
     }
 
     init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil) {
@@ -85,8 +87,11 @@ public struct Command: Hashable, Sendable {
     /// The settings window.
     public static let settings = Command(name: "settings", kind: .settings)
 
+    /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
+    public static let imessage = Command(name: "imessage", kind: .message)
+
     public static let builtins: [Command] = [.improve, .question, .claude, .open, .read, .note, .reminder, .calc,
-                                             .py, .js, .webSearch, .tasks, .settings]
+                                             .py, .js, .webSearch, .tasks, .settings, .imessage]
 
     /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
@@ -97,10 +102,12 @@ public struct Command: Hashable, Sendable {
     public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
     /// The program this command needs on the Mac: `claude` for `@claude`, `python3` for `@py`, `argv[0]`
-    /// for a custom `run` or `terminal` command; nil when it needs none.
+    /// for a custom `run` or `terminal` command, the app that sends for a send command (an absolute ".app"
+    /// path); nil when it needs none.
     public var program: String? {
         if self == .claude { return "claude" }
         if self == .py { return InlineCode.python }
+        if self == .imessage { return "/System/Applications/Messages.app" }
         guard let custom, custom.type == .run || custom.type == .terminal else { return nil }
         return custom.argv?.first
     }
