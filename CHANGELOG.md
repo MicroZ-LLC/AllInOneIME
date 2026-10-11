@@ -10,7 +10,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
-- `@question` (and custom AI commands) put every answer on one line, so code lost its line breaks and indentation; answers keep their lines now (code as plain lines, no Markdown fences). In a terminal it is still one line, since a terminal runs each line it is given.
+- `@question` (and custom AI commands) put every answer on one line, so code lost its line breaks and indentation; answers keep their lines now (code as plain lines, no Markdown fences). In a terminal (Ghostty, iTerm2, Terminal…) the answer goes in as a paste, so the shell or Claude Code takes the line breaks as text instead of running or sending each line; typed out, the characters are typed and each line break is pasted. This posts ⌘V, which needs the Accessibility permission (macOS asks the first time); without it the answer still goes in on one line there.
 - `@translate` into several languages highlighted the original (row 0), so ⏎ at once inserted the untranslated sentence; the first translation is highlighted now.
 
 ## 0.5.0 (2026-10-11)

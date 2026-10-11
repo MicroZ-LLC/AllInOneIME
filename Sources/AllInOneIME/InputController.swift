@@ -263,6 +263,25 @@ final class AllInOneIMEInputController: IMKInputController {
     private var typingTask: Task<Void, Never>?
     private var typingRest: [Character] = []
     private var typingClient: IMKTextInput?
+    /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
+    private var typingPastes = false
+
+    /// Whether line breaks can go into a terminal as a paste, and pasting there (`TerminalPaste`; the
+    /// self-test supplies its own and never posts keys or touches the clipboard).
+    var canPasteInTerminal: @MainActor () -> Bool = { TerminalPaste.isAllowed() }
+    var pasteInTerminal: @MainActor (String) async -> Void = { await TerminalPaste.paste($0) }
+
+    /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
+    /// line breaks don't run (or send) anything.
+    @MainActor
+    private func insert(_ text: String, into client: IMKTextInput?) {
+        if text.contains("\n"), Self.isTerminal(client), canPasteInTerminal() {
+            let paste = pasteInTerminal
+            Task { @MainActor in await paste(text) }
+        } else {
+            client?.insertText(text, replacementRange: Self.notFound)
+        }
+    }
 
     /// Types `text` into `client` character by character, like a person typing (`TypeOut.delays`).
     @MainActor
@@ -270,6 +289,7 @@ final class AllInOneIMEInputController: IMKInputController {
         stopTyping(insertingRest: true)
         typingRest = Array(text)
         typingClient = client
+        typingPastes = text.contains("\n") && Self.isTerminal(client) && canPasteInTerminal()
         let delays = TypeOut.delays(for: text, rate: typeOutRate, varies: typeOutVaries)
         let sleep = typeOutSleep
         log.notice("typing out \(text.count) characters")
@@ -277,7 +297,12 @@ final class AllInOneIMEInputController: IMKInputController {
             for delay in delays {
                 await sleep(delay)
                 guard let self, !Task.isCancelled, let client = self.typingClient, !self.typingRest.isEmpty else { return }
-                client.insertText(String(self.typingRest.removeFirst()), replacementRange: Self.notFound)
+                let character = self.typingRest.removeFirst()
+                if character == "\n", self.typingPastes {
+                    await self.pasteInTerminal("\n")
+                } else {
+                    client.insertText(String(character), replacementRange: Self.notFound)
+                }
             }
             self?.typingTask = nil
             self?.typingClient = nil
@@ -289,11 +314,9 @@ final class AllInOneIMEInputController: IMKInputController {
     func stopTyping(insertingRest: Bool) {
         guard let task = typingTask else { return }
         task.cancel()
-        if insertingRest, !typingRest.isEmpty {
-            typingClient?.insertText(String(typingRest), replacementRange: Self.notFound)
-        }
+        if insertingRest, !typingRest.isEmpty { insert(String(typingRest), into: typingClient) }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
-        (typingTask, typingRest, typingClient) = (nil, [], nil)
+        (typingTask, typingRest, typingClient, typingPastes) = (nil, [], nil, false)
     }
 
     /// Whether a result is being typed out now (the self-test).
@@ -405,12 +428,16 @@ final class AllInOneIMEInputController: IMKInputController {
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
         // then goes on as usual.
+        if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
         if typingTask != nil {
             if event.keyCode == VirtualKey.escape {
                 stopTyping(insertingRest: false)
                 return true
             }
+            // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
+            let pastesRest = typingPastes && typingRest.contains("\n")
             stopTyping(insertingRest: true)
+            if pastesRest { return true }
         }
         if !receivedKeys {
             receivedKeys = true
@@ -508,7 +535,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .updateMarkedText:
                 updateMarkedText(target)
             case let .commit(text):
-                target?.insertText(text, replacementRange: Self.notFound)
+                insert(text, into: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
             case let .startConversion(input, id):
@@ -1082,11 +1109,10 @@ final class AllInOneIMEInputController: IMKInputController {
         } else {
             stream = streamFor(command, input)
         }
-        // Model answers are one line already (`Converter.oneLine`); a program's output, a page from
-        // @read and code results may have several, and a terminal would run all but the last.
-        // A terminal runs each line it is given: a program's output, and an answer with line breaks (code),
-        // go in as one line there.
-        let inserted = terminal && (command?.kind == .run || command?.kind == .generate) ? Self.oneLine(stream) : stream
+        // A terminal runs each line it is given: a program's output goes in as one line there, and so does
+        // an answer with line breaks (code) unless they can go in as a paste (`insert`, `TerminalPaste`).
+        let oneLine = terminal && (command?.kind == .run || (command?.kind == .generate && !canPasteInTerminal()))
+        let inserted = oneLine ? Self.oneLine(stream) : stream
         conversionTask = Task { @MainActor [weak self] in
             do {
                 for try await update in inserted {

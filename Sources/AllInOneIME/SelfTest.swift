@@ -1397,6 +1397,54 @@ enum SelfTest {
     /// candidates (@py and @js from their child processes), output with several lines goes in as printed
     /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
     /// search key is a stand-in: the user's keychain is never read here.
+    /// An answer with line breaks (code) in a terminal: they go in as a paste, which the shell or Claude Code
+    /// takes as text, not as Return; typed out, the characters are typed and each line break pasted. Without
+    /// that (no Accessibility permission) on one line. A live @question; the paste is recorded here.
+    static func testAnswerLinesInTerminal(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
+                                          start: (String) -> Bool, typeText: (String) -> Void, clear: () -> Void) {
+        var pasted: [String] = []
+        controller.canPasteInTerminal = { true }
+        controller.pasteInTerminal = { pasted.append($0) }
+        defer {
+            controller.canPasteInTerminal = { false }
+            controller.pasteInTerminal = { _ in }
+        }
+        func ask() -> String? {
+            guard start("question") else { check(false, "@question is picked from the list ('\(client.marked)')"); return nil }
+            typeText("yongpythonxiekuaisupaixu")  // 用 python 写快速排序: code, several lines
+            _ = act(controller, client)
+            guard finishConversion(controller, "@question in a terminal") else { clear(); return nil }
+            return controller.composer.choices.first { $0.kind == .answer }?.text
+        }
+        let before = client.inserted
+        if let answer = ask() {
+            _ = enter(controller, client)
+            _ = pump(timeout: 1) { !pasted.isEmpty }
+            check(answer.contains("\n") && pasted == [answer] && client.inserted == before,
+                  "an answer with line breaks goes into a terminal as a paste (\(pasted.map { $0.replacingOccurrences(of: "\n", with: "\\n") }))")
+        }
+        // Typed out: characters typed, line breaks pasted one at a time.
+        settings.typeOut = true
+        controller.applySettings()
+        let sleep = controller.typeOutSleep
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 5_000_000) }
+        (pasted, client.inserted) = ([], [])
+        if let answer = ask() {
+            _ = enter(controller, client)
+            _ = pump(timeout: 10) { !controller.isTypingOut }
+            let breaks = answer.filter { $0 == "\n" }.count
+            check(breaks > 0 && pasted == Array(repeating: "\n", count: breaks)
+                  && client.inserted.allSatisfy { $0.count == 1 && $0 != "\n" }
+                  && client.inserted.joined() == answer.replacingOccurrences(of: "\n", with: ""),
+                  "…typed out: the characters typed, each of the \(breaks) line breaks pasted (\(pasted.count) pastes)")
+        }
+        settings.typeOut = false
+        controller.applySettings()
+        controller.typeOutSleep = sleep
+        client.inserted = before
+        clear()
+    }
+
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
         print("— @calculate, @py, @js, @search")
@@ -1531,6 +1579,7 @@ enum SelfTest {
                 controller.activateServer(client)
                 check(insertsResult("py", "print(1);print(2)", "1 2"),
                       "…and goes in as one line in a terminal (\(shown(client.inserted.last)))")
+                testAnswerLinesInTerminal(controller, client, start: start, typeText: typeText, clear: clear)
                 client.bundleIDOverride = nil
                 controller.activateServer(client)
             } else {
@@ -1616,6 +1665,10 @@ enum SelfTest {
             return config
         }
         controller.clientOverride = client
+        // No keys posted, the clipboard left alone: line breaks into a terminal go in on one line unless a
+        // check pastes them itself.
+        controller.canPasteInTerminal = { false }
+        controller.pasteInTerminal = { _ in }
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.saveCommandUsage = { _ in }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
