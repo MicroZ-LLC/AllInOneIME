@@ -362,4 +362,11 @@ struct NotesFormatTests {
         #expect(NotesFormat.entries(from: NSAppleEventDescriptor(string: "x"), limit: 10).isEmpty)
         #expect(NotesFormat.entries(from: list([list([]), list([]), list([])]), limit: 10).isEmpty)
     }
+
+    @Test func aMissingFolderIsMissingValueNotAnEmptyList() {
+        // What `return missing value` gives: none at all, unlike an empty folder's three empty lists.
+        #expect(NotesFormat.isMissingValue(NSAppleEventDescriptor(typeCode: 0x6D73_6E67)))
+        #expect(!NotesFormat.isMissingValue(NSAppleEventDescriptor.list()))
+        #expect(!NotesFormat.isMissingValue(NSAppleEventDescriptor(string: "msng")))
+    }
 }
