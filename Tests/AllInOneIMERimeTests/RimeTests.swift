@@ -8,7 +8,10 @@ enum RimeFixture {
     static let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     static let sharedData = root.appendingPathComponent("ThirdParty/rime-data")
-    static let userData = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-rime-tests")
+    /// librime's user folder: one per test process, so that runs in two checkouts at once don't use (and
+    /// delete) the same one. Removed when the process exits.
+    static let userData = FileManager.default.temporaryDirectory
+        .appendingPathComponent("allinoneime-rime-tests-\(ProcessInfo.processInfo.processIdentifier)")
 
     /// Starts librime once per test process; returns the deployment time.
     static let startup: Result<TimeInterval, Error> = {
@@ -16,7 +19,11 @@ enum RimeFixture {
             guard FileManager.default.fileExists(atPath: sharedData.appendingPathComponent("build/rime_ice.table.bin").path) else {
                 throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: sharedData.path + " (run `make deps`)"])
             }
+            // Left by an earlier process with the same id that didn't get to exit (a crash): start fresh.
             try? FileManager.default.removeItem(at: userData)
+            // Registered before librime starts: exit handlers run last first, so what librime sets up from here
+            // on is torn down before its folder goes.
+            atexit { try? FileManager.default.removeItem(at: RimeFixture.userData) }
             let started = Date()
             try RimeService.shared.start(sharedDataDir: sharedData, userDataDir: userData, logDir: nil)
             guard RimeService.shared.waitUntilReady(timeout: 120) else {

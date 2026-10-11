@@ -115,10 +115,31 @@ public enum FileSearchRanking {
 
     /// Whether every keyword is in `path` or one of `names`, and at least one in its name (`name(of:)`) or
     /// one of `names` (case and accents don't matter). `names`: what else it is called (an app's 计算器).
-    public static func matches(_ path: String, names: [String] = [], keywords: [String]) -> Bool {
+    /// `places`: folders a keyword names when it is one of their names in Finder (`scopingPlaces`): such a keyword
+    /// is in the paths inside the folder too, as "downloads" is in ~/Downloads/a.pdf, so 「下载 pdf」 finds the
+    /// PDFs in Downloads like "downloads pdf" does.
+    public static func matches(_ path: String, names: [String] = [], keywords: [String], places: [Found] = []) -> Bool {
         let name = name(of: path)
-        return keywords.allSatisfy { keyword in contains(path, keyword) || names.contains { contains($0, keyword) } }
-            && keywords.contains { keyword in contains(name, keyword) || names.contains { contains($0, keyword) } }
+        return keywords.allSatisfy { keyword in
+            contains(path, keyword) || names.contains { contains($0, keyword) } || isInside(path, placeNamed: keyword, places)
+        } && keywords.contains { keyword in contains(name, keyword) || names.contains { contains($0, keyword) } }
+    }
+
+    /// Whether `path` is inside one of `places` that `keyword` is the whole of a name of ("下载", not "下").
+    static func isInside(_ path: String, placeNamed keyword: String, _ places: [Found]) -> Bool {
+        guard !places.isEmpty else { return false }
+        let keyword = folded(keyword)
+        return places.contains { place in
+            path.hasPrefix(place.path.hasSuffix("/") ? place.path : place.path + "/") && place.names.contains { folded($0) == keyword }
+        }
+    }
+
+    /// The places of the app index (`AppIndex.places`: Downloads, Desktop, Documents …) whose Finder names stand for
+    /// the paths inside them (`matches`). Not one that holds the others, the home folder: nearly everything is in it,
+    /// and its names are words file names have too (「个人 简历」 and "home insurance" still need 个人 and "home" in the path).
+    public static func scopingPlaces(_ apps: [Found]) -> [Found] {
+        let places = apps.filter(\.isPlace)
+        return places.filter { place in !places.contains { $0.path != place.path && $0.path.hasPrefix(place.path + "/") } }
     }
 
     /// The name a keyword is looked for in: the file name, an app's without ".app" (every app has that:
@@ -306,8 +327,10 @@ public enum FileSearchRanking {
         let words = keywords(in: query)
         let searched = nameSearches(words)
         guard !searched.isEmpty else { return [] }
+        // 「下载 pdf」: the PDFs in Downloads, as for "downloads pdf" (`matches`).
+        let places = scopingPlaces(apps)
         // The index holds only what is opened by name (Finder and the home folder too, which `isCandidate` skips).
-        var named = apps.filter { matches($0.path, names: $0.names, keywords: words) }
+        var named = apps.filter { matches($0.path, names: $0.names, keywords: words, places: places) }
         var position = Dictionary(named.enumerated().map { ($1.path, $0) }, uniquingKeysWith: { first, _ in first })
         let indexed = Set(apps.map(\.path))
         for file in byName(searched) where isCandidate(file.path) && !isNoise(file.path) {
@@ -316,7 +339,7 @@ public enum FileSearchRanking {
                 named[at].lastUsed = named[at].lastUsed ?? file.lastUsed
                 named[at].modified = named[at].modified ?? file.modified
             } else if !indexed.contains(file.path),
-                      words.count == 1 ? !onlyByExtension(file.path, words[0]) : matches(file.path, keywords: words) {
+                      words.count == 1 ? !onlyByExtension(file.path, words[0]) : matches(file.path, keywords: words, places: places) {
                 position[file.path] = named.count
                 named.append(file)
             }
