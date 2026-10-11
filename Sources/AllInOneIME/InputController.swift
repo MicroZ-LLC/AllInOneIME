@@ -784,6 +784,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
         let (runPlugin, runProgram, converter) = (self.runPlugin, self.runProgram, self.converter)
+        let improveTranslates = loadSettings().improveTranslates
         // Not tied to the main actor: the pipeline calls it from its own task.
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
             if command == .read { return WebReader.stream(input) }
@@ -794,7 +795,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
             // @improve, @translate, or both written together: one request (`WritingMode`).
             if command == nil || command?.kind == .convert {
-                let (mode, text) = WritingMode.parse(command, input)
+                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
                 return converter.convert(text, mode: mode)
             }
             return command.map { converter.generate($0, input: input) } ?? converter.convert(input)
@@ -1207,6 +1208,12 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         stylesItem.submenu = styles
         menu.addItem(stylesItem)
+        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates"),
+                                           action: #selector(toggleImproveTranslates(_:)), keyEquivalent: "")
+        improveTranslates.target = self
+        improveTranslates.state = current.improveTranslates ? .on : .off
+        improveTranslates.isEnabled = config != nil
+        menu.addItem(improveTranslates)
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
                                  keyEquivalent: "")
@@ -1273,6 +1280,19 @@ final class AllInOneIMEInputController: IMKInputController {
     /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
     static func inputName(_ language: Language) -> String {
         language == .chinese ? tr("中文（拼音）", "Chinese (pinyin)") : UIText.name(language)
+    }
+
+    @objc func toggleImproveTranslates(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            do {
+                var config = try Config.load()
+                config.improveTranslates.toggle()
+                try config.write()
+                log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
+            } catch {
+                log.error("could not update @improve: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     /// Makes an added input language the default: a new text field starts in it.

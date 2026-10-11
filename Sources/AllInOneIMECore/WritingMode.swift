@@ -11,8 +11,14 @@ public enum WritingMode: String, Equatable, Sendable {
     case both
 
     /// The mode for `command` (nil: as `@improve`) and the text without the other command written
-    /// inside it: "@translate @improve 你好" → (.both, "你好").
-    public static func parse(_ command: Command?, _ text: String) -> (mode: WritingMode, text: String) {
+    /// inside it: "@translate @improve 你好" → (.both, "你好"). `improveTranslates`
+    /// (`Config.improveTranslates`): `@improve` alone does both.
+    public static func parse(_ command: Command?, _ text: String, improveTranslates: Bool = false) -> (mode: WritingMode, text: String) {
+        let parsed = commands(command, text)
+        return (parsed.mode == .improve && improveTranslates ? .both : parsed.mode, parsed.text)
+    }
+
+    private static func commands(_ command: Command?, _ text: String) -> (mode: WritingMode, text: String) {
         let own: WritingMode = command == .translate ? .translate : .improve
         let other: Command = own == .translate ? .improve : .translate
         let token = "@" + other.name

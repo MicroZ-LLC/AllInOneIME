@@ -37,6 +37,8 @@ public struct Config: Codable, Equatable, Sendable {
     public var inputLanguages: [Language]
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
     public var defaultInput: Language
+    /// `@improve` also translates, as `@translate @improve` (one request with both).
+    public var improveTranslates: Bool
     /// Hold the right Option key to dictate (on-device speech recognition): the text is inserted, or
     /// added to the @ command being written.
     public var voiceInput: Bool
@@ -102,6 +104,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.outputLanguages = outputLanguages ?? [outputLanguage]
         self.inputLanguages = inputLanguages
         self.defaultInput = defaultInput
+        self.improveTranslates = false
         self.voiceInput = voiceInput
         self.jargonFile = jargonFile
         self.actionKey = actionKey
@@ -124,7 +127,7 @@ public struct Config: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, outputLanguages, inputLanguages, defaultInput, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case provider, anthropic, gemini, openai
     }
 
@@ -149,6 +152,7 @@ public struct Config: Codable, Equatable, Sendable {
             ?? (c.contains(.outputLanguages) ? outputLanguages.first : nil) ?? d.outputLanguage
         defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput)
             ?? (c.contains(.inputLanguages) ? inputLanguages.first : nil) ?? d.defaultInput
+        improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
@@ -207,6 +211,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(outputLanguage, forKey: .outputLanguage)
         try c.encode(outputLanguages, forKey: .outputLanguages)
         try c.encode(inputLanguages, forKey: .inputLanguages)
+        try c.encode(improveTranslates, forKey: .improveTranslates)
         try c.encode(defaultInput, forKey: .defaultInput)
         try c.encode(voiceInput, forKey: .voiceInput)
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file

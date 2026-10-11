@@ -563,8 +563,11 @@ struct SettingsView: View {
                         .fixedSize()
                     }
                 }
-                Text(tr("拖动排序，第一个是默认输入 / 正在用的输出。", "Drag to reorder: the first is the default input / the output in use."))
+                Text(tr("拖动排序。输入：第一个是默认；输出：@translate 按这个顺序每种语言出一行。",
+                        "Drag to reorder. Input: the first is the default; output: @translate writes a line in each, in this order."))
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle(tr("@improve 同时翻译（等于 @translate @improve）", "@improve also translates (as @translate @improve)"),
+                       isOn: $model.config.improveTranslates)
                 Text(inputSummary).font(.caption).foregroundStyle(.secondary)
             }
             .disabled(!model.canSave)
@@ -797,6 +800,7 @@ struct SettingsView: View {
         .onChange(of: model.config.outputLanguage) { model.save() }
         .onChange(of: model.config.outputLanguages) { model.save() }
         .onChange(of: model.config.inputLanguages) { model.save() }
+        .onChange(of: model.config.improveTranslates) { model.save() }
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }

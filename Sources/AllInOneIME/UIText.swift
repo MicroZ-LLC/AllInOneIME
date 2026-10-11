@@ -142,7 +142,8 @@ enum UIText {
         case .link?, nil: break
         }
         switch command {
-        case .improve, .translate: return action(WritingMode.parse(command, draft).mode, input: input, config: config)
+        case .improve, .translate:
+            return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
         case .claude: return config.claudeInBackground ? tr("交给 Claude 在后台做", "hand it to Claude in the background")
                                                        : tr("在终端打开 Claude Code", "open Claude Code in Terminal")

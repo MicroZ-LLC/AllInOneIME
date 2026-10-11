@@ -18,6 +18,10 @@ struct WritingModeTests {
         #expect(WritingMode.parse(.translate, "@improve 牛的啊") == (.both, "牛的啊"))
         #expect(WritingMode.parse(.improve, "@translate 牛的啊") == (.both, "牛的啊"))
         #expect(WritingMode.parse(.improve, "牛的啊 @translate") == (.both, "牛的啊"))
+        // The setting: @improve alone does both; @translate stays as it is.
+        #expect(WritingMode.parse(.improve, "你好", improveTranslates: true) == (.both, "你好"))
+        #expect(WritingMode.parse(.translate, "你好", improveTranslates: true) == (.translate, "你好"))
+        #expect(try! JSONDecoder().decode(Config.self, from: Data("{}".utf8)).improveTranslates == false)
         // An address or a word that only contains the name isn't the command.
         #expect(WritingMode.parse(.improve, "mail a@translate.com") == (.improve, "mail a@translate.com"))
     }
