@@ -1,106 +1,116 @@
-<img src="Resources/AppIcon.png" width="96" alt="AllInOneIME 图标" align="right">
+<img src="Resources/AppIcon.png" width="96" alt="AllInOneIME icon" align="right">
 
 # AllInOneIME
 
-中文 | [English](README.en.md)
+English | [中文](README.zh-CN.md)
 
-一个 macOS 输入法。平时就是普通拼音输入法，在本地运行，基于 Rime + 雾凇拼音。句子开头打 `@` 就是命令，
-写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，
-`@claude` 交给 Claude Code，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。
+A macOS input method. Day to day it's a regular pinyin input method that runs locally, built on Rime + rime-ice
+(雾凇拼音). Start a sentence with `@` for a command and press ⏎ when done to run it: `@improve` has a large language
+model polish it and give a few rewrites, `@translate` translates into the languages you pick, `@question` asks a
+question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web address. You can also
+hold right ⌥ and talk.
 
-作者：[Weijian Zhang](https://weijianz.com)
+Author: [Weijian Zhang](https://weijianz.com)
 
-![两步：@improve 加拼音，再按 ⏎ 出润色和改写](docs/demo.png)
+![Two steps: @improve plus pinyin, then ⏎ for polished versions and rewrites](docs/en/demo.png)
 
-![@improve 加英文：英文润色（含黑话）；输出设成中文：中文润色](docs/english.png)
+![@improve plus English: English polish (with Jargon); with the output set to Chinese: Chinese polish](docs/en/english.png)
 
-更详细的说明（每个命令和设置、安装排查、隐私）见 [Wiki](https://github.com/weijianz-opc/AllInOneIME/wiki)。
+For more detail (every command and setting, installation troubleshooting, privacy), see the [Wiki](https://github.com/weijianz-opc/AllInOneIME/wiki).
 
-## 怎么用
+## How to use
 
-不打 `@` 的时候，它和别的拼音输入法一样：选词直接上屏，⏎ 就是回车，英文模式下字母直接上屏，不联网。
+Without `@`, it works like any other pinyin input method: picking a word inserts it, ⏎ is Return, in English mode letters are typed directly, and nothing goes online.
 
-| 按键 | 作用 |
+| Key | What it does |
 |---|---|
-| 打拼音、空格 / 数字 | 选词，和普通拼音输入法一样 |
-| `@`（句子开头） | 弹出命令列表：最近常用的在前，一次显示 5 个，↑↓、滚轮或触控板往下滚；也可以打字母找（名字开头的优先，也找名字里含这些字母的）。⏎、Tab、空格或数字选中 |
-| ⏎ | 执行命令。拼音没选完也可以直接按，会先像按空格一样选完 |
-| 空格、⏎ / 数字 | 出结果后：上屏高亮项 / 对应项，0 是原文 |
-| ⌘C | 复制高亮的结果（`@open` 是复制路径），候选框不关 |
-| ⌃V | 在命令里（比如 `@improve ` 后面）：把剪贴板里的文字接到已经打的字后面，不贴进 App。多行合成一行，一次最多 2000 字（`@note` 保留换行，最多 20000 字）。哪个 App 里都能用；没有命令时照常交给 App |
-| ⌘V | 和 ⌃V 一样，但有的 App 会自己处理 ⌘V（终端如 Ghostty、iTerm2、Terminal，还有备忘录），在那里会照常粘贴进 App，请用 ⌃V |
-| ⏎（命令后面还没写内容） | 用剪贴板里的文字：先显示在命令里，再按 ⏎ 执行。比如复制一段话后 `@i` ⏎ ⏎ ⏎。哪个 App 里都能用 |
-| Esc、⌫ | 回到这句话继续修改；直接打字就是接着往后写 |
-| 单按 Shift | 切换中英文 |
-| 按住右 ⌥ | 说话，松开结束。中文模式说中文，英文模式说英文。在命令里就接在后面，否则直接上屏 |
+| Type pinyin, Space / digits | Pick words, as in any pinyin input method |
+| `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (names starting with them first, then names containing them). ⏎, Tab, Space or a digit chooses |
+| ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
+| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original |
+| ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
+| ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
+| ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
+| ⏎ (nothing written after the command yet) | Uses the clipboard text: it's shown in the command first, then ⏎ runs it. E.g. after copying a paragraph: `@i` ⏎ ⏎ ⏎. Works in any app |
+| Esc, ⌫ | Back to the sentence to keep editing; typing just continues it |
+| Tap Shift | Switch between Chinese and English |
+| Hold right ⌥ | Talk, release to stop. Chinese in Chinese mode, English in English mode. In a command, the text goes after it; otherwise it's inserted directly |
 
-## @ 命令（试用）
+## @ commands (beta)
 
-| 命令 | 作用 |
+| Command | What it does |
 |---|---|
-| `@improve` | 润色：1–3 是原文语言的三种说法，4 起是改写风格（设置里加、拖动排序），0 是原文。不翻译；设置里打开「@improve 同时翻译」就和 `@translate @improve` 一样 |
-| `@translate` | 翻译成你加的语言（设置「翻译」里加、拖动排序），每种一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。`@translate @improve` 写在一起就一次请求同时翻译和改写 |
-| `@question` | 提问，答案出现在候选里，⏎ 或空格上屏，⌘C 复制 |
-| `@claude` | 交给 Claude Code：默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看。用的是你本机的 Claude Code（`claude` 命令）和它自己的登录、设置。设置里关掉「@claude 在后台运行」就像以前一样在终端打开。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」 |
-| `@tasks` | 列出后台的 Claude 任务（进行中 / 完成 / 等你确认）和它们最后的回复；⏎ 在终端打开接着聊，⌘C 复制回复 |
-| `@settings` | 直接打开设置窗口（选中就打开，不用再写内容） |
-| `@open` | 边打边列出匹配的文件、文件夹和 App（聚焦搜索）。可以写几个关键词，用空格隔开：每个都要在路径里，至少一个在名字里（常用文件夹的中文名也算：`下载 pdf` 找下载文件夹里的 PDF）。App 也能用中文名找（计算器、系统设置；先单按 Shift 切到中文再打），访达和常用文件夹也是（下载、桌面、文稿），中文界面里也显示中文名。用 `@open` 打开过的排在最前，然后是 App、这些文件夹和最近用过、改过的文件；按名字只找到两个以内、也没有 App 或这些文件夹时，再按内容找主目录里的文件，这些标着「内容」；全是这种时，⏎ 先列出来让你选，不直接打开第一个。打网址（`github.com`、`localhost:3000`、`https://…`）时第一条是「在浏览器中打开」，不按内容找；有文件正好叫这个名字（比如 `MANIFEST.in`）时，它排在最前。以 `~/`、`/` 开头就是路径，Tab 补全，进文件夹；⏎ 打开，⌘C 复制路径 |
-| `@note` | 存进「备忘录」App 的 AllInOneIME 文件夹（没有就新建），不上屏。粘贴的文字保留换行，最多 20000 字 |
-| `@reminder` | 加到「提醒事项」App 的 AllInOneIME 列表。时间直接写在里面，在本机读出：先出一行给你确认，⏎ 或空格加进去，Esc 回去改。写了时间就到点提醒，只写日期是全天的 |
-| `@calculate` | 在本机算算式，结果出现在候选里，⏎ 或空格上屏：`@calculate 23*17` → `391`。也能放在句子中间：`@reply 总价是 @calculate 23*17 元` |
-| `@py` | 运行一行 Python（本机的 `python3`），上屏结果：代码以表达式结尾时是它的值，比如 `@py 2**100`、`@py import math; math.sqrt(2)`，否则是打印出来的内容。没装 `python3` 时不显示（装了 Xcode 命令行工具就有） |
-| `@js` | 运行一行 JavaScript，同样上屏最后一个表达式的值或 `console.log` 打印的内容：`@js [1, 2, 3].map(x => x * 2)`。用 macOS 自带的 JavaScriptCore，不用装别的；读不到文件，也不能联网或运行别的程序 |
-| `@imessage` | 发 iMessage：先打名字、拼音（全拼或首字母，如 `zs`）、手机号或邮箱，在候选框里选收件人（最近发过的排前面；也可以直接打完整的手机号或邮箱），再写消息（句中的 `@stock AAPL` 这类命令会先运行）。⏎ 在候选框里显示「发给 张三（…）：消息」，再按 ⏎ 才发出，Esc 回去修改；不会往输入框里写任何东西。第一次用时 macOS 会问能否访问通讯录、能否控制「信息」，都点「好」 |
+| `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
+| `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
+| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it |
+| `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
+| `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
+| `@settings` | Opens the settings window right away (picking it is enough) |
+| `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's Chinese name counts for what's in it: `下载 pdf` finds the PDFs in Downloads). Apps are found by their Chinese names too (计算器 for Calculator, 系统设置 for System Settings; tap Shift to type Chinese), and so are Finder and the standard folders (访达, 下载 for Downloads, 桌面 for Desktop, 文稿 for Documents), and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
+| `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
+| `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
+| `@calculate` | Calculates on this Mac; the result appears in the candidates, ⏎ or Space inserts it: `@calculate 23*17` → `391`. It also works inside a sentence: `@reply 总价是 @calculate 23*17 元` ("the total is … yuan") |
+| `@py` | Runs a line of Python (the Mac's `python3`) and inserts the result: the value of the code's last expression, e.g. `@py 2**100`, `@py import math; math.sqrt(2)`, or else what it printed. Not offered without `python3` (Xcode's command line tools have it) |
+| `@js` | Runs a line of JavaScript and inserts the same: the value of the last expression or what `console.log` printed, e.g. `@js [1, 2, 3].map(x => x * 2)`. It uses macOS's built-in JavaScriptCore, so there's nothing to install; it can't read files, reach the network or run other programs |
+| `@imessage` | Sends an iMessage: type a name, its pinyin (in full or the initials, like `zs`), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first; a full number or address works too), then write the message (commands inside it such as `@stock AAPL` run first). ⏎ shows "Send to 张三 (…): message" in the panel, ⏎ again sends it, Esc goes back to editing; nothing is typed into the text field. The first time, macOS asks whether AllInOneIME may access Contacts and control Messages: click OK for both |
 
-例：`@q` ⏎，打 `什么是量子计算`，⏎。`@note 想看的书：《三体》` ⏎，存进备忘录。`@reminder 明天下午3点给张三打电话` ⏎，看一眼读出的时间，再按 ⏎ 加进提醒事项。选好命令后按住右 ⌥ 说话也行。`@open` 和 `@calculate` 会临时切到英文字母，用完回到中文。
+Example: `@q` ⏎, type `什么是量子计算` ("what is quantum computing"), ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
+`@reminder call Bob tomorrow at 3pm` ⏎, check the time it read, then ⏎ again to add it. Once the command is chosen, you can also hold right ⌥
+and talk. `@open` and `@calculate` switch to English letters for the moment and go back to Chinese when you're done.
 
-`@py` 和 `@js` 的代码同样用英文字母输入，全角标点会转成半角（`print（“牛逼”）` → `print("牛逼")`）；写成一行，多句用 `;` 隔开。
-代码在单独的进程里运行，10 秒超时，Esc 随时停止；出错时显示错误的第一行，比如 `ZeroDivisionError: division by zero`。
-打印出好几行时照原样上屏，在终端里合成一行（终端会把每一行都当成命令执行）。
-编辑器里的终端（VS Code、Cursor、JetBrains）和编辑器本身分不出来，所以在那里，所有命令好几行的结果都照原样上屏。
-它们也能放在别的命令的句子中间：`@reply 答案是 @py 2**100`；代码里有空格时用「」或引号括起来：`@question 解释一下 @py「sum(x * x for x in range(10))」`。
-反过来不行：`@py`、`@js` 的代码总是照你打的原样运行，里面的 `@命令` 不会先运行。
+The code for `@py` and `@js` is typed in English letters too, and full-width punctuation becomes ASCII (`print（“牛逼”）` → `print("牛逼")`); write it on one line, with `;` between statements.
+It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
+Output with several lines is inserted as printed; in a terminal it goes in as one line (a terminal runs every line it is given).
+A terminal inside an editor (VS Code, Cursor, JetBrains) can't be told apart from the editor itself, so there any command's output with several lines goes in as it is.
+Both also work inside another command's sentence: `@reply 答案是 @py 2**100` ("the answer is …"); put code with spaces in 「」 or quotes: `@question explain @py「sum(x * x for x in range(10))」`.
+Not the other way round: the code of `@py` and `@js` always runs exactly as you typed it, and `@commands` in it don't run first.
 
-![打 @ 弹出命令列表；@question 加问题，按 ⏎ 出答案](docs/commands.png)
+![Typing @ opens the command list; @question plus a question, then ⏎ for the answer](docs/en/commands.png)
 
-![@open 边打边找 App；以 / 开头是路径，列出文件夹，Tab 补全](docs/open.png)
+![@open finds apps as you type; starting with /, it's a path: the folder is listed, Tab completes](docs/en/open.png)
 
-`@` 后面跟的不是命令时，比如 `@张三`、`@john`，`@` 照常上屏，在聊天软件里 @ 人不受影响。
-`@question`、`@improve`、`@translate` 只在按执行键时发到你自己的 Bedrock；`@open` 只在本机搜索；`@note`、`@reminder` 只交给本机的「备忘录」和「提醒事项」；`@claude` 用的是你本机装的
-Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前它会照常先问你；没装 Claude Code 时不显示
-`@claude`。`@imessage` 只在本机读通讯录（姓名、电话、邮箱），不经过 AI，由「信息」发出；没有「信息」App 时不显示。
+When `@` isn't followed by a command, as in `@张三` (a name) or `@john`, the `@` is inserted as usual, so @-mentioning
+people in chat apps still works.
+`@question`, `@improve` and `@translate` send to your own Bedrock only when you press the action key; `@open` searches only on this
+Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@claude` uses the Claude Code installed on your Mac (the `claude` command) and its own account, and it asks you
+first, as usual, before changing files or running commands. Without Claude Code installed, `@claude` isn't offered.
+`@imessage` reads Contacts on this Mac only (names, phone numbers, emails), never goes through the AI, and Messages sends
+the message; without the Messages app it isn't offered.
 
-`@calculate` 在本机计算，不联网：`+ - * /`（也认 `× ÷`）、`^` 或 `**` 乘方、括号、百分号（`50%` 就是 0.5，`200*5%` 是 10；
-跟计算器一样，加减的百分数按前面的数算：`100+10%` 是 110，`100-10%` 是 90），
-函数 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`（`log` 以 10 为底，三角函数用弧度，`round(x, 2)` 保留两位小数），
-常数 `pi`（`π`）和 `e`。全角的数字和符号也行（`（１＋２）×３`）。加减乘除按十进制精确计算，`0.1+0.2` 就是 `0.3`；
-结果最多 15 位有效数字，38 位以内的整数完整写出（`2^100` → `1267650600228229401496703205376`）。
+`@calculate` works on this Mac, offline: `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, percent (`50%` is 0.5,
+`200*5%` is 10; as on a calculator, a percentage added or subtracted is of what comes before: `100+10%` is 110,
+`100-10%` is 90), the functions `sqrt abs round floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles
+are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too
+(`（１＋２）×３`). Arithmetic is exact in decimal, so `0.1+0.2` is `0.3`; results have at most 15 significant digits, and
+whole numbers of up to 38 digits are written out in full (`2^100` → `1267650600228229401496703205376`).
 
-### 备忘录和提醒事项
+### Notes and reminders
 
-`@note` 存成一条新的备忘录，第一行是标题。复制一段话后 `@note` ⏎ ⏎ ⏎（或者在 `@note ` 后面按 ⌃V），换行照原样保留，在命令里显示成 ↵。
-有换行的笔记还没存就离开了输入框（点到别处、换 App），或者按了 ⇧⏎（原样上屏），它不会打进 App（在终端里每一行都会当成命令执行），而是复制到剪贴板（「笔记还没存，原文已复制到剪贴板」）；只有一行的照原样上屏。
+`@note` makes a new note; its first line is the title. After copying some text, `@note` ⏎ ⏎ ⏎ (or ⌃V after `@note `) saves it with its line breaks, shown as ↵ in the command.
+If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed.
 
-`@reminder` 认得这些写法：`明天下午3点`、`明晚7点`、`3点半`、`30分钟后`、`下周一 9:30`、`15号`、`周末`、`月底`、`下个月`（1号）、`月初`、`年底`、`元旦`、`圣诞节`、`1个月后`、`tomorrow at 3pm`、`in 2 hours`、`in 3 days at 3pm`、`next month`。
-农历的节日（`春节`、`中秋`）每年日子不一样，不认，写上日期就行；`写3点建议` 这种是几点意见，不算时间。
-日期和时间分开写也行（`明天开会，3点`）；一周从周一算起，`下周日` 是下一周的周日。
-只写几点（`3点半`、`8点`）时取接下来最近的那个，不会是 0 点到 6 点之间，除非写了 `凌晨`；今天已经过了的时间算明天，只写了 `下午`、`今晚` 而还没过完的算今天（全天）；今年已经过了的日期算明年。
-写成重复的（`每周一9点开会`）只加最近的一次，原话留在标题里，确认的那一行写着「只提醒这一次」。
-确认的那一行显示读出的时间，比如「明天 15:00」（跟着系统的 12 / 24 小时制），不对就 Esc 回去改；什么时间都没写的，不设日期（「未设时间」）。
+`@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year`, and in Chinese `明天下午3点` (tomorrow 3 pm),
+`明晚7点` (tomorrow 7 pm), `3点半` (half past 3), `30分钟后` (in 30 minutes), `下周一 9:30` (next Monday 9:30), `15号` (the 15th), `月底` (the end of the month), `下个月` (next month), `月初` (the 1st), `年底` (the end of the year), `元旦` (New Year's Day), `圣诞节` (Christmas).
+Lunar holidays (`春节`, Chinese New Year; `中秋`, the Mid-Autumn Festival) fall on a different day each year and aren't read: write the date. `写3点建议` ("write 3 suggestions") counts points: no time.
+The day and the time can be apart (`tomorrow call Bob at 5`); weeks start on Monday, so `下周日` is next week's Sunday.
+A time without am or pm (`3点半`, `at 5`) is the next one, never between midnight and 6 a.m. unless `凌晨` (before dawn) is written; a time already past today is tomorrow, but a part of the day still going (`this afternoon`, `tonight`) is today, all day; a date already past this year is next year's.
+Written to repeat (`standup every Monday at 9`), it is added once, for the next time: the words stay in the title and the row says "once only".
+The row to confirm shows the time it read, e.g. "tomorrow 3:00 PM" (following the Mac's 12/24-hour setting); if it's wrong, Esc goes back to the text. With no time or date in it, it has none ("no date").
 
-这两个命令里写的 `@stock` 之类不会先运行，照原样保存（打 `@` 也不弹命令列表）。第一次用时 macOS 会问：`@note` 要控制「备忘录」，`@reminder` 要访问「提醒事项」，允许就行；
-当时没允许的话，到 系统设置 → 隐私与安全性 → 自动化（备忘录）或 → 提醒事项 里打开 AllInOneIME。
-没存上时（比如没有权限）会提示原因，文字回到原来的命令里，改好再按 ⏎；没有权限、没有账户这种要你先去处理的，文字也同时复制到剪贴板（去系统设置时输入框会失去焦点）。如果已经换了输入框或者正在打别的字，就放到剪贴板（「没有存上，原文已复制到剪贴板。」）。
+`@stock` and the like inside these two aren't run: the text is saved as written (typing `@` there doesn't open the command list). The first time, macOS asks whether AllInOneIME may control Notes (`@note`) or access Reminders (`@reminder`): allow it.
+If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation (Notes) or → Reminders.
+When a save fails (no permission, say), the notice says why and the text comes back into the command, to fix and send again; when you have to fix something first (a permission, an account), it's also put on the clipboard (going to System Settings takes the focus from the text field). If you've moved to another text field or are typing something else, it goes on the clipboard instead ("Not saved; the text is on the clipboard.").
 
-### 自己加命令
+### Your own commands
 
-在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页），也可以从例子开始。
-命令排在内置命令后面，名字只能用英文字母，不能和内置命令重名；保存后下一句就能用。
-它们存在配置文件（`~/.config/allinoneime/config.json`）的 `customCommands` 里，也可以直接改：
+In the settings, under "Custom @ Commands", click "Add Command…": give it a name and choose what it does (an AI
+instruction, a program, a program in Terminal, or a web page), or start from an example. Your commands come after the built-in
+ones; names are English letters only and can't be a built-in command's; they work from the next sentence.
+They're kept in `customCommands` in the config file (`~/.config/allinoneime/config.json`), which you can also edit:
 
 ```json
 "customCommands": [
-  { "name": "python", "type": "run", "argv": ["python3", "-c", "{input}"], "summary": "运行 Python" },
+  { "name": "python", "type": "run", "argv": ["python3", "-c", "{input}"], "summary": "Run Python" },
   { "name": "bc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
@@ -108,97 +118,104 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 ]
 ```
 
-| `type` | 做什么 |
+| `type` | What it does |
 |---|---|
-| `prompt` | 发给 AI，`prompt` 是给它的指令；回答出现在候选里，可以上屏或 ⌘C 复制 |
-| `run` | 在后台运行 `argv`，打印的内容出现在候选里（多行照原样上屏，在终端里合成一行）；出错时显示错误的最后一行 |
-| `terminal` | 在新的终端窗口里运行 `argv`，不上屏 |
-| `link` | 把内容填进网址 `url`，在默认浏览器里打开，不上屏 |
+| `prompt` | Goes to the AI with `prompt` as its instruction; the answer appears in the candidates, to insert or copy (⌘C) |
+| `run` | Runs `argv` in the background; what it prints appears in the candidates (several lines are inserted as printed, in a terminal as one line). On an error, its last line is shown |
+| `terminal` | Runs `argv` in a new Terminal window; nothing is inserted |
+| `link` | Puts the text into the web address `url` and opens it in the default browser; nothing is inserted |
 
-- `{input}` 换成命令后面写的内容，而且永远只占它所在的那一个参数，不经过 shell。要用 shell 就像上面的 `sh` 那样明确写 `zsh -c`。
-- `stdin`：给程序标准输入的内容，`{input}` 同样会被替换。
-- `link` 的 `url` 必须是 `https://`，`{input}` 只能出现一次，而且要在 `?` 或 `#` 后面；内容会编码（空格是 `%20`，换行是 `%0A`），最多 4000 字。
-- `run` 和 `terminal` 默认用英文字母输入（像 `@open`，用完回到中文），全角标点会转成半角：`print（“牛逼”）` → `print("牛逼")`。不想这样就设 `"ascii": false`。
-- 程序在主目录里运行，用你的登录 shell 的 PATH（Homebrew、pyenv、nvm 装的都找得到）；`run` 默认 10 秒超时（`timeoutSeconds`），输出太多也会被停止，Esc 随时停止。
-- `summary` 是命令列表里的说明，可以不写。
-- 找不到 `argv` 里的程序时（比如没装 `python3`），这个命令不显示，`@python …` 照常当文字上屏；装好后切换一下输入框就会出现。
+- `{input}` becomes what you wrote after the command, and it always stays within the one argument it's in: no shell is involved. For a shell, say so, like `sh` above (`zsh -c`).
+- `stdin`: what goes to the program's standard input, with `{input}` replaced too.
+- A `link`'s `url` must be `https://`, with `{input}` once, after the `?` or `#`; the text is encoded (a space is `%20`, a newline `%0A`), 4000 characters at most.
+- `run` and `terminal` type English letters by default (like `@open`; Chinese comes back after), and full-width punctuation becomes ASCII: `print（“牛逼”）` → `print("牛逼")`. Set `"ascii": false` to keep text as typed.
+- Programs run in your home folder with your login shell's PATH (so Homebrew, pyenv and nvm installs are found). `run` stops a program after 10 seconds (`timeoutSeconds`) or when it prints too much; Esc stops it at any time.
+- `summary` is the description in the command list (optional).
+- When the program in `argv` isn't found (say, no `python3`), the command isn't offered and `@python …` is inserted as text; once it's installed, the command appears in the next text field.
 
-`run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
+`run` and `terminal` run code on your Mac: only add commands you wrote and trust. They, too, run only when you press the action key, and never during secure input.
 
-### 插件
+### Plugins
 
-插件是别人写好的 `@` 命令，不是人人都要的放在这里，比如 `@stock AAPL 600519 700` 查股价。
-装好后和其他命令一样用；设置的「插件」里能看到装了哪些、它会把内容发到哪里，也能删除。
-插件用 JavaScript 写，在单独的进程里运行：只能访问它声明的网站（HTTPS），读不到文件，也不能运行别的程序。
-在设置的「插件」里点「浏览插件库…」，从[插件库](https://github.com/weijianz-opc/AllInOneIME-plugins)安装：
-安装前会告诉你它会访问哪些网站；插件库的索引有签名，每个文件都要和索引核对上才装。有新版本时显示「更新」，手动点了才更新。
-自己写的插件放进 `~/.config/allinoneime/plugins/`（设置里「打开插件文件夹」），算本地插件，插件库不会覆盖它。
-也有不运行代码的「链接」插件：把内容填进网址，在浏览器里打开，比如 `@x 今天天气不错` 打开 X 的发帖框、文字已经填好，发不发由你在网页上决定。
-插件库里有 `@x`、`@threads`、`@bsky`、`@weibo` 四个。
-还有 `@xe` 换算汇率：`@xe 100 USD CNY`、`@xe 1000 日元 人民币`，一行结果带汇率日期（汇率来自 ExchangeRate-API）。
-写插件的说明见 [docs/plugins.md](docs/plugins.md)。
+Plugins are ready-made `@` commands for things not everyone needs, like `@stock AAPL 600519 700` for stock quotes.
+Installed, they work like any command; "Plugins" in the settings shows what's installed and where each sends your text,
+and removes them. Plugins are JavaScript run in a separate process: they can reach only the websites they declare
+(HTTPS), and can't read files or run other programs. "Browse Library…" under Plugins in the settings installs them
+from the [plugin library](https://github.com/weijianz-opc/AllInOneIME-plugins): it shows which websites a plugin
+contacts before installing; the library's index is signed and every file must match it. A newer version shows an
+"Update" button; nothing updates by itself. Your own plugins go in `~/.config/allinoneime/plugins/` ("Open Plugins
+Folder"): local plugins, never overwritten by the library.
+"Link" plugins run no code: they put the text into a web address and open it in the browser, like `@x nice weather
+today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
+(`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 日元 人民币`, one line
+with the date of the rate (rates by ExchangeRate-API). Writing one: [docs/plugins.md](docs/plugins.md).
 
-查数据的命令（插件和「运行程序」）也可以写在句子中间：`@reply 告诉他 @stock AAPL 现在多少钱`。
-里面的先运行，结果替换回原文，再交给外面的命令。参数是紧跟的一个代码，后面再跟着的大写代码或数字也算（`@stock AAPL TSLA`、`@stock 600519 700`）；
-小写的普通单词会结束参数（`@stock SNDK is good to buy` 只查 SNDK）。要明确圈定就用「」或引号：`@stock「aapl tsla」`。
-`@calculate` 也能写在句子中间，参数是它后面的整个算式，可以有空格，到别的文字为止：`@reply 总价是 @calculate 23 * 17 元`。
-`@claude` 和终端命令里写的不会先运行，照原样交给它们（打 `@` 也不弹命令列表）。
+Commands that fetch something (plugins and programs) also work inside a sentence: `@reply 告诉他 @stock AAPL 现在多少钱`.
+The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
+the word after the command, plus the uppercase codes or numbers right after it (`@stock AAPL TSLA`, `@stock 600519 700`);
+a lowercase word ends it (`@stock SNDK is good to buy` looks up SNDK). Quotes mark it exactly: `@stock「aapl tsla」`.
+`@calculate` works inside a sentence too; its argument is the whole expression after it, spaces included, up to other text:
+`@reply 总价是 @calculate 23 * 17 元`.
+Inside `@claude` and terminal commands they aren't run: those get the text as written (typing `@` there doesn't open the command list).
 
-### 执行键
+### Action key
 
-默认是 ⏎，可以在设置的「执行键」里换（config 里的 `actionKey`）：⏎、单按 ⌥（左右都行，按一下马上松开；
-按住右 ⌥ 仍然是说话）、⌥空格，或者空格（词选完了再按一次空格，英文模式下连按两次）。
-不管执行键是哪个，@ 命令都可以按 ⏎ 执行。⌥空格如果已经是 Alfred、Raycast 等的快捷键，会先被它们拿走。
+⏎ by default; change it under "Action key" in the settings (`actionKey` in the config): ⏎, Tap ⌥ (either side: press
+and let go right away; holding right ⌥ is still for talking), ⌥Space, or Space (press Space once more after the words
+are picked; twice in English mode).
+Whatever the action key, @ commands also run on ⏎. If ⌥Space is already a shortcut for Alfred, Raycast or the like,
+they get it first.
 
-## 菜单栏面板
+## Menu bar panel
 
-<img src="docs/dashboard.png" width="300" alt="菜单栏面板：备忘录、提醒事项、Claude 任务">
+<img src="docs/en/dashboard.png" width="300" alt="The menu bar panel: notes, reminders, Claude tasks">
 
-点菜单栏的 AllInOneIME 图标（∞ 和光标的标志，不带方框；带方框的是输入法本身的图标），面板就从图标下面拉下来，点别处就收起：
+Click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark, without a box; the boxed one is the input source) and the panel drops down under it; a click elsewhere closes it:
 
-- 备忘录：用 `@note` 存的笔记，最新的 5 条；点一条在「备忘录」里打开。
-- 提醒事项：「提醒事项」里 AllInOneIME 列表中还没完成的提醒（`@reminder` 就加在这个列表里），快到期的在前，显示 8 个；点前面的圆圈就勾掉，点标题打开「提醒事项」。
-- Claude 任务：和 `@tasks` 一样，列出后台的 Claude 任务（`@claude` 交出去的），最多 30 个，一次显示 5 个，多了可以滚动，也可以在搜索框里按标题或回复搜；带进度和最后回复的第一行，点一个在终端里打开接着聊。
+- Notes: the notes saved with `@note`, the newest 5; click one to open it in Notes.
+- Reminders: the reminders not done yet in the AllInOneIME list of Reminders (`@reminder` adds to that list), the soonest due first, 8 shown; click the circle to tick one off, or the title to open Reminders.
+- Claude Tasks: like `@tasks`, the background Claude tasks (what `@claude` hands off), up to 30, 5 shown at a time: scroll for more, or search their titles and replies in the search box; with their progress and the first line of the last reply; click one to open it in Terminal and go on.
 
-标题栏写着数量（比如「2 个提醒 · 1 个任务进行中」，等你确认的任务另算，比如「1 个等你」），右边的按钮刷新。
-它不抢输入焦点：勾提醒、刷新的时候，正在打字的 App 还在前面；只有点进 Claude 任务的搜索框时才接收键盘。
-图标默认显示，设置的「菜单栏面板」里可以关掉。
+The header has the counts (like "2 reminders · 1 task running"; tasks waiting for you are counted apart, like "1 waiting for you") and a refresh button.
+It never takes the focus from the app you're typing in: ticking off a reminder or refreshing leaves that app in front; only the Claude tasks' search box, once clicked, takes the keyboard.
+The icon is shown by default; turn it off under "Menu Bar Panel" in the settings.
 
-它读什么、什么时候读：
+What it reads, and when:
 
-- 笔记：列表是面板自己记的（面板收着时也记），不会启动「备忘录」：只有「备忘录」本来就开着、以前也允许过 AllInOneIME 控制它时，才顺便看一下标题改没改、笔记删没删。
-- 提醒：拉下面板时、每 60 秒、提醒有变化时读 AllInOneIME 列表。面板自己不会让 macOS 弹出权限询问：macOS 还没问过你时显示「允许读取提醒事项」，点了才问；不允许的话显示「打开系统设置」。
-- Claude 任务：面板拉下来时才运行 `claude agents`：拉下、点刷新和用 `@claude` 交出任务时各一次；还有任务没完成时每 15 秒一次，都完成了就不再定时运行。最后的回复读自 Claude Code 在本机的会话记录（`~/.claude/projects`），只读末尾一段，记录没变就不再读。
-- 收起时这些都不运行，只记下用 `@note` 存了哪些笔记。
+- Notes: the list is the panel's own record (kept while it's closed too), and Notes is never launched: only when Notes is running already, and AllInOneIME was allowed to control it before, does the panel check it for edited titles and deleted notes.
+- Reminders: the AllInOneIME list is read when the panel drops down, every 60 seconds and when reminders change. The panel never makes macOS ask for access by itself: if macOS hasn't asked you yet, it shows "Allow Access to Reminders", and only that button asks; if you said no, it shows "Open System Settings".
+- Claude tasks: the panel runs `claude agents` only while it's down: once when it drops down, on Refresh, and when `@claude` hands off a task; and every 15 seconds while a task isn't done yet, no longer once they're all done. The last replies are read from the end of Claude Code's transcripts on this Mac (`~/.claude/projects`), and only when a transcript has changed.
+- While it's closed, none of this runs; it only keeps a record of the notes `@note` saves.
 
-## 输入和翻译
+## Input and translation
 
-在设置里：
+In the settings:
 
-- **输入语言**：中文（拼音）、英文，或者两个都要。拖动排序，第一个是新输入框的默认；有两个时单按 Shift 切换，只有一个时 Shift 不切换。新用户只有中文。
-- **翻译（@translate）**：加你要翻译成的语言（英文、日语、韩语、法语、繁体中文…），拖动排序。`@translate` 按这个顺序每种语言出一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。新用户只有英文。
-- `@improve` 只润色、给改写风格，不翻译；`@translate @improve` 写在一起，一次请求同时翻译和改写。设置里打开「@improve 同时翻译」，`@improve` 就一直这样。
+- **Input languages**: Chinese (pinyin), English, or both. Drag them into order: new text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch. A new user has Chinese only.
+- **Translate (@translate)**: add the languages to translate into (English, Japanese, Korean, French, Traditional Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new user has English only.
+- `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
-## 改写风格
+## Rewrite styles
 
-1–3 行之后是改写，**用原文的语言**：打中文出中文改写，打英文出英文改写。在设置里任选几种：
+After lines 1–3 come the rewrites, **in the language you typed**: Chinese rewrites for Chinese, English rewrites for English. Pick any of them in the settings:
 
-- 润色：语气不变，更自然
-- 简洁
-- 正式：发给领导、客户
-- 口语
-- 委婉
-- 黑话：中文是大厂黑话（对齐、抓手、颗粒度…），英文是 Amazon 腔（bandwidth、circle back…）。坏消息会说得轻描淡写，比如 "this is a blocker bug" → "Oh! Looks like your team has the bandwidth to fix this minor issue!"
+- Polish: same tone, more natural
+- Concise
+- Formal: for managers and clients
+- Casual
+- Tactful
+- Jargon: big-tech jargon in Chinese (对齐 align, 抓手 lever, 颗粒度 granularity…), Amazon-speak in English (bandwidth, circle back…). Bad news is played down, e.g. "this is a blocker bug" → "Oh! Looks like your team has the bandwidth to fix this minor issue!"
 
-只改了标点、或者和其他行重复的改写不会显示。
+Rewrites that only change punctuation or repeat another line aren't shown.
 
-### 黑话库（用你自己的词表）
+### Jargon list (your own terms)
 
-黑话没有内置词库。你可以准备一个自己的词表（比如团队里常用的说法），模型会优先用里面的词。
-候选里黑话那一行会注明用到的词是什么意思，例如「黑话 · PRFAQ＝新功能提案文档」。
+Jargon has no built-in term list. You can prepare your own (for example, the phrases your team uses), and the model
+prefers its terms. In the candidates, the Jargon line notes what the terms it used mean, e.g.
+"Jargon · PRFAQ＝新功能提案文档" (new-feature proposal doc).
 
-词表是一个文本文件，每行一个词，后面可以加解释，用「：」「=」或 Tab 隔开（可以直接从表格复制两列粘贴）。
-`#` 开头的行是注释：
+The list is a text file with one term per line, optionally followed by its meaning, separated by "：" (full-width colon),
+"=" or a Tab (you can copy two columns from a spreadsheet and paste them). Lines starting with `#` are comments:
 
 ```
 PRFAQ：新功能提案文档（先写新闻稿和 FAQ）
@@ -207,55 +224,59 @@ two-way door：可以随时撤回的决定
 抓手：着力点
 ```
 
-在设置的「改写风格 → 黑话库」里点「新建」，会在 `~/.config/allinoneime/jargon.txt` 建一个空词表并打开；
-已经有词表文件的话，点「选择文件…」直接用它（config 里的 `jargonFile`）。改完马上生效。
-最多读前 150 个词。勾上「黑话」时，词表会随请求一起发给 Bedrock。
+(In English: PRFAQ = new-feature proposal doc, press release and FAQ written first; COE = incident review doc;
+two-way door = a decision you can undo at any time; 抓手 = point of leverage.)
 
-<img src="docs/panel-dark.png" width="420" alt="深色模式下的候选框">
+Under "Rewrite Styles → Jargon list" in the settings, click "New" to create an empty list at `~/.config/allinoneime/jargon.txt` and open it;
+if you already have a list file, click "Choose File…" to use it where it is (`jargonFile` in the config). Changes apply right away.
+Only the first 150 terms are read. With "Jargon" checked, the list is sent to Bedrock along with each request.
 
-## 语音输入
+<img src="docs/en/panel-dark.png" width="420" alt="The candidate panel in dark mode">
 
-<img src="docs/voice.png" width="340" alt="按住右 ⌥ 说话">
+## Voice input
 
-按住右 ⌥ 说话，松开后文字直接上屏。先打好命令（比如 `@improve `、`@question `）再说的话，文字接在命令后面，按 ⏎ 执行；也可以不松开右 ⌥ 直接按 ⏎，说完马上执行。语音用 macOS 自带的语音识别（SpeechAnalyzer）在本机完成，音频不上传；需要 macOS 26 或更新版本。
+<img src="docs/en/voice.png" width="340" alt="Hold right ⌥ to talk">
 
-第一次使用时：
+Hold right ⌥ and talk; when you let go, the text is inserted. If you type a command first (e.g. `@improve `, `@question `) and then talk, the text goes after the command and ⏎ runs it; you can also press ⏎ without letting go of right ⌥ to run it as soon as you finish. Speech is recognized on the Mac by macOS's built-in speech recognition (SpeechAnalyzer), and no audio is uploaded; it needs macOS 26 or later.
 
-- macOS 会问是否允许 AllInOneIME 使用麦克风。也可以先在设置里点「允许使用麦克风」。
-- 如果这台 Mac 还没有这种语言的语音模型，会自动下载一次。在设置里也可以手动下载。
+The first time:
 
-按住约 0.2 秒后才开始录音，所以轻点右 ⌥ 不会打开麦克风（执行键设成「单按 ⌥」时，轻点就是执行）。按住时如果按了别的键（比如 ⌥ 组合键、⌥←），就当作快捷键，也不会录音。录音中按其他键会取消录音。
+- macOS asks whether AllInOneIME may use the microphone. You can also click "Allow Microphone" in the settings beforehand.
+- If this Mac doesn't have the speech model for that language yet, it's downloaded once, automatically. You can also download it in the settings.
 
-## 安装
+Recording starts only after you've held the key for about 0.2 s, so a quick tap on right ⌥ doesn't turn on the microphone (with the action key set to "Tap ⌥", a tap runs the action). If you press another key while holding it (an ⌥ shortcut, ⌥←), it counts as a shortcut and nothing is recorded either. Pressing any other key while recording cancels the recording.
 
-运行需要 macOS 14 以上，语音输入要 macOS 26 以上。安装包是通用版，Apple 芯片和 Intel 的 Mac 都能用；
-目前只在 macOS 27、Apple 芯片上测试过（Intel 版只在 Rosetta 下跑过自测）。
+## Installation
 
-1. 从 [Releases](https://github.com/weijianz-opc/AllInOneIME/releases/latest) 下载 `AllInOneIME-<版本>.dmg`（只从这里下载），双击打开。
-2. 双击里面的「安装 AllInOneIME」，点「安装」。输入法装到 `~/Library/Input Methods`，
-   「AllInOneIME 设置」装到 `~/Applications`（英文系统里叫 AllInOneIME Settings）。只装给当前用户，不需要管理员密码。
-3. 安装包还没有经过 Apple 公证，macOS 验证不了它是谁做的，第一次打开时会说无法验证「安装 AllInOneIME」：
-   点「完成」（macOS 14 上是「取消」），打开 系统设置 → 隐私与安全性，在页面下方点「仍要打开」，再确认一次。
-   每个新版本的安装程序都要这样放行一次。
+Running it needs macOS 14 or later, voice input macOS 26 or later. The installer is universal: it works on Macs with
+Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple silicon (the Intel build only through its self-test under Rosetta).
 
-装好后 AllInOneIME 已经启用，也在你的输入法列表里，用 Ctrl+空格 切换
-（🌐 键要在 系统设置 → 键盘 里把「按下 🌐 键时」设成「更改输入法」才会切换）。
-如果安装程序提示要手动添加，说明这台 Mac 不让程序启用，就自己加一次：
-系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME。
+1. Download `AllInOneIME-<version>.dmg` from [Releases](https://github.com/weijianz-opc/AllInOneIME/releases/latest) (only from there) and open it.
+2. Double-click "Install AllInOneIME" in it and click Install. The input method goes into `~/Library/Input Methods`
+   and "AllInOneIME Settings" into `~/Applications` ("AllInOneIME 设置" on a Chinese system). For this user only; no administrator password needed.
+3. The installer isn't notarized by Apple yet, so macOS can't verify who made it, and the first time it says it can't verify "Install AllInOneIME":
+   click Done (Cancel on macOS 14), open System Settings → Privacy & Security, click Open Anyway near the bottom, and confirm.
+   Each new version's installer needs this once.
 
-Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再运行一次安装程序，它会把 AllInOneIME 加回输入法列表。
+After that, AllInOneIME is enabled and in your input sources; switch to it with Ctrl+Space
+(the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings → Keyboard).
+If the installer tells you to add it by hand, this Mac doesn't let programs enable it, so add it once yourself:
+System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → Chinese, Simplified → AllInOneIME.
 
-更新：用新版的 DMG 再装一次，不用先卸载，设置、黑话库和学到的词都保留。升级前看一下 [更新日志](CHANGELOG.md)，里面有每个版本的变化和升级须知。
+If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
-以前装过 AI 拼音（AIPinyin）的话，直接安装就行：旧的 AIPinyin.app 和「AI 拼音设置」会被删掉，
-输入法列表里那一项会换成新名字，不用重新添加。设置、黑话库和学到的词第一次启动时搬到新目录
-（`~/.config/allinoneime` 等），旧目录留一个指向新目录的链接。
+To update, install again from the new version's disk image, without uninstalling first; settings, the jargon list and learned words are kept.
+Before upgrading, read the [changelog](CHANGELOG.md): it has each version's changes and upgrade notes.
 
-卸载：打开「安装 AllInOneIME」，点「卸载…」。设置和学到的词会保留。
+If you had AIPinyin (AI 拼音) installed, just install: the old AIPinyin.app and "AI 拼音设置" (its settings launcher) are removed,
+and the entry in your input sources gets the new name, with no need to add it again. Settings, the jargon list and learned words move to the new folders
+(`~/.config/allinoneime` and others) on first launch, and each old folder is left as a link to the new one.
 
-### 从源码编译
+To uninstall, open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
 
-编译需要 Xcode 26 以上，因为语音输入用到 macOS 26 SDK。
+### Building from source
+
+Building needs Xcode 26 or later, since voice input uses the macOS 26 SDK.
 
 ```sh
 git clone https://github.com/weijianz-opc/AllInOneIME.git
@@ -263,89 +284,89 @@ cd AllInOneIME
 make install
 ```
 
-`make install` 会下载 librime 和雾凇拼音词库并校验，编译后装到同样的位置，同样加进输入法列表。
-`make status` 显示装的是哪个版本（`version:`）、在不在输入法列表里（`listed:`）。卸载：`make uninstall`。
+`make install` downloads librime and the rime-ice dictionaries and verifies them, builds, and installs into the same places, adding it to your input sources the same way.
+`make status` shows the installed version (`version:`) and whether it's in your input sources (`listed:`). To uninstall: `make uninstall`.
 
-## 配置 AI
+## Setting up the AI
 
-翻译和改写用你自己的 AI 服务，费用记在你的账号上：默认是 AWS 账号里的 Amazon Bedrock，也可以用 Claude API、Gemini 或兼容 OpenAI 的服务（见下面的「其他 AI 服务」）。
+Translations and rewrites use your own AI provider, and the costs go to your account: Amazon Bedrock in your AWS account by default, or the Claude API, Gemini or an OpenAI-compatible service (see "Other AI providers" below).
 
 ### Amazon Bedrock
 
-1. 在 AWS 控制台开通 Bedrock，确认能用所选的模型。默认是 Claude Haiku 4.5，第一次用 Anthropic 模型要填一次用途说明。
-2. 创建一个有 `bedrock:InvokeModelWithResponseStream` 权限的 access key，写进 `~/.aws/credentials` 里的一个 profile。
-   目前只支持这种固定密钥，不支持 SSO 和 assume-role。
-3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
-   选好 profile、区域和模型，点「测试连接」。设置窗口最上面的「界面语言」可以选中文或 English；默认跟随系统
-   （系统的首选语言里中文排在英文前面时显示中文，否则显示英文）。设置窗口、候选框里的提示和输入法菜单都跟着它。
+1. Enable Bedrock in the AWS console and make sure you can use the chosen model. The default is Claude Haiku 4.5; the first time you use an Anthropic model, you fill in a use-case form once.
+2. Create an access key with the `bedrock:InvokeModelWithResponseStream` permission and put it in a profile in `~/.aws/credentials`.
+   Only such static keys are supported for now, not SSO or assume-role.
+3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
+   Pick the profile, region and model, and click "Test Connection". "Language" at the top of the settings window can be 中文 or English; by default ("System") it follows the system
+   (Chinese if Chinese comes before English in the system's preferred languages, English otherwise). The settings window, the hints in the candidate panel and the input menu all follow it.
 
-<img src="docs/settings.png" width="420" alt="设置窗口">
+<img src="docs/en/settings.png" width="420" alt="The settings window">
 
-### 其他 AI 服务：Claude API、Gemini、兼容 OpenAI 的服务
+### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
-不用 AWS 也可以：在设置的「AI 服务」里选一个，粘贴 API key 点「保存」，再点「测试连接」。
+You don't need AWS: pick one under "AI Provider" in the settings, paste an API key, click "Save", then "Test Connection".
 
-| 服务 | 默认模型 | API key |
+| Provider | Default model | API key |
 |---|---|---|
-| Claude API | `claude-haiku-5-5`（最快最便宜；也可选 Sonnet 5.5、Opus 5.5，更用心但更慢更贵） | [Claude Console](https://platform.claude.com) |
+| Claude API | `claude-haiku-5-5` (fastest, cheapest; Sonnet 5.5 and Opus 5.5 are more careful but slower and pricier) | [Claude Console](https://platform.claude.com) |
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
-| 兼容 OpenAI 的服务 | OpenAI 的 `gpt-6-luna`（也可选 `gpt-5.4-mini`）；「常用服务…」里有 DeepSeek、通义千问、Kimi、智谱 GLM、硅基流动、OpenRouter、本机 Ollama，选了会填好 Base URL，再填它的模型 | 那个服务的 key；Base URL 填它的地址，比如 `https://api.deepseek.com/v1`，本机 Ollama 填 `http://localhost:11434/v1` |
+| OpenAI-compatible | OpenAI's `gpt-6-luna` (or `gpt-5.4-mini`); "Common Services…" has DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter and Ollama on this Mac: picking one fills in its base URL, then enter its model | The service's key; set the Base URL to its address, e.g. `https://api.deepseek.com/v1`, or `http://localhost:11434/v1` for Ollama on this Mac |
 
-- API key 存在系统钥匙串里，不写进配置文件。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
-- 「思考」默认是 low：输入法每句话都在等，思考越少越快。模型不支持这个参数时选「不设置」。
-- 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
-- 配置文件里对应 `provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`），以及 `anthropic`、`gemini`、`openai` 各自的 `model`、`baseURL`、`effort`、`temperature`（不填就用默认值）。
+- API keys are kept in the system keychain, never in the config file. Without one there, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and `OPENAI_API_KEY` from your shell are used.
+- "Thinking" is low by default: the input method waits on every sentence, and less thinking is faster. Choose "Not set" for models that don't take it.
+- With Claude Opus 5.5 or Sonnet 5.5 chosen, requests carry the Claude API's refusal fallback (`fallbacks: "default"`): when a safety classifier declines, the server retries on another model.
+- In the config file: `provider` (`"bedrock"`, `"anthropic"`, `"gemini"`, `"openai"`), and `model`, `baseURL`, `effort` and `temperature` under `anthropic`, `gemini` and `openai` (unset ones use the defaults).
 
-所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。新加的几项：
+All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. The newer keys:
 
-| 键 | 作用 | 默认 |
+| Key | What it does | Default |
 |---|---|---|
-| `inputLanguages` | 输入语言，第一个是默认：`["zh"]`、`["zh", "en"]`、`["en"]` | `["zh"]` |
-| `outputLanguages` | `@translate` 翻译成的语言，按顺序：`["en", "ja"]` 等 | `["en"]` |
-| `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
-| `voiceInput` | 按住右 ⌥ 说话 | `true` |
-| `actionKey` | 执行键：`"enter"`（⏎）、`"optionTap"`（单按 ⌥）、`"optionSpace"`（⌥空格）、`"space"`（空格） | `"enter"` |
-| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`、`"en"` | `null`（跟随系统） |
-| `rewriteStyles` | 改写风格，例如 `["润色", "简洁", "黑话"]` | `["润色", "简洁", "正式"]` |
-| `jargonFile` | 你自己的黑话词表文件 | `null`（即 `~/.config/allinoneime/jargon.txt`） |
-| `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
+| `inputLanguages` | Input languages, the first is the default: `["zh"]`, `["zh", "en"]`, `["en"]` | `["zh"]` |
+| `outputLanguages` | What `@translate` translates into, in order: `["en", "ja"]`, … | `["en"]` |
+| `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
+| `voiceInput` | Hold right ⌥ to talk | `true` |
+| `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
+| `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"`, `"en"` | `null` (follow the system) |
+| `rewriteStyles` | Rewrite styles, e.g. `["润色", "简洁", "黑话"]` (Polish, Concise, Jargon) | `["润色", "简洁", "正式"]` (Polish, Concise, Formal) |
+| `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
+| `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 
-## 隐私
+## Privacy
 
-- 打拼音和 `@calculate` 计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。
-- 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。
-- 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
-- 只有在命令里按 ⌃V 或 ⌘V，或者命令后面没写内容就按执行键时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
-- 在密码框里（安全输入）不组字，也不能录音。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
-- `@note`、`@reminder` 不发给 AI：AllInOneIME 只把文字交给这台 Mac 上的「备忘录」和「提醒事项」，提醒的时间也在本机读出（这两个 App 会不会把它同步到别的设备，看它们用的账户，比如 iCloud）。所以系统处于安全输入状态时，它们也照常能用。
-- `@open` 只在本机搜索。它记得你用它打开过什么（最近 200 个），存在输入法自己的偏好设置里（不在 config.json 里），用来排序。
-- 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。
-- `@py`、`@js` 只在你按执行键时运行，运行的只是你自己打的或明确粘贴进来的代码：AI 的回答和其他命令的输出从来不会被当成代码执行。`@py` 用你本机的 `python3`，和在终端里运行一样能读写文件、联网；`@js` 在单独的进程里运行，读不到文件，也不能联网或运行别的程序。安全输入时它们都不运行。
-- 日志不记录输入内容。macOS 对所有第三方输入法都会提示"开发者能获取你输入的内容"，这是系统的通用提示。
+- Pinyin typing and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
+- With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
+- Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
+- The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command or press the action key with nothing written after a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
+- In password fields (secure input) it doesn't compose text and can't record. Whenever the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
+- `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well.
+- `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
+- To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
+- `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
+- Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
-## 开发
+## Development
 
 ```sh
-make test         # 单元测试，加上用真实 Rime 引擎跑的测试
-make selftest     # 用模拟文本框驱动输入法：真实 Bedrock 调用，加上用合成语音测试本机识别
-make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已解锁，会占用前台约 1 分钟）
-make screenshots  # 重新生成 docs/ 里的截图
-make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # 在终端里试翻译和改写
-make icon         # 从 Resources/AppIcon.png 重新生成 App 图标和菜单栏图标
-make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；有 Developer ID 证书时签名，可以顺便公证）
+make test         # unit tests, plus tests that run the real Rime engine
+make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
+make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
+make screenshots  # regenerates the screenshots in docs/
+make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # try translation and rewrites in the terminal (styles Concise, Jargon; "I'm not feeling well today")
+make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized)
 ```
 
-代码结构：
+Code layout:
 
-- `Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
-- `Sources/AllInOneIMERime`：librime 封装
-- `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
-- `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器
-- `Sources/AllInOneIMEInstaller`：DMG 里的「安装 AllInOneIME」：安装、更新和卸载
+- `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
+- `Sources/AllInOneIMERime`: librime wrapper
+- `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
+- `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
+- `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" on the disk image: installs, updates and uninstalls
 
-Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添加的输入法和麦克风权限，改了就要重新添加和授权。
+The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to remember the added input source and the microphone permission, so changing it would mean adding the input method and granting the permission again.
 
-## 许可证
+## License
 
-Copyright © 2026 [Weijian Zhang](https://weijianz.com)。GPL-3.0，见 [LICENSE](LICENSE)。用到的第三方组件（librime 及插件为 BSD-3-Clause，雾凇拼音为 GPL-3.0）
-见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Copyright © 2026 [Weijian Zhang](https://weijianz.com). GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
+are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
