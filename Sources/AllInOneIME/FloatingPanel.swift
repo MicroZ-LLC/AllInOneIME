@@ -5,10 +5,7 @@ import EventKit
 import SwiftUI
 
 extension Notification.Name {
-    /// The floating panel was turned on or off. userInfo: "enabled" (Bool). Main thread; the settings
-    /// window's toggle follows `FloatingPanel.shared`'s.
-    static let allInOneIMEFloatingPanelChanged = Notification.Name("AllInOneIMEFloatingPanelChanged")
-    /// The interface language changed (`UIText.choice`): the floating panel redraws in it. Main thread.
+    /// The interface language changed (`UIText.choice`): the menu bar panel redraws in it. Main thread.
     static let allInOneIMEInterfaceLanguageChanged = Notification.Name("AllInOneIMEInterfaceLanguageChanged")
 }
 
@@ -121,9 +118,6 @@ struct DashboardSources {
     /// The prompt @claude started a task with (short id), for one Claude Code hasn't named yet.
     var prompt: @MainActor (_ id: String) -> String?
     var openAgent: @MainActor (_ id: String) -> Void
-    /// Writes the setting (`floatingPanel` in config.json) when the panel is turned on or off from the
-    /// input menu or its close button.
-    var saveSetting: @MainActor (_ on: Bool) -> Void
     var defaults: PanelDefaults
     var now: @MainActor () -> Date
 
@@ -158,19 +152,17 @@ struct DashboardSources {
             monitorWatching: { AgentMonitor.shared.isWatching },
             prompt: { AgentMonitor.shared.prompt(for: $0) },
             openAgent: { AgentMonitor.shared.open($0) },
-            saveSetting: { FloatingPanel.saveSetting($0) },
             defaults: UserDefaults.standard,
             now: { Date() })
     }
 }
 
-/// The floating panel (「悬浮面板」, off by default): a small window that stays on screen with what
-/// AllInOneIME started: the notes saved with @note, the reminders added with @reminder, @claude's
-/// background tasks. It never takes focus from the app being typed in.
+/// The panel dropped down from the menu bar icon (`MenuBarIcon`): what AllInOneIME started, the notes
+/// saved with @note, the reminders added with @reminder, @claude's background tasks. It never takes
+/// focus from the app being typed in (but for its tasks' search field), and closes on a click elsewhere.
 ///
-/// The setting `floatingPanel` turns it on and off: the settings window, the input menu and its own
-/// close button. The notes @note saves are recorded from launch, on or off (`recordSavedNotes`).
-/// While it's on it listens for @reminder (AppEvents), for EventKit's changes and for AgentMonitor's
+/// The notes @note saves are recorded from launch, shown or not (`recordSavedNotes`).
+/// While it's shown it listens for @reminder (AppEvents), for EventKit's changes and for AgentMonitor's
 /// looks at the tasks and the tasks @claude starts, and reads the reminders again every 60 s. It
 /// asks Claude Code itself when it's opened or refreshed and when @claude starts a task, and every
 /// 15 s only while it's expanded, a task it lists isn't done and AgentMonitor isn't looking anyway.
@@ -190,8 +182,6 @@ final class FloatingPanel: ObservableObject {
     /// Asked of Notes when it runs (the script reads the whole folder anyway).
     static let noteListLimit = 200
 
-    static let frameKey = "floatingPanelFrame"
-    static let collapsedKey = "floatingPanelCollapsed"
 
     enum RemindersState: Equatable {
         case loading
@@ -221,15 +211,11 @@ final class FloatingPanel: ObservableObject {
     /// self-test's invisible window never can, so it turns this off.
     var checksOcclusion = true
 
-    @Published private(set) var isEnabled = false
-    /// Shown under the menu bar icon (`MenuBarIcon`) without being turned on: it closes on a click elsewhere.
+    /// Shown under the menu bar icon; it closes on a click elsewhere.
     @Published private(set) var droppedDown = false
-    @Published private(set) var collapsed: Bool
 
-    /// On (floating) or dropped down from the menu bar: what keeps its lists up to date.
-    var isShowing: Bool { isEnabled || droppedDown }
-    /// Collapsed to its header (never when dropped down: it's opened to be read).
-    var isCollapsed: Bool { collapsed && !droppedDown }
+    /// What keeps its lists up to date.
+    var isShowing: Bool { droppedDown }
     @Published private(set) var notes: [SavedNotes.Note] = []
     @Published private(set) var reminders: RemindersState = .loading
     /// Reminders being ticked off (their box is checked until they're gone from the list).
@@ -268,7 +254,6 @@ final class FloatingPanel: ObservableObject {
 
     init(sources: DashboardSources) {
         self.sources = sources
-        collapsed = sources.defaults.bool(forKey: Self.collapsedKey)
         now = sources.now()
     }
 
@@ -290,89 +275,25 @@ final class FloatingPanel: ObservableObject {
         noteRecorder = nil
     }
 
-    /// At launch (runServer): shown when the setting is on.
-    func start(_ config: Config) {
-        guard config.floatingPanel else { return }
-        UIText.choice = config.uiLanguage  // the language it's drawn in, before any text field set it
-        apply(true)
-    }
-
-    /// The input menu's item and the close button: turns it on or off and saves that in config.json.
-    func setEnabled(_ on: Bool) {
-        sources.saveSetting(on)
-        apply(on)
-    }
-
-    /// Shows or hides it at once (the settings window saves the setting itself).
-    func apply(_ on: Bool) {
-        guard on != isEnabled else { return }
-        if droppedDown { closeDropDown() }
-        isEnabled = on
-        generation += 1
-        if on { open() } else { shut() }
-        NotificationCenter.default.post(name: .allInOneIMEFloatingPanelChanged, object: self, userInfo: ["enabled": on])
-        log.notice("floating panel \(on ? "on" : "off", privacy: .public)")
-    }
-
-    /// The close button: the setting goes off (the input menu turns it on again).
-    func close() { setEnabled(false) }
-
-    /// Whether anything of it still runs but the record of saved notes (the self-test checks that off
-    /// means off).
+    /// Whether anything of it still runs but the record of saved notes (the self-test checks that closed
+    /// means closed).
     var isIdle: Bool {
         observers.isEmpty && reminderTimer == nil && agentTimer == nil && changeTimer == nil && messageTimer == nil
-            && window == nil
-    }
-
-    private func open(below anchor: CGRect? = nil) {
-        chinese = UIText.chinese
-        now = sources.now()
-        notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
-        (reminders, tasks, completing, message, sessions, replies) = (.loading, .loading, [], nil, nil, AgentReplyCache())
-        unseen = false
-        let window = makeWindow()
-        if let anchor {
-            window.isMovableByWindowBackground = false
-            window.setFrame(PanelPlacement.below(anchor, size: CGSize(width: Self.width, height: height),
-                                                 visible: NSScreen.screens.map(\.visibleFrame)), display: false)
-        } else {
-            place(window)
-        }
-        window.orderFrontRegardless()
-        observe(window)
-        reminderTimer = repeating(reminderInterval) { $0.tick() }
-        scheduleAgents()
-        refreshReminders()
-        lookAtTasks(force: true)  // once, for the header's count even when collapsed
-        refreshNoteTitles()
-    }
-
-    private func shut() {
-        observers.forEach(NotificationCenter.default.removeObserver)
-        observers = []
-        for timer in [reminderTimer, agentTimer, changeTimer, messageTimer] { timer?.invalidate() }
-        (reminderTimer, agentTimer, changeTimer, messageTimer) = (nil, nil, nil, nil)
-        window?.orderOut(nil)
-        window = nil
-        (readingReminders, readRemindersAgain, askingAgents, askingNotes) = (false, false, false, false)
-        (readingReplies, readRepliesAgain) = (false, false)
+            && window == nil && outsideClicks.isEmpty
     }
 
     // MARK: - Dropped down from the menu bar
 
     private var outsideClicks: [Any] = []
 
-    /// The menu bar icon was clicked: drops the panel down under it, or closes it when it's down. When
-    /// the floating panel is on, it's brought to the front instead.
+    /// The menu bar icon was clicked: drops the panel down under it, or closes it when it's down.
     func toggleDropDown(below anchor: CGRect) {
-        if isEnabled {
-            window?.orderFrontRegardless()
-            return
-        }
-        if droppedDown {
-            closeDropDown()
-            return
-        }
+        if droppedDown { closeDropDown() } else { show(below: anchor) }
+    }
+
+    /// Shown right under `anchor` (the icon's frame on the screen), until a click elsewhere.
+    func show(below anchor: CGRect) {
+        guard !droppedDown else { return }
         droppedDown = true
         generation += 1
         open(below: anchor)
@@ -392,6 +313,7 @@ final class FloatingPanel: ObservableObject {
         log.notice("panel dropped down from the menu bar")
     }
 
+    /// Closed: nothing of it runs any more but the record of saved notes.
     func closeDropDown() {
         guard droppedDown else { return }
         outsideClicks.forEach(NSEvent.removeMonitor)
@@ -401,24 +323,33 @@ final class FloatingPanel: ObservableObject {
         shut()
     }
 
-    /// The pin in a dropped-down panel: it stays on screen as the floating panel (the setting goes on).
-    func pin() {
-        let frame = window?.frame
-        closeDropDown()
-        if let frame { sources.defaults.set(NSStringFromRect(frame), forKey: Self.frameKey) }
-        setEnabled(true)
+    private func open(below anchor: CGRect) {
+        chinese = UIText.chinese
+        now = sources.now()
+        notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
+        (reminders, tasks, completing, message, sessions, replies) = (.loading, .loading, [], nil, nil, AgentReplyCache())
+        unseen = false
+        let window = makeWindow()
+        window.setFrame(PanelPlacement.below(anchor, size: CGSize(width: Self.width, height: height),
+                                             visible: NSScreen.screens.map(\.visibleFrame)), display: false)
+        window.orderFrontRegardless()
+        observe(window)
+        reminderTimer = repeating(reminderInterval) { $0.tick() }
+        scheduleAgents()
+        refreshReminders()
+        lookAtTasks(force: true)
+        refreshNoteTitles()
     }
 
-    /// Writes the setting into config.json (a file that doesn't parse is left as it is).
-    static func saveSetting(_ on: Bool) {
-        do {
-            var config = try Config.load()
-            guard config.floatingPanel != on else { return }
-            config.floatingPanel = on
-            try config.write()
-        } catch {
-            log.error("could not save the floating panel setting: \(String(describing: error), privacy: .public)")
-        }
+    private func shut() {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        for timer in [reminderTimer, agentTimer, changeTimer, messageTimer] { timer?.invalidate() }
+        (reminderTimer, agentTimer, changeTimer, messageTimer) = (nil, nil, nil, nil)
+        window?.orderOut(nil)
+        window = nil
+        (readingReminders, readRemindersAgain, askingAgents, askingNotes) = (false, false, false, false)
+        (readingReplies, readRepliesAgain) = (false, false)
     }
 
     // MARK: - The window
@@ -435,20 +366,7 @@ final class FloatingPanel: ObservableObject {
 
     /// The window's height now: the header, and the lists up to `maxHeight`.
     var height: CGFloat {
-        isCollapsed ? Self.headerHeight : min(Self.headerHeight + 1 + listHeight, Self.maxHeight)
-    }
-
-    /// Where it was left (its top-left corner), else the top right of the screen with the menu bar.
-    private func place(_ window: NSWindow) {
-        let size = CGSize(width: Self.width, height: height)
-        var frame: CGRect
-        if let saved = sources.defaults.string(forKey: Self.frameKey).map(NSRectFromString), saved.width > 0 {
-            frame = CGRect(x: saved.minX, y: saved.maxY - size.height, width: size.width, height: size.height)
-        } else {
-            let screen = NSScreen.screens.first?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
-            frame = PanelPlacement.topRight(size, in: screen)
-        }
-        window.setFrame(PanelPlacement.onScreen(frame, visible: NSScreen.screens.map(\.visibleFrame)), display: false)
+        min(Self.headerHeight + 1 + listHeight, Self.maxHeight)
     }
 
     /// To the height the lists need, its top edge in place (moved up if it would leave the screen).
@@ -461,30 +379,9 @@ final class FloatingPanel: ObservableObject {
         window.invalidateShadow()
     }
 
-    /// Back on a screen after the displays changed (one was unplugged, the resolution changed).
-    private func moveOnScreen() {
-        guard let window else { return }
-        let placed = PanelPlacement.onScreen(window.frame, visible: NSScreen.screens.map(\.visibleFrame))
-        if placed != window.frame { window.setFrame(placed, display: true) }
-    }
-
     private var isOnScreen: Bool {
         guard let window, window.isVisible else { return false }
         return !checksOcclusion || window.occlusionState.contains(.visible)
-    }
-
-    /// Collapsed to the header bar, or expanded again: then a look at the tasks (AgentMonitor's last
-    /// one, if it looks anyway) and at the notes' titles.
-    func toggleCollapsed() {
-        collapsed.toggle()
-        sources.defaults.set(collapsed, forKey: Self.collapsedKey)
-        resize()
-        scheduleAgents()
-        if !collapsed {
-            now = sources.now()
-            lookAtTasks(force: false)
-            refreshNoteTitles()
-        }
     }
 
     // MARK: - Listening and looking
@@ -508,11 +405,9 @@ final class FloatingPanel: ObservableObject {
         }
         // It doesn't look by itself while none runs: a look at once shows the new one.
         on(.allInOneIMEAgentStarted) { panel, _ in panel.lookAtTasks(force: true) }
-        on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.moveOnScreen() }
+        // Displays changed (one unplugged, the resolution): closed, like a menu; the icon opens it again.
+        on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.closeDropDown() }
         on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.chinese = UIText.chinese }
-        on(NSWindow.didMoveNotification, window) { panel, _ in
-            if !panel.droppedDown, let frame = panel.window?.frame { panel.sources.defaults.set(NSStringFromRect(frame), forKey: Self.frameKey) }
-        }
         // Seen again after a while unseen (the screen unlocked, the display awake): what changed meanwhile.
         on(NSWindow.didChangeOcclusionStateNotification, window) { panel, _ in
             guard panel.isOnScreen else {
@@ -522,7 +417,7 @@ final class FloatingPanel: ObservableObject {
             guard panel.unseen else { return }
             panel.unseen = false
             panel.tick()
-            if !panel.isCollapsed, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
+            if panel.tasksUnfinished { panel.lookAtTasks(force: false) }
         }
     }
 
@@ -540,14 +435,14 @@ final class FloatingPanel: ObservableObject {
         guard isOnScreen else { return }
         now = sources.now()
         refreshReminders()
-        if !isCollapsed { refreshNoteTitles() }
+        refreshNoteTitles()
     }
 
     /// Its own looks at the tasks, every 15 s while it's expanded and a task it lists isn't done
     /// (skipped while AgentMonitor looks). Finished tasks don't change: `claude agents` isn't run
     /// for them.
     private func scheduleAgents() {
-        let wanted = isShowing && !isCollapsed
+        let wanted = isShowing
         if wanted, agentTimer == nil {
             agentTimer = repeating(agentInterval) { panel in
                 if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
@@ -580,7 +475,7 @@ final class FloatingPanel: ObservableObject {
         var saved = SavedNotesStore.load(sources.defaults)
         saved.add(id: id, title: info?["title"] as? String ?? "", at: sources.now())
         SavedNotesStore.save(saved, to: sources.defaults)
-        log.notice("floating panel: a note was saved (\(saved.notes.count) kept)")
+        log.notice("menu bar panel: a note was saved (\(saved.notes.count) kept)")
         guard isShowing else { return }
         now = sources.now()
         notes = saved.newest(Self.notesShown)
@@ -600,7 +495,7 @@ final class FloatingPanel: ObservableObject {
                 listing = try await self?.sources.listNotes(Self.noteListLimit) ?? .notAllowed
             } catch {
                 listing = .notAllowed
-                log.error("floating panel: Notes didn't list the notes: \(String(describing: error), privacy: .public)")
+                log.error("menu bar panel: Notes didn't list the notes: \(String(describing: error), privacy: .public)")
             }
             guard let self, generation == self.generation else { return }
             self.askingNotes = false
@@ -613,7 +508,7 @@ final class FloatingPanel: ObservableObject {
             var saved = SavedNotesStore.load(self.sources.defaults)
             if saved.reconcile(with: listed?.map { ($0.id, $0.title, $0.modified) }, limit: Self.noteListLimit) {
                 SavedNotesStore.save(saved, to: self.sources.defaults)
-                log.notice("floating panel: \(saved.notes.count) notes after asking Notes")
+                log.notice("menu bar panel: \(saved.notes.count) notes after asking Notes")
             }
             self.notes = saved.newest(Self.notesShown)
         }
@@ -631,7 +526,7 @@ final class FloatingPanel: ObservableObject {
             } catch let error as NotesBridge.NotesError where error == .notPermitted {
                 failure = UIText.describe(error)
             } catch {
-                log.error("floating panel: could not show a note: \(String(describing: error), privacy: .public)")
+                log.error("menu bar panel: could not show a note: \(String(describing: error), privacy: .public)")
                 failure = tr("打不开这条笔记", "Couldn't open this note")
             }
             guard generation == self.generation else { return }
@@ -672,7 +567,7 @@ final class FloatingPanel: ObservableObject {
                 } catch RemindersBridge.RemindersError.notPermitted {
                     state = .denied
                 } catch {
-                    log.error("floating panel: could not read the reminders: \(String(describing: error), privacy: .public)")
+                    log.error("menu bar panel: could not read the reminders: \(String(describing: error), privacy: .public)")
                     state = .failed(UIText.describe(error))
                 }
             }
@@ -695,7 +590,7 @@ final class FloatingPanel: ObservableObject {
             do {
                 _ = try await self.sources.reminders(self.sources.now())
             } catch {
-                log.notice("floating panel: reminders not allowed: \(String(describing: error), privacy: .public)")
+                log.notice("menu bar panel: reminders not allowed: \(String(describing: error), privacy: .public)")
             }
             if generation == self.generation { self.refreshReminders() }
         }
@@ -714,9 +609,9 @@ final class FloatingPanel: ObservableObject {
             guard let self else { return }
             do {
                 try await self.sources.completeReminder(reminder.id)
-                log.notice("floating panel: a reminder was completed")
+                log.notice("menu bar panel: a reminder was completed")
             } catch {
-                log.error("floating panel: could not complete a reminder: \(String(describing: error), privacy: .public)")
+                log.error("menu bar panel: could not complete a reminder: \(String(describing: error), privacy: .public)")
                 self.completing.remove(reminder.id)
                 self.say(UIText.describe(error))
             }
@@ -750,7 +645,7 @@ final class FloatingPanel: ObservableObject {
                 self.show(sessions)
             case let .failure(error):
                 // Not the error's text: Claude Code's message may quote a task.
-                log.error("floating panel: could not list the background tasks")
+                log.error("menu bar panel: could not list the background tasks")
                 // A list shown before stays up: the next look may work again.
                 if case .list = self.tasks {} else { self.tasks = .failed(UIText.describe(error)) }
             }
@@ -764,7 +659,7 @@ final class FloatingPanel: ObservableObject {
         let newest = AgentTaskList.newest(sessions)
         replies.keep(only: newest)
         tasks = .list(AgentTaskList.rows(newest, replies: replies.replies, prompt: sources.prompt))
-        if !isCollapsed { readReplies(of: newest) }
+        readReplies(of: newest)
     }
 
     private func readReplies(of newest: [AgentSession]) {
@@ -789,7 +684,7 @@ final class FloatingPanel: ObservableObject {
                 }
                 if self.readRepliesAgain {
                     self.readRepliesAgain = false
-                    if !self.isCollapsed { self.readReplies(of: newest) }
+                    self.readReplies(of: newest)
                 }
             }
         }
@@ -848,9 +743,9 @@ final class FloatingPanel: ObservableObject {
     }
 }
 
-/// The floating panel's window: it never takes focus from the app being typed in (it can't become
-/// key or main, and clicking it doesn't activate the input method), floats on every Space and over
-/// full-screen apps, and moves when dragged by its background.
+/// The panel's window, under the menu bar icon: it never takes focus from the app being typed in (key
+/// only for the tasks' search field, never main, and clicking it doesn't activate the input method),
+/// and shows on every Space and over full-screen apps.
 final class DashboardWindow: NSPanel {
     init() {
         super.init(contentRect: NSRect(x: 0, y: 0, width: FloatingPanel.width, height: FloatingPanel.headerHeight),
@@ -864,7 +759,7 @@ final class DashboardWindow: NSPanel {
         hidesOnDeactivate = false
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
         isReleasedWhenClosed = false
     }
 
@@ -884,7 +779,7 @@ private struct ListHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// What the floating panel shows: a header with the counts and three buttons, then the notes, the
+/// What the menu bar panel shows: a header with the counts and three buttons, then the notes, the
 /// reminders and the Claude tasks. Follows light and dark mode and the interface language (`tr`).
 struct FloatingPanelView: View {
     @ObservedObject var panel: FloatingPanel
@@ -896,15 +791,13 @@ struct FloatingPanelView: View {
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
         VStack(spacing: 0) {
             header
-            if !panel.isCollapsed {
-                Divider()
-                ScrollView(.vertical) {
-                    lists.background(GeometryReader { proxy in
-                        Color.clear.preference(key: ListHeightKey.self, value: proxy.size.height)
-                    })
-                }
-                .frame(height: max(0, min(panel.listHeight, FloatingPanel.maxHeight - FloatingPanel.headerHeight - 1)))
+            Divider()
+            ScrollView(.vertical) {
+                lists.background(GeometryReader { proxy in
+                    Color.clear.preference(key: ListHeightKey.self, value: proxy.size.height)
+                })
             }
+            .frame(height: max(0, min(panel.listHeight, FloatingPanel.maxHeight - FloatingPanel.headerHeight - 1)))
         }
         .frame(width: FloatingPanel.width)
         .background(shape.fill(Color(nsColor: CandidateView.background)))
@@ -912,7 +805,7 @@ struct FloatingPanelView: View {
         .clipShape(shape)
         .onPreferenceChange(ListHeightKey.self) { height in
             // Collapsed, the lists are gone: their height is kept for when they're back.
-            MainActor.assumeIsolated { if !panel.isCollapsed { panel.listHeight = height } }
+            MainActor.assumeIsolated { panel.listHeight = height }
         }
     }
 
@@ -930,13 +823,7 @@ struct FloatingPanelView: View {
             .accessibilityElement(children: .combine)
             Spacer(minLength: 4)
             headerButton("arrow.clockwise", tr("刷新", "Refresh")) { panel.refresh() }
-            if panel.droppedDown {
-                headerButton("pin", tr("固定在屏幕上", "Keep on Screen")) { panel.pin() }
-            } else {
-                headerButton(panel.collapsed ? "chevron.down" : "chevron.up",
-                             panel.collapsed ? tr("展开", "Expand") : tr("收起", "Collapse")) { panel.toggleCollapsed() }
-                headerButton("xmark", tr("关闭悬浮面板", "Close Floating Panel")) { panel.close() }
-            }
+
         }
         .padding(.horizontal, 12)
         .frame(height: FloatingPanel.headerHeight)

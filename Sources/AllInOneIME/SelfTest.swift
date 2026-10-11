@@ -898,7 +898,7 @@ enum SelfTest {
             reminders.append(reminder)
         }
         controller.copyText = { copied.append($0) }
-        // The floating panel hears of saves from Notes and Reminders themselves, never from these stand-ins.
+        // The menu bar panel hears of saves from Notes and Reminders themselves, never from these stand-ins.
         @MainActor final class Tally { var count = 0 }
         let posted = Tally()
         let observers = [Notification.Name.allInOneIMENoteSaved, .allInOneIMEReminderAdded].map { name in
@@ -1244,7 +1244,7 @@ enum SelfTest {
               "its field gone, the outcome shows by itself and the progress notice is taken down (\(notice() ?? "none"))")
         controller.activateServer(client)
         _ = pump(timeout: 3) { !CandidatePanel.shared.isVisible }  // the notice near the pointer goes before the next section
-        check(posted.count == 0, "the stand-ins post nothing for the floating panel (\(posted.count))")
+        check(posted.count == 0, "the stand-ins post nothing for the menu bar panel (\(posted.count))")
         check(client.inserted == insertedBefore && !controller.composer.isComposing, "@note and @reminder inserted nothing")
         controller.commitComposition(client)
     }

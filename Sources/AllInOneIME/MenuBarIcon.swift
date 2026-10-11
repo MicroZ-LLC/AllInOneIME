@@ -3,7 +3,7 @@ import AppKit
 
 /// The menu bar icon (config `menuBarIcon`, on by default): a click drops the panel down under it
 /// (`FloatingPanel.toggleDropDown`), with the notes, reminders and Claude tasks; a click elsewhere
-/// closes it, and its pin keeps it on screen as the floating panel.
+/// closes it.
 @MainActor
 final class MenuBarIcon {
     static let shared = MenuBarIcon()
@@ -15,8 +15,12 @@ final class MenuBarIcon {
         if on, item == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let button = item.button {
-                button.image = NSImage(systemSymbolName: "tray.full", accessibilityDescription: "AllInOneIME")
-                button.image?.isTemplate = true
+                // The app's ∞-and-cursor mark, not boxed (the input source's icon is), as a template image.
+                let image = Bundle.main.image(forResource: "panel-icon")
+                    ?? NSImage(systemSymbolName: "infinity", accessibilityDescription: nil)
+                image?.isTemplate = true
+                image?.accessibilityDescription = "AllInOneIME"
+                button.image = image
                 button.toolTip = tr("AllInOneIME：笔记、提醒、Claude 任务", "AllInOneIME: notes, reminders, Claude tasks")
                 button.target = self
                 button.action = #selector(clicked(_:))

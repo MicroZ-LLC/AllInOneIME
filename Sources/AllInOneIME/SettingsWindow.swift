@@ -108,16 +108,6 @@ final class SettingsModel: ObservableObject {
         SettingsWindow.shared.updateTitle()
     }
 
-    /// Shows or hides the floating panel (the self-test passes its own).
-    var applyFloatingPanel: @MainActor (Bool) -> Void = { FloatingPanel.shared.apply($0) }
-
-    /// The floating panel's switch: saved, and the panel shown or hidden at once (not by a preview).
-    func setFloatingPanel(_ on: Bool) {
-        config.floatingPanel = on
-        save()
-        if persists { applyFloatingPanel(on) }
-    }
-
     /// Shows or removes the menu bar icon (the self-test passes its own).
     var applyMenuBarIcon: @MainActor (Bool) -> Void = { MenuBarIcon.shared.apply($0) }
 
@@ -621,26 +611,14 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle(tr("悬浮面板：笔记、提醒、Claude 任务", "Floating panel: notes, reminders, Claude tasks"),
-                       isOn: Binding(get: { model.config.floatingPanel }, set: { model.setFloatingPanel($0) }))
-                    .disabled(!model.canSave)
-                    .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFloatingPanelChanged)) { note in
-                        // Turned on or off from the input menu or the panel's close button (already saved).
-                        if note.object as AnyObject? === FloatingPanel.shared, let on = note.userInfo?["enabled"] as? Bool {
-                            model.config.floatingPanel = on
-                        }
-                    }
-                Text(tr("常驻屏幕的小窗口，不抢输入焦点，点一行就打开；输入法菜单里也能开关。",
-                        "Stays on screen without taking focus; click a row to open it. Also in the input menu."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(tr("菜单栏图标：点一下下拉出面板", "Menu bar icon: click it to drop the panel down"),
+                Toggle(tr("在菜单栏显示图标", "Show the icon in the menu bar"),
                        isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
                     .disabled(!model.canSave)
-                Text(tr("点别处就收起；点面板上的图钉就一直留在屏幕上（等于打开上面的悬浮面板）。",
-                        "A click elsewhere closes it; its pin keeps it on screen (the floating panel above)."))
+                Text(tr("点菜单栏的图标，下拉出用 @note 存的笔记、@reminder 加的提醒和后台的 Claude 任务；点别处就收起。",
+                        "Click the menu bar icon for the notes saved with @note, the reminders added with @reminder and the background Claude tasks; a click elsewhere closes it."))
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
-                SectionTitle(tr("悬浮面板", "Floating Panel"), icon: CommandIcons.panel)
+                SectionTitle(tr("菜单栏面板", "Menu Bar Panel"), icon: CommandIcons.panel)
             }
 
             Section {

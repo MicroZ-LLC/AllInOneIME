@@ -98,7 +98,7 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
             defer { self.polling = false }
             guard let output = try? await Self.run(claude, ClaudeAgents.listArguments) else { return }
             let sessions = ClaudeAgents.sessions(from: Data(output.utf8))
-            // What it saw, for the floating panel: it doesn't ask Claude Code itself meanwhile.
+            // What it saw, for the menu bar panel: it doesn't ask Claude Code itself meanwhile.
             NotificationCenter.default.post(name: .allInOneIMEAgentsPolled, object: self, userInfo: ["sessions": sessions])
             for event in self.watch.update(with: sessions) {
                 switch event {
@@ -207,7 +207,7 @@ extension Notification.Name {
     /// AgentMonitor looked at the background tasks (every few seconds while it watches some). userInfo:
     /// "sessions" ([AgentSession], as `claude agents --json --all` listed them). Posted on the main thread.
     static let allInOneIMEAgentsPolled = Notification.Name("AllInOneIMEAgentsPolled")
-    /// @claude started a background task (the floating panel looks at once). userInfo: "id" (String, its
+    /// @claude started a background task (the menu bar panel looks at once). userInfo: "id" (String, its
     /// short id). Posted on the main thread.
     static let allInOneIMEAgentStarted = Notification.Name("AllInOneIMEAgentStarted")
 }

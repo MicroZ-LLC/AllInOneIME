@@ -1,7 +1,7 @@
 import AllInOneIMECore
 import AppKit
 
-/// Stand-ins for everything the floating panel reads and opens: sample data, and a record of what it
+/// Stand-ins for everything the menu bar panel reads and opens: sample data, and a record of what it
 /// asked for. Nothing reaches Notes, EventKit or Claude Code; the setting, the frame and the saved
 /// notes stay in memory.
 @MainActor
@@ -29,7 +29,6 @@ final class PanelStandIns {
     private(set) var noteLists = 0, reminderReads = 0, agentLooks = 0, transcriptReads = 0
     private(set) var shownNotes: [String] = [], completed: [String] = [], openedAgents: [String] = []
     private(set) var openedReminders = 0, openedSettings = 0
-    private(set) var savedSetting: [Bool] = []
 
     var sources: DashboardSources {
         DashboardSources(
@@ -75,7 +74,6 @@ final class PanelStandIns {
             monitorWatching: { self.monitorWatching },
             prompt: { _ in nil },
             openAgent: { self.openedAgents.append($0) },
-            saveSetting: { self.savedSetting.append($0) },
             defaults: defaults,
             now: { self.now })
     }
@@ -110,12 +108,12 @@ final class PanelStandIns {
 }
 
 extension SelfTest {
-    /// The floating panel with stand-ins for every source: what it lists and does on a click, that it
+    /// The menu bar panel with stand-ins for every source: what it lists and does on a click, that it
     /// never takes focus, its timers and notices, permissions, the setting (menu, settings window,
     /// close button), that off means off (but for the record of saved notes); with the README render,
     /// Chinese and English.
     static func testFloatingPanel(_ controller: AllInOneIMEInputController, snapshotDirectory: URL) {
-        print("— floating panel (stand-ins for Notes, Reminders and Claude Code)")
+        print("— menu bar panel (stand-ins for Notes, Reminders and Claude Code)")
         let realConfig = try? Data(contentsOf: Config.defaultURL)
         let stand = PanelStandIns()
         stand.sample(chinese: true)
@@ -126,20 +124,18 @@ extension SelfTest {
             window.ignoresMouseEvents = true
         }
         panel.checksOcclusion = false  // an invisible window never counts as seen
-        let (menuPanel, language) = (controller.floatingPanel, UIText.choice)
-        controller.floatingPanel = { panel }
+        let language = UIText.choice
+        // Where a menu bar icon would be: the panel drops down under it.
+        let screen = NSScreen.screens.first?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let anchor = CGRect(x: screen.maxX - 200, y: screen.maxY, width: 22, height: 24)
         defer {
-            panel.apply(false)
+            panel.closeDropDown()
             panel.stopRecordingSavedNotes()
-            controller.floatingPanel = menuPanel
             UIText.choice = language
         }
         func loaded() -> Bool {
             guard case let .list(items) = panel.reminders, !items.isEmpty, case let .list(rows) = panel.tasks else { return false }
             return rows.allSatisfy { $0.reply != nil }
-        }
-        func menuItem() -> NSMenuItem? {
-            controller.menu()?.items.first { $0.action == #selector(AllInOneIMEInputController.toggleFloatingPanel(_:)) }
         }
         func post(_ name: Notification.Name, _ info: [AnyHashable: Any]? = nil) {
             NotificationCenter.default.post(name: name, object: nil, userInfo: info)
@@ -153,21 +149,15 @@ extension SelfTest {
             return []
         }
 
-        // Off by default: no window, nothing runs (but the record of saved notes, as runServer sets it up).
-        var config = settings
-        config.floatingPanel = false
+        // Closed: no window, nothing runs (but the record of saved notes, as runServer sets it up).
         panel.recordSavedNotes()
-        panel.start(config)
-        check(!Config.default.floatingPanel && !panel.isEnabled && panel.isIdle,
-              "off by default: no window, no timers, no observers but the record of saved notes")
-        let item = menuItem()
-        check(item?.title == "显示悬浮面板" && item?.state == .off, "the input menu offers 「\(item?.title ?? "-")」, unchecked")
+        check(!panel.droppedDown && panel.isIdle && Config.default.menuBarIcon,
+              "closed: no window, no timers, no observers but the record of saved notes; the menu bar icon is on by default")
 
-        // The menu item turns it on: shown at once, the setting saved (in memory here).
+        // The icon's click drops it down.
         let wasActive = NSApp.isActive
-        controller.toggleFloatingPanel(item)
-        check(panel.isEnabled && panel.window?.isVisible == true && stand.savedSetting == [true] && menuItem()?.state == .on,
-              "「显示悬浮面板」 shows it, saves the setting and is checked")
+        panel.toggleDropDown(below: anchor)
+        check(panel.droppedDown && panel.window?.isVisible == true, "the menu bar icon's click drops it down")
         check(pump(timeout: 3) { loaded() }, "it reads the stand-ins")
         if let window = panel.window {
             // Key only to type in the tasks' search field (becomesKeyOnlyIfNeeded); never main, and showing it
@@ -176,13 +166,12 @@ extension SelfTest {
                   && !window.canBecomeMain && !window.isKeyWindow && NSApp.isActive == wasActive,
                   "non-activating: not key until its search field is clicked, never main, the app being typed in keeps the focus")
             check(window.level == .floating && window.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary])
-                  && !window.hidesOnDeactivate && window.isMovableByWindowBackground,
-                  "floats on every Space and over full-screen apps, movable by its background")
+                  && !window.hidesOnDeactivate && !window.isMovableByWindowBackground,
+                  "on every Space and over full-screen apps; it hangs from the icon (not moved by dragging)")
             _ = pump(timeout: 0.5) { window.frame.height == panel.height && panel.listHeight > 0 }
-            let screen = NSScreen.screens.first?.visibleFrame ?? .zero
-            check(abs(window.frame.maxX - (screen.maxX - 12)) < 1 && abs(window.frame.maxY - (screen.maxY - 12)) < 1
+            check(abs(window.frame.maxX - anchor.maxX) < 1 && abs(window.frame.maxY - (anchor.minY - 4)) < 1
                   && window.frame.width == 300 && window.frame.height == panel.height && panel.height <= 420,
-                  "first time: top right, under the menu bar, \(Int(window.frame.width)) × \(Int(window.frame.height)) pt")
+                  "right under the icon, right edges lined up, \(Int(window.frame.width)) × \(Int(window.frame.height)) pt")
         }
         check(panel.notes.map(\.title) == ["周会要点", "买牛奶和鸡蛋"], "notes from the store, newest first: \(panel.notes.map(\.title))")
         if case let .list(items) = panel.reminders, items.count == 2 {
@@ -264,10 +253,10 @@ extension SelfTest {
 
         // Its own looks: every 15 s (0.3 s here) while expanded, a task isn't done and AgentMonitor isn't
         // looking; a transcript is read again only when it changed.
-        panel.apply(false)
+        panel.closeDropDown()
         (panel.agentInterval, panel.reminderInterval) = (0.3, 0.3)
-        panel.apply(true)
-        check(pump(timeout: 3) { loaded() }, "turned on again")
+        panel.toggleDropDown(below: anchor)
+        check(pump(timeout: 3) { loaded() }, "dropped down again")
         var transcripts = stand.transcriptReads
         looks = stand.agentLooks
         _ = pump(timeout: 1.1) { false }
@@ -301,24 +290,13 @@ extension SelfTest {
         _ = pump(timeout: 1.1) { false }
         check(stand.agentLooks == looks, "…not while AgentMonitor looks anyway")
         stand.monitorWatching = false
-        panel.toggleCollapsed()
-        (looks, reads) = (stand.agentLooks, stand.reminderReads)
-        // Waiting for you isn't running; collapsed, AgentMonitor's looks still bring the counts up to date.
+        // Waiting for you isn't running: counted apart.
         sessions[0].state = "waiting_for_permission"
         post(.allInOneIMEAgentsPolled, ["sessions": sessions])
         check(pump(timeout: 1) { panel.counts == "2 个提醒 · 1 个等你" }, "a task waiting for you is counted apart: \(panel.counts)")
         sessions[0].state = "working"
         post(.allInOneIMEAgentsPolled, ["sessions": sessions])
-        _ = pump(timeout: 1.1) { false }
-        check(panel.collapsed && panel.window?.frame.height == FloatingPanel.headerHeight && stand.agentLooks == looks
-              && stand.reminderReads > reads && stand.defaults.bool(forKey: FloatingPanel.collapsedKey)
-              && panel.counts == "2 个提醒 · 1 个任务进行中",
-              "collapsed to the header bar (remembered): no looks of its own, AgentMonitor's update the counts "
-              + "(\(panel.counts)), the reminders are still read")
-        render("14b-dashboard-collapsed")  // not in the README
-        panel.toggleCollapsed()
-        check(!panel.collapsed && pump(timeout: 1) { stand.agentLooks > looks } && !stand.defaults.bool(forKey: FloatingPanel.collapsedKey),
-              "expanded again: it looks at once")
+        _ = pump(timeout: 0.3) { panel.counts == "2 个提醒 · 1 个任务进行中" }
 
         // Notes is asked only while it runs, and then updates titles and drops deleted notes.
         var lists = stand.noteLists
@@ -346,22 +324,22 @@ extension SelfTest {
         panel.refresh()
         _ = pump(timeout: 0.3) { false }
         check(panel.notes.count == 2, "without Notes' permission given before it changes nothing")
-        // Turned off while Notes opens a note: what comes back then is dropped (no message, no timer,
-        // Notes isn't asked while it's off); on again, Notes is asked at once and nothing is left waiting.
+        // Closed while Notes opens a note: what comes back then is dropped (no message, no timer, Notes
+        // isn't asked while it's closed); dropped down again, Notes is asked at once and nothing is left waiting.
         stand.listedNotes = .folder(listed)
         stand.showError = NotesBridge.NotesError.failed(number: -1728)
         (stand.holdShow, stand.holdList) = (true, true)
         if let note = panel.notes.first { panel.open(note) }
         _ = pump(timeout: 0.2) { false }
-        panel.apply(false)
+        panel.closeDropDown()
         _ = pump(timeout: 0.05) { false }  // a listing asked for just before goes out (and waits)
         lists = stand.noteLists
         stand.holdShow = false
         _ = pump(timeout: 0.3) { false }
         check(panel.isIdle && panel.message == nil && stand.noteLists == lists,
-              "turned off while Notes opens a note: no message, no timer, Notes isn't asked (\(stand.noteLists - lists))")
-        panel.apply(true)
-        check(pump(timeout: 1) { stand.noteLists > lists }, "turned on again: Notes is asked for the titles at once")
+              "closed while Notes opens a note: no message, no timer, Notes isn't asked (\(stand.noteLists - lists))")
+        panel.toggleDropDown(below: anchor)
+        check(pump(timeout: 1) { stand.noteLists > lists }, "dropped down again: Notes is asked for the titles at once")
         stand.holdList = false
         _ = pump(timeout: 0.3) { false }
         lists = stand.noteLists
@@ -410,18 +388,11 @@ extension SelfTest {
               && panel.counts.isEmpty, "nothing yet: the three empty lines, no counts")
         render("14c-dashboard-empty")  // not in the README
 
-        // Displays changed: back on a screen. Its frame is remembered.
-        if let window = panel.window {
-            window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-            post(NSApplication.didChangeScreenParametersNotification)
-            check(pump(timeout: 1) { NSScreen.screens.contains { $0.visibleFrame.contains(window.frame) } },
-                  "moved back on screen when the displays change")
-            let saved = stand.defaults.string(forKey: FloatingPanel.frameKey).map(NSRectFromString)
-            check(saved.map { abs($0.maxY - window.frame.maxY) < 1 && abs($0.minX - window.frame.minX) < 1 } == true,
-                  "its frame is remembered")
-        }
+        // Displays changed (one unplugged, the resolution): closed, like a menu.
+        post(NSApplication.didChangeScreenParametersNotification)
+        check(pump(timeout: 1) { !panel.droppedDown && panel.isIdle }, "closed when the displays change")
 
-        // The settings window's toggle saves the setting and applies it at once (a temporary config file).
+        // The settings window's switch saves the menu bar icon's setting and applies it at once (a temporary config file).
         let dir = snapshotDirectory.appendingPathComponent("panel-config")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -429,19 +400,16 @@ extension SelfTest {
         try? settings.write(to: url)
         var applied: [Bool] = []
         let model = SettingsModel(configURL: url)
-        model.applyFloatingPanel = { applied.append($0) }
-        model.setFloatingPanel(true)
-        check(applied == [true] && (try? Config.load(from: url))?.floatingPanel == true, "the settings toggle saves it and shows it at once")
-        model.setFloatingPanel(false)
+        model.applyMenuBarIcon = { applied.append($0) }
+        model.setMenuBarIcon(false)
+        check(applied == [false] && (try? Config.load(from: url))?.menuBarIcon == false, "the settings switch removes the icon and saves it")
+        model.setMenuBarIcon(true)
         let preview = SettingsModel(configURL: url, persists: false)
-        preview.applyFloatingPanel = { applied.append($0) }
-        preview.setFloatingPanel(true)
-        check(applied == [true, false] && (try? Config.load(from: url))?.floatingPanel == false, "…and hides it; a preview does neither")
+        preview.applyMenuBarIcon = { applied.append($0) }
+        preview.setMenuBarIcon(false)
+        check(applied == [false, true] && (try? Config.load(from: url))?.menuBarIcon == true, "…and shows it again; a preview does neither")
 
-        // The close button: the setting goes off, and nothing of it runs any more.
-        panel.close()
-        check(!panel.isEnabled && panel.isIdle && stand.savedSetting == [true, false] && menuItem()?.state == .off,
-              "close turns the setting off (in memory) and stops its timers and observers; the menu item is unchecked")
+        // Closed: a note saved with @note is recorded all the same; nothing else runs.
         let (kept, readsBefore) = (SavedNotesStore.load(stand.defaults).notes.count, stand.reminderReads)
         post(.allInOneIMENoteSaved, ["id": "x-coredata://sample/p4", "title": "x"])
         post(.allInOneIMEReminderAdded, ["id": "x"])
@@ -449,10 +417,11 @@ extension SelfTest {
         let recorded = SavedNotesStore.load(stand.defaults).notes
         check(recorded.count == kept + 1 && recorded.first?.id == "x-coredata://sample/p4" && panel.isIdle
               && panel.notes.isEmpty && stand.reminderReads == readsBefore,
-              "off: a note saved with @note is recorded all the same (nothing else runs); @reminder goes unheard, nothing is read")
-        panel.apply(true)
-        check(panel.notes.first?.id == "x-coredata://sample/p4", "turned on, it lists the note saved while it was off")
-        panel.apply(false)
+              "closed: a note saved with @note is recorded all the same (nothing else runs); @reminder goes unheard, nothing is read")
+        panel.toggleDropDown(below: anchor)
+        check(panel.notes.first?.id == "x-coredata://sample/p4", "dropped down, it lists the note saved while it was closed")
+        panel.toggleDropDown(below: anchor)
+        check(!panel.droppedDown && panel.isIdle, "the icon's second click closes it")
         check((try? Data(contentsOf: Config.defaultURL)) == realConfig, "the real config file was not touched")
     }
 }

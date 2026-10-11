@@ -1,6 +1,6 @@
 import Foundation
 
-// The floating panel's logic (「悬浮面板」, off by default: notes saved with @note, reminders added with
+// The menu bar panel's logic (dropped down from its icon: notes saved with @note, reminders added with
 // @reminder, @claude's background tasks). The window and its sources are in the input method.
 
 /// The panel's own record of the notes `@note` saved, newest first: kept from launch, whether the

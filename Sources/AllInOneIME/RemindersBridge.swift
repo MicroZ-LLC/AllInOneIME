@@ -38,7 +38,7 @@ enum RemindersBridge {
 
     /// Adds `draft` to the list, due then (a day without a time: all day), with an alarm at that moment
     /// when it has a time (`ReminderDraft.schedule`). Returns the reminder's identifier; then
-    /// `.allInOneIMEReminderAdded` is posted on the main thread (for the floating panel).
+    /// `.allInOneIMEReminderAdded` is posted on the main thread (for the menu bar panel).
     @discardableResult
     static func add(_ draft: ReminderDraft) async throws -> String {
         let id = try await withStore { store in

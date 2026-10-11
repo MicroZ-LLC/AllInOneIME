@@ -1,12 +1,15 @@
 // Generates Resources/icon.tiff, the input method's menu-bar icon: the ∞-and-cursor mark of
-// Resources/AppIcon.png knocked out of a 16 pt rounded badge, in 1x and 2x. macOS draws it as a
-// template image (only its alpha counts). Run:
+// Resources/AppIcon.png knocked out of a 16 pt rounded badge, in 1x and 2x. With "bare", the mark
+// alone on 18 pt (Resources/panel-icon.tiff, the panel's menu bar icon: not boxed, so it isn't taken
+// for the input source). macOS draws both as template images (only their alpha counts). Run:
 //   swift Scripts/make-icon.swift Resources/AppIcon.png Resources/icon.tiff
+//   swift Scripts/make-icon.swift Resources/AppIcon.png Resources/panel-icon.tiff bare
 import AppKit
 
 let args = CommandLine.arguments
 let source = URL(fileURLWithPath: args.count > 1 ? args[1] : "Resources/AppIcon.png")
 let out = args.count > 2 ? args[2] : "Resources/icon.tiff"
+let bare = args.count > 3 && args[3] == "bare"
 
 func bitmap(_ width: Int, _ height: Int) -> NSBitmapImageRep {
     NSBitmapImageRep(
@@ -89,9 +92,27 @@ func rep(pixels: Int) -> NSBitmapImageRep {
     return rep
 }
 
-let image = NSImage(size: NSSize(width: 16, height: 16))
-image.addRepresentation(rep(pixels: 16))
-image.addRepresentation(rep(pixels: 32))
+/// The mark alone, as large as fits 18 pt with a little room (the size of menu bar icons).
+func bareRep(pixels: Int) -> NSBitmapImageRep {
+    let rep = bitmap(pixels, pixels)
+    rep.size = NSSize(width: 18, height: 18)
+    NSGraphicsContext.saveGraphicsState()
+    let context = NSGraphicsContext(bitmapImageRep: rep)!
+    NSGraphicsContext.current = context
+    context.imageInterpolation = .high
+    let room = NSRect(x: 0, y: 0, width: 18, height: 18).insetBy(dx: 0.5, dy: 1.5)
+    let scale = min(room.width / glyph.size.width, room.height / glyph.size.height)
+    let size = NSSize(width: glyph.size.width * scale, height: glyph.size.height * scale)
+    glyph.draw(in: NSRect(x: room.midX - size.width / 2, y: room.midY - size.height / 2, width: size.width, height: size.height),
+               from: .zero, operation: .sourceOver, fraction: 1)
+    NSGraphicsContext.restoreGraphicsState()
+    return rep
+}
+
+let side: CGFloat = bare ? 18 : 16
+let image = NSImage(size: NSSize(width: side, height: side))
+image.addRepresentation(bare ? bareRep(pixels: 18) : rep(pixels: 16))
+image.addRepresentation(bare ? bareRep(pixels: 36) : rep(pixels: 32))
 guard let tiff = image.tiffRepresentation else { fatalError("could not encode TIFF") }
 try tiff.write(to: URL(fileURLWithPath: out))
 print("wrote \(out)")

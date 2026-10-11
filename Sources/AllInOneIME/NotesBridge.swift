@@ -32,7 +32,7 @@ enum NotesBridge {
     }
 
     /// Saves `text` as a new note (its first line is the note's title, its lines stay lines); returns the
-    /// note's identifier. Then `.allInOneIMENoteSaved` is posted on the main thread (for the floating panel).
+    /// note's identifier. Then `.allInOneIMENoteSaved` is posted on the main thread (for the menu bar panel).
     @discardableResult
     static func save(_ text: String) async throws -> String {
         let id = try await run(saveScript, [folderName, html(text)]) { $0.stringValue ?? "" }

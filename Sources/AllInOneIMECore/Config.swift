@@ -53,9 +53,6 @@ public struct Config: Codable, Equatable, Sendable {
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
-    /// The floating panel (「悬浮面板」): a small window that stays on screen with the notes saved with
-    /// @note, the reminders added with @reminder and @claude's background tasks. Off by default.
-    public var floatingPanel: Bool
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
 
@@ -116,7 +113,6 @@ public struct Config: Codable, Equatable, Sendable {
         self.uiLanguage = uiLanguage
         self.customCommands = customCommands
         self.claudeInBackground = true
-        self.floatingPanel = false
         self.menuBarIcon = true
         normalizeLanguages()
     }
@@ -135,7 +131,7 @@ public struct Config: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
-        case floatingPanel, menuBarIcon
+        case menuBarIcon
         case provider, anthropic, gemini, openai
     }
 
@@ -167,7 +163,6 @@ public struct Config: Codable, Equatable, Sendable {
         uiLanguage = try c.decodeIfPresent(Language.self, forKey: .uiLanguage)
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
-        floatingPanel = try c.decodeIfPresent(Bool.self, forKey: .floatingPanel) ?? d.floatingPanel
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
@@ -229,7 +224,6 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
         try c.encode(customCommands, forKey: .customCommands)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
-        try c.encode(floatingPanel, forKey: .floatingPanel)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)

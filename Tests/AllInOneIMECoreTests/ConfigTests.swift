@@ -165,17 +165,18 @@ struct ConfigTests {
         #expect(try decode(#"{"uiLanguage": "en"}"#).uiLanguage == .english)
     }
 
-    /// The floating panel is off unless turned on; the key is written either way (discoverable).
-    @Test func floatingPanel() throws {
-        #expect(!Config.default.floatingPanel && !Config.fresh.floatingPanel)
-        #expect(try !decode("{}").floatingPanel)
-        #expect(try decode(#"{"floatingPanel": true}"#).floatingPanel)
-        #expect(throws: DecodingError.self) { try decode(#"{"floatingPanel": "yes"}"#) }
+    /// The menu bar icon is on unless turned off; the key is written either way (discoverable). An old
+    /// file's `floatingPanel` (the floating window is gone) is ignored.
+    @Test func menuBarIcon() throws {
+        #expect(Config.default.menuBarIcon && Config.fresh.menuBarIcon)
+        #expect(try decode("{}").menuBarIcon)
+        #expect(try !decode(#"{"menuBarIcon": false}"#).menuBarIcon)
+        #expect(throws: DecodingError.self) { try decode(#"{"menuBarIcon": "yes"}"#) }
+        #expect(try decode(#"{"floatingPanel": true}"#) == decode("{}"))
         var c = Config.default
-        let off = String(decoding: try JSONEncoder().encode(c), as: UTF8.self)
-        #expect(off.contains(#""floatingPanel":false"#))
-        c.floatingPanel = true
-        #expect(try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(c)) == c)
+        c.menuBarIcon = false
+        let text = String(decoding: try JSONEncoder().encode(c), as: UTF8.self)
+        #expect(text.contains(#""menuBarIcon":false"#) && !text.contains("floatingPanel"))
     }
 
     @Test func fileRoundTripAndMissingFile() throws {
