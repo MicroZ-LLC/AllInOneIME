@@ -96,6 +96,15 @@ enum SelfTest {
         config.claudeInBackground = false  // @claude records a Terminal launch here; nothing starts in the background
         return config
     }()
+    /// Live Bedrock calls with the real config (model, credentials, styles), the output pinned to English
+    /// like `settings`: the user may have picked any output language (Japanese, say), and the checks and
+    /// the README images read English versions.
+    static let liveConverter = Converter(loadConfig: {
+        var config = try Config.load()
+        config.outputLanguage = .english
+        config.normalizeLanguages()
+        return config
+    })
 
     static func check(_ condition: Bool, _ message: String) {
         print("\(condition ? "✓" : "✗") \(message)")
@@ -1451,6 +1460,7 @@ enum SelfTest {
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
         controller.loadSettings = { SelfTest.settings }
+        controller.converter = liveConverter
         // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.
         let clockBefore = UIText.clock24
         UIText.clock24 = true
@@ -1819,7 +1829,7 @@ enum SelfTest {
         testEnglishAndOutput(controller, client, snapshotDirectory: snapshotDirectory)
         testVoice(controller, client, snapshotDirectory: snapshotDirectory)
         controller.loadSettings = { SelfTest.settings }
-        controller.converter = sharedConverter
+        controller.converter = liveConverter
         controller.applySettings()
         testCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
