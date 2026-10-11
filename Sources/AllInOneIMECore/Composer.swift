@@ -368,7 +368,7 @@ public final class Composer {
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
-        // In a note, a reminder or a search, an "@name" after the command is just text: none runs there.
+        // In a note, a reminder, a search or a terminal command, an "@name" after the command is just text: none runs there.
         let asTyped = takesTextAsTyped
         var out = ""
         var i = 0
@@ -477,7 +477,7 @@ public final class Composer {
 
     /// The "@letters" being typed: at the start of the draft, or (`nested`) inside a command's text
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
-    /// Not inside a note, a reminder or a search: they take their text as typed (`takesTextAsTyped`).
+    /// Not inside a note, a reminder, a search or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
         guard !isLevelTwo, voice == .off, !engineState.isComposing, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
@@ -488,11 +488,12 @@ public final class Composer {
         return (String(query), true, at)
     }
 
-    /// The draft is a note, a reminder or a search: no command inside its text runs first (`startAction`), so
-    /// an "@" in it is just text (no list to pick a command from, none shown as picked).
+    /// The draft is a note, a reminder, a search or a terminal command (`@claude`, a custom one): no command inside its
+    /// text runs first (`startAction`; Terminal and Claude Code get the text as typed), so an "@" in it is just text (no
+    /// list to pick a command from, none shown as picked).
     private var takesTextAsTyped: Bool {
         guard let kind = draftCommand?.kind else { return false }
-        return kind == .note || kind == .reminder || kind == .search
+        return kind == .note || kind == .reminder || kind == .search || kind == .terminal
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there.

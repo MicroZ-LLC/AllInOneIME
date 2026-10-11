@@ -228,6 +228,42 @@ extension ComposerTests {
         #expect(question.paletteQuery == "" && question.paletteMatches == [.read])
     }
 
+    @Test func noCommandListInsideATerminalCommand() {
+        // @claude and a custom terminal command get their text as typed (nothing inside runs first): "@claude 你好@"
+        // listed @read …, the draft showed 「claude › 你好read › …」, and Claude Code got "你好@read https://…" anyway.
+        let sh = CustomCommand(name: "sh", type: .terminal, argv: ["zsh", "-c", "{input}"])
+        let catalog = Command.catalog([sh])
+        func start(_ letters: String) -> Composer {
+            let (c, _) = composer(key: .enter)
+            c.commands = catalog
+            _ = c.handleKeyDown(at)
+            type(letters, c)
+            _ = c.handleKeyDown(tab)
+            return c
+        }
+        let claude = start("cl")
+        type("nihao", claude)
+        _ = claude.handleKeyDown(spaceKey)
+        #expect(claude.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && claude.draft == "@claude 你好@")
+        #expect(claude.paletteQuery == nil && claude.paletteMatches.isEmpty && claude.markedText == "claude › 你好＠")
+        type("r", claude)  // pinyin, as anywhere else in the text
+        #expect(claude.paletteQuery == nil && claude.markedText == "claude › 你好＠r", "\(claude.markedText)")
+        #expect(claude.handleKeyDown(enterKey).effects.contains(.runInTerminal(prompt: "你好@r")))
+        let shell = start("sh")  // "s" alone is @settings first
+        type("ls", shell)
+        _ = shell.handleKeyDown(spaceKey)
+        _ = shell.handleKeyDown(at)
+        #expect(shell.paletteQuery == nil && shell.paletteMatches.isEmpty)
+        type("read", shell)  // letters, as a terminal command types them
+        #expect(shell.draft == "@sh ls @read" && shell.paletteQuery == nil && shell.markedText == "sh › ls ＠read", "\(shell.markedText)")
+        #expect(shell.handleKeyDown(enterKey).effects.contains(.launchInTerminal(argv: ["zsh", "-c", "ls @read"])))
+        // A command written in the text isn't shown as one either.
+        let pasted = start("cl")
+        _ = pasted.handleKeyDown(enterKey)
+        _ = pasted.pasted("你好@read https://example.com", id: 1)
+        #expect(pasted.markedText == "claude › 你好＠read https://example.com")
+    }
+
     @Test func reminderIsShownToConfirmThenAdded() {
         let c = command("rem")
         type("nihao", c)

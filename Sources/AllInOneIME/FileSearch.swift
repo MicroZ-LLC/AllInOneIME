@@ -4,8 +4,9 @@ import Foundation
 /// `@open`: files, folders and apps. A path ("~/Doc", "/Applications/") lists what is in that
 /// folder; anything else is looked for by name: in the app index (`AppIndex`: every name an app goes
 /// by, 计算器 too, and Finder's names for the standard folders, 下载 too) and with Spotlight (`mdfind -name`,
-/// every keyword somewhere in the path); then, when that finds hardly anything and no app or folder of the
-/// index, in what the files of the home folder contain (not for a web address). Runs on this Mac only.
+/// every keyword somewhere in the path, a standard folder's Finder name for what is in it: 「下载 pdf」); then, when
+/// that finds hardly anything and no app or folder of the index, in what the files of the home folder contain (not
+/// for a web address). Runs on this Mac only.
 enum FileSearch {
     /// All the Spotlight searches for one query end by then (seconds).
     static let timeLimit = 3.0
@@ -58,9 +59,10 @@ enum FileSearch {
     static func search(_ query: String, limit: Int, history: OpenHistory, with spotlight: Spotlight) -> [SearchResult] {
         let index = AppIndex.shared.apps()
         let keywords = FileSearchRanking.keywords(in: query)
-        let apps = index.map { app in
-            let found = FileSearchRanking.Found(path: app.path, names: app.names, isPlace: app.isPlace)
-            return FileSearchRanking.matches(app.path, names: app.names, keywords: keywords) ? dated(found) : found
+        let entries = index.map { FileSearchRanking.Found(path: $0.path, names: $0.names, isPlace: $0.isPlace) }
+        let places = FileSearchRanking.scopingPlaces(entries)
+        let apps = entries.map { found in
+            FileSearchRanking.matches(found.path, names: found.names, keywords: keywords, places: places) ? dated(found) : found
         }
         let found = FileSearchRanking.search(
             query, limit: limit, history: history, apps: apps, isCandidate: isCandidate,

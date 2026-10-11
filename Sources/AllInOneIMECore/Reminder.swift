@@ -138,22 +138,24 @@ extension ReminderDraft {
 /// - a part of the day and a clock time after it, in that half of the day ("中午十二点", "傍晚6点"; it reads
 ///   中午 alone, or nothing);
 /// - a clock time without its half of the day ("3点半", "8点", "1:30", "at 5"): the next of h:mm and
-///   (h+12):mm, never 0:00–5:59 unless 凌晨 / 半夜 is written; with dinner, in the evening ("dinner at 7");
+///   (h+12):mm, never 0:00–5:59 unless 凌晨 / 半夜 is written; with dinner, in the evening ("dinner at 7"); not a
+///   「N点」 that counts what follows it (「写3点建议」, 「两点问题」);
 /// - days: "15号" and "on the 15th" (the next 15th), 10.1 / 11.11 as a month and day (not 10.15元 or v1.2),
-///   周末 / "this weekend", 月底 / "end of the month", 下周 / "next week" (next Monday), and 明年 / 今年 /
-///   "next year" with a month and day;
+///   周末 / "this weekend", 月底 / "end of the month", 下周 / "next week" (next Monday), 下个月 / "next month" (its
+///   1st), 月初 (the 1st), 年底 / "end of the year" (Dec 31), 元旦 and 圣诞节 (not the lunar holidays, which move), and
+///   明年 / 今年 / "next year" with a month and day;
 /// - "noon", and durations ("30分钟后", "半小时后", "3天后", "1个月后", "in 2 hours", "30 minutes from now",
 ///   "2 hours later"), with a time of day after a number of days ("3天后下午3点", "in 3 days at 3pm");
 /// - weeks from Monday, as Chinese counts them (下周日, 这周日, 下下周一; it counts from Sunday where the region
 ///   does), and "next Monday" said Friday to Sunday: the coming one, like 下周一;
 /// - a meal ("tomorrow lunch", 「明天下午茶」) stays in the title.
 /// The first date or time in the text is the reminder's, completed from another one anywhere in the text: the
-/// time of a day alone ("明天开会，3点"), the day of a time alone ("at 5 dentist tomorrow"), the clock time of a
-/// part of the day (「周五晚上 聚餐 7点」). A time of day without a day that has already passed today means
-/// tomorrow, but a part of the day still going (下午 at 16:00, 今晚 at 21:30) is today, all day; a month and day
-/// already past this year is next year's. The rest of the text is the title, without a leading 「提醒我」 /
-/// "remind me to". Written to repeat (每周一9点, "every Monday at 9"), it is due the next time, once, and the
-/// text stays whole.
+/// time of a day alone ("明天开会，3点"; a bare 「N点」 only when it ends its clause), the day of a time alone ("at 5
+/// dentist tomorrow"), the clock time of a part of the day (「周五晚上 聚餐 7点」). A time of day without a day that
+/// has already passed today means tomorrow, but a part of the day still going (下午 at 16:00, 今晚 at 21:30) is
+/// today, all day; a month and day already past this year is next year's. The rest of the text is the title,
+/// without a leading 「提醒我」 / "remind me to". Written to repeat (每周一9点, "every Monday at 9"), it is due the
+/// next time, once, and the text stays whole. Dates are read in the first `readLength` characters only.
 public struct ReminderParser: Sendable {
     /// A date or time found in a text: where it is written and the moment it means.
     public struct Match: Equatable, Sendable {
@@ -199,9 +201,13 @@ public struct ReminderParser: Sendable {
     /// Made once (that takes a few milliseconds) and shared: like any NSRegularExpression it is immutable.
     private static let sharedDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
 
+    /// Dates are read in the first this many characters of a text (its title is all of it): `parse` runs on the main
+    /// thread, as `@reminder` ⏎ is pressed, and a long clipboard text full of dates would hold it up.
+    public static let readLength = 500
+
     /// The reminder in `text`, as of `now`.
     public func parse(_ text: String, now: Date) -> ReminderDraft {
-        let written = Written(text)
+        let written = Written(text, reading: Self.readLength)
         let source = written.text
         let night = source.contains("凌晨") || source.contains("半夜")
         let weekdays = self.weekdays(in: source, now: now)
@@ -240,7 +246,8 @@ public struct ReminderParser: Sendable {
         // of a time alone ("at 5 dentist tomorrow"), the clock time of a part of the day (「周五晚上 聚餐 7点」).
         var ranges = [chosen.range]
         for other in readings.dropFirst() {
-            guard let both = Self.combined(chosen, other) else { continue }
+            // A 「N点」 with more of its clause after it may count things (「明天交报告，写3点东西」): not this day's time.
+            guard !Self.isLooseClock(other, in: source), let both = Self.combined(chosen, other) else { continue }
             chosen = both
             ranges.append(other.range)
         }
@@ -416,7 +423,8 @@ public struct ReminderParser: Sendable {
     }
 
     /// What the detector misses, read here: clock times (with the part of the day before them, if any), "noon",
-    /// days of the month ("15号", "on the 15th"), a month and day as 10.1, and 周末, 月底, 下周 (`spans`).
+    /// days of the month ("15号", "on the 15th"), a month and day as 10.1, 元旦 and 圣诞节, and 周末, 月底, 下周, 下个月,
+    /// 月初, 年底 (`spans`).
     private func own(in source: String, now: Date) -> [Phrase] {
         var found: [Phrase] = []
         for clock in Self.clocks(in: source) {
@@ -438,18 +446,26 @@ public struct ReminderParser: Sendable {
             if let day = dayOfMonth(number, now: now) { found.append(Phrase(range: range, day: day)) }
         }
         let years = Self.yearWords(in: source)
-        for written in Self.dottedDates(in: source) {
-            // In the year written with it (明年5.20), else the next one.
-            let word = years.first { Self.nextTo($0.range, written.range, in: source) }
+        // A month and day without a year: in the year written with it (明年5.20, 明年圣诞节), else the next one.
+        func add(month: Int, day: Int, at written: Range<String.Index>) {
+            let word = years.first { Self.nextTo($0.range, written, in: source) }
             let year = calendar.component(.year, from: now) + (word?.years ?? 0)
-            guard let date = calendar.date(from: DateComponents(year: year, month: written.month, day: written.day)),
-                  calendar.component(.day, from: date) == written.day else { continue }
-            let day = calendar.dateComponents([.year, .month, .day], from: date)
-            let range = word.map { min($0.range.lowerBound, written.range.lowerBound)..<max($0.range.upperBound, written.range.upperBound) }
-            found.append(Phrase(range: range ?? written.range, day: word == nil ? notPast(day, now: now) : day))
+            guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day)),
+                  calendar.component(.day, from: date) == day else { return }
+            let components = calendar.dateComponents([.year, .month, .day], from: date)
+            let range = word.map { min($0.range.lowerBound, written.lowerBound)..<max($0.range.upperBound, written.upperBound) }
+            found.append(Phrase(range: range ?? written, day: word == nil ? notPast(components, now: now) : components))
+        }
+        for written in Self.dottedDates(in: source) { add(month: written.month, day: written.day, at: written.range) }
+        for match in Self.holidays.matches(in: source, range: NSRange(source.startIndex..., in: source)) {
+            guard let range = Range(match.range, in: source) else { continue }
+            if source[range].hasPrefix("元旦") { add(month: 1, day: 1, at: range) } else { add(month: 12, day: 25, at: range) }
         }
         return found + spans(in: source, now: now)
     }
+
+    /// Holidays on a fixed day: 元旦 (Jan 1), 圣诞节 (Dec 25). The lunar ones (春节, 中秋) move, and aren't read.
+    private static let holidays = try! NSRegularExpression(pattern: "元旦节?|圣诞节")
 
     /// Phrases that overlap are one (the detector's 「明天中午」 and 「中午十二点」 read here); a day and a time
     /// of day right next to each other too ("15号下午3点", "周五 傍晚6点"). In order.
@@ -511,6 +527,27 @@ public struct ReminderParser: Sendable {
         return both
     }
 
+    /// A clock time 「N点」 written without its half of the day, with more of its clause after it (「写3点东西」,
+    /// 「3点开始」): it may count things rather than say when. It is the time of a day written elsewhere only when
+    /// it ends its clause (「明天开会，3点」, 「周五晚上 聚餐 7点」); right next to the day it always is (「明天3点开会」,
+    /// read together), and alone it is the next such time.
+    static func isLooseClock(_ phrase: Phrase, in source: String) -> Bool {
+        guard phrase.day == nil, phrase.part == nil, phrase.exact == nil, phrase.time?.ambiguous == true,
+              source[phrase.range].contains(where: { $0 == "点" || $0 == "點" }) else { return false }
+        return !endsClause(at: phrase.range.upperBound, in: source)
+    }
+
+    /// Whether a clause ends at `index`: the end of the text, a space or punctuation, maybe after a word that only
+    /// says around, before or after then (「3点左右」, 「3点前。」).
+    static func endsClause(at index: String.Index, in text: String) -> Bool {
+        var rest = text[index...]
+        if let word = aroundTheTime.first(where: rest.hasPrefix) { rest = rest.dropFirst(word.count) }
+        guard let next = rest.first else { return true }
+        return next.isWhitespace || next.isPunctuation
+    }
+
+    private static let aroundTheTime = ["左右", "之前", "以前", "之后", "以后", "前", "后"]
+
     /// "next Monday" said on a Friday, Saturday or Sunday: the coming Monday, like 下周一 (the detector skips
     /// a week for some days, e.g. 9 days ahead on a Saturday).
     private func comingWeekday(in phrase: String, now: Date) -> DateComponents? {
@@ -569,7 +606,8 @@ public struct ReminderParser: Sendable {
     /// Days read here for a span of days, all day, with weeks from Monday: 周末 / "this weekend" (today on a
     /// Saturday or Sunday, else the coming Saturday) and 下周末 / "next weekend" (next week's Saturday); 月底 /
     /// 月末 / "end of the month" (its last day; 下个月底: next month's); 下周 / 下个星期 / "next week" without a
-    /// weekday: next Monday (下下周: the one after).
+    /// weekday: next Monday (下下周: the one after); 下个月 / "next month": its 1st (or the day written with it);
+    /// 月初: the next 1st (下月初: next month's); 年底 / "end of the year": Dec 31.
     private func spans(in source: String, now: Date) -> [Phrase] {
         let today = calendar.startOfDay(for: now)
         let todayIndex = Self.mondayFirst(calendar.component(.weekday, from: today))
@@ -599,6 +637,34 @@ public struct ReminderParser: Sendable {
             let weeks = which(match, ["which"]) == "下下" ? 2 : 1
             found += [phrase(match, calendar.date(byAdding: .day, value: 7 * weeks - todayIndex, to: today))].compactMap { $0 }
         }
+        for match in Self.nextMonth.matches(in: source, range: whole) {
+            let months = which(match, ["which"]) == "下下" ? 2 : 1
+            let written = ["d", "ed", "ed2"].lazy.compactMap { Range(match.range(withName: $0), in: source) }.first
+                .flatMap { Self.number(String(source[$0])) }
+            guard let month = calendar.date(byAdding: .month, value: months, to: today) else { continue }
+            var day = calendar.dateComponents([.year, .month], from: month)
+            day.day = written ?? 1
+            // A day the month doesn't have (下个月31号 in November) is no date.
+            guard let date = calendar.date(from: day), calendar.component(.day, from: date) == day.day else { continue }
+            found += [phrase(match, date)].compactMap { $0 }
+        }
+        for match in Self.monthStart.matches(in: source, range: whole) {
+            let word = which(match, ["which"])
+            let date: Date?
+            if word.isEmpty {
+                date = dayOfMonth(1, now: now).flatMap { calendar.date(from: $0) }
+            } else {
+                let month = calendar.date(byAdding: .month, value: word.hasPrefix("下下") ? 2 : word.hasPrefix("下") ? 1 : 0, to: today)
+                date = month.flatMap { calendar.dateInterval(of: .month, for: $0)?.start }
+            }
+            found += [phrase(match, date)].compactMap { $0 }
+        }
+        for match in Self.yearEnd.matches(in: source, range: whole) {
+            let word = which(match, ["which", "en"])
+            let years = word == "后" ? 2 : word == "明" || word == "next" ? 1 : 0
+            let year = calendar.component(.year, from: today) + years
+            found += [phrase(match, calendar.date(from: DateComponents(year: year, month: 12, day: 31)))].compactMap { $0 }
+        }
         return found
     }
 
@@ -609,6 +675,24 @@ public struct ReminderParser: Sendable {
     private static let monthEnd = try! NSRegularExpression(pattern:
         "(?<![0-9零〇一二两三四五六七八九十上])(?<!上个)(?<which>这个?|本|下个?)?月[底末]"
         + "|\\b(?:the\\s+)?end\\s+of\\s+(?:(?<en>this|next|the)\\s+)?month\\b", options: .caseInsensitive)
+    /// 下个月, 下月, 下下个月, "next month": its 1st, or the day of the month written with it (下个月 15号, 下月15号,
+    /// "next month on the 15th", "the 15th next month"; the detector reads 下个月15号 and "the 15th of next month"
+    /// too). Not 上个月, 下个月底 / 下月初 (`monthEnd`, `monthStart`), nor 下个月中旬.
+    private static let nextMonth = try! NSRegularExpression(pattern:
+        "(?<![上这本每下])(?<which>下下|下)个?月(?:\\s*(?<d>[0-9]{1,2}|[一二三四五六七八九十]{1,3})\\s*[号號日](?![\(notADay)])"
+        + "|(?!\\s*[底末初中上下旬份0-9０-９零〇一二两三四五六七八九十号號日]))"
+        + "|\\bnext\\s+month(?:\\s+on\\s+the\\s+(?<ed>[0-9]{1,2})(?:st|nd|rd|th))?\\b"
+        + "|\\b(?:on\\s+)?the\\s+(?<ed2>[0-9]{1,2})(?:st|nd|rd|th)\\s+next\\s+month\\b", options: .caseInsensitive)
+    /// 月初, 这个月初, 本月初, 下个月初, 下月初: the 1st (月初 alone: the next one, today on the 1st). Not 10月初, 上个月初,
+    /// nor the lunar 正月初一, 腊月初八.
+    private static let monthStart = try! NSRegularExpression(pattern:
+        "(?<![0-9零〇一二两三四五六七八九十上正腊冬闰])(?<!上个)(?<which>这个?|本|下下个?|下个?)?月初")
+    /// 年底, 年末, 今年年底, 明年底, 后年年底, 每年年底: that year's Dec 31; "end of the year", "end of next year". Not 去年年底,
+    /// 2026年底; the 后 of 然后 / 之后 and the 明 of 说明 / 表明 say no year (「然后年底交」 is this year's).
+    private static let yearEnd = try! NSRegularExpression(pattern:
+        "(?<![0-9０-９零〇一二两三四五六七八九十去前上年])"
+        + "(?:(?<which>今|(?<![说声表证发光文分透聪标注阐查简])明|(?<![然之以最随而前先背落延往])后)年?|年)?年[底末]"
+        + "|\\b(?:the\\s+)?end\\s+of\\s+(?:(?<en>this|next|the)\\s+)?year\\b", options: .caseInsensitive)
     /// 下周, 下个星期, 下礼拜, 下下周 with no weekday after it; "next week".
     private static let nextWeek = try! NSRegularExpression(pattern:
         "(?<![上这本每下])(?<which>下下|下)个?(?:周|星期|礼拜)(?![一二三四五六日天末])|\\bnext\\s+week\\b", options: .caseInsensitive)
@@ -670,6 +754,20 @@ public struct ReminderParser: Sendable {
 
     /// 「点」 starting a word of its own after a number: 3点赞, 点评 — not a time.
     private static let wordsWithDian: Set<Character> = ["击", "赞", "评", "名", "菜", "单", "数", "子", "心", "滴", "缀", "播", "燃", "亮", "破", "头"]
+    /// What 「N点」 counts when one of these follows it: points made (「写3点建议」, 「提两点意见」, 「讨论两点问题」), not a time.
+    private static let countedAfterDian = ["建议", "意见", "问题", "要求", "经验", "想法", "看法", "原因", "内容", "理由", "体会",
+                                           "收获", "注意事项", "要点", "事项", "措施", "原则", "好处", "优势", "优点", "缺点", "不足",
+                                           "区别", "疑问", "启示", "心得", "感想", "感受", "结论", "观点", "共识", "教训", "特点",
+                                           "意义", "作用", "变化", "差异", "需求", "规则", "顾虑", "思路", "目标", "反思"]
+    /// Words that may come between the number and what it counts: 「两点小建议」, 「三点主要原因」, 「两点个人看法」.
+    private static let countedModifiers = ["小", "个人", "主要", "具体", "重要"]
+
+    /// Whether `rest`, right after a 「N点」, says what it counts (`countedAfterDian`).
+    static func countsThings(_ rest: Substring) -> Bool {
+        var rest = rest
+        if let modifier = countedModifiers.first(where: rest.hasPrefix) { rest = rest.dropFirst(modifier.count) }
+        return countedAfterDian.contains(where: rest.hasPrefix)
+    }
     /// 「一点」 is mostly "a little": 买一点水果, 快一点, 晚一点, 有一点, 一点也不, 一点儿, 给我一点时间.
     private static let aLittleBefore: Set<Character> = Set("有早晚快慢多少好大小高低长短近远轻重稍差这那买吃喝带拿要留省加放写看学点些再又更还就找做用弄存赚花剩挤让来去走跑睡起")
     private static let aLittleAfter: Set<Character> = Set("儿点也都些时钱事东水吧啊呀")
@@ -710,9 +808,12 @@ public struct ReminderParser: Sendable {
             guard let value = number(m), value < 60 else { return nil }
             minute = value
         }
-        // Ends at 「点」: it may start another word (点赞), or be "a little" (一点).
+        // Ends at 「点」: it may start another word (点赞), be "a little" (一点), or count what follows (「3点建议」;
+        // after a part of the day or a day it is still a time: 「下午3点问题讨论」).
         if let last = text[range].last, last == "点" || last == "點" {
             if let next = text[range.upperBound...].first, wordsWithDian.contains(next) { return nil }
+            if countsThings(text[range.upperBound...]), partOfDay(before: range.lowerBound, in: text) == nil,
+               !dayBefore(range.lowerBound, in: text) { return nil }
             if written == "一" {
                 if let before = text[..<range.lowerBound].last, aLittleBefore.contains(before) { return nil }
                 if let after = text[range.upperBound...].first, aLittleAfter.contains(after) { return nil }
@@ -800,9 +901,11 @@ public struct ReminderParser: Sendable {
 
     // MARK: - Days of the month
 
+    /// What a number before 号 / 日 counts when one of these follows: 3号线, 5号楼, 500日元 — not a day.
+    private static let notADay = "楼樓线線门門床位房馆館厅廳机機车車桌口码碼窗台柜櫃店院厂廠箱球字座舱艙站道元币幣游遊队隊员員件包罐框键鍵文内"
+
     /// 15号, 15日, 十五号, 每月15号; not 3号线, 5号楼, 500日元, 10月15日 (the detector reads that).
     private static let dayOfMonthPattern: NSRegularExpression = {
-        let notADay = "楼樓线線门門床位房馆館厅廳机機车車桌口码碼窗台柜櫃店院厂廠箱球字座舱艙站道元币幣游遊队隊员員件包罐框键鍵文内"
         let notAMonth = "(?<![0-9０-９零〇一二两三四五六七八九十]月)"
         return try! NSRegularExpression(pattern:
             "(?<![0-9０-９第./-])\(notAMonth)(?<d>[0-9]{1,2})\\s*[号號日](?![\(notADay)])"
@@ -831,9 +934,9 @@ public struct ReminderParser: Sendable {
         ordinalDay.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
             guard let range = Range(match.range, in: text), let digits = Range(match.range(withName: "d"), in: text),
                   let day = Int(text[digits]), (1...31).contains(day) else { return nil }
-            // Without "the", only right after "on" or "by" ("on 15th").
+            // Without "the", only right after "on" or "by" ("on 15th"): looked for in the few characters before it.
             if match.range(withName: "the").location == NSNotFound,
-               text[..<range.lowerBound].range(of: "\\b(on|by)\\s+$", options: [.regularExpression, .caseInsensitive]) == nil {
+               text[..<range.lowerBound].suffix(24).range(of: "\\b(on|by)\\s+$", options: [.regularExpression, .caseInsensitive]) == nil {
                 return nil
             }
             return (range, day)
@@ -939,15 +1042,20 @@ public struct ReminderParser: Sendable {
                                 "早饭", "早餐", "午饭", "午餐", "中饭", "晚饭", "晚餐"]
     /// Meals in the evening: a clock time written with one is in the evening too ("dinner at 7", 「晚饭7点」).
     private static let eveningMeals = ["dinner", "supper", "晚饭", "晚餐", "夜宵", "宵夜"]
+    private static let longestMeal = meals.map(\.count).max() ?? 0
 
     /// The detector's phrase without the meals in it ("tomorrow lunch", "lunch tomorrow", 「明天午饭」, 「明天下午茶」,
     /// "tomorrow dinner at 7"): the meal is what the reminder is for, and stays in the title. One at the start goes
     /// with what is before it, any other with what follows (a clock time after it is read on its own).
     static func withoutMeal(_ range: Range<String.Index>, in source: String) -> Range<String.Index> {
         var lower = range.lowerBound, upper = range.upperBound
+        // Only meals that overlap the phrase count, so only around it is looked in (a meal's length on each side):
+        // not the whole text again for each of its dates.
+        let window = (source.index(lower, offsetBy: -longestMeal, limitedBy: source.startIndex) ?? source.startIndex)
+            ..< (source.index(upper, offsetBy: longestMeal, limitedBy: source.endIndex) ?? source.endIndex)
         for meal in meals {
-            var from = source.startIndex
-            while lower < upper, let found = source.range(of: meal, options: .caseInsensitive, range: from..<source.endIndex) {
+            var from = window.lowerBound
+            while lower < upper, let found = source.range(of: meal, options: .caseInsensitive, range: from..<window.upperBound) {
                 from = found.upperBound
                 guard found.lowerBound < upper else { break }
                 guard found.upperBound > lower, isWord(found, in: source) else { continue }
@@ -964,6 +1072,9 @@ public struct ReminderParser: Sendable {
     static func hasEveningMeal(_ text: Substring, atEnd: Bool = false) -> Bool {
         var text = text
         while let last = text.last, last.isWhitespace { text = text.dropLast() }
+        // At the end, only the last few characters are looked at (a meal and the one before it, where its word
+        // starts): a clock time late in a long text has all of it before it.
+        if atEnd { text = text.suffix(longestMeal + 1) }
         let options: String.CompareOptions = atEnd ? [.caseInsensitive, .backwards, .anchored] : .caseInsensitive
         return eveningMeals.contains { meal in text.range(of: meal, options: options).map { isWord($0, in: text) } ?? false }
     }
@@ -989,7 +1100,8 @@ public struct ReminderParser: Sendable {
     // MARK: - The text as the rules read it
 
     /// The text with what the detector misses written out (明早 → 明天早上, 今早 → 今天早上, 明晚 → 明天晚上,
-    /// 早8点 → 早上8点), and the way back to the text as typed for the title.
+    /// 早8点 → 早上8点), and the way back to the text as typed for the title. Of a longer text, only the first `limit`
+    /// characters are read; the ranges found there are ranges of the whole text as typed.
     struct Written {
         let original: String
         let text: String
@@ -998,9 +1110,9 @@ public struct ReminderParser: Sendable {
 
         private static let words = ["明早": "明天早上", "今早": "今天早上", "明晚": "明天晚上"]
 
-        init(_ original: String) {
+        init(_ original: String, reading limit: Int = .max) {
             self.original = original
-            let chars = Array(original)
+            let chars = Array(original.prefix(limit))
             var text = "", origins: [Range<Int>] = []
             var i = 0
             while i < chars.count {
@@ -1038,7 +1150,7 @@ public struct ReminderParser: Sendable {
         func originalRange(_ range: Range<String.Index>) -> Range<String.Index> {
             let lower = text.distance(from: text.startIndex, to: range.lowerBound)
             let upper = text.distance(from: text.startIndex, to: range.upperBound)
-            let from = lower < origins.count ? origins[lower].lowerBound : original.count
+            let from = lower < origins.count ? origins[lower].lowerBound : origins.last?.upperBound ?? 0
             let to = upper > lower ? origins[min(upper, origins.count) - 1].upperBound : from
             return original.index(original.startIndex, offsetBy: from)..<original.index(original.startIndex, offsetBy: to)
         }
@@ -1201,8 +1313,8 @@ public struct ReminderParser: Sendable {
         if has("月|month", marker) { return DateComponents(month: 1) }
         if has("年|year|annual", marker) { return DateComponents(year: 1) }
         if has("周|星期|礼拜|weekend|\\b" + englishWeekday + "\\b", phrase) { return DateComponents(day: 7) }
-        if namesMonthAndDay(phrase) { return DateComponents(year: 1) }
-        if has("[0-9零〇一二两三四五六七八九十]\\s*[号號日]|[0-9](st|nd|rd|th)\\b|月[底末]|end of", phrase) { return DateComponents(month: 1) }
+        if namesMonthAndDay(phrase) || has("年[底末]|end of (?:the |this |next )?year|元旦|圣诞", phrase) { return DateComponents(year: 1) }
+        if has("[0-9零〇一二两三四五六七八九十]\\s*[号號日]|[0-9](st|nd|rd|th)\\b|月[底末初]|end of", phrase) { return DateComponents(month: 1) }
         return DateComponents(day: 1)
     }
 
@@ -1210,8 +1322,8 @@ public struct ReminderParser: Sendable {
 
     /// The text without the date phrases at `ranges` (and a word that only led into one: "at", "on (the)", "by",
     /// "before", "the", a 「在」 / 「于」 of its own, or what only went with it: 「之前」 / 「以前」 / 「之内」 / 「以内」 /
-    /// 「前」, a 「的」), trimmed of spaces and punctuation, without a leading 「提醒我（一下）」 / 「提醒一下」 / 「记得」 /
-    /// "remind me to".
+    /// 「前」, 「左右」, a 「的」, a 「是」 / "is" after a date that starts the text or a clause), trimmed of spaces and
+    /// punctuation, without a leading 「提醒我（一下）」 / 「提醒一下」 / 「记得」 / "remind me to".
     static func title(_ text: String, without ranges: [Range<String.Index>]) -> String {
         var result = text
         // The last first: what goes is at or after the ones before it, which keep their place.
@@ -1227,7 +1339,7 @@ public struct ReminderParser: Sendable {
         result = trimmed(result)
         // What only asked for the reminder.
         while true {
-            if let lead = ["提醒我一下", "提醒一下", "提醒我", "记得"].first(where: result.hasPrefix) {
+            if let lead = leads.first(where: result.hasPrefix) {
                 result = trimmed(String(result.dropFirst(lead.count)))
             } else if let lead = result.range(of: "^remind me(\\s+to)?\\b", options: [.regularExpression, .caseInsensitive]) {
                 result.removeSubrange(lead)
@@ -1255,13 +1367,25 @@ public struct ReminderParser: Sendable {
             // Not the end of a word (现在, 正在, 关于, 对于, 由于).
             before.removeLast()
         }
-        // By when ("周五前交报告", "明天下午3点之前", 「周五之内」), or a 「的」 that tied the date to the rest (「…的会议」).
-        if let lead = ["之前", "以前", "之内", "以内", "的"].first(where: after.hasPrefix) {
+        // By when ("周五前交报告", "明天下午3点之前", 「周五之内」), about when (「3点左右」), or a 「的」 that tied the date
+        // to the rest (「…的会议」).
+        if let lead = ["之前", "以前", "之内", "以内", "左右", "的"].first(where: after.hasPrefix) {
             after.removeFirst(lead.count)
-        } else if after.hasPrefix("前"), !(after.dropFirst().first.map(wordsWithQian.contains) ?? false) {
+        } else if after.hasPrefix("前"), verbsAfterQian.contains(where: after.dropFirst().hasPrefix)
+                    || !(after.dropFirst().first.map(wordsWithQian.contains) ?? false) {
             after.removeFirst()
         }
         trim()
+        // What only said what the date is, the date starting the text or a clause: 「明天是小王生日」, "tomorrow is
+        // Bob's birthday" (not 是否, 是不是).
+        if before.isEmpty || before.last?.isPunctuation == true || leads.contains(before) {
+            if after.hasPrefix("是"), !["是否", "是不是", "是非"].contains(where: after.hasPrefix) {
+                after.removeFirst()
+            } else if let word = after.range(of: "^is(?=\\s)", options: [.regularExpression, .caseInsensitive]) {
+                after.removeSubrange(word)
+            }
+            trim()
+        }
         // One space where the text set the phrase off with spaces ("call Bob tomorrow at 3pm about it"),
         // or where two Latin words would run together; none between Chinese words written together.
         let spaced = text[..<range.lowerBound].last?.isWhitespace == true && text[range.upperBound...].first?.isWhitespace == true
@@ -1300,6 +1424,11 @@ public struct ReminderParser: Sendable {
 
     /// 「前」 starting a word of its own after the date: 前台, 前面, 前往 … (not "by then").
     private static let wordsWithQian: Set<Character> = Set("台面往门排任端提方辈进线后夕景途锋妻夫天年者身额沿卫列")
+    /// Verbs after a "by then" 「前」 that start like one of those words: 「周五前提交报告」 (not 前提), 「下午3点前提供数据」,
+    /// 「周五前列出意见」.
+    private static let verbsAfterQian = ["提交", "提供", "提出", "提醒", "列出", "进行"]
+    /// What only asks for the reminder, at the start of its text.
+    private static let leads = ["提醒我一下", "提醒一下", "提醒我", "记得"]
 
     private static let trimmedCharacters = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，。、；：！？,.;:!?…·~～-—–"))
 

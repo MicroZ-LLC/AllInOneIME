@@ -98,6 +98,24 @@ struct ReminderParserTests {
             #expect(parse(text, ["周五": Self.date(10, 16)]) == Self.allDay("交报告", 10, 16), "\(text)")
         }
         #expect(parse("明天前台见", ["明天": Self.date(10, 10)]).title == "前台见")
+        // A verb that starts like such a word comes after a "by then" 「前」: 提交, 提供, 提出, 提醒, 列出, 进行.
+        #expect(parse("周五前提交报告", ["周五": Self.date(10, 16)]) == Self.allDay("提交报告", 10, 16))
+        #expect(parse("下午3点前提供数据", ["下午3点": Self.date(10, 9, 15)]) == Self.timed("提供数据", 10, 10, 15))
+        for (text, title) in [("周五前提出意见", "提出意见"), ("周五前提醒他", "提醒他"), ("周五前列出清单", "列出清单"),
+                              ("周五前进行评审", "进行评审"), ("周五前往北京", "前往北京")] {
+            #expect(parse(text, ["周五": Self.date(10, 16)]).title == title, "\(text)")
+        }
+        // A 是 / "is" that only said what the date is, the date starting the text or a clause.
+        #expect(parse("明天是小王生日", ["明天": Self.date(10, 10)]) == Self.allDay("小王生日", 10, 10))
+        #expect(parse("提醒我明天是小王生日", ["明天": Self.date(10, 10)]).title == "小王生日")
+        #expect(parse("别忘了，明天是小王生日", ["明天": Self.date(10, 10)]).title == "别忘了，小王生日")
+        #expect(parse("tomorrow is Bob's birthday", ["tomorrow": Self.date(10, 10)]) == Self.allDay("Bob's birthday", 10, 10))
+        for (text, title) in [("明天是否开会", "是否开会"), ("明天是不是开会", "是不是开会"), ("他说明天是晴天", "他说是晴天")] {
+            #expect(parse(text, ["明天": Self.date(10, 10)]).title == title, "\(text)")
+        }
+        #expect(parse("tomorrow isn't a holiday", ["tomorrow": Self.date(10, 10)]).title == "isn't a holiday")
+        // 左右: about then.
+        #expect(parse("明天开会，3点左右", ["明天": Self.date(10, 10)]) == Self.timed("开会", 10, 10, 15))
         // What only asked for the reminder.
         #expect(parse("提醒我一下明天交报告", ["明天": Self.date(10, 10)]) == Self.allDay("交报告", 10, 10))
         #expect(parse("提醒一下明天交报告", ["明天": Self.date(10, 10)]).title == "交报告")
@@ -233,6 +251,38 @@ struct ReminderParserTests {
         #expect(parse("明天一点开会", ["明天": Self.date(10, 10)]) == Self.timed("开会", 10, 10, 13))
     }
 
+    @Test func aNumberOfPointsIsNoTime() {
+        // 「N点」 before what it counts is points made: no time, also not for a day written elsewhere (it was 15:00,
+        // 14:00, 17:00 and cut from the title). The detector reads only the day in these.
+        #expect(parse("明天交报告，写3点建议", ["明天": Self.date(10, 10)]) == Self.allDay("交报告，写3点建议", 10, 10))
+        #expect(parse("周五开会，提两点建议", ["周五": Self.date(10, 16)]) == Self.allDay("开会，提两点建议", 10, 16))
+        #expect(parse("明天开会讨论两点问题", ["明天": Self.date(10, 10)]) == Self.allDay("开会讨论两点问题", 10, 10))
+        #expect(parse("周五前列出5点意见", ["周五": Self.date(10, 16)]) == Self.allDay("列出5点意见", 10, 16))
+        for text in ["写3点建议", "两点小建议", "总结三点经验", "说两点个人看法", "有3点注意事项", "提5点要求"] {
+            #expect(parse(text).due == nil, "\(text)")
+        }
+        // After a part of the day or a day it is the time.
+        #expect(parse("下午3点问题讨论", at: Self.at9am) == Self.timed("问题讨论", 10, 9, 15))
+        #expect(parse("明天3点内容评审", ["明天": Self.date(10, 10)]) == Self.timed("内容评审", 10, 10, 15))
+        // Another bare 「N点」 is a day's time from elsewhere only when it ends its clause: more after it may count
+        // things too (「写3点东西」).
+        #expect(parse("明天交报告，写3点东西", ["明天": Self.date(10, 10)]) == Self.allDay("交报告，写3点东西", 10, 10))
+        #expect(parse("明天开会，3点开始", ["明天": Self.date(10, 10)]) == Self.allDay("开会，3点开始", 10, 10))
+        #expect(parse("明天开会，3点半开始", ["明天": Self.date(10, 10), "3点半": Self.date(10, 9, 3, 30)])
+                == Self.allDay("开会，3点半开始", 10, 10))
+        #expect(parse("周五晚上聚餐，写3点东西", ["周五晚上": Self.date(10, 16, 18)]) == Self.timed("聚餐，写3点东西", 10, 16, 18))
+        for text in ["明天开会，3点", "明天开会，3点。", "明天开会，3点前", "明天开会 3点 带电脑"] {
+            #expect(parse(text, ["明天": Self.date(10, 10)]).due == Self.due(10, 10, 15, 0), "\(text)")
+        }
+        #expect(parse("明天开会 3点 带电脑", ["明天": Self.date(10, 10)]).title == "开会 带电脑")
+        // Next to the day, or alone, as before.
+        #expect(parse("明天3点开会", ["明天3点": Self.date(10, 10, 15)]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("明天 3点开会", ["明天": Self.date(10, 10)]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("3点半接孩子", ["3点半": Self.date(10, 9, 3, 30)], at: Self.at9am) == Self.timed("接孩子", 10, 9, 15, 30))
+        #expect(parse("3点开始，明天", ["明天": Self.date(10, 10)]) == Self.timed("开始", 10, 10, 15))  // the reminder's own time
+        #expect(ReminderParser.countsThings("建议") && ReminderParser.countsThings("小建议") && !ReminderParser.countsThings("开会"))
+    }
+
     // MARK: - A day and a time written apart
 
     @Test func aDayAndATimeWrittenApartAreOneDate() {
@@ -275,7 +325,7 @@ struct ReminderParserTests {
         #expect(parse("pay rent on the 15th of next month", ["15th of next month": Self.date(11, 15)], at: Self.saturday)
                 == Self.allDay("pay rent", 11, 15))
         #expect(parse("pay rent by the 15th of next month", ["15th of next month": Self.date(11, 15)]).title == "pay rent")
-        #expect(parse("pay rent next month", at: Self.saturday) == ReminderDraft(title: "pay rent next month"))
+        #expect(parse("pay rent next month", at: Self.saturday) == Self.allDay("pay rent", 11, 1))  // its 1st
         // Weekdays, whole or short, still are (the detector: 9 days ahead for some, said on a Saturday).
         #expect(parse("next Mon call Bob", ["next Mon": Self.date(10, 19)], at: Self.saturday).due == Self.due(10, 12))
         #expect(parse("next Tues call Bob", ["next Tues": Self.date(10, 20)], at: Self.saturday).due == Self.due(10, 13))
@@ -345,6 +395,44 @@ struct ReminderParserTests {
         #expect(parse("月底交房租") == Self.allDay("交房租", 10, 31) && parse("下个月底交房租").due == Self.due(11, 30))
         #expect(parse("pay rent by the end of the month") == Self.allDay("pay rent", 10, 31))
         #expect(parse("上个月底的账单").due == nil)
+    }
+
+    @Test func fixedDaysTheDetectorMisses() {
+        // 下个月 / "next month": its 1st, or the day of the month written with it (they were 「未设时间」, in the title).
+        #expect(parse("下个月交报告") == Self.allDay("交报告", 11, 1))
+        #expect(parse("下月交报告").due == Self.due(11, 1) && parse("下下个月交报告").due == Self.due(12, 1))
+        #expect(parse("下个月的会议") == Self.allDay("会议", 11, 1))
+        #expect(parse("下个月 15号交报告") == Self.allDay("交报告", 11, 15) && parse("下月15号交报告").due == Self.due(11, 15))
+        #expect(parse("pay rent next month") == Self.allDay("pay rent", 11, 1))
+        #expect(parse("pay rent next month on the 15th") == Self.allDay("pay rent", 11, 15))
+        #expect(parse("pay rent on the 15th next month") == Self.allDay("pay rent", 11, 15))
+        #expect(parse("下个月底交房租").due == Self.due(11, 30))  // 月底, as before
+        // 月初: the next 1st (today on the 1st); 下月初 next month's; 这个月初 this month's (over: shown so).
+        #expect(parse("月初交房租") == Self.allDay("交房租", 11, 1) && parse("月初一起吃饭").title == "一起吃饭")
+        #expect(parse("月初交房租", at: Self.date(10, 1, 9)).due == Self.due(10, 1))
+        #expect(parse("下月初交房租") == Self.allDay("交房租", 11, 1) && parse("下个月初交房租", at: Self.date(10, 1, 9)).due == Self.due(11, 1))
+        #expect(parse("这个月初交房租").due == Self.due(10, 1))
+        // 年底 / 年末 / "end of the year": Dec 31, of the year written with it.
+        #expect(parse("年底交报告") == Self.allDay("交报告", 12, 31) && parse("年末盘点").due == Self.due(12, 31))
+        #expect(parse("今年年底交报告").due == Self.due(12, 31) && parse("年底前交报告").title == "交报告")
+        #expect(parse("明年年底交报告") == Self.allDay("交报告", 12, 31, year: 2027) && parse("明年底").due == Self.due(12, 31, year: 2027))
+        #expect(parse("然后年底交报告") == Self.allDay("然后交报告", 12, 31))  // 然后 says no year
+        #expect(parse("finish the report by the end of the year") == Self.allDay("finish the report", 12, 31))
+        #expect(parse("file taxes by the end of next year") == Self.allDay("file taxes", 12, 31, year: 2027))
+        // 元旦, 圣诞节: the next one, or that of the year written with it.
+        #expect(parse("元旦去爬山") == Self.allDay("去爬山", 1, 1, year: 2027) && parse("元旦节去爬山").title == "去爬山")
+        #expect(parse("圣诞节买礼物") == Self.allDay("买礼物", 12, 25) && parse("圣诞节前买礼物").title == "买礼物")
+        #expect(parse("明年圣诞节去日本") == Self.allDay("去日本", 12, 25, year: 2027))
+        #expect(parse("元旦去爬山", at: Self.date(1, 1, 9, year: 2027)).due == Self.due(1, 1, year: 2027))  // today counts
+        // Not these: another month or year, the middle of a month, lunar dates (which move).
+        for text in ["上个月的账单", "去年年底的账单", "2026年底", "10月初", "正月初一拜年", "下个月中旬", "中秋回家", "春节回家"] {
+            #expect(parse(text) == ReminderDraft(title: text), "\(text)")
+        }
+        // Written to repeat: each month, each year.
+        #expect(parse("每个月初交房租") == Self.once(Self.allDay("每个月初交房租", 11, 1)))
+        #expect(parse("每年年底总结") == Self.once(Self.allDay("每年年底总结", 12, 31)))
+        #expect(ReminderParser.repeatStep(marker: "每个", phrase: "月初") == DateComponents(month: 1))
+        #expect(ReminderParser.repeatStep(marker: "每", phrase: "年底") == DateComponents(year: 1))
     }
 
     // MARK: - A part of the day, or a month and day, that is over
@@ -749,4 +837,70 @@ struct ReminderParserTests {
     }
 
     static func allDayDraft(_ title: String, _ day: DateComponents) -> ReminderDraft { ReminderDraft(title: title, due: day) }
+
+    /// The sentences of the behaviour review, with the real detector: points aren't times, the titles, fixed days.
+    @Test func theSystemsDetectorWithPointsTitlesAndFixedDays() {
+        let now = Self.realNow()
+        let parser = ReminderParser()
+        let calendar = ReminderParser.localCalendar
+        func parse(_ text: String) -> ReminderDraft { parser.parse(text, now: now) }
+        let today = calendar.startOfDay(for: now)
+        func components(_ date: Date) -> DateComponents { calendar.dateComponents([.year, .month, .day], from: date) }
+        func weekday(_ draft: ReminderDraft) -> Int? { draft.due.flatMap { calendar.date(from: $0) }.map { calendar.component(.weekday, from: $0) } }
+        /// The next `month`/`dayOfMonth`, today counting.
+        func coming(_ month: Int, _ dayOfMonth: Int) -> DateComponents {
+            let year = calendar.component(.year, from: today)
+            let thisYear = calendar.date(from: DateComponents(year: year, month: month, day: dayOfMonth))!
+            return components(thisYear >= today ? thisYear : calendar.date(byAdding: .year, value: 1, to: thisYear)!)
+        }
+        let tomorrow = components(calendar.date(byAdding: .day, value: 1, to: today)!)
+        let nextMonth = components(calendar.dateInterval(of: .month, for: calendar.date(byAdding: .month, value: 1, to: today)!)!.start)
+        // 「N点」 counting points: the day alone, all day, and the words stay.
+        #expect(parse("明天交报告，写3点建议") == Self.allDayDraft("交报告，写3点建议", tomorrow))
+        #expect(parse("明天开会讨论两点问题") == Self.allDayDraft("开会讨论两点问题", tomorrow))
+        let points = parse("周五开会，提两点建议"), opinions = parse("周五前列出5点意见")
+        #expect(points.title == "开会，提两点建议" && !points.hasTime && weekday(points) == 6, "\(points)")
+        #expect(opinions.title == "列出5点意见" && !opinions.hasTime && weekday(opinions) == 6, "\(opinions)")
+        // Still times.
+        #expect(parse("明天3点开会") == ReminderDraft(title: "开会", due: Self.on(1, at: 15, from: now), hasTime: true,
+                                                    date: calendar.date(from: Self.on(1, at: 15, from: now))))
+        #expect(parse("3点半接孩子").due == Self.next(15, 30, from: now))
+        // Titles.
+        let report = parse("周五前提交报告")
+        #expect(report.title == "提交报告" && !report.hasTime && weekday(report) == 6, "\(report)")
+        let data = parse("下午3点前提供数据")
+        #expect(data.title == "提供数据" && data.due?.hour == 15, "\(data)")
+        #expect(parse("明天是小王生日") == Self.allDayDraft("小王生日", tomorrow))
+        // Fixed days.
+        #expect(parse("下个月交报告") == Self.allDayDraft("交报告", nextMonth))
+        #expect(parse("月初交房租") == Self.allDayDraft("交房租", calendar.component(.day, from: today) == 1 ? components(today) : nextMonth))
+        #expect(parse("下月初交房租") == Self.allDayDraft("交房租", nextMonth))
+        #expect(parse("年底交报告") == Self.allDayDraft("交报告", coming(12, 31)))
+        #expect(parse("元旦去爬山") == Self.allDayDraft("去爬山", coming(1, 1)))
+        #expect(parse("圣诞节买礼物") == Self.allDayDraft("买礼物", coming(12, 25)))
+        #expect(parse("pay rent next month") == Self.allDayDraft("pay rent", nextMonth))
+        #expect(parse("finish the report by the end of the year") == Self.allDayDraft("finish the report", coming(12, 31)))
+        // Lunar holidays move: not read.
+        #expect(parse("中秋回家") == ReminderDraft(title: "中秋回家") && parse("春节回家") == ReminderDraft(title: "春节回家"))
+    }
+
+    @Test func aLongTextFullOfDatesIsReadQuickly() {
+        // Read on the main thread as @reminder ⏎ is pressed (a long text from the clipboard): one with a date every
+        // few characters took most of a second, each date looking for meals in all of the text.
+        let unit = "明天下午3点开会，周五前交报告，10月15日交房租，3点半接孩子，晚饭7点，下周一 9:30，15号，"
+            + "tomorrow lunch at noon, dinner at 7 on Friday, "
+        let text = String(String(repeating: unit, count: 40).prefix(2000))
+        let parser = ReminderParser()
+        _ = parser.parse("明天", now: Date())  // the detector is made on first use
+        let start = Date()
+        let draft = parser.parse(text, now: Date())
+        let elapsed = Date().timeIntervalSince(start)
+        #expect(elapsed < 0.05, "\(Int(elapsed * 1000)) ms")
+        #expect(draft.hasTime && draft.title.hasPrefix("开会，周五前交报告") && draft.title.count > 1900, "\(draft.title.prefix(40))")
+        // Dates are read in the first 500 characters; the title is all of the text.
+        let late = String(repeating: "备注", count: 300) + "明天交报告"
+        #expect(parse(late, ["明天": Self.date(10, 10)]) == ReminderDraft(title: late))
+        let early = "明天交报告，" + String(repeating: "备注", count: 300)
+        #expect(parse(early, ["明天": Self.date(10, 10)]) == Self.allDay("交报告，" + String(repeating: "备注", count: 300), 10, 10))
+    }
 }
