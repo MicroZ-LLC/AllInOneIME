@@ -37,8 +37,7 @@
 - Sentence mode is gone: without `@`, ⏎ is a plain Return and picked words go straight in; to translate or polish, start the sentence with `@improve` (`@i` ⏎). If you had sentence mode on, there's nothing to do: the setting is cleared.
 - Existing settings stay as they were: both input languages and both output languages remain; remove one under "Input and Output" in the settings to keep just one.
 - The first time, `@note` makes macOS ask whether AllInOneIME may control Notes, and `@reminder` whether it may access Reminders: allow them. If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation, or → Reminders.
-- If you added a command of your own named `note`, `reminder` or `imessage`, the built-in one now has that name and yours no longer shows up: "Custom @ Commands" in the settings marks it ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
-- A custom command or plugin named `calc`, `py`, `js` or `search` (such as `@calc` or `@py` added from the examples in the settings) is now hidden by the new built-in one; to keep a custom command, rename it in the settings.
+- The new built-in commands `note`, `reminder`, `imessage`, `calc`, `py`, `js` and `search` hide a custom command or plugin with the same name (such as `@calc` or `@py` added from the examples in the settings), so yours no longer shows up: "Custom @ Commands" in the settings marks a custom command hidden this way ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
 
 ## 0.4.0 (2026-10-09)
 

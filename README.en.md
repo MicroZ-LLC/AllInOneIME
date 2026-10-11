@@ -59,6 +59,7 @@ and talk. `@open` and `@calc` switch to English letters for the moment and go ba
 The code for `@py` and `@js` is typed in English letters too, and full-width punctuation becomes ASCII (`print（“牛逼”）` → `print("牛逼")`); write it on one line, with `;` between statements.
 It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
 Output with several lines is inserted as printed; in a terminal it goes in as one line (a terminal runs every line it is given).
+A terminal inside an editor (VS Code, Cursor, JetBrains) can't be told apart from the editor itself, so there any command's output with several lines goes in as it is.
 Both also work inside another command's sentence: `@reply 答案是 @py 2**100` ("the answer is …"); put code with spaces in 「」 or quotes: `@question explain @py「sum(x * x for x in range(10))」`.
 Not the other way round: the code of `@py` and `@js` always runs exactly as you typed it, and `@commands` in it don't run first.
 
