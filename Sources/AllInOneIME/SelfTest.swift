@@ -1398,9 +1398,9 @@ enum SelfTest {
               && styleItems.allSatisfy { ($0.state == .on) == configured.contains($0.representedObject as? String ?? "") },
               "menu lists the presets, checked per config (\(styleItems.map { "\($0.state == .on ? "✓" : "·")\($0.representedObject ?? "")" }.joined(separator: " ")))")
         // The toggle logic and IMK's info-dictionary form of the sender (no config is written here).
-        check(AllInOneIMEInputController.toggled("口语", in: ["正式", "润色"]) == ["润色", "正式", "口语"]
+        check(AllInOneIMEInputController.toggled("口语", in: ["正式", "润色"]) == ["正式", "润色", "口语"]
               && AllInOneIMEInputController.toggled("润色", in: ["正式", "润色"]) == ["正式"],
-              "style toggle adds in catalog order and removes in place")
+              "style toggle adds at the end and removes in place")
         if let item = styleItems.first {
             let info: NSDictionary = [kIMKCommandMenuItemName as Any: item]
             check(AllInOneIMEInputController.menuItem(from: info) === item, "menu action finds its item in IMK's info dictionary")

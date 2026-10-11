@@ -18,6 +18,7 @@
 
 ### Changed
 
+- Rewrite styles are a list like the languages: "Add…" to add, ⓧ to remove, drag to reorder (the candidates follow that order); the jargon list has its own section.
 - A shorter input menu: rewrite styles, output languages and input languages are submenus whose titles show what's set (e.g. "Rewrite Styles: Polish, Concise, Formal").
 
 ### Removed

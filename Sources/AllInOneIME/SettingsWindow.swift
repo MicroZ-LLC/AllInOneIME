@@ -120,6 +120,12 @@ final class SettingsModel: ObservableObject {
         save()
     }
 
+    /// The styles in this order (dragged in the window): the candidates follow it.
+    func setStyleOrder(_ names: [String]) {
+        config.rewriteStyles = names
+        save()
+    }
+
     // MARK: Provider
 
     func refreshKeys() {
@@ -553,7 +559,7 @@ struct SettingsView: View {
                 LabeledContent(tr("输出语言（1–3 行）", "Output languages (lines 1–3)")) {
                     HStack(spacing: 6) {
                         LanguageChips(items: model.config.outputLanguages, name: UIText.name,
-                                      firstNote: tr("使用中", "in use"),
+                                      firstNote: nil,
                                       reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
                         Menu(tr("添加…", "Add…")) {
                             ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
@@ -572,22 +578,35 @@ struct SettingsView: View {
             }
             .disabled(!model.canSave)
 
-            Section(tr("改写风格", "Rewrite Styles")) {
-                ForEach(RewriteStyle.catalog, id: \.name) { style in
-                    Toggle(isOn: Binding(get: { model.isStyleOn(style) },
-                                         set: { model.setStyle(style, on: $0) })) {
-                        HStack {
-                            Text(UIText.name(style))
-                            Text(UIText.summary(style)).foregroundStyle(.secondary)
+            Section(tr("改写风格（@improve）", "Rewrite Styles (@improve)")) {
+                // Like the languages: the styles added, in the order they're shown; drag to reorder.
+                LabeledContent(tr("风格", "Styles")) {
+                    HStack(spacing: 6) {
+                        let on = RewriteStyle.resolve(model.config.rewriteStyles)
+                        LanguageChips(items: on.map(\.name), name: { RewriteStyle.named($0).map(UIText.name) ?? $0 },
+                                      firstNote: nil, keepsOne: false,
+                                      reorder: { model.setStyleOrder($0) },
+                                      remove: { name in RewriteStyle.named(name).map { model.setStyle($0, on: false) } })
+                        let missing = RewriteStyle.catalog.filter { !on.contains($0) }
+                        if !missing.isEmpty {
+                            Menu(tr("添加…", "Add…")) {
+                                ForEach(missing, id: \.name) { style in
+                                    Button(UIText.name(style) + " — " + UIText.summary(style)) { model.setStyle(style, on: true) }
+                                }
+                            }
+                            .fixedSize()
                         }
                     }
                 }
                 .disabled(!model.canSave)
                 Text(model.config.rewriteStyles.isEmpty
-                     ? tr("都不勾选时只出 1–3 行。", "With none checked, you get lines 1–3 only.")
-                     : tr("改写用原文的语言：打中文出中文改写，打英文出英文改写。",
-                          "Rewrites are in the language you typed: Chinese for Chinese, English for English."))
+                     ? tr("没有风格时只出 1–3 行。", "With no styles, you get lines 1–3 only.")
+                     : tr("拖动排序，候选里按这个顺序出。改写用原文的语言：打中文出中文改写，打英文出英文改写。",
+                          "Drag to reorder: the candidates follow this order. Rewrites are in the language you typed."))
                     .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section(tr("黑话库", "Jargon List")) {
                 LabeledContent(tr("黑话库", "Jargon list")) {
                     HStack(spacing: 8) {
                         Text(model.jargonExists ? tr("\(model.jargonCount) 个词", "\(model.jargonCount) terms") : tr("未设置", "Not set"))
@@ -597,8 +616,8 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(!model.canSave)
-                Text(tr("用你自己的词表：文本文件，每行一个词，可以加解释（如 bandwidth：精力、时间）。勾上「黑话」后模型优先用这些词，候选里会注明意思。",
-                        "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With Jargon checked, the model prefers these terms and the candidates explain them.")
+                Text(tr("用你自己的词表：文本文件，每行一个词，可以加解释（如 bandwidth：精力、时间）。加了「黑话」风格后模型优先用这些词，候选里会注明意思。",
+                        "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
                      + (model.jargonExists ? tr("\n文件：", "\nFile: ") + model.jargonPath : ""))
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
@@ -1282,7 +1301,10 @@ struct CompatibleService: Identifiable {
 private struct LanguageChips<Item: Hashable>: View {
     let items: [Item]
     let name: (Item) -> String
-    let firstNote: String
+    /// What the first is ("默认"); nil: the order matters, no one is special.
+    let firstNote: String?
+    /// The last one can't be removed (a language); styles can all go.
+    var keepsOne = true
     let reorder: ([Item]) -> Void
     let remove: (Item) -> Void
     @State private var frames: [Item: CGRect] = [:]
@@ -1309,8 +1331,8 @@ private struct LanguageChips<Item: Hashable>: View {
     }
 
     private func chip(_ item: Item) -> some View {
-        let first = item == items.first
-        let label = first && items.count > 1 ? name(item) + " · " + firstNote : name(item)
+        let first = item == items.first && firstNote != nil
+        let label = first && items.count > 1 ? name(item) + " · " + (firstNote ?? "") : name(item)
         return HStack(spacing: 2) {
             Text(label).foregroundStyle(first ? .primary : .secondary)
                 .overlay {
@@ -1326,7 +1348,7 @@ private struct LanguageChips<Item: Hashable>: View {
                         })
                     }
                 }
-            if items.count > 1 {
+            if items.count > 1 || !keepsOne {
                 Button { remove(item) } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.borderless)
                     .help(tr("移除\(name(item))", "Remove \(name(item))"))
@@ -1335,7 +1357,7 @@ private struct LanguageChips<Item: Hashable>: View {
         }
         .padding(.horizontal, 6).padding(.vertical, 2)
         .background(Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
-        .help(tr("拖动排序，第一个是\(firstNote)", "Drag to reorder; the first is \(firstNote)"))
+        .help(firstNote.map { tr("拖动排序，第一个是\($0)", "Drag to reorder; the first is \($0)") } ?? tr("拖动排序", "Drag to reorder"))
     }
 }
 

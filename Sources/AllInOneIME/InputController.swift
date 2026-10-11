@@ -1250,13 +1250,11 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Turns a preset on or off. Turning one off keeps the current order; turning one on sorts the
-    /// list into catalog order.
+    /// Turns a preset on or off, keeping the user's order: one turned on goes last.
     static func toggled(_ name: String, in current: [String]) -> [String] {
         let enabled = RewriteStyle.resolve(current).map(\.name)
         if enabled.contains(name) { return enabled.filter { $0 != name } }
-        let wanted = Set(enabled + [name])
-        return RewriteStyle.catalog.map(\.name).filter(wanted.contains)
+        return enabled + [name]
     }
 
     @objc func setOutputLanguage(_ sender: Any?) {
