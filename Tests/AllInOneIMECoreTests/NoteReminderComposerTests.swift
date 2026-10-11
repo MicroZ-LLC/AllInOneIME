@@ -228,6 +228,42 @@ extension ComposerTests {
         #expect(question.paletteQuery == "" && question.paletteMatches == [.read])
     }
 
+    @Test func noCommandListInsideATerminalCommand() {
+        // @claude and a custom terminal command get their text as typed (nothing inside runs first): "@claude 你好@"
+        // listed @read …, the draft showed 「claude › 你好read › …」, and Claude Code got "你好@read https://…" anyway.
+        let sh = CustomCommand(name: "sh", type: .terminal, argv: ["zsh", "-c", "{input}"])
+        let catalog = Command.catalog([sh])
+        func start(_ letters: String) -> Composer {
+            let (c, _) = composer(key: .enter)
+            c.commands = catalog
+            _ = c.handleKeyDown(at)
+            type(letters, c)
+            _ = c.handleKeyDown(tab)
+            return c
+        }
+        let claude = start("cl")
+        type("nihao", claude)
+        _ = claude.handleKeyDown(spaceKey)
+        #expect(claude.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && claude.draft == "@claude 你好@")
+        #expect(claude.paletteQuery == nil && claude.paletteMatches.isEmpty && claude.markedText == "claude › 你好＠")
+        type("r", claude)  // pinyin, as anywhere else in the text
+        #expect(claude.paletteQuery == nil && claude.markedText == "claude › 你好＠r", "\(claude.markedText)")
+        #expect(claude.handleKeyDown(enterKey).effects.contains(.runInTerminal(prompt: "你好@r")))
+        let shell = start("sh")  // "s" alone is @settings first
+        type("ls", shell)
+        _ = shell.handleKeyDown(spaceKey)
+        _ = shell.handleKeyDown(at)
+        #expect(shell.paletteQuery == nil && shell.paletteMatches.isEmpty)
+        type("read", shell)  // letters, as a terminal command types them
+        #expect(shell.draft == "@sh ls @read" && shell.paletteQuery == nil && shell.markedText == "sh › ls ＠read", "\(shell.markedText)")
+        #expect(shell.handleKeyDown(enterKey).effects.contains(.launchInTerminal(argv: ["zsh", "-c", "ls @read"])))
+        // A command written in the text isn't shown as one either.
+        let pasted = start("cl")
+        _ = pasted.handleKeyDown(enterKey)
+        _ = pasted.pasted("你好@read https://example.com", id: 1)
+        #expect(pasted.markedText == "claude › 你好＠read https://example.com")
+    }
+
     @Test func reminderIsShownToConfirmThenAdded() {
         let c = command("rem")
         type("nihao", c)
@@ -349,24 +385,27 @@ struct NotesFormatTests {
             NotesFormat.Entry(id: "x-coredata://2", title: "买牛奶和鸡蛋", modified: newer),
             NotesFormat.Entry(id: "x-coredata://1", title: "周会要点", modified: older),
         ])
-        #expect(NotesFormat.entries(from: result, limit: 1).map(\.id) == ["x-coredata://2"])
-        #expect(NotesFormat.entries(from: result, limit: 0).isEmpty)
+        #expect(NotesFormat.entries(from: result, limit: 1)?.map(\.id) == ["x-coredata://2"])
+        #expect(NotesFormat.entries(from: result, limit: 0) == [])
         // A name or date missing: kept without it (a note without an id is left out, above).
         let partial = list([list([NSAppleEventDescriptor(string: "a"), NSAppleEventDescriptor(string: "b")]),
                             list([NSAppleEventDescriptor(string: "A")]), list([])])
         #expect(NotesFormat.entries(from: partial, limit: 10) == [
             NotesFormat.Entry(id: "a", title: "A", modified: .distantPast), NotesFormat.Entry(id: "b", title: "", modified: .distantPast),
         ])
-        // No folder yet (`{}`), or anything else: none.
-        #expect(NotesFormat.entries(from: list([]), limit: 10).isEmpty)
-        #expect(NotesFormat.entries(from: NSAppleEventDescriptor(string: "x"), limit: 10).isEmpty)
-        #expect(NotesFormat.entries(from: list([list([]), list([]), list([])]), limit: 10).isEmpty)
+        // An empty folder: three empty lists, no notes.
+        #expect(NotesFormat.entries(from: list([list([]), list([]), list([])]), limit: 10) == [])
     }
 
-    @Test func aMissingFolderIsMissingValueNotAnEmptyList() {
-        // What `return missing value` gives: none at all, unlike an empty folder's three empty lists.
-        #expect(NotesFormat.isMissingValue(NSAppleEventDescriptor(typeCode: 0x6D73_6E67)))
-        #expect(!NotesFormat.isMissingValue(NSAppleEventDescriptor.list()))
-        #expect(!NotesFormat.isMissingValue(NSAppleEventDescriptor(string: "msng")))
+    @Test func aReplyThatIsntThreeListsListsNothing() {
+        // `return missing value` (no folder), or anything else: nil, which says nothing of the notes saved (an
+        // empty list would say there are none, and the floating panel would drop the ones it shows).
+        let missingValue = NSAppleEventDescriptor(typeCode: 0x6D73_6E67)  // 'msng', as a script's `missing value` comes back
+        #expect(NotesFormat.entries(from: missingValue, limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([]), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: NSAppleEventDescriptor(string: "x"), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([list([]), list([])]), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([list([]), list([]), list([]), list([])]), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([NSAppleEventDescriptor(string: "x-coredata://1"), list([]), list([])]), limit: 10) == nil)
     }
 }

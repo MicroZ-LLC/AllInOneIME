@@ -47,16 +47,12 @@ public enum NotesFormat {
     }
 
     /// What the script listing the folder returns (three lists, one Apple event each: the ids, the names and
-    /// the modification dates; an empty list when there is no folder) as entries, the newest first, at most
-    /// `limit`. A note without an id is left out; one without a name or date gets none.
-    /// AppleScript's `missing value` (a type descriptor for 'msng'), which a script returns for "none".
-    public static func isMissingValue(_ result: NSAppleEventDescriptor) -> Bool {
-        result.descriptorType == 0x7479_7065 /* 'type' */ && result.typeCodeValue == 0x6D73_6E67 /* 'msng' */
-    }
-
-    public static func entries(from result: NSAppleEventDescriptor, limit: Int) -> [Entry] {
+    /// the modification dates) as entries, the newest first, at most `limit`. A note without an id is left out;
+    /// one without a name or date gets none. Nil for any other reply (`missing value` when there is no folder,
+    /// or one this doesn't know): it says nothing of the notes, unlike an empty folder's three empty lists.
+    public static func entries(from result: NSAppleEventDescriptor, limit: Int) -> [Entry]? {
         let columns = items(result)
-        guard columns.count == 3 else { return [] }
+        guard columns.count == 3, columns.allSatisfy({ $0.descriptorType == listType }) else { return nil }
         let (ids, names, dates) = (items(columns[0]), items(columns[1]), items(columns[2]))
         let all = ids.indices.compactMap { i -> Entry? in
             guard let id = ids[i].stringValue, !id.isEmpty else { return nil }

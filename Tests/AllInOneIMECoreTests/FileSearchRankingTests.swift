@@ -143,6 +143,38 @@ struct FileSearchRankingTests {
             == ["/Users/me/notes 2026.txt"])
     }
 
+    @Test func aFoldersFinderNameStandsForWhatIsInIt() {
+        // The places of the app index, as `AppIndex.places` lists them (the home folder too).
+        let home = Found(path: "/Users/me", names: ["me", "Home", "个人"], isPlace: true)
+        let downloads = Found(path: "/Users/me/Downloads", names: ["Downloads", "下载", "下載項目"], isPlace: true)
+        let desktop = Found(path: "/Users/me/Desktop", names: ["Desktop", "桌面"], isPlace: true)
+        let documents = Found(path: "/Users/me/Documents", names: ["Documents", "文稿"], isPlace: true)
+        let places = [home, downloads, desktop, documents]
+        // 「下载 pdf」 listed content matches and no PDF, while "downloads pdf" listed the PDFs in Downloads.
+        let pdfs = [Found(path: "/Users/me/Documents/b.pdf"), Found(path: "/Users/me/Downloads/old/c.pdf"),
+                    Found(path: "/Users/me/Downloads/a.pdf"), Found(path: "/Users/me/Downloads.pdf")]
+        var asked = 0
+        func find(_ query: String, _ names: [Found]) -> [String] {
+            FileSearchRanking.search(query, limit: 8, history: OpenHistory(), apps: places + [calculator], isCandidate: { _ in true },
+                                     byName: { _ in names }, byContent: { _ in asked += 1; return [] }).map(\.path)
+        }
+        #expect(find("下载 pdf", pdfs) == ["/Users/me/Downloads/a.pdf", "/Users/me/Downloads/old/c.pdf"])  // in the folder
+        let inFolders = Array(pdfs.prefix(3))
+        #expect(find("下载 pdf", inFolders) == find("downloads pdf", inFolders))
+        #expect(find("下載項目 pdf", inFolders) == find("downloads pdf", inFolders))
+        let shots = [Found(path: "/Users/me/Desktop/截图 2026-10-09.png"), Found(path: "/Users/me/Pictures/截图.png")]
+        #expect(find("桌面 截图", shots) == ["/Users/me/Desktop/截图 2026-10-09.png"])
+        #expect(find("文稿 简历", [Found(path: "/Users/me/Documents/工作/简历.docx"), Found(path: "/Users/me/简历.pdf")])
+            == ["/Users/me/Documents/工作/简历.docx"])
+        // The whole name only (「下」 isn't 下载), and the folder itself as before.
+        #expect(find("下 pdf", pdfs).isEmpty && find("下载", []) == [downloads.path])
+        // Not the home folder, which holds the others (and nearly everything): 「个人 简历」 still wants 个人 in the path.
+        #expect(find("个人 简历", [Found(path: "/Users/me/简历.pdf"), Found(path: "/Users/me/个人简历.pdf")]) == ["/Users/me/个人简历.pdf"])
+        #expect(FileSearchRanking.scopingPlaces(places + [calculator]).map(\.path) == [downloads.path, desktop.path, documents.path])
+        #expect(FileSearchRanking.matches("/Users/me/Downloads/a.pdf", keywords: ["下载", "pdf"], places: [downloads])
+                && !FileSearchRanking.matches("/Users/me/Downloads/a.pdf", keywords: ["下载", "pdf"]))
+    }
+
     @Test func parsesAttributeLines() {
         // No line break at the end: mdfind was stopped in the middle of the last line.
         let output = """
@@ -418,7 +450,7 @@ struct FileSearchRankingTests {
     @Test func aWebAddressIsntLookedForInWhatFilesContain() {
         // What links to github.com isn't what "github.com" means; the browser's row is (`placing`).
         var asked = 0
-        for query in ["github.com", "docs.google.com/document", "www.example.org", "brandlogo.ai"] {
+        for query in ["github.com", "docs.google.com/document", "www.example.org", "brandlogo.ai", "localhost:3000", "192.168.1.1"] {
             let found = FileSearchRanking.search(query, limit: 8, history: OpenHistory(), isCandidate: { _ in true },
                                                  byName: { _ in [] },
                                                  byContent: { _ in asked += 1; return [Found(path: "/Users/me/links.docx")] })

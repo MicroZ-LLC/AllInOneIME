@@ -243,6 +243,9 @@ public final class Composer {
     public private(set) var liveResults: [SearchResult] = []
     private var liveResultsQuery: String?
     public private(set) var liveHighlight = 0
+    /// ↑↓ moved the highlight among these results (back to the first counts too): it opens (`opensLiveResult`).
+    /// Reset with the highlight when the results or the text change.
+    private var liveHighlightMoved = false
     /// A send command's recipient (`@imessage`), once picked; until then the text after the command
     /// finds one (`recipientQuery`).
     public private(set) var messageRecipient: Recipient?
@@ -280,7 +283,11 @@ public final class Composer {
     /// stay on this Mac and go ahead.)
     public var secureInputActive: () -> Bool = { false }
     /// Confirmed text waiting for level two: an @ command and the sentence after it.
-    public private(set) var draft = ""
+    public private(set) var draft = "" {
+        // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
+        // highlight starts at the first again (`opensLiveResult`).
+        didSet { if draft != oldValue { resetLiveHighlight() } }
+    }
     /// Last known state of the level-one engine.
     public private(set) var engineState = EngineSnapshot.empty
     public private(set) var result = ConversionResult.empty
@@ -368,7 +375,7 @@ public final class Composer {
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
-        // In a note, a reminder or a search, an "@name" after the command is just text: none runs there.
+        // In a note, a reminder, a search or a terminal command, an "@name" after the command is just text: none runs there.
         let asTyped = takesTextAsTyped
         var out = ""
         var i = 0
@@ -477,7 +484,7 @@ public final class Composer {
 
     /// The "@letters" being typed: at the start of the draft, or (`nested`) inside a command's text
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
-    /// Not inside a note, a reminder or a search: they take their text as typed (`takesTextAsTyped`).
+    /// Not inside a note, a reminder, a search or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
         guard !isLevelTwo, voice == .off, !engineState.isComposing, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
@@ -488,11 +495,12 @@ public final class Composer {
         return (String(query), true, at)
     }
 
-    /// The draft is a note, a reminder or a search: no command inside its text runs first (`startAction`), so
-    /// an "@" in it is just text (no list to pick a command from, none shown as picked).
+    /// The draft is a note, a reminder, a search or a terminal command (`@claude`, a custom one): no command inside its
+    /// text runs first (`startAction`; Terminal and Claude Code get the text as typed), so an "@" in it is just text (no
+    /// list to pick a command from, none shown as picked).
     private var takesTextAsTyped: Bool {
         guard let kind = draftCommand?.kind else { return false }
-        return kind == .note || kind == .reminder || kind == .search
+        return kind == .note || kind == .reminder || kind == .search || kind == .terminal
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there.
@@ -554,10 +562,11 @@ public final class Composer {
 
     /// Whether the action key opens the highlighted result as you type. Not the first when every row is a
     /// content match: nothing is named like the text, so the first may have little to do with it, and the
-    /// key lists them to choose from instead, as before the results arrive. One picked with ↑↓ opens.
+    /// key lists them to choose from instead, as before the results arrive. One picked with ↑↓ opens, the
+    /// first too (↓ then ↑, or round from the last): what the user moved to, not where the highlight started.
     public var opensLiveResult: Bool {
         let live = currentLiveResults
-        return live.indices.contains(liveHighlight) && (liveHighlight > 0 || !live.allSatisfy(\.matchedContent))
+        return live.indices.contains(liveHighlight) && (liveHighlightMoved || !live.allSatisfy(\.matchedContent))
     }
 
     /// The text after a send command (`@imessage zs`) while no recipient is picked: what finds one
@@ -633,8 +642,14 @@ public final class Composer {
         guard query == liveQuery else { return [] }
         liveResults = results
         liveResultsQuery = query
-        liveHighlight = 0
+        resetLiveHighlight()
         return [.showPanel]
+    }
+
+    /// The highlight back on the first result as you type, where it starts rather than moved to.
+    private func resetLiveHighlight() {
+        liveHighlight = 0
+        liveHighlightMoved = false
     }
 
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.
@@ -1239,7 +1254,7 @@ public final class Composer {
         draft = "@open " + (result.path as NSString).abbreviatingWithTildeInPath + (result.isFolder ? "/" : "")
         liveResults = []
         liveResultsQuery = nil
-        liveHighlight = 0
+        resetLiveHighlight()
         return [.updateMarkedText, .showPanel]
     }
 
@@ -1268,6 +1283,7 @@ public final class Composer {
             switch event.keyCode {
             case VirtualKey.up, VirtualKey.down:
                 liveHighlight = (liveHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + live.count) % live.count
+                liveHighlightMoved = true
                 return .consumed([.showPanel])
             case VirtualKey.tab:
                 return .consumed(completeLivePath())
@@ -1746,7 +1762,7 @@ public final class Composer {
         pendingPaste = nil  // a paste still on its way is dropped
         liveResults = []
         liveResultsQuery = nil
-        liveHighlight = 0
+        resetLiveHighlight()
         highlightOverride = nil
         phase = .idle
         restoreInputModeAfterOpen()

@@ -183,8 +183,19 @@ struct CommandTests {
         #expect(SearchResult.web("www.example.app")?.path == "https://www.example.app")
         #expect(SearchResult.web("http://localhost:8080/a")?.webURL?.port == 8080)
         #expect(SearchResult.web("baidu.cn")?.webURL?.host == "baidu.cn")
+        // localhost and IP addresses, with a port or not: a server here or on the network, over http (it listed nothing).
+        #expect(SearchResult.web("localhost:3000") == SearchResult(name: "localhost:3000", path: "http://localhost:3000"))
+        #expect(SearchResult.web("localhost")?.path == "http://localhost")
+        #expect(SearchResult.web("localhost:3000/api/v1")?.name == "localhost:3000/api/v1")
+        #expect(SearchResult.web("127.0.0.1:8080")?.path == "http://127.0.0.1:8080")
+        #expect(SearchResult.web("192.168.1.1")?.webURL?.host == "192.168.1.1")
+        #expect(SearchResult.web("https://localhost:3000")?.path == "https://localhost:3000")  // as written
+        #expect(SearchResult.web("http://localhost:8080/a")?.name == "localhost:8080/a")
+        #expect(SearchResult.isIPv4("10.0.0.255") && !SearchResult.isIPv4("1.2.3") && !SearchResult.isIPv4("256.1.1.1")
+                && !SearchResult.isIPv4("1.2.3.4.5") && !SearchResult.isIPv4("1..2.3"))
         // File names, paths and words stay a file search.
-        for query in ["report.pdf", "Safari.app", "notes.md", "~/Downloads", "/Applications/", "微信", "hello world.com", "file:///etc"] {
+        for query in ["report.pdf", "Safari.app", "notes.md", "~/Downloads", "/Applications/", "微信", "hello world.com", "file:///etc",
+                      "1.2.3", "999.1.1.1", "localhost.pem", "v1.2.3.4", "me@localhost"] {
             #expect(SearchResult.web(query) == nil, "\(query)")
         }
         #expect(SearchResult(name: "", path: "/Users/me/a.txt").webURL == nil)
