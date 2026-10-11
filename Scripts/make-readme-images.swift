@@ -107,7 +107,7 @@ func composite(_ steps: [Step], to name: String) throws {
 try composite([
     Step(caption: tr("① 开头打 @improve，再打拼音", "① Type @improve, then pinyin"),
          marked: "improve › wo jin tian you dian bu shu fu", panel: load("1b-sentence-pinyin")),
-    Step(caption: tr("② 按 ⏎：英文 + 中文改写", "② Press ⏎: English + Chinese rewrites"),
+    Step(caption: tr("② 按 ⏎：润色 + 改写，不翻译", "② Press ⏎: polished, plus rewrites (no translation)"),
          marked: "improve › 我今天有点不舒服", panel: load("4-final-light")),
 ], to: "demo.png")
 
