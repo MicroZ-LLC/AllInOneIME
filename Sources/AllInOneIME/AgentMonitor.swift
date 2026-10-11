@@ -40,6 +40,7 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         watch.add(AgentWatch.Task(id: id, prompt: prompt))
         save()
         schedule()
+        NotificationCenter.default.post(name: .allInOneIMEAgentStarted, object: self, userInfo: ["id": id])
         log.notice("background task \(id, privacy: .public) started")
         return id
     }
@@ -206,4 +207,7 @@ extension Notification.Name {
     /// AgentMonitor looked at the background tasks (every few seconds while it watches some). userInfo:
     /// "sessions" ([AgentSession], as `claude agents --json --all` listed them). Posted on the main thread.
     static let allInOneIMEAgentsPolled = Notification.Name("AllInOneIMEAgentsPolled")
+    /// @claude started a background task (the floating panel looks at once). userInfo: "id" (String, its
+    /// short id). Posted on the main thread.
+    static let allInOneIMEAgentStarted = Notification.Name("AllInOneIMEAgentStarted")
 }

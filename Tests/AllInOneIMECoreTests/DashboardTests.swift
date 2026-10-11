@@ -22,15 +22,14 @@ struct DashboardTests {
         for i in 0..<40 { saved.add(id: "n\(i)", title: "note \(i)", at: t0 + Double(1000 + i)) }
         #expect(saved.notes.count == SavedNotes.limit && saved.notes.first?.id == "n39" && saved.notes.last?.id == "n10")
         #expect(saved.newest(5).map(\.id) == ["n39", "n38", "n37", "n36", "n35"] && saved.newest(-1).isEmpty)
-        saved.remove(id: "n39")
-        #expect(saved.notes.first?.id == "n38")
         // Kept as JSON; a longer list than the limit (written by hand) is cut when read.
         let decoded = try JSONDecoder().decode(SavedNotes.self, from: JSONEncoder().encode(saved))
         #expect(decoded == saved)
         let many = try JSONEncoder().encode(["notes": Array(repeating: SavedNotes.Note(id: "x", title: "x", saved: t0), count: 40)])
         #expect(try JSONDecoder().decode(SavedNotes.self, from: many).notes.count == SavedNotes.limit)
         #expect(SavedNotes(Array(repeating: SavedNotes.Note(id: "x", title: "x", saved: t0), count: 40)).notes.count == 30)
-        #expect(SavedNotes.title("") == "" && SavedNotes.title("\n \n") == "")
+        // The title as Notes names the note (NotesFormat's), nothing for a blank text.
+        #expect(SavedNotes.Note(id: "x", title: "\n \n", saved: t0).title == "" && NotesFormat.title(of: "\n \n").isEmpty)
     }
 
     @Test func notesListedByNotesUpdateAndDrop() {
@@ -56,7 +55,12 @@ struct DashboardTests {
         notes = saved()
         notes.reconcile(with: [("x", "x", t0 + 3590), ("y", "y", t0 + 3595)], limit: 2)
         #expect(notes.notes.map(\.id) == ["mid", "old"])  // "mid" was saved within the minute: kept
-        // No folder (an empty list): everything is gone.
+        // No such folder (Notes' default account switched, the folder renamed): that says nothing of
+        // the notes saved, and none is dropped.
+        notes = saved()
+        let unchanged = notes.reconcile(with: nil, limit: 200)
+        #expect(!unchanged && notes == saved())
+        // The folder there but empty: everything is gone.
         notes = saved()
         let emptied = notes.reconcile(with: [], limit: 200)
         #expect(emptied && notes.notes.isEmpty)
@@ -84,6 +88,12 @@ struct DashboardTests {
         #expect(DashboardText.counts(reminders: 0, running: 0, chinese: true).isEmpty)
         #expect(DashboardText.counts(reminders: 100, moreReminders: true, running: 0, chinese: true) == "100+ 个提醒")
         #expect(DashboardText.counts(reminders: 1, moreReminders: true, running: 0, chinese: false) == "1+ reminders")
+        // Tasks waiting for you aren't running: counted apart.
+        #expect(DashboardText.counts(reminders: 3, running: 1, waiting: 1, chinese: true) == "3 个提醒 · 1 个任务进行中 · 1 个等你")
+        #expect(DashboardText.counts(reminders: 1, running: 2, waiting: 1, chinese: false)
+                == "1 reminder · 2 tasks running · 1 waiting for you")
+        #expect(DashboardText.counts(reminders: 0, running: 0, waiting: 2, chinese: true) == "2 个等你")
+        #expect(DashboardText.counts(reminders: 0, running: 0, waiting: 2, chinese: false) == "2 waiting for you")
     }
 
     @Test func aReplysFirstLine() {
@@ -142,22 +152,86 @@ struct DashboardTests {
         #expect(rows[2].reply == "Done: 3 files" && rows[0].reply == nil && rows[2].started == t0 + 7)
     }
 
-    @Test func repliesAreReadAgainOnlyWhileRunning() {
-        let running = AgentSession(id: "a", sessionId: "a-1", state: "working")
-        let done = AgentSession(id: "b", sessionId: "b-1", state: "done")
+    /// A transcript line with an assistant reply.
+    private func replyLine(_ text: String) -> String {
+        #"{"type":"assistant","message":{"content":[{"type":"text","text":"\#(text)"}]}}"#
+    }
+
+    /// A transcript line with tool output, about `size` bytes long.
+    private func toolLine(_ size: Int = 1000) -> String {
+        #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"\#(String(repeating: "x", count: size))"}]}}"#
+    }
+
+    @Test func repliesAreReadAgainOnlyWhenTheTranscriptChanges() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("projects-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let folder = root.appendingPathComponent("-Users-me")
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let (fileA, fileB) = (folder.appendingPathComponent("a-1.jsonl"), folder.appendingPathComponent("b-1.jsonl"))
+        let user = #"{"type":"user","message":{"role":"user","content":"Fix the bug"}}"#
+        try [user, replyLine("## Looking into it")].joined(separator: "\n").write(to: fileA, atomically: true, encoding: .utf8)
+        try [user, replyLine("May I run `make`?")].joined(separator: "\n").write(to: fileB, atomically: true, encoding: .utf8)
+        let running = AgentSession(id: "a", sessionId: "a-1", state: "working", cwd: "/Users/me")
+        let waiting = AgentSession(id: "b", sessionId: "b-1", state: "waiting_for_permission", cwd: "/Users/me")
         var cache = AgentReplyCache()
-        #expect(cache.stale([running, done]) == [running, done])
-        cache.store(["a-1": "working on it", "b-1": "all done"], for: [running, done])
-        #expect(cache.replies == ["a-1": "working on it", "b-1": "all done"])
-        // Finished and read once: not again. Still running: again at every look.
-        #expect(cache.stale([running, done]) == [running])
-        // Done now: read once more for the final reply.
-        let finished = AgentSession(id: "a", sessionId: "a-1", state: "done")
-        #expect(cache.stale([finished, done]) == [finished])
-        cache.store([:], for: [finished])
-        #expect(cache.stale([finished, done]).isEmpty && cache.replies == ["b-1": "all done"])
+        // Not read yet: both are read, the first line of the reply without its Markdown.
+        var read = AgentReplyCache.readChanged([running, waiting], known: cache.known, root: root)
+        let sizeA = UInt64(try fileA.size())
+        #expect(Set(read.keys) == ["a-1", "b-1"] && read["a-1"]?.file == fileA && read["a-1"]?.size == sizeA)
+        cache.store(read)
+        #expect(cache.replies == ["a-1": "Looking into it", "b-1": "May I run make?"])
+        // Unchanged (a task waiting for you writes nothing): neither is read again, running or not.
+        #expect(AgentReplyCache.readChanged([running, waiting], known: cache.known, root: root).isEmpty)
+        // One grew: only that one is read again.
+        try [user, replyLine("Looking into it"), replyLine("Fixed it.")].joined(separator: "\n")
+            .write(to: fileA, atomically: true, encoding: .utf8)
+        read = AgentReplyCache.readChanged([running, waiting], known: cache.known, root: root)
+        #expect(Array(read.keys) == ["a-1"] && read["a-1"]?.reply == "Fixed it.")
+        cache.store(read)
+        #expect(cache.replies == ["a-1": "Fixed it.", "b-1": "May I run make?"])
+        // A session without a transcript yet is left out (looked for again next time).
+        let new = AgentSession(id: "c", sessionId: "c-1", state: "working", cwd: "/Users/me")
+        #expect(AgentReplyCache.readChanged([new], known: cache.known, root: root).isEmpty)
         // Sessions no longer shown are forgotten.
-        cache.keep(only: [done])
-        #expect(cache.replies == ["b-1": "all done"] && cache.stale([finished]) == [finished])
+        cache.keep(only: [waiting])
+        #expect(cache.replies == ["b-1": "May I run make?"] && cache.known.keys.sorted() == ["b-1"])
+    }
+
+    @Test func onlyTheEndOfALongTranscriptIsRead() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("projects-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let folder = root.appendingPathComponent("-Users-me")
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("a-1.jsonl")
+        let session = AgentSession(id: "a", sessionId: "a-1", state: "working", cwd: "/Users/me")
+        // Longer than the tail read: the last reply, near the end, is found.
+        var lines = [replyLine("An early reply")] + Array(repeating: toolLine(), count: 400) + [replyLine("The last reply"), toolLine()]
+        try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        #expect(try file.size() > AgentReplyCache.tailBytes)
+        let read = AgentReplyCache.readChanged([session], known: [:], root: root)
+        #expect(read["a-1"]?.reply == "The last reply")
+        // Only tool output in the tail now: what's further back isn't read, and the reply read before stays.
+        lines += Array(repeating: toolLine(), count: 300)
+        try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        let again = AgentReplyCache.readChanged([session], known: read, root: root)
+        let size = UInt64(try file.size())
+        #expect(again["a-1"]?.reply == "The last reply" && again["a-1"]?.size == size)
+        let fresh = AgentReplyCache.readChanged([session], known: [:], root: root)
+        #expect(fresh["a-1"] != nil && fresh["a-1"]?.reply == nil)
+        // The line the tail cuts into is left out; one that's whole is read.
+        let short = folder.appendingPathComponent("short.jsonl")
+        try [replyLine("first"), replyLine("second")].joined(separator: "\n").write(to: short, atomically: true, encoding: .utf8)
+        #expect(AgentReplyCache.lastReply(tailOf: short, bytes: replyLine("second").utf8.count + 5) == "second")
+        #expect(AgentReplyCache.lastReply(tailOf: short, bytes: replyLine("second").utf8.count - 5) == nil)
+        #expect(AgentReplyCache.lastReply(tailOf: short, bytes: 1 << 20) == "second")
+        #expect(AgentReplyCache.lastReply(tailOf: folder.appendingPathComponent("none.jsonl"), bytes: 100) == nil)
+    }
+}
+
+private extension URL {
+    func size() throws -> Int {
+        try (FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?.intValue ?? 0
     }
 }

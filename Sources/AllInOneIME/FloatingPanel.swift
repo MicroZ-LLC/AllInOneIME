@@ -75,15 +75,33 @@ enum NotesAccess {
     }
 }
 
+/// What Notes says of the AllInOneIME folder, for the panel (`DashboardSources.listNotes`).
+enum NotesListing: Equatable {
+    /// Asking would need the user's permission first (the panel never asks on its own).
+    case notAllowed
+    /// Notes has no such folder in its default account (the user switched the default account, or
+    /// renamed the folder): that says nothing of the notes saved.
+    case noFolder
+    /// The folder's notes changed last, newest first.
+    case folder([NotesBridge.Note])
+
+    /// What `NotesBridge.recent` listed. It lists none both for an empty folder and for no folder at
+    /// all, so none is taken as no folder: the notes saved aren't all dropped when the user switched
+    /// Notes' default account. (A deleted note is still dropped whenever the folder has a note in it.)
+    init(recent notes: [NotesBridge.Note]) {
+        self = notes.isEmpty ? .noFolder : .folder(notes)
+    }
+}
+
 /// Where the panel's rows come from and what its clicks do. `live`: Notes, Reminders and Claude Code;
 /// the self-test passes stand-ins, so nothing real is read, changed or opened. Everything is called
 /// on the main thread; what would block it (Apple events, EventKit, processes, files) runs elsewhere.
 struct DashboardSources {
     /// Whether Notes runs now: only then is it asked about the notes (an Apple event would launch it).
     var notesRunning: @MainActor () -> Bool
-    /// The notes in the AllInOneIME folder (`NotesBridge.recent`); nil when that would need the user's
-    /// permission first (the panel never asks on its own).
-    var listNotes: @MainActor (_ limit: Int) async throws -> [NotesBridge.Note]?
+    /// The notes in the AllInOneIME folder (`NotesBridge.recent`), unless that would need the user's
+    /// permission first (the panel never asks on its own) or there's no such folder.
+    var listNotes: @MainActor (_ limit: Int) async throws -> NotesListing
     var showNote: @MainActor (_ id: String) async throws -> Void
     var reminderAccess: @MainActor () async -> ReminderAccess
     /// The reminders not done (`RemindersBridge.incomplete`), the soonest first. Asks the user when
@@ -94,8 +112,10 @@ struct DashboardSources {
     var openReminderSettings: @MainActor () -> Void
     /// The background sessions `claude agents --json --all` lists; nil when Claude Code isn't installed.
     var listAgents: @MainActor () async throws -> [AgentSession]?
-    /// The first lines of the sessions' last replies (session id → line), from their transcripts.
-    var lastReplies: @MainActor (_ sessions: [AgentSession]) async -> [String: String]
+    /// The last replies of the sessions whose transcript is new or changed since `known`, read from
+    /// the transcripts' ends (`AgentReplyCache.readChanged`): session id → what was read.
+    var lastReplies: @MainActor (_ sessions: [AgentSession], _ known: [String: AgentReplyCache.Read]) async
+        -> [String: AgentReplyCache.Read]
     /// Whether AgentMonitor looks at the tasks every few seconds now (its looks reach the panel).
     var monitorWatching: @MainActor () -> Bool
     /// The prompt @claude started a task with (short id), for one Claude Code hasn't named yet.
@@ -112,9 +132,9 @@ struct DashboardSources {
             notesRunning: { !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Notes").isEmpty },
             listNotes: { limit in
                 guard await Task.detached(priority: .utility, operation: { NotesAccess.allowedWithoutAsking() }).value else {
-                    return nil
+                    return .notAllowed
                 }
-                return try await NotesBridge.recent(limit: limit)
+                return NotesListing(recent: try await NotesBridge.recent(limit: limit))
             },
             showNote: { try await NotesBridge.show(id: $0) },
             reminderAccess: { await Task.detached(priority: .utility) { ReminderAccess.current }.value },
@@ -132,15 +152,8 @@ struct DashboardSources {
                     return ClaudeAgents.sessions(from: Data(output.utf8))
                 }.value
             },
-            lastReplies: { sessions in
-                await Task.detached(priority: .utility) {
-                    var replies: [String: String] = [:]
-                    for session in sessions {
-                        let reply = ClaudeAgents.lastReply(sessionId: session.sessionId, cwd: session.cwd)
-                        if let line = DashboardText.firstLine(reply) { replies[session.sessionId] = line }
-                    }
-                    return replies
-                }.value
+            lastReplies: { sessions, known in
+                await Task.detached(priority: .utility) { AgentReplyCache.readChanged(sessions, known: known) }.value
             },
             monitorWatching: { AgentMonitor.shared.isWatching },
             prompt: { AgentMonitor.shared.prompt(for: $0) },
@@ -156,11 +169,13 @@ struct DashboardSources {
 /// background tasks. It never takes focus from the app being typed in.
 ///
 /// The setting `floatingPanel` turns it on and off: the settings window, the input menu and its own
-/// close button. While it's on it listens for @note and @reminder (AppEvents), for EventKit's changes
-/// and for AgentMonitor's looks at the tasks, reads the reminders again every 60 s, and asks Claude
-/// Code itself every 15 s, but only while it's expanded and AgentMonitor isn't looking anyway. Notes
-/// is asked (for edited titles and deleted notes) only when it's running already. Off, nothing of it
-/// runs: no timers, no observers, no window.
+/// close button. The notes @note saves are recorded from launch, on or off (`recordSavedNotes`).
+/// While it's on it listens for @reminder (AppEvents), for EventKit's changes and for AgentMonitor's
+/// looks at the tasks and the tasks @claude starts, and reads the reminders again every 60 s. It
+/// asks Claude Code itself when it's opened or refreshed and when @claude starts a task, and every
+/// 15 s only while it's expanded, a task it lists isn't done and AgentMonitor isn't looking anyway.
+/// Notes is asked (for edited titles and deleted notes) only when it's running already. Off,
+/// nothing else of it runs: no timers, no other observers, no window.
 @MainActor
 final class FloatingPanel: ObservableObject {
     static let shared = FloatingPanel(sources: .live)
@@ -226,6 +241,8 @@ final class FloatingPanel: ObservableObject {
 
     private(set) var window: DashboardWindow?
     private var observers: [NSObjectProtocol] = []
+    /// Records the notes @note saves, on or off (`recordSavedNotes`).
+    private var noteRecorder: NSObjectProtocol?
     private var reminderTimer: Timer?
     private var agentTimer: Timer?
     private var changeTimer: Timer?
@@ -247,6 +264,22 @@ final class FloatingPanel: ObservableObject {
     }
 
     // MARK: - On and off
+
+    /// At launch (runServer), before `start`: from now on the notes @note saves are recorded whether
+    /// the panel is on or not. It's off by default, and lists them once it's turned on.
+    func recordSavedNotes() {
+        guard noteRecorder == nil else { return }
+        let center = NotificationCenter.default
+        noteRecorder = center.addObserver(forName: .allInOneIMENoteSaved, object: nil, queue: .main) { [weak self] note in
+            MainActor.assumeIsolated { self?.noteSaved(note.userInfo) }
+        }
+    }
+
+    /// No longer records them (the self-test's panel, when its test is over).
+    func stopRecordingSavedNotes() {
+        noteRecorder.map(NotificationCenter.default.removeObserver)
+        noteRecorder = nil
+    }
 
     /// At launch (runServer): shown when the setting is on.
     func start(_ config: Config) {
@@ -274,9 +307,11 @@ final class FloatingPanel: ObservableObject {
     /// The close button: the setting goes off (the input menu turns it on again).
     func close() { setEnabled(false) }
 
-    /// Whether anything of it still runs (the self-test checks that off means off).
+    /// Whether anything of it still runs but the record of saved notes (the self-test checks that off
+    /// means off).
     var isIdle: Bool {
-        observers.isEmpty && reminderTimer == nil && agentTimer == nil && changeTimer == nil && window == nil
+        observers.isEmpty && reminderTimer == nil && agentTimer == nil && changeTimer == nil && messageTimer == nil
+            && window == nil
     }
 
     private func open() {
@@ -371,6 +406,8 @@ final class FloatingPanel: ObservableObject {
         return !checksOcclusion || window.occlusionState.contains(.visible)
     }
 
+    /// Collapsed to the header bar, or expanded again: then a look at the tasks (AgentMonitor's last
+    /// one, if it looks anyway) and at the notes' titles.
     func toggleCollapsed() {
         collapsed.toggle()
         sources.defaults.set(collapsed, forKey: Self.collapsedKey)
@@ -395,13 +432,15 @@ final class FloatingPanel: ObservableObject {
                 }
             })
         }
-        on(.allInOneIMENoteSaved) { $0.noteSaved($1.userInfo) }
         on(.allInOneIMEReminderAdded) { panel, _ in panel.refreshReminders() }
         // Reminders changed anywhere (the Reminders app, another Mac); they come in bursts.
         on(.EKEventStoreChanged) { panel, _ in panel.remindersChanged() }
+        // Collapsed too: the header counts them.
         on(.allInOneIMEAgentsPolled) { panel, note in
             if let sessions = note.userInfo?["sessions"] as? [AgentSession] { panel.show(sessions) }
         }
+        // It doesn't look by itself while none runs: a look at once shows the new one.
+        on(.allInOneIMEAgentStarted) { panel, _ in panel.lookAtTasks(force: true) }
         on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.moveOnScreen() }
         on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.chinese = UIText.chinese }
         on(NSWindow.didMoveNotification, window) { panel, _ in
@@ -416,7 +455,7 @@ final class FloatingPanel: ObservableObject {
             guard panel.unseen else { return }
             panel.unseen = false
             panel.tick()
-            if !panel.collapsed { panel.lookAtTasks(force: false) }
+            if !panel.collapsed, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
         }
     }
 
@@ -437,17 +476,24 @@ final class FloatingPanel: ObservableObject {
         if !collapsed { refreshNoteTitles() }
     }
 
-    /// Its own looks at the tasks, every 15 s while it's expanded (skipped while AgentMonitor looks).
+    /// Its own looks at the tasks, every 15 s while it's expanded and a task it lists isn't done
+    /// (skipped while AgentMonitor looks). Finished tasks don't change: `claude agents` isn't run
+    /// for them.
     private func scheduleAgents() {
         let wanted = isEnabled && !collapsed
         if wanted, agentTimer == nil {
             agentTimer = repeating(agentInterval) { panel in
-                if panel.isOnScreen { panel.lookAtTasks(force: false) }
+                if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
             }
         } else if !wanted {
             agentTimer?.invalidate()
             agentTimer = nil
         }
+    }
+
+    /// Whether a task the last look listed (among those shown) is running or waiting for the user.
+    private var tasksUnfinished: Bool {
+        sessions.map { AgentTaskList.newest($0).contains { $0.progress != .done } } ?? false
     }
 
     /// The refresh button: everything, now.
@@ -461,35 +507,44 @@ final class FloatingPanel: ObservableObject {
 
     // MARK: - Notes
 
+    /// @note saved a note (heard on or off): recorded, and listed at once when it's on.
     private func noteSaved(_ info: [AnyHashable: Any]?) {
         guard let id = info?["id"] as? String, !id.isEmpty else { return }
         var saved = SavedNotesStore.load(sources.defaults)
         saved.add(id: id, title: info?["title"] as? String ?? "", at: sources.now())
         SavedNotesStore.save(saved, to: sources.defaults)
+        log.notice("floating panel: a note was saved (\(saved.notes.count) kept)")
+        guard isEnabled else { return }
         now = sources.now()
         notes = saved.newest(Self.notesShown)
-        log.notice("floating panel: a note was saved (\(saved.notes.count) kept)")
     }
 
-    /// Titles edited in Notes, notes deleted there: asked only when Notes runs already, and only with
-    /// its permission given before.
+    /// Titles edited in Notes, notes deleted there: asked only while it's on, when Notes runs already,
+    /// and only with its permission given before.
     private func refreshNoteTitles() {
-        guard !askingNotes, !SavedNotesStore.load(sources.defaults).notes.isEmpty, sources.notesRunning() else { return }
+        guard isEnabled, !askingNotes, !SavedNotesStore.load(sources.defaults).notes.isEmpty, sources.notesRunning() else {
+            return
+        }
         askingNotes = true
         let generation = self.generation
         Task { [weak self] in
-            let listed: [NotesBridge.Note]?
+            let listing: NotesListing
             do {
-                listed = try await self?.sources.listNotes(Self.noteListLimit) ?? nil
+                listing = try await self?.sources.listNotes(Self.noteListLimit) ?? .notAllowed
             } catch {
-                listed = nil
+                listing = .notAllowed
                 log.error("floating panel: Notes didn't list the notes: \(String(describing: error), privacy: .public)")
             }
             guard let self, generation == self.generation else { return }
             self.askingNotes = false
-            guard let listed else { return }
+            let listed: [NotesBridge.Note]?
+            switch listing {
+            case .notAllowed: return
+            case .noFolder: listed = nil  // nothing changes
+            case let .folder(notes): listed = notes
+            }
             var saved = SavedNotesStore.load(self.sources.defaults)
-            if saved.reconcile(with: listed.map { ($0.id, $0.title, $0.modified) }, limit: Self.noteListLimit) {
+            if saved.reconcile(with: listed?.map { ($0.id, $0.title, $0.modified) }, limit: Self.noteListLimit) {
                 SavedNotesStore.save(saved, to: self.sources.defaults)
                 log.notice("floating panel: \(saved.notes.count) notes after asking Notes")
             }
@@ -498,17 +553,22 @@ final class FloatingPanel: ObservableObject {
     }
 
     /// Shows the note in Notes; a note that's gone is dropped once Notes (running now) lists the folder.
+    /// Turned off meanwhile, it's left at that.
     func open(_ note: SavedNotes.Note) {
+        let generation = self.generation
         Task { [weak self] in
             guard let self else { return }
+            var failure: String?
             do {
                 try await self.sources.showNote(note.id)
             } catch let error as NotesBridge.NotesError where error == .notPermitted {
-                self.say(UIText.describe(error))
+                failure = UIText.describe(error)
             } catch {
                 log.error("floating panel: could not show a note: \(String(describing: error), privacy: .public)")
-                self.say(tr("打不开这条笔记", "Couldn't open this note"))
+                failure = tr("打不开这条笔记", "Couldn't open this note")
             }
+            guard generation == self.generation else { return }
+            if let failure { self.say(failure) }
             self.refreshNoteTitles()
         }
     }
@@ -600,7 +660,7 @@ final class FloatingPanel: ObservableObject {
     // MARK: - Claude Code
 
     /// Asks Claude Code for the tasks, unless AgentMonitor looks every few seconds anyway (`force`:
-    /// asks all the same, as when shown or refreshed by hand).
+    /// asks all the same: when it's opened or refreshed, when @claude starts a task).
     private func lookAtTasks(force: Bool) {
         if !force, sources.monitorWatching(), let sessions {
             readReplies(of: AgentTaskList.newest(sessions))
@@ -617,6 +677,7 @@ final class FloatingPanel: ObservableObject {
             self.askingAgents = false
             switch result {
             case .success(nil):
+                self.sessions = nil  // nothing to look at again
                 self.tasks = .notInstalled
             case let .success(sessions?):
                 self.show(sessions)
@@ -629,8 +690,8 @@ final class FloatingPanel: ObservableObject {
         }
     }
 
-    /// A look at the tasks (its own or AgentMonitor's): the newest 6, with the replies read so far;
-    /// those that can have changed are read again while it's expanded.
+    /// A look at the tasks (its own or AgentMonitor's, collapsed or not): the newest 6, with the replies
+    /// read so far; while it's expanded, the transcripts that changed are read again.
     private func show(_ sessions: [AgentSession]) {
         self.sessions = sessions
         let newest = AgentTaskList.newest(sessions)
@@ -640,23 +701,25 @@ final class FloatingPanel: ObservableObject {
     }
 
     private func readReplies(of newest: [AgentSession]) {
+        guard !newest.isEmpty else { return }
         guard !readingReplies else {
             readRepliesAgain = true
             return
         }
-        let stale = replies.stale(newest)
-        guard !stale.isEmpty else { return }
         readingReplies = true
-        let generation = self.generation
+        let (generation, known) = (self.generation, replies.known)
         Task { [weak self] in
             guard let self else { return }
-            let read = await self.sources.lastReplies(stale)
+            let read = await self.sources.lastReplies(newest, known)
             guard generation == self.generation else { return }
             self.readingReplies = false
-            self.replies.store(read, for: stale)
+            self.replies.store(read)
             if let sessions = self.sessions {
                 let newest = AgentTaskList.newest(sessions)
-                self.tasks = .list(AgentTaskList.rows(newest, replies: self.replies.replies, prompt: self.sources.prompt))
+                self.replies.keep(only: newest)
+                if !read.isEmpty {
+                    self.tasks = .list(AgentTaskList.rows(newest, replies: self.replies.replies, prompt: self.sources.prompt))
+                }
                 if self.readRepliesAgain {
                     self.readRepliesAgain = false
                     if !self.collapsed { self.readReplies(of: newest) }
@@ -669,16 +732,20 @@ final class FloatingPanel: ObservableObject {
 
     // MARK: - What the header and the rows say
 
-    /// 「3 个提醒 · 1 个任务进行中」 (nothing when there's nothing).
+    /// 「3 个提醒 · 1 个任务进行中 · 1 个等你」 (nothing when there's nothing).
     var counts: String {
         var reminderCount = 0, more = false
         if case let .list(items) = reminders {
             reminderCount = items.count
             more = items.count >= Self.reminderReadLimit
         }
-        var running = 0
-        if case let .list(rows) = tasks { running = rows.filter { $0.progress != .done }.count }
-        return DashboardText.counts(reminders: reminderCount, moreReminders: more, running: running, chinese: UIText.chinese)
+        var running = 0, waiting = 0
+        if case let .list(rows) = tasks {
+            running = rows.filter { $0.progress == .working }.count
+            waiting = rows.filter { $0.progress == .needsYou }.count
+        }
+        return DashboardText.counts(reminders: reminderCount, moreReminders: more, running: running, waiting: waiting,
+                                    chinese: UIText.chinese)
     }
 
     /// When a reminder is due, as @reminder says it (nil without a date).
@@ -700,7 +767,9 @@ final class FloatingPanel: ObservableObject {
         }
     }
 
+    /// What went wrong with a click, for 6 s (only while it's on: off, nothing of it runs).
     private func say(_ text: String) {
+        guard isEnabled else { return }
         message = text
         messageTimer?.invalidate()
         messageTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in

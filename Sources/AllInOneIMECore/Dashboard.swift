@@ -3,21 +3,21 @@ import Foundation
 // The floating panel's logic (「悬浮面板」, off by default: notes saved with @note, reminders added with
 // @reminder, @claude's background tasks). The window and its sources are in the input method.
 
-/// The panel's own record of the notes `@note` saved, newest first. Notes isn't read on a timer for
-/// this: an Apple event to Notes launches it when it isn't running. Kept as JSON in the input
-/// method's defaults (`savedNotes`).
+/// The panel's own record of the notes `@note` saved, newest first: kept from launch, whether the
+/// panel is on or not. Notes isn't read on a timer for this: an Apple event to Notes launches it
+/// when it isn't running. Kept as JSON in the input method's defaults (`savedNotes`).
 public struct SavedNotes: Codable, Equatable, Sendable {
     public struct Note: Codable, Equatable, Sendable, Identifiable {
         /// Notes' identifier (`x-coredata://…`), to show the note.
         public var id: String
-        /// Its first line, at most `SavedNotes.titleLength` characters.
+        /// Its first line, at most `SavedNotes.titleLength` characters (as Notes names it).
         public var title: String
         /// When @note saved it.
         public var saved: Date
 
         public init(id: String, title: String, saved: Date) {
             self.id = id
-            self.title = SavedNotes.title(title)
+            self.title = NotesFormat.title(of: title, limit: SavedNotes.titleLength)
             self.saved = saved
         }
     }
@@ -37,13 +37,6 @@ public struct SavedNotes: Codable, Equatable, Sendable {
         self.init(try container.decode([Note].self, forKey: .notes))
     }
 
-    /// The first line of `text` with something on it, trimmed, at most `titleLength` characters.
-    public static func title(_ text: String) -> String {
-        let line = text.split(whereSeparator: \.isNewline).lazy
-            .map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty } ?? ""
-        return String(line.prefix(titleLength))
-    }
-
     /// A note @note just saved goes first; saved before (the same id), it moves up. The oldest beyond
     /// `limit` are forgotten.
     public mutating func add(id: String, title: String, at date: Date) {
@@ -52,22 +45,21 @@ public struct SavedNotes: Codable, Equatable, Sendable {
         if notes.count > Self.limit { notes.removeLast(notes.count - Self.limit) }
     }
 
-    public mutating func remove(id: String) {
-        notes.removeAll { $0.id == id }
-    }
-
     public func newest(_ count: Int) -> [Note] { Array(notes.prefix(max(count, 0))) }
 
     /// Takes in what Notes lists now (`NotesBridge.recent`: the folder's notes changed last, at most
-    /// `limit`). Titles follow edits made in Notes. A note it doesn't list is dropped only when it
-    /// would be listed if it were still there: the list is the whole folder (shorter than `limit`),
-    /// or the note was saved after the oldest listed one last changed (a minute's margin: Notes
-    /// stamps it a moment before @note reports it). Moved to another folder counts as gone.
+    /// `limit`); nil when Notes has no such folder, in its default account (the user switched the
+    /// default account, or renamed the folder): that says nothing of the notes saved, so nothing
+    /// changes then. Titles follow edits made in Notes. A note it doesn't list is dropped only when
+    /// it would be listed if it were still there: the list is the whole folder (shorter than
+    /// `limit`), or the note was saved after the oldest listed one last changed (a minute's margin:
+    /// Notes stamps it a moment before @note reports it). Moved to another folder counts as gone.
     /// Returns whether anything changed.
     @discardableResult
-    public mutating func reconcile(with listed: [(id: String, title: String, modified: Date)], limit: Int) -> Bool {
+    public mutating func reconcile(with listed: [(id: String, title: String, modified: Date)]?, limit: Int) -> Bool {
+        guard let listed else { return false }
         var titles: [String: String] = [:]
-        for note in listed where titles[note.id] == nil { titles[note.id] = Self.title(note.title) }
+        for note in listed where titles[note.id] == nil { titles[note.id] = NotesFormat.title(of: note.title, limit: Self.titleLength) }
         let wholeFolder = listed.count < limit
         let oldest = listed.map(\.modified).min()
         let before = notes
@@ -98,9 +90,11 @@ public enum DashboardText {
         return chinese ? "\(days) 天前" : days == 1 ? "1 day ago" : "\(days) days ago"
     }
 
-    /// The header's counts: 「3 个提醒 · 1 个任务进行中」 / "3 reminders · 1 task running". A zero is
-    /// left out (nothing at all: empty); `moreReminders`: more than were read ("100+").
-    public static func counts(reminders: Int, moreReminders: Bool = false, running: Int, chinese: Bool) -> String {
+    /// The header's counts: 「3 个提醒 · 1 个任务进行中 · 1 个等你」 / "3 reminders · 1 task running ·
+    /// 1 waiting for you" (tasks waiting for the user aren't running). A zero is left out (nothing at
+    /// all: empty); `moreReminders`: more than were read ("100+").
+    public static func counts(reminders: Int, moreReminders: Bool = false, running: Int, waiting: Int = 0,
+                              chinese: Bool) -> String {
         var parts: [String] = []
         let shown = "\(reminders)" + (moreReminders ? "+" : "")
         if reminders > 0 {
@@ -109,6 +103,7 @@ public enum DashboardText {
         if running > 0 {
             parts.append(chinese ? "\(running) 个任务进行中" : running == 1 ? "1 task running" : "\(running) tasks running")
         }
+        if waiting > 0 { parts.append(chinese ? "\(waiting) 个等你" : "\(waiting) waiting for you") }
         return parts.joined(separator: " · ")
     }
 
@@ -212,33 +207,42 @@ public enum AgentTaskList {
     }
 }
 
-/// The last replies the panel shows, read from the transcripts (files that grow with the session)
-/// only when they can have changed: once for a finished task, at every look for one still running
-/// or waiting for the user.
+/// The last replies the panel shows, read from the transcripts (files that grow with the session, to
+/// megabytes for a long one): a transcript is read again only when its size or modification date
+/// changed (a task waiting for the user doesn't change it), and then only its last `tailBytes`.
 public struct AgentReplyCache: Equatable, Sendable {
-    private struct Entry: Equatable, Sendable {
-        var progress: AgentSession.Progress
-        var reply: String?
+    /// What was read of a session's transcript.
+    public struct Read: Equatable, Sendable {
+        public var file: URL
+        /// The file's size and modification date when it was read.
+        public var size: UInt64
+        public var modified: Date
+        /// The first line of the last reply (`DashboardText.firstLine`).
+        public var reply: String?
+
+        public init(file: URL, size: UInt64, modified: Date, reply: String?) {
+            self.file = file
+            self.size = size
+            self.modified = modified
+            self.reply = reply
+        }
     }
 
+    /// How much of a transcript's end is read: the last reply is near it (what may follow it, tool
+    /// calls and their output, rarely runs that long).
+    public static let tailBytes = 256 * 1024
+
     /// Session id → what was read.
-    private var entries: [String: Entry] = [:]
+    private var entries: [String: Read] = [:]
 
     public init() {}
 
-    /// Which of `sessions` to read (again).
-    public func stale(_ sessions: [AgentSession]) -> [AgentSession] {
-        sessions.filter { session in
-            guard let entry = entries[session.sessionId] else { return true }
-            return !(entry.progress == .done && session.progress == .done)
-        }
-    }
+    /// What was read so far (session id → read), for `readChanged(_:known:)`.
+    public var known: [String: Read] { entries }
 
-    /// What was read for `sessions` (session id → the reply's first line; missing: none yet).
-    public mutating func store(_ replies: [String: String], for sessions: [AgentSession]) {
-        for session in sessions {
-            entries[session.sessionId] = Entry(progress: session.progress, reply: replies[session.sessionId])
-        }
+    /// Takes in what `readChanged(_:known:)` read.
+    public mutating func store(_ read: [String: Read]) {
+        entries.merge(read) { $1 }
     }
 
     /// Forgets the sessions not among `sessions` (no longer shown).
@@ -249,4 +253,42 @@ public struct AgentReplyCache: Equatable, Sendable {
 
     /// Session id → the reply's first line.
     public var replies: [String: String] { entries.compactMapValues(\.reply) }
+
+    /// Reads the transcripts of `sessions` not read yet, or changed (their size or modification date)
+    /// since `known`: session id → what was read. Those unchanged, and those without a transcript yet,
+    /// are left out. When the tail read has no reply, the one read before stays. Reads files: off
+    /// the main thread.
+    public static func readChanged(_ sessions: [AgentSession], known: [String: Read], root: URL = ClaudeAgents.projectsRoot,
+                                   tailBytes: Int = AgentReplyCache.tailBytes) -> [String: Read] {
+        let fm = FileManager.default
+        var read: [String: Read] = [:]
+        for session in sessions {
+            let before = known[session.sessionId]
+            // Where it was before, while it's there: Claude Code's folders aren't listed again for it.
+            let file = before.map(\.file).flatMap { fm.fileExists(atPath: $0.path) ? $0 : nil }
+                ?? ClaudeAgents.transcript(sessionId: session.sessionId, cwd: session.cwd, root: root)
+            // The file's own attributes each time (URL resource values would be cached).
+            guard let file, let attributes = try? fm.attributesOfItem(atPath: file.path),
+                  let size = (attributes[.size] as? NSNumber)?.uint64Value,
+                  let modified = attributes[.modificationDate] as? Date else { continue }
+            if let before, before.file == file, before.size == size, before.modified == modified { continue }
+            let reply = DashboardText.firstLine(lastReply(tailOf: file, bytes: tailBytes))
+            read[session.sessionId] = Read(file: file, size: size, modified: modified, reply: reply ?? before?.reply)
+        }
+        return read
+    }
+
+    /// The last reply in the last `bytes` of a transcript (the line cut at its start left out).
+    static func lastReply(tailOf file: URL, bytes: Int) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let end = try? handle.seekToEnd() else { return nil }
+        let start = end - min(end, UInt64(max(bytes, 0)))
+        guard (try? handle.seek(toOffset: start)) != nil, var tail = try? handle.readToEnd() else { return nil }
+        if start > 0 {
+            guard let newline = tail.firstIndex(of: UInt8(ascii: "\n")) else { return nil }
+            tail = tail[tail.index(after: newline)...]
+        }
+        return ClaudeAgents.lastReply(in: String(decoding: tail, as: UTF8.self))
+    }
 }
