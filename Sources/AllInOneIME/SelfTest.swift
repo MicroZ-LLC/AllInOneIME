@@ -156,6 +156,13 @@ enum SelfTest {
         case .optionSpace: return optionSpace(c, client)
         case .optionTap: tapOption(c, client); return true  // modifier changes always reach the app too
         case .space: return space(c, client)
+        case let .shortcut(key):
+            var flags: NSEvent.ModifierFlags = []
+            if key.modifiers.contains(.shift) { flags.insert(.shift) }
+            if key.modifiers.contains(.control) { flags.insert(.control) }
+            if key.modifiers.contains(.option) { flags.insert(.option) }
+            if key.modifiers.contains(.command) { flags.insert(.command) }
+            return press(c, client, "", code: key.keyCode, flags: flags)
         }
     }
 

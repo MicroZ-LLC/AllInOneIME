@@ -1515,6 +1515,8 @@ public final class Composer {
                 && (modifiers.isEmpty || listening && modifiers == .option)
         case .optionSpace:
             return event.keyCode == VirtualKey.space && modifiers == .option
+        case let .shortcut(key):
+            return key.matches(event)
         case .optionTap, .space:
             return false
         }

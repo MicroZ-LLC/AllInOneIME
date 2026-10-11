@@ -509,24 +509,16 @@ struct SettingsView: View {
             }
 
             Section {
-                // 中文 and English are written in their own language, so they can be found either way.
-                Picker(tr("界面语言", "Language"), selection: Binding(get: { model.config.uiLanguage },
-                                                                    set: { model.setUILanguage($0) })) {
-                    Text(tr("跟随系统", "System")).tag(Language?.none)
-                    Text("中文").tag(Language?.some(.chinese))
-                    Text("English").tag(Language?.some(.english))
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Section {
                 Text(commandsSummary).font(.caption).foregroundStyle(.secondary)
-                Picker(tr("执行键", "Action key"), selection: $model.config.actionKey) {
-                    ForEach([ActionKey.enter, .optionTap, .optionSpace, .space], id: \.self) { key in
-                        Text(UIText.pickerName(key)).tag(key)
+                // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
+                LabeledContent(tr("执行键", "Action key")) {
+                    HStack(spacing: 8) {
+                        KeyRecorder(key: $model.config.actionKey)
+                        if model.config.actionKey != .enter {
+                            Button(tr("恢复 ⏎", "Use ⏎")) { model.config.actionKey = .enter }
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
                 .disabled(!model.canSave)
                 Text(Self.actionKeyNote(model.config.actionKey))
                     .font(.caption).foregroundStyle(.secondary)
@@ -537,9 +529,9 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section(tr("输入和输出", "Input and Output")) {
-                // The languages added, in the user's order: drag to reorder; the first is the default input
-                // and the output in use. With two input languages, Shift switches between them.
+            Section(tr("输入", "Input")) {
+                // The input languages added, in the user's order: the first is the default; with two, Shift
+                // switches between them.
                 LabeledContent(tr("输入语言", "Input languages")) {
                     HStack(spacing: 6) {
                         LanguageChips(items: model.config.inputLanguages, name: AllInOneIMEInputController.inputName,
@@ -556,7 +548,16 @@ struct SettingsView: View {
                         }
                     }
                 }
-                LabeledContent(tr("输出语言（1–3 行）", "Output languages (lines 1–3)")) {
+                Text(model.config.inputLanguages.count > 1
+                     ? tr("拖动排序，第一个是新输入框的默认。单按 Shift 切换中英文。", "Drag to reorder: new text fields start in the first. Tap Shift to switch.")
+                     : tr("只有一种输入语言时 Shift 不切换。", "With one input language, Shift doesn't switch."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .disabled(!model.canSave)
+
+            Section(tr("翻译（@translate）", "Translate (@translate)")) {
+                // @translate writes a line in each, in this order (three versions with only one).
+                LabeledContent(tr("翻译语言", "Languages")) {
                     HStack(spacing: 6) {
                         LanguageChips(items: model.config.outputLanguages, name: UIText.name,
                                       firstNote: nil,
@@ -569,12 +570,9 @@ struct SettingsView: View {
                         .fixedSize()
                     }
                 }
-                Text(tr("拖动排序。输入：第一个是默认；输出：@translate 按这个顺序每种语言出一行。",
-                        "Drag to reorder. Input: the first is the default; output: @translate writes a line in each, in this order."))
+                Text(tr("@translate 按这个顺序每种语言出一行（只有一种就出 3 个版本），和原文同一种语言的跳过。拖动排序。",
+                        "@translate writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. Drag to reorder."))
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle(tr("@improve 同时翻译（等于 @translate @improve）", "@improve also translates (as @translate @improve)"),
-                       isOn: $model.config.improveTranslates)
-                Text(inputSummary).font(.caption).foregroundStyle(.secondary)
             }
             .disabled(!model.canSave)
 
@@ -604,6 +602,10 @@ struct SettingsView: View {
                      : tr("拖动排序，候选里按这个顺序出。改写用原文的语言：打中文出中文改写，打英文出英文改写。",
                           "Drag to reorder: the candidates follow this order. Rewrites are in the language you typed."))
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle(tr("@improve 同时翻译（等于 @translate @improve）", "@improve also translates (as @translate @improve)"),
+                       isOn: $model.config.improveTranslates)
+                    .disabled(!model.canSave)
+                Text(inputSummary).font(.caption).foregroundStyle(.secondary)
             }
 
             Section(tr("黑话库", "Jargon List")) {
@@ -747,6 +749,19 @@ struct SettingsView: View {
             .disabled(!model.canSave)
 
             Section {
+                // Following the system by default; the languages are written in their own language, so
+                // they can be found whatever the window is in.
+                Picker(tr("界面语言", "Interface language"), selection: Binding(get: { model.config.uiLanguage },
+                                                                              set: { model.setUILanguage($0) })) {
+                    Text(tr("跟随系统", "Same as the system")).tag(Language?.none)
+                    Divider()
+                    Text("中文").tag(Language?.some(.chinese))
+                    Text("English").tag(Language?.some(.english))
+                }
+                .pickerStyle(.menu)
+            }
+
+            Section {
                 HStack {
                     Button(tr("打开配置文件", "Open Config File")) { NSWorkspace.shared.open(model.configURL) }
                     Button(tr("打开 Rime 用户目录", "Open Rime User Folder")) {
@@ -854,11 +869,7 @@ struct SettingsView: View {
     private var inputSummary: String {
         let chinese = UIText.action(input: .chinese, config: model.config)
         let english = UIText.action(input: .english, config: model.config)
-        let shift = model.config.inputLanguages.count > 1
-            ? tr("单按 Shift 切换中英文。", "Tap Shift to switch between Chinese and English.")
-            : tr("只开了一种输入语言，Shift 不切换。", "With one input language on, Shift doesn't switch.")
-        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english). ")
-            + shift
+        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english).")
     }
 
     private func addInputLanguage(_ language: Language) {
@@ -898,6 +909,9 @@ struct SettingsView: View {
             return tr("空格先选词，没有要选的了再按一次空格执行；英文模式下连按两次空格。@ 命令按 ⏎ 也执行。",
                       "Space picks words; once nothing is left to pick, Space again runs it. In English mode, press Space twice. "
                           + "@ commands also run on Return.")
+        case let .shortcut(key):
+            return tr("@ 命令写完按 \(key.name) 执行；⏎ 也执行，没有 @ 时 ⏎ 是普通回车。",
+                      "\(key.name) runs an @ command; Return does too, and without @ Return is a normal Return.")
         }
     }
 
@@ -1418,5 +1432,78 @@ enum ChipOrder {
         var result = others
         result.insert(item, at: index)
         return result
+    }
+}
+
+/// The action key and a button to record another: the next key pressed with ⌃, ⌥ or ⌘ (or Return,
+/// Space, ⌥Space, a function key), or a tap of ⌥ on its own. Esc cancels; a plain letter is refused
+/// (it couldn't be typed any more).
+private struct KeyRecorder: View {
+    @Binding var key: ActionKey
+    @State private var recording = false
+    @State private var refused = false
+    @State private var monitor: Any?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(recording ? (refused ? tr("要带 ⌃、⌥ 或 ⌘", "Add ⌃, ⌥ or ⌘") : tr("按下新的键…", "Press a key…")) : UIText.pickerName(key))
+                .foregroundStyle(recording ? .secondary : .primary)
+                .frame(minWidth: 90, alignment: .trailing)
+            Button(recording ? tr("取消", "Cancel") : tr("录制…", "Record…")) { recording ? stop() : start() }
+        }
+        .onDisappear(perform: stop)
+    }
+
+    private func start() {
+        recording = true
+        refused = false
+        var optionDown = false
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+            if event.type == .flagsChanged {
+                let flags = event.modifierFlags.intersection([.shift, .control, .option, .command])
+                if flags == .option { optionDown = true } else if flags.isEmpty, optionDown { finish(.optionTap) } else { optionDown = false }
+                return event
+            }
+            optionDown = false
+            if event.keyCode == VirtualKey.escape, event.modifierFlags.intersection([.control, .option, .command]).isEmpty {
+                stop()
+                return nil
+            }
+            let modifiers = AllInOneIMEInputController.modifiers(event.modifierFlags)
+            if let recorded = ActionKey.recorded(keyCode: event.keyCode, modifiers: modifiers, name: Self.name(event)) {
+                finish(recorded)
+            } else {
+                refused = true
+            }
+            return nil
+        }
+    }
+
+    private func finish(_ recorded: ActionKey) {
+        key = recorded
+        stop()
+    }
+
+    private func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        recording = false
+    }
+
+    /// "⌃⏎", "⌘J", "⌥F5": the modifiers in the system's order, then the key.
+    static func name(_ event: NSEvent) -> String {
+        let flags = event.modifierFlags
+        var name = ""
+        if flags.contains(.control) { name += "⌃" }
+        if flags.contains(.option) { name += "⌥" }
+        if flags.contains(.shift) { name += "⇧" }
+        if flags.contains(.command) { name += "⌘" }
+        let keys: [UInt16: String] = [
+            VirtualKey.returnKey: "⏎", VirtualKey.keypadEnter: "⌤", VirtualKey.tab: "⇥", VirtualKey.space: tr("空格", "Space"),
+            VirtualKey.delete: "⌫", VirtualKey.forwardDelete: "⌦", 0x7B: "←", 0x7C: "→", 0x7D: "↓", 0x7E: "↑",
+            0x7A: "F1", 0x78: "F2", 0x63: "F3", 0x76: "F4", 0x60: "F5", 0x61: "F6", 0x62: "F7", 0x64: "F8",
+            0x65: "F9", 0x6D: "F10", 0x67: "F11", 0x6F: "F12",
+        ]
+        return name + (keys[event.keyCode] ?? (event.charactersIgnoringModifiers ?? "?").uppercased())
     }
 }

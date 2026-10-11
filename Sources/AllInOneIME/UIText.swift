@@ -30,6 +30,7 @@ enum UIText {
         case .optionTap: return "Tap ⌥"
         case .optionSpace: return "⌥Space"
         case .space: return "Space"
+        case let .shortcut(key): return key.name
         }
     }
 
@@ -46,6 +47,7 @@ enum UIText {
         case .optionTap: return "tap ⌥"
         case .optionSpace: return "press ⌥Space"
         case .space: return "press Space"
+        case let .shortcut(key): return "press " + key.name
         }
     }
 
@@ -82,7 +84,9 @@ enum UIText {
     }
 
     /// What the action key does to a sentence in `input`: "翻译成英文 / 改写", "translate to English / rewrite", …
-    static func action(input: Language, config: Config) -> String { action(WritingMode.improve, input: input, config: config) }
+    static func action(input: Language, config: Config) -> String {
+        action(config.improveTranslates ? WritingMode.both : .improve, input: input, config: config)
+    }
 
     /// What `@improve` / `@translate` (or both) do with a sentence in `input`: "润色 / 改写",
     /// "翻译成英文、日语", "translate to English / rewrite".

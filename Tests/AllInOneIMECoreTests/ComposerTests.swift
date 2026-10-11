@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AllInOneIMECore
 
@@ -947,12 +948,35 @@ struct ComposerTests {
         case .optionTap: return tapOption(c)
         case .optionSpace: return c.handleKeyDown(optionSpace).effects
         case .space: return c.handleKeyDown(spaceKey).effects
+        case let .shortcut(key): return c.handleKeyDown(KeyEvent(keyCode: key.keyCode, characters: "", modifiers: key.modifiers)).effects
         }
     }
 
     @Test func returnIsTheDefault() {
         #expect(Composer().actionKey == .enter)
         #expect(Config.default.actionKey == .enter)
+    }
+
+    @Test func aRecordedActionKey() throws {
+        // ⌃⏎ recorded: it runs the command; plain letters need ⌃, ⌥ or ⌘; Return, Space, ⌥Space keep their own handling.
+        let control = try #require(ActionKey.recorded(keyCode: VirtualKey.returnKey, modifiers: .control, name: "⌃⏎"))
+        #expect(control == .shortcut(KeyShortcut(keyCode: VirtualKey.returnKey, modifiers: .control, name: "⌃⏎")))
+        #expect(ActionKey.recorded(keyCode: 0x26, modifiers: [], name: "J") == nil)
+        #expect(ActionKey.recorded(keyCode: 0x26, modifiers: .shift, name: "⇧J") == nil)
+        #expect(ActionKey.recorded(keyCode: 0x26, modifiers: .command, name: "⌘J") != nil)
+        #expect(ActionKey.recorded(keyCode: 0x60, modifiers: [], name: "F5") != nil)
+        #expect(ActionKey.recorded(keyCode: VirtualKey.returnKey, modifiers: [], name: "⏎") == .enter)
+        #expect(ActionKey.recorded(keyCode: VirtualKey.space, modifiers: .option, name: "⌥Space") == .optionSpace)
+        #expect(ActionKey.recorded(keyCode: VirtualKey.escape, modifiers: [], name: "⎋") == nil)
+        // In the config: a name for the built-in keys, an object for a recorded one.
+        let data = try JSONEncoder().encode(control)
+        #expect(try JSONDecoder().decode(ActionKey.self, from: data) == control)
+        #expect(try JSONDecoder().decode(ActionKey.self, from: Data(#""optionTap""#.utf8)) == .optionTap)
+        // It runs an @ command.
+        let (c, _) = improveDraft()
+        c.actionKey = control
+        type("nihao", c)
+        #expect(startsConversion(act(c)))
     }
 
     @Test func withoutAnAtCommandItIsARegularInputMethod() {
