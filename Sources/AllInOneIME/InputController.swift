@@ -138,6 +138,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Whether a command's program is on this Mac (the self-test supplies its own). Called off the main thread.
     var programInstalled: @Sendable (String) -> Bool = { program in
         if program == "claude", TerminalLauncher.claudePath != nil { return true }
+        if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
         return CommandRunner.resolve(program, path: ShellEnvironment.current["PATH"]) != nil
     }
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
@@ -174,6 +175,19 @@ final class AllInOneIMEInputController: IMKInputController {
         guard types.contains(.string), hidden.allSatisfy({ !types.contains($0) }) else { return nil }
         return pasteboard.string(forType: .string)
     }
+    /// `@imessage`: the address book (nil: no access), and sending (the self-test supplies stand-ins:
+    /// never the real Contacts or Messages).
+    var loadContacts: () async -> [Contact]? = {
+        if case let .contacts(contacts) = await ContactBook.load() { return contacts }
+        return nil
+    }
+    var messageSender: MessageSender = AppleScriptMessageSender()
+    /// The handles last messaged, and keeping them (the self-test leaves the user's alone).
+    var loadRecentHandles: () -> [String] = { RecentRecipients.handles }
+    var saveRecentHandles: ([String]) -> Void = { RecentRecipients.handles = $0 }
+    /// The recipient text last searched, and the search in flight for it.
+    private var recipientSearchQuery: String?
+    private var recipientSearchTask: Task<Void, Never>?
     /// The `@open` text last searched as it was typed, and the search in flight for it.
     private var liveSearchQuery: String?
     private var liveSearchTask: Task<Void, Never>?
@@ -290,7 +304,10 @@ final class AllInOneIMEInputController: IMKInputController {
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
-        if appliedDefaultInput != config.defaultInput, composer.engine != nil, !composer.isComposing {
+        composer.inputLanguages = config.inputLanguages
+        // With one input language, a field is always in it (it may have been switched before it was the only one).
+        let onlyOne = config.inputLanguages.count == 1
+        if appliedDefaultInput != config.defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
             composer.setInputMode(config.defaultInput)
             appliedDefaultInput = config.defaultInput
         }
@@ -518,6 +535,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 addToReminders(reminder, input: input)
             case let .copy(text):
                 copyText(text)
+            case let .sendMessage(recipient, text, command):
+                sendMessage(text, to: recipient, command: command, client: target)
             case let .readClipboard(id):
                 // After the key has been answered: if macOS asks whether this may read the clipboard,
                 // the app isn't left waiting for the key (and doesn't paste on its own meanwhile).
@@ -554,6 +573,65 @@ final class AllInOneIMEInputController: IMKInputController {
             }
         }
         scheduleLiveSearch()
+        scheduleRecipientSearch()
+    }
+
+    /// A send command's recipient as it is typed: a short pause, then the contacts that match (Contacts
+    /// access is asked for here, the first time).
+    @MainActor
+    private func scheduleRecipientSearch() {
+        let query = composer.recipientQuery
+        guard query != recipientSearchQuery else { return }
+        recipientSearchQuery = query
+        recipientSearchTask?.cancel()
+        guard let query else { return }
+        let recent = loadRecentHandles()
+        recipientSearchTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard let self, !Task.isCancelled else { return }
+            let contacts = await self.loadContacts()
+            guard !Task.isCancelled else { return }
+            let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
+            guard !Task.isCancelled else { return }
+            let note = contacts == nil
+                ? tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
+                     "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
+                : found.isEmpty ? (query.isEmpty ? tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
+                                                 : tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
+                : nil
+            self.perform(self.composer.receiveRecipients(found, note: note, for: query), client: nil)
+        }
+    }
+
+    /// Sends a confirmed message off the main thread; a notice says how it went. The log keeps no
+    /// names, handles or text.
+    @MainActor
+    private func sendMessage(_ text: String, to recipient: Recipient, command: Command, client: IMKTextInput?) {
+        guard !secureInputActive() else {
+            showNotice(tr("系统安全输入已开启（密码框或锁屏），没有发送", "Secure input is on (a password field or the lock screen): nothing was sent"),
+                       client: client)
+            return
+        }
+        log.notice("@\(command.name, privacy: .public): sending (\(text.count) chars)")
+        let sender = messageSender
+        Task { @MainActor [weak self] in
+            do {
+                try await sender.send(text, to: recipient)
+                log.notice("@\(command.name, privacy: .public): sent")
+                guard let self else { return }
+                self.saveRecentHandles(RecipientSearch.remember(recipient.handle, in: self.loadRecentHandles()))
+                self.showNotice(tr("已发送给 ", "Sent to ") + recipient.displayName, client: nil)
+            } catch {
+                let code: String
+                switch error {
+                case MessageSendError.notPermitted: code = "-1743"
+                case let MessageSendError.failed(number): code = String(number)
+                default: code = String(describing: type(of: error))
+                }
+                log.error("@\(command.name, privacy: .public): sending failed (\(code, privacy: .public))")
+                self?.showNotice(UIText.describe(error), client: nil)
+            }
+        }
     }
 
     /// `@open` as you type: a short pause after the text changes, then a search for it. Not for a single
@@ -892,6 +970,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if command == .read { return WebReader.stream(input) }
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
+            if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
             if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input) }
             if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
             return command.map { converter.generate($0, input: input) } ?? converter.convert(input)
@@ -1040,7 +1119,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// when rewrite styles are on.
     static func actionText(input: Language, config: Config) -> String {
         let output = config.outputLanguage
-        let action = input == output ? "\(output.displayName)润色" : "翻译成\(output.displayName)"
+        let name = output.name(chinese: true)
+        let action = input.matches(output) ? "\(name)润色" : "翻译成\(name)"
         return action + (RewriteStyle.resolve(config.rewriteStyles).isEmpty ? "" : " / 改写")
     }
 
@@ -1114,6 +1194,13 @@ final class AllInOneIMEInputController: IMKInputController {
                     return CandidateView.Row(label: choice.label, text: state.map { String(choice.text.dropFirst($0.0.count)) } ?? choice.text,
                                              comment: preview.count > 60 ? String(preview.prefix(60)) + "…" : preview, style: .candidate,
                                              icon: state.map { CommandIcons.icon(for: $0.1) })
+                case .send:
+                    // 「发给 张三（+1 555…）：…」: who it goes to and the text, to confirm.
+                    let to = composer.messageRecipient.map { $0.name.isEmpty ? $0.handle : "\($0.name)（\($0.handle)）" } ?? ""
+                    return CandidateView.Row(label: choice.label,
+                                             text: tr("发给 \(to)：", "Send to \(to): ") + Self.preview(choice.text.replacingOccurrences(of: "\n", with: " ↵ ")),
+                                             style: .translation, isComplete: choice.isComplete,
+                                             icon: composer.activeCommand.map(CommandIcons.icon(for:)))
                 case let .file(path):
                     // A file, folder, app or web address: drawn as when typing.
                     let row = Self.openRow(composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path))
@@ -1128,17 +1215,20 @@ final class AllInOneIMEInputController: IMKInputController {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = Language.of(composer.sentText) == config.outputLanguage
+                let polishing = Language.of(composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command?.kind == .run ? tr("运行中…", "Running…")
                     : command?.kind == .link ? tr("运行句中的命令，然后在浏览器打开…", "Running the commands inside, then opening the browser…")
                     : command == .open ? tr("搜索中…", "Searching…")
                     : command == .tasks ? tr("读取后台任务…", "Reading the background tasks…")
+                    : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
                     : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…")
                 model.status = choices.count <= 1 ? .loading(loading) : .none
                 model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
+            case .choosing where command?.kind == .message:
+                model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
@@ -1224,6 +1314,17 @@ final class AllInOneIMEInputController: IMKInputController {
                      "⏎ open · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
                 : tr("⏎ 列出来选 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
                      "⏎ pick from a list · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
+        } else if composer.recipientQuery != nil {
+            // "@imessage zs": the contacts that match, to pick the recipient.
+            let found = composer.currentRecipients
+            model.rows = found.enumerated().map { index, recipient in
+                CandidateView.Row(label: String(index + 1), text: recipient.displayName,
+                                  comment: recipient.name.isEmpty ? tr("直接发送到这个号码 / 邮箱", "send to this number / email") : recipient.handle,
+                                  style: .candidate)
+            }
+            model.highlighted = found.isEmpty ? nil : composer.recipientHighlight
+            if let note = composer.recipientNote { model.status = .hint(note) }
+            model.footer = tr("⏎ / Tab 选择收件人 · ↑↓ · Esc 取消", "⏎ / Tab pick the recipient · ↑↓ · Esc cancel")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
             model.status = .hint(draftHint(config: config))
@@ -1250,24 +1351,59 @@ final class AllInOneIMEInputController: IMKInputController {
         menu.addItem(info)
 
         menu.addItem(.separator())
-        let outputHeader = NSMenuItem(title: tr("输出（1–3 行）", "Output (lines 1–3)"), action: nil, keyEquivalent: "")
-        outputHeader.isEnabled = false
-        menu.addItem(outputHeader)
-        for language in [Language.english, .chinese] {
-            let item = NSMenuItem(title: tr("翻译 / 润色成\(language.displayName)", "Translate / Polish into \(UIText.name(language))"),
+        // Output and input languages in submenus like the styles: each lists only the languages the user
+        // added (a new user has one), with "Add Languages…" opening the settings.
+        let current = config ?? .default
+        let outputItem = NSMenuItem(title: tr("输出：", "Output: ") + UIText.name(current.outputLanguage), action: nil, keyEquivalent: "")
+        let outputs = NSMenu()
+        for language in current.outputLanguages {
+            let item = NSMenuItem(title: tr("翻译 / 润色成\(UIText.name(language))", "Translate / Polish into \(UIText.name(language))"),
                                   action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
             item.target = self
-            item.representedObject = language.rawValue
-            item.state = (config?.outputLanguage ?? Config.default.outputLanguage) == language ? .on : .off
+            item.representedObject = language.code
+            item.state = current.outputLanguage == language ? .on : .off
             item.isEnabled = config != nil  // don't overwrite a config file that failed to parse
-            menu.addItem(item)
+            outputs.addItem(item)
         }
+        outputs.addItem(.separator())
+        let addOutput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
+        addOutput.target = self
+        outputs.addItem(addOutput)
+        outputItem.submenu = outputs
+        menu.addItem(outputItem)
 
-        menu.addItem(.separator())
-        let header = NSMenuItem(title: tr("改写风格", "Rewrite Styles"), action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
-        let enabled = Set(RewriteStyle.resolve(config?.rewriteStyles ?? Config.default.rewriteStyles).map(\.name))
+        let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + current.inputLanguages.map(Self.inputName).joined(separator: " + "),
+                                   action: nil, keyEquivalent: "")
+        let inputs = NSMenu()
+        // The added input languages, the default one checked (a new text field starts in it).
+        for language in current.inputLanguages {
+            let item = NSMenuItem(title: Self.inputName(language), action: #selector(setDefaultInput(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = language.rawValue
+            item.state = current.defaultInput == language ? .on : .off
+            item.isEnabled = config != nil
+            inputs.addItem(item)
+        }
+        inputs.addItem(.separator())
+        if current.inputLanguages.count > 1 {
+            let shiftNote = NSMenuItem(title: tr("✓ 是默认；Shift 切换", "✓ is the default; Shift switches"), action: nil, keyEquivalent: "")
+            shiftNote.isEnabled = false
+            inputs.addItem(shiftNote)
+        }
+        let addInput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
+        addInput.target = self
+        inputs.addItem(addInput)
+        inputItem.submenu = inputs
+        menu.addItem(inputItem)
+
+        // The styles in a submenu: six rows with summaries made the menu too long. Its title says which
+        // are on, so the menu still shows the state without opening it.
+        let enabledStyles = RewriteStyle.resolve(config?.rewriteStyles ?? Config.default.rewriteStyles)
+        let enabled = Set(enabledStyles.map(\.name))
+        let on = enabledStyles.map(UIText.name).joined(separator: tr("、", ", "))
+        let stylesItem = NSMenuItem(title: tr("改写风格", "Rewrite Styles") + tr("：", ": ") + (on.isEmpty ? tr("无", "none") : on),
+                                    action: nil, keyEquivalent: "")
+        let styles = NSMenu()
         for style in RewriteStyle.catalog {
             let item = NSMenuItem(title: UIText.name(style) + tr("　", "  ") + UIText.summary(style),
                                   action: #selector(toggleStyle(_:)), keyEquivalent: "")
@@ -1275,8 +1411,10 @@ final class AllInOneIMEInputController: IMKInputController {
             item.representedObject = style.name
             item.state = enabled.contains(style.name) ? .on : .off
             item.isEnabled = config != nil  // don't overwrite a config file that failed to parse
-            menu.addItem(item)
+            styles.addItem(item)
         }
+        stylesItem.submenu = styles
+        menu.addItem(stylesItem)
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
                                  keyEquivalent: "")
@@ -1324,20 +1462,51 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @objc func setOutputLanguage(_ sender: Any?) {
         MainActor.assumeIsolated {
-            guard let raw = Self.menuItem(from: sender)?.representedObject as? String,
-                  let language = Language(rawValue: raw) else {
+            guard let raw = Self.menuItem(from: sender)?.representedObject as? String else {
                 log.error("output menu action without a language")
                 return
             }
             do {
                 var config = try Config.load()
-                config.outputLanguage = language
+                config.outputLanguage = OutputLanguage(raw)
+                config.normalizeLanguages()
                 try config.write()
                 log.notice("output language now \(raw, privacy: .public)")
             } catch {
                 log.error("could not update the output language: \(String(describing: error), privacy: .public)")
             }
         }
+    }
+
+    /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
+    static func inputName(_ language: Language) -> String {
+        language == .chinese ? tr("中文（拼音）", "Chinese (pinyin)") : UIText.name(language)
+    }
+
+    /// Makes an added input language the default: a new text field starts in it.
+    @objc func setDefaultInput(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            guard let raw = Self.menuItem(from: sender)?.representedObject as? String, let language = Language(rawValue: raw) else {
+                log.error("input menu action without a language")
+                return
+            }
+            do {
+                var config = try Config.load()
+                config.defaultInput = language
+                config.normalizeLanguages()
+                try config.write()
+                log.notice("default input now \(config.defaultInput.rawValue, privacy: .public)")
+                applySettings()
+            } catch {
+                log.error("could not update the default input: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// `languages` with `language` removed, or added at the end; the last one stays.
+    static func toggled(_ language: Language, in languages: [Language]) -> [Language] {
+        if languages.contains(language) { return languages == [language] ? languages : languages.filter { $0 != language } }
+        return languages + [language]
     }
 
     @objc func openConfig(_ sender: Any?) {

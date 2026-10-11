@@ -69,6 +69,23 @@ final class FakeTextClient: NSObject, IMKTextInput {
     func firstRect(forCharacterRange aRange: NSRange, actualRange: NSRangePointer!) -> NSRect { caretRect }
 }
 
+/// Records what `@imessage` would send; sends nothing.
+final class StandInSender: MessageSender, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _sent: [(text: String, to: Recipient)] = []
+    private var _error: Error?
+    var sent: [(text: String, to: Recipient)] { lock.withLock { _sent } }
+    var error: Error? {
+        get { lock.withLock { _error } }
+        set { lock.withLock { _error = newValue } }
+    }
+
+    func send(_ text: String, to recipient: Recipient) async throws {
+        if let error { throw error }
+        lock.withLock { _sent.append((text, recipient)) }
+    }
+}
+
 /// End-to-end check of the input controller without the system text input server.
 @MainActor
 enum SelfTest {
@@ -187,6 +204,49 @@ enum SelfTest {
     }
 
     /// Settings window, run against a temporary copy of the config (the real file is never written).
+    /// Dragging a language chip in the real settings form (offscreen; events posted to this app's own
+    /// queue, so the pointer doesn't move): the mouse reaches the chip's drag handle, not the form's
+    /// table view, and letting go left of the first chip makes it the default. Nothing is saved.
+    static func testLanguageDrag() {
+        var config = (try? Config.load()) ?? .default
+        config.setOrder([Language.chinese, .english])
+        let model = SettingsModel(configURL: Config.defaultURL, persists: false)
+        model.config = config
+        let host = NSHostingView(rootView: SettingsView(model: model))
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 560, height: 1700),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.alphaValue = 0
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        _ = pump(timeout: 0.5) { false }
+        defer { window.close() }
+        func handles(in view: NSView) -> [NSView] {
+            (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
+        }
+        // The input languages' row is the top one: its two handles, left to right.
+        let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
+        guard let top = all.map(\.1.midY).max() else { return check(false, "language chips have drag handles") }
+        let row = all.filter { abs($0.1.midY - top) < 4 }.sorted { $0.1.minX < $1.1.minX }
+        guard row.count == 2 else { return check(false, "two input language chips (\(row.count))") }
+        let (english, frame) = row[1]
+        let start = NSPoint(x: frame.midX, y: frame.midY)
+        let hit = host.superview.flatMap { window.contentView?.hitTest($0.convert(start, from: nil)) }
+        check(hit.map { $0 === english || $0.isDescendant(of: english) } == true,
+              "a click on a language chip reaches its drag handle (\(hit.map { String(describing: Swift.type(of: $0)) } ?? "nothing"))")
+        func mouse(_ type: NSEvent.EventType, x: CGFloat) -> NSEvent? {
+            NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: start.y), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                               windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+        }
+        let target = row[0].1.minX - 10  // left of the first chip
+        for event in [mouse(.leftMouseDragged, x: start.x - 20), mouse(.leftMouseDragged, x: target), mouse(.leftMouseUp, x: target)] {
+            if let event { NSApp.postEvent(event, atStart: false) }
+        }
+        if let down = mouse(.leftMouseDown, x: start.x) { english.mouseDown(with: down) }
+        _ = pump(timeout: 1) { model.config.inputLanguages.first == .english }
+        check(model.config.inputLanguages == [.english, .chinese] && model.config.defaultInput == .english,
+              "dragging English before Chinese makes it the default input (\(model.config.inputLanguages.map(\.rawValue)))")
+    }
+
     static func testSettingsWindow(snapshotDirectory: URL) {
         print("— settings window")
         let dir = snapshotDirectory.appendingPathComponent("settings-config")
@@ -289,6 +349,7 @@ enum SelfTest {
         render("6-settings", chinese: true)  // README
         render("6-settings-en", chinese: false)  // README (docs/en)
         UIText.choice = pickedBefore
+        testLanguageDrag()
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.
@@ -1173,6 +1234,110 @@ enum SelfTest {
         controller.commitComposition(client)
     }
 
+    /// `@imessage` with stand-ins for Contacts and Messages: nothing is read from the address book and
+    /// nothing is sent.
+    static func testIMessage(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— @imessage (stand-in contacts and sender)")
+        let sender = StandInSender()
+        var recent: [String] = []
+        var contacts: [Contact]? = [Contact(name: "张三", handles: ["+1 555 0100", "zhangsan@example.com"]),
+                                    Contact(name: "李四", handles: ["+86 139 0000 2222"])]
+        controller.loadContacts = { contacts }
+        controller.messageSender = sender
+        controller.loadRecentHandles = { recent }
+        controller.saveRecentHandles = { recent = $0 }
+        controller.programInstalled = { _ in true }
+        controller.setCommands(Command.catalog([]), recheck: true)
+        controller.composer.commands = Command.catalog([])
+        defer {
+            controller.loadContacts = { [] }
+            controller.messageSender = StandInSender()
+            controller.loadRecentHandles = { [] }
+            controller.saveRecentHandles = { _ in }
+        }
+        func at() { _ = press(controller, client, "@", code: 0x13, flags: .shift) }
+        func start() {
+            at()
+            type("ime", controller, client)
+            _ = press(controller, client, "\t", code: VirtualKey.tab)
+        }
+        func found() -> [Recipient] {
+            _ = pump(timeout: 3) { !controller.composer.currentRecipients.isEmpty || controller.composer.recipientNote != nil }
+            return controller.composer.currentRecipients
+        }
+        let insertedBefore = client.inserted
+
+        start()
+        check(client.marked == "imessage › " && controller.composer.engineState.isAsciiMode, "@imessage: the recipient is typed as letters ('\(client.marked)')")
+        type("zs", controller, client)
+        let rows = found()
+        check(rows.map(\.handle) == ["+1 555 0100", "zhangsan@example.com"]
+              && controller.panelModel().rows.first?.text == "张三" && controller.panelModel().rows.first?.comment == "+1 555 0100",
+              "zs finds 张三, one row per handle (\(controller.panelModel().rows.map(\.text)))")
+        _ = enter(controller, client)
+        check(client.marked == "imessage › 张三 › " && !controller.composer.engineState.isAsciiMode && sender.sent.isEmpty,
+              "⏎ picks the recipient, Chinese is back, nothing sent ('\(client.marked)')")
+        type("nihao", controller, client)
+        _ = space(controller, client)
+        _ = enter(controller, client)
+        let confirm = controller.panelModel()
+        check(controller.composer.phase == .choosing && confirm.rows.first?.text == "发给 张三（+1 555 0100）：你好" && sender.sent.isEmpty,
+              "⏎ shows the message to confirm (\(confirm.rows.first?.text ?? "-"))")
+        _ = space(controller, client)
+        check(sender.sent.isEmpty && controller.composer.phase == .choosing, "Space doesn't send it")
+        _ = escape(controller, client)
+        check(controller.composer.phase == .drafting && client.marked == "imessage › 张三 › 你好", "Esc goes back to editing")
+        _ = enter(controller, client)
+        _ = enter(controller, client)
+        _ = pump(timeout: 3) { !sender.sent.isEmpty && !recent.isEmpty && controller.panelModel().detail != nil }
+        check(sender.sent.map(\.text) == ["你好"] && sender.sent.first?.to.handle == "+1 555 0100", "⏎ again sends it (stand-in)")
+        check(client.inserted == insertedBefore && client.marked.isEmpty && !controller.composer.isComposing,
+              "nothing is inserted, the draft is gone")
+        check(recent == ["+1 555 0100"], "the handle is remembered for next time")
+        _ = pump(timeout: 6) { controller.panelModel().detail == nil }
+
+        // The recent one comes first with nothing typed.
+        start()
+        check(found() == [Recipient(name: "张三", handle: "+1 555 0100")], "the recent recipient is offered at once")
+        // A number typed in full, without Contacts access.
+        contacts = nil
+        type("+15550199", controller, client)
+        let typed = found()
+        check(typed == [Recipient(name: "", handle: "+15550199")]
+              && controller.panelModel().status == .hint(tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
+                                                         "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")),
+              "without Contacts: says so, a typed number still works (\(typed.map(\.handle)))")
+        _ = enter(controller, client)
+        // Not allowed to control Messages: the notice says where to allow it.
+        sender.error = MessageSendError.notPermitted
+        type("hi", controller, client)
+        _ = space(controller, client)
+        _ = enter(controller, client)
+        _ = enter(controller, client)
+        _ = pump(timeout: 3) { controller.panelModel().detail?.contains("自动化") == true }
+        check(controller.panelModel().detail?.contains("自动化") == true && sender.sent.count == 1,
+              "-1743: tells how to allow controlling Messages (\(controller.panelModel().detail ?? "-"))")
+        sender.error = nil
+        _ = pump(timeout: 8) { controller.panelModel().detail == nil }
+
+        // Secure input: not sent.
+        contacts = []
+        let secureInput = controller.secureInputActive
+        controller.secureInputActive = { true }
+        start()
+        type("+15550199", controller, client)
+        _ = found()
+        _ = enter(controller, client)
+        type("hi", controller, client)
+        _ = space(controller, client)
+        _ = enter(controller, client)
+        check(controller.composer.phase == .drafting && sender.sent.count == 1, "nothing is sent while secure input is on")
+        controller.secureInputActive = secureInput
+        _ = escape(controller, client)
+        controller.commitComposition(client)
+        check(client.inserted == insertedBefore, "nothing went into the text field")
+    }
+
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).
     static func scrolledHeight(_ view: NSView) -> CGFloat? {
         if let scroll = view as? NSScrollView, let document = scroll.documentView { return document.frame.height }
@@ -1271,6 +1436,11 @@ enum SelfTest {
         controller.loadOpenHistory = { openHistory }
         controller.recordOpen = { openHistory.record($0) }
         controller.readClipboard = { nil }  // never the real clipboard; the ⌘V section supplies its text
+        // Never the real Contacts or Messages, nor the user's recent recipients (the @imessage section has its own).
+        controller.loadContacts = { [] }
+        controller.messageSender = StandInSender()
+        controller.loadRecentHandles = { [] }
+        controller.saveRecentHandles = { _ in }
         // The real config (model, styles, credentials) with the new options pinned to known values;
         // sections below change `settings` and the controller follows (nothing is written to disk).
         settings = (try? Config.load()) ?? .default
@@ -1653,6 +1823,7 @@ enum SelfTest {
         controller.applySettings()
         testCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
+        testIMessage(controller, client)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {
@@ -1686,7 +1857,12 @@ enum SelfTest {
         let menu = controller.menu()
         let menuTitles = menu?.items.map(\.title) ?? []
         check(menuTitles.count > 2 && menuTitles[2].hasPrefix("模型："), "menu shows the model right after 设置… (\(menuTitles.prefix(3)))")
-        let styleItems = menu?.items.filter { $0.action == #selector(AllInOneIMEInputController.toggleStyle(_:)) } ?? []
+        // The styles sit in a submenu, whose title names the ones that are on.
+        let stylesItem = menu?.items.first { $0.title.hasPrefix("改写风格：") }
+        let styleItems = stylesItem?.submenu?.items.filter { $0.action == #selector(AllInOneIMEInputController.toggleStyle(_:)) } ?? []
+        check(menu?.items.contains { $0.action == #selector(AllInOneIMEInputController.toggleStyle(_:)) } == false
+              && stylesItem.map { item in RewriteStyle.resolve((try? Config.load())?.rewriteStyles ?? []).allSatisfy { item.title.contains($0.name) } } == true,
+              "rewrite styles in a submenu titled with the ones on (\(stylesItem?.title ?? "none"))")
         let configured = Set(RewriteStyle.resolve((try? Config.load())?.rewriteStyles ?? []).map(\.name))
         check(styleItems.compactMap { $0.representedObject as? String } == RewriteStyle.catalog.map(\.name)
               && styleItems.allSatisfy { ($0.state == .on) == configured.contains($0.representedObject as? String ?? "") },
@@ -1701,10 +1877,29 @@ enum SelfTest {
         }
         check(menu?.items.first?.action == #selector(AllInOneIMEInputController.showPreferences(_:)),
               "menu starts with 设置… (IMK showPreferences:)")
-        let outputItems = menu?.items.filter { $0.action == #selector(AllInOneIMEInputController.setOutputLanguage(_:)) } ?? []
-        let configuredOutput = ((try? Config.load()) ?? .default).outputLanguage
-        check(outputItems.count == 2 && outputItems.filter { $0.state == .on }.compactMap { $0.representedObject as? String }
-              == [configuredOutput.rawValue], "menu offers the output language, checked per config")
+        // Output and input languages in submenus, listing the languages added in the config.
+        let languages = (try? Config.load()) ?? .default
+        let outputItems = menu?.items.first { $0.title.hasPrefix("输出：") }?.submenu?.items
+            .filter { $0.action == #selector(AllInOneIMEInputController.setOutputLanguage(_:)) } ?? []
+        check(outputItems.compactMap { $0.representedObject as? String } == languages.outputLanguages.map(\.code)
+              && outputItems.filter { $0.state == .on }.compactMap { $0.representedObject as? String } == [languages.outputLanguage.code],
+              "menu offers the added output languages, checked per config (\(outputItems.map(\.title)))")
+        let inputItems = menu?.items.first { $0.title.hasPrefix("输入：") }?.submenu?.items
+            .filter { $0.action == #selector(AllInOneIMEInputController.setDefaultInput(_:)) } ?? []
+        check(inputItems.compactMap { $0.representedObject as? String } == languages.inputLanguages.map(\.rawValue)
+              && inputItems.filter { $0.state == .on }.compactMap { $0.representedObject as? String } == [languages.defaultInput.rawValue],
+              "menu lists the added input languages, the default checked")
+        // Dragging a chip: it lands before the chips whose middle is right of the pointer.
+        let mids: [String: CGFloat] = ["zh": 50, "en": 150, "ja": 250]
+        check(ChipOrder.moved("en", in: ["zh", "en", "ja"], to: 20, midX: { mids[$0] }) == ["en", "zh", "ja"]
+              && ChipOrder.moved("zh", in: ["zh", "en", "ja"], to: 200, midX: { mids[$0] }) == ["en", "zh", "ja"]
+              && ChipOrder.moved("zh", in: ["zh", "en", "ja"], to: 400, midX: { mids[$0] }) == ["en", "ja", "zh"]
+              && ChipOrder.moved("en", in: ["zh", "en", "ja"], to: 140, midX: { mids[$0] }) == ["zh", "en", "ja"],
+              "a dragged language chip lands where it's let go")
+        check(AllInOneIMEInputController.toggled(Language.english, in: [.chinese]) == [.chinese, .english]
+              && AllInOneIMEInputController.toggled(Language.chinese, in: [.chinese]) == [.chinese]
+              && AllInOneIMEInputController.toggled(Language.chinese, in: [.chinese, .english]) == [.english],
+              "input languages toggle; the last one stays on")
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 

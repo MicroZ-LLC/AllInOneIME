@@ -111,8 +111,43 @@ struct ConfigTests {
         let set = try decode(#"{"outputLanguage": "zh", "defaultInput": "en", "voiceInput": false}"#)
         #expect(set.outputLanguage == .chinese && set.defaultInput == .english)
         #expect(!set.voiceInput)
-        #expect(throws: DecodingError.self) { try decode(#"{"outputLanguage": "fr"}"#) }
         #expect(Language.of("我check一下") == .chinese && Language.of("check it") == .english)
+    }
+
+    @Test func addedLanguages() throws {
+        // A new user: one input language and one output language.
+        #expect(Config.default.inputLanguages == [.chinese] && Config.default.outputLanguages == [.english])
+        // A file from before languages could be added keeps both, as the menu and Shift had them.
+        let old = try decode(#"{"outputLanguage": "zh"}"#)
+        // The chosen one comes first.
+        #expect(old.inputLanguages == [.chinese, .english] && old.outputLanguages == [.chinese, .english] && old.outputLanguage == .chinese)
+        let englishFirst = try decode(#"{"defaultInput": "en"}"#)
+        #expect(englishFirst.inputLanguages == [.english, .chinese] && englishFirst.defaultInput == .english)
+        // Any output language can be added; the chosen one is always among them.
+        let japanese = try decode(#"{"outputLanguage": "ja", "outputLanguages": ["en"], "inputLanguages": ["en"], "defaultInput": "zh"}"#)
+        #expect(japanese.outputLanguages == [OutputLanguage("ja"), .english] && japanese.outputLanguage.code == "ja")
+        // The default input is one that's on; none on means Chinese; no duplicates.
+        #expect(japanese.inputLanguages == [.english] && japanese.defaultInput == .english)
+        let none = try decode(#"{"inputLanguages": [], "outputLanguages": ["fr", "fr", "en"]}"#)
+        #expect(none.inputLanguages == [.chinese] && none.outputLanguages.map(\.code) == ["fr", "en"] && none.outputLanguage.code == "fr")
+        // Reordering (dragging in the settings): the first becomes the one in use, the default input.
+        var dragged = none
+        dragged.setOrder([OutputLanguage.english, OutputLanguage("fr")])
+        dragged.setOrder([Language.english, .chinese])
+        #expect(dragged.outputLanguage == .english && dragged.outputLanguages.map(\.code) == ["en", "fr"])
+        #expect(dragged.defaultInput == .english && dragged.inputLanguages == [.english, .chinese])
+        // Choosing one elsewhere (the menu) moves it to the front.
+        dragged.defaultInput = .chinese
+        dragged.outputLanguage = OutputLanguage("fr")
+        dragged.normalizeLanguages()
+        #expect(dragged.inputLanguages == [.chinese, .english] && dragged.outputLanguages.map(\.code) == ["fr", "en"])
+        // Written back as codes.
+        let text = String(decoding: try JSONEncoder().encode(japanese), as: UTF8.self)
+        #expect(text.contains(#""outputLanguages":["ja","en"]"#) && text.contains(#""inputLanguages":["en"]"#))
+        // Names, prompt names and tags.
+        #expect(OutputLanguage("ja").name(chinese: true) == "日语" && OutputLanguage("ja").name(chinese: false) == "Japanese")
+        #expect(OutputLanguage("zh-Hant").promptName == "Traditional Chinese" && OutputLanguage("zh-Hant").tag == "ZHHANT")
+        #expect(Language.chinese.matches(.chinese) && !Language.chinese.matches(OutputLanguage("zh-Hant")))
     }
 
     @Test func actionKey() throws {
@@ -143,8 +178,8 @@ struct ConfigTests {
         c.awsProfile = "work"
         c.temperature = nil
         c.rewriteStyles = ["口语", "正式"]
-        c.outputLanguage = .chinese
-        c.defaultInput = .english
+        c.setOrder([OutputLanguage.chinese, .english, OutputLanguage("ja")])
+        c.setOrder([Language.english, .chinese])
         c.voiceInput = false
         c.actionKey = .optionSpace
         c.uiLanguage = .chinese
@@ -172,6 +207,7 @@ struct ConfigTests {
         var c = try Config.load(from: url)
         #expect(c.awsProfile == "work" && !c.voiceInput && c.actionKey == .space)
         c.outputLanguage = .chinese
+        c.normalizeLanguages()  // the chosen one leads the list, as when it's picked in the menu: it reads back the same
         try c.write(to: url)
         let text = try String(contentsOf: url, encoding: .utf8)
         #expect(!text.contains(removed) && text.contains("\"outputLanguage\" : \"zh\""))

@@ -82,6 +82,8 @@ public final class Composer {
         case addReminder(ReminderDraft, input: String)
         /// Run a custom `run` command's program on `input`; what it prints arrives via `receive`.
         case startRun(Command, input: String, id: Int)
+        /// Send `text` to `recipient` with a send command (`@imessage`): the user confirmed it in the panel.
+        case sendMessage(Recipient, text: String, command: Command)
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
         case commandUsed(String)
         /// A text with commands inside it (`CommandPlan`): run the inner ones, then `outer` (nil: improve)
@@ -137,6 +139,8 @@ public final class Composer {
             case file(path: String)
             /// The reminder read from an `@reminder` text; picking it adds it to Reminders.
             case reminder(ReminderDraft)
+            /// The message a send command (`@imessage`) will send, to confirm; picking it sends it.
+            case send
 
             public var isRewrite: Bool {
                 if case .rewrite = self { return true }
@@ -186,6 +190,8 @@ public final class Composer {
         /// A note with line breaks was left unsaved (the text field lost focus, ⇧⏎): it isn't inserted, its text
         /// is on the clipboard instead.
         public var noteNotSaved: String
+        /// ⏎ on a send command (`@imessage`) before a recipient was picked.
+        public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
 
         public static let chinese = Messages(
             notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
@@ -217,7 +223,8 @@ public final class Composer {
             reminderWithoutTitle: "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”",
             noteTooLong: "The clipboard text is too long: \(Composer.maxNoteLength) characters at most",
             linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
-            noteNotSaved: "The note wasn't saved; its text is on the clipboard")
+            noteNotSaved: "The note wasn't saved; its text is on the clipboard",
+            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
@@ -236,6 +243,15 @@ public final class Composer {
     public private(set) var liveResults: [SearchResult] = []
     private var liveResultsQuery: String?
     public private(set) var liveHighlight = 0
+    /// A send command's recipient (`@imessage`), once picked; until then the text after the command
+    /// finds one (`recipientQuery`).
+    public private(set) var messageRecipient: Recipient?
+    /// Recipients found for `recipientQuery` (`receiveRecipients`), what the panel says about them (no
+    /// access to Contacts …), and the highlighted one.
+    public private(set) var recipientResults: [Recipient] = []
+    public private(set) var recipientNote: String?
+    private var recipientResultsQuery: String?
+    public private(set) var recipientHighlight = 0
     /// A command that types Latin letters (`@open`, code) switched the engine to them; Chinese comes back after.
     private var restoreChineseAfterOpen = false
     /// Letters were switched on for a command inside the text, whose argument starts at this offset:
@@ -269,6 +285,8 @@ public final class Composer {
     public private(set) var engineState = EngineSnapshot.empty
     public private(set) var result = ConversionResult.empty
     public private(set) var voice = Voice.off
+    /// The input languages on (`Config.inputLanguages`): with one, a tap of Shift doesn't switch.
+    public var inputLanguages: [Language] = Language.allCases
     /// Holding the right Option key records speech.
     public var voiceEnabled: Bool
     /// The key that runs the @ command at the start of the draft.
@@ -379,6 +397,10 @@ public final class Composer {
                 i += 1
             }
         }
+        // A send command's recipient, picked: "imessage › 张三 › 你好".
+        if let recipient = messageRecipient, let command = draftCommand, out.hasPrefix(command.name + " › ") {
+            out.insert(contentsOf: recipient.displayName + " › ", at: out.index(out.startIndex, offsetBy: command.name.count + 3))
+        }
         return out
     }
 
@@ -403,6 +425,9 @@ public final class Composer {
                 out.append(Choice(label: "1", kind: .answer, text: line.text, isComplete: line.isComplete))
             }
             return out
+        case .message?:
+            guard let line = result.versions.first, !line.text.isEmpty else { return [] }
+            return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
         case .convert?, .terminal?, .settings?, .note?, nil:
             break
         }
@@ -431,7 +456,8 @@ public final class Composer {
     public var highlighted: Int {
         let all = choices
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
-        if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder { return 0 }
+        if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
+            || activeCommand?.kind == .message { return 0 }
         if case .translating = phase { return 1 }
         if let i = all.firstIndex(where: { $0.kind == .version || $0.kind == .answer }) { return i }
         if let i = all.firstIndex(where: { $0.kind.isRewrite }) { return i }
@@ -532,6 +558,73 @@ public final class Composer {
     public var opensLiveResult: Bool {
         let live = currentLiveResults
         return live.indices.contains(liveHighlight) && (liveHighlight > 0 || !live.allSatisfy(\.matchedContent))
+    }
+
+    /// The text after a send command (`@imessage zs`) while no recipient is picked: what finds one
+    /// (`receiveRecipients`). Empty right after the command: the recent recipients.
+    public var recipientQuery: String? {
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, pickingRecipient else { return nil }
+        return sentText
+    }
+
+    /// A send command without its recipient yet.
+    private var pickingRecipient: Bool { messageRecipient == nil && draftCommand?.kind == .message }
+
+    /// The recipients found that belong to the current `recipientQuery`.
+    public var currentRecipients: [Recipient] {
+        recipientQuery != nil && recipientResultsQuery == recipientQuery ? recipientResults : []
+    }
+
+    /// Recipients for `query` (`recipientQuery`) and a note for the panel (nil: none): ↑↓ pick, Tab, ⏎,
+    /// a digit or a click chooses one.
+    public func receiveRecipients(_ results: [Recipient], note: String? = nil, for query: String) -> [Effect] {
+        guard query == recipientQuery else { return [] }
+        recipientResults = results
+        recipientNote = note
+        recipientResultsQuery = query
+        recipientHighlight = 0
+        return [.showPanel]
+    }
+
+    /// Picks a found recipient: the text typed to find them goes, and the message follows (in the input
+    /// mode from before the command).
+    private func pickRecipient(at index: Int) -> [Effect] {
+        let found = currentRecipients
+        guard found.indices.contains(index), let command = draftCommand else { return [] }
+        messageRecipient = found[index]
+        draft = "@\(command.name) "
+        clearRecipientResults()
+        setLevelOnePhase()
+        return [.updateMarkedText, .showPanel]
+    }
+
+    private func clearRecipientResults() {
+        recipientResults = []
+        recipientNote = nil
+        recipientResultsQuery = nil
+        recipientHighlight = 0
+    }
+
+    /// Keys while a recipient is picked: ↑↓ move, Tab picks, so do digits after a name (a number
+    /// being typed takes them). Nil: the key acts as usual.
+    private func handleRecipientKey(_ event: KeyEvent) -> Response? {
+        guard let query = recipientQuery, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
+        let found = currentRecipients
+        guard !found.isEmpty else { return nil }
+        switch event.keyCode {
+        case VirtualKey.up, VirtualKey.down:
+            recipientHighlight = (recipientHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + found.count) % found.count
+            return .consumed([.showPanel])
+        case VirtualKey.tab:
+            return .consumed(pickRecipient(at: recipientHighlight))
+        default:
+            break
+        }
+        if let text = event.printableText, text.count == 1, let n = text.first?.wholeNumberValue, n >= 1, found.indices.contains(n - 1),
+           !query.isEmpty, !query.contains(where: { $0.isNumber }) {
+            return .consumed(pickRecipient(at: n - 1))
+        }
+        return nil
     }
 
     /// Files and apps for `query` (`liveQuery`): ↑↓ pick, Tab completes the path, the action key opens
@@ -650,7 +743,10 @@ public final class Composer {
         let toggle = isShift && !modifiers.contains(.shift)
             && shiftPressedAt.map { timestamp - $0 <= Self.shiftTapWindow } == true
         shiftPressedAt = nil
-        return toggle && voice == .off ? toggleLatin() : []
+        // With one input language Shift stays put, except to leave the letters a command switched to
+        // (Chinese inside `@python print("…")`).
+        let switches = inputLanguages.count > 1 || restoreChineseAfterOpen || nestedLatinFrom != nil
+        return toggle && voice == .off && switches ? toggleLatin() : []
     }
 
     static let shiftTapWindow: TimeInterval = 0.5
@@ -726,6 +822,7 @@ public final class Composer {
     /// A candidate clicked in the panel.
     public func choose(index: Int) -> [Effect] {
         if isLevelTwo { return commitChoice(at: index) }
+        if recipientQuery != nil { return pickRecipient(at: index) }
         // A command in the list (`index` among the rows shown).
         if paletteQuery != nil {
             let matches = paletteMatches
@@ -1124,7 +1221,7 @@ public final class Composer {
         paletteHighlight = 0
         // File names, paths and code are typed as letters; the input mode comes back when the command is
         // done (inside a text: once its argument is typed and a space follows).
-        if command.typesLatin, let engine, !engine.snapshot().isAsciiMode {
+        if command.typesLatin || command.kind == .message && !nested, let engine, !engine.snapshot().isAsciiMode {
             engine.setAsciiMode(true)
             restoreChineseAfterOpen = true
             engineState = engine.snapshot()
@@ -1165,6 +1262,7 @@ public final class Composer {
     /// Keys with a meaning for the draft itself, when the engine has nothing left to convert.
     private func handleDraftKey(_ event: KeyEvent, afterVoice: Bool) -> Response? {
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
+        if let response = handleRecipientKey(event) { return response }
         let live = currentLiveResults
         if !live.isEmpty, plain {
             switch event.keyCode {
@@ -1191,6 +1289,16 @@ public final class Composer {
             // ⇧⏎ (⏎ alone runs the command): as typed, except a note with line breaks (`finishAsTyped`).
             return .consumed(finishAsTyped(draft))
         case VirtualKey.delete:
+            // Right after a picked recipient: back to picking one.
+            if messageRecipient != nil, let command = draftCommand, draft == "@\(command.name) " {
+                messageRecipient = nil
+                if let engine, !engine.snapshot().isAsciiMode {  // names, pinyin, numbers: typed as letters
+                    engine.setAsciiMode(true)
+                    restoreChineseAfterOpen = true
+                    engineState = engine.snapshot()
+                }
+                return .consumed([.updateMarkedText, .showPanel])
+            }
             draft.removeLast()
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
@@ -1229,13 +1337,15 @@ public final class Composer {
 
     private func setLevelOnePhase() {
         phase = draft.isEmpty && !engineState.isComposing && voice == .off ? .idle : .drafting
+        if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
+        if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
         restoreInputModeAfterOpen()
     }
 
     /// Back to Chinese once the draft is no longer a command typed in letters (`@open`, code).
     private func restoreInputModeAfterOpen() {
         if draft.isEmpty { nestedLatinFrom = nil }
-        guard restoreChineseAfterOpen, draft.isEmpty || draftCommand?.typesLatin != true && nestedLatinFrom == nil,
+        guard restoreChineseAfterOpen, draft.isEmpty || draftCommand?.typesLatin != true && nestedLatinFrom == nil && !pickingRecipient,
               let engine else { return }
         restoreChineseAfterOpen = false
         engine.setAsciiMode(false)
@@ -1319,6 +1429,8 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         switch event.keyCode {
         case VirtualKey.space:
+            // A message is sent by ⏎ (or the action key), never by a Space typed on the way.
+            if activeCommand?.kind == .message, actionKey != .space, phase == .choosing { return .consumed() }
             return .consumed(acceptInLevelTwo())
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
             // Like Space: the highlighted row (row 0 is the sentence as typed). After a failure
@@ -1326,6 +1438,8 @@ public final class Composer {
             // key it retries instead, before reaching here). A reminder with nothing to be reminded of
             // goes back to its text instead: typed into the app, it would only be the time.
             if case .failed = phase {
+                // A message is never inserted: ⏎ tries again.
+                if activeCommand?.kind == .message { return .consumed(startAction().effects) }
                 return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: sentText))
             }
             return .consumed(commitChoice(at: highlighted))
@@ -1359,6 +1473,7 @@ public final class Composer {
         // Only an @ command is ever sent: without one the input method just types.
         guard parsed != nil else { return .consumed() }
         let input = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let command = parsed?.command, command.kind == .message { return startMessage(command, input: input) }
         if parsed?.command.kind == .settings, !isLevelTwo {
             return .consumed(finish(committing: "") + [.openSettings, used(parsed!.command)])
         }
@@ -1447,12 +1562,39 @@ public final class Composer {
         case refused(String)
     }
 
+    /// A send command: picks the highlighted recipient while there is none; then runs the commands
+    /// inside the message (`@stock AAPL`) and shows the message to confirm (`Choice.Kind.send`).
+    private func startMessage(_ command: Command, input: String) -> Response {
+        guard messageRecipient != nil else {
+            if !isLevelTwo, !currentRecipients.isEmpty { return .consumed(pickRecipient(at: recipientHighlight)) }
+            return .consumed([.updateMarkedText, .showPanel, .notice(messages.pickRecipient)])
+        }
+        if input.isEmpty, !isLevelTwo { return .consumed([requestClipboard(forEmptyCommand: true)]) }
+        guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
+        guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
+        requestCounter += 1
+        result = .empty
+        searchResults = []
+        highlightOverride = nil
+        activeCommand = command
+        let plan = CommandPlan.make(input, commands: commands)
+        let usage = plan.inner.map(\.command).map(used)
+        guard !plan.isEmpty else {
+            phase = .choosing
+            result = ConversionResult(versions: [CandidateLine(input)])
+            return .consumed([.updateMarkedText, .showPanel])
+        }
+        phase = .translating(id: requestCounter)
+        return .consumed([.startPlan(outer: command, plan: plan, id: requestCounter), .updateMarkedText, .showPanel] + usage)
+    }
+
     /// The app took the text being typed into the document on its own (`MarkedTextWatch`): start over
     /// with nothing pending, without inserting anything or sending a request.
     public func appTookMarkedText() -> [Effect] {
         let wasRequesting = isLevelTwo
         let recording = voice.id
         draft = ""
+        messageRecipient = nil
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
         voice = .off
@@ -1569,6 +1711,10 @@ public final class Composer {
             let input = sentText  // before the draft is cleared: it comes back if the reminder can't be added
             return finish(committing: "") + [.addReminder(reminder, input: input)]
         }
+        if case .send = all[index].kind, let recipient = messageRecipient, let command = activeCommand {
+            // Sent, not inserted: the draft goes.
+            return finish(committing: "") + [.sendMessage(recipient, text: all[index].text, command: command), used(command)]
+        }
         return finish(committing: all[index].text)
     }
 
@@ -1588,6 +1734,8 @@ public final class Composer {
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
         draft = ""
+        messageRecipient = nil
+        clearRecipientResults()
         draftEndsWithVoice = false
         actsAfterVoice = false
         result = .empty
