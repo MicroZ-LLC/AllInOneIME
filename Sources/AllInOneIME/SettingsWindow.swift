@@ -597,6 +597,19 @@ struct SettingsView: View {
                 .disabled(!model.canSave)
                 Text(Self.actionKeyNote(model.config.actionKey))
                     .font(.caption).foregroundStyle(.secondary)
+                // Results typed in character by character, like a person typing.
+                Toggle(tr("逐字上屏", "Type results out"), isOn: $model.config.typeOut)
+                if model.config.typeOut {
+                    Picker(tr("打字速度", "Typing speed"), selection: $model.config.typeOutSpeed) {
+                        Text(tr("慢", "Slow")).tag(TypeOut.Speed.slow)
+                        Text(tr("中", "Normal")).tag(TypeOut.Speed.normal)
+                        Text(tr("快", "Fast")).tag(TypeOut.Speed.fast)
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Text(tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。打的时候按 Esc 停下，按别的键就把剩下的一次打完。",
+                        "A command's result (a translation, a polish, an answer…) is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
                        isOn: $model.config.claudeInBackground)
                 Text(tr("开着：交给 Claude Code 后台去做，做完弹通知，点通知或用 @tasks 查看；关掉：在终端打开 Claude Code 接着聊。",
@@ -1000,6 +1013,8 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
+        .onChange(of: model.config.typeOut) { model.save() }
+        .onChange(of: model.config.typeOutSpeed) { model.save() }
         .onAppear {
             model.refreshPlugins()
             model.refreshKeys()

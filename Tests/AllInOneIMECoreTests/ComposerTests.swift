@@ -193,6 +193,16 @@ struct ComposerTests {
         #expect(!c.paletteMatches.contains(.improve) && !c.paletteMatches.contains(.translate))
     }
 
+    @Test func aResultIsTypedOutWhenAsked() {
+        let (c, _) = translating()
+        c.typesResults = true
+        _ = c.receive(ConversionResult(versions: [CandidateLine("Hello.")]), isFinal: true, id: 1)
+        let effects = c.handleKeyDown(spaceKey).effects
+        // The draft goes (nothing inserted at once), then the line is typed out.
+        #expect(effects.contains(.typeOut("Hello.")) && !effects.contains(.commit("Hello.")))
+        #expect(c.phase == .idle && c.draft.isEmpty)
+    }
+
     @Test func translationsAreRowsWithTheirLanguage() {
         let (c, _) = translating()
         let result = ConversionResult(translations: [Translation(language: OutputLanguage("ja"), line: CandidateLine("すごいね")),

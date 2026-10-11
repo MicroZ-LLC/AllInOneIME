@@ -1463,6 +1463,51 @@ enum SelfTest {
         check(insertsResult("calculate", "23*17", "391"), "@calculate 23*17 inserts 391 (\(client.inserted.last ?? ""))")
         check(insertsResult("calculate", "0.1+0.2", "0.3"), "@calculate works in decimal: 0.1+0.2 inserts 0.3 (\(client.inserted.last ?? ""))")
 
+        // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
+        // another key types the rest at once. Short pauses here.
+        let (typedBefore, sleepBefore) = (settings.typeOut, controller.typeOutSleep)
+        settings.typeOut = true
+        controller.applySettings()
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 40_000_000) }
+        func typedOut(_ text: String) -> Bool {
+            guard start("calculate") else { return false }
+            typeText(text)
+            _ = act(controller, client)
+            guard finishConversion(controller, "@calculate \(text)") else { clear(); return false }
+            let before = client.inserted.count
+            _ = enter(controller, client)
+            return client.inserted.count == before && controller.isTypingOut  // nothing at once: it's being typed
+        }
+        var before = client.inserted.count
+        if typedOut("2^40") {  // 1099511627776
+            _ = pump(timeout: 3) { !controller.isTypingOut }
+            let typed = Array(client.inserted.dropFirst(before))
+            check(typed.joined() == "1099511627776" && typed.allSatisfy { $0.count == 1 },
+                  "the result is typed out one character at a time (\(typed.count) inserts)")
+        } else {
+            check(false, "the result starts typing out instead of going in at once")
+        }
+        before = client.inserted.count
+        if typedOut("2^40") {
+            _ = pump(timeout: 0.2) { client.inserted.count >= before + 2 }
+            _ = escape(controller, client)
+            _ = pump(timeout: 0.3) { false }
+            let typed = client.inserted.dropFirst(before).joined()
+            check(!controller.isTypingOut && !typed.isEmpty && typed.count < 13 && "1099511627776".hasPrefix(typed),
+                  "Esc stops it there (\(typed))")
+        }
+        before = client.inserted.count
+        if typedOut("2^40") {
+            _ = pump(timeout: 0.2) { client.inserted.count >= before + 2 }
+            press(controller, client, "a", code: keyCodes["a"] ?? 0)  // another key: the rest at once, then the key
+            let typed = client.inserted.dropFirst(before).joined()
+            check(!controller.isTypingOut && typed.hasPrefix("1099511627776"), "another key types the rest at once (\(typed))")
+            clear()
+        }
+        settings.typeOut = typedBefore
+        controller.applySettings()
+        controller.typeOutSleep = sleepBefore
+
         if python {
             check(insertsResult("py", "2**100", "1267650600228229401496703205376"),
                   "@py 2**100 inserts the value from python3 (\(client.inserted.last ?? ""))")

@@ -54,6 +54,8 @@ public final class Composer {
         case updateMarkedText
         /// Insert text into the document, replacing the marked text.
         case commit(String)
+        /// Type a result into the document character by character (`typesResults`); the marked text is gone.
+        case typeOut(String)
         case startConversion(input: String, id: Int)
         /// Run a `.generate` command (`@question`, `@claude`) on `input`; results arrive via `receive`.
         case startCommand(Command, input: String, id: Int)
@@ -241,6 +243,8 @@ public final class Composer {
     public var commandUsage = CommandUsage()
     /// `@claude` starts a background session instead of a Terminal window.
     public var claudeInBackground = false
+    /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
+    public var typesResults = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
     /// Files and apps found for `@open`.
@@ -1758,6 +1762,7 @@ public final class Composer {
             // Sent, not inserted: the draft goes.
             return finish(committing: "") + [.sendMessage(recipient, text: all[index].text, command: command), used(command)]
         }
+        if typesResults { return finish(committing: "") + [.typeOut(all[index].text)] }
         return finish(committing: all[index].text)
     }
 

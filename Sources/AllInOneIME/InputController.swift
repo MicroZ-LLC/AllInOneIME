@@ -248,11 +248,59 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     override func commitComposition(_ sender: Any!) {
-        MainActor.assumeIsolated { perform(composer.commitAll(), client: sender as? IMKTextInput) }
+        MainActor.assumeIsolated {
+            stopTyping(insertingRest: true)  // the app wants everything in now (a click elsewhere in it)
+            perform(composer.commitAll(), client: sender as? IMKTextInput)
+        }
     }
+
+    // MARK: - Typing a result out
+
+    /// `Config.typeOut`: how fast (the self-test waits less).
+    var typeOutSpeed: TypeOut.Speed = .normal
+    var typeOutSleep: @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
+    private var typingTask: Task<Void, Never>?
+    private var typingRest: [Character] = []
+    private var typingClient: IMKTextInput?
+
+    /// Types `text` into `client` character by character, like a person typing (`TypeOut.delays`).
+    @MainActor
+    private func typeOut(_ text: String, into client: IMKTextInput) {
+        stopTyping(insertingRest: true)
+        typingRest = Array(text)
+        typingClient = client
+        let delays = TypeOut.delays(for: text, speed: typeOutSpeed)
+        let sleep = typeOutSleep
+        log.notice("typing out \(text.count) characters")
+        typingTask = Task { @MainActor [weak self] in
+            for delay in delays {
+                await sleep(delay)
+                guard let self, !Task.isCancelled, let client = self.typingClient, !self.typingRest.isEmpty else { return }
+                client.insertText(String(self.typingRest.removeFirst()), replacementRange: Self.notFound)
+            }
+            self?.typingTask = nil
+            self?.typingClient = nil
+        }
+    }
+
+    /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed.
+    @MainActor
+    func stopTyping(insertingRest: Bool) {
+        guard let task = typingTask else { return }
+        task.cancel()
+        if insertingRest, !typingRest.isEmpty {
+            typingClient?.insertText(String(typingRest), replacementRange: Self.notFound)
+        }
+        log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
+        (typingTask, typingRest, typingClient) = (nil, [], nil)
+    }
+
+    /// Whether a result is being typed out now (the self-test).
+    var isTypingOut: Bool { typingTask != nil }
 
     override func deactivateServer(_ sender: Any!) {
         MainActor.assumeIsolated {
+            stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
             perform(composer.commitAll(), client: sender as? IMKTextInput)
             fieldSession += 1
             if Self.activeController === self { Self.activeController = nil }
@@ -309,6 +357,8 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
         composer.claudeInBackground = config.claudeInBackground
+        composer.typesResults = config.typeOut
+        typeOutSpeed = config.typeOutSpeed
         setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true)), recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
@@ -352,6 +402,15 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     func handleKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
+        // A result still being typed out: Esc stops it there; any other key types the rest at once,
+        // then goes on as usual.
+        if typingTask != nil {
+            if event.keyCode == VirtualKey.escape {
+                stopTyping(insertingRest: false)
+                return true
+            }
+            stopTyping(insertingRest: true)
+        }
         if !receivedKeys {
             receivedKeys = true
             log.notice("receiving keys (engine ready: \(RimeService.shared.isReady))")
@@ -449,6 +508,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 updateMarkedText(target)
             case let .commit(text):
                 target?.insertText(text, replacementRange: Self.notFound)
+            case let .typeOut(text):
+                if let target { typeOut(text, into: target) }
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
