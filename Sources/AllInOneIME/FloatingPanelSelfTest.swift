@@ -170,10 +170,11 @@ extension SelfTest {
               "「显示悬浮面板」 shows it, saves the setting and is checked")
         check(pump(timeout: 3) { loaded() }, "it reads the stand-ins")
         if let window = panel.window {
-            window.makeKey()
-            check(window.styleMask.contains(.nonactivatingPanel) && window.becomesKeyOnlyIfNeeded && !window.canBecomeKey
+            // Key only to type in the tasks' search field (becomesKeyOnlyIfNeeded); never main, and showing it
+            // or clicking it never activates the input method: the app being typed in stays in front.
+            check(window.styleMask.contains(.nonactivatingPanel) && window.becomesKeyOnlyIfNeeded
                   && !window.canBecomeMain && !window.isKeyWindow && NSApp.isActive == wasActive,
-                  "non-activating: it can't become key or main, and the app being typed in keeps the focus")
+                  "non-activating: not key until its search field is clicked, never main, the app being typed in keeps the focus")
             check(window.level == .floating && window.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary])
                   && !window.hidesOnDeactivate && window.isMovableByWindowBackground,
                   "floats on every Space and over full-screen apps, movable by its background")

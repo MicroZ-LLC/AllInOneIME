@@ -222,12 +222,21 @@ final class FloatingPanel: ObservableObject {
     var checksOcclusion = true
 
     @Published private(set) var isEnabled = false
+    /// Shown under the menu bar icon (`MenuBarIcon`) without being turned on: it closes on a click elsewhere.
+    @Published private(set) var droppedDown = false
     @Published private(set) var collapsed: Bool
+
+    /// On (floating) or dropped down from the menu bar: what keeps its lists up to date.
+    var isShowing: Bool { isEnabled || droppedDown }
+    /// Collapsed to its header (never when dropped down: it's opened to be read).
+    var isCollapsed: Bool { collapsed && !droppedDown }
     @Published private(set) var notes: [SavedNotes.Note] = []
     @Published private(set) var reminders: RemindersState = .loading
     /// Reminders being ticked off (their box is checked until they're gone from the list).
     @Published private(set) var completing: Set<String> = []
     @Published private(set) var tasks: TasksState = .loading
+    /// What's typed in the tasks' search field (shown once there are more than `AgentTaskList.shown`).
+    @Published var taskQuery = ""
     /// What went wrong with a click, for a few seconds.
     @Published private(set) var message: String?
     /// The time the rows are shown for ("10 分钟前", "明天 15:00").
@@ -297,6 +306,7 @@ final class FloatingPanel: ObservableObject {
     /// Shows or hides it at once (the settings window saves the setting itself).
     func apply(_ on: Bool) {
         guard on != isEnabled else { return }
+        if droppedDown { closeDropDown() }
         isEnabled = on
         generation += 1
         if on { open() } else { shut() }
@@ -314,14 +324,20 @@ final class FloatingPanel: ObservableObject {
             && window == nil
     }
 
-    private func open() {
+    private func open(below anchor: CGRect? = nil) {
         chinese = UIText.chinese
         now = sources.now()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         (reminders, tasks, completing, message, sessions, replies) = (.loading, .loading, [], nil, nil, AgentReplyCache())
         unseen = false
         let window = makeWindow()
-        place(window)
+        if let anchor {
+            window.isMovableByWindowBackground = false
+            window.setFrame(PanelPlacement.below(anchor, size: CGSize(width: Self.width, height: height),
+                                                 visible: NSScreen.screens.map(\.visibleFrame)), display: false)
+        } else {
+            place(window)
+        }
         window.orderFrontRegardless()
         observe(window)
         reminderTimer = repeating(reminderInterval) { $0.tick() }
@@ -340,6 +356,57 @@ final class FloatingPanel: ObservableObject {
         window = nil
         (readingReminders, readRemindersAgain, askingAgents, askingNotes) = (false, false, false, false)
         (readingReplies, readRepliesAgain) = (false, false)
+    }
+
+    // MARK: - Dropped down from the menu bar
+
+    private var outsideClicks: [Any] = []
+
+    /// The menu bar icon was clicked: drops the panel down under it, or closes it when it's down. When
+    /// the floating panel is on, it's brought to the front instead.
+    func toggleDropDown(below anchor: CGRect) {
+        if isEnabled {
+            window?.orderFrontRegardless()
+            return
+        }
+        if droppedDown {
+            closeDropDown()
+            return
+        }
+        droppedDown = true
+        generation += 1
+        open(below: anchor)
+        // A click anywhere but in the panel closes it, like a menu; the icon's own click toggles it.
+        let close: (NSEvent) -> Void = { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, self.droppedDown, event.window !== self.window, !MenuBarIcon.shared.owns(event) else { return }
+                self.closeDropDown()
+            }
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: close) {
+            outsideClicks.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { close($0); return $0 }) {
+            outsideClicks.append(local)
+        }
+        log.notice("panel dropped down from the menu bar")
+    }
+
+    func closeDropDown() {
+        guard droppedDown else { return }
+        outsideClicks.forEach(NSEvent.removeMonitor)
+        outsideClicks = []
+        droppedDown = false
+        generation += 1
+        shut()
+    }
+
+    /// The pin in a dropped-down panel: it stays on screen as the floating panel (the setting goes on).
+    func pin() {
+        let frame = window?.frame
+        closeDropDown()
+        if let frame { sources.defaults.set(NSStringFromRect(frame), forKey: Self.frameKey) }
+        setEnabled(true)
     }
 
     /// Writes the setting into config.json (a file that doesn't parse is left as it is).
@@ -368,7 +435,7 @@ final class FloatingPanel: ObservableObject {
 
     /// The window's height now: the header, and the lists up to `maxHeight`.
     var height: CGFloat {
-        collapsed ? Self.headerHeight : min(Self.headerHeight + 1 + listHeight, Self.maxHeight)
+        isCollapsed ? Self.headerHeight : min(Self.headerHeight + 1 + listHeight, Self.maxHeight)
     }
 
     /// Where it was left (its top-left corner), else the top right of the screen with the menu bar.
@@ -427,7 +494,7 @@ final class FloatingPanel: ObservableObject {
         func on(_ name: Notification.Name, _ object: AnyObject? = nil, _ handle: @escaping (FloatingPanel, Notification) -> Void) {
             observers.append(center.addObserver(forName: name, object: object, queue: .main) { [weak self] note in
                 MainActor.assumeIsolated {
-                    guard let self, self.isEnabled else { return }
+                    guard let self, self.isShowing else { return }
                     handle(self, note)
                 }
             })
@@ -444,7 +511,7 @@ final class FloatingPanel: ObservableObject {
         on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.moveOnScreen() }
         on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.chinese = UIText.chinese }
         on(NSWindow.didMoveNotification, window) { panel, _ in
-            if let frame = panel.window?.frame { panel.sources.defaults.set(NSStringFromRect(frame), forKey: Self.frameKey) }
+            if !panel.droppedDown, let frame = panel.window?.frame { panel.sources.defaults.set(NSStringFromRect(frame), forKey: Self.frameKey) }
         }
         // Seen again after a while unseen (the screen unlocked, the display awake): what changed meanwhile.
         on(NSWindow.didChangeOcclusionStateNotification, window) { panel, _ in
@@ -455,7 +522,7 @@ final class FloatingPanel: ObservableObject {
             guard panel.unseen else { return }
             panel.unseen = false
             panel.tick()
-            if !panel.collapsed, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
+            if !panel.isCollapsed, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
         }
     }
 
@@ -473,14 +540,14 @@ final class FloatingPanel: ObservableObject {
         guard isOnScreen else { return }
         now = sources.now()
         refreshReminders()
-        if !collapsed { refreshNoteTitles() }
+        if !isCollapsed { refreshNoteTitles() }
     }
 
     /// Its own looks at the tasks, every 15 s while it's expanded and a task it lists isn't done
     /// (skipped while AgentMonitor looks). Finished tasks don't change: `claude agents` isn't run
     /// for them.
     private func scheduleAgents() {
-        let wanted = isEnabled && !collapsed
+        let wanted = isShowing && !isCollapsed
         if wanted, agentTimer == nil {
             agentTimer = repeating(agentInterval) { panel in
                 if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
@@ -514,7 +581,7 @@ final class FloatingPanel: ObservableObject {
         saved.add(id: id, title: info?["title"] as? String ?? "", at: sources.now())
         SavedNotesStore.save(saved, to: sources.defaults)
         log.notice("floating panel: a note was saved (\(saved.notes.count) kept)")
-        guard isEnabled else { return }
+        guard isShowing else { return }
         now = sources.now()
         notes = saved.newest(Self.notesShown)
     }
@@ -522,7 +589,7 @@ final class FloatingPanel: ObservableObject {
     /// Titles edited in Notes, notes deleted there: asked only while it's on, when Notes runs already,
     /// and only with its permission given before.
     private func refreshNoteTitles() {
-        guard isEnabled, !askingNotes, !SavedNotesStore.load(sources.defaults).notes.isEmpty, sources.notesRunning() else {
+        guard isShowing, !askingNotes, !SavedNotesStore.load(sources.defaults).notes.isEmpty, sources.notesRunning() else {
             return
         }
         askingNotes = true
@@ -697,7 +764,7 @@ final class FloatingPanel: ObservableObject {
         let newest = AgentTaskList.newest(sessions)
         replies.keep(only: newest)
         tasks = .list(AgentTaskList.rows(newest, replies: replies.replies, prompt: sources.prompt))
-        if !collapsed { readReplies(of: newest) }
+        if !isCollapsed { readReplies(of: newest) }
     }
 
     private func readReplies(of newest: [AgentSession]) {
@@ -722,7 +789,7 @@ final class FloatingPanel: ObservableObject {
                 }
                 if self.readRepliesAgain {
                     self.readRepliesAgain = false
-                    if !self.collapsed { self.readReplies(of: newest) }
+                    if !self.isCollapsed { self.readReplies(of: newest) }
                 }
             }
         }
@@ -769,7 +836,7 @@ final class FloatingPanel: ObservableObject {
 
     /// What went wrong with a click, for 6 s (only while it's on: off, nothing of it runs).
     private func say(_ text: String) {
-        guard isEnabled else { return }
+        guard isShowing else { return }
         message = text
         messageTimer?.invalidate()
         messageTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in
@@ -801,7 +868,9 @@ final class DashboardWindow: NSPanel {
         isReleasedWhenClosed = false
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Only to type in the tasks' search field (`becomesKeyOnlyIfNeeded`): a click anywhere else in it
+    /// leaves the keyboard with the app being typed in.
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
 
@@ -827,7 +896,7 @@ struct FloatingPanelView: View {
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
         VStack(spacing: 0) {
             header
-            if !panel.collapsed {
+            if !panel.isCollapsed {
                 Divider()
                 ScrollView(.vertical) {
                     lists.background(GeometryReader { proxy in
@@ -843,7 +912,7 @@ struct FloatingPanelView: View {
         .clipShape(shape)
         .onPreferenceChange(ListHeightKey.self) { height in
             // Collapsed, the lists are gone: their height is kept for when they're back.
-            MainActor.assumeIsolated { if !panel.collapsed { panel.listHeight = height } }
+            MainActor.assumeIsolated { if !panel.isCollapsed { panel.listHeight = height } }
         }
     }
 
@@ -861,9 +930,13 @@ struct FloatingPanelView: View {
             .accessibilityElement(children: .combine)
             Spacer(minLength: 4)
             headerButton("arrow.clockwise", tr("刷新", "Refresh")) { panel.refresh() }
-            headerButton(panel.collapsed ? "chevron.down" : "chevron.up",
-                         panel.collapsed ? tr("展开", "Expand") : tr("收起", "Collapse")) { panel.toggleCollapsed() }
-            headerButton("xmark", tr("关闭悬浮面板", "Close Floating Panel")) { panel.close() }
+            if panel.droppedDown {
+                headerButton("pin", tr("固定在屏幕上", "Keep on Screen")) { panel.pin() }
+            } else {
+                headerButton(panel.collapsed ? "chevron.down" : "chevron.up",
+                             panel.collapsed ? tr("展开", "Expand") : tr("收起", "Collapse")) { panel.toggleCollapsed() }
+                headerButton("xmark", tr("关闭悬浮面板", "Close Floating Panel")) { panel.close() }
+            }
         }
         .padding(.horizontal, 12)
         .frame(height: FloatingPanel.headerHeight)
@@ -998,9 +1071,37 @@ struct FloatingPanelView: View {
         case let .list(rows) where rows.isEmpty:
             line(tr("用 @claude 交给后台的任务会显示在这里", "Tasks @claude runs in the background show up here"))
         case let .list(rows):
-            ForEach(rows) { row in taskRow(row) }
+            // A few at a time: the rest scroll into view, or a search finds them.
+            let shown = AgentTaskList.matching(rows, panel.taskQuery)
+            if rows.count > AgentTaskList.shown {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+                    TextField(tr("搜索任务", "Search tasks"), text: $panel.taskQuery)
+                        .textFieldStyle(.plain).font(.system(size: 12))
+                    if !panel.taskQuery.isEmpty {
+                        Button { panel.taskQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.plain).foregroundStyle(.secondary)
+                            .accessibilityLabel(tr("清除搜索", "Clear the search"))
+                    }
+                }
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            }
+            if shown.isEmpty {
+                line(tr("没有匹配的任务", "No matching tasks"))
+            } else if shown.count > AgentTaskList.shown {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 6) { ForEach(shown) { row in taskRow(row) } }
+                }
+                .frame(height: CGFloat(AgentTaskList.shown) * Self.taskRowHeight)
+            } else {
+                ForEach(shown) { row in taskRow(row) }
+            }
         }
     }
+
+    /// A task row with its reply line, and the space between rows: five of them fill the scrolled list.
+    private static let taskRowHeight: CGFloat = 38
 
     private func taskRow(_ row: AgentTaskRow) -> some View {
         let ago = row.started.map { DashboardText.ago($0, now: panel.now, chinese: UIText.chinese) }

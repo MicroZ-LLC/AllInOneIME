@@ -66,6 +66,30 @@ struct DashboardTests {
         #expect(emptied && notes.notes.isEmpty)
     }
 
+    @Test func droppedDownUnderTheMenuBarIcon() {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 875)  // below a 25 pt menu bar
+        let size = CGSize(width: 300, height: 400)
+        // Under the icon, right edges lined up.
+        let icon = CGRect(x: 1200, y: 875, width: 24, height: 25)
+        #expect(PanelPlacement.below(icon, size: size, visible: [screen]) == CGRect(x: 924, y: 471, width: 300, height: 400))
+        // An icon near the left edge: moved right to stay on the screen.
+        let left = CGRect(x: 100, y: 875, width: 24, height: 25)
+        #expect(PanelPlacement.below(left, size: size, visible: [screen]).minX == 0)
+    }
+
+    @Test func tasksAreSearched() {
+        func row(_ title: String, _ reply: String?) -> AgentTaskRow {
+            AgentTaskRow(id: title, title: title, progress: .done, started: nil, reply: reply)
+        }
+        let rows = [row("重构登录模块", "改完 3 个文件"), row("Write unit tests", "12 tests pass"), row("fix bug", nil)]
+        #expect(AgentTaskList.matching(rows, "").count == 3)
+        #expect(AgentTaskList.matching(rows, "登录").map(\.title) == ["重构登录模块"])
+        #expect(AgentTaskList.matching(rows, "TESTS pass").map(\.title) == ["Write unit tests"])  // any case, every word
+        #expect(AgentTaskList.matching(rows, "文件").map(\.title) == ["重构登录模块"])  // the reply counts
+        #expect(AgentTaskList.matching(rows, "nothing").isEmpty)
+        #expect(AgentTaskList.limit == 30 && AgentTaskList.shown == 5)
+    }
+
     @Test func howLongAgo() {
         let cases: [(TimeInterval, String, String)] = [
             (-30, "刚刚", "just now"), (59, "刚刚", "just now"), (60, "1 分钟前", "1 min ago"),
@@ -139,16 +163,17 @@ struct DashboardTests {
         #expect(AgentTaskList.started(session("a", nil, started: ms)) == t0)
         #expect(AgentTaskList.started(session("a", nil, started: t0.timeIntervalSince1970)) == t0)  // seconds
         #expect(AgentTaskList.started(session("a", nil, started: nil)) == nil)
-        // The newest 6, newest first; the name, else the prompt @claude started it with, else the id.
+        // Newest first (up to `limit`); the name, else the prompt @claude started it with, else the id.
         var sessions = (0..<8).map { session("t\($0)", "done", started: ms + Double($0) * 1000, name: "task \($0)") }
         sessions.append(session("nameless", "working", started: ms + 60_000))
         sessions.append(session("blank", "waiting_for_input", started: ms + 50_000, name: "  "))
         let rows = AgentTaskList.rows(sessions, replies: ["t7-session": "Done: 3 files"],
                                       prompt: { $0 == "nameless" ? "fix the\nlogin  bug" : nil })
-        #expect(rows.count == AgentTaskList.limit)
-        #expect(rows.map(\.id) == ["nameless", "blank", "t7", "t6", "t5", "t4"])
-        #expect(rows.map(\.title) == ["fix the login bug", "blank", "task 7", "task 6", "task 5", "task 4"])
-        #expect(rows.map(\.progress) == [.working, .needsYou, .done, .done, .done, .done])
+        #expect(rows.count == 10)
+        #expect(rows.map(\.id) == ["nameless", "blank", "t7", "t6", "t5", "t4", "t3", "t2", "t1", "t0"])
+        #expect(rows.prefix(6).map(\.title) == ["fix the login bug", "blank", "task 7", "task 6", "task 5", "task 4"])
+        #expect(rows.prefix(3).map(\.progress) == [.working, .needsYou, .done])
+        #expect(AgentTaskList.newest(sessions, limit: 3).count == 3)
         #expect(rows[2].reply == "Done: 3 files" && rows[0].reply == nil && rows[2].started == t0 + 7)
     }
 

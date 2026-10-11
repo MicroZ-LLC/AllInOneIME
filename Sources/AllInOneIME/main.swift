@@ -66,6 +66,7 @@ func runServer(showSettings: Bool = false) -> Never {
         MainActor.assumeIsolated {
             FloatingPanel.shared.recordSavedNotes()
             FloatingPanel.shared.start(LiveConfig.current)
+            MenuBarIcon.shared.apply(LiveConfig.current.menuBarIcon)
         }
     }
     if showSettings {

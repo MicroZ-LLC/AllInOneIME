@@ -131,6 +131,13 @@ public enum PanelPlacement {
                width: size.width, height: size.height)
     }
 
+    /// Dropped down from a menu bar icon at `anchor`: right under it, its right edge at the icon's
+    /// right edge (moved left to stay on the screen), like a menu.
+    public static func below(_ anchor: CGRect, size: CGSize, visible screens: [CGRect], gap: CGFloat = 4) -> CGRect {
+        let frame = CGRect(x: anchor.maxX - size.width, y: anchor.minY - gap - size.height, width: size.width, height: size.height)
+        return onScreen(frame, visible: screens)
+    }
+
     /// `frame` moved (never resized) to lie on a screen: where it is when it does; else into the screen
     /// it overlaps most (the top kept when it's taller); else (that screen is gone) to the top right
     /// of the first screen.
@@ -175,7 +182,19 @@ public struct AgentTaskRow: Equatable, Sendable, Identifiable {
 
 public enum AgentTaskList {
     /// How many the panel shows.
-    public static let limit = 6
+    /// How many the panel keeps (newest first); `shown` at a time, the rest scrolled to or searched.
+    public static let limit = 30
+    public static let shown = 5
+
+    /// The rows matching `query` (in the title or the last reply, any case); all of them for an empty one.
+    public static func matching(_ rows: [AgentTaskRow], _ query: String) -> [AgentTaskRow] {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return rows }
+        return rows.filter { row in
+            let text = (row.title + " " + (row.reply ?? "")).lowercased()
+            return words.allSatisfy { text.contains($0) }
+        }
+    }
 
     /// When the session started: `claude agents --json` gives milliseconds since 1970 (seconds are
     /// read too).

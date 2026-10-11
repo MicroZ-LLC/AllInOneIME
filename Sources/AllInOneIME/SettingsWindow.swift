@@ -118,6 +118,16 @@ final class SettingsModel: ObservableObject {
         if persists { applyFloatingPanel(on) }
     }
 
+    /// Shows or removes the menu bar icon (the self-test passes its own).
+    var applyMenuBarIcon: @MainActor (Bool) -> Void = { MenuBarIcon.shared.apply($0) }
+
+    /// The menu bar icon's switch: saved, and the icon shown or removed at once (not by a preview).
+    func setMenuBarIcon(_ on: Bool) {
+        config.menuBarIcon = on
+        save()
+        if persists { applyMenuBarIcon(on) }
+    }
+
     // MARK: Styles
 
     func isStyleOn(_ style: RewriteStyle) -> Bool {
@@ -622,6 +632,12 @@ struct SettingsView: View {
                     }
                 Text(tr("常驻屏幕的小窗口，不抢输入焦点，点一行就打开；输入法菜单里也能开关。",
                         "Stays on screen without taking focus; click a row to open it. Also in the input menu."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(tr("菜单栏图标：点一下下拉出面板", "Menu bar icon: click it to drop the panel down"),
+                       isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
+                    .disabled(!model.canSave)
+                Text(tr("点别处就收起；点面板上的图钉就一直留在屏幕上（等于打开上面的悬浮面板）。",
+                        "A click elsewhere closes it; its pin keeps it on screen (the floating panel above)."))
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 SectionTitle(tr("悬浮面板", "Floating Panel"), icon: CommandIcons.panel)
