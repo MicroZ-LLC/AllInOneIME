@@ -75,8 +75,9 @@ first, as usual, before changing files or running commands. Without Claude Code 
 the message; without the Messages app it isn't offered.
 
 `@calc` works on this Mac, offline: `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, percent (`50%` is 0.5,
-`200*5%` is 10), the functions `sqrt abs round floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles are
-radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too
+`200*5%` is 10; as on a calculator, a percentage added or subtracted is of what comes before: `100+10%` is 110,
+`100-10%` is 90), the functions `sqrt abs round floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles
+are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too
 (`（１＋２）×３`). Arithmetic is exact in decimal, so `0.1+0.2` is `0.3`; results have at most 15 significant digits, and
 whole numbers of up to 38 digits are written out in full (`2^100` → `1267650600228229401496703205376`).
 
@@ -106,7 +107,7 @@ Prices as of October 2026; Brave's site has the current ones.
 2. In the settings, under "Web Search", paste the key, click "Save", then "Test". The key is kept in the system keychain, never in the config file; without one there, `BRAVE_API_KEY` (or `BRAVE_SEARCH_API_KEY`) from your shell is used.
 
 - On its own: `@search 苹果发布会` ("Apple event") ⏎; the candidate is the top 5 results, one "title — URL" per line, inserted with ⏎ or Space. In a terminal they go in as one line (a terminal runs every line it's given).
-- Inside a sentence: it searches first, and the titles, dates, addresses and snippets it finds go to the outer command, e.g. `@question 用一句话总结 @search 苹果发布会`; for a command that opens a web page (`link`), they go in as one line of "title — URL".
+- Inside a sentence: it searches first, and the titles, dates, addresses and snippets it finds go to the outer command, e.g. `@question 用一句话总结 @search 苹果发布会`; for a command that opens a web page (`link`), they go in as one line of "title — URL"; in an `@imessage` message, as on its own: one "title — URL" per line.
   The query is what follows `@search` up to the end of the sentence: ，。？！；, a line break or the next command (and ? ! ; followed by a space); quotes mark it exactly: `@question what changed? @search "swift 6.3 release notes"`.
 - Without a key, `@search` is still offered; running it says where to add one. A query is at most 400 characters and 50 words.
 

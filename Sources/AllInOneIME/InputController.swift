@@ -1001,9 +1001,9 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan, !plan.isEmpty {
-            // @search inside a text is context for the AI; a link's text goes into a web page as it is (a post
-            // to send, a query), so there it is the results on one line.
-            let innerSearch: WebSearch.Output = command?.kind == .link ? .line : .context
+            // @search inside a text is context for the AI, but not where the text goes out as written: into a
+            // web page (a link) or to a person (a message).
+            let innerSearch = WebSearch.Output.inside(command)
             // The commands inside the text first (together), then this one on the text with their outputs.
             stream = CommandPipeline.run(plan, inner: { command, argument in
                 // Its errors (no key, say) in the interface language.

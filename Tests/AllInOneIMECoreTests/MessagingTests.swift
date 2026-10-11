@@ -228,6 +228,39 @@ extension ComposerTests {
         #expect(sends(sent.effects) == [.sendMessage(zhang, text: "Apple Inc. AAPL 336.64 USD", command: .imessage)] && commits(sent).isEmpty)
     }
 
+    @Test func imessageSendsSearchResultsAsTheList() async throws {
+        let (c, _) = imessage()
+        _ = c.handleKeyDown(tab)
+        _ = c.handleKeyDown(at)
+        type("se", c)
+        _ = c.handleKeyDown(tab)
+        type("jintian", c)
+        let run = c.handleKeyDown(enterKey)
+        guard case let .startPlan(outer, plan, id)? = run.effects.first else {
+            Issue.record("expected a plan, got \(run.effects)")
+            return
+        }
+        #expect(outer == .imessage && plan.inner == [CommandPlan.Inner(command: .webSearch, argument: "今天")])
+        // Run as the controller runs it: @search with what it gives inside this command, then the message as
+        // written. A person reads it: the list, as on its own, not the context written for a model.
+        try SearchStub.serve("imessage.search.test", status: 200, fixture: "brave-web-en")
+        let session = SearchStub.session()
+        let stream = CommandPipeline.run(plan, inner: { _, query in
+            WebSearch.stream(query, output: .inside(outer), backend: BraveSearch(host: "imessage.search.test"),
+                             loadKey: { "test-key" }, session: session)
+        }, outer: { CommandPipeline.unchanged($0) })
+        var final = ConversionResult.empty
+        for try await update in stream where update.isFinal { final = update.result }
+        _ = c.receive(final, isFinal: true, id: id)
+        let list = """
+            Concurrency | Documentation — https://docs.example.com/swift/concurrency
+            What's new in Swift 6.3 — https://blog.example.org/swift-6-3
+            Swift Concurrency by Example — http://examples.example.net/swift/concurrency?page=1&lang=en
+            """
+        #expect(c.phase == .choosing && c.choices.map(\.kind) == [.send] && c.choices.first?.text == list)
+        #expect(sends(c.handleKeyDown(enterKey).effects) == [.sendMessage(zhang, text: list, command: .imessage)])
+    }
+
     @Test func imessageFailedCommandIsNeverInserted() {
         let (c, _) = imessage(key: .optionTap)
         let stock = CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])

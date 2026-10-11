@@ -42,7 +42,8 @@ public protocol SearchBackend: Sendable {
 
 /// `@search <query>`: a web search with the user's own key (`backend`). On its own the result is a
 /// list to insert, one "title — URL" per line; inside another command's text it is context for the AI,
-/// with each result's title, date, address and snippets (`@question 用一句话总结 @search 苹果发布会`).
+/// with each result's title, date, address and snippets (`@question 用一句话总结 @search 苹果发布会`),
+/// but not in a link's or a message's (`Output.inside`).
 /// Only the query goes out: over HTTPS to the backend's host and nowhere else (redirects aren't
 /// followed), within `timeout`, at most `maxBytes` read and `maxResults` kept. Nothing is cached or
 /// stored: the services' terms allow only transient use of their results.
@@ -70,6 +71,17 @@ public enum WebSearch {
         case line
         /// Inside another command's text: titles, dates, addresses and snippets, for the AI.
         case context
+
+        /// What they become inside `outer`'s text: context for the AI, except where that text goes out as
+        /// written. A link puts it in a web address (a post to send, a query): the list on one line. A
+        /// message goes to a person: the list, as on its own (the context's notes are for a model).
+        public static func inside(_ outer: Command?) -> Output {
+            switch outer?.kind {
+            case .link?: return .line
+            case .message?: return .list
+            default: return .context
+            }
+        }
     }
 
     public enum SearchError: Error, LocalizedError, Equatable {

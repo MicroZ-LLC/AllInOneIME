@@ -7,10 +7,11 @@ import Foundation
 /// The expression is read by a parser of its own, never by `eval`, JavaScript or `NSExpression`:
 /// numbers (`3`, `2.5`, `.5`, `1e-3`); `+ - * /` (also `× ÷`); `^` or `**` for powers, right to left
 /// and before signs (`2^3^2` is 2^9, `-2^2` is −4, `2^-1` is 0.5); signs; parentheses; `%` after a
-/// value for percent (`50%` is 0.5, `200*5%` is 10); the functions `sqrt abs round floor ceil ln log
-/// exp sin cos tan min max pow` (`log` is base 10, angles are radians, `round(x, 2)` keeps two
-/// decimals) and the constants `pi` (`π`) and `e`, in any case. Full-width digits, signs and spaces
-/// from Chinese typing count as their ASCII forms (`（２＋３）×４`), and a `=` at the end is ignored.
+/// value for percent (`50%` is 0.5, `200*5%` is 10; added or subtracted, a percentage is one of what
+/// comes before, as on a calculator: `100+10%` is 110, `100-10%` is 90); the functions `sqrt abs round
+/// floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles are radians, `round(x, 2)`
+/// keeps two decimals) and the constants `pi` (`π`) and `e`, in any case. Full-width digits, signs and
+/// spaces from Chinese typing count as their ASCII forms (`（２＋３）×４`), and a `=` at the end is ignored.
 ///
 /// `+ - * /`, `%` and whole powers are exact decimals (`Decimal`: `0.1+0.2` is `0.3`, `2^100` keeps
 /// all 31 digits); the functions and other powers use `Double`, and so does anything beyond what a
@@ -277,6 +278,11 @@ public enum Calculator {
         var index = 0
         var depth = 0
 
+        /// A value read, and whether it is a percentage: a value with `%` after it (signs before it are
+        /// fine) that isn't multiplied, divided or raised, which `sum` adds or subtracts as a part of what
+        /// comes before.
+        typealias Operand = (value: Number, isPercentage: Bool)
+
         init(tokens: [Token]) { self.tokens = tokens }
 
         var next: Token.Kind? { index < tokens.count ? tokens[index].kind : nil }
@@ -288,57 +294,63 @@ public enum Calculator {
             return value
         }
 
-        /// Terms added and subtracted, left to right.
+        /// Terms added and subtracted, left to right. A percentage added or subtracted is one of what comes
+        /// before, as on a calculator (the iPhone's, Google's): a ± b% is a ± a×b/100, so `100+10%` is 110
+        /// and `100-10%` is 90. Anywhere else it is just a number: `10%` is 0.1, `200*5%` is 10.
         mutating func sum() throws -> Number {
-            var value = try product()
+            var value = try product().value
             while let op = next, op == .plus || op == .minus {
                 index += 1
-                let term = try product()
-                value = try op == .plus ? value + term : value - term
+                let (term, isPercentage) = try product()
+                let change = try isPercentage ? value * term : term
+                value = try op == .plus ? value + change : value - change
             }
             return value
         }
 
         /// Factors multiplied and divided, left to right.
-        mutating func product() throws -> Number {
-            var value = try signed()
+        mutating func product() throws -> Operand {
+            var (value, isPercentage) = try signed()
             while let op = next, op == .times || op == .divide {
                 index += 1
-                let factor = try signed()
+                let factor = try signed().value
                 value = try op == .times ? value * factor : value / factor
+                isPercentage = false
             }
-            return value
+            return (value, isPercentage)
         }
 
         /// Signs before a power: `-2^2` is −(2^2), `--3` is 3.
-        mutating func signed() throws -> Number {
+        mutating func signed() throws -> Operand {
             var negative = false
             while let op = next, op == .plus || op == .minus {
                 if op == .minus { negative.toggle() }
                 index += 1
             }
-            let value = try power()
-            return negative ? -value : value
+            let (value, isPercentage) = try power()
+            return (negative ? -value : value, isPercentage)
         }
 
         /// `a^b`, right to left (`2^3^2` is 2^9); the exponent may have a sign (`2^-1`).
-        mutating func power() throws -> Number {
+        mutating func power() throws -> Operand {
             let base = try percent()
             guard next == .power else { return base }
             index += 1
             try enter()
             defer { depth -= 1 }
-            return try base.raised(to: try signed())
+            return (try base.value.raised(to: try signed().value), false)
         }
 
         /// `50%` is 0.5.
-        mutating func percent() throws -> Number {
+        mutating func percent() throws -> Operand {
             var value = try primary()
+            var isPercentage = false
             while next == .percent {
                 index += 1
                 value = try value / .decimal(100)
+                isPercentage = true
             }
-            return value
+            return (value, isPercentage)
         }
 
         /// A number, a constant, a function call or an expression in parentheses.

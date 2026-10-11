@@ -460,6 +460,19 @@ struct WebSearchTests {
         #expect(SearchStub.requests("nested-nokey.search.test").isEmpty)
     }
 
+    @Test func inALinkOrAMessageTheResultsAreTheList() throws {
+        // Context for what reads the text next: the improve conversion, an AI command, a program…
+        for outer in [nil, .improve, .question, catalog.first { $0.name == "stock" }] as [Command?] {
+            #expect(WebSearch.Output.inside(outer) == .context, "\(outer?.name ?? "no command")")
+        }
+        // …but a link's text goes into a web address (on one line), and a message's to a person: the list, as
+        // on its own, without the notes for a model.
+        let google = try #require(Command.catalog([CustomCommand(name: "google", type: .link, url: "https://www.google.com/search?q={input}")])
+            .first { $0.name == "google" })
+        #expect(WebSearch.Output.inside(google) == .line)
+        #expect(WebSearch.Output.inside(.imessage) == .list)
+    }
+
     // MARK: Composer
 
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
