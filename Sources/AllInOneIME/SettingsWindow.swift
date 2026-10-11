@@ -931,11 +931,18 @@ struct SettingsView: View {
                 }
             } footer: {
                 // At the very end, out of the way; selectable for bug reports, the same in both languages.
-                if let version = Self.version {
-                    Text("AllInOneIME \(version)")
-                        .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                VStack(spacing: 2) {
+                    if let version = Self.version {
+                        Text("AllInOneIME \(version)").textSelection(.enabled)
+                    }
+                    HStack(spacing: 0) {
+                        Text("© 2026 Weijian Zhang · ")
+                        Link("weijianz.com", destination: URL(string: "https://weijianz.com")!)
+                        Text(" · GPL-3.0")
+                    }
                 }
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .formStyle(.grouped)

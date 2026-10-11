@@ -6,10 +6,13 @@
 
 A macOS input method. Day to day it's a regular pinyin input method that runs locally, built on Rime + rime-ice
 (雾凇拼音). Start a sentence with `@` for a command and press ⏎ when done to run it: `@improve` has a large language
-model on Amazon Bedrock give three idiomatic English versions and a few rewrites, `@question` asks a question,
-`@claude` opens Claude Code in Terminal, and `@open` finds files and apps. You can also hold right ⌥ and talk.
+model polish it and give a few rewrites, `@translate` translates into the languages you pick, `@question` asks a
+question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web address. You can also
+hold right ⌥ and talk.
 
-![Two steps: @improve plus pinyin, then ⏎ for English versions and Chinese rewrites](docs/en/demo.png)
+Author: [Weijian Zhang](https://weijianz.com)
+
+![Two steps: @improve plus pinyin, then ⏎ for polished versions and rewrites](docs/en/demo.png)
 
 ![@improve plus English: English polish (with Jargon); with the output set to Chinese: Chinese polish](docs/en/english.png)
 
@@ -365,5 +368,5 @@ The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to rem
 
 ## License
 
-GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
+Copyright © 2026 [Weijian Zhang](https://weijianz.com). GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
 are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

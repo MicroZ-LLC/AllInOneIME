@@ -5,10 +5,12 @@
 中文 | [English](README.en.md)
 
 一个 macOS 输入法。平时就是普通拼音输入法，在本地运行，基于 Rime + 雾凇拼音。句子开头打 `@` 就是命令，
-写完按 ⏎ 执行：`@improve` 用 Amazon Bedrock 上的大模型给出三种地道的英文说法和几种改写，`@question` 提问，
-`@claude` 在终端里开 Claude Code，`@open` 找文件和 App。也可以按住右 ⌥ 说话。
+写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，
+`@claude` 交给 Claude Code，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。
 
-![两步：@improve 加拼音，再按 ⏎ 出英文和中文改写](docs/demo.png)
+作者：[Weijian Zhang](https://weijianz.com)
+
+![两步：@improve 加拼音，再按 ⏎ 出润色和改写](docs/demo.png)
 
 ![@improve 加英文：英文润色（含黑话）；输出设成中文：中文润色](docs/english.png)
 
@@ -345,5 +347,5 @@ Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添�
 
 ## 许可证
 
-GPL-3.0，见 [LICENSE](LICENSE)。用到的第三方组件（librime 及插件为 BSD-3-Clause，雾凇拼音为 GPL-3.0）
+Copyright © 2026 [Weijian Zhang](https://weijianz.com)。GPL-3.0，见 [LICENSE](LICENSE)。用到的第三方组件（librime 及插件为 BSD-3-Clause，雾凇拼音为 GPL-3.0）
 见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
