@@ -142,11 +142,16 @@ enum UIText {
     }
 
     /// When a reminder is due, as its row and the notice say it: 「明天 15:00」 (or 「明天 下午3:00」, following the
-    /// Mac's 12/24-hour setting), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no date"),
-    /// with 「已过」 / "overdue" once that time is over.
+    /// Mac's 12/24-hour setting, or `clock24`), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no
+    /// date"), with 「已过」 / "overdue" once that time is over.
     static func when(_ reminder: ReminderDraft, now: Date = Date()) -> String {
-        reminder.when(now: now, chinese: chinese)
+        reminder.when(now: now, chinese: chinese, clock24: clock24 ?? ReminderDraft.systemUses24HourClock)
     }
+
+    /// Times shown with the 24-hour clock (true) or the 12-hour one (false) whatever the Mac uses; nil follows
+    /// the Mac (System Settings → General → Date & Time). The self-test pins it, so the README images read the
+    /// same on every Mac. Main thread only.
+    static var clock24: Bool?
 
     /// The row comment of an answer: "回答" / "answer", "Claude".
     static func answerLabel(_ command: Command?) -> String {

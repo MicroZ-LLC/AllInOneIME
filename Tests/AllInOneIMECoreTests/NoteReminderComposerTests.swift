@@ -129,6 +129,105 @@ extension ComposerTests {
         #expect(choosing.restoreDraft(.reminder, text: "明天下午3点给张三打电话") == nil && choosing.phase == .choosing)
     }
 
+    /// An @note draft holding `lines`, taken from the clipboard by ⏎ on the empty command (by default the
+    /// reviewer's commands).
+    func noteWithLines(_ lines: String = "cd ~/project\nrm -rf build\nmake install") -> Composer {
+        let c = command("n")
+        _ = c.handleKeyDown(enterKey)
+        _ = c.pasted(lines, id: 1)
+        return c
+    }
+
+    @Test func aNoteWithLineBreaksIsNeverInsertedAsTyped() {
+        // Its line breaks would be Returns: in a terminal each line would run as a command. When the field loses
+        // focus or the app ends the composition (commitAll), secure input takes over (commitAsTyped), or ⇧⏎ asks
+        // for the draft as typed: nothing goes in, the note's text goes to the clipboard, and the notice says so.
+        let lines = "cd ~/project\nrm -rf build\nmake install"
+        let unsaved: [Composer.Effect] = [.hidePanel, .updateMarkedText, .copy(lines), .notice("笔记还没存，原文已复制到剪贴板")]
+        let focus = noteWithLines()
+        #expect(focus.draft == "@note " + lines && focus.markedText == "note › cd ~/project ↵ rm -rf build ↵ make install")
+        #expect(focus.commitAll() == unsaved && focus.phase == .idle && focus.draft.isEmpty && focus.markedText.isEmpty)
+        let secure = noteWithLines()
+        #expect(secure.commitAsTyped() == unsaved && secure.phase == .idle && secure.draft.isEmpty)
+        let shift = noteWithLines()
+        #expect(shift.handleKeyDown(shiftReturn) == .consumed(unsaved) && shift.phase == .idle && shift.draft.isEmpty)
+        #expect(Composer.Messages.english.noteNotSaved == "The note wasn't saved; its text is on the clipboard")
+        // What was still being typed after it goes with it: converted, as typed, or as heard so far.
+        let pinyin = noteWithLines("牛奶\n鸡蛋")
+        type("nihao", pinyin)
+        let converted = pinyin.commitAll()
+        #expect(commits(converted).isEmpty && converted.contains(.copy("牛奶\n鸡蛋你好")))
+        let raw = noteWithLines("牛奶\n鸡蛋")
+        type("nihao", raw)
+        let asTyped = raw.commitAsTyped()
+        #expect(commits(asTyped).isEmpty && asTyped.contains(.copy("牛奶\n鸡蛋nihao")))
+        let spoken = noteWithLines("牛奶\n鸡蛋")
+        _ = startDictation(spoken)
+        _ = spoken.voiceText("面包", id: 1)
+        let heard = spoken.commitAll()
+        #expect(commits(heard).isEmpty && heard.first == .cancelVoice(id: 1) && heard.contains(.copy("牛奶\n鸡蛋面包")))
+        // Back in the draft after a save that failed: the same when the user then goes to System Settings.
+        let back = composer().0
+        _ = back.restoreDraft(.note, text: "牛奶\n鸡蛋")
+        #expect(back.commitAll() == [.hidePanel, .updateMarkedText, .copy("牛奶\n鸡蛋"), .notice("笔记还没存，原文已复制到剪贴板")])
+        // A shortcut on it (⌘A; ⌘V in a terminal, which pastes on its own) doesn't insert it as typed: the note
+        // stays, the key is the app's (the clipboard isn't replaced right before a terminal pastes it).
+        let shortcut = noteWithLines()
+        shortcut.pastesIntoDraft = false
+        for key in [k("a", mods: .command), KeyEvent(keyCode: 0x09, characters: "v", modifiers: .command)] {
+            #expect(shortcut.handleKeyDown(key) == .passThrough && shortcut.draft == "@note " + lines, "\(key.characters)")
+        }
+        // A note on one line goes in as typed, like any draft (also on a shortcut, in English).
+        let one = command("n")
+        type("nihao", one)
+        _ = one.handleKeyDown(spaceKey)
+        #expect(commits(one.commitAll()) == ["@note 你好"])
+        let oneRaw = command("n")
+        type("nihao", oneRaw)
+        #expect(commits(oneRaw.commitAsTyped()) == ["@note nihao"])
+        let oneShift = command("n")
+        type("nihao", oneShift)
+        _ = oneShift.handleKeyDown(spaceKey)
+        #expect(commits(oneShift.handleKeyDown(shiftReturn)) == ["@note 你好"])
+        let oneLatin = noteWithLines("buy milk")
+        let r = oneLatin.handleKeyDown(k("a", mods: .command))
+        #expect(!r.handled && commits(r) == ["@note buy milk"])
+    }
+
+    @Test func noCommandListInsideANoteAReminderOrASearch() {
+        // They take their text as typed (no command inside runs first), so "@" there is just text: "@r" offered
+        // @read, and picked, the note got "@read …" as its text.
+        for (letters, name) in [("n", "note"), ("rem", "reminder")] {
+            let c = command(letters)
+            _ = c.handleKeyDown(enterKey)
+            _ = c.pasted("看", id: 1)
+            #expect(c.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && c.draft == "@\(name) 看@")
+            #expect(c.paletteQuery == nil && c.paletteMatches.isEmpty, "\(name)")
+            type("r", c)  // pinyin, as anywhere else in the text
+            #expect(c.paletteQuery == nil && c.markedText == "\(name) › 看＠r", "\(name): \(c.markedText)")
+            let sent = c.handleKeyDown(enterKey).effects  // ⏎ converts the "r" and sends it all, as typed
+            #expect(name == "note" ? sent.contains(.saveNote(text: "看@r")) : sent.first == .previewReminder(input: "看@r", id: 1),
+                    "\(name): \(sent)")
+        }
+        let open = command("o")
+        _ = open.handleKeyDown(enterKey)
+        _ = open.pasted("报告", id: 1)
+        _ = open.handleKeyDown(at)
+        type("r", open)  // letters, as @open types them
+        #expect(open.draft == "@open 报告@r" && open.paletteQuery == nil && open.markedText == "open › 报告＠r")
+        #expect(open.handleKeyDown(enterKey).effects.first == .search(query: "报告@r", id: 1))
+        // A command written in their text isn't shown as one either; where commands do run inside, the list is there.
+        let pasted = command("n")
+        _ = pasted.handleKeyDown(enterKey)
+        _ = pasted.pasted("看 @read https://example.com", id: 1)
+        #expect(pasted.markedText == "note › 看 ＠read https://example.com")
+        let question = command("q")
+        type("nihao", question)
+        _ = question.handleKeyDown(spaceKey)
+        _ = question.handleKeyDown(at)
+        #expect(question.paletteQuery == "" && question.paletteMatches == [.read])
+    }
+
     @Test func reminderIsShownToConfirmThenAdded() {
         let c = command("rem")
         type("nihao", c)

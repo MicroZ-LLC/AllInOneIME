@@ -1,47 +1,63 @@
 import Foundation
 
-/// The apps in the folders apps are installed in, with every name each goes by. Spotlight knows an app
-/// by its file name and its name in the system language only: on an English system 计算器 doesn't find
-/// Calculator.app. Built when first asked for (off the main thread: it reads every app's Info.plist and
-/// localized names), then kept, and built again when one of the folders changed (by their modification
-/// dates, compared at most every `recheckInterval`).
+/// What `@open` finds by every name it goes by: the apps in the folders apps are installed in, Finder (访达),
+/// and the folders Finder names in its sidebar (`places`: 下载 is the Downloads folder). Spotlight knows them
+/// by their file names and their names in the system language only: on an English system 计算器 doesn't find
+/// Calculator.app, nor 下载 the Downloads folder. Built when first asked for (off the main thread: it reads
+/// every app's Info.plist and localized names), then kept, and built again when one of the folders changed
+/// (by their modification dates, compared at most every `recheckInterval`).
 public final class AppIndex: @unchecked Sendable {
     public struct App: Equatable, Sendable {
         public var path: String
-        /// Its name in an English interface ("Calculator"), and in a Chinese one (计算器; nil: none known).
-        public var english: String
+        /// Its name in a Chinese interface (计算器, 下载; nil: none known). An English one shows it as Finder
+        /// does (`FileManager.displayName`): the bundle's English name may be another ("Playground" for
+        /// Image Playground).
         public var chinese: String?
-        /// Every name it goes by, to match what is typed: the file name without ".app", the bundle's names,
-        /// its English and Chinese (simplified and traditional) ones.
+        /// Every name it goes by, to match what is typed: an app's file name without ".app", the bundle's
+        /// names, its English and Chinese (simplified and traditional) ones; a place's names in Finder.
         public var names: [String]
+        /// One of the folders of `places`, not an app: listed like one.
+        public var isPlace: Bool
 
-        public init(path: String, english: String, chinese: String? = nil, names: [String]) {
+        public init(path: String, chinese: String? = nil, names: [String], isPlace: Bool = false) {
             self.path = path
-            self.english = english
             self.chinese = chinese
             self.names = names
+            self.isPlace = isPlace
         }
     }
 
     /// Where apps are installed. The folders directly inside these are looked in too ("Chrome Apps.localized").
     public static let standardFolders = ["/Applications", "/Applications/Utilities", "/System/Applications",
                                          "/System/Applications/Utilities", "~/Applications"]
+    /// Apps opened by name from elsewhere: Finder (in /System/Library/CoreServices, which `@open` doesn't search).
+    public static let standardApps = ["/System/Library/CoreServices/Finder.app"]
 
     public static let shared = AppIndex()
 
     private let folders: [String]
+    private let extraApps: [String]
+    private let home: String?
+    private let finderNames: @Sendable (_ language: String) -> [String: String]
     private let recheckInterval: TimeInterval
     private let lock = NSLock()
     /// The apps; every folder looked in, with its modification date then (nil: it didn't exist); when
     /// those dates were last compared.
     private var built: (apps: [App], folders: [String: Date?], checked: Date)?
 
-    public init(folders: [String] = standardFolders, recheckInterval: TimeInterval = 30) {
+    /// `apps`: single apps, besides those in `folders`. `home`: whose folders `places` lists (nil: none).
+    /// `finderNames`: what Finder calls them in a language (`systemFinderNames`).
+    public init(folders: [String] = standardFolders, apps: [String] = standardApps, home: String? = NSHomeDirectory(),
+                finderNames: @escaping @Sendable (_ language: String) -> [String: String] = AppIndex.systemFinderNames,
+                recheckInterval: TimeInterval = 30) {
         self.folders = folders.map { ($0 as NSString).expandingTildeInPath }
+        self.extraApps = apps
+        self.home = home
+        self.finderNames = finderNames
         self.recheckInterval = recheckInterval
     }
 
-    /// The apps as of `now`: built again first when one of the folders changed.
+    /// The apps and places as of `now`: built again first when one of the folders changed.
     public func apps(now: Date = Date()) -> [App] {
         // Held while building (a fraction of a second): a second search waits for the same index.
         lock.withLock {
@@ -53,8 +69,11 @@ public final class AppIndex: @unchecked Sendable {
                 }
             }
             let scan = Self.scan(folders)
-            built = (scan.apps, scan.folders, now)
-            return scan.apps
+            let scanned = Set(scan.apps.map(\.path))
+            let extra = extraApps.filter { !scanned.contains($0) && Self.isDirectory($0) }.map(Self.app(at:))
+            let all = scan.apps + extra + (home.map { Self.places(home: $0, finderNames: finderNames) } ?? [])
+            built = (all, scan.folders, now)
+            return all
         }
     }
 
@@ -106,11 +125,55 @@ public final class AppIndex: @unchecked Sendable {
         // An app made for China may have its Chinese name in Info.plist itself, and no Chinese strings.
         let chinese = simplified.first ?? (info + base).first(where: \.containsHan)
         var seen = Set<String>()
-        let all = ([fileName] + info + english + simplified + traditional + base).filter {
-            seen.insert($0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)).inserted
+        let all = ([fileName] + info + english + simplified + traditional + base).filter { seen.insert(folded($0)).inserted }
+        return App(path: path, chinese: chinese, names: all)
+    }
+
+    /// The folders Finder names in its sidebar and Go menu, each with the English name macOS's localizations
+    /// know it by: the home folder, its Desktop, Documents, Downloads, Pictures, Movies, Music, Public and
+    /// Applications, and /Applications.
+    static func placePaths(home: String) -> [(path: String, key: String)] {
+        let inHome = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Public", "Applications"]
+        return [(home, "Home")] + inHome.map { ((home as NSString).appendingPathComponent($0), $0) }
+            + [("/Applications", "Applications")]
+    }
+
+    /// The places of `placePaths` that are there, each under its names in Finder: its file name, as Finder
+    /// shows it (`FileManager.displayName`, in the system language), and what Finder calls it in English and
+    /// in Chinese, simplified and traditional (`finderNames` for a language, else `fallbackNames`): 下载,
+    /// 下載項目 and "downloads" all find the Downloads folder. A Chinese interface shows the simplified name.
+    /// The home folder keeps its own (the user's short name, as in Finder's sidebar); "Home" and 个人
+    /// (Finder's Go menu) find it.
+    static func places(home: String, finderNames: (_ language: String) -> [String: String]) -> [App] {
+        let english = finderNames("en"), simplified = finderNames("zh_CN")
+        let traditional = [finderNames("zh_TW"), finderNames("zh_HK")]
+        return placePaths(home: home).filter { isDirectory($0.path) }.map { place in
+            let chinese = simplified[place.key] ?? fallbackNames[place.key]
+            let localized = [english[place.key] ?? place.key, chinese] + traditional.map { $0[place.key] }
+            var seen = Set<String>()
+            let names = ([(place.path as NSString).lastPathComponent, FileManager.default.displayName(atPath: place.path)]
+                         + localized.compactMap { $0 }).filter { !$0.isEmpty && seen.insert(folded($0)).inserted }
+            return App(path: place.path, chinese: place.key == "Home" ? nil : chinese, names: names, isPlace: true)
         }
-        return App(path: path, english: english.first ?? info.first(where: { !$0.containsHan }) ?? fileName,
-                   chinese: chinese, names: all)
+    }
+
+    /// Finder's Chinese names for the places, for when macOS's own can't be read (in English they are the keys).
+    static let fallbackNames = ["Home": "个人", "Desktop": "桌面", "Documents": "文稿", "Downloads": "下载", "Pictures": "图片",
+                                "Movies": "影片", "Music": "音乐", "Public": "公共", "Applications": "应用程序"]
+
+    /// What Finder calls the places in `language` (an .lproj name: "en", "zh_CN"), by their English names
+    /// ("Downloads" = "下载"): macOS's names for its standard folders, and Finder's own for the home folder
+    /// ("Home" = "个人", in its Go menu). Empty where they can't be read.
+    public static func systemFinderNames(_ language: String) -> [String: String] {
+        let folders = "/System/Library/CoreServices/SystemFolderLocalizations/\(language).lproj/SystemFolderLocalizations.strings"
+        let finder = "/System/Library/CoreServices/Finder.app/Contents/Resources/\(language).lproj/Localizable.strings"
+        var names = dictionary(at: folders).compactMapValues { $0 as? String }
+        names["Home"] = dictionary(at: finder)["Home"] as? String
+        return names
+    }
+
+    static func folded(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 
     /// CFBundleDisplayName and CFBundleName, those that are there.

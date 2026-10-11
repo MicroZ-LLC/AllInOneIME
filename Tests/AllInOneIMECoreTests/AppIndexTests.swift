@@ -60,20 +60,21 @@ struct AppIndexTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try makeApps()
         // The folder inside listed as a folder of its own too, and one that doesn't exist: each app once.
-        let index = AppIndex(folders: [root.path, root.appendingPathComponent("Utilities").path, root.path + "/Missing"])
+        let index = AppIndex(folders: [root.path, root.appendingPathComponent("Utilities").path, root.path + "/Missing"],
+                             apps: [], home: nil)
         let all = index.apps(now: Date())
         #expect(all.map { ($0.path as NSString).lastPathComponent }.sorted()
             == ["Calculator.app", "FindMy.app", "Plain.app", "Terminal.app", "WeChat.app", "rednote.app"])
         let apps = apps(index, now: Date())
-        #expect(apps["Calculator.app"] == AppIndex.App(path: root.path + "/Calculator.app", english: "Calculator", chinese: "计算器",
+        #expect(apps["Calculator.app"] == AppIndex.App(path: root.path + "/Calculator.app", chinese: "计算器",
                                                        names: ["Calculator", "计算器", "計算機"]))
-        #expect(apps["FindMy.app"]?.english == "Find My" && apps["FindMy.app"]?.chinese == "查找")
-        #expect(apps["FindMy.app"]?.names == ["FindMy", "Find My", "查找"])
-        #expect(apps["WeChat.app"]?.english == "WeChat" && apps["WeChat.app"]?.chinese == "微信" && apps["WeChat.app"]?.names == ["WeChat", "微信"])
+        #expect(apps["FindMy.app"]?.chinese == "查找" && apps["FindMy.app"]?.names == ["FindMy", "Find My", "查找"])
+        #expect(apps["WeChat.app"]?.chinese == "微信" && apps["WeChat.app"]?.names == ["WeChat", "微信"])
         #expect(apps["Terminal.app"]?.chinese == "终端" && apps["Terminal.app"]?.path == root.path + "/Utilities/Terminal.app")
-        #expect(apps["rednote.app"] == AppIndex.App(path: root.path + "/rednote.app", english: "rednote", chinese: "小红书",
+        #expect(apps["rednote.app"] == AppIndex.App(path: root.path + "/rednote.app", chinese: "小红书",
                                                     names: ["rednote", "小红书", "discover"]))
-        #expect(apps["Plain.app"] == AppIndex.App(path: root.path + "/Plain.app", english: "Plain", names: ["Plain"]))
+        #expect(apps["Plain.app"] == AppIndex.App(path: root.path + "/Plain.app", names: ["Plain"]))
+        #expect(all.allSatisfy { !$0.isPlace })
         // What @open makes of them.
         let found = all.map { FileSearchRanking.Found(path: $0.path, names: $0.names) }
         func open(_ query: String) -> [String] {
@@ -89,7 +90,7 @@ struct AppIndexTests {
     @Test func isBuiltAgainOnlyWhenAFolderChanged() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         try makeApps()
-        let index = AppIndex(folders: [root.path], recheckInterval: 30)
+        let index = AppIndex(folders: [root.path], apps: [], home: nil, recheckInterval: 30)
         let start = Date()
         #expect(apps(index, now: start)["WeChat.app"]?.chinese == "微信")
         // Inside a bundle: the folders keep their dates, the index stays as it is.
@@ -111,10 +112,94 @@ struct AppIndexTests {
     @Test func aMissingFolderThatAppearsIsLookedIn() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         let later = root.appendingPathComponent("Applications")
-        let index = AppIndex(folders: [later.path])
+        let index = AppIndex(folders: [later.path], apps: [], home: nil)
         let start = Date()
         #expect(index.apps(now: start).isEmpty)
         try plist(["CFBundleName": "Safari"], at: "Applications/Safari.app/Contents/Info.plist")
-        #expect(index.apps(now: start.addingTimeInterval(31)).map(\.english) == ["Safari"])
+        #expect(index.apps(now: start.addingTimeInterval(31)).map(\.names) == [["Safari"]])
+    }
+
+    @Test func findsFinderOutsideTheAppFolders() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Finder is in /System/Library/CoreServices, where @open doesn't look; its Chinese name is 访达.
+        #expect(AppIndex.standardApps == ["/System/Library/CoreServices/Finder.app"])
+        try plist(["CFBundleName": "Finder"], at: "CoreServices/Finder.app/Contents/Info.plist")
+        try plist(["zh_CN": ["CFBundleDisplayName": "访达"], "zh_TW": ["CFBundleName": "Finder"]],
+                  at: "CoreServices/Finder.app/Contents/Resources/InfoPlist.loctable")
+        try plist(["CFBundleName": "Notes"], at: "Applications/Notes.app/Contents/Info.plist")
+        let finder = root.path + "/CoreServices/Finder.app"
+        // Listed once, also when a folder has it already; one that isn't there is left out.
+        let index = AppIndex(folders: [root.path + "/Applications"],
+                             apps: [finder, root.path + "/Applications/Notes.app", root.path + "/Gone.app"], home: nil)
+        let all = index.apps(now: Date())
+        #expect(all.map(\.path) == [root.path + "/Applications/Notes.app", finder])
+        #expect(all.last == AppIndex.App(path: finder, chinese: "访达", names: ["Finder", "访达"]))
+        let found = all.map { FileSearchRanking.Found(path: $0.path, names: $0.names) }
+        for query in ["访达", "finder", "FIND"] {
+            // Not a path @open would search (/Library/): the index's apps are listed as they are.
+            let listed = FileSearchRanking.search(query, limit: 8, history: OpenHistory(), apps: found,
+                                                  isCandidate: { !$0.contains("/CoreServices/") },
+                                                  byName: { _ in [] }, byContent: { _ in [] })
+            #expect(listed.map(\.path) == [finder], "\(query)")
+        }
+    }
+
+    /// What Finder calls the standard folders, as macOS's localizations have it (a few of them).
+    static let finderNames: [String: [String: String]] = [
+        "en": ["Home": "Home", "Desktop": "Desktop", "Downloads": "Downloads", "Applications": "Applications"],
+        "zh_CN": ["Home": "个人", "Desktop": "桌面", "Downloads": "下载", "Applications": "应用程序"],
+        "zh_TW": ["Home": "個人專屬", "Downloads": "下載項目", "Applications": "應用程式"],
+        "zh_HK": ["Downloads": "下載項目"],
+    ]
+
+    @Test func listsTheStandardFoldersUnderTheirFinderNames() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = root.appendingPathComponent("me").path
+        for folder in ["Desktop", "Downloads", "Documents", "Music"] {
+            try FileManager.default.createDirectory(atPath: home + "/" + folder, withIntermediateDirectories: true)
+        }
+        try strings("not a folder", at: "me/Pictures")
+        let places = AppIndex.places(home: home) { Self.finderNames[$0] ?? [:] }
+        // The home folder, those of its folders that are there (Pictures is a file here), and /Applications.
+        let byName = Dictionary(places.map { (($0.path as NSString).lastPathComponent, $0) }, uniquingKeysWith: { first, _ in first })
+        #expect(places.map(\.path) == [home, home + "/Desktop", home + "/Documents", home + "/Downloads", home + "/Music", "/Applications"])
+        #expect(places.allSatisfy { $0.isPlace })
+        #expect(byName["Downloads"] == AppIndex.App(path: home + "/Downloads", chinese: "下载", names: ["Downloads", "下载", "下載項目"],
+                                                     isPlace: true))
+        #expect(byName["Applications"]?.chinese == "应用程序" && byName["Applications"]?.names == ["Applications", "应用程序", "應用程式"])
+        // Not in the localizations given: Finder's Chinese names from the table, English ones as the folders are named.
+        #expect(byName["Documents"]?.chinese == "文稿" && byName["Documents"]?.names == ["Documents", "文稿"])
+        #expect(byName["Music"]?.names == ["Music", "音乐"])
+        // The home folder shows as itself (the user's short name, as in Finder's sidebar); Home and 个人 find it.
+        #expect(byName["me"] == AppIndex.App(path: home, names: ["me", "Home", "个人", "個人專屬"], isPlace: true))
+        // Nothing readable at all: the table.
+        let fallback = AppIndex.places(home: home) { _ in [:] }
+        #expect(fallback.first { $0.path.hasSuffix("/Downloads") }?.names == ["Downloads", "下载"])
+        #expect(fallback.first?.names == ["me", "Home", "个人"] && fallback.first?.chinese == nil)
+        // In the index, after the apps; what @open makes of them: ranked like apps, so a full-text search
+        // doesn't list the files that mention 下载.
+        let index = AppIndex(folders: [], apps: [], home: home, finderNames: { Self.finderNames[$0] ?? [:] })
+        let found = index.apps(now: Date()).map { FileSearchRanking.Found(path: $0.path, names: $0.names, isPlace: $0.isPlace) }
+        var contentSearches = 0
+        func open(_ query: String, spotlight: [FileSearchRanking.Found] = []) -> [String] {
+            FileSearchRanking.search(query, limit: 8, history: OpenHistory(), apps: found, isCandidate: { $0.hasPrefix(home + "/") },
+                                     byName: { _ in spotlight },
+                                     byContent: { _ in contentSearches += 1; return [FileSearchRanking.Found(path: home + "/mentions it.md")] })
+                .map(\.path)
+        }
+        #expect(open("下载") == [home + "/Downloads"] && open("下載項目") == [home + "/Downloads"])
+        #expect(open("downloads", spotlight: [FileSearchRanking.Found(path: home + "/Downloads/downloads.txt",
+                                                                       lastUsed: Date())]) == [home + "/Downloads", home + "/Downloads/downloads.txt"])
+        #expect(open("桌面") == [home + "/Desktop"] && open("个人") == [home] && open("应用程序") == ["/Applications"])
+        #expect(contentSearches == 0)
+        #expect(open("音乐会") == [home + "/mentions it.md"] && contentSearches == 1)  // not a place: the content then
+    }
+
+    @Test func readsFinderNamesFromMacOS() {
+        // The names this Mac's Finder shows (macOS keeps them in every language it supports).
+        let simplified = AppIndex.systemFinderNames("zh_CN"), english = AppIndex.systemFinderNames("en")
+        #expect(simplified["Downloads"] == "下载" && simplified["Documents"] == "文稿" && simplified["Applications"] == "应用程序")
+        #expect(simplified["Home"] == "个人" && english["Home"] == "Home" && english["Desktop"] == "Desktop")
+        #expect(AppIndex.systemFinderNames("xx").isEmpty)
     }
 }

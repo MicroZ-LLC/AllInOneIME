@@ -334,7 +334,12 @@ final class AllInOneIMEInputController: IMKInputController {
         // sent to the model) in the app that turned it on; anything already typed goes in as typed.
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         if SecureInput.blocksComposing(target) {
-            if composer.isComposing { perform(composer.commitAsTyped(), client: client) }
+            if composer.isComposing {
+                let ended = composer.commitAsTyped()
+                perform(ended, client: client)
+                // A note that couldn't go in as typed says its text is on the clipboard: that notice stays up.
+                if ended.contains(where: { if case .notice = $0 { return true } else { return false } }) { secureNoticeShown = true }
+            }
             if !secureNoticeShown, let chars = event.characters, !chars.isEmpty,
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 secureNoticeShown = true
@@ -531,7 +536,8 @@ final class AllInOneIMEInputController: IMKInputController {
             case .hidePanel:
                 hidePanelIfOwned()
             case let .notice(text):
-                showNotice(text, client: target)
+                // A note left unsaved, its text on the clipboard: up as long as the other "on the clipboard" notices.
+                showNotice(text, client: target, long: text == composer.messages.noteNotSaved)
             case let .armVoice(delay):
                 voiceArmToken += 1
                 let token = voiceArmToken
@@ -571,13 +577,15 @@ final class AllInOneIMEInputController: IMKInputController {
     // MARK: - Notes and Reminders
 
     /// `@note`: the text goes to Notes in the background (the first time, macOS asks whether this may
-    /// control Notes, and the save waits for the answer). 「正在存到备忘录…」 at once, then a notice says it is
-    /// saved, or why not; a text that couldn't be saved is never lost (`SaveOutcome`). Only its length is logged.
+    /// control Notes, and the save waits for the answer). 「正在存到备忘录…」 at once, up until a notice says it is
+    /// saved, or why not (`progressNoticeLimit` at most); a text that couldn't be saved is never lost
+    /// (`SaveOutcome`). Only its length is logged.
     @MainActor
     private func saveToNotes(_ text: String) {
         log.notice("@note: saving \(text.count) chars")
-        showNotice(tr("正在存到备忘录…", "Saving to Notes…"), client: nil)
-        let (save, outcome) = (saveNote, SaveOutcome(from: self))
+        let progress = tr("正在存到备忘录…", "Saving to Notes…")
+        showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
+        let (save, outcome) = (saveNote, SaveOutcome(from: self, progress: progress))
         Task { @MainActor in
             do {
                 try await save(text)
@@ -591,15 +599,16 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// A confirmed `@reminder`: added to Reminders in the background (the first time, macOS asks for
-    /// access, and this waits for the answer). 「正在加到提醒事项…」 at once, then the notice says when it is
-    /// due (「已加到提醒事项：明天 15:00」), or why it wasn't added: then `input`, the text it was read from,
-    /// comes back (`SaveOutcome`).
+    /// access, and this waits for the answer). 「正在加到提醒事项…」 at once, up until the notice says when it is
+    /// due (「已加到提醒事项：明天 15:00」), or why it wasn't added (`progressNoticeLimit` at most): then `input`, the
+    /// text it was read from, comes back (`SaveOutcome`).
     @MainActor
     private func addToReminders(_ reminder: ReminderDraft, input: String) {
         let kind = reminder.due == nil ? "no date" : reminder.hasTime ? "a time" : "a day"
         log.notice("@reminder: adding one with \(kind, privacy: .public)")
-        showNotice(tr("正在加到提醒事项…", "Adding to Reminders…"), client: nil)
-        let (add, outcome) = (addReminder, SaveOutcome(from: self))
+        let progress = tr("正在加到提醒事项…", "Adding to Reminders…")
+        showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
+        let (add, outcome) = (addReminder, SaveOutcome(from: self, progress: progress))
         Task { @MainActor in
             do {
                 try await add(reminder)
@@ -616,17 +625,21 @@ final class AllInOneIMEInputController: IMKInputController {
     /// How a save to Notes or Reminders went, told where the user is when it comes back, even if the text field
     /// it came from (and its controller) is gone by then; made when the save starts, without keeping the
     /// controller alive. A failed save loses nothing: its text is back in the draft when that field is still
-    /// there with nothing being typed, else on the clipboard.
+    /// there with nothing being typed, else on the clipboard; on the clipboard as well when the user has to fix
+    /// something first (`needsTheUser`): going to System Settings takes the focus, which commits the draft.
     @MainActor
     struct SaveOutcome {
         private weak var origin: AllInOneIMEInputController?
         private let session: Int
         private let copy: (String) -> Void
+        /// The notice shown while the save is under way (「正在存到备忘录…」), replaced by the outcome.
+        private let progress: String
 
-        init(from controller: AllInOneIMEInputController) {
+        init(from controller: AllInOneIMEInputController, progress: String) {
             origin = controller
             session = controller.fieldSession
             copy = controller.copyText
+            self.progress = progress
         }
 
         /// The field the save came from, while it is still the same one.
@@ -636,25 +649,34 @@ final class AllInOneIMEInputController: IMKInputController {
 
         func failed(_ error: Error, command: Command, text: String) {
             let reason = UIText.describe(error)
-            let long = AllInOneIMEInputController.needsTheUser(error)
+            let needsTheUser = AllInOneIMEInputController.needsTheUser(error)
             if let field, let effects = field.composer.restoreDraft(command, text: text) {
                 field.perform(effects, client: nil)
-                field.showNotice(reason, client: nil, long: long)
+                if needsTheUser { copy(text) }
+                field.showNotice(needsTheUser ? tr("原文也复制到了剪贴板。", "The text is on the clipboard too. ") + reason : reason,
+                                 client: nil, long: needsTheUser)
                 return
             }
             copy(text)
             tell(tr("没有存上，原文已复制到剪贴板。", "Not saved; the text is on the clipboard. ") + reason, long: true)
         }
 
-        /// In the field it came from, else the one being typed in now, else near the pointer.
+        /// In the field it came from, else the one being typed in now, else near the pointer. The progress
+        /// notice, if still up where the save started, goes then.
         private func tell(_ notice: String, long: Bool) {
-            if let target = field ?? AllInOneIMEInputController.activeController {
+            let target = field ?? AllInOneIMEInputController.activeController
+            if let origin, origin !== target { origin.endNotice(progress) }
+            if let target {
                 target.showNotice(notice, client: nil, long: long)
             } else {
                 AllInOneIMEInputController.showLooseNotice(notice, long: long)
             }
         }
     }
+
+    /// The longest 「正在存到备忘录…」 / 「正在加到提醒事项…」 stays up: the outcome replaces it, but that can take a
+    /// while (Notes launching, the first permission prompt waiting for an answer). The self-test shortens it.
+    static var progressNoticeLimit: TimeInterval = 20
 
     /// Errors only the user can fix (a permission, an account): their notice stays up longer.
     static func needsTheUser(_ error: Error) -> Bool {
@@ -974,13 +996,14 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Short status message ("英" English mode, "已复制" copied, …): its own small
     /// panel when nothing else is shown, otherwise the right side of the footer. `long`: something the
-    /// user has to act on (a permission), up longer.
+    /// user has to act on (a permission), up longer; `lasting`: up this long instead, unless another notice
+    /// replaces it first (a save under way, until its outcome).
     @MainActor
-    private func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false) {
+    private func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false, lasting: TimeInterval? = nil) {
         let client = client ?? clientOverride ?? self.client()
         notice = text
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
-        perform(#selector(noticeExpired), with: nil, afterDelay: Self.noticeDuration(text, long: long))
+        perform(#selector(noticeExpired), with: nil, afterDelay: lasting ?? Self.noticeDuration(text, long: long))
         if composer.wantsPanel {
             showPanel(client)
         } else if let client {
@@ -991,6 +1014,15 @@ final class AllInOneIMEInputController: IMKInputController {
             model.status = .hint(text)
             panel.show(model, anchor: anchor(client))
         }
+    }
+
+    /// Takes `text` down if it is still the notice here: a save's progress, once its outcome is told in another
+    /// text field.
+    @MainActor
+    private func endNotice(_ text: String) {
+        guard notice == text else { return }
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
+        noticeExpired()
     }
 
     @objc private func noticeExpired() {
@@ -1033,7 +1065,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// An `@open` result's row, as you type and after ⏎: its name in the interface language (计算器 in a
     /// Chinese one), and where it is: 「应用」, or its folder (a folder's ends in "/"), after 「内容 · 」 when it
-    /// was found by what is in it.
+    /// was found by what is in it. A web address says it opens in the browser.
     static func openRow(_ result: SearchResult) -> (text: String, comment: String) {
         if result.webURL != nil { return (result.name, tr("在浏览器中打开", "open in the browser")) }
         let folder = ((result.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
@@ -1082,10 +1114,8 @@ final class AllInOneIMEInputController: IMKInputController {
                     return CandidateView.Row(label: choice.label, text: state.map { String(choice.text.dropFirst($0.0.count)) } ?? choice.text,
                                              comment: preview.count > 60 ? String(preview.prefix(60)) + "…" : preview, style: .candidate,
                                              icon: state.map { CommandIcons.icon(for: $0.1) })
-                case let .file(path) where SearchResult(name: "", path: path).webURL != nil:
-                    return CandidateView.Row(label: choice.label, text: choice.text,
-                                             comment: tr("在浏览器中打开", "open in the browser"), style: .candidate)
                 case let .file(path):
+                    // A file, folder, app or web address: drawn as when typing.
                     let row = Self.openRow(composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path))
                     return CandidateView.Row(label: choice.label, text: row.text, comment: row.comment, style: .candidate)
                 case let .reminder(reminder):
@@ -1188,8 +1218,12 @@ final class AllInOneIMEInputController: IMKInputController {
                 return CandidateView.Row(label: result.isFolder ? "›" : "", text: row.text, comment: row.comment, style: .candidate)
             }
             model.highlighted = composer.liveHighlight
-            model.footer = tr("⏎ 打开 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
-                              "⏎ open · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
+            // Only content matches: ⏎ lists them to pick from rather than open the first (`opensLiveResult`).
+            model.footer = composer.opensLiveResult
+                ? tr("⏎ 打开 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
+                     "⏎ open · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
+                : tr("⏎ 列出来选 · Tab 补全路径 · ↑↓ 选择 · ⌘C 复制路径 · Esc 取消",
+                     "⏎ pick from a list · Tab complete path · ↑↓ choose · ⌘C copy path · Esc cancel")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
             model.status = .hint(draftHint(config: config))

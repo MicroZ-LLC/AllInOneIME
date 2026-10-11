@@ -578,15 +578,22 @@ struct SettingsView: View {
 
             Section(tr("自定义 @ 命令", "Custom @ Commands")) {
                 ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
-                    HStack {
-                        Text("@" + command.name).font(.body.monospaced())
-                        Text(UIText.customKind(command)).foregroundStyle(.secondary)
-                        if let summary = command.summary {
-                            Text(summary).foregroundStyle(.secondary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text("@" + command.name).font(.body.monospaced())
+                            Text(UIText.customKind(command)).foregroundStyle(.secondary)
+                            if let summary = command.summary {
+                                Text(summary).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
+                            Button(tr("删除", "Delete")) { commandToDelete = index }
                         }
-                        Spacer()
-                        Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                        Button(tr("删除", "Delete")) { commandToDelete = index }
+                        if Self.hiddenByBuiltIn(command) {
+                            Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
+                                  systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 }
                 Button(tr("添加命令…", "Add Command…")) {
@@ -790,6 +797,12 @@ struct SettingsView: View {
     /// The input method's version (Info.plist), shown at the bottom of the window.
     static var version: String? {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    }
+
+    /// A custom command with a built-in's name (say a `note` added before @note was built in): the built-in hides
+    /// it (`Command.catalog`), so the list says so. The editor won't save such a name (`.nameTaken`).
+    static func hiddenByBuiltIn(_ command: CustomCommand) -> Bool {
+        Command.builtins.contains { $0.name == command.name.lowercased() }
     }
 
     /// The commands, at the top: what this input method does beyond pinyin.

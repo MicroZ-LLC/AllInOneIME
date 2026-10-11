@@ -87,7 +87,7 @@ public final class Composer {
         /// A text with commands inside it (`CommandPlan`): run the inner ones, then `outer` (nil: improve)
         /// on the result; it arrives via `receive`.
         case startPlan(outer: Command?, plan: CommandPlan, id: Int)
-        /// Put `text` on the clipboard (⌘C on a result).
+        /// Put `text` on the clipboard (⌘C on a result, or a note that can't be inserted: `Messages.noteNotSaved`).
         case copy(String)
         /// Read the clipboard's text for the draft (⌘V) and hand it to `pasted(_:id:)`, after the key
         /// has been answered: the system may ask the user first.
@@ -183,6 +183,9 @@ public final class Composer {
         public var noteTooLong: String
         /// A `link` command's text is longer than `LinkTemplate.maxInputLength`.
         public var linkTooLong: String
+        /// A note with line breaks was left unsaved (the text field lost focus, ⇧⏎): it isn't inserted, its text
+        /// is on the clipboard instead.
+        public var noteNotSaved: String
 
         public static let chinese = Messages(
             notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
@@ -197,7 +200,8 @@ public final class Composer {
             nothingToPaste: "剪贴板里没有能用的文字",
             reminderWithoutTitle: "写上要提醒的事，比如「明天下午3点给张三打电话」",
             noteTooLong: "剪贴板里的文字太长：最多 \(Composer.maxNoteLength) 字",
-            linkTooLong: "文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字")
+            linkTooLong: "文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字",
+            noteNotSaved: "笔记还没存，原文已复制到剪贴板")
         public static let english = Messages(
             notReady: "Loading the dictionaries, one moment", holdToTalk: "Hold right ⌥ to talk",
             didNotHear: "Didn't catch that, try again", chineseMode: "Chinese", englishMode: "English",
@@ -212,7 +216,8 @@ public final class Composer {
             nothingToPaste: "No text on the clipboard to use",
             reminderWithoutTitle: "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”",
             noteTooLong: "The clipboard text is too long: \(Composer.maxNoteLength) characters at most",
-            linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most")
+            linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
+            noteNotSaved: "The note wasn't saved; its text is on the clipboard")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
@@ -345,6 +350,8 @@ public final class Composer {
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
+        // In a note, a reminder or a search, an "@name" after the command is just text: none runs there.
+        let asTyped = takesTextAsTyped
         var out = ""
         var i = 0
         while i < chars.count {
@@ -358,7 +365,7 @@ public final class Composer {
             while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
             let name = String(chars[(i + 1)..<j]).lowercased()
             let afterWord = i > 0 && chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)
-            if !afterWord, names.contains(name), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
+            if !afterWord, i == 0 || !asTyped, names.contains(name), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
                 out += String(chars[(i + 1)..<j]) + " › "  // a chosen command
                 i = chars[j] == " " ? j + 1 : j
             } else if i == paletteAt, pickingCommand {
@@ -444,14 +451,22 @@ public final class Composer {
 
     /// The "@letters" being typed: at the start of the draft, or (`nested`) inside a command's text
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
+    /// Not inside a note, a reminder or a search: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
         guard !isLevelTwo, voice == .off, !engineState.isComposing, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
         guard query.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
         let before = draft[draft.index(before: at)]
-        guard draftCommand != nil, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
+        guard draftCommand != nil, !takesTextAsTyped, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
         return (String(query), true, at)
+    }
+
+    /// The draft is a note, a reminder or a search: no command inside its text runs first (`startAction`), so
+    /// an "@" in it is just text (no list to pick a command from, none shown as picked).
+    private var takesTextAsTyped: Bool {
+        guard let kind = draftCommand?.kind else { return false }
+        return kind == .note || kind == .reminder || kind == .search
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there.
@@ -511,7 +526,16 @@ public final class Composer {
         liveQuery != nil && liveResultsQuery == liveQuery ? liveResults : []
     }
 
-    /// Files and apps for `query` (`liveQuery`): ↑↓ pick, Tab completes the path, the action key opens.
+    /// Whether the action key opens the highlighted result as you type. Not the first when every row is a
+    /// content match: nothing is named like the text, so the first may have little to do with it, and the
+    /// key lists them to choose from instead, as before the results arrive. One picked with ↑↓ opens.
+    public var opensLiveResult: Bool {
+        let live = currentLiveResults
+        return live.indices.contains(liveHighlight) && (liveHighlight > 0 || !live.allSatisfy(\.matchedContent))
+    }
+
+    /// Files and apps for `query` (`liveQuery`): ↑↓ pick, Tab completes the path, the action key opens
+    /// (`opensLiveResult`).
     public func receiveLive(_ results: [SearchResult], for query: String) -> [Effect] {
         guard query == liveQuery else { return [] }
         liveResults = results
@@ -587,8 +611,10 @@ public final class Composer {
             return response
         }
         if modifiers.contains(.command) {
-            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …).
-            return isLatinDraft && !isLevelTwo ? Response(effects: commitAll(), handled: false) : .passThrough
+            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
+            // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
+            // the clipboard as it was, not the note put there by `commitAll`).
+            return isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
         }
         if event.keyCode == VirtualKey.space, modifiers == [.shift] {
             // ⇧Space is Space in every state (Shift is often still down after a capital: "I am").
@@ -828,7 +854,8 @@ public final class Composer {
     // MARK: - Ending the composition from outside
 
     /// The application ends the composition (focus change, click elsewhere, input source switch):
-    /// everything pending is committed as converted text, including speech recognized so far.
+    /// everything pending is committed as converted text, including speech recognized so far (but not a
+    /// note with line breaks: `finishAsTyped`).
     public func commitAll() -> [Effect] {
         var effects: [Effect] = []
         var spoken = ""
@@ -841,11 +868,11 @@ public final class Composer {
             text += engine.commitComposition() ?? ""
         }
         text += spoken.isEmpty ? "" : separator(before: spoken, after: text) + spoken
-        return effects + finish(committing: text)
+        return effects + finishAsTyped(text)
     }
 
-    /// Commits everything exactly as typed (draft plus raw letters), without converting.
-    /// Speech being recognized is dropped (this runs when a password field takes over).
+    /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
+    /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over).
     public func commitAsTyped() -> [Effect] {
         var effects: [Effect] = []
         if let id = voice.id { effects = cancelVoice(id, refresh: false) }
@@ -853,7 +880,24 @@ public final class Composer {
         if !isLevelTwo, let engine, engine.snapshot().isComposing {
             text += engine.rawInput
         }
-        return effects + finish(committing: text)
+        return effects + finishAsTyped(text)
+    }
+
+    /// The draft is a note with line breaks (pasted, or back from a save that failed). Inserted as typed, each
+    /// break would be a Return: in a terminal every line would run as a command.
+    private var draftIsNoteWithLines: Bool {
+        draftCommand?.kind == .note && draft.contains(where: \.isNewline)
+    }
+
+    /// Ends the composition inserting `text`, the draft as typed (and what is still being typed after it). A note
+    /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
+    /// says it wasn't saved. A one-line note goes in like any other draft.
+    private func finishAsTyped(_ text: String) -> [Effect] {
+        guard draftIsNoteWithLines, let content = Command.parse(text, in: commands)?.content else {
+            return finish(committing: text)
+        }
+        let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return finish(committing: "") + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
     }
 
     /// Re-reads the engine (e.g. after it became available).
@@ -1144,7 +1188,8 @@ public final class Composer {
             }
             return startAction()
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
-            return .consumed(finish(committing: draft))  // ⇧⏎ (⏎ alone runs the command): as typed
+            // ⇧⏎ (⏎ alone runs the command): as typed, except a note with line breaks (`finishAsTyped`).
+            return .consumed(finishAsTyped(draft))
         case VirtualKey.delete:
             draft.removeLast()
             setLevelOnePhase()
@@ -1454,9 +1499,12 @@ public final class Composer {
         if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches) }
         guard draftCommand != nil else { return nil }
         if voice != .off { return actAfterVoice() }
-        // @open with results as you type: open the highlighted one right away.
-        let live = currentLiveResults
-        if live.indices.contains(liveHighlight) { return finish(committing: "") + [.open(path: live[liveHighlight].path)] }
+        // @open with results as you type: open the highlighted one right away (only content matches: listed
+        // to choose from, below).
+        if opensLiveResult {
+            let path = currentLiveResults[liveHighlight].path  // before `finish` clears them
+            return finish(committing: "") + [.open(path: path)]
+        }
         let composing = engine.snapshot().isComposing
         let effects = composing ? convertComposition(engine) : []
         setLevelOnePhase()

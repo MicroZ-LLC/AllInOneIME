@@ -1660,6 +1660,36 @@ struct ComposerTests {
         #expect(!d.engineState.isAsciiMode && d.draft.isEmpty)
     }
 
+    @Test func onlyContentMatchesAsYouTypeAreListedToPickFrom() {
+        let notes = SearchResult(name: "notes.md", path: "/Users/me/notes.md", matchedContent: true)
+        let todo = SearchResult(name: "todo.txt", path: "/Users/me/todo.txt", matchedContent: true)
+        let (c, _) = composer(key: .enter)
+        _ = c.handleKeyDown(at)
+        type("o", c)
+        _ = c.handleKeyDown(tab)
+        type("xyz", c)
+        _ = c.receiveLive([notes, todo], for: "xyz")
+        #expect(!c.opensLiveResult)
+        // Nothing is named like the text: ⏎ doesn't open the first, it searches and lists them to pick from.
+        let listed = c.handleKeyDown(enterKey)
+        #expect(listed.effects.first == .search(query: "xyz", id: 1) && !listed.effects.contains(.open(path: notes.path)))
+        #expect(c.isLevelTwo && c.receiveSearch([notes, todo], id: 1) == [.showPanel] && c.choices.map(\.label) == ["1", "2"])
+        // Back to the text: one picked with ↓ opens right away.
+        _ = c.handleKeyDown(escKey)
+        _ = c.receiveLive([notes, todo], for: "xyz")
+        _ = c.handleKeyDown(downKey)
+        #expect(c.opensLiveResult && c.handleKeyDown(enterKey).effects.last == .open(path: todo.path))
+        // A name match first: ⏎ opens it, as before.
+        let (d, _) = composer(key: .enter)
+        _ = d.handleKeyDown(at)
+        type("o", d)
+        _ = d.handleKeyDown(tab)
+        type("notes", d)
+        let named = SearchResult(name: "notes", path: "/Users/me/notes", isFolder: true)
+        _ = d.receiveLive([named, notes], for: "notes")
+        #expect(d.opensLiveResult && d.handleKeyDown(enterKey).effects.last == .open(path: named.path))
+    }
+
     @Test func commandCopiesTheHighlightedResult() {
         let (c, _) = translating()
         _ = c.receive(final, isFinal: true, id: 1)
