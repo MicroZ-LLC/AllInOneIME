@@ -2,13 +2,13 @@
 
 [中文](CHANGELOG.md) | English
 
-## Unreleased
+## 0.5.0 (2026-10-11)
 
 ### Added
 
 - `@translate`: translates into every language you added, in the order dragged in the settings, a line each (three versions when there is only one); the sentence's own language is skipped. `@translate @improve …` together (either order) translates and rewrites in one request; to make `@improve` always do that, turn on "@improve also translates" in the settings or the menu.
 - The menu bar panel: click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark) for the notes saved with `@note`, the reminders not done yet in the AllInOneIME list of Reminders (click the circle to tick one off) and the background Claude tasks (5 shown at a time, with scrolling and a search box when there are more); click a row to open it, a click elsewhere closes it. It never takes the focus from the app you're typing in (only its search box, once clicked, takes the keyboard); Notes is never launched; access to Reminders is asked for only from its "Allow Access to Reminders" button; `claude agents` runs only while it's down. The icon is shown by default and can be turned off in the settings.
-- Languages are added, not fixed: the output (lines 1–3) can be Japanese, Korean, French, German, Spanish, Traditional Chinese and more; input languages are added the same way: Chinese (pinyin) only, English only, or both. Drag them into order under "Input and Output" in the settings: the first is the default input / the output in use (picking one in the menu moves it first); with two input languages Shift switches, with one it doesn't. A new user starts with one of each: Chinese in, English out.
+- Languages are added, not fixed: `@translate` can translate into Japanese, Korean, French, German, Spanish, Traditional Chinese and more, and input languages are added the same way: Chinese (pinyin) only, English only, or both. Drag them into order under "Input" and "Translate" in the settings: new text fields start in the first input language, and translations come in that order; with two input languages Shift switches, with one it doesn't. A new user starts with one of each: Chinese in, English out.
 - `@note` saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters.
 - `@reminder` adds a reminder to the Reminders app, in a list named AllInOneIME, with the time written in the text and read on the Mac (`明天下午3点`, `明晚7点`, `3点半`, `30分钟后`, `下周一 9:30`, `15号`, `下个月`, `年底`, `tomorrow at 3pm`, `in 2 hours`, `next month`). A row shows what was read; ⏎ or Space adds it, with an alarm at its time, or all day for a date alone. Neither `@note` nor `@reminder` goes to the AI; when a save fails, the text comes back into the command (onto the clipboard if you've moved to another text field), so nothing is lost.
 - `@open` searches by keywords: several words, separated by spaces; apps by their Chinese names too (计算器, 系统设置), and Finder and the standard folders (访达, 下载, 桌面, 文稿; `下载 pdf` finds the PDFs in Downloads), shown that way in a Chinese interface; what you opened with `@open` and recently used files first; and when the names find hardly anything, the contents of the files in your home folder, marked "content" (with only those, ⏎ lists them to pick from).
@@ -42,9 +42,9 @@
 
 - `@improve` now polishes and rewrites only, without translating: Chinese stays Chinese. Use `@translate` to translate, or `@translate @improve` for both as before.
 - Sentence mode is gone: without `@`, ⏎ is a plain Return and picked words go straight in; to translate or polish, start the sentence with `@improve` (`@i` ⏎). If you had sentence mode on, there's nothing to do: the setting is cleared.
-- Existing settings stay as they were: both input languages and both output languages remain; remove one under "Input and Output" in the settings to keep just one.
+- Existing settings stay as they were: both input languages remain, and the translation languages are English and Chinese (Chinese is translated into English, English into Chinese); remove one under "Input" or "Translate" in the settings to keep just one.
 - The first time, `@note` makes macOS ask whether AllInOneIME may control Notes, and `@reminder` whether it may access Reminders: allow them. If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation, or → Reminders.
-- The new built-in commands `note`, `reminder`, `imessage`, `calc`, `py`, `js` and `search` hide a custom command or plugin with the same name (such as `@calculate` or `@py` added from the examples in the settings), so yours no longer shows up: "Custom @ Commands" in the settings marks a custom command hidden this way ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
+- The new built-in commands `translate`, `note`, `reminder`, `imessage`, `calculate`, `py` and `js` hide a custom command or plugin with the same name (such as `@py` added from the examples in the settings), so yours no longer shows up: "Custom @ Commands" in the settings marks a custom command hidden this way ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
 
 ## 0.4.0 (2026-10-09)
 
