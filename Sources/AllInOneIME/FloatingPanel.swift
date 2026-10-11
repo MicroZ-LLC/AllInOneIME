@@ -82,14 +82,14 @@ enum NotesListing: Equatable {
     /// Notes has no such folder in its default account (the user switched the default account, or
     /// renamed the folder): that says nothing of the notes saved.
     case noFolder
-    /// The folder's notes changed last, newest first.
+    /// The folder's notes changed last, newest first (none: the folder is empty).
     case folder([NotesBridge.Note])
 
-    /// What `NotesBridge.recent` listed. It lists none both for an empty folder and for no folder at
-    /// all, so none is taken as no folder: the notes saved aren't all dropped when the user switched
-    /// Notes' default account. (A deleted note is still dropped whenever the folder has a note in it.)
-    init(recent notes: [NotesBridge.Note]) {
-        self = notes.isEmpty ? .noFolder : .folder(notes)
+    /// What `NotesBridge.recent` listed: nil when there's no such folder, which says nothing of the notes
+    /// saved (none is dropped when the user switched Notes' default account); an empty list is an empty
+    /// folder, so the saved notes it no longer has are dropped.
+    init(recent notes: [NotesBridge.Note]?) {
+        self = notes.map { .folder($0) } ?? .noFolder
     }
 }
 

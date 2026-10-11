@@ -29,9 +29,18 @@ struct ReminderParserTests {
     }
 
     /// Due that day, no time.
-    static func allDay(_ title: String, _ month: Int, _ day: Int) -> ReminderDraft {
-        ReminderDraft(title: title, due: due(month, day), hasTime: false)
+    static func allDay(_ title: String, _ month: Int, _ day: Int, year: Int = 2026) -> ReminderDraft {
+        ReminderDraft(title: title, due: due(month, day, year: year), hasTime: false)
     }
+
+    /// The same, written to repeat (每周一, "every Monday"): set once.
+    static func once(_ draft: ReminderDraft) -> ReminderDraft {
+        var draft = draft
+        draft.writtenAsRepeating = true
+        return draft
+    }
+
+    static let saturday = date(10, 10, 12), sunday = date(10, 11, 12)
 
     /// A parser whose detector finds each phrase in the text, meaning that date.
     func parser(_ found: [String: Date] = [:]) -> ReminderParser {
@@ -224,6 +233,55 @@ struct ReminderParserTests {
         #expect(parse("明天一点开会", ["明天": Self.date(10, 10)]) == Self.timed("开会", 10, 10, 13))
     }
 
+    // MARK: - A day and a time written apart
+
+    @Test func aDayAndATimeWrittenApartAreOneDate() {
+        let tomorrow = Self.date(10, 10), at3pm = Self.date(10, 9, 15)
+        // A day alone takes its time from anywhere in the text, and both leave the title.
+        #expect(parse("明天开会，3点", ["明天": tomorrow]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("下周一开会 上午10点", ["下周一": Self.date(10, 12), "上午10点": Self.date(10, 9, 10)]) == Self.timed("开会", 10, 12, 10))
+        #expect(parse("tomorrow call Bob at 5", ["tomorrow": tomorrow]) == Self.timed("call Bob", 10, 10, 17))
+        #expect(parse("tomorrow - call Bob at 3pm", ["tomorrow": tomorrow, "3pm": at3pm]) == Self.timed("call Bob", 10, 10, 15))
+        // With dinner, 7 is in the evening.
+        #expect(parse("Friday: dinner at 7", ["Friday": Self.date(10, 16)]) == Self.timed("dinner", 10, 16, 19))
+        // A time alone takes its day.
+        #expect(parse("at 5 dentist tomorrow", ["tomorrow": tomorrow]) == Self.timed("dentist", 10, 10, 17))
+        #expect(parse("5pm meeting with Ann on Monday", ["5pm": Self.date(10, 9, 17), "Monday": Self.date(10, 12)])
+                == Self.timed("meeting with Ann", 10, 12, 17))
+        #expect(parse("8pm movie on Friday", ["8pm": Self.date(10, 9, 20), "Friday": Self.date(10, 16)]) == Self.timed("movie", 10, 16, 20))
+        // A part of the day takes the clock time, in that half of the day.
+        #expect(parse("周五晚上 聚餐 7点", ["周五晚上": Self.date(10, 16, 18)]) == Self.timed("聚餐", 10, 16, 19))
+        #expect(parse("明天晚上开会，8点", ["明天晚上": Self.date(10, 10, 18)]) == Self.timed("开会", 10, 10, 20))
+        // A number of days takes the time, a time the number of days.
+        #expect(parse("3天后开会，下午3点", ["下午3点": at3pm]) == Self.timed("开会", 10, 12, 15))
+        #expect(parse("下午3点体检，两天后", ["下午3点": at3pm]) == Self.timed("体检", 10, 11, 15))
+        // Side by side with a colon, a comma, a dash or brackets between: one phrase.
+        #expect(parse("明天：下午3点开会", ["明天": tomorrow, "下午3点": at3pm]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("明天、下午3点", ["明天": tomorrow, "下午3点": at3pm]) == Self.timed("", 10, 10, 15))
+        #expect(parse("给张三明天、下午3点打电话", ["明天": tomorrow, "下午3点": at3pm]) == Self.timed("给张三打电话", 10, 10, 15))
+        #expect(parse("明天（下午3点）开会", ["明天": tomorrow, "下午3点": at3pm]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("（明天）下午3点开会", ["明天": tomorrow, "下午3点": at3pm]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("明天(3pm) call Bob", ["明天": tomorrow, "3pm": at3pm]) == Self.timed("call Bob", 10, 10, 15))
+        // Two days, or a day with a time: the first stands, the other is the title's.
+        #expect(parse("明天开会，后天3点出发", ["明天": tomorrow, "后天3点": Self.date(10, 11, 15)]) == Self.allDay("开会，后天3点出发", 10, 10))
+        // A meal inside what the detector read stays in the title; it reads "tomorrow dinner at 7" at 19:00.
+        #expect(parse("tomorrow dinner at 7", ["tomorrow dinner at 7": Self.date(10, 10, 19)]) == Self.timed("dinner", 10, 10, 19))
+        #expect(parse("dinner at 7 tomorrow", ["dinner at 7 tomorrow": Self.date(10, 10, 19)]) == Self.timed("dinner", 10, 10, 19))
+        #expect(parse("明天晚饭7点", ["明天晚饭7点": Self.date(10, 10, 19)]) == Self.timed("晚饭", 10, 10, 19))
+    }
+
+    @Test func nextMonthIsNoMonday() {
+        // "next mon…" in "next month" is no weekday: the detector's 15th of next month stands, and "on the" goes.
+        #expect(parse("pay rent on the 15th of next month", ["15th of next month": Self.date(11, 15)], at: Self.saturday)
+                == Self.allDay("pay rent", 11, 15))
+        #expect(parse("pay rent by the 15th of next month", ["15th of next month": Self.date(11, 15)]).title == "pay rent")
+        #expect(parse("pay rent next month", at: Self.saturday) == ReminderDraft(title: "pay rent next month"))
+        // Weekdays, whole or short, still are (the detector: 9 days ahead for some, said on a Saturday).
+        #expect(parse("next Mon call Bob", ["next Mon": Self.date(10, 19)], at: Self.saturday).due == Self.due(10, 12))
+        #expect(parse("next Tues call Bob", ["next Tues": Self.date(10, 20)], at: Self.saturday).due == Self.due(10, 13))
+        #expect(parse("next Thurs call Bob", ["next Thurs": Self.date(10, 15)], at: Self.saturday).due == Self.due(10, 15))
+    }
+
     // MARK: - Forms the detector misses
 
     @Test func formsTheDetectorMisses() {
@@ -256,6 +314,72 @@ struct ReminderParserTests {
         }
     }
 
+    @Test func moreFormsTheDetectorMisses() {
+        // "on the 15th": the next 15th (not "the 3rd floor").
+        #expect(parse("pay rent on the 15th") == Self.allDay("pay rent", 10, 15))
+        #expect(parse("pay rent on the 1st") == Self.allDay("pay rent", 11, 1) && parse("pay rent by 1st").due == Self.due(11, 1))
+        #expect(parse("meet on the 3rd floor").due == nil && parse("my 5th try").due == nil)
+        // 10.1 / 11.11 / 5.20 with words around them: a month and day, the next one.
+        #expect(parse("10.1出发") == Self.allDay("出发", 10, 1, year: 2027))  // over this year
+        #expect(parse("11.11买东西") == Self.allDay("买东西", 11, 11) && parse("出发 5.20") == Self.allDay("出发", 5, 20, year: 2027))
+        // After a part of the day or a day it is a time: 9.30 is 9:30.
+        #expect(parse("明天9.30开会", ["明天": Self.date(10, 10)]) == Self.timed("开会", 10, 10, 9, 30))
+        #expect(parse("下午3.30开会", at: Self.at9am) == Self.timed("开会", 10, 9, 15, 30))
+        // Money, quantities, versions, addresses, numbers alone.
+        for text in ["10.15元", "¥5.20", "v1.2发布", "3.5斤苹果", "2.5倍", "192.168.1.1", "版本1.2.3", "Swift 5.10发布", "10.1", "3.14159",
+                     "涨了5.2%", "1.5小时", "售价9.9"] {
+            #expect(parse(text).due == nil, "\(text)")
+        }
+        // 1个月后, "in 1 month" (not 3月后, which is March, nor half a month).
+        #expect(parse("1个月后复查") == Self.allDay("复查", 11, 9) && parse("两个月后复查").due == Self.due(12, 9))
+        #expect(parse("in 1 month renew") == Self.allDay("renew", 11, 9) && parse("2 months later").due == Self.due(12, 9))
+        #expect(parse("一个月后下午3点复查", ["下午3点": Self.date(10, 9, 15)]) == Self.timed("复查", 11, 9, 15))
+        #expect(parse("3月后").due == nil && parse("半个月后").due == nil)
+        // 周末 / "this weekend": today on a Saturday or Sunday, else the coming Saturday; 下周末: next week's.
+        #expect(parse("周末大扫除") == Self.allDay("大扫除", 10, 10) && parse("这周末大扫除").due == Self.due(10, 10))
+        #expect(parse("this weekend hike") == Self.allDay("hike", 10, 10) && parse("hike on the weekend").title == "hike")
+        #expect(parse("周末大扫除", at: Self.saturday).due == Self.due(10, 10) && parse("周末大扫除", at: Self.sunday).due == Self.due(10, 11))
+        #expect(parse("下周末爬山") == Self.allDay("爬山", 10, 17) && parse("next weekend hike", at: Self.sunday).due == Self.due(10, 17))
+        #expect(parse("上周末的照片").due == nil)
+        // 月底: the month's last day.
+        #expect(parse("月底交房租") == Self.allDay("交房租", 10, 31) && parse("下个月底交房租").due == Self.due(11, 30))
+        #expect(parse("pay rent by the end of the month") == Self.allDay("pay rent", 10, 31))
+        #expect(parse("上个月底的账单").due == nil)
+    }
+
+    // MARK: - A part of the day, or a month and day, that is over
+
+    @Test func aPartOfTheDayStillGoingIsTodayAllDay() {
+        let at2130 = Self.date(10, 9, 21, 30), at1603 = Self.date(10, 9, 16, 3), at1830 = Self.date(10, 9, 18, 30)
+        // Its usual time is over, the part of the day isn't: today, all day (no alarm in the past, not tomorrow).
+        #expect(parse("今晚看电影", ["今晚": Self.date(10, 9, 18)], at: at2130) == Self.allDay("看电影", 10, 9))
+        #expect(parse("tonight call mom", ["tonight": Self.date(10, 9, 19)], at: at2130) == Self.allDay("call mom", 10, 9))
+        #expect(parse("下午开会", ["下午": Self.date(10, 9, 15)], at: at1603) == Self.allDay("开会", 10, 9))
+        #expect(parse("今天下午开会", ["今天下午": Self.date(10, 9, 15)], at: at1603) == Self.allDay("开会", 10, 9))
+        #expect(!parse("今晚看电影", ["今晚": Self.date(10, 9, 18)], at: at2130).isPast(now: at2130, calendar: Self.calendar))
+        // Still to come: then. The part of the day over: tomorrow's, or that of the day named (shown as over).
+        #expect(parse("今晚看电影", ["今晚": Self.date(10, 9, 18)]) == Self.timed("看电影", 10, 9, 18))
+        #expect(parse("下午开会", ["下午": Self.date(10, 9, 15)], at: at1830) == Self.timed("开会", 10, 10, 15))
+        let over = parse("今天下午开会", ["今天下午": Self.date(10, 9, 15)], at: at1830)
+        #expect(over == Self.timed("开会", 10, 9, 15) && over.isPast(now: at1830, calendar: Self.calendar))
+        // Another day's, and a clock time, as they say.
+        #expect(parse("明晚看电影", ["明天晚上": Self.date(10, 10, 18)], at: at2130) == Self.timed("看电影", 10, 10, 18))
+        #expect(parse("下午3点开会", ["下午3点": Self.date(10, 9, 15)], at: at1603).due == Self.due(10, 10, 15, 0))
+    }
+
+    @Test func aMonthAndDayAlreadyPastIsNextYears() {
+        #expect(parse("10月5日交报告", ["10月5日": Self.date(10, 5)]) == Self.allDay("交报告", 10, 5, year: 2027))
+        #expect(parse("Oct 5 pay rent", ["Oct 5": Self.date(10, 5)]).due == Self.due(10, 5, year: 2027))
+        #expect(parse("10/5 pay rent", ["10/5": Self.date(10, 5)]).due == Self.due(10, 5, year: 2027))
+        #expect(parse("10月5日下午3点开会", ["10月5日下午3点": Self.date(10, 5, 15)]).due == Self.due(10, 5, 15, 0, year: 2027))
+        // Today's and later ones are this year's; with a year written, that one.
+        #expect(parse("10月9日交报告", ["10月9日": Self.date(10, 9)]).due == Self.due(10, 9))
+        #expect(parse("2026年10月5日交报告", ["2026年10月5日": Self.date(10, 5)]).due == Self.due(10, 5))
+        #expect(parse("今年10月5日交报告", ["10月5日": Self.date(10, 5)]).due == Self.due(10, 5))
+        // Not a month and day: as read.
+        #expect(parse("昨天的会议纪要", ["昨天": Self.date(10, 8)]).due == Self.due(10, 8))
+    }
+
     @Test func nextWeekdaySaidAtTheWeekendIsTheComingOne() {
         let saturday = Self.date(10, 10, 12), sunday = Self.date(10, 11, 12), monday = Self.date(10, 12, 12)
         // On a Saturday the detector says 9 days ahead for "next Monday": the coming Monday, like 下周一.
@@ -267,6 +391,78 @@ struct ReminderParserTests {
         #expect(parse("next Monday call Bob", ["next Monday": Self.date(10, 19)], at: sunday).due == Self.due(10, 12))
         // Monday to Thursday: as it says.
         #expect(parse("next Friday", ["next Friday": Self.date(10, 23)], at: monday).due == Self.due(10, 23))
+    }
+
+    @Test func weeksCountFromMondayAsInChinese() {
+        let (saturday, sunday) = (Self.saturday, Self.sunday)
+        // The detector counts from Sunday here: on Saturday 10/10 it says 10/4 for 这周日, 10/11 for 下周日.
+        #expect(parse("这周日开会", ["这周日": Self.date(10, 4)], at: saturday) == Self.allDay("开会", 10, 11))
+        #expect(parse("本周日开会", ["本周日": Self.date(10, 4)], at: saturday) == Self.allDay("开会", 10, 11))
+        #expect(parse("下周日开会", ["下周日": Self.date(10, 11)], at: saturday) == Self.allDay("开会", 10, 18))
+        #expect(parse("下周一开会", ["下周一": Self.date(10, 12)], at: saturday) == Self.allDay("开会", 10, 12))
+        #expect(parse("下个星期一开会", ["下个星期一": Self.date(10, 12)], at: saturday).due == Self.due(10, 12))
+        #expect(parse("这个星期五开会", ["这个星期五": Self.date(10, 9)], at: saturday).due == Self.due(10, 9))  // over: shown so
+        // The extra 下 (it reads 下周一 in 下下周一) goes with it; its time stays.
+        #expect(parse("下下周一开会", ["下周一": Self.date(10, 19)], at: saturday) == Self.allDay("开会", 10, 19))
+        #expect(parse("下周日下午3点开会", ["下周日下午3点": Self.date(10, 11, 15)], at: saturday) == Self.timed("开会", 10, 18, 15))
+        // On a Sunday, 下周一 is the next day (it says 8 days ahead), 这周日 today.
+        #expect(parse("下周一开会", ["下周一": Self.date(10, 19)], at: sunday) == Self.allDay("开会", 10, 12))
+        #expect(parse("这周日开会", ["这周日": Self.date(10, 11)], at: sunday).due == Self.due(10, 11))
+        #expect(parse("下周日开会", ["下周日": Self.date(10, 18)], at: sunday).due == Self.due(10, 18))
+        // Next week without a day (the detector reads nothing): its Monday, all day.
+        #expect(parse("下周开会", at: saturday) == Self.allDay("开会", 10, 12))
+        #expect(parse("下周开会", at: sunday).due == Self.due(10, 12) && parse("下下周开会", at: sunday).due == Self.due(10, 19))
+        #expect(parse("next week call Bob", at: saturday) == Self.allDay("call Bob", 10, 12))
+        #expect(parse("下周开会").due == Self.due(10, 12))  // Friday
+    }
+
+    // MARK: - Titles
+
+    @Test func titlesKeepWhatTheDateDoesNotSay() {
+        // 之内 / 以内 after a date: by then.
+        #expect(parse("周五之内交报告", ["周五": Self.date(10, 16)]) == Self.allDay("交报告", 10, 16))
+        #expect(parse("周五以内交报告", ["周五": Self.date(10, 16)]).title == "交报告")
+        // 下午茶, 早茶, 夜宵 are meals (it reads 「明天下午」 in 「明天下午茶」, at 15:00): in the title, all day.
+        #expect(parse("明天下午茶", ["明天下午": Self.date(10, 10, 15)]) == Self.allDay("下午茶", 10, 10))
+        #expect(parse("明天早茶", ["明天": Self.date(10, 10)]) == Self.allDay("早茶", 10, 10))
+        #expect(parse("下午茶", ["下午": Self.date(10, 9, 15)]) == ReminderDraft(title: "下午茶"))
+        // 明年 / 今年 / "next year" with a month and day (it reads only the month and day).
+        #expect(parse("明年1月5日交报告", ["1月5日": Self.date(1, 5, year: 2027)]) == Self.allDay("交报告", 1, 5, year: 2027))
+        #expect(parse("明年12月1日", ["12月1日": Self.date(12, 1)]) == Self.allDay("", 12, 1, year: 2027))
+        #expect(parse("今年12月1日交报告", ["12月1日": Self.date(12, 1)]) == Self.allDay("交报告", 12, 1))
+        #expect(parse("今年1月5日交报告", ["1月5日": Self.date(1, 5, year: 2027)]).due == Self.due(1, 5))  // as written: over
+        #expect(parse("next year Jan 5 renew passport", ["Jan 5": Self.date(1, 5, year: 2027)])
+                == Self.allDay("renew passport", 1, 5, year: 2027))
+        #expect(parse("renew passport Oct 20, next year", ["Oct 20": Self.date(10, 20)]) == Self.allDay("renew passport", 10, 20, year: 2027))
+        // "on the" / "the" that led into what it reads.
+        #expect(parse("pay rent on the 15th of October", ["15th of October": Self.date(10, 15)]) == Self.allDay("pay rent", 10, 15))
+        #expect(parse("pay rent the 15th of October", ["15th of October": Self.date(10, 15)]).title == "pay rent")
+    }
+
+    @Test func writtenToRepeatItIsSetOnceForTheNextTime() {
+        // The words stay in the title, it is due the next time, and the row says it is once only.
+        #expect(parse("每周一9点开会", ["周一9点": Self.date(10, 12, 9)]) == Self.once(Self.timed("每周一9点开会", 10, 12, 9)))
+        #expect(parse("standup every Monday at 9", ["Monday at 9": Self.date(10, 12, 9)])
+                == Self.once(Self.timed("standup every Monday at 9", 10, 12, 9)))
+        #expect(parse("提醒我每周一9点开会", ["周一9点": Self.date(10, 12, 9)]).title == "每周一9点开会")
+        // It reads only 下午 in 每周五下午: Friday is read here; said on a Friday, today's while still to come.
+        #expect(parse("每周五下午开周会", ["下午": Self.date(10, 9, 15)], at: Self.at9am)
+                == Self.once(Self.timed("每周五下午开周会", 10, 9, 15)))
+        #expect(parse("每周五下午开周会", ["下午": Self.date(10, 9, 15)], at: Self.at9pm)
+                == Self.once(Self.timed("每周五下午开周会", 10, 16, 15)))
+        #expect(parse("每周五下午开周会", ["下午": Self.date(10, 9, 15)], at: Self.saturday)
+                == Self.once(Self.timed("每周五下午开周会", 10, 16, 15)))
+        #expect(parse("每天9点吃药") == Self.once(Self.timed("每天9点吃药", 10, 9, 21)))
+        #expect(parse("每月15号交房租") == Self.once(Self.allDay("每月15号交房租", 10, 15)))
+        #expect(parse("每月9号下午3点交房租", ["下午3点": Self.date(10, 9, 15)]) == Self.once(Self.timed("每月9号下午3点交房租", 11, 9, 15)))
+        #expect(parse("每个周末大扫除").writtenAsRepeating && parse("every day at 9 stretch").writtenAsRepeating)
+        // 每人 is no repeat.
+        #expect(parse("每人明天交100元", ["明天": Self.date(10, 10)]) == Self.allDay("每人交100元", 10, 10))
+        // The row; and Reminders gets that one date, without a repeat rule.
+        let standup = Self.once(Self.timed("每周一9点开会", 10, 12, 9))
+        #expect(standup.when(now: now, calendar: Self.calendar, chinese: true, clock24: true) == "10月12日 周一 9:00 · 只提醒这一次")
+        #expect(standup.when(now: now, calendar: Self.calendar, chinese: false, clock24: true) == "Mon, Oct 12 9:00 · once only")
+        #expect(standup.schedule(timeZone: Self.calendar.timeZone) == Self.timed("x", 10, 12, 9).schedule(timeZone: Self.calendar.timeZone))
     }
 
     @Test func whatAPhraseSays() {
@@ -513,4 +709,44 @@ struct ReminderParserTests {
             #expect(standup.due == Self.on((9 - weekday) % 7, at: 9, 30, from: now), "\(standup)")
         }
     }
+
+    /// What the stand-ins above assume of it for the forms read together, weeks from Monday, and the rest.
+    @Test func theSystemsDetectorWithWhatIsReadHere() {
+        let now = Self.realNow()
+        let parser = ReminderParser()
+        let calendar = ReminderParser.localCalendar
+        func parse(_ text: String) -> ReminderDraft { parser.parse(text, now: now) }
+        /// `days` after today, as the components of a day.
+        func day(_ days: Int) -> DateComponents {
+            calendar.dateComponents([.year, .month, .day], from: calendar.date(byAdding: .day, value: days, to: calendar.startOfDay(for: now))!)
+        }
+        let meeting = parse("明天开会，3点")
+        #expect(meeting.title == "开会" && meeting.due == Self.on(1, at: 15, from: now), "\(meeting)")
+        let dentist = parse("at 5 dentist tomorrow")
+        #expect(dentist.title == "dentist" && dentist.due == Self.on(1, at: 17, from: now), "\(dentist)")
+        let party = parse("周五晚上 聚餐 7点")
+        #expect(party.title == "聚餐" && party.due?.hour == 19 && party.hasTime, "\(party)")
+        let movie = parse("8pm movie on Friday")
+        #expect(movie.title == "movie" && movie.due?.hour == 20 && movie.due.flatMap { calendar.date(from: $0) }
+                .map { calendar.component(.weekday, from: $0) } == 6, "\(movie)")
+        // "next month" is no Monday.
+        let rent = parse("pay rent on the 15th of next month")
+        let nextMonth = calendar.dateComponents([.year, .month], from: calendar.date(byAdding: .month, value: 1, to: now)!)
+        #expect(rent.title == "pay rent" && rent.due == DateComponents(year: nextMonth.year, month: nextMonth.month, day: 15), "\(rent)")
+        // Weeks from Monday.
+        let index = ReminderParser.mondayFirst(calendar.component(.weekday, from: now))
+        for (text, days) in [("这周日开会", 6 - index), ("下周日开会", 13 - index), ("下下周一开会", 14 - index), ("下周开会", 7 - index)] {
+            let draft = parse(text)
+            #expect(draft == Self.allDayDraft("开会", day(days)), "\(text): \(draft)")
+        }
+        let tea = parse("明天下午茶")
+        #expect(tea == Self.allDayDraft("下午茶", day(1)), "\(tea)")
+        let weekly = parse("每周一9点开会")
+        #expect(weekly.title == "每周一9点开会" && weekly.writtenAsRepeating && weekly.due?.hour == 9, "\(weekly)")
+        let soon = parse("1个月后复查")
+        let inAMonth = calendar.date(byAdding: .month, value: 1, to: calendar.startOfDay(for: now))!
+        #expect(soon == Self.allDayDraft("复查", calendar.dateComponents([.year, .month, .day], from: inAMonth)), "\(soon)")
+    }
+
+    static func allDayDraft(_ title: String, _ day: DateComponents) -> ReminderDraft { ReminderDraft(title: title, due: day) }
 }

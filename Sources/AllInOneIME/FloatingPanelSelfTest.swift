@@ -332,14 +332,15 @@ extension SelfTest {
         panel.refresh()
         check(pump(timeout: 2) { panel.notes.count == 2 } && stand.noteLists > lists
               && panel.notes.map(\.title) == ["长", "周会要点（改）"], "Notes running: titles follow it, a deleted note goes (\(panel.notes.map(\.title)))")
-        // No AllInOneIME folder in Notes' default account (the user switched it): Notes lists none.
-        stand.listedNotes = NotesListing(recent: [])
+        // No AllInOneIME folder in Notes' default account (the user switched it): that says nothing of the
+        // notes saved.
+        stand.listedNotes = NotesListing(recent: nil)
         lists = stand.noteLists
         panel.refresh()
         _ = pump(timeout: 0.3) { false }
         check(stand.listedNotes == .noFolder && stand.noteLists > lists && panel.notes.count == 2
               && SavedNotesStore.load(stand.defaults).notes.count == 2,
-              "Notes lists none (no AllInOneIME folder in its default account): no note is dropped")
+              "no AllInOneIME folder in Notes' default account: no note is dropped")
         stand.listedNotes = .notAllowed  // would need asking
         panel.refresh()
         _ = pump(timeout: 0.3) { false }
@@ -388,6 +389,16 @@ extension SelfTest {
         check(stand.openedSettings == 1 && ReminderAccess.settingsURL.absoluteString.hasSuffix("Privacy_Reminders"),
               "the button opens System Settings → Privacy & Security → Reminders")
         stand.access = .allowed
+
+        // The folder there but empty (its notes deleted in Notes): the saved notes it no longer has go.
+        stand.notesRunning = true
+        stand.listedNotes = NotesListing(recent: [])
+        lists = stand.noteLists
+        panel.refresh()
+        check(pump(timeout: 2) { panel.notes.isEmpty } && stand.listedNotes == .folder([]) && stand.noteLists > lists
+              && SavedNotesStore.load(stand.defaults).notes.isEmpty,
+              "the folder there but empty: the saved notes it no longer has are dropped")
+        stand.notesRunning = false
 
         // Nothing at all: the empty states.
         stand.sessions = []

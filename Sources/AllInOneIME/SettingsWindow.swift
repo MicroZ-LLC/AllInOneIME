@@ -553,16 +553,39 @@ struct SettingsView: View {
             }
 
             Section(tr("输入和输出", "Input and Output")) {
-                Picker(tr("默认输入", "Default input"), selection: $model.config.defaultInput) {
-                    Text(tr("中文（拼音）", "Chinese (pinyin)")).tag(Language.chinese)
-                    Text(UIText.name(Language.english)).tag(Language.english)
+                // The languages added, in the user's order: drag to reorder; the first is the default input
+                // and the output in use. With two input languages, Shift switches between them.
+                LabeledContent(tr("输入语言", "Input languages")) {
+                    HStack(spacing: 6) {
+                        LanguageChips(items: model.config.inputLanguages, name: AllInOneIMEInputController.inputName,
+                                      firstNote: tr("默认", "default"),
+                                      reorder: { model.config.setOrder($0) }, remove: removeInputLanguage)
+                        let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
+                        if !missing.isEmpty {
+                            Menu(tr("添加…", "Add…")) {
+                                ForEach(missing, id: \.self) { language in
+                                    Button(AllInOneIMEInputController.inputName(language)) { addInputLanguage(language) }
+                                }
+                            }
+                            .fixedSize()
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
-                Picker(tr("输出（1–3 行）", "Output (lines 1–3)"), selection: $model.config.outputLanguage) {
-                    Text(UIText.name(Language.english)).tag(Language.english)
-                    Text(UIText.name(Language.chinese)).tag(Language.chinese)
+                LabeledContent(tr("输出语言（1–3 行）", "Output languages (lines 1–3)")) {
+                    HStack(spacing: 6) {
+                        LanguageChips(items: model.config.outputLanguages, name: UIText.name,
+                                      firstNote: tr("使用中", "in use"),
+                                      reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
+                        Menu(tr("添加…", "Add…")) {
+                            ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
+                                Button(UIText.name(language)) { addOutputLanguage(language) }
+                            }
+                        }
+                        .fixedSize()
+                    }
                 }
-                .pickerStyle(.segmented)
+                Text(tr("拖动排序，第一个是默认输入 / 正在用的输出。", "Drag to reorder: the first is the default input / the output in use."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Text(inputSummary).font(.caption).foregroundStyle(.secondary)
             }
             .disabled(!model.canSave)
@@ -600,15 +623,22 @@ struct SettingsView: View {
 
             Section(tr("自定义 @ 命令", "Custom @ Commands")) {
                 ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
-                    HStack {
-                        Text("@" + command.name).font(.body.monospaced())
-                        Text(UIText.customKind(command)).foregroundStyle(.secondary)
-                        if let summary = command.summary {
-                            Text(summary).foregroundStyle(.secondary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text("@" + command.name).font(.body.monospaced())
+                            Text(UIText.customKind(command)).foregroundStyle(.secondary)
+                            if let summary = command.summary {
+                                Text(summary).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
+                            Button(tr("删除", "Delete")) { commandToDelete = index }
                         }
-                        Spacer()
-                        Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                        Button(tr("删除", "Delete")) { commandToDelete = index }
+                        if Self.hiddenByBuiltIn(command) {
+                            Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
+                                  systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 }
                 Button(tr("添加命令…", "Add Command…")) {
@@ -793,6 +823,8 @@ struct SettingsView: View {
         .onChange(of: model.config.timeoutSeconds) { model.save() }
         .onChange(of: model.config.defaultInput) { model.save() }
         .onChange(of: model.config.outputLanguage) { model.save() }
+        .onChange(of: model.config.outputLanguages) { model.save() }
+        .onChange(of: model.config.inputLanguages) { model.save() }
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
@@ -814,6 +846,12 @@ struct SettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
+    /// A custom command with a built-in's name (say a `note` added before @note was built in): the built-in hides
+    /// it (`Command.catalog`), so the list says so. The editor won't save such a name (`.nameTaken`).
+    static func hiddenByBuiltIn(_ command: CustomCommand) -> Bool {
+        Command.builtins.contains { $0.name == command.name.lowercased() }
+    }
+
     /// The commands, at the top: what this input method does beyond pinyin.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
@@ -828,8 +866,31 @@ struct SettingsView: View {
     private var inputSummary: String {
         let chinese = UIText.action(input: .chinese, config: model.config)
         let english = UIText.action(input: .english, config: model.config)
-        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。单按 Shift 切换中英文。",
-                  "@improve: Chinese → \(chinese); English → \(english). Tap Shift to switch between Chinese and English.")
+        let shift = model.config.inputLanguages.count > 1
+            ? tr("单按 Shift 切换中英文。", "Tap Shift to switch between Chinese and English.")
+            : tr("只开了一种输入语言，Shift 不切换。", "With one input language on, Shift doesn't switch.")
+        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english). ")
+            + shift
+    }
+
+    private func addInputLanguage(_ language: Language) {
+        model.config.inputLanguages.append(language)
+        model.config.normalizeLanguages()
+    }
+
+    /// Removes an input language (one always stays); the next one becomes the default.
+    private func removeInputLanguage(_ language: Language) {
+        model.config.setOrder(AllInOneIMEInputController.toggled(language, in: model.config.inputLanguages))
+    }
+
+    private func addOutputLanguage(_ language: OutputLanguage) {
+        model.config.outputLanguages.append(language)
+    }
+
+    /// Removes an added output language (one always stays); the next one is then in use.
+    private func removeOutputLanguage(_ language: OutputLanguage) {
+        guard model.config.outputLanguages.count > 1 else { return }
+        model.config.setOrder(model.config.outputLanguages.filter { $0 != language })
     }
 
     /// How the chosen action key works, and what Space does with it.
@@ -1241,5 +1302,130 @@ struct CompatibleService: Identifiable {
             CompatibleService(name: "OpenRouter", baseURL: "https://openrouter.ai/api/v1", model: nil),
             CompatibleService(name: tr("本机 Ollama", "Ollama on this Mac"), baseURL: "http://localhost:11434/v1", model: nil),
         ]
+    }
+}
+
+/// Added languages as chips in the user's order, dragged to reorder: the first is marked
+/// ("中文（拼音）· 默认"), ⓧ removes one (not the last). The chip follows the pointer and the order
+/// changes where it's let go. The drag is tracked in AppKit (`DragHandle`): a grouped Form sits on a
+/// table view that takes mouse drags for itself, so neither SwiftUI's drag gesture nor its drag and
+/// drop ever start there.
+private struct LanguageChips<Item: Hashable>: View {
+    let items: [Item]
+    let name: (Item) -> String
+    let firstNote: String
+    let reorder: ([Item]) -> Void
+    let remove: (Item) -> Void
+    @State private var frames: [Item: CGRect] = [:]
+    @State private var dragging: Item?
+    @State private var offset: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(items, id: \.self) { item in
+                chip(item)
+                    .background(GeometryReader { geometry in
+                        // Window coordinates: the pointer's x comes from AppKit in the window too.
+                        Color.clear.preference(key: ChipFrames.self, value: [AnyHashable(item): geometry.frame(in: .global)])
+                    })
+                    .offset(x: dragging == item ? offset : 0)
+                    .zIndex(dragging == item ? 1 : 0)
+                    .opacity(dragging == item ? 0.8 : 1)
+            }
+        }
+        .onPreferenceChange(ChipFrames.self) { all in
+            frames = Dictionary(uniqueKeysWithValues: all.compactMap { key, frame in (key.base as? Item).map { ($0, frame) } })
+        }
+        .animation(.easeOut(duration: 0.15), value: items)
+    }
+
+    private func chip(_ item: Item) -> some View {
+        let first = item == items.first
+        let label = first && items.count > 1 ? name(item) + " · " + firstNote : name(item)
+        return HStack(spacing: 2) {
+            Text(label).foregroundStyle(first ? .primary : .secondary)
+                .overlay {
+                    if items.count > 1 {
+                        DragHandle(onChanged: { dx in
+                            dragging = item
+                            offset = dx
+                        }, onEnded: { x in
+                            let moved = ChipOrder.moved(item, in: items, to: x, midX: { frames[$0]?.midX })
+                            dragging = nil
+                            offset = 0
+                            if moved != items { reorder(moved) }
+                        })
+                    }
+                }
+            if items.count > 1 {
+                Button { remove(item) } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.borderless)
+                    .help(tr("移除\(name(item))", "Remove \(name(item))"))
+                    .accessibilityLabel(tr("移除\(name(item))", "Remove \(name(item))"))
+            }
+        }
+        .padding(.horizontal, 6).padding(.vertical, 2)
+        .background(Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
+        .help(tr("拖动排序，第一个是\(firstNote)", "Drag to reorder; the first is \(firstNote)"))
+    }
+}
+
+/// Tracks a mouse drag itself (its own event loop from mouseDown to mouseUp), so the table view under
+/// the Form never sees it: reports the horizontal distance while dragging and the pointer's x in the
+/// window where it's let go. A click without moving does nothing.
+private struct DragHandle: NSViewRepresentable {
+    var onChanged: (CGFloat) -> Void
+    var onEnded: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> HandleView { HandleView() }
+
+    func updateNSView(_ view: HandleView, context: Context) {
+        view.onChanged = onChanged
+        view.onEnded = onEnded
+    }
+
+    final class HandleView: NSView {
+        var onChanged: ((CGFloat) -> Void)?
+        var onEnded: ((CGFloat) -> Void)?
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+
+        override func mouseDown(with event: NSEvent) {
+            let start = event.locationInWindow.x
+            var moved = false
+            while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+                let dx = next.locationInWindow.x - start
+                if next.type == .leftMouseUp {
+                    if moved { onEnded?(next.locationInWindow.x) }
+                    break
+                }
+                if abs(dx) > 3 { moved = true }
+                if moved {
+                    NSCursor.closedHand.set()
+                    onChanged?(dx)
+                }
+            }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+}
+
+private struct ChipFrames: PreferenceKey {
+    static let defaultValue: [AnyHashable: CGRect] = [:]
+    static func reduce(value: inout [AnyHashable: CGRect], nextValue: () -> [AnyHashable: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+/// Where a dragged chip lands: before every other chip whose middle is right of where it was let go.
+enum ChipOrder {
+    static func moved<Item: Equatable>(_ item: Item, in items: [Item], to x: CGFloat, midX: (Item) -> CGFloat?) -> [Item] {
+        let others = items.filter { $0 != item }
+        let index = others.filter { (midX($0) ?? .infinity) < x }.count
+        var result = others
+        result.insert(item, at: index)
+        return result
     }
 }
