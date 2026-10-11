@@ -385,24 +385,27 @@ struct NotesFormatTests {
             NotesFormat.Entry(id: "x-coredata://2", title: "买牛奶和鸡蛋", modified: newer),
             NotesFormat.Entry(id: "x-coredata://1", title: "周会要点", modified: older),
         ])
-        #expect(NotesFormat.entries(from: result, limit: 1).map(\.id) == ["x-coredata://2"])
-        #expect(NotesFormat.entries(from: result, limit: 0).isEmpty)
+        #expect(NotesFormat.entries(from: result, limit: 1)?.map(\.id) == ["x-coredata://2"])
+        #expect(NotesFormat.entries(from: result, limit: 0) == [])
         // A name or date missing: kept without it (a note without an id is left out, above).
         let partial = list([list([NSAppleEventDescriptor(string: "a"), NSAppleEventDescriptor(string: "b")]),
                             list([NSAppleEventDescriptor(string: "A")]), list([])])
         #expect(NotesFormat.entries(from: partial, limit: 10) == [
             NotesFormat.Entry(id: "a", title: "A", modified: .distantPast), NotesFormat.Entry(id: "b", title: "", modified: .distantPast),
         ])
-        // No folder yet (`{}`), or anything else: none.
-        #expect(NotesFormat.entries(from: list([]), limit: 10).isEmpty)
-        #expect(NotesFormat.entries(from: NSAppleEventDescriptor(string: "x"), limit: 10).isEmpty)
-        #expect(NotesFormat.entries(from: list([list([]), list([]), list([])]), limit: 10).isEmpty)
+        // An empty folder: three empty lists, no notes.
+        #expect(NotesFormat.entries(from: list([list([]), list([]), list([])]), limit: 10) == [])
     }
 
-    @Test func aMissingFolderIsMissingValueNotAnEmptyList() {
-        // What `return missing value` gives: none at all, unlike an empty folder's three empty lists.
-        #expect(NotesFormat.isMissingValue(NSAppleEventDescriptor(typeCode: 0x6D73_6E67)))
-        #expect(!NotesFormat.isMissingValue(NSAppleEventDescriptor.list()))
-        #expect(!NotesFormat.isMissingValue(NSAppleEventDescriptor(string: "msng")))
+    @Test func aReplyThatIsntThreeListsListsNothing() {
+        // `return missing value` (no folder), or anything else: nil, which says nothing of the notes saved (an
+        // empty list would say there are none, and the floating panel would drop the ones it shows).
+        let missingValue = NSAppleEventDescriptor(typeCode: 0x6D73_6E67)  // 'msng', as a script's `missing value` comes back
+        #expect(NotesFormat.entries(from: missingValue, limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([]), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: NSAppleEventDescriptor(string: "x"), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([list([]), list([])]), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([list([]), list([]), list([]), list([])]), limit: 10) == nil)
+        #expect(NotesFormat.entries(from: list([NSAppleEventDescriptor(string: "x-coredata://1"), list([]), list([])]), limit: 10) == nil)
     }
 }

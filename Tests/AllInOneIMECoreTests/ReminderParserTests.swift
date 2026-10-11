@@ -123,6 +123,24 @@ struct ReminderParserTests {
         #expect(parse("提醒我记得带伞").title == "带伞" && parse("提醒我一下").title.isEmpty)
     }
 
+    @Test func onlyBracketsTheDateLeftEmptyGo() {
+        let tomorrow = Self.date(10, 10)
+        // Empty already: part of the title.
+        #expect(parse("明天修复 parse() 崩溃", ["明天": tomorrow]) == Self.allDay("修复 parse() 崩溃", 10, 10))
+        #expect(parse("明天 call foo() again", ["明天": tomorrow]).title == "call foo() again")
+        #expect(parse("明天给数组[]加测试", ["明天": tomorrow]).title == "给数组[]加测试")
+        #expect(parse("开会（明天）讨论「」的用法", ["明天": tomorrow]).title == "开会讨论「」的用法")
+        // Holding only the date, and the words that went with it: they go, spaced as the date was.
+        #expect(parse("开会（明天下午3点前）", ["明天下午3点": Self.date(10, 10, 15)]) == Self.timed("开会", 10, 10, 15))
+        #expect(parse("开会【在明天】", ["明天": tomorrow]).title == "开会")
+        #expect(parse("开会 （明天） 讨论", ["明天": tomorrow]).title == "开会 讨论")
+        #expect(parse("call Bob (tomorrow) about it", ["tomorrow": tomorrow]).title == "call Bob about it")
+        #expect(parse("（明天）是小王生日", ["明天": tomorrow]).title == "小王生日")
+        #expect(parse("开会（「明天」）", ["明天": tomorrow]).title == "开会")
+        // With more in them: they stay.
+        #expect(parse("开会（明天，302室）", ["明天": tomorrow]).title.hasSuffix("302室）"))
+    }
+
     @Test func mealsTheDetectorReadsAsATimeStayInTheTitle() {
         // It reads "tomorrow lunch" (at 12:00): the reminder is the lunch, tomorrow.
         #expect(parse("tomorrow lunch with Ann", ["tomorrow lunch": Self.date(10, 10, 12)]) == Self.allDay("lunch with Ann", 10, 10))
@@ -395,6 +413,26 @@ struct ReminderParserTests {
         #expect(parse("月底交房租") == Self.allDay("交房租", 10, 31) && parse("下个月底交房租").due == Self.due(11, 30))
         #expect(parse("pay rent by the end of the month") == Self.allDay("pay rent", 10, 31))
         #expect(parse("上个月底的账单").due == nil)
+    }
+
+    @Test func aDecimalIsADateOnlyWhenNothingElseSaysWhen() {
+        let tomorrow = Self.date(10, 10)
+        // Another day in the text: the number before it is no month and day (Sep 8, Dec 8 came first and won).
+        #expect(parse("评分9.8的电影明天看", ["明天": tomorrow]) == Self.allDay("评分9.8的电影看", 10, 10))
+        #expect(parse("血压12.8 明天复查", ["明天": tomorrow]) == Self.allDay("血压12.8复查", 10, 10))
+        #expect(parse("电影9.8 明天看", ["明天": tomorrow]) == Self.allDay("电影9.8看", 10, 10))
+        #expect(parse("刻度6.1 下周一复查").due == Self.due(10, 12) && parse("刻度6.1 15号复查").due == Self.due(10, 15))
+        #expect(parse("刻度6.1，3天后复测").due == Self.due(10, 12))
+        #expect(parse("刻度6.1 30分钟后复测").date == now.addingTimeInterval(30 * 60))
+        // After a score, a reading, a rate, a price or a version: a number, with no other day too.
+        for text in ["评分9.8的电影", "得分 8.5", "打分：9.5", "评分是9.8", "血压12.8", "血糖6.1", "视力5.1", "汇率7.1", "绩点3.8",
+                     "价格9.9", "版本1.2", "指数3.1"] {
+            #expect(parse(text).due == nil, "\(text)")
+        }
+        // Still a month and day: alone with words, with a time, after the 分 of a number (minutes, a score).
+        #expect(parse("10.1 下午3点出发").due == Self.due(10, 1, 15, 0, year: 2027))
+        #expect(parse("考了95分 10.1出成绩").due == Self.due(10, 1, year: 2027))
+        #expect(parse("3点20分 10.1出发").due == Self.due(10, 1, 15, 20, year: 2027))
     }
 
     @Test func fixedDaysTheDetectorMisses() {
@@ -882,6 +920,12 @@ struct ReminderParserTests {
         #expect(parse("finish the report by the end of the year") == Self.allDayDraft("finish the report", coming(12, 31)))
         // Lunar holidays move: not read.
         #expect(parse("中秋回家") == ReminderDraft(title: "中秋回家") && parse("春节回家") == ReminderDraft(title: "春节回家"))
+        // Brackets that were empty stay in the title; a decimal before the day is a number.
+        #expect(parse("明天修复 parse() 崩溃") == Self.allDayDraft("修复 parse() 崩溃", tomorrow))
+        #expect(parse("明天 call foo() again") == Self.allDayDraft("call foo() again", tomorrow))
+        #expect(parse("明天给数组[]加测试") == Self.allDayDraft("给数组[]加测试", tomorrow))
+        #expect(parse("评分9.8的电影明天看") == Self.allDayDraft("评分9.8的电影看", tomorrow))
+        #expect(parse("血压12.8 明天复查") == Self.allDayDraft("血压12.8复查", tomorrow))
     }
 
     @Test func aLongTextFullOfDatesIsReadQuickly() {

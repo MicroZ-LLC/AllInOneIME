@@ -1,8 +1,9 @@
 # Plugins: plan
 
-@ commands come in three tiers: **built-in** (`@improve`, `@question`, `@claude`, `@open`), **plugins**
-installed from the plugin library (what not everyone wants, like `@stock`), and the user's **custom**
-commands (Settings → Custom @ Commands). When names clash: built-in > plugin > custom.
+@ commands come in three tiers: **built-in** (`@improve`, `@question`, `@claude`, `@open`, `@read`, `@note`,
+`@reminder`, `@tasks`, `@settings`, `@imessage`), **plugins** installed from the plugin library (what not everyone
+wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands). When names clash: built-in >
+plugin > custom, so a plugin named like a built-in command never shows up.
 
 ## What a plugin is
 

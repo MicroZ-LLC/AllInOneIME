@@ -243,6 +243,9 @@ public final class Composer {
     public private(set) var liveResults: [SearchResult] = []
     private var liveResultsQuery: String?
     public private(set) var liveHighlight = 0
+    /// ↑↓ moved the highlight among these results (back to the first counts too): it opens (`opensLiveResult`).
+    /// Reset with the highlight when the results or the text change.
+    private var liveHighlightMoved = false
     /// A send command's recipient (`@imessage`), once picked; until then the text after the command
     /// finds one (`recipientQuery`).
     public private(set) var messageRecipient: Recipient?
@@ -280,7 +283,11 @@ public final class Composer {
     /// stay on this Mac and go ahead.)
     public var secureInputActive: () -> Bool = { false }
     /// Confirmed text waiting for level two: an @ command and the sentence after it.
-    public private(set) var draft = ""
+    public private(set) var draft = "" {
+        // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
+        // highlight starts at the first again (`opensLiveResult`).
+        didSet { if draft != oldValue { resetLiveHighlight() } }
+    }
     /// Last known state of the level-one engine.
     public private(set) var engineState = EngineSnapshot.empty
     public private(set) var result = ConversionResult.empty
@@ -555,10 +562,11 @@ public final class Composer {
 
     /// Whether the action key opens the highlighted result as you type. Not the first when every row is a
     /// content match: nothing is named like the text, so the first may have little to do with it, and the
-    /// key lists them to choose from instead, as before the results arrive. One picked with ↑↓ opens.
+    /// key lists them to choose from instead, as before the results arrive. One picked with ↑↓ opens, the
+    /// first too (↓ then ↑, or round from the last): what the user moved to, not where the highlight started.
     public var opensLiveResult: Bool {
         let live = currentLiveResults
-        return live.indices.contains(liveHighlight) && (liveHighlight > 0 || !live.allSatisfy(\.matchedContent))
+        return live.indices.contains(liveHighlight) && (liveHighlightMoved || !live.allSatisfy(\.matchedContent))
     }
 
     /// The text after a send command (`@imessage zs`) while no recipient is picked: what finds one
@@ -634,8 +642,14 @@ public final class Composer {
         guard query == liveQuery else { return [] }
         liveResults = results
         liveResultsQuery = query
-        liveHighlight = 0
+        resetLiveHighlight()
         return [.showPanel]
+    }
+
+    /// The highlight back on the first result as you type, where it starts rather than moved to.
+    private func resetLiveHighlight() {
+        liveHighlight = 0
+        liveHighlightMoved = false
     }
 
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.
@@ -1240,7 +1254,7 @@ public final class Composer {
         draft = "@open " + (result.path as NSString).abbreviatingWithTildeInPath + (result.isFolder ? "/" : "")
         liveResults = []
         liveResultsQuery = nil
-        liveHighlight = 0
+        resetLiveHighlight()
         return [.updateMarkedText, .showPanel]
     }
 
@@ -1269,6 +1283,7 @@ public final class Composer {
             switch event.keyCode {
             case VirtualKey.up, VirtualKey.down:
                 liveHighlight = (liveHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + live.count) % live.count
+                liveHighlightMoved = true
                 return .consumed([.showPanel])
             case VirtualKey.tab:
                 return .consumed(completeLivePath())
@@ -1747,7 +1762,7 @@ public final class Composer {
         pendingPaste = nil  // a paste still on its way is dropped
         liveResults = []
         liveResultsQuery = nil
-        liveHighlight = 0
+        resetLiveHighlight()
         highlightOverride = nil
         phase = .idle
         restoreInputModeAfterOpen()

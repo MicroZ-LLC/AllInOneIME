@@ -1706,6 +1706,45 @@ struct ComposerTests {
         #expect(d.opensLiveResult && d.handleKeyDown(enterKey).effects.last == .open(path: named.path))
     }
 
+    @Test func aContentMatchMovedToWithTheArrowsOpensTheFirstToo() {
+        let notes = SearchResult(name: "notes.md", path: "/Users/me/notes.md", matchedContent: true)
+        let todo = SearchResult(name: "todo.txt", path: "/Users/me/todo.txt", matchedContent: true)
+        func contentMatches() -> Composer {
+            let (c, _) = composer(key: .enter)
+            _ = c.handleKeyDown(at)
+            type("o", c)
+            _ = c.handleKeyDown(tab)
+            type("xyz", c)
+            _ = c.receiveLive([notes, todo], for: "xyz")
+            return c
+        }
+        // ↓ then ↑: back on the first, picked with the arrows: ⏎ opens it (it listed them, and the footer said so).
+        let c = contentMatches()
+        _ = c.handleKeyDown(downKey)
+        _ = c.handleKeyDown(upKey)
+        #expect(c.liveHighlight == 0 && c.opensLiveResult)
+        #expect(c.handleKeyDown(enterKey).effects.last == .open(path: notes.path))
+        // Round from the last to the first, and from the first to the last.
+        let d = contentMatches()
+        _ = d.handleKeyDown(downKey)
+        _ = d.handleKeyDown(downKey)
+        #expect(d.liveHighlight == 0 && d.opensLiveResult)
+        let e = contentMatches()
+        _ = e.handleKeyDown(upKey)
+        #expect(e.liveHighlight == 1 && e.opensLiveResult && e.handleKeyDown(enterKey).effects.last == .open(path: todo.path))
+        // New results, or a change to the text: the highlight starts again at the first, not picked.
+        let f = contentMatches()
+        _ = f.handleKeyDown(downKey)
+        _ = f.receiveLive([notes, todo], for: "xyz")
+        #expect(f.liveHighlight == 0 && !f.opensLiveResult)
+        _ = f.handleKeyDown(downKey)
+        type("a", f)
+        _ = f.handleKeyDown(backspaceKey)  // the same text again: its results show, as they were before the "a"
+        #expect(f.draft == "@open xyz" && f.currentLiveResults == [notes, todo])
+        #expect(f.liveHighlight == 0 && !f.opensLiveResult)
+        #expect(f.handleKeyDown(enterKey).effects.first == .search(query: "xyz", id: 1))
+    }
+
     @Test func commandCopiesTheHighlightedResult() {
         let (c, _) = translating()
         _ = c.receive(final, isFinal: true, id: 1)
