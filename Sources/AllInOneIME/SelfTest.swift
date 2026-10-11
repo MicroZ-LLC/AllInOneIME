@@ -1492,8 +1492,14 @@ enum SelfTest {
             }
         }
 
-        // Without a key nothing is sent: the error says where to add one. (No live search here.)
-        if start("search") {
+        // Without a key nothing is sent: the error says where to add one. (No live search here.) @search is
+        // off for now (`Command.webSearchOffered`): then it isn't in the list at all.
+        if !Command.webSearchOffered {
+            press(controller, client, "@", code: 0x13, flags: .shift)
+            type("sea", controller, client)
+            check(!controller.composer.paletteMatches.contains(.webSearch), "@search isn't offered (off for now)")
+            clear()
+        } else if start("search") {
             type("pingguo", controller, client)  // 苹果: apple
             _ = act(controller, client)
             waitForEnd()

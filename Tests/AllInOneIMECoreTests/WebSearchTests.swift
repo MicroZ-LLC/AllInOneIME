@@ -398,7 +398,9 @@ struct WebSearchTests {
 
     // MARK: Inside a text
 
-    let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+    // @search is off in what the input method offers (`Command.webSearchOffered`); its own tests use it.
+    let catalog = Command.builtins + Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+        .filter { $0.custom != nil }
 
     func inner(_ text: String) -> [String] {
         CommandPlan.make(text, commands: catalog).inner.map { "@\($0.command.name) \($0.argument)" }

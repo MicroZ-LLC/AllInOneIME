@@ -848,38 +848,40 @@ struct SettingsView: View {
             }
             .disabled(!model.canSave)
 
-            // The key lives in the keychain, not in the config file: this works even when the file is broken.
-            Section {
-                HStack {
-                    SecureField("API key", text: $newSearchKey,
-                                prompt: Text(tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key")))
-                        .onSubmit { saveSearchKey() }
-                    Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
-                    if model.searchKeySource == .keychain {
-                        Button(tr("删除", "Remove")) { model.saveSearchKey("") }
+            if Command.webSearchOffered {
+                // The key lives in the keychain, not in the config file: this works even when the file is broken.
+                Section {
+                    HStack {
+                        SecureField("API key", text: $newSearchKey,
+                                    prompt: Text(tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key")))
+                            .onSubmit { saveSearchKey() }
+                        Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
+                        if model.searchKeySource == .keychain {
+                            Button(tr("删除", "Remove")) { model.saveSearchKey("") }
+                        }
                     }
-                }
-                Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
-                if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
-                HStack {
-                    Button(tr("测试", "Test")) { model.testSearch() }
-                        .disabled(model.searchTestStatus == .running || model.searchKeySource == APIKeys.Source.none)
-                    Button(tr("获取 API key…", "Get an API Key…")) { NSWorkspace.shared.open(WebSearch.backend.keyPage) }
-                    switch model.searchTestStatus {
-                    case .idle: EmptyView()
-                    case .running: ProgressView().controlSize(.small)
-                    case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                    case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                    Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
+                    if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
+                    HStack {
+                        Button(tr("测试", "Test")) { model.testSearch() }
+                            .disabled(model.searchTestStatus == .running || model.searchKeySource == APIKeys.Source.none)
+                        Button(tr("获取 API key…", "Get an API Key…")) { NSWorkspace.shared.open(WebSearch.backend.keyPage) }
+                        switch model.searchTestStatus {
+                        case .idle: EmptyView()
+                        case .running: ProgressView().controlSize(.small)
+                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                        }
                     }
+                    Text(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
+                                + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
+                            "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
+                                + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
+                                + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell."))
+                        .font(.caption).foregroundStyle(.secondary)
+                } header: {
+                    SectionTitle(tr("网页搜索（@search）", "Web Search (@search)"), icon: CommandIcons.webSearch)
                 }
-                Text(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
-                            + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
-                        "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
-                            + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                            + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("网页搜索（@search）", "Web Search (@search)"), icon: CommandIcons.webSearch)
             }
 
             Section {

@@ -96,6 +96,11 @@ public struct Command: Hashable, Sendable {
     public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
                                              .py, .js, .webSearch, .tasks, .settings, .imessage]
 
+    /// `@search` (Brave Search with the user's own key) is off for now: `@open` opens web addresses,
+    /// which is enough. It's left out of `catalog` (what the input method offers) and its settings are
+    /// hidden; its code and tests stay. Set this to bring it back.
+    public static let webSearchOffered = false
+
     /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
     public var isCode: Bool { self == .py || self == .js }
@@ -144,7 +149,9 @@ public struct Command: Hashable, Sendable {
                 return Command(name: plugin.name, kind: .link, plugin: plugin)
             }
         }
-        return builtins + fromPlugins + custom.compactMap { definition in
+        // A built-in that's off (`webSearchOffered`) isn't offered, but its name stays taken.
+        let offered = webSearchOffered ? builtins : builtins.filter { $0 != .webSearch }
+        return offered + fromPlugins + custom.compactMap { definition in
             let name = definition.name.lowercased()
             guard definition.isValid, taken.insert(name).inserted else {
                 if definition.isValid, builtinNames.contains(name) { logHidden("custom command", name) }

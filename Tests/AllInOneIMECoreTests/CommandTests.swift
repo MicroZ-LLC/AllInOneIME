@@ -46,7 +46,7 @@ struct CommandTests {
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "read", "note", "reminder", "calc", "py", "js", "search", "tasks",
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "read", "note", "reminder", "calc", "py", "js", "tasks",
                                         "settings", "imessage", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
