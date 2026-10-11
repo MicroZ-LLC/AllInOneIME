@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// A command typed at the start of a draft, e.g. "@question 量子计算是什么". The action key then
 /// runs it on the rest of the draft. Without one, nothing is sent: the input method just types.
@@ -27,6 +28,11 @@ public struct Command: Hashable, Sendable {
         case agents
         /// Opens the settings window (`@settings`), right when it is picked.
         case settings
+        /// The text is saved to Apple Notes; nothing is inserted.
+        case note
+        /// A reminder for Apple Reminders, its time read from the text (`ReminderParser`): shown to
+        /// confirm, then added; nothing is inserted.
+        case reminder
         /// Opens a web address with the text in it (`LinkTemplate`) in the browser; nothing is inserted.
         case link
         /// Sends the text to someone picked in the panel (`@imessage`), after the user confirms it.
@@ -56,6 +62,11 @@ public struct Command: Hashable, Sendable {
     /// A web page's title and text (`WebReader`), mostly inside another command's text as context:
     /// `@question 总结一下 @read https://…`.
     public static let read = Command(name: "read", kind: .run)
+    /// Save the text to Apple Notes (a folder named "AllInOneIME").
+    public static let note = Command(name: "note", kind: .note)
+    /// Add a reminder to Apple Reminders (a list named "AllInOneIME"), with the time written in the text:
+    /// `@reminder 明天下午3点给张三打电话`.
+    public static let reminder = Command(name: "reminder", kind: .reminder)
 
     /// The background tasks `@claude` started: how they're doing and what they replied.
     public static let tasks = Command(name: "tasks", kind: .agents)
@@ -66,7 +77,8 @@ public struct Command: Hashable, Sendable {
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
-    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .tasks, .settings, .imessage]
+    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder,
+                                             .tasks, .settings, .imessage]
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
@@ -90,11 +102,15 @@ public struct Command: Hashable, Sendable {
 
     /// The built-in commands, then the installed plugins, then the user's valid ones
     /// (`CustomCommand.isValid`) whose names are still free, in the order of the config. When names
-    /// clash, built-in > plugin > custom.
+    /// clash, built-in > plugin > custom; one hidden by a built-in is logged (`logHidden`).
     public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = []) -> [Command] {
-        var taken = Set(builtins.map(\.name))
+        let builtinNames = Set(builtins.map(\.name))
+        var taken = builtinNames
         let fromPlugins = plugins.compactMap { plugin -> Command? in
-            guard taken.insert(plugin.name).inserted else { return nil }
+            guard taken.insert(plugin.name).inserted else {
+                if builtinNames.contains(plugin.name) { logHidden("plugin", plugin.name) }
+                return nil
+            }
             switch plugin.manifest.type {
             case .script:
                 return Command(name: plugin.name, kind: .run, plugin: plugin)
@@ -109,7 +125,10 @@ public struct Command: Hashable, Sendable {
         }
         return builtins + fromPlugins + custom.compactMap { definition in
             let name = definition.name.lowercased()
-            guard definition.isValid, taken.insert(name).inserted else { return nil }
+            guard definition.isValid, taken.insert(name).inserted else {
+                if definition.isValid, builtinNames.contains(name) { logHidden("custom command", name) }
+                return nil
+            }
             let kind: Kind
             switch definition.type {
             case .prompt: kind = .generate
@@ -119,6 +138,17 @@ public struct Command: Hashable, Sendable {
             }
             return Command(name: name, kind: kind, custom: definition)
         }
+    }
+
+    private static let catalogLog = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
+    private static let loggedHidden = OSAllocatedUnfairLock(initialState: Set<String>())
+
+    /// A plugin or custom command a built-in one hides (say a custom "@note" from before @note was built in):
+    /// logged once per process, with no UI. The catalog is made on most keystrokes, hence once. The name is
+    /// the built-in's, so it may be logged.
+    private static func logHidden(_ kind: String, _ name: String) {
+        guard loggedHidden.withLock({ $0.insert(kind + " " + name).inserted }) else { return }
+        catalogLog.notice("\(kind, privacy: .public) @\(name, privacy: .public) is hidden: a built-in command has that name")
     }
 
     /// The draft's command and the text after it: "@question 量子计算" → (.question, "量子计算").
@@ -336,12 +366,20 @@ public struct SearchResult: Equatable, Sendable {
     public var isFolder: Bool
     /// Shown next to the name; what ⌘C copies instead of the path (a task's reply).
     public var detail: String?
+    /// Found by what is in it, not by its name: its row says so (「内容」).
+    public var matchedContent: Bool
+    /// The name a Chinese interface shows instead of `name`, when known (an app's 计算器). Picked when the
+    /// row is drawn: the interface language may change while the results are up.
+    public var chineseName: String?
 
-    public init(name: String, path: String, isFolder: Bool = false, detail: String? = nil) {
+    public init(name: String, path: String, isFolder: Bool = false, detail: String? = nil, matchedContent: Bool = false,
+                chineseName: String? = nil) {
         self.name = name
         self.path = path
         self.isFolder = isFolder
         self.detail = detail
+        self.matchedContent = matchedContent
+        self.chineseName = chineseName
     }
 
     /// A background task in the list (`@tasks`): its "path" names the session to open.
@@ -355,17 +393,36 @@ public struct SearchResult: Equatable, Sendable {
     }
 
     /// The query as a web address to open, or nil: "https://…" and "www.…" always; a bare
-    /// "name.tld/…" only for common top-level domains, so "report.pdf" or "Safari.app" stay file names.
+    /// "name.tld/…" only for common top-level domains, so "report.pdf" or "Safari.app" stay file names;
+    /// localhost and IP addresses, with a port or not ("localhost:3000", "192.168.1.1"), over http: a server
+    /// on this Mac or the network, which mostly has no certificate.
     public static func web(_ query: String) -> SearchResult? {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !text.contains(where: \.isWhitespace), !text.hasPrefix("/"), !text.hasPrefix("~") else { return nil }
         let lower = text.lowercased()
         let explicit = lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("www.")
+        if !explicit, let url = URL(string: "http://" + text), url.user == nil,
+           let host = url.host?.lowercased(), host == "localhost" || isIPv4(host) {
+            return SearchResult(name: name(of: url, host: host), path: url.absoluteString)
+        }
         guard let url = WebReader.url(from: text), let host = url.host?.lowercased() else { return nil }
         if !explicit {
             guard let tld = host.split(separator: ".").last, commonDomains.contains(String(tld)) else { return nil }
         }
-        return SearchResult(name: host + (url.path.count > 1 ? url.path : ""), path: url.absoluteString)
+        return SearchResult(name: name(of: url, host: host), path: url.absoluteString)
+    }
+
+    /// How a web address is listed: its host, port and path ("github.com/…", "localhost:3000").
+    private static func name(of url: URL, host: String) -> String {
+        host + (url.port.map { ":\($0)" } ?? "") + (url.path.count > 1 ? url.path : "")
+    }
+
+    /// Four numbers from 0 to 255 with dots between: 127.0.0.1, 192.168.1.1 (not 1.2.3, 999.1.1.1).
+    static func isIPv4(_ host: String) -> Bool {
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts.allSatisfy { part in
+            (1...3).contains(part.count) && part.allSatisfy(\.isASCII) && part.allSatisfy(\.isNumber) && Int(part).map { $0 <= 255 } == true
+        }
     }
 
     static let commonDomains: Set<String> = [

@@ -207,7 +207,7 @@ struct ConfigTests {
         var c = try Config.load(from: url)
         #expect(c.awsProfile == "work" && !c.voiceInput && c.actionKey == .space)
         c.outputLanguage = .chinese
-        c.normalizeLanguages()
+        c.normalizeLanguages()  // the chosen one leads the list, as when it's picked in the menu: it reads back the same
         try c.write(to: url)
         let text = try String(contentsOf: url, encoding: .utf8)
         #expect(!text.contains(removed) && text.contains("\"outputLanguage\" : \"zh\""))

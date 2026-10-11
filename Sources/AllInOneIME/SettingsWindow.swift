@@ -639,16 +639,23 @@ struct SettingsView: View {
 
             Section {
                 ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
-                    HStack {
-                        IconTile(icon: CommandIcons.icon(for: command))
-                        Text("@" + command.name).font(.body.monospaced())
-                        Text(UIText.customKind(command)).foregroundStyle(.secondary)
-                        if let summary = command.summary {
-                            Text(summary).foregroundStyle(.secondary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            IconTile(icon: CommandIcons.icon(for: command))
+                            Text("@" + command.name).font(.body.monospaced())
+                            Text(UIText.customKind(command)).foregroundStyle(.secondary)
+                            if let summary = command.summary {
+                                Text(summary).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
+                            Button(tr("删除", "Delete")) { commandToDelete = index }
                         }
-                        Spacer()
-                        Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                        Button(tr("删除", "Delete")) { commandToDelete = index }
+                        if Self.hiddenByBuiltIn(command) {
+                            Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
+                                  systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 }
                 Button(tr("添加命令…", "Add Command…")) {
@@ -881,13 +888,20 @@ struct SettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
+    /// A custom command with a built-in's name (say a `note` added before @note was built in): the built-in hides
+    /// it (`Command.catalog`), so the list says so. The editor won't save such a name (`.nameTaken`).
+    static func hiddenByBuiltIn(_ command: CustomCommand) -> Bool {
+        Command.builtins.contains { $0.name == command.name.lowercased() }
+    }
+
     /// The commands, at the top: what this input method does beyond pinyin.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
         return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
-                      + "@claude 交给 Claude Code，@open 找文件。写完\(key)执行。",
+                      + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
                   "A regular pinyin input method. Type @ first for commands: @improve polishes and rewrites, @translate "
-                      + "translates, @question asks, @claude hands it to Claude Code, @open finds files. When done, \(key).")
+                      + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
+                      + "@reminder adds a reminder. When done, \(key).")
     }
 
     /// What @improve does for Chinese and for English input.

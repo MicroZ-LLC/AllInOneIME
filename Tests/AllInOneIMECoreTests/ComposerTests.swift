@@ -1323,7 +1323,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .claude, .open] && c.paletteMatches.count == 9)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .claude, .open] && c.paletteMatches.count == 11)
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@q")
         #expect(c.handleKeyDown(tab).effects == [.updateMarkedText, .showPanel])
@@ -1343,7 +1343,7 @@ struct ComposerTests {
         #expect(a.paletteHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.paletteHighlighted == 8 && a.paletteFirstVisible == 4)  // around to the last, scrolled to it
+        #expect(a.paletteHighlighted == 10 && a.paletteFirstVisible == 6)  // around to the last, scrolled to it
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(tab)
@@ -1461,7 +1461,8 @@ struct ComposerTests {
     @Test func commandsKnowTheirProgram() {
         let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
         let reply = CustomCommand(name: "reply", type: .prompt, prompt: "Write a reply.")
-        #expect(Command.catalog([python, reply]).map(\.program) == [nil, nil, nil, "claude", nil, nil, nil, nil, "/System/Applications/Messages.app", "python3", nil])
+        #expect(Command.catalog([python, reply]).map(\.program)
+                == [nil, nil, nil, "claude", nil, nil, nil, nil, nil, nil, "/System/Applications/Messages.app", "python3", nil])
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
@@ -1596,7 +1597,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.count == 12 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
+        #expect(c.paletteMatches.count == 14 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
         for _ in 0..<5 { _ = c.handleKeyDown(downKey) }  // past the fifth: scrolls by one
         #expect(c.paletteHighlighted == 5 && c.paletteFirstVisible == 1)
         #expect(c.paletteVisible.map(\.name) == ["translate", "question", "claude", "open", "read"])
@@ -1606,10 +1607,10 @@ struct ComposerTests {
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 11 && d.paletteFirstVisible == 7)
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 13 && d.paletteFirstVisible == 9)
         #expect(d.paletteVisible.map(\.name) == ["settings", "imessage", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.paletteHighlighted == 9 && d.paletteFirstVisible == 7)  // still in view: no scrolling
+        #expect(d.paletteHighlighted == 11 && d.paletteFirstVisible == 9)  // still in view: no scrolling
         _ = d.choose(index: 2)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.
@@ -1726,6 +1727,75 @@ struct ComposerTests {
         _ = d.handleKeyDown(tab)
         _ = d.handleKeyDown(escKey)
         #expect(!d.engineState.isAsciiMode && d.draft.isEmpty)
+    }
+
+    @Test func onlyContentMatchesAsYouTypeAreListedToPickFrom() {
+        let notes = SearchResult(name: "notes.md", path: "/Users/me/notes.md", matchedContent: true)
+        let todo = SearchResult(name: "todo.txt", path: "/Users/me/todo.txt", matchedContent: true)
+        let (c, _) = composer(key: .enter)
+        _ = c.handleKeyDown(at)
+        type("o", c)
+        _ = c.handleKeyDown(tab)
+        type("xyz", c)
+        _ = c.receiveLive([notes, todo], for: "xyz")
+        #expect(!c.opensLiveResult)
+        // Nothing is named like the text: ⏎ doesn't open the first, it searches and lists them to pick from.
+        let listed = c.handleKeyDown(enterKey)
+        #expect(listed.effects.first == .search(query: "xyz", id: 1) && !listed.effects.contains(.open(path: notes.path)))
+        #expect(c.isLevelTwo && c.receiveSearch([notes, todo], id: 1) == [.showPanel] && c.choices.map(\.label) == ["1", "2"])
+        // Back to the text: one picked with ↓ opens right away.
+        _ = c.handleKeyDown(escKey)
+        _ = c.receiveLive([notes, todo], for: "xyz")
+        _ = c.handleKeyDown(downKey)
+        #expect(c.opensLiveResult && c.handleKeyDown(enterKey).effects.last == .open(path: todo.path))
+        // A name match first: ⏎ opens it, as before.
+        let (d, _) = composer(key: .enter)
+        _ = d.handleKeyDown(at)
+        type("o", d)
+        _ = d.handleKeyDown(tab)
+        type("notes", d)
+        let named = SearchResult(name: "notes", path: "/Users/me/notes", isFolder: true)
+        _ = d.receiveLive([named, notes], for: "notes")
+        #expect(d.opensLiveResult && d.handleKeyDown(enterKey).effects.last == .open(path: named.path))
+    }
+
+    @Test func aContentMatchMovedToWithTheArrowsOpensTheFirstToo() {
+        let notes = SearchResult(name: "notes.md", path: "/Users/me/notes.md", matchedContent: true)
+        let todo = SearchResult(name: "todo.txt", path: "/Users/me/todo.txt", matchedContent: true)
+        func contentMatches() -> Composer {
+            let (c, _) = composer(key: .enter)
+            _ = c.handleKeyDown(at)
+            type("o", c)
+            _ = c.handleKeyDown(tab)
+            type("xyz", c)
+            _ = c.receiveLive([notes, todo], for: "xyz")
+            return c
+        }
+        // ↓ then ↑: back on the first, picked with the arrows: ⏎ opens it (it listed them, and the footer said so).
+        let c = contentMatches()
+        _ = c.handleKeyDown(downKey)
+        _ = c.handleKeyDown(upKey)
+        #expect(c.liveHighlight == 0 && c.opensLiveResult)
+        #expect(c.handleKeyDown(enterKey).effects.last == .open(path: notes.path))
+        // Round from the last to the first, and from the first to the last.
+        let d = contentMatches()
+        _ = d.handleKeyDown(downKey)
+        _ = d.handleKeyDown(downKey)
+        #expect(d.liveHighlight == 0 && d.opensLiveResult)
+        let e = contentMatches()
+        _ = e.handleKeyDown(upKey)
+        #expect(e.liveHighlight == 1 && e.opensLiveResult && e.handleKeyDown(enterKey).effects.last == .open(path: todo.path))
+        // New results, or a change to the text: the highlight starts again at the first, not picked.
+        let f = contentMatches()
+        _ = f.handleKeyDown(downKey)
+        _ = f.receiveLive([notes, todo], for: "xyz")
+        #expect(f.liveHighlight == 0 && !f.opensLiveResult)
+        _ = f.handleKeyDown(downKey)
+        type("a", f)
+        _ = f.handleKeyDown(backspaceKey)  // the same text again: its results show, as they were before the "a"
+        #expect(f.draft == "@open xyz" && f.currentLiveResults == [notes, todo])
+        #expect(f.liveHighlight == 0 && !f.opensLiveResult)
+        #expect(f.handleKeyDown(enterKey).effects.first == .search(query: "xyz", id: 1))
     }
 
     @Test func commandCopiesTheHighlightedResult() {

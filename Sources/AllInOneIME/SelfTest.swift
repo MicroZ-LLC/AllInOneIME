@@ -96,6 +96,14 @@ enum SelfTest {
         config.claudeInBackground = false  // @claude records a Terminal launch here; nothing starts in the background
         return config
     }()
+    /// Live Bedrock calls with the real config (model, credentials, styles), the translation languages pinned to English then Chinese
+    /// like `settings`: the user may have picked any output language (Japanese, say), and the checks and
+    /// the README images read English versions.
+    static let liveConverter = Converter(loadConfig: {
+        var config = try Config.load()
+        config.setOrder([OutputLanguage.english, .chinese])
+        return config
+    })
 
     static func check(_ condition: Bool, _ message: String) {
         print("\(condition ? "✓" : "✗") \(message)")
@@ -267,6 +275,12 @@ enum SelfTest {
 
         let model = SettingsModel(configURL: url)
         check(model.canSave && model.config == real, "loads the config")
+        // A custom command named like a built-in (a `note` from before @note was built in) is hidden by it: the
+        // custom commands list marks it 「和内置命令重名，不会生效，请改名」.
+        func custom(_ name: String) -> CustomCommand { CustomCommand(name: name, type: .prompt, prompt: "Reply.") }
+        check(["note", "Reminder", "open", "settings"].map(custom).allSatisfy(SettingsView.hiddenByBuiltIn)
+              && !["notes", "reply", "remind"].map(custom).contains(where: SettingsView.hiddenByBuiltIn),
+              "custom commands a built-in hides are marked in the list, the others aren't")
         check(model.profiles.contains(real.awsProfile), "profile picker lists \(real.awsProfile) (\(model.profiles))")
         check(model.credentialStatus == SettingsModel.credentialsFound, "credentials found: \(model.credentialStatus)")
         let casual = RewriteStyle.named("口语")!
@@ -640,6 +654,7 @@ enum SelfTest {
     static func testCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         print("— @ commands (live Bedrock, Spotlight)")
         var opened: [String] = [], terminal: [String] = [], copied: [String] = []
+        let saved = (openItem: controller.openItem, runInTerminal: controller.runInTerminal, copyText: controller.copyText)
         controller.openItem = { opened.append($0) }
         controller.runInTerminal = { terminal.append($0) }
         controller.startAgent = { _ in "selftest" }  // never a real background task
@@ -648,12 +663,9 @@ enum SelfTest {
         controller.setCommands(Command.catalog(controller.loadSettings().customCommands), recheck: true)
         controller.composer.commands = Command.catalog(controller.loadSettings().customCommands)
         defer {
-            controller.openItem = { NSWorkspace.shared.open(SearchResult(name: "", path: $0).webURL ?? URL(fileURLWithPath: $0)) }
-            controller.runInTerminal = { try TerminalLauncher.claude($0) }
-            controller.copyText = { text in
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-            }
+            controller.openItem = saved.openItem
+            controller.runInTerminal = saved.runInTerminal
+            controller.copyText = saved.copyText
         }
         func at() { _ = press(controller, client, "@", code: 0x13, flags: .shift) }  // ⇧2
         func copy() { _ = press(controller, client, "c", code: 0x08, flags: .command) }
@@ -721,13 +733,19 @@ enum SelfTest {
         let found = live("calculator")
         check(found.first?.path == "/System/Applications/Calculator.app",
               "@open shows Calculator as you type (\(found.prefix(3).map(\.path)))")
+        let shownAs = controller.panelModel().rows.first?.text
+        check(shownAs == "计算器", "…under its Chinese name in a Chinese interface (\(shownAs ?? "-"))")
         // README images are public: the panel shows only what ships with macOS, never the user's own files.
         let shipped = found.filter { $0.path.hasPrefix("/System/Applications/") }
         controller.perform(controller.composer.receiveLive(shipped, for: controller.composer.liveQuery ?? ""), client: client)
         readmeSnapshot("12-open", controller, client, in: snapshotDirectory)
+        let userHistory = UserDefaults.standard.data(forKey: OpenHistoryStore.key)  // only read
         _ = enter(controller, client)
         check(opened == ["/System/Applications/Calculator.app"] && client.marked.isEmpty
               && !controller.composer.engineState.isAsciiMode, "⏎ opens it, inserts nothing, and Chinese is back")
+        check(controller.loadOpenHistory().entries.map(\.path) == ["/System/Applications/Calculator.app"]
+              && UserDefaults.standard.data(forKey: OpenHistoryStore.key) == userHistory,
+              "…and keeps it in the test's own @open history, not the user's")
 
         at()
         type("o", controller, client)
@@ -752,11 +770,482 @@ enum SelfTest {
         _ = enter(controller, client)
         check(opened.last == "/System/Applications/Utilities/Terminal.app", "⏎ opens it")
 
+        // A web address: "https://…" is only the browser's row; ⏎ opens it there, and it isn't kept in
+        // the @open history (what that history ranks are files).
+        at()
+        type("o", controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
+        typePath("https://example.com")
+        let web = live("https://example.com")
+        check(web.map(\.path) == ["https://example.com"] && controller.panelModel().rows.first?.comment == "在浏览器中打开",
+              "a web address is the only row, to open in the browser (\(web.map(\.path)))")
+        _ = enter(controller, client)
+        check(opened.last == "https://example.com" && !controller.loadOpenHistory().entries.contains { $0.path.hasPrefix("https:") },
+              "⏎ opens it in the browser, not kept in the history")
+
+        // Apps by their Chinese names (Spotlight knows them by the system language's only), several keywords
+        // across those names too, and Finder and the standard folders by theirs; an app or folder found, so no
+        // full-text search adds the user's documents. An English interface shows each as Finder names it (Image
+        // Playground, not its bundle's "Playground"). ⌃V puts the Chinese into the draft (a stand-in clipboard).
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let finderApp = "/System/Library/CoreServices/Finder.app", imagePlayground = "/System/Applications/Image Playground.app"
+        var byChineseName = [("计算器", "/System/Applications/Calculator.app", "计算器"),
+                             ("终端", "/System/Applications/Utilities/Terminal.app", "终端"),
+                             ("系统 设置", "/System/Applications/System Settings.app", "系统设置"),
+                             ("访达", finderApp, "访达"), ("下载", home + "/Downloads", "下载"), ("桌面", home + "/Desktop", "桌面")]
+        if FileManager.default.fileExists(atPath: imagePlayground) { byChineseName.append(("图乐园", imagePlayground, "图乐园")) }
+        for (query, app, name) in byChineseName {
+            at()
+            type("o", controller, client)
+            _ = press(controller, client, "\t", code: VirtualKey.tab)
+            controller.readClipboard = { query }
+            _ = press(controller, client, "v", code: 0x09, flags: .control)
+            _ = pump(timeout: 1) { controller.composer.draft != "@open " }
+            let results = live(query)
+            let shown = controller.panelModel().rows.first?.text
+            settings.uiLanguage = .english
+            controller.applySettings()
+            let english = controller.panelModel().rows.first?.text
+            settings.uiLanguage = .chinese
+            controller.applySettings()
+            check(controller.composer.draft == "@open " + query && results.first?.path == app && shown == name
+                  && english == FileManager.default.displayName(atPath: app) && !results.contains(where: \.matchedContent),
+                  "@open \(query) shows \(shown ?? "nothing") first, \(english ?? "nothing") in English (\(results.count) results)")
+            _ = escape(controller, client)
+        }
+        controller.readClipboard = { nil }
+        // Typed in letters, Finder (listed with the apps first), and nothing from Python's folders (compiled
+        // files, caches, packages) that is named like it.
+        at()
+        type("o", controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
+        type("finder", controller, client)
+        let finder = live("finder")
+        check(finder.contains { $0.path == finderApp } && finder.prefix { $0.path != finderApp }.allSatisfy { $0.path.hasSuffix(".app") }
+              && !finder.contains { FileSearchRanking.isNoise($0.path) },
+              "@open finder shows Finder, nothing from Python's folders (\(finder.prefix(3).map(\.path)))")
+        _ = escape(controller, client)
+        // One letter isn't searched as it is typed (most paths have an "a" in them: seconds of Spotlight); ⏎ searches it.
+        // The rows after ⏎ are drawn as when typing: a web address opens in the browser, a content match says so.
+        let searchFiles = controller.searchFiles
+        var searched: [String] = []
+        let mention = SearchResult(name: "notes.txt", path: "/tmp/notes.txt", matchedContent: true)
+        controller.searchFiles = { query, _ in
+            searched.append(query)
+            return query == "a" ? [SearchResult.web("example.com")!, mention] : [mention]
+        }
+        at()
+        type("o", controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
+        type("a", controller, client)
+        _ = pump(timeout: 0.5) { !searched.isEmpty }
+        check(searched.isEmpty && controller.composer.draft == "@open a",
+              "@open a: not searched as it is typed ('\(controller.composer.draft)', \(searched))")
+        _ = enter(controller, client)
+        _ = pump(timeout: 1) { controller.composer.phase == .choosing }
+        let listedRows = controller.panelModel().rows.map(\.comment)
+        check(searched == ["a"] && listedRows == ["在浏览器中打开", "内容 · /tmp"],
+              "…⏎ searches it, its rows drawn as when typing (\(searched), \(listedRows))")
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        check(client.marked.isEmpty, "Esc twice: back to the draft, then nothing")
+        // Only content matches as you type: ⏎ doesn't open the first, it lists them to pick from.
+        at()
+        type("o", controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
+        type("xyz", controller, client)
+        let mentions = live("xyz")
+        let liveFooter = controller.panelModel().footer
+        _ = enter(controller, client)
+        _ = pump(timeout: 1) { controller.composer.phase == .choosing }
+        check(mentions == [mention] && liveFooter.hasPrefix("⏎ 列出来选") && opened.last != mention.path
+              && controller.composer.choices.map(\.label) == ["1"] && searched.suffix(2) == ["xyz", "xyz"],
+              "only content matches: ⏎ lists them to pick from, opens nothing (\(liveFooter))")
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        controller.searchFiles = searchFiles
+        check(client.marked.isEmpty, "…Esc twice: nothing left")
+
         // "@" with a letter no command starts with is a mention: it goes in as typed.
         at()
         type("z", controller, client)
         check(client.inserted.last == "@" && controller.composer.engineState.isComposing, "@z: '@' goes in, z is pinyin")
         _ = escape(controller, client)
+        controller.commitComposition(client)
+    }
+
+    /// @note and @reminder through the controller, with stand-ins for Notes and Reminders (nothing is
+    /// saved or added for real): what they get, the notices, the reminder's row to confirm (read by
+    /// the real parser, by the real clock), that secure input doesn't hold them back, and that a text that
+    /// couldn't be saved comes back: into the draft, or onto the clipboard when something else is being
+    /// typed or its text field is gone.
+    static func testNotesAndReminders(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
+                                      snapshotDirectory: URL) {
+        print("— @note, @reminder (stand-ins for Notes and Reminders)")
+        var notes: [String] = [], reminders: [ReminderDraft] = [], copied: [String] = []
+        var failure: Error?
+        var held = false  // a save waits while this is set (something is typed meanwhile)
+        let saved = (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+                     controller.readClipboard, controller.copyText)
+        controller.saveNote = { text in
+            while held { try await Task.sleep(nanoseconds: 10_000_000) }
+            if let failure { throw failure }
+            notes.append(text)
+        }
+        controller.addReminder = { reminder in
+            while held { try await Task.sleep(nanoseconds: 10_000_000) }
+            if let failure { throw failure }
+            reminders.append(reminder)
+        }
+        controller.copyText = { copied.append($0) }
+        // The floating panel hears of saves from Notes and Reminders themselves, never from these stand-ins.
+        @MainActor final class Tally { var count = 0 }
+        let posted = Tally()
+        let observers = [Notification.Name.allInOneIMENoteSaved, .allInOneIMEReminderAdded].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { posted.count += 1 }
+            }
+        }
+        defer {
+            (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+             controller.readClipboard, controller.copyText) = saved
+            observers.forEach { NotificationCenter.default.removeObserver($0) }
+        }
+        func at() { _ = press(controller, client, "@", code: 0x13, flags: .shift) }
+        func tab() { _ = press(controller, client, "\t", code: VirtualKey.tab) }
+        /// "@n", Tab and `pinyin` typed into `field`.
+        func note(_ pinyin: String, in c: AllInOneIMEInputController, _ field: FakeTextClient) {
+            _ = press(c, field, "@", code: 0x13, flags: .shift)
+            type("n", c, field)
+            _ = press(c, field, "\t", code: VirtualKey.tab)
+            type(pinyin, c, field)
+        }
+        func notice() -> String? { controller.panelModel().detail }
+        func settle() { _ = pump(timeout: 6) { notice() == nil } }
+        let insertedBefore = client.inserted
+        // Times with the 24-hour clock: pinned for the README images (`UIText.clock24`; checked below unpinned).
+        let clock24 = UIText.clock24 ?? ReminderDraft.systemUses24HourClock
+        func clock(_ hour: Int) -> String { ReminderDraft.clock(hour: hour, minute: 0, chinese: true, clock24: clock24) }
+
+        // @note: "@n" offers it, ⏎ saves, nothing goes in.
+        settle()
+        at()
+        type("n", controller, client)
+        let offered = controller.panelModel().rows.first
+        check(offered?.text == "@note" && offered?.comment == "存到备忘录",
+              "@n offers @note first (\(offered?.text ?? "-") \(offered?.comment ?? ""))")
+        tab()
+        type("nihao", controller, client)
+        _ = space(controller, client)
+        check(client.marked == "note › 你好" && controller.panelModel().status == .hint("⏎ → 存到备忘录"),
+              "the hint says ⏎ saves it to Notes (\(controller.panelModel().status))")
+        _ = enter(controller, client)
+        check(client.marked.isEmpty && client.inserted == insertedBefore && !controller.composer.isComposing
+              && notice() == "正在存到备忘录…",
+              "⏎ inserts nothing, clears the draft and says 「正在存到备忘录…」 at once (\(notice() ?? "no notice"))")
+        check(pump(timeout: 2) { notice() == "已存到备忘录" } && notes == ["你好"],
+              "the text goes to Notes, then 「已存到备忘录」 (\(notes), \(notice() ?? "no notice"))")
+        // Secure input on (a password field elsewhere) doesn't hold it back: nothing goes to a model.
+        controller.secureInputActive = { true }
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)  // converts the pinyin and saves
+        check(pump(timeout: 2) { notes.count == 2 } && notes.last == "你好", "…also while secure input is on (\(notes))")
+        controller.secureInputActive = saved.3
+        // Nothing after it: ⏎ takes the clipboard's text (as for every command), its lines too, shown with 「 ↵ 」;
+        // ⏎ again saves it as it was.
+        controller.readClipboard = { "牛奶\n鸡蛋\n面包" }
+        note("", in: controller, client)
+        check(enter(controller, client) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
+              "⏎ on an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
+        controller.readClipboard = saved.4
+        _ = enter(controller, client)
+        check(pump(timeout: 2) { notes.count == 3 } && notes.last == "牛奶\n鸡蛋\n面包",
+              "…and ⏎ again saves its three lines (\(notes.last.map { $0.replacingOccurrences(of: "\n", with: "⏎") } ?? "-"))")
+        // The note's body is escaped HTML, a line per line, its runs of spaces kept; the text reaches a script
+        // as its argument, never as its source, off the main thread; the scripts compile (none is sent to Notes here).
+        check(NotesBridge.html("a<b> & \"c\"\n\nd") == "<div>a&lt;b&gt; &amp; &quot;c&quot;</div><div><br></div><div>d</div>"
+              && NotesBridge.html("牛奶\r\n鸡蛋  面包") == "<div>牛奶</div><div>鸡蛋&nbsp;&nbsp;面包</div>",
+              "the note's body is escaped HTML, a line per line")
+        let tricky = "\" & (do shell script \"echo pwned\") & \"\n第二行 \\ <b>"
+        let echoed = runAsync(10) {
+            try await NotesBridge.run("on run argv\n  return item 1 of argv\nend run", [tricky]) { ($0.stringValue, Thread.isMainThread) }
+        }
+        check(echoed?.0 == tricky && echoed?.1 == false, "a script gets the text as an argument, off the main thread")
+        check(NotesBridge.scripts.allSatisfy { source in
+            var error: NSDictionary?
+            return NSAppleScript(source: source)?.compileAndReturnError(&error) == true
+        }, "the Notes scripts compile")
+
+        // @reminder: read by the real parser, shown to confirm, then added.
+        settle()
+        at()
+        type("r", controller, client)
+        let both = controller.panelModel().rows.map(\.text)
+        check(Array(both.prefix(2)) == ["@read", "@reminder"], "@r offers @read and @reminder first (\(both))")
+        type("em", controller, client)
+        let rows = controller.panelModel().rows
+        check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
+              "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
+        tab()
+        controller.readClipboard = { "明天下午3点给张三打电话" }
+        check(press(controller, client, "v", code: 0x09, flags: .command)
+              && pump(timeout: 1) { client.marked == "reminder › 明天下午3点给张三打电话" },
+              "⌘V puts the text in (\(client.marked))")
+        controller.readClipboard = saved.4
+        check(controller.panelModel().status == .hint("⏎ → 看一下再加到提醒事项"),
+              "the hint says it is checked first (\(controller.panelModel().status))")
+        _ = enter(controller, client)
+        let confirm = controller.panelModel()
+        let tomorrowAt3 = "明天 " + clock(15)
+        check(controller.composer.phase == .choosing && confirm.rows.map(\.text) == ["给张三打电话"]
+              && confirm.rows.first?.comment == tomorrowAt3 && confirm.highlighted == 0,
+              "one row to confirm, the time read (\(clock24 ? 24 : 12)-hour clock): "
+                + "\(confirm.rows.map { "\($0.text) | \($0.comment)" })")
+        check(confirm.footer == "⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "footer: \(confirm.footer)")
+        readmeSnapshot("13-reminder", controller, client, in: snapshotDirectory)
+        _ = press(controller, client, "c", code: 0x08, flags: .command)
+        check(copied == ["给张三打电话"] && controller.composer.phase == .choosing, "⌘C copies the title (\(copied))")
+        _ = escape(controller, client)
+        check(controller.composer.phase == .drafting && client.marked == "reminder › 明天下午3点给张三打电话",
+              "Esc goes back to the text (\(client.marked))")
+        _ = enter(controller, client)
+        _ = enter(controller, client)
+        check(notice() == "正在加到提醒事项…", "⏎ says 「正在加到提醒事项…」 at once (\(notice() ?? "no notice"))")
+        let calendar = ReminderParser.localCalendar
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+        let threePMDate = calendar.date(bySettingHour: 15, minute: 0, second: 0, of: tomorrow)!
+        let threePM = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: threePMDate)
+        check(pump(timeout: 2) { !reminders.isEmpty }
+              && reminders == [ReminderDraft(title: "给张三打电话", due: threePM, hasTime: true, date: threePMDate)]
+              && client.marked.isEmpty && !controller.composer.isComposing,
+              "⏎ adds it, due tomorrow 15:00 (\(reminders.map { "\($0.title) · \(UIText.when($0))" }))")
+        check(pump(timeout: 2) { notice() == "已加到提醒事项：" + tomorrowAt3 }, "notice: \(notice() ?? "none")")
+        // The clock override: the README images' 24-hour times on any Mac; unpinned (nil), the Mac's own setting
+        // (System Settings → General → Date & Time), as for the user.
+        let added = ReminderDraft(title: "给张三打电话", due: threePM, hasTime: true, date: threePMDate)
+        let pinnedClock = UIText.clock24
+        let shown = [nil, false, true].map { (clock: Bool?) -> String in
+            UIText.clock24 = clock
+            return UIText.when(added)
+        }
+        UIText.clock24 = pinnedClock
+        check(pinnedClock == true && shown[2] == "明天 15:00" && shown[1] == "明天 下午3:00"
+              && shown[0] == (ReminderDraft.systemUses24HourClock ? shown[2] : shown[1]),
+              "times: 24-hour when pinned, 12-hour when set so, the Mac's otherwise (this Mac: \(shown[0]))")
+
+        // How the row shows a day, no date and a time that is over (stand-ins for the parser); Space, 1
+        // and ⏎ add it; secure input doesn't hold it back.
+        func confirmRow(_ reminder: ReminderDraft) -> CandidateView.Row? {
+            controller.parseReminder = { _ in reminder }
+            at()
+            type("rem", controller, client)
+            tab()
+            type("nihao", controller, client)
+            _ = enter(controller, client)
+            return controller.composer.phase == .choosing ? controller.panelModel().rows.first : nil
+        }
+        controller.secureInputActive = { true }
+        let noDate = ReminderDraft(title: "买牛奶")
+        check(confirmRow(noDate)?.comment == "未设时间", "no date: 「未设时间」, also while secure input is on")
+        controller.secureInputActive = saved.3
+        _ = press(controller, client, "1", code: 0x12)
+        check(pump(timeout: 2) { reminders.count == 2 } && reminders.last == noDate && notice() == "已加到提醒事项",
+              "1 adds it: \(notice() ?? "no notice")")
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
+        let yesterday9 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: yesterday)!
+        let over = ReminderDraft(title: "交报告", due: calendar.dateComponents([.year, .month, .day, .hour, .minute], from: yesterday9),
+                                 hasTime: true, date: yesterday9)
+        let overText = "昨天 \(clock(9)) · 已过"
+        check(confirmRow(over)?.comment == overText, "a time that is over: 「已过」 (\(controller.panelModel().rows.first?.comment ?? "-"))")
+        _ = space(controller, client)
+        check(pump(timeout: 2) { reminders.count == 3 } && notice() == "已加到提醒事项：" + overText, "Space adds it: \(notice() ?? "-")")
+        let later = calendar.date(byAdding: .day, value: 5, to: calendar.startOfDay(for: Date()))!
+        let day = ReminderDraft(title: "交房租", due: calendar.dateComponents([.year, .month, .day], from: later))
+        let dayComment = confirmRow(day)?.comment ?? ""
+        check(dayComment.range(of: "^([0-9]+年)?[0-9]+月[0-9]+日 周[一二三四五六日]$", options: .regularExpression) != nil,
+              "a day: 「\(dayComment)」")
+        _ = enter(controller, client)
+        check(pump(timeout: 2) { reminders.count == 4 } && reminders.last == day, "⏎ adds it")
+        // Only a time: nothing to be reminded of. ⏎ and Space go back to the text, like Esc (they don't type the
+        // time into the app).
+        check(confirmRow(ReminderDraft(title: "", due: threePM, hasTime: true)) == nil
+              && controller.composer.phase == .failed(Composer.Messages.chinese.reminderWithoutTitle)
+              && controller.panelModel().footer == "Esc 返回修改",
+              "only a time asks what for (\(controller.composer.phase))")
+        _ = enter(controller, client)
+        check(controller.composer.phase == .drafting && client.marked == "reminder › 你好" && client.inserted == insertedBefore,
+              "⏎ goes back to the text (\(client.marked))")
+        _ = enter(controller, client)  // read again: still only a time
+        _ = space(controller, client)
+        check(controller.composer.phase == .drafting && client.inserted == insertedBefore, "so does Space")
+        _ = enter(controller, client)
+        _ = escape(controller, client)
+        check(controller.composer.phase == .drafting, "and Esc")
+        _ = escape(controller, client)
+
+        // What couldn't be saved is never lost. Not allowed to control Notes: the note comes back as the draft it
+        // was, the notice says where to allow it (and stays up longer); ⏎ then saves it. Going to System Settings
+        // takes the focus, which commits the draft: its text is on the clipboard too, and the notice says so.
+        failure = NotesBridge.NotesError.notPermitted
+        var copies = copied.count
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)
+        let notAllowed = "没有权限控制「备忘录」：在 系统设置 → 隐私与安全性 → 自动化 里允许 AllInOneIME"
+        check(pump(timeout: 2) { client.marked == "note › 你好" && notice() == "原文也复制到了剪贴板。" + notAllowed } && notes.count == 3
+              && controller.composer.draft == "@note 你好" && copied.count == copies + 1 && copied.last == "你好",
+              "without permission the note comes back into the draft, and onto the clipboard: \(client.marked) | \(notice() ?? "no notice")")
+        failure = nil
+        _ = enter(controller, client)
+        check(pump(timeout: 2) { notes.count == 4 } && notes.last == "你好" && client.marked.isEmpty, "…and ⏎ saves it then")
+        // Not allowed to use Reminders: the text it was read from comes back, and goes onto the clipboard.
+        failure = RemindersBridge.RemindersError.notPermitted
+        copies = copied.count
+        _ = confirmRow(day)
+        _ = enter(controller, client)
+        let remindersNotAllowed = "没有权限使用「提醒事项」：在 系统设置 → 隐私与安全性 → 提醒事项 里允许 AllInOneIME"
+        check(pump(timeout: 2) { client.marked == "reminder › 你好" && notice() == "原文也复制到了剪贴板。" + remindersNotAllowed }
+              && reminders.count == 4 && copied.count == copies + 1 && copied.last == "你好",
+              "without permission the reminder's text comes back, and onto the clipboard: \(client.marked) | \(notice() ?? "-")")
+        _ = escape(controller, client)
+        // No account for reminders (the Reminders app has to set one up first): the same.
+        failure = RemindersBridge.RemindersError.noAccount
+        copies = copied.count
+        _ = confirmRow(day)
+        _ = enter(controller, client)
+        let noAccount = "没有能放提醒事项的账户：先打开「提醒事项」App 看看"
+        check(pump(timeout: 2) { client.marked == "reminder › 你好" && notice() == "原文也复制到了剪贴板。" + noAccount }
+              && reminders.count == 4 && copied.count == copies + 1 && copied.last == "你好",
+              "no account: the reminder's text comes back, and onto the clipboard (\(notice() ?? "-"))")
+        _ = escape(controller, client)
+        // A failure the user can't fix (a script error): back in the draft only.
+        failure = NotesBridge.NotesError.failed(number: -1743)
+        copies = copied.count
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)
+        check(pump(timeout: 2) { client.marked == "note › 你好" && notice() == "没有存到备忘录（错误 -1743）" } && copied.count == copies,
+              "a script error: back in the draft, not on the clipboard (\(notice() ?? "no notice"))")
+        _ = escape(controller, client)
+        // Something else is being typed when it fails: the text goes to the clipboard, and the notice says so.
+        held = true
+        failure = NotesBridge.NotesError.failed(number: -1728)
+        copies = copied.count
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)
+        type("wo", controller, client)
+        held = false
+        let onClipboard = "没有存上，原文已复制到剪贴板。没有存到备忘录（错误 -1728）"
+        check(pump(timeout: 2) { copied.count == copies + 1 && copied.last == "你好" && notice() == onClipboard } && client.marked == "wo",
+              "while something else is typed, it goes to the clipboard: \(notice() ?? "no notice") (typing: \(client.marked))")
+        _ = escape(controller, client)
+        // Its text field went away meanwhile (IMK closed that controller): the clipboard too, the notice near the
+        // pointer, and nothing kept the controller alive.
+        held = true
+        let otherClient = FakeTextClient()
+        var other = AllInOneIMEInputController(server: controller.server(), delegate: nil, client: nil)
+        weak let closed = other
+        if let field = other {
+            field.clientOverride = otherClient
+            field.loadSettings = { SelfTest.settings }
+            field.loadCommandUsage = { CommandUsage() }
+            field.saveCommandUsage = { _ in }
+            field.secureInputActive = { false }
+            field.readClipboard = { "买牛奶" }
+            field.copyText = { copied.append($0) }
+            field.saveNote = controller.saveNote
+            field.ensureEngine()
+            field.applySettings()
+            note("", in: field, otherClient)
+            _ = enter(field, otherClient)
+            _ = pump(timeout: 1) { otherClient.marked == "note › 买牛奶" }
+            _ = enter(field, otherClient)
+            field.inputControllerWillClose()
+        }
+        other = nil
+        held = false
+        check(pump(timeout: 2) { copied.last == "买牛奶" && CandidatePanel.shared.view.model.status == .hint(onClipboard) },
+              "its text field gone, it goes to the clipboard and the notice shows by itself (\(copied.last ?? "-"))")
+        check(closed == nil, "the save kept no controller alive")
+        failure = nil
+        // A note with line breaks is never typed into the app as it is (in a terminal each line would run as a
+        // command): when the app ends the composition, the field loses focus or ⇧⏎ asks for it as typed, its text
+        // goes to the clipboard and a notice says the note wasn't saved. In a terminal's field of its own.
+        let terminalClient = FakeTextClient()
+        terminalClient.bundleIDOverride = "com.mitchellh.ghostty"
+        if let terminal = AllInOneIMEInputController(server: controller.server(), delegate: nil, client: nil) {
+            let lines = "cd ~/project\nrm -rf build\nmake install"
+            terminal.clientOverride = terminalClient
+            terminal.loadSettings = { SelfTest.settings }
+            terminal.loadCommandUsage = { CommandUsage() }
+            terminal.saveCommandUsage = { _ in }
+            terminal.secureInputActive = { false }
+            terminal.readClipboard = { lines }
+            terminal.copyText = { copied.append($0) }
+            terminal.saveNote = controller.saveNote
+            terminal.addReminder = controller.addReminder
+            terminal.activateServer(terminalClient)
+            /// ⏎ on an empty @note: the clipboard's lines in the draft.
+            func pending() -> Bool {
+                note("", in: terminal, terminalClient)
+                _ = enter(terminal, terminalClient)
+                return pump(timeout: 1) { terminalClient.marked == "note › cd ~/project ↵ rm -rf build ↵ make install" }
+            }
+            let unsaved = "笔记还没存，原文已复制到剪贴板"
+            func keptOnClipboard(_ how: String, _ end: () -> Void) {
+                let before = copied.count
+                guard pending() else { return check(false, "\(how): the note's lines didn't come in (\(terminalClient.marked))") }
+                end()
+                check(terminalClient.inserted.isEmpty && terminalClient.marked.isEmpty && !terminal.composer.isComposing
+                      && copied.count == before + 1 && copied.last == lines
+                      && terminal.panelModel().detail == unsaved && CandidatePanel.shared.view.model.status == .hint(unsaved),
+                      "\(how): the note's lines aren't typed in, its text goes to the clipboard (\(terminalClient.inserted), "
+                        + "\(terminal.panelModel().detail ?? "no notice"))")
+            }
+            keptOnClipboard("the app ends the composition") { terminal.commitComposition(terminalClient) }
+            keptOnClipboard("the field loses focus") { terminal.deactivateServer(terminalClient) }
+            terminal.activateServer(terminalClient)
+            keptOnClipboard("⇧⏎") { _ = shiftEnter(terminal, terminalClient) }
+            // ⌘V there is the terminal's: it pastes the clipboard as it is (no note put there first); the note stays.
+            let before = copied.count
+            if pending() {
+                check(!press(terminal, terminalClient, "v", code: 0x09, flags: .command) && copied.count == before
+                      && terminalClient.inserted.isEmpty && terminal.composer.draft == "@note " + lines,
+                      "⌘V in a terminal is the terminal's; the note stays (\(terminalClient.inserted))")
+            }
+            _ = escape(terminal, terminalClient)
+            terminal.inputControllerWillClose()
+        }
+        controller.activateServer(client)  // the field being typed in again
+        // A slow save (Notes launching, the first permission prompt): 「正在存到备忘录…」 stays up until the outcome
+        // replaces it, longer than a notice of its length (about 1.7 s), at most `progressNoticeLimit`.
+        held = true
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)
+        _ = pump(timeout: 2.5) { false }
+        check(notice() == "正在存到备忘录…", "a slow save: 「正在存到备忘录…」 still up after 2.5 s (\(notice() ?? "no notice"))")
+        held = false
+        check(pump(timeout: 2) { notes.count == 5 && notice() == "已存到备忘录" }, "…until it is saved (\(notice() ?? "no notice"))")
+        let limit = AllInOneIMEInputController.progressNoticeLimit
+        AllInOneIMEInputController.progressNoticeLimit = 1
+        held = true
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)
+        check(notice() == "正在存到备忘录…" && pump(timeout: 3) { notice() == nil } && notes.count == 5,
+              "…for \(Int(limit)) s at most (1 s here)")
+        held = false
+        AllInOneIMEInputController.progressNoticeLimit = limit
+        check(pump(timeout: 2) { notes.count == 6 }, "…and saved after all (\(notes.count) notes)")
+        // Told elsewhere when its field lost focus meanwhile (near the pointer here): 「正在存到备忘录…」 goes then too.
+        held = true
+        note("nihao", in: controller, client)
+        _ = enter(controller, client)
+        controller.deactivateServer(client)
+        held = false
+        check(pump(timeout: 2) { notes.count == 7 && CandidatePanel.shared.view.model.status == .hint("已存到备忘录") } && notice() == nil,
+              "its field gone, the outcome shows by itself and the progress notice is taken down (\(notice() ?? "none"))")
+        controller.activateServer(client)
+        _ = pump(timeout: 3) { !CandidatePanel.shared.isVisible }  // the notice near the pointer goes before the next section
+        check(posted.count == 0, "the stand-ins post nothing for the floating panel (\(posted.count))")
+        check(client.inserted == insertedBefore && !controller.composer.isComposing, "@note and @reminder inserted nothing")
         controller.commitComposition(client)
     }
 
@@ -975,6 +1464,11 @@ enum SelfTest {
             _ = escape(controller, client)
         }
         controller.commitComposition(client)
+        // @open's history in memory: the user's is neither read (it would reorder the results checked
+        // here) nor changed (what the test opens would come first in their searches).
+        var openHistory = OpenHistory()
+        controller.loadOpenHistory = { openHistory }
+        controller.recordOpen = { openHistory.record($0) }
         controller.readClipboard = { nil }  // never the real clipboard; the ⌘V section supplies its text
         // Never the real Contacts or Messages, nor the user's recent recipients (the @imessage section has its own).
         controller.loadContacts = { [] }
@@ -990,7 +1484,13 @@ enum SelfTest {
         settings.voiceInput = true
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
+        settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
         controller.loadSettings = { SelfTest.settings }
+        controller.converter = liveConverter
+        // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.
+        let clockBefore = UIText.clock24
+        UIText.clock24 = true
+        defer { UIText.clock24 = clockBefore }
         controller.ensureEngine()
         controller.applySettings()
         check(controller.composer.engine != nil, "Rime session created")
@@ -1357,9 +1857,10 @@ enum SelfTest {
         testEnglishAndOutput(controller, client, snapshotDirectory: snapshotDirectory)
         testVoice(controller, client, snapshotDirectory: snapshotDirectory)
         controller.loadSettings = { SelfTest.settings }
-        controller.converter = sharedConverter
+        controller.converter = liveConverter
         controller.applySettings()
         testCommands(controller, client, snapshotDirectory: snapshotDirectory)
+        testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
 
         print("— error display")

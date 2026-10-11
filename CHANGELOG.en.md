@@ -8,7 +8,10 @@
 
 - `@translate`: translates into every language you added, in the order dragged in the settings, a line each (three versions when there is only one); the sentence's own language is skipped. `@translate @improve …` together (either order) translates and rewrites in one request; to make `@improve` always do that, turn on "@improve also translates" in the settings or the menu.
 - Languages are added, not fixed: the output (lines 1–3) can be Japanese, Korean, French, German, Spanish, Traditional Chinese and more; input languages are added the same way: Chinese (pinyin) only, English only, or both. Drag them into order under "Input and Output" in the settings: the first is the default input / the output in use (picking one in the menu moves it first); with two input languages Shift switches, with one it doesn't. A new user starts with one of each: Chinese in, English out.
-- `@open` with a web address (`github.com`, `https://…`, `www.…`): the first result opens it in the default browser.
+- `@note` saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters.
+- `@reminder` adds a reminder to the Reminders app, in a list named AllInOneIME, with the time written in the text and read on the Mac (`明天下午3点`, `明晚7点`, `3点半`, `30分钟后`, `下周一 9:30`, `15号`, `下个月`, `年底`, `tomorrow at 3pm`, `in 2 hours`, `next month`). A row shows what was read; ⏎ or Space adds it, with an alarm at its time, or all day for a date alone. Neither `@note` nor `@reminder` goes to the AI; when a save fails, the text comes back into the command (onto the clipboard if you've moved to another text field), so nothing is lost.
+- `@open` searches by keywords: several words, separated by spaces; apps by their Chinese names too (计算器, 系统设置), and Finder and the standard folders (访达, 下载, 桌面, 文稿; `下载 pdf` finds the PDFs in Downloads), shown that way in a Chinese interface; what you opened with `@open` and recently used files first; and when the names find hardly anything, the contents of the files in your home folder, marked "content" (with only those, ⏎ lists them to pick from).
+- `@open` with a web address (`github.com`, `localhost:3000`, `https://…`, `www.…`): the first result opens it in the default browser, after a file named exactly that (`MANIFEST.in`).
 - `@imessage` sends an iMessage. Type a name, its pinyin (in full or the initials), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first), write the message and press ⏎: the panel shows what will be sent, and ⏎ again sends it (Esc goes back to editing). Nothing is typed into the text field. Commands inside the message such as `@stock AAPL` run first. The first time, macOS asks for two permissions: access to Contacts (only names, phone numbers and emails are read) and control of Messages to send.
 - A new plugin type, `link`: no code; the text after the command goes into a web address that opens in the default browser, and nothing is inserted. Commands inside the text (`@stock …`) run first and their output goes in; it doesn't run during secure input; 4000 characters at most.
 - Custom commands can open a web page too (`"type": "link"` with a `url` containing `{input}`), say `@google` to search.
@@ -30,7 +33,10 @@
 ### Upgrading
 
 - `@improve` now polishes and rewrites only, without translating: Chinese stays Chinese. Use `@translate` to translate, or `@translate @improve` for both as before.
+- Sentence mode is gone: without `@`, ⏎ is a plain Return and picked words go straight in; to translate or polish, start the sentence with `@improve` (`@i` ⏎). If you had sentence mode on, there's nothing to do: the setting is cleared.
 - Existing settings stay as they were: both input languages and both output languages remain; remove one under "Input and Output" in the settings to keep just one.
+- The first time, `@note` makes macOS ask whether AllInOneIME may control Notes, and `@reminder` whether it may access Reminders: allow them. If you didn't, allow AllInOneIME in System Settings → Privacy & Security → Automation, or → Reminders.
+- If you added a command of your own named `note`, `reminder` or `imessage`, the built-in one now has that name and yours no longer shows up: "Custom @ Commands" in the settings marks it ("Same name as a built-in command: rename it to use it"); rename it there to keep using it.
 
 ## 0.4.0 (2026-10-09)
 

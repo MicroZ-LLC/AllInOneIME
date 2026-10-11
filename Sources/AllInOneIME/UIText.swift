@@ -119,6 +119,8 @@ enum UIText {
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
         case .settings: return tr("打开设置", "Open the settings")
+        case .note: return tr("存到备忘录", "Save to Notes")
+        case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
         case .imessage: return tr("发 iMessage：选联系人，写好后确认再发", "Send an iMessage: pick someone, write, confirm")
         default: return ""
         }
@@ -155,10 +157,24 @@ enum UIText {
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
         case .settings: return tr("打开设置", "open the settings")
+        case .note: return tr("存到备忘录", "save to Notes")
+        case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
         case .imessage: return tr("确认后发送", "check, then send")
         default: return ""
         }
     }
+
+    /// When a reminder is due, as its row and the notice say it: 「明天 15:00」 (or 「明天 下午3:00」, following the
+    /// Mac's 12/24-hour setting, or `clock24`), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no
+    /// date"), with 「已过」 / "overdue" once that time is over.
+    static func when(_ reminder: ReminderDraft, now: Date = Date()) -> String {
+        reminder.when(now: now, chinese: chinese, clock24: clock24 ?? ReminderDraft.systemUses24HourClock)
+    }
+
+    /// Times shown with the 24-hour clock (true) or the 12-hour one (false) whatever the Mac uses; nil follows
+    /// the Mac (System Settings → General → Date & Time). The self-test pins it, so the README images read the
+    /// same on every Mac. Main thread only.
+    static var clock24: Bool?
 
     /// The row comment of an answer: "回答" / "answer", "Claude".
     static func answerLabel(_ command: Command?) -> String {
@@ -180,6 +196,28 @@ enum UIText {
         }
         if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error, name == "read" {
             return "@read" + tr("：", ": ") + underlying
+        }
+        if let error = error as? NotesBridge.NotesError {
+            switch error {
+            case .notPermitted:
+                return tr("没有权限控制「备忘录」：在 系统设置 → 隐私与安全性 → 自动化 里允许 AllInOneIME",
+                          "Not allowed to control Notes: allow AllInOneIME in System Settings → Privacy & Security → Automation")
+            case let .failed(number):
+                // Our words and AppleScript's number, never its message (in the system's language).
+                return tr("没有存到备忘录（错误 \(number)）", "Not saved to Notes (error \(number))")
+            }
+        }
+        if let error = error as? RemindersBridge.RemindersError {
+            switch error {
+            case .notPermitted:
+                return tr("没有权限使用「提醒事项」：在 系统设置 → 隐私与安全性 → 提醒事项 里允许 AllInOneIME",
+                          "Not allowed to use Reminders: allow AllInOneIME in System Settings → Privacy & Security → Reminders")
+            case .noAccount:
+                return tr("没有能放提醒事项的账户：先打开「提醒事项」App 看看", "No account for reminders: open the Reminders app to set one up")
+            case .notFound: return tr("这条提醒事项已经不在了", "That reminder is gone")
+            // Our words and EventKit's code, never its message (in the system's language).
+            case let .failed(code): return tr("提醒事项出错（错误 \(code)）", "Reminders failed (error \(code))")
+            }
         }
         if let error = error as? MessageSendError {
             switch error {
