@@ -1,8 +1,8 @@
 import Foundation
 
-/// `@calc <expression>`: arithmetic worked out on this Mac; nothing is sent anywhere and no program
-/// runs. The result is the one candidate (`@calc 23*17` → `391`); inside another command's text it
-/// takes the command's place, as `@read` does (`@reply 总价是 @calc 23*17 元` → `总价是 391 元`).
+/// `@calculate <expression>`: arithmetic worked out on this Mac; nothing is sent anywhere and no program
+/// runs. The result is the one candidate (`@calculate 23*17` → `391`); inside another command's text it
+/// takes the command's place, as `@read` does (`@reply 总价是 @calculate 23*17 元` → `总价是 391 元`).
 ///
 /// The expression is read by a parser of its own, never by `eval`, JavaScript or `NSExpression`:
 /// numbers (`3`, `2.5`, `.5`, `1e-3`); `+ - * /` (also `× ÷`); `^` or `**` for powers, right to left
@@ -88,7 +88,7 @@ public enum Calculator {
         }
     }
 
-    /// The first `@calc` inside `plan`'s text that can't be worked out, and why. The input controller
+    /// The first `@calculate` inside `plan`'s text that can't be worked out, and why. The input controller
     /// checks this before running the plan, to say so at once and in the interface language (an
     /// inner command's error otherwise reaches it as its English description only).
     public static func failure(in plan: CommandPlan) -> CalcError? {
@@ -104,11 +104,11 @@ public enum Calculator {
 
     // MARK: - Inside another command's text
 
-    /// `@calc`'s argument inside another command's text (`CommandPlan.make`): the text in 「…」 or "…",
+    /// `@calculate`'s argument inside another command's text (`CommandPlan.make`): the text in 「…」 or "…",
     /// or else the expression starting there, spaces and all, up to the first thing that can't be in
-    /// one: other text (`总价是 @calc 23*17 元` → `23*17`), a word that isn't a function or constant
-    /// (`@calc 2 * pi is about 6.28` → `2 * pi`), or a `,` or `)` that closes nothing
-    /// (`（共 @calc 2*3）`). A period at its end stays in the text. Nil when no expression starts there.
+    /// one: other text (`总价是 @calculate 23*17 元` → `23*17`), a word that isn't a function or constant
+    /// (`@calculate 2 * pi is about 6.28` → `2 * pi`), or a `,` or `)` that closes nothing
+    /// (`（共 @calculate 2*3）`). A period at its end stays in the text. Nil when no expression starts there.
     static func argument(_ text: [Character], from start: Int) -> (String, Int)? {
         guard start < text.count else { return nil }
         if "「“\"".contains(text[start]) { return CommandPlan.argument(text, from: start) }

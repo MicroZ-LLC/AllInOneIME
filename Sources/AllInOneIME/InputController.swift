@@ -974,11 +974,11 @@ final class AllInOneIMEInputController: IMKInputController {
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
-        // An @calc inside the text is worked out here first: a mistake in it is reported at once and in the
+        // An @calculate inside the text is worked out here first: a mistake in it is reported at once and in the
         // interface language (from inside the pipeline only its English description would arrive).
         if let plan, let error = Calculator.failure(in: plan) {
-            log.notice("conversion \(id): @calc inside the text failed")
-            perform(composer.fail("@calc" + tr("：", ": ") + UIText.describe(error), id: id), client: nil)
+            log.notice("conversion \(id): @calculate inside the text failed")
+            perform(composer.fail("@calculate" + tr("：", ": ") + UIText.describe(error), id: id), client: nil)
             return
         }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)

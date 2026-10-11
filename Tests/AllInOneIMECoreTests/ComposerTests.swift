@@ -1462,29 +1462,29 @@ struct ComposerTests {
         let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
         let reply = CustomCommand(name: "reply", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, reply]).map(\.program)
-            == [nil, nil, nil, "claude", nil, nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app",
+            == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app",
                 "python3", nil])  // @py needs python3 too
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
-        let catalog = Command.catalog(["reply", "sh", "calc"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
+        let catalog = Command.catalog(["reply", "sh", "calculate"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
-        // Running @calc counts it, and says so to the controller (which keeps it).
+        // Running @calculate counts it, and says so to the controller (which keeps it).
         _ = c.handleKeyDown(at)
         type("ca", c)
         _ = c.handleKeyDown(tab)
         type("nihao", c)
-        #expect(tapOption(c, at: 5).contains(.commandUsed("calc")))
-        #expect(c.commandUsage.score("calc") > 0)
+        #expect(tapOption(c, at: 5).contains(.commandUsed("calculate")))
+        #expect(c.commandUsage.score("calculate") > 0)
         // Next time "@" lists it first; the digit picks from what's shown.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         d.commandUsage = c.commandUsage
         _ = d.handleKeyDown(at)
-        #expect(d.paletteVisible.map(\.name) == ["calc", "improve", "translate", "question", "claude"])
+        #expect(d.paletteVisible.map(\.name) == ["calculate", "improve", "translate", "question", "claude"])
         _ = d.handleKeyDown(k("1"))
-        #expect(d.draft == "@calc ")
+        #expect(d.draft == "@calculate ")
         // A command beyond the five is found by its letters.
         let (e, _) = composer(key: .optionTap)
         e.commands = catalog
@@ -1512,7 +1512,7 @@ struct ComposerTests {
         }
         let (c, e) = started()
         #expect(c.draft == "@reply 你好@" && c.paletteQuery == "")
-        #expect(c.paletteMatches.map(\.name) == ["read", "calc", "py", "js", "stock"])  // only what runs inside a text
+        #expect(c.paletteMatches.map(\.name) == ["calculate", "py", "js", "stock"])  // only what runs inside a text
         type("st", c)
         #expect(c.draft == "@reply 你好@st" && c.paletteMatches.map(\.name) == ["stock"])
         _ = c.handleKeyDown(tab)
@@ -1598,20 +1598,20 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.count == 17 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
+        #expect(c.paletteMatches.count == 16 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
         for _ in 0..<5 { _ = c.handleKeyDown(downKey) }  // past the fifth: scrolls by one
         #expect(c.paletteHighlighted == 5 && c.paletteFirstVisible == 1)
-        #expect(c.paletteVisible.map(\.name) == ["translate", "question", "claude", "open", "read"])
+        #expect(c.paletteVisible.map(\.name) == ["translate", "question", "claude", "open", "note"])
         _ = c.handleKeyDown(k("2"))  // the second row shown, not the second command
         #expect(c.draft == "@question ")
         // The wheel stops at the ends; a click picks among the rows shown.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 16 && d.paletteFirstVisible == 12)
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 15 && d.paletteFirstVisible == 11)
         #expect(d.paletteVisible.map(\.name) == ["settings", "imessage", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.paletteHighlighted == 14 && d.paletteFirstVisible == 12)  // still in view: no scrolling
+        #expect(d.paletteHighlighted == 13 && d.paletteFirstVisible == 11)  // still in view: no scrolling
         _ = d.choose(index: 2)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.
@@ -1663,8 +1663,8 @@ struct ComposerTests {
         let calculator = SearchResult(name: "Calculator", path: "/System/Applications/Calculator.app")
         let (c, _) = palette("o", english: true)
         _ = c.handleKeyDown(tab)
-        type("calc", c)
-        #expect(tapOption(c).first == .search(query: "calc", id: 1))
+        type("calculate", c)
+        #expect(tapOption(c).first == .search(query: "calculate", id: 1))
         #expect(c.receiveSearch([calculator, SearchResult(name: "calc.txt", path: "/tmp/calc.txt")], id: 1) == [.showPanel])
         #expect(c.choices.map(\.label) == ["1", "2"] && c.highlighted == 0)
         let r = c.handleKeyDown(spaceKey)
@@ -1673,7 +1673,7 @@ struct ComposerTests {
         // A digit picks; nothing found is a failure; stale results are ignored.
         let (d, _) = palette("o", english: true)
         _ = d.handleKeyDown(tab)
-        type("calc", d)
+        type("calculate", d)
         _ = tapOption(d)
         _ = d.handleKeyDown(escKey)
         #expect(d.receiveSearch([calculator], id: 1).isEmpty && d.phase == .drafting)

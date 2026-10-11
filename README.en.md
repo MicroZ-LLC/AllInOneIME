@@ -44,17 +44,16 @@ Without `@`, it works like any other pinyin input method: picking a word inserts
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's Chinese name counts for what's in it: `下载 pdf` finds the PDFs in Downloads). Apps are found by their Chinese names too (计算器 for Calculator, 系统设置 for System Settings; tap Shift to type Chinese), and so are Finder and the standard folders (访达, 下载 for Downloads, 桌面 for Desktop, 文稿 for Documents), and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
-| `@read` | Reads a web page's title and text (up to 6000 characters; web pages, plain text and PDFs). Mostly inside a sentence as context for the AI: `@question summarize @read https://…` in one line |
 | `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
 | `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
-| `@calc` | Calculates on this Mac; the result appears in the candidates, ⏎ or Space inserts it: `@calc 23*17` → `391`. It also works inside a sentence: `@reply 总价是 @calc 23*17 元` ("the total is … yuan") |
+| `@calculate` | Calculates on this Mac; the result appears in the candidates, ⏎ or Space inserts it: `@calculate 23*17` → `391`. It also works inside a sentence: `@reply 总价是 @calculate 23*17 元` ("the total is … yuan") |
 | `@py` | Runs a line of Python (the Mac's `python3`) and inserts the result: the value of the code's last expression, e.g. `@py 2**100`, `@py import math; math.sqrt(2)`, or else what it printed. Not offered without `python3` (Xcode's command line tools have it) |
 | `@js` | Runs a line of JavaScript and inserts the same: the value of the last expression or what `console.log` printed, e.g. `@js [1, 2, 3].map(x => x * 2)`. It uses macOS's built-in JavaScriptCore, so there's nothing to install; it can't read files, reach the network or run other programs |
 | `@imessage` | Sends an iMessage: type a name, its pinyin (in full or the initials, like `zs`), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first; a full number or address works too), then write the message (commands inside it such as `@stock AAPL` run first). ⏎ shows "Send to 张三 (…): message" in the panel, ⏎ again sends it, Esc goes back to editing; nothing is typed into the text field. The first time, macOS asks whether AllInOneIME may access Contacts and control Messages: click OK for both |
 
 Example: `@q` ⏎, type `什么是量子计算` ("what is quantum computing"), ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
 `@reminder call Bob tomorrow at 3pm` ⏎, check the time it read, then ⏎ again to add it. Once the command is chosen, you can also hold right ⌥
-and talk. `@open` and `@calc` switch to English letters for the moment and go back to Chinese when you're done.
+and talk. `@open` and `@calculate` switch to English letters for the moment and go back to Chinese when you're done.
 
 The code for `@py` and `@js` is typed in English letters too, and full-width punctuation becomes ASCII (`print（“牛逼”）` → `print("牛逼")`); write it on one line, with `;` between statements.
 It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
@@ -75,7 +74,7 @@ first, as usual, before changing files or running commands. Without Claude Code 
 `@imessage` reads Contacts on this Mac only (names, phone numbers, emails), never goes through the AI, and Messages sends
 the message; without the Messages app it isn't offered.
 
-`@calc` works on this Mac, offline: `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, percent (`50%` is 0.5,
+`@calculate` works on this Mac, offline: `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, percent (`50%` is 0.5,
 `200*5%` is 10; as on a calculator, a percentage added or subtracted is of what comes before: `100+10%` is 110,
 `100-10%` is 90), the functions `sqrt abs round floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles
 are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too
@@ -152,8 +151,8 @@ Commands that fetch something (plugins and programs) also work inside a sentence
 The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
 the word after the command, plus the uppercase codes or numbers right after it (`@stock AAPL TSLA`, `@stock 600519 700`);
 a lowercase word ends it (`@stock SNDK is good to buy` looks up SNDK). Quotes mark it exactly: `@stock「aapl tsla」`.
-`@calc` works inside a sentence too; its argument is the whole expression after it, spaces included, up to other text:
-`@reply 总价是 @calc 23 * 17 元`.
+`@calculate` works inside a sentence too; its argument is the whole expression after it, spaces included, up to other text:
+`@reply 总价是 @calculate 23 * 17 元`.
 Inside `@claude` and terminal commands they aren't run: those get the text as written (typing `@` there doesn't open the command list).
 
 ### Action key
@@ -331,7 +330,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 ## Privacy
 
-- Pinyin typing and `@calc` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
+- Pinyin typing and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command or press the action key with nothing written after a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
@@ -339,7 +338,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
-- `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers, web pages (`@read`) and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
+- `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
 ## Development

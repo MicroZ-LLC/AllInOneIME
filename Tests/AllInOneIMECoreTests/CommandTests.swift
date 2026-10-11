@@ -46,7 +46,7 @@ struct CommandTests {
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "read", "note", "reminder", "calc", "py", "js", "tasks",
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "note", "reminder", "calculate", "py", "js", "tasks",
                                         "settings", "imessage", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
@@ -60,7 +60,7 @@ struct CommandTests {
         #expect(sh.arguments(for: "echo hi; rm -rf ~") == ["zsh", "-c", "echo hi; rm -rf ~"])
         let wrapped = CustomCommand(name: "say", type: .run, argv: ["say", "--", "Hi {input}!"], ascii: false)
         #expect(wrapped.arguments(for: "a b") == ["say", "--", "Hi a b!"])
-        let calc = CustomCommand(name: "calc", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
+        let calc = CustomCommand(name: "calculate", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
         #expect(calc.standardInput(for: "1+1") == "1+1\n" && python.standardInput(for: "x") == nil)
     }
 
@@ -140,14 +140,14 @@ struct CommandTests {
     @Test func usageCountsOftenAndLately() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         var usage = CommandUsage()
-        usage.record("calc", now: now)
-        usage.record("calc", now: now)
-        #expect(usage.score("calc", now: now) == 2)
-        #expect(abs(usage.score("calc", now: now + CommandUsage.halfLife) - 1) < 1e-9)  // halves in a week
+        usage.record("calculate", now: now)
+        usage.record("calculate", now: now)
+        #expect(usage.score("calculate", now: now) == 2)
+        #expect(abs(usage.score("calculate", now: now + CommandUsage.halfLife) - 1) < 1e-9)  // halves in a week
         #expect(usage.score("never", now: now) == 0)
         // Long unused commands are forgotten when another is used.
         usage.record("py", now: now + 60 * 86400)
-        #expect(usage.score("calc", now: now + 60 * 86400) == 0)
+        #expect(usage.score("calculate", now: now + 60 * 86400) == 0)
         // Kept as JSON between launches.
         let again = try? JSONDecoder().decode(CommandUsage.self, from: JSONEncoder().encode(usage))
         #expect(again == usage)
@@ -155,7 +155,7 @@ struct CommandTests {
 
     @Test func paletteShowsFiveByUse() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let custom = ["calc", "sh", "reply", "python", "japanese"].map {
+        let custom = ["calculate", "sh", "reply", "python", "japanese"].map {
             CustomCommand(name: $0, type: .run, argv: ["x"])
         }
         let catalog = Command.catalog(custom)  // 14 built-in + 4 (the custom calc gives way to the built-in)
@@ -172,7 +172,7 @@ struct CommandTests {
         // Letters: names starting with them first, then names containing them; by use within each.
         #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py"])
         #expect(Command.palette("p", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py", "japanese", "improve", "open"])
-        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["japanese", "translate", "claude", "read", "calc"])
+        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["japanese", "translate", "claude", "calculate", "tasks"])
         #expect(Command.palette("o", in: catalog, usage: usage, now: now).map(\.name) == ["open", "python", "improve", "question", "note"])
         #expect(Command.palette("zz", in: catalog, usage: usage, now: now).isEmpty)
     }

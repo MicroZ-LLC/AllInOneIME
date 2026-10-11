@@ -228,13 +228,13 @@ struct CalculatorTests {
     @Test func aBuiltInCommandThatRunsInsideATextToo() {
         #expect(Command.builtins.contains(.calc) && Command.calc.kind == .run && CommandPlan.canBeInner(.calc))
         #expect(Command.calc.typesLatin && Command.calc.program == nil)  // ASCII typing; never hidden
-        #expect(Command.parse("@calc 23*17")! == (.calc, "23*17"))
+        #expect(Command.parse("@calculate 23*17")! == (.calc, "23*17"))
         // A custom command named calc gives way to the built-in one, and the editor won't take the name.
-        let custom = CustomCommand(name: "calc", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
-        #expect(Command.catalog([custom]).filter { $0.name == "calc" } == [.calc])
+        let custom = CustomCommand(name: "calculate", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
+        #expect(Command.catalog([custom]).filter { $0.name == "calculate" } == [.calc])
         #expect(custom.problem(among: []) == .nameTaken)
         // In the list: "@c" offers it after @claude (then @search, which contains a c), "@ca" only it.
-        #expect(Command.palette("c", in: Command.builtins, usage: CommandUsage()).map(\.name) == ["claude", "calc", "search"])
+        #expect(Command.palette("c", in: Command.builtins, usage: CommandUsage()).map(\.name) == ["claude", "calculate", "search"])
         #expect(Command.palette("ca", in: Command.builtins, usage: CommandUsage()) == [.calc])
     }
 
@@ -243,26 +243,26 @@ struct CalculatorTests {
     }
 
     @Test func insideATextItsArgumentIsTheExpression() {
-        let plan = CommandPlan.make("总价是 @calc 23*17 元", commands: Command.builtins)
+        let plan = CommandPlan.make("总价是 @calculate 23*17 元", commands: Command.builtins)
         #expect(plan.parts == [.text("总价是 "), .inner(0), .text(" 元")])
         #expect(plan.input(outputs: ["391"]) == "总价是 391 元")
         // Spaces, full-width signs and function names are in it; other text, words and sentence punctuation aren't.
-        #expect(arguments("总价 @calc 23 * 17 元") == ["23 * 17"])
-        #expect(arguments("@calc 2 * pi is about 6.28") == ["2 * pi"])
-        #expect(arguments("大约 @calc （１＋２）×３，对吧") == ["（１＋２）×３"])
-        #expect(arguments("@calc sqrt(2)+1 左右") == ["sqrt(2)+1"])
-        #expect(arguments("@calc max(1, 2), then") == ["max(1, 2)"])
-        #expect(arguments("（总价 @calc 23*17）") == ["23*17"])
-        #expect(arguments("@calc 5%的利润") == ["5%"])
-        #expect(arguments("@calc 1e3 m") == ["1e3"])
-        #expect(arguments("@calc 23*17kg") == ["23*17"])
-        let period = CommandPlan.make("It is @calc 23*17. Done", commands: Command.builtins)
+        #expect(arguments("总价 @calculate 23 * 17 元") == ["23 * 17"])
+        #expect(arguments("@calculate 2 * pi is about 6.28") == ["2 * pi"])
+        #expect(arguments("大约 @calculate （１＋２）×３，对吧") == ["（１＋２）×３"])
+        #expect(arguments("@calculate sqrt(2)+1 左右") == ["sqrt(2)+1"])
+        #expect(arguments("@calculate max(1, 2), then") == ["max(1, 2)"])
+        #expect(arguments("（总价 @calculate 23*17）") == ["23*17"])
+        #expect(arguments("@calculate 5%的利润") == ["5%"])
+        #expect(arguments("@calculate 1e3 m") == ["1e3"])
+        #expect(arguments("@calculate 23*17kg") == ["23*17"])
+        let period = CommandPlan.make("It is @calculate 23*17. Done", commands: Command.builtins)
         #expect(period.inner.map(\.argument) == ["23*17"] && period.input(outputs: ["391"]) == "It is 391. Done")
         // Quotes mark it exactly, as for any command.
-        #expect(arguments("@calc「2 * pi」") == ["2 * pi"])
-        #expect(arguments(#"@calc "1 + 2" apples"#) == ["1 + 2"])
+        #expect(arguments("@calculate「2 * pi」") == ["2 * pi"])
+        #expect(arguments(#"@calculate "1 + 2" apples"#) == ["1 + 2"])
         // No expression: plain text.
-        for text in ["@calc hello", "@calc 现在", "a@calc 1+1", "@calc", "@calc ,1"] {
+        for text in ["@calculate hello", "@calculate 现在", "a@calculate 1+1", "@calculate", "@calculate ,1"] {
             #expect(CommandPlan.make(text, commands: Command.builtins).isEmpty, "\(text)")
         }
     }
@@ -294,12 +294,12 @@ struct CalculatorTests {
         typeKeys("ca", c)
         #expect(c.paletteMatches == [.calc])
         _ = c.handleKeyDown(tab)
-        #expect(c.draft == "@calc " && engine.ascii)  // digits and signs come out half-width
+        #expect(c.draft == "@calculate " && engine.ascii)  // digits and signs come out half-width
         typeKeys("23*17", c)
-        #expect(c.markedText == "calc › 23*17")
+        #expect(c.markedText == "calculate › 23*17")
         let effects = c.handleKeyDown(enterKey).effects
         // A run like @read: the controller refuses it during secure input, else streams Calculator.stream.
-        #expect(effects.first == .startRun(.calc, input: "23*17", id: 1) && effects.contains(.commandUsed("calc")))
+        #expect(effects.first == .startRun(.calc, input: "23*17", id: 1) && effects.contains(.commandUsed("calculate")))
         #expect(c.activeCommand == .calc)
         for try await update in Calculator.stream("23*17") {
             _ = c.receive(update.result, isFinal: update.isFinal, id: 1)
@@ -310,30 +310,30 @@ struct CalculatorTests {
         #expect(commits(c.handleKeyDown(enterKey)) == ["391"] && !engine.ascii && !c.isComposing)
         // A mistake is a failure to show; Esc goes back to the expression.
         let d = Composer(engine: FakeEngine())
-        typeKeys("@calc 1/0", d)
+        typeKeys("@calculate 1/0", d)
         #expect(d.handleKeyDown(enterKey).effects.first == .startRun(.calc, input: "1/0", id: 1))
         _ = d.fail(CalcError.divisionByZero.errorDescription!, id: 1)
         #expect(d.phase == .failed("Division by zero"))
         _ = d.handleKeyDown(escKey)
-        #expect(d.draft == "@calc 1/0" && !d.isLevelTwo)
+        #expect(d.draft == "@calculate 1/0" && !d.isLevelTwo)
     }
 
     @Test func composerRunsItInsideAText() async throws {
         let c = Composer(engine: FakeEngine())
         c.setInputMode(.english)
         typeKeys("@question 总价是 @", c)
-        #expect(c.paletteMatches.map(\.name) == ["read", "calc", "py", "js", "search"])  // what runs inside a text
+        #expect(c.paletteMatches.map(\.name) == ["read", "calculate", "py", "js", "search"])  // what runs inside a text
         typeKeys("calc 23*17 元", c)
-        #expect(c.draft == "@question 总价是 @calc 23*17 元")
+        #expect(c.draft == "@question 总价是 @calculate 23*17 元")
         let effects = c.handleKeyDown(enterKey).effects
         guard case let .startPlan(outer, plan, id)? = effects.first else {
             Issue.record("expected a plan, got \(effects)")
             return
         }
         #expect(outer == .question && id == 1 && plan.inner == [CommandPlan.Inner(command: .calc, argument: "23*17")])
-        #expect(effects.contains(.commandUsed("question")) && effects.contains(.commandUsed("calc")))
+        #expect(effects.contains(.commandUsed("question")) && effects.contains(.commandUsed("calculate")))
         #expect(Calculator.failure(in: plan) == nil)
-        // The pipeline as the controller runs it: @calc first, then the outer command on the result.
+        // The pipeline as the controller runs it: @calculate first, then the outer command on the result.
         let stream = CommandPipeline.run(plan, inner: { command, argument in
             command == .calc ? Calculator.stream(argument) : self.answer("?")
         }, outer: { text in self.answer("asked: " + text) })
@@ -341,8 +341,8 @@ struct CalculatorTests {
         for try await update in stream where update.isFinal { final = update.result.versions.first?.text ?? "" }
         #expect(final == "asked: 总价是 391 元")
 
-        // Even inside @calc's own text.
-        let twice = CommandPlan.make("1 + @calc 2*3", commands: Command.builtins)
+        // Even inside @calculate's own text.
+        let twice = CommandPlan.make("1 + @calculate 2*3", commands: Command.builtins)
         var sum = ""
         for try await update in CommandPipeline.run(twice, inner: { Calculator.stream($1) }, outer: { Calculator.stream($0) }) {
             sum = update.result.versions.first?.text ?? ""
@@ -351,16 +351,16 @@ struct CalculatorTests {
     }
 
     @Test func aMistakeInsideATextIsFoundBeforeRunning() async {
-        let plan = CommandPlan.make("总价是 @calc 23/0 元，@read example.com", commands: Command.builtins)
+        let plan = CommandPlan.make("总价是 @calculate 23/0 元，@read example.com", commands: Command.builtins)
         #expect(plan.inner.map(\.command) == [.calc, .read])
-        // The controller reports this at once, in the interface language: "@calc：不能除以 0".
+        // The controller reports this at once, in the interface language: "@calculate：不能除以 0".
         #expect(Calculator.failure(in: plan) == .divisionByZero)
-        #expect(Calculator.failure(in: CommandPlan.make("总价是 @calc 23*17 元", commands: Command.builtins)) == nil)
+        #expect(Calculator.failure(in: CommandPlan.make("总价是 @calculate 23*17 元", commands: Command.builtins)) == nil)
         #expect(Calculator.failure(in: CommandPlan.make("告诉他 @read example.com", commands: Command.builtins)) == nil)
         // Through the pipeline the error still says which command failed.
-        let failing = CommandPipeline.run(CommandPlan.make("@calc 1/0", commands: Command.builtins),
+        let failing = CommandPipeline.run(CommandPlan.make("@calculate 1/0", commands: Command.builtins),
                                           inner: { Calculator.stream($1) }, outer: { self.answer($0) })
-        await #expect(throws: CommandPipelineError.inner("calc", "Division by zero")) {
+        await #expect(throws: CommandPipelineError.inner("calculate", "Division by zero")) {
             for try await _ in failing {}
         }
     }

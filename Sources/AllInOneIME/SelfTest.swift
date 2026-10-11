@@ -981,7 +981,8 @@ enum SelfTest {
         at()
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
-        check(Array(both.prefix(2)) == ["@read", "@reminder"], "@r offers @read and @reminder first (\(both))")
+        // @read is off for now (`Command.off`): @reminder comes first.
+        check(both.first == "@reminder" && !both.contains("@read"), "@r offers @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
         check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
@@ -1392,13 +1393,13 @@ enum SelfTest {
         CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)
     }
 
-    /// @calc, @py, @js and @search through the controller, with ⏎ as the action key: results come back as
+    /// @calculate, @py, @js and @search through the controller, with ⏎ as the action key: results come back as
     /// candidates (@py and @js from their child processes), output with several lines goes in as printed
     /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
     /// search key is a stand-in: the user's keychain is never read here.
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
-        print("— @calc, @py, @js, @search")
+        print("— @calculate, @py, @js, @search")
         // These commands run nothing while secure input is on, and a locked screen holds it. Nothing typed
         // here is secret, and the secure input refusal has its own checks, so this section runs without it.
         let (secureInput, installed, commands, searchKey) =
@@ -1459,8 +1460,8 @@ enum SelfTest {
                 && client.marked.isEmpty && !controller.composer.isComposing
         }
 
-        check(insertsResult("calc", "23*17", "391"), "@calc 23*17 inserts 391 (\(client.inserted.last ?? ""))")
-        check(insertsResult("calc", "0.1+0.2", "0.3"), "@calc works in decimal: 0.1+0.2 inserts 0.3 (\(client.inserted.last ?? ""))")
+        check(insertsResult("calculate", "23*17", "391"), "@calculate 23*17 inserts 391 (\(client.inserted.last ?? ""))")
+        check(insertsResult("calculate", "0.1+0.2", "0.3"), "@calculate works in decimal: 0.1+0.2 inserts 0.3 (\(client.inserted.last ?? ""))")
 
         if python {
             check(insertsResult("py", "2**100", "1267650600228229401496703205376"),

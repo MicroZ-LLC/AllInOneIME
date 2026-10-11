@@ -68,9 +68,9 @@ public struct Command: Hashable, Sendable {
     /// `@reminder 明天下午3点给张三打电话`.
     public static let reminder = Command(name: "reminder", kind: .reminder)
 
-    /// Arithmetic worked out on this Mac (`Calculator`): `@calc 23*17` → `391`, also inside another
-    /// command's text: `@reply 总价是 @calc 23*17 元`.
-    public static let calc = Command(name: "calc", kind: .run)
+    /// Arithmetic worked out on this Mac (`Calculator`): `@calculate 23*17` → `391`, also inside another
+    /// command's text: `@reply 总价是 @calculate 23*17 元`.
+    public static let calc = Command(name: "calculate", kind: .run)
 
     /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
     /// `@py 2**100`. It runs with the user's `python3`.
@@ -96,10 +96,13 @@ public struct Command: Hashable, Sendable {
     public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
                                              .py, .js, .webSearch, .tasks, .settings, .imessage]
 
-    /// `@search` (Brave Search with the user's own key) is off for now: `@open` opens web addresses,
-    /// which is enough. It's left out of `catalog` (what the input method offers) and its settings are
-    /// hidden; its code and tests stay. Set this to bring it back.
-    public static let webSearchOffered = false
+    /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
+    /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and
+    /// `@read` (a web page's text): `@open` opens web addresses, which is enough. Take one out of here to
+    /// bring it back (with `@search`, its settings come back too).
+    public static let off: [Command] = [.webSearch, .read]
+
+    public static var webSearchOffered: Bool { !off.contains(.webSearch) }
 
     /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
@@ -149,8 +152,8 @@ public struct Command: Hashable, Sendable {
                 return Command(name: plugin.name, kind: .link, plugin: plugin)
             }
         }
-        // A built-in that's off (`webSearchOffered`) isn't offered, but its name stays taken.
-        let offered = webSearchOffered ? builtins : builtins.filter { $0 != .webSearch }
+        // A built-in that's off isn't offered, but its name stays taken.
+        let offered = builtins.filter { !off.contains($0) }
         return offered + fromPlugins + custom.compactMap { definition in
             let name = definition.name.lowercased()
             guard definition.isValid, taken.insert(name).inserted else {
