@@ -39,26 +39,37 @@ public enum ClaudeAgents {
 
     /// The session's last reply (its last assistant text), from its transcript.
     public static func lastReply(sessionId: String, cwd: String?, root: URL = projectsRoot) -> String? {
-        let fm = FileManager.default
-        var candidates: [URL] = []
-        if let cwd { candidates.append(root.appendingPathComponent(projectFolder(for: cwd)).appendingPathComponent("\(sessionId).jsonl")) }
-        // Elsewhere if Claude Code names the folder differently.
-        if let folders = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
-            candidates += folders.map { $0.appendingPathComponent("\(sessionId).jsonl") }
-        }
-        guard let file = candidates.first(where: { fm.fileExists(atPath: $0.path) }),
+        guard let file = transcript(sessionId: sessionId, cwd: cwd, root: root),
               let text = try? String(contentsOf: file, encoding: .utf8) else { return nil }
-        var last: String?
-        for line in text.split(separator: "\n") {
+        return lastReply(in: text)
+    }
+
+    /// The session's transcript: in the folder for its working directory, else in any of them (Claude
+    /// Code may name the folder differently). Nil while there is none.
+    public static func transcript(sessionId: String, cwd: String?, root: URL = projectsRoot) -> URL? {
+        let fm = FileManager.default
+        let name = "\(sessionId).jsonl"
+        if let cwd {
+            let file = root.appendingPathComponent(projectFolder(for: cwd)).appendingPathComponent(name)
+            if fm.fileExists(atPath: file.path) { return file }
+        }
+        let folders = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        return folders.lazy.map { $0.appendingPathComponent(name) }.first { fm.fileExists(atPath: $0.path) }
+    }
+
+    /// The last assistant text in a transcript's lines (JSON lines; any other line is skipped).
+    public static func lastReply(in transcript: String) -> String? {
+        // From the end: the first one found is the last, and the lines before it aren't parsed.
+        for line in transcript.split(separator: "\n").reversed() {
             guard line.contains("\"assistant\""),
                   let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
                   object["type"] as? String == "assistant",
                   let content = (object["message"] as? [String: Any])?["content"] as? [[String: Any]] else { continue }
             let parts = content.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
             let joined = parts.joined().trimmingCharacters(in: .whitespacesAndNewlines)
-            if !joined.isEmpty { last = joined }
+            if !joined.isEmpty { return joined }
         }
-        return last
+        return nil
     }
 }
 

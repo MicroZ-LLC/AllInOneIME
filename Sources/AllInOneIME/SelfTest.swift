@@ -1938,6 +1938,7 @@ enum SelfTest {
               && AllInOneIMEInputController.toggled(Language.chinese, in: [.chinese]) == [.chinese]
               && AllInOneIMEInputController.toggled(Language.chinese, in: [.chinese, .english]) == [.english],
               "input languages toggle; the last one stays on")
+        testFloatingPanel(controller, snapshotDirectory: snapshotDirectory)
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 

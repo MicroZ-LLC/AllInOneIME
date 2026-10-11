@@ -60,6 +60,14 @@ func runServer(showSettings: Bool = false) -> Never {
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @claude tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
+    // The floating panel (off by default), once the server and Rime are up: shown when the setting is on.
+    // The notes @note saves are recorded on or off, so that it lists them once it's turned on.
+    DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+            FloatingPanel.shared.recordSavedNotes()
+            FloatingPanel.shared.start(LiveConfig.current)
+        }
+    }
     if showSettings {
         DispatchQueue.main.async { MainActor.assumeIsolated { SettingsWindow.shared.show() } }
     }

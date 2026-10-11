@@ -6,5 +6,5 @@
 "NSSpeechRecognitionUsageDescription" = "Turns speech into text while you hold the right ⌥ key, on this Mac.";
 "NSAppleEventsUsageDescription" = "Opens Terminal windows for @claude and your own commands that run in Terminal, saves your text to Notes (the AllInOneIME folder) when you use @note, and has Messages send what you confirmed with @imessage.";
 "NSContactsUsageDescription" = "Finds recipients for @imessage by name, pinyin, phone number or email. Only names, phone numbers and emails are read, and nothing is uploaded.";
-"NSRemindersUsageDescription" = "Adds reminders to Reminders (the AllInOneIME list) when you use @reminder.";
-"NSRemindersFullAccessUsageDescription" = "Adds reminders to Reminders (the AllInOneIME list) when you use @reminder.";
+"NSRemindersUsageDescription" = "Adds reminders to Reminders (the AllInOneIME list) when you use @reminder; the floating panel lists the reminders in that list.";
+"NSRemindersFullAccessUsageDescription" = "Adds reminders to Reminders (the AllInOneIME list) when you use @reminder; the floating panel lists the reminders in that list.";

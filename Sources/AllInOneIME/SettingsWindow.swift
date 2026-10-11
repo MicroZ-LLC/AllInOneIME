@@ -108,6 +108,16 @@ final class SettingsModel: ObservableObject {
         SettingsWindow.shared.updateTitle()
     }
 
+    /// Shows or hides the floating panel (the self-test passes its own).
+    var applyFloatingPanel: @MainActor (Bool) -> Void = { FloatingPanel.shared.apply($0) }
+
+    /// The floating panel's switch: saved, and the panel shown or hidden at once (not by a preview).
+    func setFloatingPanel(_ on: Bool) {
+        config.floatingPanel = on
+        save()
+        if persists { applyFloatingPanel(on) }
+    }
+
     // MARK: Styles
 
     func isStyleOn(_ style: RewriteStyle) -> Bool {
@@ -532,6 +542,23 @@ struct SettingsView: View {
                     .font(.callout).fontWeight(.regular).foregroundStyle(.secondary)
                     .textCase(nil).fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 4)
+            }
+
+            Section {
+                Toggle(tr("悬浮面板：笔记、提醒、Claude 任务", "Floating panel: notes, reminders, Claude tasks"),
+                       isOn: Binding(get: { model.config.floatingPanel }, set: { model.setFloatingPanel($0) }))
+                    .disabled(!model.canSave)
+                    .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFloatingPanelChanged)) { note in
+                        // Turned on or off from the input menu or the panel's close button (already saved).
+                        if note.object as AnyObject? === FloatingPanel.shared, let on = note.userInfo?["enabled"] as? Bool {
+                            model.config.floatingPanel = on
+                        }
+                    }
+                Text(tr("常驻屏幕的小窗口，不抢输入焦点，点一行就打开；输入法菜单里也能开关。",
+                        "Stays on screen without taking focus; click a row to open it. Also in the input menu."))
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                SectionTitle(tr("悬浮面板", "Floating Panel"), icon: CommandIcons.panel)
             }
 
             Section {

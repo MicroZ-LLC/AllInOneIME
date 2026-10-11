@@ -52,6 +52,7 @@ enum CommandIcons {
     static let voice = CandidateView.Icon(symbol: "mic.fill", color: .systemRed)
     static let provider = CandidateView.Icon(symbol: "cpu.fill", color: .systemTeal)
     static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
+    static let panel = CandidateView.Icon(symbol: "rectangle.on.rectangle", color: .systemTeal)
 
     /// A background task's state in `@tasks`.
     static func icon(for progress: AgentSession.Progress) -> CandidateView.Icon {
