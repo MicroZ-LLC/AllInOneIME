@@ -859,10 +859,10 @@ struct SettingsView: View {
     /// The commands, at the top: what this input method does beyond pinyin.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色 / 翻译，@question 提问，@claude 开 Claude Code，"
-                      + "@open 找文件。写完\(key)执行。",
-                  "A regular pinyin input method. Type @ first for commands: @improve polishes / translates, @question asks, "
-                      + "@claude opens Claude Code, @open finds files. When done, \(key).")
+        return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
+                      + "@claude 交给 Claude Code，@open 找文件。写完\(key)执行。",
+                  "A regular pinyin input method. Type @ first for commands: @improve polishes and rewrites, @translate "
+                      + "translates, @question asks, @claude hands it to Claude Code, @open finds files. When done, \(key).")
     }
 
     /// What @improve does for Chinese and for English input.
