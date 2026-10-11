@@ -68,6 +68,22 @@ public struct Command: Hashable, Sendable {
     /// `@reminder 明天下午3点给张三打电话`.
     public static let reminder = Command(name: "reminder", kind: .reminder)
 
+    /// Arithmetic worked out on this Mac (`Calculator`): `@calc 23*17` → `391`, also inside another
+    /// command's text: `@reply 总价是 @calc 23*17 元`.
+    public static let calc = Command(name: "calc", kind: .run)
+
+    /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
+    /// `@py 2**100`. It runs with the user's `python3`.
+    public static let py = Command(name: "py", kind: .run)
+    /// JavaScript code, the same way: `@js [1, 2, 3].map(x => x * 2)`. It runs in JavaScriptCore, in this
+    /// app's own child process (no files, programs or network).
+    public static let js = Command(name: "js", kind: .run)
+
+    /// `@search`: a web search with the user's own key (`WebSearch`). On its own, a list of the top
+    /// results to insert; inside another command's text, their titles, snippets and addresses as context:
+    /// `@question 用一句话总结 @search 苹果发布会`.
+    public static let webSearch = Command(name: "search", kind: .run)
+
     /// The background tasks `@claude` started: how they're doing and what they replied.
     public static let tasks = Command(name: "tasks", kind: .agents)
 
@@ -77,18 +93,23 @@ public struct Command: Hashable, Sendable {
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
-    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder,
-                                             .tasks, .settings, .imessage]
+    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
+                                             .py, .js, .webSearch, .tasks, .settings, .imessage]
+
+    /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
+    /// don't run, so nothing they return (a web page, a program's output) is ever executed.
+    public var isCode: Bool { self == .py || self == .js }
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
-    public var typesLatin: Bool { self == .open || self == .read || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
+    public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
-    /// The program this command needs on the Mac: `claude` for `@claude`, `argv[0]` for a custom
-    /// `run` or `terminal` command, the app that sends for a send command (an absolute ".app" path);
-    /// nil when it needs none.
+    /// The program this command needs on the Mac: `claude` for `@claude`, `python3` for `@py`, `argv[0]`
+    /// for a custom `run` or `terminal` command, the app that sends for a send command (an absolute ".app"
+    /// path); nil when it needs none.
     public var program: String? {
         if self == .claude { return "claude" }
+        if self == .py { return InlineCode.python }
         if self == .imessage { return "/System/Applications/Messages.app" }
         guard let custom, custom.type == .run || custom.type == .terminal else { return nil }
         return custom.argv?.first

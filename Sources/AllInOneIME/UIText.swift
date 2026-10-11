@@ -124,6 +124,10 @@ enum UIText {
         case .settings: return tr("打开设置", "Open the settings")
         case .note: return tr("存到备忘录", "Save to Notes")
         case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
+        case .calc: return tr("在本机计算算式，结果可以直接上屏", "Calculate on this Mac; insert the result")
+        case .py: return tr("运行 Python，结果可以直接上屏", "Run Python; insert the result")
+        case .js: return tr("运行 JavaScript，结果可以直接上屏", "Run JavaScript; insert the result")
+        case .webSearch: return tr("搜索网页，可放在句中给 AI 当上下文", "Search the web; inside a sentence, context for the AI")
         case .imessage: return tr("发 iMessage：选联系人，写好后确认再发", "Send an iMessage: pick someone, write, confirm")
         default: return ""
         }
@@ -162,6 +166,10 @@ enum UIText {
         case .settings: return tr("打开设置", "open the settings")
         case .note: return tr("存到备忘录", "save to Notes")
         case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
+        case .calc: return tr("计算", "calculate")
+        case .py: return tr("运行 Python", "run Python")
+        case .js: return tr("运行 JavaScript", "run JavaScript")
+        case .webSearch: return tr("搜索网页", "search the web")
         case .imessage: return tr("确认后发送", "check, then send")
         default: return ""
         }
@@ -181,6 +189,7 @@ enum UIText {
 
     /// The row comment of an answer: "回答" / "answer", "Claude".
     static func answerLabel(_ command: Command?) -> String {
+        if command == .webSearch { return tr("搜索结果", "results") }
         if command?.kind == .run { return command?.plugin.map { "@" + $0.name } ?? tr("输出", "output") }
         return command == .claude ? "Claude" : tr("回答", "answer")
     }
@@ -197,8 +206,10 @@ enum UIText {
             case .tooLarge: return tr("网页太大（超过 2 MB）", "The page is larger than 2 MB")
             }
         }
-        if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error, name == "read" {
-            return "@read" + tr("：", ": ") + underlying
+        if let error = error as? WebSearch.SearchError { return describe(error) }
+        if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error,
+           [Command.read, .py, .js, .webSearch].contains(where: { $0.name == name }) {
+            return "@" + name + tr("：", ": ") + underlying
         }
         if let error = error as? NotesBridge.NotesError {
             switch error {
@@ -220,6 +231,22 @@ enum UIText {
             case .notFound: return tr("这条提醒事项已经不在了", "That reminder is gone")
             // Our words and EventKit's code, never its message (in the system's language).
             case let .failed(code): return tr("提醒事项出错（错误 \(code)）", "Reminders failed (error \(code))")
+            }
+        }
+        if let error = error as? Calculator.CalcError {
+            switch error {
+            case .empty: return tr("没有要算的式子", "Nothing to calculate")
+            case .tooLong:
+                return tr("算式太长：最多 \(Calculator.maxLength) 个字符", "The expression is too long: \(Calculator.maxLength) characters at most")
+            case .tooDeep:
+                return tr("算式嵌套太深：最多 \(Calculator.maxDepth) 层", "The expression is nested too deeply: \(Calculator.maxDepth) levels at most")
+            case let .unexpected(text): return tr("算式有误：「\(text)」这里不对", "Invalid expression near \"\(text)\"")
+            case .incomplete: return tr("算式不完整", "The expression is incomplete")
+            case .missingParenthesis: return tr("缺少右括号", "A closing parenthesis is missing")
+            case let .unknownName(name): return tr("不认识的函数或常数：\(name)", "Unknown function or constant: \(name)")
+            case let .badArguments(name): return tr("\(name) 的参数不对", "Wrong arguments for \(name)")
+            case .divisionByZero: return tr("不能除以 0", "Division by zero")
+            case .notFinite: return tr("结果不是有限的实数", "The result isn't a finite real number")
             }
         }
         if let error = error as? MessageSendError {
@@ -307,6 +334,33 @@ enum UIText {
             }
         default:
             return (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
+
+    /// A web search error (`@search`): where to add the key, what the service said.
+    static func describe(_ error: WebSearch.SearchError) -> String {
+        switch error {
+        case let .missingKey(variable):
+            return tr("网页搜索还没有 API key：在设置 → 网页搜索里添上（或在 shell 里设置 \(variable)）",
+                      "No API key for web search: add one in Settings → Web Search (or set \(variable) in your shell)")
+        case .emptyQuery: return tr("在 @search 后面写上要搜的内容", "Type what to search for after @search")
+        case .queryTooLong:
+            return tr("要搜的内容太长：最多 \(WebSearch.maxQueryLength) 个字、\(WebSearch.maxQueryWords) 个词",
+                      "The search is too long: \(WebSearch.maxQueryLength) characters and \(WebSearch.maxQueryWords) words at most")
+        case let .rejectedKey(service):
+            return tr("\(service) 不接受这个 API key：在设置 → 网页搜索里检查一下",
+                      "\(service) didn't accept the API key: check it in Settings → Web Search")
+        case let .rateLimited(service):
+            return tr("\(service) 搜索太频繁，稍后再试", "Too many searches at once for \(service): try again in a moment")
+        case let .quotaExceeded(service):
+            return tr("\(service) 的额度用完了：在它的控制台里看看用量和上限",
+                      "No \(service) credit left: see the usage and limits in its dashboard")
+        case let .notInPlan(service): return tr("你的 \(service) 套餐不支持这种搜索", "Your \(service) plan doesn't include this search")
+        case let .unreachable(service): return tr("无法连接 \(service)", "Can't reach \(service)")
+        case let .http(service, status, detail): return "\(service) HTTP \(status)" + (detail.map { tr("：", ": ") + $0 } ?? "")
+        case let .invalidResponse(service): return tr("\(service) 的响应无法解析", "Couldn't read the \(service) response")
+        case let .tooLarge(service): return tr("\(service) 的响应太大", "The \(service) response is too large")
+        case .noResults: return tr("网页搜索没有找到结果", "No web results for this search")
         }
     }
 }

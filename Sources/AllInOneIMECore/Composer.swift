@@ -189,6 +189,8 @@ public final class Composer {
         public var noteTooLong: String
         /// A `link` command's text is longer than `LinkTemplate.maxInputLength`.
         public var linkTooLong: String
+        /// `@py` / `@js` code that printed nothing and ended without a value.
+        public var noOutput: String
         /// A note with line breaks was left unsaved (the text field lost focus, ⇧⏎): it isn't inserted, its text
         /// is on the clipboard instead.
         public var noteNotSaved: String
@@ -209,6 +211,7 @@ public final class Composer {
             reminderWithoutTitle: "写上要提醒的事，比如「明天下午3点给张三打电话」",
             noteTooLong: "剪贴板里的文字太长：最多 \(Composer.maxNoteLength) 字",
             linkTooLong: "文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字",
+            noOutput: "代码没有输出：最后写一个表达式，或者把结果打印出来",
             noteNotSaved: "笔记还没存，原文已复制到剪贴板")
         public static let english = Messages(
             notReady: "Loading the dictionaries, one moment", holdToTalk: "Hold right ⌥ to talk",
@@ -225,6 +228,7 @@ public final class Composer {
             reminderWithoutTitle: "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”",
             noteTooLong: "The clipboard text is too long: \(Composer.maxNoteLength) characters at most",
             linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
+            noOutput: "The code printed nothing: end it with an expression, or print the result",
             noteNotSaved: "The note wasn't saved; its text is on the clipboard",
             pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)")
     }
@@ -377,7 +381,8 @@ public final class Composer {
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
-        // In a note, a reminder, a search or a terminal command, an "@name" after the command is just text: none runs there.
+        // In a note, a reminder, a search, code or a terminal command, an "@name" after the command is just text:
+        // none runs there (`@py x = "@stock AAPL"`).
         let asTyped = takesTextAsTyped
         var out = ""
         var i = 0
@@ -491,7 +496,7 @@ public final class Composer {
 
     /// The "@letters" being typed: at the start of the draft, or (`nested`) inside a command's text
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
-    /// Not inside a note, a reminder, a search or a terminal command: they take their text as typed (`takesTextAsTyped`).
+    /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
         guard !isLevelTwo, voice == .off, !engineState.isComposing, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
@@ -502,12 +507,13 @@ public final class Composer {
         return (String(query), true, at)
     }
 
-    /// The draft is a note, a reminder, a search or a terminal command (`@claude`, a custom one): no command inside its
-    /// text runs first (`startAction`; Terminal and Claude Code get the text as typed), so an "@" in it is just text (no
-    /// list to pick a command from, none shown as picked).
+    /// The draft is a note, a reminder, a search, code (`@py`, `@js`) or a terminal command (`@claude`, a custom
+    /// one): no command inside its text runs first (`startAction`; Terminal and Claude Code get the text as typed),
+    /// so an "@" in it is just text (no list to pick a command from, none shown as picked).
     private var takesTextAsTyped: Bool {
-        guard let kind = draftCommand?.kind else { return false }
-        return kind == .note || kind == .reminder || kind == .search || kind == .terminal
+        guard let command = draftCommand else { return false }
+        return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
+            || command.isCode
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -890,7 +896,7 @@ public final class Composer {
         if isFinal {
             // Versions that only repeat the original are hidden, but the answer still counts.
             let answered = !result.versions.isEmpty || choices.contains { $0.kind != .original && !$0.text.isEmpty }
-            phase = answered ? .choosing : .failed(messages.noResult)
+            phase = answered ? .choosing : .failed(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
         }
         return [.showPanel]
     }
@@ -1544,9 +1550,10 @@ public final class Composer {
             return .consumed(finish(committing: "") + [.saveNote(text: input), usage])
         }
         // Commands inside the text (`@stock AAPL`) run first; not inside a search's text, nor a reminder's
-        // (it stays on this Mac).
+        // (it stays on this Mac), and never inside code: it runs exactly as typed, so no command's output (a
+        // web page, a program's) is executed.
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
-        let plan = local ? nil : CommandPlan.make(input, commands: commands)
+        let plan = local || parsed?.command.isCode == true ? nil : CommandPlan.make(input, commands: commands)
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }

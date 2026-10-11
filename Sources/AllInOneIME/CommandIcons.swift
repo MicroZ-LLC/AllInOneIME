@@ -17,6 +17,10 @@ enum CommandIcons {
         case .read: return CandidateView.Icon(symbol: "doc.richtext.fill", color: .systemTeal)
         case .note: return CandidateView.Icon(symbol: "note.text", color: .systemYellow)
         case .reminder: return CandidateView.Icon(symbol: "bell.fill", color: .systemRed)
+        case .calc: return CandidateView.Icon(symbol: "plus.forwardslash.minus", color: .systemOrange)
+        case .py: return CandidateView.Icon(symbol: "chevron.left.forwardslash.chevron.right", color: .systemBlue)
+        case .js: return CandidateView.Icon(symbol: "curlybraces", color: .systemYellow)
+        case .webSearch: return CandidateView.Icon(symbol: "globe", color: .systemCyan)
         case .tasks: return CandidateView.Icon(symbol: "checklist", color: .systemGreen)
         case .settings: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
         case .imessage: return CandidateView.Icon(symbol: "message.fill", color: .systemGreen)
@@ -53,6 +57,7 @@ enum CommandIcons {
     static let provider = CandidateView.Icon(symbol: "cpu.fill", color: .systemTeal)
     static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
     static let panel = CandidateView.Icon(symbol: "rectangle.on.rectangle", color: .systemTeal)
+    static let webSearch = CandidateView.Icon(symbol: "globe", color: .systemCyan)
 
     /// A background task's state in `@tasks`.
     static func icon(for progress: AgentSession.Progress) -> CandidateView.Icon {

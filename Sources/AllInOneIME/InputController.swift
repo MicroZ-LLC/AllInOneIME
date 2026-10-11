@@ -16,6 +16,12 @@ struct MainThreadBox<T>: @unchecked Sendable {
     init(_ value: T) { self.value = value }
 }
 
+/// An error already described for the user (`UIText.describe`), passed on as its message.
+struct DescribedError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
+}
+
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
 /// shows up there) and at most every 30 seconds otherwise.
 enum LivePlugins {
@@ -139,7 +145,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var programInstalled: @Sendable (String) -> Bool = { program in
         if program == "claude", TerminalLauncher.claudePath != nil { return true }
         if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
-        return CommandRunner.resolve(program, path: ShellEnvironment.current["PATH"]) != nil
+        return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
     }
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
     private var checkedCommands: [Command] = []
@@ -156,6 +162,9 @@ final class AllInOneIMEInputController: IMKInputController {
     var runProgram: (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { CommandRunner.run($0, input: $1) }
     /// A script plugin: runs in this program's own child process (`--run-plugin`).
     var runPlugin: (InstalledPlugin, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { PluginRunner.run($0, input: $1) }
+    /// `@search`'s key: the keychain's, else the login shell's (the self-test supplies its own: it never reads
+    /// the user's keychain). Called in the search's own task, off the main thread.
+    var loadSearchKey: @Sendable () -> String? = { WebSearch.loadKey() }
     /// ⌘C on a result (the self-test leaves the clipboard alone).
     var copyText: (String) -> Void = { text in
         NSPasteboard.general.clearContents()
@@ -967,11 +976,26 @@ final class AllInOneIMEInputController: IMKInputController {
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
-        let (runPlugin, runProgram, converter) = (self.runPlugin, self.runProgram, self.converter)
+        // An @calc inside the text is worked out here first: a mistake in it is reported at once and in the
+        // interface language (from inside the pipeline only its English description would arrive).
+        if let plan, let error = Calculator.failure(in: plan) {
+            log.notice("conversion \(id): @calc inside the text failed")
+            perform(composer.fail("@calc" + tr("：", ": ") + UIText.describe(error), id: id), client: nil)
+            return
+        }
+        let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
         let improveTranslates = loadSettings().improveTranslates
+        // A terminal runs each line it is given: there @search's list, and any command's output, goes in
+        // as one line.
+        let terminal = Self.isTerminal(clientOverride ?? client())
+        let searchList: WebSearch.Output = terminal ? .line : .list
         // Not tied to the main actor: the pipeline calls it from its own task.
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
             if command == .read { return WebReader.stream(input) }
+            if command == .calc { return Calculator.stream(input) }
+            // @py, @js: the code runs in a child process, like a custom program (never in this one).
+            if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
+            if command == .webSearch { return WebSearch.stream(input, output: searchList, loadKey: loadSearchKey) }
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
@@ -986,14 +1010,24 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan, !plan.isEmpty {
+            // @search inside a text is context for the AI, but not where the text goes out as written: into a
+            // web page (a link) or to a person (a message).
+            let innerSearch = WebSearch.Output.inside(command)
             // The commands inside the text first (together), then this one on the text with their outputs.
-            stream = CommandPipeline.run(plan, inner: { streamFor($0, $1) }, outer: { streamFor(command, $0) })
+            stream = CommandPipeline.run(plan, inner: { command, argument in
+                // Its errors (no key, say) in the interface language.
+                command == .webSearch ? Self.described(WebSearch.stream(argument, output: innerSearch, loadKey: loadSearchKey))
+                    : streamFor(command, argument)
+            }, outer: { streamFor(command, $0) })
         } else {
             stream = streamFor(command, input)
         }
+        // Model answers are one line already (`Converter.oneLine`); a program's output, a page from
+        // @read and code results may have several, and a terminal would run all but the last.
+        let inserted = terminal && command?.kind == .run ? Self.oneLine(stream) : stream
         conversionTask = Task { @MainActor [weak self] in
             do {
-                for try await update in stream {
+                for try await update in inserted {
                     guard let self, !Task.isCancelled else { return }
                     if update.isFinal {
                         self.lastElapsed = update.elapsed
@@ -1007,6 +1041,47 @@ final class AllInOneIMEInputController: IMKInputController {
                 log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public) \(String(describing: error), privacy: .private)")
                 self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
             }
+        }
+    }
+
+    /// Whether `client` is a terminal, which runs every line it is given.
+    static func isTerminal(_ client: IMKTextInput?) -> Bool {
+        client?.bundleIdentifier().map(SecureInput.terminals.contains) ?? false
+    }
+
+    /// `stream` with each result on one line (`CommandRunner.oneLine`): what goes into a terminal.
+    static func oneLine(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) -> AsyncThrowingStream<ConversionUpdate, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await update in stream {
+                        var update = update
+                        update.result = CommandRunner.oneLine(update.result)
+                        continuation.yield(update)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// `stream` with its error described in the interface language: inside a text, an inner command's
+    /// error reaches the panel only as its message (`CommandPipelineError.inner`).
+    static func described(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) -> AsyncThrowingStream<ConversionUpdate, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await update in stream { continuation.yield(update) }
+                    continuation.finish()
+                } catch {
+                    let message = await MainActor.run { UIText.describe(error) }
+                    continuation.finish(throwing: DescribedError(message: message))
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -1230,6 +1305,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .translating:
                 let polishing = Language.of(composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
+                    : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.kind == .run ? tr("运行中…", "Running…")
                     : command?.kind == .link ? tr("运行句中的命令，然后在浏览器打开…", "Running the commands inside, then opening the browser…")
                     : command == .open ? tr("搜索中…", "Searching…")
