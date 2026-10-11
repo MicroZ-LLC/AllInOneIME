@@ -1,9 +1,9 @@
 import Foundation
 
 /// A command typed at the start of a draft, e.g. "@question 量子计算是什么". The action key then
-/// runs it on the rest of the draft. A draft without one is improved (translated or polished,
-/// with the rewrites), as `@improve` does. The built-in commands come first; the user's own
-/// (`Config.customCommands`) follow them (`catalog`).
+/// runs it on the rest of the draft. Without one, nothing is sent: the input method just types.
+/// The built-in commands come first; the user's own (`Config.customCommands`) follow them
+/// (`catalog`).
 public struct Command: Hashable, Sendable {
     public let name: String
     public let kind: Kind
@@ -40,8 +40,11 @@ public struct Command: Hashable, Sendable {
         self.plugin = plugin
     }
 
-    /// Translate or polish, with the rewrites: what the action key does without a command.
+    /// Polish in the sentence's own language, with the rewrite styles (`WritingMode.improve`).
     public static let improve = Command(name: "improve", kind: .convert)
+    /// Translate into the output languages the user added (`WritingMode.translate`); written together
+    /// with `@improve`, one request does both.
+    public static let translate = Command(name: "translate", kind: .convert)
     /// Answer a question; the answer can be inserted.
     public static let question = Command(name: "question", kind: .generate)
     /// Start a Claude Code session in Terminal with the text as its first message (long work,
@@ -63,7 +66,7 @@ public struct Command: Hashable, Sendable {
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
-    public static let builtins: [Command] = [.improve, .question, .claude, .open, .read, .tasks, .settings, .imessage]
+    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .tasks, .settings, .imessage]
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.

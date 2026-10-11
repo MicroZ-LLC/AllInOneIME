@@ -6,22 +6,11 @@ import AppKit
 /// or a plugin may name its own SF Symbol and color.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon {
-        if let plugin = command.plugin {
-            return CandidateView.Icon(symbol: plugin.manifest.icon ?? (plugin.manifest.type == .link ? "link" : "puzzlepiece.extension.fill"),
-                                      color: color(plugin.manifest.color) ?? .systemPink)
-        }
-        if let custom = command.custom {
-            let (symbol, fallback): (String, NSColor)
-            switch custom.type {
-            case .prompt: (symbol, fallback) = ("text.bubble.fill", .systemIndigo)
-            case .run: (symbol, fallback) = ("chevron.left.forwardslash.chevron.right", .systemBrown)
-            case .terminal: (symbol, fallback) = ("apple.terminal.fill", NSColor(white: 0.25, alpha: 1))
-            case .link: (symbol, fallback) = ("link", .systemBlue)
-            }
-            return CandidateView.Icon(symbol: custom.icon ?? symbol, color: color(custom.color) ?? fallback)
-        }
+        if let plugin = command.plugin { return icon(for: plugin) }
+        if let custom = command.custom { return icon(for: custom) }
         switch command {
         case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
+        case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
         case .question: return CandidateView.Icon(symbol: "questionmark.bubble.fill", color: .systemBlue)
         case .claude: return CandidateView.Icon(symbol: "sparkles", color: .systemOrange)
         case .open: return CandidateView.Icon(symbol: "magnifyingglass", color: .systemGray)
@@ -32,6 +21,35 @@ enum CommandIcons {
         default: return CandidateView.Icon(symbol: "command", color: .systemGray)
         }
     }
+
+    /// A plugin's own icon, or a puzzle piece (a chain link for a link plugin).
+    static func icon(for plugin: InstalledPlugin) -> CandidateView.Icon {
+        CandidateView.Icon(symbol: plugin.manifest.icon ?? (plugin.manifest.type == .link ? "link" : "puzzlepiece.extension.fill"),
+                           color: color(plugin.manifest.color) ?? .systemPink)
+    }
+
+    /// A custom command's own icon, or one for its type.
+    static func icon(for custom: CustomCommand) -> CandidateView.Icon {
+        let (symbol, fallback): (String, NSColor)
+        switch custom.type {
+        case .prompt: (symbol, fallback) = ("text.bubble.fill", .systemIndigo)
+        case .run: (symbol, fallback) = ("chevron.left.forwardslash.chevron.right", .systemBrown)
+        case .terminal: (symbol, fallback) = ("apple.terminal.fill", NSColor(white: 0.25, alpha: 1))
+        case .link: (symbol, fallback) = ("link", .systemBlue)
+        }
+        return CandidateView.Icon(symbol: custom.icon ?? symbol, color: color(custom.color) ?? fallback)
+    }
+
+    /// The settings window's sections, like System Settings: a colored square with a symbol.
+    static let input = CandidateView.Icon(symbol: "keyboard.fill", color: .systemGray)
+    static let translate = CandidateView.Icon(symbol: "translate", color: .systemBlue)
+    static let improve = CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
+    static let jargon = CandidateView.Icon(symbol: "text.book.closed.fill", color: .systemOrange)
+    static let commands = CandidateView.Icon(symbol: "at", color: .systemIndigo)
+    static let plugins = CandidateView.Icon(symbol: "puzzlepiece.extension.fill", color: .systemPink)
+    static let voice = CandidateView.Icon(symbol: "mic.fill", color: .systemRed)
+    static let provider = CandidateView.Icon(symbol: "cpu.fill", color: .systemTeal)
+    static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
 
     /// A background task's state in `@tasks`.
     static func icon(for progress: AgentSession.Progress) -> CandidateView.Icon {

@@ -30,6 +30,7 @@ enum UIText {
         case .optionTap: return "Tap ⌥"
         case .optionSpace: return "⌥Space"
         case .space: return "Space"
+        case let .shortcut(key): return key.name
         }
     }
 
@@ -39,13 +40,14 @@ enum UIText {
     }
 
     /// "单按 ⌥" / "tap ⌥", "按空格" / "press Space", …
-    static func howToPress(_ key: ActionKey, english: Bool = false) -> String {
-        guard !chinese else { return key.howToPress(english: english) }
+    static func howToPress(_ key: ActionKey) -> String {
+        guard !chinese else { return key.howToPress() }
         switch key {
         case .enter: return "press Return"
         case .optionTap: return "tap ⌥"
         case .optionSpace: return "press ⌥Space"
-        case .space: return english ? "press Space twice" : "press Space"
+        case .space: return "press Space"
+        case let .shortcut(key): return "press " + key.name
         }
     }
 
@@ -83,10 +85,23 @@ enum UIText {
 
     /// What the action key does to a sentence in `input`: "翻译成英文 / 改写", "translate to English / rewrite", …
     static func action(input: Language, config: Config) -> String {
-        guard !chinese else { return AllInOneIMEInputController.actionText(input: input, config: config) }
-        let output = config.outputLanguage
-        let action = input.matches(output) ? "polish the \(name(output))" : "translate to \(name(output))"
-        return action + (RewriteStyle.resolve(config.rewriteStyles).isEmpty ? "" : " / rewrite")
+        action(config.improveTranslates ? WritingMode.both : .improve, input: input, config: config)
+    }
+
+    /// What `@improve` / `@translate` (or both) do with a sentence in `input`: "润色 / 改写",
+    /// "翻译成英文、日语", "translate to English / rewrite".
+    static func action(_ mode: WritingMode, input: Language, config: Config) -> String {
+        let plan = WritingPlan.make(mode, text: input == .chinese ? "中" : "a", config: config)
+        var parts: [String] = []
+        let targets = ([plan.versions].compactMap { $0 }.filter { $0 != plan.input }) + plan.translations
+        if !targets.isEmpty {
+            let names = targets.map(name).joined(separator: tr("、", ", "))
+            parts.append(tr("翻译成\(names)", "translate to \(names)"))
+        } else if plan.versions != nil {
+            parts.append(tr("润色", "polish"))
+        }
+        if !plan.styles.isEmpty { parts.append(tr("改写", "rewrite")) }
+        return parts.joined(separator: " / ")
     }
 
     /// What a command does, in the palette: "提问，答案可以直接上屏" / "Ask a question; insert the answer".
@@ -96,7 +111,8 @@ enum UIText {
         }
         if let custom = command.custom { return custom.summary ?? customKind(custom) }
         switch command {
-        case .improve: return tr("润色 / 翻译，和不加命令一样", "Polish / translate, as without a command")
+        case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
+        case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
         case .claude: return tr("交给 Claude Code 去做", "Hand it to Claude Code")
         case .open: return tr("找文件、文件夹或 App 并打开", "Find a file, folder or app and open it")
@@ -119,7 +135,8 @@ enum UIText {
     }
 
     /// What the action key does with a command draft, after "⏎ →".
-    static func action(_ command: Command, input: Language, config: Config) -> String {
+    /// `draft`: the text typed, so `@translate @improve …` reads as both.
+    static func action(_ command: Command, input: Language, config: Config, draft: String = "") -> String {
         if command.plugin != nil, command.kind == .run { return tr("运行插件", "run the plugin") }
         if command.kind == .link { return tr("在浏览器打开", "open in the browser") }
         switch command.custom?.type {
@@ -129,7 +146,8 @@ enum UIText {
         case .link?, nil: break
         }
         switch command {
-        case .improve: return action(input: input, config: config)
+        case .improve, .translate:
+            return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
         case .claude: return config.claudeInBackground ? tr("交给 Claude 在后台做", "hand it to Claude in the background")
                                                        : tr("在终端打开 Claude Code", "open Claude Code in Terminal")

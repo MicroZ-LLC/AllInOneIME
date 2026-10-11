@@ -16,15 +16,6 @@ struct MainThreadBox<T>: @unchecked Sendable {
     init(_ value: T) { self.value = value }
 }
 
-/// Settings stored in the input method's user defaults.
-enum Settings {
-    /// Sentence mode (`Composer.sentenceMode`), off unless turned on.
-    static var sentenceMode: Bool {
-        get { UserDefaults.standard.object(forKey: "sentenceMode") as? Bool ?? false }
-        set { UserDefaults.standard.set(newValue, forKey: "sentenceMode") }
-    }
-}
-
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
 /// shows up there) and at most every 30 seconds otherwise.
 enum LivePlugins {
@@ -89,7 +80,7 @@ enum LiveJargon {
 final class AllInOneIMEInputController: IMKInputController {
     /// The input state machine. It asks `secureInputActive` before starting Claude Code.
     lazy var composer: Composer = {
-        let composer = Composer(sentenceMode: Settings.sentenceMode)
+        let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
         return composer
     }()
@@ -105,8 +96,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Shown once each time composing gets paused for secure input.
     private var secureNoticeShown = false
     var converter: Converter = sharedConverter
-    /// Persists the sentence mode switch (the self-test replaces this so it leaves the setting alone).
-    var saveSentenceMode: (Bool) -> Void = { Settings.sentenceMode = $0 }
     /// The command usage as kept, and keeping it (the self-test leaves the user's alone).
     var loadCommandUsage: () -> CommandUsage = { CommandUsageStore.usage }
     var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
@@ -118,8 +107,6 @@ final class AllInOneIMEInputController: IMKInputController {
     var clientOverride: IMKTextInput?
     /// The settings the controller follows (the self-test supplies its own).
     var loadSettings: () -> Config = { LiveConfig.current }
-    /// Sentence mode as saved (the self-test supplies its own).
-    var loadSentenceMode: () -> Bool = { Settings.sentenceMode }
     /// `@open`: finds files and apps, and opens the one picked (the self-test opens nothing).
     var searchFiles: (String) async -> [SearchResult] = { await FileSearch.run($0) }
     /// Opens an `@open` result: a web address in the default browser, anything else as a file.
@@ -279,14 +266,11 @@ final class AllInOneIMEInputController: IMKInputController {
         applySettings()
     }
 
-    /// Takes over the current settings: sentence mode, English drafts, voice key, action key, and the
-    /// default input mode (applied to new sessions, and again when the setting changes; a Shift toggle
-    /// otherwise sticks).
+    /// Takes over the current settings: voice key, action key, and the default input mode (applied to
+    /// new sessions, and again when the setting changes; a Shift toggle otherwise sticks).
     @MainActor
     func applySettings() {
         let config = loadSettings()
-        composer.sentenceMode = loadSentenceMode()
-        composer.englishAI = config.englishAI
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
         composer.claudeInBackground = config.claudeInBackground
@@ -427,7 +411,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 target?.insertText(text, replacementRange: Self.notFound)
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
-                startConversion(input, id: id)
+                // @improve / @translate: the mode (and a second one written inside) comes from the command.
+                startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
             case let .startCommand(command, input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 startConversion(input, id: id, command: command)
@@ -529,8 +514,6 @@ final class AllInOneIMEInputController: IMKInputController {
                 hidePanelIfOwned()
             case let .notice(text):
                 showNotice(text, client: target)
-            case let .sentenceModeChanged(on):
-                saveSentenceMode(on)
             case let .armVoice(delay):
                 voiceArmToken += 1
                 let token = voiceArmToken
@@ -801,6 +784,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
         let (runPlugin, runProgram, converter) = (self.runPlugin, self.runProgram, self.converter)
+        let improveTranslates = loadSettings().improveTranslates
         // Not tied to the main actor: the pipeline calls it from its own task.
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
             if command == .read { return WebReader.stream(input) }
@@ -809,6 +793,11 @@ final class AllInOneIMEInputController: IMKInputController {
             if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
             if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input) }
             if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
+            // @improve, @translate, or both written together: one request (`WritingMode`).
+            if command == nil || command?.kind == .convert {
+                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
+                return converter.convert(text, mode: mode)
+            }
             return command.map { converter.generate($0, input: input) } ?? converter.convert(input)
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
@@ -903,7 +892,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Short status message ("英" English mode, "整句模式：关" sentence mode off, …): its own small
+    /// Short status message ("英" English mode, "已复制" copied, …): its own small
     /// panel when nothing else is shown, otherwise the right side of the footer.
     @MainActor
     private func showNotice(_ text: String, client: IMKTextInput?) {
@@ -946,16 +935,15 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The hint under a pending draft: "单按 ⌥ → 翻译成英文 / 改写", "Tap ⌥ → translate to English / rewrite" …
     @MainActor
     func draftHint(config: Config) -> String {
+        guard let command = composer.draftCommand else { return "" }  // a draft always starts with one
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
-        let input = Language.of(composer.sentText)
         // A command with nothing after it: the action key takes the clipboard's text.
-        if composer.draftCommand != nil, composer.sentText.isEmpty {
+        if composer.sentText.isEmpty {
             return "\(how) → " + tr("用剪贴板里的文字", "use the clipboard text")
         }
-        return "\(how) → " + (composer.draftCommand.map { UIText.action($0, input: input, config: config) }
-            ?? UIText.action(input: input, config: config))
+        return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config, draft: composer.draft)
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -977,6 +965,10 @@ final class AllInOneIMEInputController: IMKInputController {
                                              style: .original)
                 case .version:
                     return CandidateView.Row(label: choice.label, text: Self.preview(choice.text), style: .translation,
+                                             isComplete: choice.isComplete)
+                case let .translation(code):
+                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
+                                             comment: UIText.name(OutputLanguage(code)), style: .translation,
                                              isComplete: choice.isComplete)
                 case let .rewrite(style):
                     // A jargon (黑话) line notes what the terms from the user's jargon list in it mean.
@@ -1062,7 +1054,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 model.status = .hint("🎙 " + (heard.isEmpty ? tr("正在听…", "Listening…") : heard))
                 // The action key while right ⌥ is still held (⌥Return, or Space = ⌥Space): stop and run it.
                 let key = composer.actionKey
-                let runs = composer.sentenceMode || composer.draftCommand != nil
+                let runs = composer.draftCommand != nil
                 model.footer = runs && (key == .optionSpace || key == .enter)
                     ? (key == .enter ? tr("松开右 ⌥ 结束 · ⏎ 直接执行 · Esc 取消", "Release right ⌥ to stop · ⏎ run now · Esc cancel")
                                      : tr("松开右 ⌥ 结束 · 空格 直接执行 · Esc 取消", "Release right ⌥ to stop · Space run now · Esc cancel"))
@@ -1084,12 +1076,8 @@ final class AllInOneIMEInputController: IMKInputController {
             if let command = composer.draftCommand {
                 // Pinyin in an @ command: the action key converts it and runs the command.
                 let input: Language = composer.sentText.containsHan || !composer.engineState.isAsciiMode ? .chinese : .english
-                let action = UIText.action(command, input: input, config: config)
+                let action = UIText.action(command, input: input, config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
-            } else if composer.sentenceMode {
-                let action = config.outputLanguage == .chinese ? tr("润色", "polish") : tr("翻译", "translate")
-                model.footer = key == .space ? tr("空格 选词 · 整句打完再按空格\(action)", "Space picks · Space again when done to \(action)")
-                    : tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
                 model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
             }
@@ -1130,11 +1118,9 @@ final class AllInOneIMEInputController: IMKInputController {
             if let note = composer.recipientNote { model.status = .hint(note) }
             model.footer = tr("⏎ / Tab 选择收件人 · ↑↓ · Esc 取消", "⏎ / Tab pick the recipient · ↑↓ · Esc cancel")
         } else if !composer.draft.isEmpty {
+            // An @ command with what follows it (a command being typed is the palette, above).
             model.status = .hint(draftHint(config: config))
-            let asTyped = composer.actionKey == .enter ? "⇧⏎" : "⏎"
-            model.footer = composer.draftCommand != nil ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
-                : composer.isLatinDraft ? tr("\(asTyped) 直接上屏 · ⌫ 删字", "\(asTyped) insert as typed · ⌫ delete")
-                : tr("\(asTyped) 上屏原文 · ⌫ 删字 · Esc 清除", "\(asTyped) insert as typed · ⌫ delete · Esc clear")
+            model.footer = tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
         if let notice { model.detail = notice }
         return model
@@ -1151,11 +1137,6 @@ final class AllInOneIMEInputController: IMKInputController {
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
-        let ai = NSMenuItem(title: tr("整句模式（⇧空格）", "Sentence Mode (⇧Space)"),
-                            action: #selector(toggleSentenceMode(_:)), keyEquivalent: "")
-        ai.target = self
-        ai.state = Settings.sentenceMode ? .on : .off
-        menu.addItem(ai)
         let model = config.map { tr("模型：", "Model: ") + ($0.settings(for: $0.provider).model ?? "") } ?? tr("配置文件有误", "The config file has an error")
         let info = NSMenuItem(title: model, action: nil, keyEquivalent: "")
         info.isEnabled = false
@@ -1165,19 +1146,20 @@ final class AllInOneIMEInputController: IMKInputController {
         // Output and input languages in submenus like the styles: each lists only the languages the user
         // added (a new user has one), with "Add Languages…" opening the settings.
         let current = config ?? .default
-        let outputItem = NSMenuItem(title: tr("输出：", "Output: ") + UIText.name(current.outputLanguage), action: nil, keyEquivalent: "")
+        // @translate writes in every language added, in this order (one picked here moves to the front).
+        let outputItem = NSMenuItem(title: tr("翻译成：", "Translate to: ") + current.outputLanguages.map(UIText.name).joined(separator: tr("、", ", ")),
+                                    action: nil, keyEquivalent: "")
         let outputs = NSMenu()
         for language in current.outputLanguages {
-            let item = NSMenuItem(title: tr("翻译 / 润色成\(UIText.name(language))", "Translate / Polish into \(UIText.name(language))"),
-                                  action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: UIText.name(language), action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.code
-            item.state = current.outputLanguage == language ? .on : .off
+            item.state = .on
             item.isEnabled = config != nil  // don't overwrite a config file that failed to parse
             outputs.addItem(item)
         }
         outputs.addItem(.separator())
-        let addOutput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
+        let addOutput = NSMenuItem(title: tr("添加 / 排序语言…", "Add or Reorder Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addOutput.target = self
         outputs.addItem(addOutput)
         outputItem.submenu = outputs
@@ -1226,6 +1208,12 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         stylesItem.submenu = styles
         menu.addItem(stylesItem)
+        let improveTranslates = NSMenuItem(title: tr("@improve 同时翻译", "@improve Also Translates"),
+                                           action: #selector(toggleImproveTranslates(_:)), keyEquivalent: "")
+        improveTranslates.target = self
+        improveTranslates.state = current.improveTranslates ? .on : .off
+        improveTranslates.isEnabled = config != nil
+        menu.addItem(improveTranslates)
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
                                  keyEquivalent: "")
@@ -1235,12 +1223,6 @@ final class AllInOneIMEInputController: IMKInputController {
         deploy.target = self
         menu.addItem(deploy)
         return menu
-    }
-
-    @objc func toggleSentenceMode(_ sender: Any?) {
-        MainActor.assumeIsolated {
-            perform(composer.setSentenceMode(!composer.sentenceMode), client: nil)
-        }
     }
 
     /// IMK hands menu actions an info dictionary holding the chosen item (a plain NSMenuItem when
@@ -1268,13 +1250,11 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Turns a preset on or off. Turning one off keeps the current order; turning one on sorts the
-    /// list into catalog order.
+    /// Turns a preset on or off, keeping the user's order: one turned on goes last.
     static func toggled(_ name: String, in current: [String]) -> [String] {
         let enabled = RewriteStyle.resolve(current).map(\.name)
         if enabled.contains(name) { return enabled.filter { $0 != name } }
-        let wanted = Set(enabled + [name])
-        return RewriteStyle.catalog.map(\.name).filter(wanted.contains)
+        return enabled + [name]
     }
 
     @objc func setOutputLanguage(_ sender: Any?) {
@@ -1298,6 +1278,19 @@ final class AllInOneIMEInputController: IMKInputController {
     /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
     static func inputName(_ language: Language) -> String {
         language == .chinese ? tr("中文（拼音）", "Chinese (pinyin)") : UIText.name(language)
+    }
+
+    @objc func toggleImproveTranslates(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            do {
+                var config = try Config.load()
+                config.improveTranslates.toggle()
+                try config.write()
+                log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
+            } catch {
+                log.error("could not update @improve: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     /// Makes an added input language the default: a new text field starts in it.
