@@ -71,6 +71,25 @@ struct ClaudeAgentsTests {
         #expect(saved == watch)
     }
 
+    @Test func endedAndLongWaitingTasksAreDropped() {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        func session(_ id: String, _ state: String) -> AgentSession { AgentSession(id: id, sessionId: id + "-x", name: id, state: state) }
+        // Failed or cancelled: it ended (reported, no longer looked at), it doesn't wait for the user.
+        for state in ["failed", "error", "cancelled", "killed"] {
+            #expect(AgentSession(sessionId: "x", state: state).progress == .done, "\(state)")
+        }
+        // Waiting: looked at less often once told (`allWaiting`), and given up a day after it started.
+        var watch = AgentWatch()
+        watch.add(.init(id: "aaaa1111", prompt: "fix it", started: t0))
+        #expect(!watch.allWaiting)
+        _ = watch.update(with: [session("aaaa1111", "blocked")], now: t0 + 10)
+        #expect(watch.allWaiting && watch.tasks.count == 1)
+        watch.add(.init(id: "bbbb2222", prompt: "new", started: t0 + 20))
+        #expect(!watch.allWaiting)
+        _ = watch.update(with: [session("aaaa1111", "blocked"), session("bbbb2222", "working")], now: t0 + 86_401)
+        #expect(watch.tasks.map(\.id) == ["bbbb2222"])
+    }
+
     @Test func claudeInTheBackgroundAndTheTaskList() {
         let c = Composer(engine: FakeEngine())
         c.claudeInBackground = true
