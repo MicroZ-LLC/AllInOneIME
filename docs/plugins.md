@@ -16,7 +16,7 @@ A folder in `~/.config/allinoneime/plugins/<name>/`:
     "summary": {"en": "Stock quotes: @stock AAPL 600519 700", "zh": "股票行情：@stock AAPL 600519 700"},
     "script": "main.js", "hosts": ["query1.finance.yahoo.com"],
     "timeoutSeconds": 10, "ascii": true,
-    "author": "weijianz-opc", "homepage": "https://github.com/MircoZ-LLC/AllInOneIME-plugins",
+    "author": "weijianz-opc", "homepage": "https://github.com/MicroZ-LLC/AllInOneIME-plugins",
     "icon": "chart.line.uptrend.xyaxis", "color": "green" }
   ```
   `type` is `script` (JavaScript, below), `prompt` (an AI instruction in `prompt`, like a custom command) or
@@ -76,8 +76,8 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 
 ## The library (milestone 2, done)
 
-A public repo [`MircoZ-LLC/AllInOneIME-plugins`](https://github.com/MircoZ-LLC/AllInOneIME-plugins), served from
-`https://raw.githubusercontent.com/MircoZ-LLC/AllInOneIME-plugins/main/` (`PluginLibrary.defaultBaseURL`):
+A public repo [`MicroZ-LLC/AllInOneIME-plugins`](https://github.com/MicroZ-LLC/AllInOneIME-plugins), served from
+`https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-plugins/main/` (`PluginLibrary.defaultBaseURL`):
 
 - `plugins/<name>/<version>/`: `plugin.json` and its files. A version folder never changes once published (CI
   refuses a pull request that modifies one); an update is a new folder.
