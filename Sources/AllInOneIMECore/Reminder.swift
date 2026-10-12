@@ -1196,10 +1196,12 @@ public struct ReminderParser: Sendable {
         var isDays: Bool { unit == .day || unit == .week || unit == .month }
     }
 
-    /// 30分钟后, 两个钟头以后, 3天后, 1周后, 1个月后 (not 3月后: March).
+    /// 30分钟后, 两个钟头以后, 3天后, 1周后, 1个月后 (not 3月后: March). A number starts at its first digit and
+    /// spaces are taken whole (possessive), so a long run of them can't be tried every way (a pasted table row).
     private static let chineseDuration = try! NSRegularExpression(pattern:
-        "(?:(?<n>[0-9]+(?:\\.[0-9]+)?|[零〇一二两三四五六七八九十]+)\\s*个?\\s*(?<plushalf>半)?|(?<half>半)\\s*个?)"
-        + "\\s*(?<unit>分钟|小时|钟头|天|日|周|星期|礼拜|(?<=个)月)\\s*(?:以后|之后|后)")
+        "(?:(?<n>(?<![0-9.])[0-9]++(?:\\.[0-9]++)?|(?<![零〇一二两三四五六七八九十])[零〇一二两三四五六七八九十]++)\\s*+(?:个\\s*+)?"
+        + "(?:(?<plushalf>半)\\s*+)?|(?<half>半)\\s*+(?:个\\s*+)?)"
+        + "(?<unit>分钟|小时|钟头|天|日|周|星期|礼拜|(?<=个)月)\\s*+(?:以后|之后|后)")
     /// An amount of time in English: "30 minutes", "30min", "2h", "an hour and a half", "half an hour", "3 days",
     /// "a month".
     private static let englishAmount =

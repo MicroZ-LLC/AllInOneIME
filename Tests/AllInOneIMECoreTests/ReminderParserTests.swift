@@ -783,6 +783,23 @@ struct ReminderParserTests {
         return abs(date.timeIntervalSince(now.addingTimeInterval(seconds))) <= 30 && draft.hasTime
     }
 
+    /// Long runs of spaces after numbers (a pasted table row) are read in a moment, not seconds.
+    @Test func manySpacesAreQuick() {
+        let parser = ReminderParser()
+        let texts = ["1" + String(repeating: " ", count: 300) + "x",
+                     "12345678901234567890" + String(repeating: " ", count: 200) + "x",
+                     String(repeating: "3 ", count: 150) + "天后开会",
+                     "两" + String(repeating: " ", count: 300) + "个"]
+        for text in texts {
+            let start = Date()
+            _ = parser.parse(text, now: Self.realNow())
+            #expect(Date().timeIntervalSince(start) < 0.2, "\(text.prefix(20))…")
+        }
+        // Spaces inside a duration still read.
+        #expect(fromNow(1800, parse("30 分钟 后关火"), at: now))
+        #expect(fromNow(7200, parse("两 个 小时后开会"), at: now))
+    }
+
     @Test func theSystemsDetectorInChinese() {
         let now = Self.realNow()
         let parser = ReminderParser()
