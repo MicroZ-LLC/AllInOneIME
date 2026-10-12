@@ -2,6 +2,31 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.0 (2026-10-12)
+
+### Added
+
+- "Type results out" in the settings (off by default): a command's result (a translation, a polish, an answer…) is typed into the app character by character, like a person typing, at a speed set with a slider, from 6 seconds a character to 40 a second (16 a second by default), optionally speeding up and slowing down in short bursts like a person, with breaks after punctuation; pinyin picks still go in at once. Esc stops it; any other key types the rest at once and then goes on as usual; moving to another field stops it.
+- The menu bar panel is frosted glass: what's behind it shows through blurred, in light and dark mode; notes, reminders and tasks each sit on a card of their own, and rows light up under the pointer.
+- Swipe a row of the menu bar panel to the left with two fingers to show its Remove button, or swipe it all the way to remove it at once; with a mouse, right-click it. Removing only takes it off the panel: the note stays in Notes, the reminder in Reminders (not completed), the task in Claude Code.
+
+### Changed
+
+- An API key goes only to the service it was saved for: switching a provider's base URL to another service (a relay) no longer sends it the key saved for the one before; save the key again for the new one. A key saved before this version is tied to the first service it's used with. A base URL over plain `http://` is refused unless it's this Mac or the local network (Ollama, LM Studio).
+- Commands that run code (`@py`, `@js`, custom run commands) inside pasted, dictated or given-back text stay text, with a notice: copying a web page with `@py …` in it no longer runs it. `@calculate` and plugin commands still run.
+
+### Fixed
+
+- `@question` (and custom AI commands) put every answer on one line, so code lost its line breaks and indentation; answers keep their lines now (code as plain lines, no Markdown fences). In a terminal (Ghostty, iTerm2, Terminal…) the answer goes in as a paste, so the shell or Claude Code takes the line breaks as text instead of running or sending each line; typed out, the characters are typed and each line break is pasted. This posts ⌘V, which needs the Accessibility permission (macOS asks the first time); without it the answer still goes in on one line there.
+- `@translate` into several languages highlighted the original (row 0), so ⏎ at once inserted the untranslated sentence; the first translation is highlighted now.
+- Tapping Shift with text selected deleted the selection in some apps; a Shift-click or ⌥-click that extends a selection switched between Chinese and English. Both leave the text alone now.
+- Holding ⏎ or Space ran the command and then, with the key's repeat, inserted the result or sent the message `@imessage` showed; repeats are ignored now while a draft or result is up.
+- ⏎ in an empty API key field removed the saved key; it does nothing now, and Remove asks first.
+- `@reminder` hung on a long run of spaces after a number, and read a span (`3-4点`, `三到四点`) as the end time; it's due at the start now.
+- In Chinese mode, `@` and a name in pinyin (`@lisi`) typed "@l" and the rest as letters; it types `@李四` now.
+- The settings window undid a change made from the input method's menu meanwhile; it reads the settings again, and fields saved on ⏎ are also saved when the window closes.
+- A background Claude task that failed was looked at every 8 seconds for good; failed tasks count as done, and tasks only waiting for you are looked at less often.
+
 ## 0.5.0 (2026-10-11)
 
 ### Added

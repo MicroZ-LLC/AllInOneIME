@@ -109,6 +109,10 @@ struct CommandTests {
 
     @Test func answersBecomeOneSafeLine() {
         #expect(Converter.oneLine("  First line.\nSecond\tline.\u{1B}[31m  ") == "First line. Second line. [31m")
+        // An answer keeps its lines (code): indentation stays, tabs are 4 spaces, fences and controls go,
+        // blank lines collapse.
+        let code = "Here:\n```swift\nfunc f() {\n\treturn 1   \n}\n```\n\n\n\nDone.\u{1B}[0m\n"
+        #expect(Converter.lines(code) == "Here:\nfunc f() {\n    return 1\n}\n\nDone. [0m")
     }
 
     @Test func commandLines() {
@@ -182,6 +186,7 @@ struct CommandTests {
         #expect(SearchResult.web("github.com/weijianz-opc/AllInOneIME")?.name == "github.com/weijianz-opc/AllInOneIME")
         #expect(SearchResult.web("www.example.app")?.path == "https://www.example.app")
         #expect(SearchResult.web("http://localhost:8080/a")?.webURL?.port == 8080)
+        #expect(SearchResult(name: "", path: "HTTPS://example.com").webURL != nil)  // opened in the browser, not as a file
         #expect(SearchResult.web("baidu.cn")?.webURL?.host == "baidu.cn")
         // localhost and IP addresses, with a port or not: a server here or on the network, over http (it listed nothing).
         #expect(SearchResult.web("localhost:3000") == SearchResult(name: "localhost:3000", path: "http://localhost:3000"))

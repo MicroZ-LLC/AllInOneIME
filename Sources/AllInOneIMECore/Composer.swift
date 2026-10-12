@@ -54,6 +54,8 @@ public final class Composer {
         case updateMarkedText
         /// Insert text into the document, replacing the marked text.
         case commit(String)
+        /// Type a result into the document character by character (`typesResults`); the marked text is gone.
+        case typeOut(String)
         case startConversion(input: String, id: Int)
         /// Run a `.generate` command (`@question`, `@claude`) on `input`; results arrive via `receive`.
         case startCommand(Command, input: String, id: Int)
@@ -196,6 +198,8 @@ public final class Composer {
         public var noteNotSaved: String
         /// ⏎ on a send command (`@imessage`) before a recipient was picked.
         public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
+        /// `@py` (or another command that runs code) in pasted or dictated text: left as text.
+        public var codeNotRun = "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字"
 
         public static let chinese = Messages(
             notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
@@ -230,7 +234,8 @@ public final class Composer {
             linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
             noOutput: "The code printed nothing: end it with an expression, or print the result",
             noteNotSaved: "The note wasn't saved; its text is on the clipboard",
-            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)")
+            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)",
+            codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
@@ -241,6 +246,8 @@ public final class Composer {
     public var commandUsage = CommandUsage()
     /// `@claude` starts a background session instead of a Terminal window.
     public var claudeInBackground = false
+    /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
+    public var typesResults = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
     /// Files and apps found for `@open`.
@@ -292,8 +299,14 @@ public final class Composer {
     public private(set) var draft = "" {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
         // highlight starts at the first again (`opensLiveResult`).
-        didSet { if draft != oldValue { resetLiveHighlight() } }
+        didSet {
+            if draft != oldValue { resetLiveHighlight() }
+            if draft.isEmpty { draftHasOutsideText = false }
+        }
     }
+    /// Text the user didn't type is in the draft (pasted, dictated, a draft given back): a command in it that
+    /// runs code (`Command.runsCode`) stays text. Something copied from a web page may hide "@py …".
+    private var draftHasOutsideText = false
     /// Last known state of the level-one engine.
     public private(set) var engineState = EngineSnapshot.empty
     public private(set) var result = ConversionResult.empty
@@ -320,6 +333,9 @@ public final class Composer {
     private var voiceKeySided = false
     /// When Shift went down with no other key since (nil once any key is pressed).
     private var shiftPressedAt: TimeInterval?
+    /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`: a Shift-click
+    /// or ⌥-click is no tap of the key (the mouse never reaches the input method). Set by the app.
+    public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { _ in false }
     /// Which Option key went down on its own, and when (nil once anything else happens).
     private var optionPressed: (keyCode: UInt16, at: TimeInterval)?
     private var warnedNotReady = false
@@ -703,6 +719,13 @@ public final class Composer {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
+        // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
+        // also insert the result, or send the message it shows to confirm.
+        if event.isRepeat, isLevelTwo || !draft.isEmpty,
+           [VirtualKey.returnKey, VirtualKey.keypadEnter, VirtualKey.space, VirtualKey.tab].contains(event.keyCode)
+            || isLevelTwo && event.printableText?.first?.isNumber == true {
+            return .consumed()
+        }
         if isActionKey(event), let effects = actionKeyPressed() {
             draftEndsWithVoice = false
             return .consumed(effects)
@@ -766,8 +789,8 @@ public final class Composer {
     /// the sentence (a hold of the right one still dictates).
     /// The application always receives modifier changes as well. `timestamp` is in seconds.
     public func handleFlagsChanged(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
-        if isOptionTap(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp), actionKey == .optionTap,
-           let effects = actionKeyPressed() {
+        if let held = optionTapHeld(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp),
+           !pointerUsedWithin(held), actionKey == .optionTap, let effects = actionKeyPressed() {
             voiceArmed = false  // a tap of right ⌥, not a hold
             shiftPressedAt = nil
             return effects
@@ -779,8 +802,9 @@ public final class Composer {
             shiftPressedAt = timestamp
             return []
         }
+        let held = shiftPressedAt.map { timestamp - $0 }
         let toggle = isShift && !modifiers.contains(.shift)
-            && shiftPressedAt.map { timestamp - $0 <= Self.shiftTapWindow } == true
+            && held.map { $0 <= Self.shiftTapWindow && !pointerUsedWithin(max($0, 0)) } == true
         shiftPressedAt = nil
         // With one input language Shift stays put, except to leave the letters a command switched to
         // (Chinese inside `@python print("…")`).
@@ -797,26 +821,28 @@ public final class Composer {
     public static let voiceArmDelay: TimeInterval = 0.2
 
     /// Tracks the Option keys. True for the release of one that went down on its own and came back
-    /// up within `optionTapWindow`, with no key or other modifier (including the other Option) between.
-    private func isOptionTap(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> Bool {
+    /// up within `optionTapWindow`, with no key or other modifier (including the other Option) between:
+    /// how long it was held. Nil otherwise.
+    private func optionTapHeld(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> TimeInterval? {
         let side: KeyModifiers
         switch keyCode {
         case VirtualKey.leftOption: side = .leftOption
         case VirtualKey.rightOption: side = .rightOption
         default:
             optionPressed = nil  // another modifier changed
-            return false
+            return nil
         }
         let sided = !modifiers.isDisjoint(with: [.leftOption, .rightOption])
         let down = sided ? modifiers.contains(side) : modifiers.contains(.option)
         if down {
             let alone = modifiers.subtracting([.option, side, .capsLock]).isEmpty && optionPressed == nil
             optionPressed = alone ? (keyCode, timestamp) : nil
-            return false
+            return nil
         }
         defer { optionPressed = nil }
-        guard let pressed = optionPressed, pressed.keyCode == keyCode else { return false }
-        return timestamp - pressed.at <= Self.optionTapWindow
+        guard let pressed = optionPressed, pressed.keyCode == keyCode else { return nil }
+        let held = timestamp - pressed.at
+        return held <= Self.optionTapWindow ? max(held, 0) : nil
     }
 
     /// The voice key: arms on press, dictation runs while it is held, stops on release. Nil for
@@ -939,6 +965,7 @@ public final class Composer {
     public func restoreDraft(_ command: Command, text: String) -> [Effect]? {
         guard phase == .idle, draft.isEmpty, voice == .off, !(engine?.snapshot().isComposing ?? false) else { return nil }
         draft = "@\(command.name) " + text
+        draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
     }
@@ -973,6 +1000,7 @@ public final class Composer {
         }
         draft += appendix(spoken)
         draftEndsWithVoice = true
+        draftHasOutsideText = true
         setLevelOnePhase()
         if translate { return startAction().effects }
         return [.updateMarkedText, .showPanel]
@@ -1154,6 +1182,7 @@ public final class Composer {
         guard !text.isEmpty else { return [.notice(pasteForEmptyCommand ? messages.typeAfterCommand : messages.nothingToPaste)] }
         guard text.count <= limit else { return [.notice(tooLong)] }
         draft += text
+        draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
     }
@@ -1282,11 +1311,22 @@ public final class Composer {
         return [.updateMarkedText, .showPanel]
     }
 
-    /// Leaves the palette: what was typed ("@", "@na") goes in as typed, then `event` acts as usual.
+    /// Leaves the palette: what was typed ("@", "@na") goes in as typed, then `event` acts as usual. A
+    /// letter in Chinese mode is a name being typed (「@lisi」 for @李四): only the "@" goes in, and the letters
+    /// typed after it are pinyin.
     private func commitPalette(then event: KeyEvent) -> Response {
-        let typed = finish(committing: draft)
+        let query = paletteQuery ?? ""
+        let pinyin = !query.isEmpty && event.printableText?.allSatisfy(\.isLetter) == true
+            && engine.map { !$0.snapshot().isAsciiMode } == true
+        let typed = finish(committing: pinyin ? "@" : draft)
+        var effects = typed
+        if pinyin {
+            for letter in query {
+                effects += handleLevelOne(KeyEvent(keyCode: 0, characters: String(letter))).effects
+            }
+        }
         let next = handleLevelOne(event)
-        return Response(effects: typed + next.effects, handled: next.handled)
+        return Response(effects: effects + next.effects, handled: next.handled)
     }
 
     private func appendTyped(_ text: String, afterVoice: Bool = false) {
@@ -1554,10 +1594,14 @@ public final class Composer {
             return .consumed(finish(committing: "") + [.saveNote(text: input), usage])
         }
         // Commands inside the text (`@stock AAPL`) run first; not inside a search's text, nor a reminder's
-        // (it stays on this Mac), and never inside code: it runs exactly as typed, so no command's output (a
-        // web page, a program's) is executed.
+        // (it stays on this Mac), and never inside code or a custom program's text: it runs exactly as typed,
+        // so no command's output (a web page, a program's) is executed. With text the user didn't type in the
+        // draft, commands that run code stay text (`draftHasOutsideText`).
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
-        let plan = local || parsed?.command.isCode == true ? nil : CommandPlan.make(input, commands: commands)
+        let inners = draftHasOutsideText ? commands.filter { !$0.runsCode } : commands
+        let plan = local || parsed?.command.runsCode == true ? nil : CommandPlan.make(input, commands: inners)
+        let codeLeft = draftHasOutsideText && plan != nil
+            && CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode }
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
@@ -1585,7 +1629,7 @@ public final class Composer {
         default: start = .startConversion(input: input, id: requestCounter)
         }
         let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
-        return .consumed([start, .updateMarkedText, .showPanel] + usage)
+        return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
     }
 
     /// Opens a `link` command's address with `text` in it: the composition ends with nothing inserted,
@@ -1758,6 +1802,7 @@ public final class Composer {
             // Sent, not inserted: the draft goes.
             return finish(committing: "") + [.sendMessage(recipient, text: all[index].text, command: command), used(command)]
         }
+        if typesResults { return finish(committing: "") + [.typeOut(all[index].text)] }
         return finish(committing: all[index].text)
     }
 

@@ -783,6 +783,43 @@ struct ReminderParserTests {
         return abs(date.timeIntervalSince(now.addingTimeInterval(seconds))) <= 30 && draft.hasTime
     }
 
+    /// Long runs of spaces after numbers (a pasted table row) are read in a moment, not seconds.
+    @Test func manySpacesAreQuick() {
+        let parser = ReminderParser()
+        let texts = ["1" + String(repeating: " ", count: 300) + "x",
+                     "12345678901234567890" + String(repeating: " ", count: 200) + "x",
+                     String(repeating: "3 ", count: 150) + "天后开会",
+                     "两" + String(repeating: " ", count: 300) + "个"]
+        for text in texts {
+            let start = Date()
+            _ = parser.parse(text, now: Self.realNow())
+            #expect(Date().timeIntervalSince(start) < 0.2, "\(text.prefix(20))…")
+        }
+        // Spaces inside a duration still read.
+        #expect(fromNow(1800, parse("30 分钟 后关火"), at: now))
+        #expect(fromNow(7200, parse("两 个 小时后开会"), at: now))
+    }
+
+    /// A span of time is due at its start, and all of it leaves the title.
+    @Test func timeSpansStartAtTheirStart() {
+        let now = Self.realNow()
+        let parser = ReminderParser()
+        let cases: [(String, DateComponents, String)] = [
+            ("明天3-4点开会", Self.on(1, at: 15, from: now), "开会"),
+            ("明天三到四点开会", Self.on(1, at: 15, from: now), "开会"),
+            ("明天下午3点到4点开会", Self.on(1, at: 15, from: now), "开会"),
+            ("明天3点半至4点半开会", Self.on(1, at: 15, 30, from: now), "开会"),
+            ("明天上午9~10点面试", Self.on(1, at: 9, from: now), "面试"),
+        ]
+        for (text, due, title) in cases {
+            let draft = parser.parse(text, now: now)
+            #expect(draft.due == due && draft.hasTime && draft.title == title, "\(text): \(draft)")
+        }
+        // Not spans: points counted, a time then going somewhere.
+        #expect(parser.parse("明天3点到公司", now: now).due == Self.on(1, at: 15, from: now))
+        #expect(parser.parse("明天3点到公司", now: now).title == "到公司")
+    }
+
     @Test func theSystemsDetectorInChinese() {
         let now = Self.realNow()
         let parser = ReminderParser()

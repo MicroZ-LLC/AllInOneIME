@@ -1139,6 +1139,8 @@ public struct ReminderParser: Sendable {
                     replacement = (word, 2)
                 } else if chars[i] == "早", Self.clockFollows(chars, from: i + 1) {
                     replacement = ("早上", 1)
+                } else if let range = Self.clockRange(chars, from: i) {
+                    replacement = range
                 }
                 if let (word, length) = replacement {
                     text += word
@@ -1153,6 +1155,29 @@ public struct ReminderParser: Sendable {
             self.text = text
             self.origins = origins
         }
+
+        /// A span of time of day (「3-4点」, 「三到四点」, 「3点半到4点」): read as its start (「3点」, 「3点半」), which the
+        /// detector and the rules take for the time, the whole span standing for it (it leaves the title).
+        private static func clockRange(_ chars: [Character], from start: Int) -> (word: String, length: Int)? {
+            let numerals = "零〇一二两三四五六七八九十"
+            guard chars[start].isASCII && chars[start].isNumber || numerals.contains(chars[start]) else { return nil }
+            if start > 0, case let before = chars[start - 1],
+               before.isASCII && before.isNumber || numerals.contains(before) || "第.．:：".contains(before) { return nil }
+            let rest = String(chars[start..<min(start + 24, chars.count)])
+            guard let match = clockSpan.firstMatch(in: rest, range: NSRange(rest.startIndex..., in: rest)),
+                  let whole = Range(match.range, in: rest), let from = Range(match.range(withName: "start"), in: rest)
+            else { return nil }
+            var word = String(rest[from])
+            if !word.contains(where: { $0 == "点" || $0 == "點" }) { word += "点" }
+            return (word, rest.distance(from: rest.startIndex, to: whole.upperBound))
+        }
+
+        private static let clockSpan: NSRegularExpression = {
+            let n = "(?:[0-9]{1,2}|[零〇一二两三四五六七八九十]{1,3})"
+            let minutes = "(?:半|一刻|三刻|[0-9]{1,2}分?|[零〇一二两三四五六七八九十]{1,3}分?)"
+            return try! NSRegularExpression(pattern:
+                "^(?<start>" + n + "(?:\\s*[点點]钟?" + minutes + "?)?)\\s*+[-–—~～到至]\\s*+" + n + "\\s*[点點]" + minutes + "?")
+        }()
 
         /// 早 + 8点 / 八点 / 8:30 (not 早一点: "a bit earlier").
         private static func clockFollows(_ chars: [Character], from start: Int) -> Bool {
@@ -1196,10 +1221,12 @@ public struct ReminderParser: Sendable {
         var isDays: Bool { unit == .day || unit == .week || unit == .month }
     }
 
-    /// 30分钟后, 两个钟头以后, 3天后, 1周后, 1个月后 (not 3月后: March).
+    /// 30分钟后, 两个钟头以后, 3天后, 1周后, 1个月后 (not 3月后: March). A number starts at its first digit and
+    /// spaces are taken whole (possessive), so a long run of them can't be tried every way (a pasted table row).
     private static let chineseDuration = try! NSRegularExpression(pattern:
-        "(?:(?<n>[0-9]+(?:\\.[0-9]+)?|[零〇一二两三四五六七八九十]+)\\s*个?\\s*(?<plushalf>半)?|(?<half>半)\\s*个?)"
-        + "\\s*(?<unit>分钟|小时|钟头|天|日|周|星期|礼拜|(?<=个)月)\\s*(?:以后|之后|后)")
+        "(?:(?<n>(?<![0-9.])[0-9]++(?:\\.[0-9]++)?|(?<![零〇一二两三四五六七八九十])[零〇一二两三四五六七八九十]++)\\s*+(?:个\\s*+)?"
+        + "(?:(?<plushalf>半)\\s*+)?|(?<half>半)\\s*+(?:个\\s*+)?)"
+        + "(?<unit>分钟|小时|钟头|天|日|周|星期|礼拜|(?<=个)月)\\s*+(?:以后|之后|后)")
     /// An amount of time in English: "30 minutes", "30min", "2h", "an hour and a half", "half an hour", "3 days",
     /// "a month".
     private static let englishAmount =

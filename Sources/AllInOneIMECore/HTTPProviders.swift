@@ -15,6 +15,26 @@ public enum HTTPProviders {
     static let fallbackModels: Set<String> = ["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"]
     static let fallbackBeta = "server-side-fallback-2026-07-01"
 
+    /// The host requests go to (lowercased), for the key tied to it (`APIKeys.load(_:for:)`).
+    public static func host(of settings: ProviderSettings) -> String? {
+        let base = (settings.baseURL ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        return URL(string: base)?.host?.lowercased()
+    }
+
+    /// This Mac or the local network: plain http is fine there (a model served by Ollama, LM Studio).
+    static func isLocal(_ host: String) -> Bool {
+        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if host == "localhost" || host.hasSuffix(".local") || host == "::1" { return true }
+        if host.hasPrefix("fc") || host.hasPrefix("fd") || host.hasPrefix("fe80:") { return host.contains(":") }
+        let octets = host.split(separator: ".").compactMap { Int($0) }
+        guard octets.count == 4, host.split(separator: ".").count == 4 else { return false }
+        switch (octets[0], octets[1]) {
+        case (127, _), (10, _), (192, 168), (169, 254): return true
+        case (172, 16...31): return true
+        default: return false
+        }
+    }
+
     public static func makeRequest(_ body: ConverseRequest, provider: Provider, settings: ProviderSettings,
                                    key: String, maxTokens: Int, timeout: TimeInterval) throws -> URLRequest {
         // The hosted service picks its own model.
@@ -86,9 +106,11 @@ public enum HTTPProviders {
             throw ProviderError.invalidResponse(provider, "Bedrock requests are signed by BedrockClient")
         }
         if provider != .gemini, provider != .hosted, let t = settings.temperature { json["temperature"] = t }
-        guard let url = URL(string: base + path), let scheme = url.scheme, ["https", "http"].contains(scheme), url.host != nil else {
+        guard let url = URL(string: base + path), let scheme = url.scheme?.lowercased(), ["https", "http"].contains(scheme),
+              let host = url.host else {
             throw ProviderError.invalidBaseURL(settings.baseURL ?? "")
         }
+        guard scheme == "https" || isLocal(host) else { throw ProviderError.insecureBaseURL(settings.baseURL ?? "") }
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.httpBody = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys, .withoutEscapingSlashes])

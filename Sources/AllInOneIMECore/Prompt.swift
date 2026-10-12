@@ -215,7 +215,7 @@ public enum Prompt {
     }
 
     /// Bump when the wording of `commandSystem` changes (it is part of the cache key).
-    public static let commandVersion = 2
+    public static let commandVersion = 3
 
     /// The request for a `.generate` command (`@question`, a custom `prompt` command): the text goes to the model as
     /// it was typed, and the answer is written to be inserted at the cursor.
@@ -229,9 +229,10 @@ public enum Prompt {
     static func commandSystem(_ command: Command) -> String {
         let insert = """
             The user is typing in a text field on a Mac, and your reply is inserted at their cursor as is. \
-            Reply in the language of their message unless they ask for another. Write plain text in a \
-            single paragraph (line breaks are removed before inserting): no Markdown (no headings, bold, \
-            lists, tables or code fences), no preamble such as "Sure" or "Here is", and no closing remarks.
+            Reply in the language of their message unless they ask for another. Write plain text: line breaks \
+            only where they help (code, steps, a short list), and code as plain lines with its indentation, \
+            exactly as it would be pasted into a file. No Markdown (no headings, bold, tables or code fences), \
+            no preamble such as "Sure" or "Here is", and no closing remarks.
             """
         // A custom command: the user's own instruction, after the rules for inserting.
         if let prompt = command.custom?.prompt { return insert + "\n\n" + prompt }

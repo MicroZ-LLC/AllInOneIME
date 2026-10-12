@@ -80,6 +80,16 @@ struct ProviderTests {
         #expect(throws: ProviderError.invalidBaseURL("not a url")) {
             try request(.openai, ProviderSettings(model: "m", baseURL: "not a url"))
         }
+        // http:// only to this Mac or the local network; the scheme in any case.
+        #expect(throws: ProviderError.insecureBaseURL("http://relay.example.com/v1")) {
+            try request(.openai, ProviderSettings(model: "m", baseURL: "http://relay.example.com/v1"))
+        }
+        for base in ["http://localhost:11434/v1", "http://127.0.0.1:1234/v1", "http://192.168.1.20:8000/v1",
+                     "http://studio.local:8080/v1", "http://[::1]:8000/v1", "HTTPS://api.example.com/v1"] {
+            #expect((try? request(.openai, ProviderSettings(model: "m", baseURL: base))) != nil, "\(base)")
+        }
+        #expect(!HTTPProviders.isLocal("172.32.0.1") && HTTPProviders.isLocal("172.20.0.1") && !HTTPProviders.isLocal("fcbank.com"))
+        #expect(HTTPProviders.host(of: ProviderSettings(baseURL: "https://API.Example.com/v1/")) == "api.example.com")
     }
 
     @Test func claudeEvents() throws {
@@ -150,14 +160,14 @@ struct ProviderTests {
         config.rewriteStyles = []
         let fixed = config
         let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed },
-                                  loadKey: { $0 == .anthropic ? "sk-test" : nil })
+                                  loadKey: { provider, _ in provider == .anthropic ? "sk-test" : nil })
         var final: ConversionUpdate?
         for try await update in converter.convert("辛苦了") where update.isFinal { final = update }
         #expect(final?.result.versions.map(\.text) == ["Thanks for all", "You worked hard.", "Much appreciated."])
         #expect(StubURLProtocol.lastRequest(host: host)?.value(forHTTPHeaderField: "x-api-key") == "sk-test")
 
         // Without a key: a clear error, nothing sent.
-        let noKey = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed }, loadKey: { _ in nil })
+        let noKey = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed }, loadKey: { _, _ in nil })
         await #expect(throws: ProviderError.missingKey(.anthropic)) {
             for try await _ in noKey.convert("你好") {}
         }
@@ -231,7 +241,7 @@ struct ProviderTests {
         }
         #expect(texts.joined() == "EN: Thanks a lot.\nEN: Appreciate it.\nEN: Thank you!\n")
         // Signed out: a clear error, nothing sent.
-        let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed }, loadKey: { _ in nil })
+        let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed }, loadKey: { _, _ in nil })
         await #expect(throws: ProviderError.signedOut) {
             for try await _ in converter.convert("你好") {}
         }

@@ -74,9 +74,14 @@ final class SettingsModel: ObservableObject {
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
     var profileShownAs: String?
 
+    /// When the config file was last read or written here: changed since (the input method's menu, an
+    /// editor), it is read again before the window shows it (`reloadIfChanged`).
+    private var fileDate: Date?
+
     init(configURL: URL = Config.defaultURL, persists: Bool = true) {
         self.configURL = configURL
         self.persists = persists
+        fileDate = Self.modificationDate(configURL)
         do {
             config = try Config.load(from: configURL)
         } catch {
@@ -94,10 +99,28 @@ final class SettingsModel: ObservableObject {
         guard canSave, persists else { return }
         do {
             try config.write(to: configURL)
+            fileDate = Self.modificationDate(configURL)
             saveError = nil
         } catch {
             saveError = tr("保存失败：", "Couldn't save: ") + error.localizedDescription
         }
+    }
+
+    /// Reads the config file again if something else changed it, so the window shows it and its next save
+    /// doesn't put back what was there before.
+    func reloadIfChanged() {
+        guard persists, case let date = Self.modificationDate(configURL), date != fileDate else { return }
+        fileDate = date
+        do {
+            config = try Config.load(from: configURL)
+            loadError = nil
+        } catch {
+            loadError = UIText.describe(error)
+        }
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     /// Switches the window's language at once (nil: follow the system) and saves the choice.
@@ -151,7 +174,8 @@ final class SettingsModel: ObservableObject {
     func saveKey(_ key: String, for provider: Provider) {
         guard persists else { return }
         do {
-            try APIKeys.save(key, for: provider)
+            // Tied to the base URL it is saved with: it isn't sent to another one set later.
+            try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
             keyError = nil
         } catch {
             keyError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
@@ -570,8 +594,10 @@ struct SettingsView: View {
     @State private var commandToDelete: Int?
     /// The API key being typed (a saved key is never shown again: it stays in the keychain).
     @State private var newKey = ""
+    @State private var removingKey: Provider?
     /// The web search key being typed (likewise).
     @State private var newSearchKey = ""
+    @State private var removingSearchKey = false
 
     var body: some View {
         Form {
@@ -596,6 +622,25 @@ struct SettingsView: View {
                 }
                 .disabled(!model.canSave)
                 Text(Self.actionKeyNote(model.config.actionKey))
+                    .font(.caption).foregroundStyle(.secondary)
+                // Results typed in character by character, like a person typing.
+                Toggle(tr("逐字上屏", "Type results out"), isOn: $model.config.typeOut)
+                if model.config.typeOut {
+                    // A log scale: from 6 s a character to 40 a second, the slow end as easy to set.
+                    LabeledContent(tr("打字速度", "Typing speed")) {
+                        HStack(spacing: 8) {
+                            Text(tr("慢", "Slow")).font(.caption).foregroundStyle(.secondary)
+                            Slider(value: Binding(get: { TypeOut.position(of: model.config.typeOutRate) },
+                                                  set: { model.config.typeOutRate = Self.roundedRate(TypeOut.rate(at: $0)) }))
+                                .frame(width: 180)
+                            Text(tr("快", "Fast")).font(.caption).foregroundStyle(.secondary)
+                            Text(Self.rateLabel(model.config.typeOutRate)).monospacedDigit().frame(minWidth: 92, alignment: .trailing)
+                        }
+                    }
+                    Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
+                }
+                Text(tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。打的时候按 Esc 停下，按别的键就把剩下的一次打完。",
+                        "A command's result (a translation, a polish, an answer…) is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
                        isOn: $model.config.claudeInBackground)
@@ -857,7 +902,11 @@ struct SettingsView: View {
                             .onSubmit { saveSearchKey() }
                         Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
                         if model.searchKeySource == .keychain {
-                            Button(tr("删除", "Remove")) { model.saveSearchKey("") }
+                            Button(tr("删除", "Remove")) { removingSearchKey = true }
+                                .confirmationDialog(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                                    isPresented: $removingSearchKey) {
+                                    Button(tr("删除", "Remove"), role: .destructive) { model.saveSearchKey("") }
+                                }
                         }
                     }
                     Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
@@ -1000,6 +1049,9 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
+        .onChange(of: model.config.typeOut) { model.save() }
+        .onChange(of: model.config.typeOutRate) { model.save() }
+        .onChange(of: model.config.typeOutVaries) { model.save() }
         .onAppear {
             model.refreshPlugins()
             model.refreshKeys()
@@ -1010,6 +1062,10 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
+            model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
+            model.reloadIfChanged()
         }
         .onDisappear { model.save() }
     }
@@ -1060,6 +1116,21 @@ struct SettingsView: View {
     private func removeOutputLanguage(_ language: OutputLanguage) {
         guard model.config.outputLanguages.count > 1 else { return }
         model.config.setOrder(model.config.outputLanguages.filter { $0 != language })
+    }
+
+    /// The typing speed as shown: "每秒 16 个字" / "16 a second", or slower than one a second "6 秒一个字" / "6 s each".
+    static func rateLabel(_ rate: Double) -> String {
+        if rate >= 1 { return tr("每秒 \(Int(rate.rounded())) 个字", "\(Int(rate.rounded())) a second") }
+        let seconds = 1 / rate
+        let shown = seconds < 2 ? String(format: "%.1f", seconds) : String(Int(seconds.rounded()))
+        return tr("\(shown) 秒一个字", "\(shown) s each")
+    }
+
+    /// Slider values rounded to what the label shows (whole characters a second, or whole / tenth seconds each).
+    static func roundedRate(_ rate: Double) -> Double {
+        if rate >= 1 { return rate.rounded() }
+        let seconds = 1 / rate
+        return 1 / (seconds < 2 ? (seconds * 10).rounded() / 10 : seconds.rounded())
     }
 
     /// How the chosen action key works, and what Space does with it.
@@ -1193,7 +1264,11 @@ struct SettingsView: View {
                 .onSubmit { saveKey(provider) }
             Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
             if model.keySources[provider] == .keychain {
-                Button(tr("删除", "Remove")) { model.saveKey("", for: provider) }
+                Button(tr("删除", "Remove")) { removingKey = provider }
+                    .confirmationDialog(tr("删除钥匙串里的 \(provider.displayName) API key？", "Remove the \(provider.displayName) API key from the keychain?"),
+                                        isPresented: Binding(get: { removingKey == provider }, set: { if !$0 { removingKey = nil } })) {
+                        Button(tr("删除", "Remove"), role: .destructive) { model.saveKey("", for: provider) }
+                    }
             }
         }
         Text(model.keyStatus(provider)).font(.caption).foregroundStyle(.secondary)
@@ -1230,12 +1305,15 @@ struct SettingsView: View {
         customProviderModel = true
     }
 
+    /// ⏎ in an empty key field does nothing: an empty key would remove the one saved (that's 删除 / Remove).
     private func saveKey(_ provider: Provider) {
+        guard !newKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         model.saveKey(newKey, for: provider)
         newKey = ""
     }
 
     private func saveSearchKey() {
+        guard !newSearchKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         model.saveSearchKey(newSearchKey)
         newSearchKey = ""
     }
@@ -1417,6 +1495,7 @@ struct SettingsView: View {
 final class SettingsWindow {
     static let shared = SettingsWindow()
     private var window: NSWindow?
+    private var closing: NSObjectProtocol?
 
     static var title: String { tr("AllInOneIME 设置", "AllInOneIME Settings") }
 
@@ -1431,6 +1510,12 @@ final class SettingsWindow {
             UIText.choice = model.config.uiLanguage
             let host = NSHostingController(rootView: SettingsView(model: model))
             let window = NSWindow(contentViewController: host)
+            // Fields saved on ⏎ (a model ID, the base URL) are saved when the window closes too.
+            if let closing { NotificationCenter.default.removeObserver(closing) }
+            closing = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
+                                                             queue: .main) { _ in
+                MainActor.assumeIsolated { model.save() }
+            }
             window.title = Self.title
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false

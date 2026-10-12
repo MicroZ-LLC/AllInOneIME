@@ -15,6 +15,13 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
     private var timer: Timer?
     private var polling = false
     static let interval: TimeInterval = 8
+    /// Looks in a row at which every task only waited for the user: then it looks less often (a minute,
+    /// then five), until @tasks or the menu bar panel asks again.
+    private var waitingLooks = 0
+    private var currentInterval: TimeInterval {
+        guard !watch.isEmpty, watch.allWaiting else { return Self.interval }
+        return waitingLooks < 5 ? 60 : 300
+    }
 
     private override init() {
         watch = UserDefaults.standard.data(forKey: Self.key)
@@ -47,6 +54,7 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
 
     /// The background sessions, newest first, with their last replies.
     func list() async throws -> [(session: AgentSession, reply: String?)] {
+        lookOftenAgain()
         let output = try await Self.run(claude, ClaudeAgents.listArguments)
         let sessions = ClaudeAgents.sessions(from: Data(output.utf8)).sorted { ($0.startedAt ?? 0) > ($1.startedAt ?? 0) }
         return await Task.detached {
@@ -56,7 +64,7 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
 
     /// Whether it looks at the tasks every few seconds now (one started with @claude isn't done yet);
     /// each look is posted as `.allInOneIMEAgentsPolled`.
-    var isWatching: Bool { timer != nil }
+    var isWatching: Bool { timer != nil && currentInterval == Self.interval }
 
     /// The prompt a task it watches was started with (for one Claude Code hasn't named yet).
     func prompt(for id: String) -> String? { watch.tasks.first { $0.id == id }?.prompt }
@@ -80,22 +88,33 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func schedule() {
-        guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.poll() }
+        guard timer == nil, !watch.isEmpty else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: currentInterval, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.timer = nil
+                self?.poll()
+            }
         }
     }
 
+    /// Someone looks at the tasks: every few seconds again.
+    private func lookOftenAgain() {
+        guard waitingLooks > 0 else { return }
+        waitingLooks = 0
+        timer?.invalidate()
+        timer = nil
+        schedule()
+    }
+
     private func poll() {
-        guard !polling else { return }
-        guard !watch.isEmpty else {
-            timer?.invalidate()
-            timer = nil
-            return
-        }
+        guard !polling, !watch.isEmpty else { return }
         polling = true
         Task { [claude] in
-            defer { self.polling = false }
+            defer {
+                self.polling = false
+                self.waitingLooks = self.watch.allWaiting ? self.waitingLooks + 1 : 0
+                self.schedule()
+            }
             guard let output = try? await Self.run(claude, ClaudeAgents.listArguments) else { return }
             let sessions = ClaudeAgents.sessions(from: Data(output.utf8))
             // What it saw, for the menu bar panel: it doesn't ask Claude Code itself meanwhile.
@@ -204,6 +223,8 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
 }
 
 extension Notification.Name {
+    /// The input method's menu changed a setting in the config file (an open settings window reads it again).
+    static let allInOneIMEConfigChanged = Notification.Name("AllInOneIMEConfigChanged")
     /// AgentMonitor looked at the background tasks (every few seconds while it watches some). userInfo:
     /// "sessions" ([AgentSession], as `claude agents --json --all` listed them). Posted on the main thread.
     static let allInOneIMEAgentsPolled = Notification.Name("AllInOneIMEAgentsPolled")

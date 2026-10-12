@@ -6,12 +6,21 @@ import Carbon
 import InputMethodKit
 import SwiftUI
 
-/// Records what the input method does to a text field.
+/// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
+/// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
+/// which deletes it).
 final class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
     var inserted: [String] = []
     var document = ""
+    var selection: NSRange?
+
+    private func replaceSelection() {
+        guard marked.isEmpty, let range = selection else { return }
+        document = (document as NSString).replacingCharacters(in: range, with: "")
+        selection = nil
+    }
     /// Screen rect of the caret line, used to position the candidate panel.
     var caretRect = NSRect(x: 420, y: 560, width: 1, height: 18)
 
@@ -22,17 +31,19 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = Self.plain(string)
+        replaceSelection()
         inserted.append(s)
         document += s
         marked = ""
     }
 
     func setMarkedText(_ string: Any!, selectionRange: NSRange, replacementRange: NSRange) {
+        replaceSelection()
         marked = Self.plain(string)
         markedSelection = selectionRange
     }
 
-    func selectedRange() -> NSRange { NSRange(location: (document as NSString).length, length: 0) }
+    func selectedRange() -> NSRange { selection ?? NSRange(location: (document as NSString).length, length: 0) }
 
     func markedRange() -> NSRange {
         marked.isEmpty
@@ -203,6 +214,34 @@ enum SelfTest {
         press(c, client, "\u{1B}", code: VirtualKey.escape)
     }
 
+    /// Selected text survives a Shift tap and a field change (nothing of ours is marked, so no empty marked
+    /// text is sent, which NSTextView puts in the selection's place); a Shift-click isn't a tap.
+    static func testSelectionKept(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— Selected text left alone")
+        let (document, inserted) = (client.document, client.inserted)
+        defer { (client.document, client.inserted, client.selection) = (document, inserted, nil) }
+        let latin = controller.composer.engineState.isAsciiMode
+        client.document = "hello world"
+        client.selection = NSRange(location: 6, length: 5)
+        tapShift(controller, client)
+        check(client.document == "hello world" && client.selection != nil, "a Shift tap keeps the selected text (\(client.document))")
+        tapShift(controller, client)  // back
+        controller.commitComposition(client)
+        controller.activateServer(client)
+        check(client.document == "hello world" && client.selection != nil, "so does a field change (\(client.document))")
+        // Shift held for a click that extends the selection: no switch.
+        controller.pointerUsedWithin = { _ in true }
+        tapShift(controller, client)
+        controller.pointerUsedWithin = { _ in false }
+        check(controller.composer.engineState.isAsciiMode == latin && client.document == "hello world",
+              "a Shift-click doesn't switch Chinese and English")
+        // Typing still replaces it, as typing over a selection does.
+        type("ni", controller, client)
+        check(!client.document.contains("world") && client.selection == nil,
+              "typing replaces the selection (\(client.document)|\(client.marked))")
+        _ = escape(controller, client)
+    }
+
     /// Shift pressed and released on its own.
     static func tapShift(_ c: AllInOneIMEInputController, _ client: FakeTextClient) {
         _ = c.handle(event("", code: VirtualKey.leftShift, flags: .shift, type: .flagsChanged), client: client)
@@ -295,6 +334,19 @@ enum SelfTest {
         check((try? Config.load(from: url))?.actionKey == model.config.actionKey, "the action key is saved")
         model.config.actionKey = key
         model.save()
+        // Changed elsewhere while the window is open (the input method's menu): read again, so the window's
+        // next save doesn't put the old value back.
+        if var outside = try? Config.load(from: url) {
+            outside.improveTranslates.toggle()
+            try? outside.write(to: url)
+            model.reloadIfChanged()
+            model.save()
+            check((try? Config.load(from: url))?.improveTranslates == outside.improveTranslates,
+                  "a change made elsewhere survives the window's next save")
+            outside.improveTranslates.toggle()
+            try? outside.write(to: url)
+            model.reloadIfChanged()
+        }
 
         // The test button makes a live request with the window's settings.
         model.runTest()
@@ -1397,6 +1449,54 @@ enum SelfTest {
     /// candidates (@py and @js from their child processes), output with several lines goes in as printed
     /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
     /// search key is a stand-in: the user's keychain is never read here.
+    /// An answer with line breaks (code) in a terminal: they go in as a paste, which the shell or Claude Code
+    /// takes as text, not as Return; typed out, the characters are typed and each line break pasted. Without
+    /// that (no Accessibility permission) on one line. A live @question; the paste is recorded here.
+    static func testAnswerLinesInTerminal(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
+                                          start: (String) -> Bool, typeText: (String) -> Void, clear: () -> Void) {
+        var pasted: [String] = []
+        controller.canPasteInTerminal = { true }
+        controller.pasteInTerminal = { pasted.append($0) }
+        defer {
+            controller.canPasteInTerminal = { false }
+            controller.pasteInTerminal = { _ in }
+        }
+        func ask() -> String? {
+            guard start("question") else { check(false, "@question is picked from the list ('\(client.marked)')"); return nil }
+            typeText("yongpythonxiekuaisupaixu")  // 用 python 写快速排序: code, several lines
+            _ = act(controller, client)
+            guard finishConversion(controller, "@question in a terminal") else { clear(); return nil }
+            return controller.composer.choices.first { $0.kind == .answer }?.text
+        }
+        let before = client.inserted
+        if let answer = ask() {
+            _ = enter(controller, client)
+            _ = pump(timeout: 1) { !pasted.isEmpty }
+            check(answer.contains("\n") && pasted == [answer] && client.inserted == before,
+                  "an answer with line breaks goes into a terminal as a paste (\(pasted.map { $0.replacingOccurrences(of: "\n", with: "\\n") }))")
+        }
+        // Typed out: characters typed, line breaks pasted one at a time.
+        settings.typeOut = true
+        controller.applySettings()
+        let sleep = controller.typeOutSleep
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 5_000_000) }
+        (pasted, client.inserted) = ([], [])
+        if let answer = ask() {
+            _ = enter(controller, client)
+            _ = pump(timeout: 10) { !controller.isTypingOut }
+            let breaks = answer.filter { $0 == "\n" }.count
+            check(breaks > 0 && pasted == Array(repeating: "\n", count: breaks)
+                  && client.inserted.allSatisfy { $0.count == 1 && $0 != "\n" }
+                  && client.inserted.joined() == answer.replacingOccurrences(of: "\n", with: ""),
+                  "…typed out: the characters typed, each of the \(breaks) line breaks pasted (\(pasted.count) pastes)")
+        }
+        settings.typeOut = false
+        controller.applySettings()
+        controller.typeOutSleep = sleep
+        client.inserted = before
+        clear()
+    }
+
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
         print("— @calculate, @py, @js, @search")
@@ -1463,6 +1563,51 @@ enum SelfTest {
         check(insertsResult("calculate", "23*17", "391"), "@calculate 23*17 inserts 391 (\(client.inserted.last ?? ""))")
         check(insertsResult("calculate", "0.1+0.2", "0.3"), "@calculate works in decimal: 0.1+0.2 inserts 0.3 (\(client.inserted.last ?? ""))")
 
+        // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
+        // another key types the rest at once. Short pauses here.
+        let (typedBefore, sleepBefore) = (settings.typeOut, controller.typeOutSleep)
+        settings.typeOut = true
+        controller.applySettings()
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 40_000_000) }
+        func typedOut(_ text: String) -> Bool {
+            guard start("calculate") else { return false }
+            typeText(text)
+            _ = act(controller, client)
+            guard finishConversion(controller, "@calculate \(text)") else { clear(); return false }
+            let before = client.inserted.count
+            _ = enter(controller, client)
+            return client.inserted.count == before && controller.isTypingOut  // nothing at once: it's being typed
+        }
+        var before = client.inserted.count
+        if typedOut("2^40") {  // 1099511627776
+            _ = pump(timeout: 3) { !controller.isTypingOut }
+            let typed = Array(client.inserted.dropFirst(before))
+            check(typed.joined() == "1099511627776" && typed.allSatisfy { $0.count == 1 },
+                  "the result is typed out one character at a time (\(typed.count) inserts)")
+        } else {
+            check(false, "the result starts typing out instead of going in at once")
+        }
+        before = client.inserted.count
+        if typedOut("2^40") {
+            _ = pump(timeout: 0.2) { client.inserted.count >= before + 2 }
+            _ = escape(controller, client)
+            _ = pump(timeout: 0.3) { false }
+            let typed = client.inserted.dropFirst(before).joined()
+            check(!controller.isTypingOut && !typed.isEmpty && typed.count < 13 && "1099511627776".hasPrefix(typed),
+                  "Esc stops it there (\(typed))")
+        }
+        before = client.inserted.count
+        if typedOut("2^40") {
+            _ = pump(timeout: 0.2) { client.inserted.count >= before + 2 }
+            press(controller, client, "a", code: keyCodes["a"] ?? 0)  // another key: the rest at once, then the key
+            let typed = client.inserted.dropFirst(before).joined()
+            check(!controller.isTypingOut && typed.hasPrefix("1099511627776"), "another key types the rest at once (\(typed))")
+            clear()
+        }
+        settings.typeOut = typedBefore
+        controller.applySettings()
+        controller.typeOutSleep = sleepBefore
+
         if python {
             check(insertsResult("py", "2**100", "1267650600228229401496703205376"),
                   "@py 2**100 inserts the value from python3 (\(client.inserted.last ?? ""))")
@@ -1486,6 +1631,7 @@ enum SelfTest {
                 controller.activateServer(client)
                 check(insertsResult("py", "print(1);print(2)", "1 2"),
                       "…and goes in as one line in a terminal (\(shown(client.inserted.last)))")
+                testAnswerLinesInTerminal(controller, client, start: start, typeText: typeText, clear: clear)
                 client.bundleIDOverride = nil
                 controller.activateServer(client)
             } else {
@@ -1563,7 +1709,19 @@ enum SelfTest {
             print("✗ could not create AllInOneIMEInputController")
             return 1
         }
+        // The user's settings, but results inserted at once: checks read what went in right away (the
+        // typing-out section turns it on for itself).
+        controller.loadSettings = {
+            var config = LiveConfig.current
+            config.typeOut = false
+            return config
+        }
         controller.clientOverride = client
+        // No keys posted, the clipboard left alone: line breaks into a terminal go in on one line unless a
+        // check pastes them itself.
+        controller.canPasteInTerminal = { false }
+        controller.pasteInTerminal = { _ in }
+        controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.saveCommandUsage = { _ in }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
@@ -1572,6 +1730,7 @@ enum SelfTest {
         // English only), and the user's back afterwards.
         let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
         settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
         settings.uiLanguage = .chinese
         controller.loadSettings = { SelfTest.settings }
@@ -1617,6 +1776,7 @@ enum SelfTest {
         // The real config (model, styles, credentials) with the new options pinned to known values;
         // sections below change `settings` and the controller follows (nothing is written to disk).
         settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])  // Shift switches
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
@@ -2002,6 +2162,7 @@ enum SelfTest {
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
         testToolCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
+        testSelectionKept(controller, client)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

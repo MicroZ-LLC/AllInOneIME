@@ -55,6 +55,12 @@ public struct Config: Codable, Equatable, Sendable {
     public var claudeInBackground: Bool
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
+    /// A command's result is typed into the document character by character, like a person typing
+    /// (pinyin picks still go in at once), at `typeOutRate` characters a second (1/6: 6 s a character),
+    /// in bursts of changing pace when `typeOutVaries`.
+    public var typeOut: Bool
+    public var typeOutRate: Double
+    public var typeOutVaries: Bool
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -114,6 +120,9 @@ public struct Config: Codable, Equatable, Sendable {
         self.customCommands = customCommands
         self.claudeInBackground = true
         self.menuBarIcon = true
+        self.typeOut = false
+        self.typeOutRate = TypeOut.defaultRate
+        self.typeOutVaries = false
         normalizeLanguages()
     }
 
@@ -131,7 +140,7 @@ public struct Config: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
-        case menuBarIcon
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed
         case provider, anthropic, gemini, openai
     }
 
@@ -164,6 +173,12 @@ public struct Config: Codable, Equatable, Sendable {
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
+        typeOut = try c.decodeIfPresent(Bool.self, forKey: .typeOut) ?? d.typeOut
+        // A file from before the slider: "slow", "normal", "fast" or "random" (normal, varying).
+        let older = try? c.decodeIfPresent(String.self, forKey: .typeOutSpeed)
+        let olderRate: Double? = ["slow": 8, "normal": 16, "fast": 32, "random": 16][older ?? ""]
+        typeOutRate = try c.decodeIfPresent(Double.self, forKey: .typeOutRate) ?? olderRate ?? d.typeOutRate
+        typeOutVaries = try c.decodeIfPresent(Bool.self, forKey: .typeOutVaries) ?? (older == "random")
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -225,6 +240,9 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(customCommands, forKey: .customCommands)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
+        try c.encode(typeOut, forKey: .typeOut)
+        try c.encode(typeOutRate, forKey: .typeOutRate)
+        try c.encode(typeOutVaries, forKey: .typeOutVaries)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

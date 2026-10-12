@@ -108,7 +108,10 @@ public struct AgentSession: Codable, Equatable, Sendable {
 
     public var progress: Progress {
         switch state?.lowercased() {
-        case "done", "completed", "finished": return .done
+        // Ended, whichever way: nothing more will happen (it isn't waiting for the user).
+        case "done", "completed", "finished", "failed", "error", "errored", "cancelled", "canceled", "killed", "stopped",
+             "exited":
+            return .done
         case "working", "running", "starting", "queued", nil: return .working
         default: return .needsYou
         }
@@ -144,9 +147,12 @@ public struct AgentWatch: Codable, Equatable, Sendable {
 
     public mutating func add(_ task: Task) { tasks.append(task) }
 
+    /// Every task watched is waiting for the user (already told): nothing to look at often.
+    public var allWaiting: Bool { tasks.allSatisfy(\.toldWaiting) }
+
     /// What changed since the last look: done tasks are reported and dropped; a task waiting for the
     /// user is reported once per wait; a task no longer listed (removed) is dropped, as is one
-    /// unseen for a day.
+    /// started over a day ago that hasn't ended.
     public mutating func update(with sessions: [AgentSession], now: Date = Date()) -> [Event] {
         var events: [Event] = []
         var kept: [Task] = []
@@ -161,7 +167,7 @@ public struct AgentWatch: Codable, Equatable, Sendable {
             case .needsYou:
                 if !task.toldWaiting { events.append(.needsYou(task, session)) }
                 task.toldWaiting = true
-                kept.append(task)
+                if now.timeIntervalSince(task.started) < 86400 { kept.append(task) }
             case .working:
                 task.toldWaiting = false
                 if now.timeIntervalSince(task.started) < 86400 { kept.append(task) }

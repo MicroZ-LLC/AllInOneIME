@@ -4,33 +4,32 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Install AllInOneIME</string>
 	<key>CFBundleExecutable</key>
 	<string>AllInOneIMEInstaller</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.aipinyin.installer</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
-	<!-- Matches the bundle's file name, so Finder shows the localized name (Installer-*.lproj). -->
 	<key>CFBundleName</key>
 	<string>Install AllInOneIME</string>
-	<key>CFBundleDisplayName</key>
-	<string>Install AllInOneIME</string>
-	<key>LSHasLocalizedDisplayName</key>
-	<true/>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 MicroZ LLC. Licensed under the GNU GPL v3.0.</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.5.0</string>
+	<string>0.6.0</string>
 	<key>CFBundleVersion</key>
-	<string>5</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<string>6</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<key>LSHasLocalizedDisplayName</key>
+	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 MicroZ LLC. Licensed under the GNU GPL v3.0.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

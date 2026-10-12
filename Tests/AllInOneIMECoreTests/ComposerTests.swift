@@ -193,6 +193,16 @@ struct ComposerTests {
         #expect(!c.paletteMatches.contains(.improve) && !c.paletteMatches.contains(.translate))
     }
 
+    @Test func aResultIsTypedOutWhenAsked() {
+        let (c, _) = translating()
+        c.typesResults = true
+        _ = c.receive(ConversionResult(versions: [CandidateLine("Hello.")]), isFinal: true, id: 1)
+        let effects = c.handleKeyDown(spaceKey).effects
+        // The draft goes (nothing inserted at once), then the line is typed out.
+        #expect(effects.contains(.typeOut("Hello.")) && !effects.contains(.commit("Hello.")))
+        #expect(c.phase == .idle && c.draft.isEmpty)
+    }
+
     @Test func translationsAreRowsWithTheirLanguage() {
         let (c, _) = translating()
         let result = ConversionResult(translations: [Translation(language: OutputLanguage("ja"), line: CandidateLine("すごいね")),
@@ -473,6 +483,14 @@ struct ComposerTests {
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 13)
         #expect(c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 14).isEmpty)
         #expect(e.ascii)
+
+        // Nor is a quick Shift-click (the click never reaches the input method; the app is asked).
+        var asked: TimeInterval?
+        c.pointerUsedWithin = { asked = $0; return true }
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 14.5)
+        #expect(c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 14.7).isEmpty)
+        #expect(e.ascii && abs((asked ?? 0) - 0.2) < 0.001)  // since Shift went down
+        c.pointerUsedWithin = { _ in false }
 
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 15)
         #expect(c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 15.2).contains(.notice("中")))
@@ -1234,6 +1252,10 @@ struct ComposerTests {
     @Test func whatIsNotAnOptionTap() {
         let (c, _) = improveDraft(key: .optionTap)
         type("nihao", c)
+        // An ⌥-click or ⌥-drag.
+        c.pointerUsedWithin = { _ in true }
+        #expect(tapOption(c).isEmpty)
+        c.pointerUsedWithin = { _ in false }
         // Held too long.
         _ = option(c, down: true, at: 1)
         #expect(option(c, down: false, at: 2).isEmpty)
@@ -1385,6 +1407,15 @@ struct ComposerTests {
         #expect(m.draft == "@improve 你好@" && m.paletteQuery == "")
         type("x", m)
         #expect(m.draft == "@improve 你好@" && m.paletteQuery == nil && me.input == "x")
+        // A name after "@" in Chinese mode (「@lisi」 for @李四): the "@" goes in, the letters are pinyin.
+        let (name, ne) = palette("l")
+        #expect(name.paletteQuery == "l")
+        #expect(commits(name.handleKeyDown(k("i")).effects) == ["@"])
+        type("si", name)
+        #expect(name.paletteQuery == nil && ne.input == "lisi")
+        // In English mode it stays "@li…" as typed.
+        let (en, _) = palette("l", english: true)
+        #expect(commits(en.handleKeyDown(k("i")).effects) == ["@l"])
         let (w, _) = composer(key: .optionTap)
         type("nihao", w)
         #expect(commits(w.handleKeyDown(spaceKey)) == ["你好"])
@@ -1810,5 +1841,28 @@ struct ComposerTests {
         // With nothing to copy, ⌘C is the app's.
         let (d, _) = composer()
         #expect(d.handleKeyDown(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command)) == .passThrough)
+    }
+}
+
+extension ComposerTests {
+    /// A held key goes no further than its first press: holding ⏎ runs the command, and the repeats don't
+    /// insert the result (or send a message shown to confirm).
+    @Test func heldKeysDontConfirm() {
+        let held = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", isRepeat: true)
+        let (c, _) = improveDraft(key: .enter)
+        type("nihao", c)
+        #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "你好", id: 1))
+        #expect(c.handleKeyDown(held) == .consumed())
+        _ = c.receive(final, isFinal: true, id: 1)
+        #expect(c.handleKeyDown(held) == .consumed() && c.isLevelTwo)
+        #expect(c.handleKeyDown(KeyEvent(keyCode: 0x12, characters: "1", isRepeat: true)) == .consumed() && c.isLevelTwo)
+        #expect(!commits(c.handleKeyDown(enterKey)).isEmpty)  // pressed again: inserted
+        // Other held keys still repeat (⌫ in a draft).
+        let (d, _) = improveDraft(key: .enter)
+        type("nihao", d)
+        _ = d.handleKeyDown(spaceKey)
+        let before = d.draft
+        _ = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}", isRepeat: true))
+        #expect(d.draft != before)
     }
 }

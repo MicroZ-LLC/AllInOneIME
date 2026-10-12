@@ -74,6 +74,58 @@ public struct SavedNotes: Codable, Equatable, Sendable {
         }
         return notes != before
     }
+
+    /// Swiped away in the panel: no longer listed (the note stays in Notes).
+    public mutating func remove(id: String) { notes.removeAll { $0.id == id } }
+}
+
+/// The reminders and tasks swiped away in the menu bar panel (by id): no longer listed there, but left
+/// as they are in Reminders and in Claude Code. The newest `limit` are kept.
+public struct DismissedRows: Codable, Equatable, Sendable {
+    public static let limit = 200
+    public private(set) var ids: [String]
+
+    public init(_ ids: [String] = []) { self.ids = Array(ids.suffix(Self.limit)) }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(try container.decode([String].self, forKey: .ids))
+    }
+
+    public func contains(_ id: String) -> Bool { ids.contains(id) }
+
+    public mutating func dismiss(_ id: String) {
+        ids.removeAll { $0 == id }
+        ids.append(id)
+        if ids.count > Self.limit { ids.removeFirst(ids.count - Self.limit) }
+    }
+}
+
+/// A row swiped to the left in the panel: where it comes to rest when the fingers lift.
+public enum RowSwipe {
+    /// How far the row moves to show its button, and how far it must go to be removed at once.
+    public static let buttonWidth: CGFloat = 64
+    public static let fullSwipe: CGFloat = 170
+
+    public enum Rest: Equatable, Sendable {
+        case closed, open, dismissed
+    }
+
+    /// Offset (negative: moved left) when the fingers lift, and their speed then (points a second,
+    /// negative: leftwards). Past half the button it stays open; flicked the other way it closes.
+    public static func rest(offset: CGFloat, velocity: CGFloat = 0) -> Rest {
+        if offset <= -fullSwipe { return .dismissed }
+        if velocity > 300 { return .closed }
+        if velocity < -300 || offset <= -buttonWidth / 2 { return .open }
+        return .closed
+    }
+
+    /// Where the row is drawn for a swipe that reached `offset`: never to the right, and it moves more
+    /// slowly past the point where it would be removed.
+    public static func clamp(_ offset: CGFloat) -> CGFloat {
+        guard offset < -fullSwipe else { return min(0, offset) }
+        return -fullSwipe + (offset + fullSwipe) / 3
+    }
 }
 
 /// The panel's wording made of numbers and dates, in Chinese or English: fixed wording like

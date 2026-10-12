@@ -108,6 +108,11 @@ public struct Command: Hashable, Sendable {
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
     public var isCode: Bool { self == .py || self == .js }
 
+    /// Its text goes to code or a program the user wrote: `@py`, `@js`, a custom `run` command. None of it
+    /// runs inside another command's text unless typed there (`Composer`: not from a paste, dictation or a
+    /// restored draft), and other commands don't run inside its text.
+    public var runsCode: Bool { isCode || custom != nil && kind == .run }
+
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
     public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
@@ -419,7 +424,8 @@ public struct SearchResult: Equatable, Sendable {
 
     /// A web address in the list (`@open github.com`): opened in the default browser.
     public var webURL: URL? {
-        guard path.hasPrefix("http://") || path.hasPrefix("https://") else { return nil }
+        let scheme = path.prefix(8).lowercased()
+        guard scheme.hasPrefix("http://") || scheme.hasPrefix("https://") else { return nil }  // HTTPS:// too
         return URL(string: path)
     }
 

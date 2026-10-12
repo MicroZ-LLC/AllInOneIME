@@ -31,7 +31,7 @@ public final class Converter: Sendable {
         client: BedrockClient = BedrockClient(),
         loadConfig: @escaping ConfigLoader = { try Config.load() },
         loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
-        loadKey: @escaping ChatClient.KeyLoader = { APIKeys.load($0) },
+        loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) }
     ) {
         self.client = ChatClient(bedrock: client)
@@ -145,7 +145,7 @@ public final class Converter: Sendable {
         let stream = client.stream(Prompt.commandRequest(command, input: input, config: config), config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
-            ConversionResult(versions: [CandidateLine(Self.oneLine(text), isComplete: complete)])
+            ConversionResult(versions: [CandidateLine(Self.lines(text), isComplete: complete)])
         }
         var text = ""
         var firstToken: TimeInterval?
@@ -172,6 +172,23 @@ public final class Converter: Sendable {
     /// line breaks become spaces (see `CandidateParser.stripControls`), runs of spaces collapse.
     static func oneLine(_ text: String) -> String {
         CandidateParser.stripControls(text).split(whereSeparator: { $0 == " " }).joined(separator: " ")
+    }
+
+    /// A command's answer as text safe to insert, its line breaks kept (code, steps): controls go, tabs
+    /// become 4 spaces, a Markdown code fence line the model wrote anyway goes, trailing spaces and runs
+    /// of blank lines are trimmed; indentation stays. A terminal still gets it on one line (the controller).
+    static func lines(_ text: String) -> String {
+        let all = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }
+            .map { line -> String in
+                let cleaned = CandidateParser.stripControls(line.replacingOccurrences(of: "\t", with: "    "))
+                return String(cleaned.reversed().drop(while: { $0 == " " }).reversed())
+            }
+        var out: [String] = []
+        for line in all where !(line.isEmpty && (out.last?.isEmpty ?? true)) { out.append(line) }
+        while out.last?.isEmpty == true { out.removeLast() }
+        return out.joined(separator: "\n")
     }
 
     /// When the model hit the token limit, its last line was cut off mid-sentence: drop it rather
