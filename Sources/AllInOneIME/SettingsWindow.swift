@@ -174,7 +174,8 @@ final class SettingsModel: ObservableObject {
     func saveKey(_ key: String, for provider: Provider) {
         guard persists else { return }
         do {
-            try APIKeys.save(key, for: provider)
+            // Tied to the base URL it is saved with: it isn't sent to another one set later.
+            try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
             keyError = nil
         } catch {
             keyError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)

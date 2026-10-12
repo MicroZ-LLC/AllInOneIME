@@ -13,6 +13,36 @@ public enum APIKeys {
         load(account: provider.rawValue, variables: provider.keyVariables)
     }
 
+    /// The key for `provider` to send to `host`. A key in the keychain goes only to the host it was saved
+    /// for (one saved before keys were tied to a host is tied to the first it is sent to): a base URL
+    /// changed to another service (a relay) doesn't get the key of the one before.
+    public static func load(_ provider: Provider, for host: String) throws -> String? {
+        let host = host.lowercased()
+        let account = provider.rawValue
+        guard let key = keychainKey(account: account) else { return load(provider) }
+        guard let saved = savedHost(account: account) else {
+            bind(account: account, to: host)
+            return key
+        }
+        guard saved == host else { throw ProviderError.keyForAnotherHost(provider, saved: saved) }
+        return key
+    }
+
+    /// The host the key under `account` was saved for (nil: not tied to one).
+    static func savedHost(account: String) -> String? {
+        var query = baseQuery(account: account)
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let host = (item as? [String: Any])?[kSecAttrComment as String] as? String, !host.isEmpty else { return nil }
+        return host.lowercased()
+    }
+
+    private static func bind(account: String, to host: String) {
+        SecItemUpdate(baseQuery(account: account) as CFDictionary, [kSecAttrComment as String: host] as CFDictionary)
+    }
+
     /// The key kept under `account`: the keychain's, else the first of `variables` the login shell sets.
     public static func load(account: String, variables: [String]) -> String? {
         if let key = keychainKey(account: account) { return key }
@@ -51,21 +81,23 @@ public enum APIKeys {
         return key
     }
 
-    /// Stores `key` for `provider`; an empty key removes it.
-    public static func save(_ key: String, for provider: Provider) throws {
-        try save(key, account: provider.rawValue, label: "AllInOneIME: \(provider.displayName)")
+    /// Stores `key` for `provider`, to be sent to `host` only (nil: the first host it is sent to); an empty
+    /// key removes it.
+    public static func save(_ key: String, for provider: Provider, host: String? = nil) throws {
+        try save(key, account: provider.rawValue, label: "AllInOneIME: \(provider.displayName)", host: host)
     }
 
     /// Stores `key` under `account`, shown in Keychain Access as `label`; an empty key removes it. A key
     /// already there is replaced in place, so a failed save leaves it as it was.
-    public static func save(_ key: String, account: String, label: String) throws {
+    public static func save(_ key: String, account: String, label: String, host: String? = nil) throws {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
             let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError(status: status) }
             return
         }
-        let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label]
+        let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
+                                     kSecAttrComment as String: host?.lowercased() ?? ""]
         var status = SecItemUpdate(baseQuery(account: account) as CFDictionary, values as CFDictionary)
         if status == errSecItemNotFound {
             status = SecItemAdd(baseQuery(account: account).merging(values) { $1 } as CFDictionary, nil)

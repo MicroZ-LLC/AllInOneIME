@@ -276,6 +276,12 @@ enum UIText {
             case let .missingKey(p): return tr("\(name(p)) 还没有 API key：在设置里添上", "No API key for the \(name(p)): add one in the settings")
             case let .missingModel(p): return tr("\(name(p)) 还没有设置模型", "No model set for the \(name(p))")
             case let .invalidBaseURL(url): return tr("Base URL 无效：\(url)", "Invalid base URL: \(url)")
+            case let .insecureBaseURL(url):
+                return tr("不通过 http:// 发到互联网（只允许本机或局域网）：\(url)",
+                          "Not sent over http:// to the internet (only to this Mac or the local network): \(url)")
+            case let .keyForAnotherHost(p, saved):
+                return tr("\(name(p)) 的 API key 是为 \(saved) 保存的，不会发给现在的 Base URL：请为它重新保存 key",
+                          "The \(name(p)) API key was saved for \(saved), not this base URL: save the key again for it")
             case let .http(p, status, type, message): return "\(name(p)) \(type ?? "HTTP \(status)")" + tr("：", ": ") + message
             case let .stream(p, type, message): return "\(name(p)) \(type)" + tr("：", ": ") + message
             case let .refused(p): return tr("\(name(p)) 拒绝了这个请求", "The \(name(p)) declined this request")

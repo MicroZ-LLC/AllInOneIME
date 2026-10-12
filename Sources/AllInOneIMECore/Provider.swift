@@ -105,6 +105,10 @@ public enum ProviderError: Error, LocalizedError, Equatable {
     /// No model set (an OpenAI-compatible service has no default).
     case missingModel(Provider)
     case invalidBaseURL(String)
+    /// `http://` to a host on the internet: the key and the text would go unencrypted.
+    case insecureBaseURL(String)
+    /// The keychain's key was saved for another host than the base URL's (`APIKeys.load(_:for:)`).
+    case keyForAnotherHost(Provider, saved: String)
     case http(provider: Provider, status: Int, type: String?, message: String)
     case stream(provider: Provider, type: String, message: String)
     /// The model declined the request (the Claude API's `refusal` stop reason, Gemini's SAFETY finish).
@@ -120,6 +124,9 @@ public enum ProviderError: Error, LocalizedError, Equatable {
         case let .missingKey(p): return "No API key for the \(p.displayName): add one in the settings"
         case let .missingModel(p): return "No model set for the \(p.displayName)"
         case let .invalidBaseURL(url): return "Invalid base URL: \(url)"
+        case let .insecureBaseURL(url): return "Not sent over http:// to the internet (only to this Mac or the local network): \(url)"
+        case let .keyForAnotherHost(p, saved):
+            return "The \(p.displayName) API key was saved for \(saved), not this base URL: save the key again for it"
         case let .http(p, status, type, message): return "\(p.displayName) \(type ?? "HTTP \(status)"): \(message)"
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
         case let .refused(p): return "The \(p.displayName) declined this request"
@@ -141,7 +148,8 @@ public struct ChatClient: Sendable {
     }
 
     public typealias CredentialLoader = @Sendable (_ profile: String) throws -> AWSSharedConfig.Resolved
-    public typealias KeyLoader = @Sendable (_ provider: Provider) -> String?
+    /// The key for `provider` to send to `host` (nil: none); throws when that key isn't for `host`.
+    public typealias KeyLoader = @Sendable (_ provider: Provider, _ host: String) throws -> String?
 
     public func stream(_ body: ConverseRequest, config: Config, loadCredentials: CredentialLoader,
                        loadKey: KeyLoader) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
@@ -154,10 +162,11 @@ public struct ChatClient: Sendable {
                     credentials: resolved.credentials, timeout: config.timeoutSeconds)
             case .anthropic, .gemini, .openai, .hosted:
                 let provider = config.provider
-                guard let key = loadKey(provider)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
+                let settings = config.settings(for: provider)
+                let host = HTTPProviders.host(of: settings) ?? ""
+                guard let key = try loadKey(provider, host)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
                     throw provider == .hosted ? ProviderError.signedOut : ProviderError.missingKey(provider)
                 }
-                let settings = config.settings(for: provider)
                 let request = try HTTPProviders.makeRequest(body, provider: provider, settings: settings, key: key,
                                                             maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,
                                                             timeout: config.timeoutSeconds)

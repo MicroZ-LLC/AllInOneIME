@@ -31,7 +31,7 @@ public final class Converter: Sendable {
         client: BedrockClient = BedrockClient(),
         loadConfig: @escaping ConfigLoader = { try Config.load() },
         loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
-        loadKey: @escaping ChatClient.KeyLoader = { APIKeys.load($0) },
+        loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) }
     ) {
         self.client = ChatClient(bedrock: client)
