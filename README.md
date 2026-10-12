@@ -18,7 +18,7 @@ Author: [Weijian Zhang](https://weijianz.com)
 
 ![@improve with English: English polish (with Jargon); with Chinese: Chinese polish and rewrites](docs/en/english.png)
 
-For more detail (every command and setting, installation troubleshooting, privacy), see the [Wiki](https://github.com/MircoZ-LLC/AllInOneIME/wiki).
+For more detail (every command and setting, installation troubleshooting, privacy), see the [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki).
 
 ## How to use
 
@@ -143,7 +143,7 @@ Plugins are ready-made `@` commands for things not everyone needs, like `@stock 
 Installed, they work like any command; "Plugins" in the settings shows what's installed and where each sends your text,
 and removes them. Plugins are JavaScript run in a separate process: they can reach only the websites they declare
 (HTTPS), and can't read files or run other programs. "Browse Library…" under Plugins in the settings installs them
-from the [plugin library](https://github.com/MircoZ-LLC/AllInOneIME-plugins): it shows which websites a plugin
+from the [plugin library](https://github.com/MicroZ-LLC/AllInOneIME-plugins): it shows which websites a plugin
 contacts before installing; the library's index is signed and every file must match it. A newer version shows an
 "Update" button; nothing updates by itself. Your own plugins go in `~/.config/allinoneime/plugins/` ("Open Plugins
 Folder"): local plugins, never overwritten by the library.
@@ -253,7 +253,7 @@ Recording starts only after you've held the key for about 0.2 s, so a quick tap 
 Running it needs macOS 14 or later, voice input macOS 26 or later. The installer is universal: it works on Macs with
 Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple silicon (the Intel build only through its self-test under Rosetta).
 
-1. Download `AllInOneIME-<version>.dmg` from [Releases](https://github.com/MircoZ-LLC/AllInOneIME/releases/latest) (only from there) and open it.
+1. Download `AllInOneIME-<version>.dmg` from [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) (only from there) and open it.
 2. Double-click "Install AllInOneIME" in it and click Install. The input method goes into `~/Library/Input Methods`
    and "AllInOneIME Settings" into `~/Applications` ("AllInOneIME 设置" on a Chinese system). For this user only; no administrator password needed.
 3. The installer isn't notarized by Apple yet, so macOS can't verify who made it, and the first time it says it can't verify "Install AllInOneIME":
@@ -281,7 +281,7 @@ To uninstall, open "Install AllInOneIME" and click Uninstall…. Settings and le
 Building needs Xcode 26 or later, since voice input uses the macOS 26 SDK.
 
 ```sh
-git clone https://github.com/MircoZ-LLC/AllInOneIME.git
+git clone https://github.com/MicroZ-LLC/AllInOneIME.git
 cd AllInOneIME
 make install
 ```
@@ -370,5 +370,5 @@ The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to rem
 
 ## License
 
-Copyright © 2026 [Weijian Zhang](https://weijianz.com). GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
+Copyright © 2026 MicroZ LLC. GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
 are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
