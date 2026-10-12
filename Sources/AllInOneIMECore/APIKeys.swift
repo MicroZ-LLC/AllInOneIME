@@ -56,15 +56,20 @@ public enum APIKeys {
         try save(key, account: provider.rawValue, label: "AllInOneIME: \(provider.displayName)")
     }
 
-    /// Stores `key` under `account`, shown in Keychain Access as `label`; an empty key removes it.
+    /// Stores `key` under `account`, shown in Keychain Access as `label`; an empty key removes it. A key
+    /// already there is replaced in place, so a failed save leaves it as it was.
     public static func save(_ key: String, account: String, label: String) throws {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        SecItemDelete(baseQuery(account: account) as CFDictionary)
-        guard !key.isEmpty else { return }
-        var item = baseQuery(account: account)
-        item[kSecValueData as String] = Data(key.utf8)
-        item[kSecAttrLabel as String] = label
-        let status = SecItemAdd(item as CFDictionary, nil)
+        guard !key.isEmpty else {
+            let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError(status: status) }
+            return
+        }
+        let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label]
+        var status = SecItemUpdate(baseQuery(account: account) as CFDictionary, values as CFDictionary)
+        if status == errSecItemNotFound {
+            status = SecItemAdd(baseQuery(account: account).merging(values) { $1 } as CFDictionary, nil)
+        }
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 

@@ -570,8 +570,10 @@ struct SettingsView: View {
     @State private var commandToDelete: Int?
     /// The API key being typed (a saved key is never shown again: it stays in the keychain).
     @State private var newKey = ""
+    @State private var removingKey: Provider?
     /// The web search key being typed (likewise).
     @State private var newSearchKey = ""
+    @State private var removingSearchKey = false
 
     var body: some View {
         Form {
@@ -876,7 +878,11 @@ struct SettingsView: View {
                             .onSubmit { saveSearchKey() }
                         Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
                         if model.searchKeySource == .keychain {
-                            Button(tr("删除", "Remove")) { model.saveSearchKey("") }
+                            Button(tr("删除", "Remove")) { removingSearchKey = true }
+                                .confirmationDialog(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                                    isPresented: $removingSearchKey) {
+                                    Button(tr("删除", "Remove"), role: .destructive) { model.saveSearchKey("") }
+                                }
                         }
                     }
                     Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
@@ -1230,7 +1236,11 @@ struct SettingsView: View {
                 .onSubmit { saveKey(provider) }
             Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
             if model.keySources[provider] == .keychain {
-                Button(tr("删除", "Remove")) { model.saveKey("", for: provider) }
+                Button(tr("删除", "Remove")) { removingKey = provider }
+                    .confirmationDialog(tr("删除钥匙串里的 \(provider.displayName) API key？", "Remove the \(provider.displayName) API key from the keychain?"),
+                                        isPresented: Binding(get: { removingKey == provider }, set: { if !$0 { removingKey = nil } })) {
+                        Button(tr("删除", "Remove"), role: .destructive) { model.saveKey("", for: provider) }
+                    }
             }
         }
         Text(model.keyStatus(provider)).font(.caption).foregroundStyle(.secondary)
@@ -1267,12 +1277,15 @@ struct SettingsView: View {
         customProviderModel = true
     }
 
+    /// ⏎ in an empty key field does nothing: an empty key would remove the one saved (that's 删除 / Remove).
     private func saveKey(_ provider: Provider) {
+        guard !newKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         model.saveKey(newKey, for: provider)
         newKey = ""
     }
 
     private func saveSearchKey() {
+        guard !newSearchKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         model.saveSearchKey(newSearchKey)
         newSearchKey = ""
     }
