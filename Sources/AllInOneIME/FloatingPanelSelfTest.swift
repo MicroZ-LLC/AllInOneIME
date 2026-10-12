@@ -385,6 +385,27 @@ extension SelfTest {
               "the folder there but empty: the saved notes it no longer has are dropped")
         stand.notesRunning = false
 
+        // Swiped away (the 「移除」 button): no longer listed, and not again after a refresh; left as it is in
+        // Reminders and Claude Code.
+        stand.sample(chinese: true)
+        panel.refresh()
+        post(.allInOneIMENoteSaved, ["id": "x-coredata://sample/p5", "title": "要移除的"])
+        _ = pump(timeout: 3) { !reminderIDs().isEmpty && !taskRows().isEmpty }
+        let firstReminder = reminderIDs().first
+        let firstTask = taskRows().first?.id
+        panel.dismiss(.note("x-coredata://sample/p5"))
+        if let firstReminder { panel.dismiss(.reminder(firstReminder)) }
+        if let firstTask { panel.dismiss(.task(firstTask)) }
+        panel.refresh()
+        _ = pump(timeout: 1) { false }
+        check(firstReminder != nil && firstTask != nil && !panel.notes.contains { $0.id == "x-coredata://sample/p5" }
+              && !reminderIDs().contains(firstReminder ?? "") && !taskRows().contains { $0.id == firstTask }
+              && stand.reminders.contains { $0.id == firstReminder }
+              && panel.swipedRow == nil,
+              "a row swiped away stays away after a refresh, and is left as it is in Reminders and Claude Code")
+        stand.defaults.set(nil, forKey: FloatingPanel.dismissedRemindersKey)
+        stand.defaults.set(nil, forKey: FloatingPanel.dismissedTasksKey)
+
         // Nothing at all: the empty states.
         stand.sessions = []
         stand.reminders = []

@@ -223,6 +223,9 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var tasks: TasksState = .loading
     /// What's typed in the tasks' search field (shown once there are more than `AgentTaskList.shown`).
     @Published var taskQuery = ""
+    /// The row swiped to the left (`swipeOffset`: how far; its 「移除」 button shows in the gap).
+    @Published private(set) var swipedRow: PanelRow?
+    @Published private(set) var swipeOffset: CGFloat = 0
     /// What went wrong with a click, for a few seconds.
     @Published private(set) var message: String?
     /// The time the rows are shown for ("10 分钟前", "明天 15:00").
@@ -251,6 +254,12 @@ final class FloatingPanel: ObservableObject {
     private var replies = AgentReplyCache()
     /// The window was hidden from view (looks skipped meanwhile): caught up once it's seen again.
     private var unseen = false
+    /// Two-finger swipes on the trackpad, over a row (`swallows`).
+    private var scrollMonitor: Any?
+    private var hoveredRow: PanelRow?
+    private var tracking: Swipe?
+    /// A row was swiped and let go: the scroll's momentum after it moves nothing.
+    private var swallowingMomentum = false
 
     init(sources: DashboardSources) {
         self.sources = sources
@@ -279,7 +288,7 @@ final class FloatingPanel: ObservableObject {
     /// means closed).
     var isIdle: Bool {
         observers.isEmpty && reminderTimer == nil && agentTimer == nil && changeTimer == nil && messageTimer == nil
-            && window == nil && outsideClicks.isEmpty
+            && window == nil && outsideClicks.isEmpty && scrollMonitor == nil
     }
 
     // MARK: - Dropped down from the menu bar
@@ -310,6 +319,9 @@ final class FloatingPanel: ObservableObject {
         if let local = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { close($0); return $0 }) {
             outsideClicks.append(local)
         }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            MainActor.assumeIsolated { self?.swallows(event) == true } ? nil : event
+        }
         log.notice("panel dropped down from the menu bar")
     }
 
@@ -318,6 +330,8 @@ final class FloatingPanel: ObservableObject {
         guard droppedDown else { return }
         outsideClicks.forEach(NSEvent.removeMonitor)
         outsideClicks = []
+        scrollMonitor.map(NSEvent.removeMonitor)
+        scrollMonitor = nil
         droppedDown = false
         generation += 1
         shut()
@@ -328,6 +342,7 @@ final class FloatingPanel: ObservableObject {
         now = sources.now()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         (reminders, tasks, completing, message, sessions, replies) = (.loading, .loading, [], nil, nil, AgentReplyCache())
+        (swipedRow, swipeOffset, hoveredRow, tracking, swallowingMomentum) = (nil, 0, nil, nil, false)
         unseen = false
         let window = makeWindow()
         window.setFrame(PanelPlacement.below(anchor, size: CGSize(width: Self.width, height: height),
@@ -563,7 +578,8 @@ final class FloatingPanel: ObservableObject {
             case .denied: state = .denied
             case .allowed:
                 do {
-                    state = .list(try await self.sources.reminders(self.sources.now()))
+                    let dismissed = self.dismissed(Self.dismissedRemindersKey)
+                    state = .list(try await self.sources.reminders(self.sources.now()).filter { !dismissed.contains($0.id) })
                 } catch RemindersBridge.RemindersError.notPermitted {
                     state = .denied
                 } catch {
@@ -658,7 +674,7 @@ final class FloatingPanel: ObservableObject {
         self.sessions = sessions
         let newest = AgentTaskList.newest(sessions)
         replies.keep(only: newest)
-        tasks = .list(AgentTaskList.rows(newest, replies: replies.replies, prompt: sources.prompt))
+        tasks = .list(taskRows(newest))
         readReplies(of: newest)
     }
 
@@ -680,7 +696,7 @@ final class FloatingPanel: ObservableObject {
                 let newest = AgentTaskList.newest(sessions)
                 self.replies.keep(only: newest)
                 if !read.isEmpty {
-                    self.tasks = .list(AgentTaskList.rows(newest, replies: self.replies.replies, prompt: self.sources.prompt))
+                    self.tasks = .list(self.taskRows(newest))
                 }
                 if self.readRepliesAgain {
                     self.readRepliesAgain = false
@@ -691,6 +707,126 @@ final class FloatingPanel: ObservableObject {
     }
 
     func open(_ task: AgentTaskRow) { sources.openAgent(task.id) }
+
+    /// The rows of the newest tasks, but those swiped away.
+    private func taskRows(_ newest: [AgentSession]) -> [AgentTaskRow] {
+        let dismissed = dismissed(Self.dismissedTasksKey)
+        return AgentTaskList.rows(newest, replies: replies.replies, prompt: sources.prompt).filter { !dismissed.contains($0.id) }
+    }
+
+    // MARK: - Swiping rows away
+
+    static let dismissedRemindersKey = "dismissedReminders"
+    static let dismissedTasksKey = "dismissedTasks"
+
+    private func dismissed(_ key: String) -> DismissedRows {
+        sources.defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(DismissedRows.self, from: $0) } ?? DismissedRows()
+    }
+
+    /// The 「移除」 button, a full swipe, the right-click menu: no longer listed. The note stays in Notes,
+    /// the reminder in Reminders, the task in Claude Code.
+    func dismiss(_ row: PanelRow) {
+        withAnimation(.easeOut(duration: 0.2)) {
+            (swipedRow, swipeOffset) = (nil, 0)
+            switch row {
+            case let .note(id):
+                var saved = SavedNotesStore.load(sources.defaults)
+                saved.remove(id: id)
+                SavedNotesStore.save(saved, to: sources.defaults)
+                notes = saved.newest(Self.notesShown)
+            case let .reminder(id):
+                remember(id, under: Self.dismissedRemindersKey)
+                if case let .list(items) = reminders { reminders = .list(items.filter { $0.id != id }) }
+            case let .task(id):
+                remember(id, under: Self.dismissedTasksKey)
+                if case let .list(rows) = tasks { tasks = .list(rows.filter { $0.id != id }) }
+            }
+        }
+        log.notice("menu bar panel: a row was removed")
+    }
+
+    private func remember(_ id: String, under key: String) {
+        var rows = dismissed(key)
+        rows.dismiss(id)
+        if let data = try? JSONEncoder().encode(rows) { sources.defaults.set(data, forKey: key) }
+    }
+
+    /// The pointer is over a row (or left it): a swipe there moves it.
+    func hover(_ row: PanelRow, _ inside: Bool) {
+        if inside { hoveredRow = row } else if hoveredRow == row { hoveredRow = nil }
+    }
+
+    /// A click on a row: with a row swiped open, it only closes that one.
+    func click(_ action: () -> Void) {
+        guard swipedRow == nil else {
+            closeSwipe()
+            return
+        }
+        action()
+    }
+
+    func closeSwipe() {
+        guard swipedRow != nil else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { (swipedRow, swipeOffset) = (nil, 0) }
+    }
+
+    private struct Swipe {
+        let row: PanelRow
+        /// Where the row was when the fingers touched (open already, or not).
+        let start: CGFloat
+        var dx: CGFloat = 0, dy: CGFloat = 0
+        var sideways: Bool?
+        var velocity: CGFloat = 0
+        var time: TimeInterval
+    }
+
+    /// A scroll in its window: two fingers moving sideways over a row move that row (and nothing
+    /// scrolls); up and down, the list scrolls as before. A mouse wheel only scrolls.
+    private func swallows(_ event: NSEvent) -> Bool {
+        guard event.window === window else { return false }
+        if !event.momentumPhase.isEmpty {
+            let swallow = swallowingMomentum
+            if event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) { swallowingMomentum = false }
+            return swallow
+        }
+        guard event.hasPreciseScrollingDeltas, !event.phase.isEmpty else { return false }
+        if event.phase.contains(.began) {
+            swallowingMomentum = false
+            tracking = hoveredRow.map { Swipe(row: $0, start: swipedRow == $0 ? swipeOffset : 0, time: event.timestamp) }
+        }
+        guard var swipe = tracking else { return false }
+        // The fingers' way, leftwards negative, whichever way scrolling is set to go.
+        let dx = event.isDirectionInvertedFromDevice ? event.scrollingDeltaX : -event.scrollingDeltaX
+        swipe.dx += dx
+        swipe.dy += abs(event.scrollingDeltaY)
+        if swipe.sideways == nil, abs(swipe.dx) + swipe.dy > 6 {
+            swipe.sideways = abs(swipe.dx) > swipe.dy
+            if swipe.sideways == false { closeSwipe() }
+        }
+        guard swipe.sideways == true else {
+            tracking = swipe.sideways == false ? nil : swipe
+            return false
+        }
+        if dx != 0, event.timestamp > swipe.time { swipe.velocity = dx / (event.timestamp - swipe.time) }
+        swipe.time = event.timestamp
+        let offset = swipe.start + swipe.dx
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            tracking = nil
+            swallowingMomentum = true
+            switch RowSwipe.rest(offset: offset, velocity: swipe.velocity) {
+            case .closed: closeSwipe()
+            case .open:
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    (swipedRow, swipeOffset) = (swipe.row, -RowSwipe.buttonWidth)
+                }
+            case .dismissed: dismiss(swipe.row)
+            }
+        } else {
+            tracking = swipe
+            (swipedRow, swipeOffset) = (swipe.row, RowSwipe.clamp(offset))
+        }
+        return true
+    }
 
     // MARK: - What the header and the rows say
 
@@ -772,6 +908,11 @@ final class DashboardWindow: NSPanel {
 /// Clicks reach the buttons at once, in a window that's never key.
 final class DashboardHostingView: NSHostingView<FloatingPanelView> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// A row of the panel, to swipe away.
+enum PanelRow: Hashable {
+    case note(String), reminder(String), task(String)
 }
 
 private struct ListHeightKey: PreferenceKey {
@@ -886,18 +1027,20 @@ struct FloatingPanelView: View {
         }
         ForEach(panel.notes) { note in
             let title = note.title.isEmpty ? tr("（无标题）", "(Untitled)") : note.title
-            Button { panel.open(note) } label: {
-                HStack(spacing: 6) {
-                    Text(title).font(.system(size: 13)).lineLimit(1)
-                    Spacer(minLength: 6)
-                    Text(DashboardText.ago(note.saved, now: panel.now, chinese: UIText.chinese))
-                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            swipeable(.note(note.id)) {
+                Button { panel.click { panel.open(note) } } label: {
+                    HStack(spacing: 6) {
+                        Text(title).font(.system(size: 13)).lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text(DashboardText.ago(note.saved, now: panel.now, chinese: UIText.chinese))
+                            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .rowHover()
                 }
-                .rowHover()
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityHint(tr("在备忘录里打开", "Opens it in Notes"))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(title)
-            .accessibilityHint(tr("在备忘录里打开", "Opens it in Notes"))
         }
     }
 
@@ -938,12 +1081,12 @@ struct FloatingPanelView: View {
     private func reminderRow(_ reminder: RemindersBridge.Reminder) -> some View {
         let done = panel.completing.contains(reminder.id)
         let due = panel.due(reminder)
-        return reminderRowContent(reminder, done: done, due: due).rowHover()
+        return swipeable(.reminder(reminder.id)) { reminderRowContent(reminder, done: done, due: due).rowHover() }
     }
 
     private func reminderRowContent(_ reminder: RemindersBridge.Reminder, done: Bool, due: String?) -> some View {
         HStack(spacing: 6) {
-            Button { panel.complete(reminder) } label: {
+            Button { panel.click { panel.complete(reminder) } } label: {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 14))
                     .foregroundStyle(done ? Color.accentColor : Color.secondary)
@@ -954,7 +1097,7 @@ struct FloatingPanelView: View {
             .accessibilityLabel(FloatingPanel.completeLabel(reminder.title))
             .accessibilityAddTraits(.isToggle)
             .accessibilityValue(done ? tr("已完成", "completed") : "")
-            Button { panel.openReminders() } label: {
+            Button { panel.click { panel.openReminders() } } label: {
                 HStack(spacing: 6) {
                     Text(reminder.title).font(.system(size: 13)).lineLimit(1)
                         .foregroundStyle(done ? Color.secondary : Color.primary)
@@ -1019,7 +1162,11 @@ struct FloatingPanelView: View {
 
     private func taskRow(_ row: AgentTaskRow) -> some View {
         let ago = row.started.map { DashboardText.ago($0, now: panel.now, chinese: UIText.chinese) }
-        return Button { panel.open(row) } label: {
+        return swipeable(.task(row.id)) { taskButton(row, ago: ago) }
+    }
+
+    private func taskButton(_ row: AgentTaskRow, ago: String?) -> some View {
+        Button { panel.click { panel.open(row) } } label: {
             HStack(alignment: .top, spacing: 8) {
                 IconView(icon: CommandIcons.icon(for: row.progress), size: 16).padding(.top, 1)
                 VStack(alignment: .leading, spacing: 1) {
@@ -1044,6 +1191,40 @@ struct FloatingPanelView: View {
     }
 
     // MARK: Parts
+
+    /// A row two fingers swipe to the left, to its 「移除」 button (or, far enough, away at once); the
+    /// right-click menu and VoiceOver remove it too.
+    private func swipeable<Content: View>(_ row: PanelRow, @ViewBuilder _ content: () -> Content) -> some View {
+        let offset = panel.swipedRow == row ? panel.swipeOffset : 0
+        let label = tr("移除", "Remove")
+        let gap = max(0, -offset - 6)
+        return content()
+            .offset(x: offset)
+            .background(alignment: .trailing) {
+                if gap > 0 {
+                    Button { panel.dismiss(row) } label: {
+                        Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                            .lineLimit(1).fixedSize()
+                            .opacity(min(1, gap / 44))
+                            .frame(width: gap)
+                            .frame(maxHeight: .infinity)
+                            .background(Color.red.opacity(scheme == .dark ? 0.75 : 0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, -5)
+                    .accessibilityHidden(true)
+                }
+            }
+            // Slid away into the card's margin, not over the next card; the hover highlight still shows.
+            .padding(.horizontal, 5).padding(.vertical, 2)
+            .clipShape(Rectangle())
+            .padding(.horizontal, -5).padding(.vertical, -2)
+            .onHover { panel.hover(row, $0) }
+            .contextMenu { Button(label) { panel.dismiss(row) } }
+            .accessibilityAction(named: label) { panel.dismiss(row) }
+    }
 
     private func section<Content: View>(_ title: String, _ icon: CandidateView.Icon,
                                         @ViewBuilder content: () -> Content) -> some View {

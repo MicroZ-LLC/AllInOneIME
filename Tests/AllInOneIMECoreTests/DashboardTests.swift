@@ -32,6 +32,32 @@ struct DashboardTests {
         #expect(SavedNotes.Note(id: "x", title: "\n \n", saved: t0).title == "" && NotesFormat.title(of: "\n \n").isEmpty)
     }
 
+    @Test func rowsSwipedAway() throws {
+        var saved = SavedNotes()
+        saved.add(id: "a", title: "一", at: t0)
+        saved.add(id: "b", title: "二", at: t0 + 60)
+        saved.remove(id: "a")
+        saved.remove(id: "missing")
+        #expect(saved.notes.map(\.id) == ["b"])
+
+        var dismissed = DismissedRows()
+        dismissed.dismiss("r1")
+        dismissed.dismiss("r2")
+        dismissed.dismiss("r1")  // again: once, the newest
+        #expect(dismissed.ids == ["r2", "r1"] && dismissed.contains("r1") && !dismissed.contains("r3"))
+        for i in 0..<250 { dismissed.dismiss("x\(i)") }
+        #expect(dismissed.ids.count == DismissedRows.limit && dismissed.ids.last == "x249" && !dismissed.contains("r1"))
+        #expect(try JSONDecoder().decode(DismissedRows.self, from: JSONEncoder().encode(dismissed)) == dismissed)
+
+        // Let go: a short swipe closes, past half the button it stays open, far enough it's removed.
+        #expect(RowSwipe.rest(offset: -10) == .closed)
+        #expect(RowSwipe.rest(offset: -40) == .open)
+        #expect(RowSwipe.rest(offset: -10, velocity: -800) == .open)
+        #expect(RowSwipe.rest(offset: -60, velocity: 800) == .closed)
+        #expect(RowSwipe.rest(offset: -180, velocity: 800) == .dismissed)
+        #expect(RowSwipe.clamp(20) == 0 && RowSwipe.clamp(-50) == -50 && RowSwipe.clamp(-200) == -180)
+    }
+
     @Test func notesListedByNotesUpdateAndDrop() {
         func saved() -> SavedNotes {
             var notes = SavedNotes()
