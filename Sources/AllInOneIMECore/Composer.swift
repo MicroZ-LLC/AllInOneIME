@@ -198,6 +198,8 @@ public final class Composer {
         public var noteNotSaved: String
         /// ⏎ on a send command (`@imessage`) before a recipient was picked.
         public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
+        /// `@py` (or another command that runs code) in pasted or dictated text: left as text.
+        public var codeNotRun = "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字"
 
         public static let chinese = Messages(
             notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
@@ -232,7 +234,8 @@ public final class Composer {
             linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
             noOutput: "The code printed nothing: end it with an expression, or print the result",
             noteNotSaved: "The note wasn't saved; its text is on the clipboard",
-            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)")
+            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)",
+            codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
@@ -296,8 +299,14 @@ public final class Composer {
     public private(set) var draft = "" {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
         // highlight starts at the first again (`opensLiveResult`).
-        didSet { if draft != oldValue { resetLiveHighlight() } }
+        didSet {
+            if draft != oldValue { resetLiveHighlight() }
+            if draft.isEmpty { draftHasOutsideText = false }
+        }
     }
+    /// Text the user didn't type is in the draft (pasted, dictated, a draft given back): a command in it that
+    /// runs code (`Command.runsCode`) stays text. Something copied from a web page may hide "@py …".
+    private var draftHasOutsideText = false
     /// Last known state of the level-one engine.
     public private(set) var engineState = EngineSnapshot.empty
     public private(set) var result = ConversionResult.empty
@@ -949,6 +958,7 @@ public final class Composer {
     public func restoreDraft(_ command: Command, text: String) -> [Effect]? {
         guard phase == .idle, draft.isEmpty, voice == .off, !(engine?.snapshot().isComposing ?? false) else { return nil }
         draft = "@\(command.name) " + text
+        draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
     }
@@ -983,6 +993,7 @@ public final class Composer {
         }
         draft += appendix(spoken)
         draftEndsWithVoice = true
+        draftHasOutsideText = true
         setLevelOnePhase()
         if translate { return startAction().effects }
         return [.updateMarkedText, .showPanel]
@@ -1164,6 +1175,7 @@ public final class Composer {
         guard !text.isEmpty else { return [.notice(pasteForEmptyCommand ? messages.typeAfterCommand : messages.nothingToPaste)] }
         guard text.count <= limit else { return [.notice(tooLong)] }
         draft += text
+        draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
     }
@@ -1575,10 +1587,14 @@ public final class Composer {
             return .consumed(finish(committing: "") + [.saveNote(text: input), usage])
         }
         // Commands inside the text (`@stock AAPL`) run first; not inside a search's text, nor a reminder's
-        // (it stays on this Mac), and never inside code: it runs exactly as typed, so no command's output (a
-        // web page, a program's) is executed.
+        // (it stays on this Mac), and never inside code or a custom program's text: it runs exactly as typed,
+        // so no command's output (a web page, a program's) is executed. With text the user didn't type in the
+        // draft, commands that run code stay text (`draftHasOutsideText`).
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
-        let plan = local || parsed?.command.isCode == true ? nil : CommandPlan.make(input, commands: commands)
+        let inners = draftHasOutsideText ? commands.filter { !$0.runsCode } : commands
+        let plan = local || parsed?.command.runsCode == true ? nil : CommandPlan.make(input, commands: inners)
+        let codeLeft = draftHasOutsideText && plan != nil
+            && CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode }
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
@@ -1606,7 +1622,7 @@ public final class Composer {
         default: start = .startConversion(input: input, id: requestCounter)
         }
         let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
-        return .consumed([start, .updateMarkedText, .showPanel] + usage)
+        return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
     }
 
     /// Opens a `link` command's address with `text` in it: the composition ends with nothing inserted,

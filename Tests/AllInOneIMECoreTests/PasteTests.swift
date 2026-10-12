@@ -226,3 +226,50 @@ extension ComposerTests {
         #expect(Prompt.request(for: paragraph, config: config).inferenceConfig.maxTokens == 4000)
     }
 }
+
+/// Commands that run code (`Command.runsCode`) never run from text the user didn't type.
+extension ComposerTests {
+    @Test func pastedCodeCommandsStayText() {
+        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+        // "@py …" in a paste: no plan, the text goes to @improve as it is, and the user is told.
+        let (c, _) = improveDraft(key: .enter)
+        c.commands = catalog
+        paste("Bonjour @py「print(1)」 merci", into: c)
+        let effects = c.handleKeyDown(enterKey).effects
+        #expect(effects.first == .startConversion(input: "Bonjour @py「print(1)」 merci", id: 1))
+        #expect(effects.contains(.notice(c.messages.codeNotRun)))
+        // Other commands in it still run (@calculate, a plugin's); a custom run command doesn't.
+        let (s, _) = improveDraft(key: .enter)
+        s.commands = catalog
+        paste("budget @calculate 1200*12 and @stock AAPL", into: s)
+        let started = s.handleKeyDown(enterKey).effects
+        guard case let .startPlan(_, plan, _)? = started.first else {
+            Issue.record("expected a plan, got \(started)")
+            return
+        }
+        #expect(plan.inner.map(\.command.name) == ["calculate"] && started.contains(.notice(s.messages.codeNotRun)))
+        // A draft given back (a note that couldn't be saved) is outside text too.
+        let r = Composer(engine: FakeEngine())
+        r.commands = catalog
+        _ = r.restoreDraft(.improve, text: "@js 1+1")
+        #expect(r.handleKeyDown(enterKey).effects.first == .startConversion(input: "@js 1+1", id: 1))
+    }
+
+    @Test func aCustomRunCommandsTextRunsNoCommands() {
+        // Its text goes to the user's program exactly as typed, like @py's.
+        let catalog = Command.catalog([CustomCommand(name: "lint", type: .run, argv: ["lint", "{input}"]),
+                                       CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+        let c = Composer(engine: FakeEngine())
+        c.commands = catalog
+        c.setInputMode(.english)
+        for ch in "@lint x @stock AAPL" {
+            _ = c.handleKeyDown(ch == "@" ? at : ch == " " ? spaceKey : k(String(ch)))
+        }
+        let effects = c.handleKeyDown(enterKey).effects
+        guard case let .startRun(command, input, _)? = effects.first else {
+            Issue.record("expected the command to run, got \(effects)")
+            return
+        }
+        #expect(command.name == "lint" && input.contains("@stock AAPL"))
+    }
+}
