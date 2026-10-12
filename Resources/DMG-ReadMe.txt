@@ -13,7 +13,7 @@ AllInOneIME 安装说明
 更新：用新版的磁盘映像再安装一次，不用先卸载。
 卸载：打开「安装 AllInOneIME」，点「卸载…」。设置和学到的词会保留。
 需要 macOS 14 或更新版本；语音输入需要 macOS 26 或更新版本。
-使用说明：https://github.com/weijianz-opc/AllInOneIME/wiki
+使用说明：https://github.com/MicroZ-LLC/AllInOneIME/wiki
 作者：Weijian Zhang（https://weijianz.com）。依据 GPL-3.0 开源。
 
 
@@ -34,9 +34,9 @@ Installing AllInOneIME
 To update: install again from the new disk image; there's no need to uninstall first.
 To uninstall: open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
 Needs macOS 14 or later; voice input needs macOS 26 or later.
-Documentation: https://github.com/weijianz-opc/AllInOneIME/wiki
+Documentation: https://github.com/MicroZ-LLC/AllInOneIME/wiki
 
 
-Copyright © 2026 Weijian Zhang (https://weijianz.com).
+Copyright © 2026 MicroZ LLC.
 License: GPL-3.0 (LICENSE.txt). Third-party components: THIRD_PARTY_NOTICES.md.
-Source code: https://github.com/weijianz-opc/AllInOneIME
+Source code: https://github.com/MicroZ-LLC/AllInOneIME

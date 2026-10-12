@@ -936,8 +936,8 @@ struct SettingsView: View {
                         Text("AllInOneIME \(version)").textSelection(.enabled)
                     }
                     HStack(spacing: 0) {
-                        Text("© 2026 Weijian Zhang · ")
-                        Link("weijianz.com", destination: URL(string: "https://weijianz.com")!)
+                        Text("© 2026 MicroZ LLC · ")
+                        Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
                         Text(" · GPL-3.0")
                     }
                 }

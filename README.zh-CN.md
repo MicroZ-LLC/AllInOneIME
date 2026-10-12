@@ -16,7 +16,7 @@
 
 ![@improve 加英文：英文润色（含黑话）；加中文：中文润色和改写](docs/english.png)
 
-更详细的说明（每个命令和设置、安装排查、隐私）见 [Wiki](https://github.com/weijianz-opc/AllInOneIME/wiki)。
+更详细的说明（每个命令和设置、安装排查、隐私）见 [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki)。
 
 ## 怎么用
 
@@ -132,7 +132,7 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 插件是别人写好的 `@` 命令，不是人人都要的放在这里，比如 `@stock AAPL 600519 700` 查股价。
 装好后和其他命令一样用；设置的「插件」里能看到装了哪些、它会把内容发到哪里，也能删除。
 插件用 JavaScript 写，在单独的进程里运行：只能访问它声明的网站（HTTPS），读不到文件，也不能运行别的程序。
-在设置的「插件」里点「浏览插件库…」，从[插件库](https://github.com/weijianz-opc/AllInOneIME-plugins)安装：
+在设置的「插件」里点「浏览插件库…」，从[插件库](https://github.com/MicroZ-LLC/AllInOneIME-plugins)安装：
 安装前会告诉你它会访问哪些网站；插件库的索引有签名，每个文件都要和索引核对上才装。有新版本时显示「更新」，手动点了才更新。
 自己写的插件放进 `~/.config/allinoneime/plugins/`（设置里「打开插件文件夹」），算本地插件，插件库不会覆盖它。
 也有不运行代码的「链接」插件：把内容填进网址，在浏览器里打开，比如 `@x 今天天气不错` 打开 X 的发帖框、文字已经填好，发不发由你在网页上决定。
@@ -233,7 +233,7 @@ two-way door：可以随时撤回的决定
 运行需要 macOS 14 以上，语音输入要 macOS 26 以上。安装包是通用版，Apple 芯片和 Intel 的 Mac 都能用；
 目前只在 macOS 27、Apple 芯片上测试过（Intel 版只在 Rosetta 下跑过自测）。
 
-1. 从 [Releases](https://github.com/weijianz-opc/AllInOneIME/releases/latest) 下载 `AllInOneIME-<版本>.dmg`（只从这里下载），双击打开。
+1. 从 [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) 下载 `AllInOneIME-<版本>.dmg`（只从这里下载），双击打开。
 2. 双击里面的「安装 AllInOneIME」，点「安装」。输入法装到 `~/Library/Input Methods`，
    「AllInOneIME 设置」装到 `~/Applications`（英文系统里叫 AllInOneIME Settings）。只装给当前用户，不需要管理员密码。
 3. 安装包还没有经过 Apple 公证，macOS 验证不了它是谁做的，第一次打开时会说无法验证「安装 AllInOneIME」：
@@ -260,7 +260,7 @@ Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再
 编译需要 Xcode 26 以上，因为语音输入用到 macOS 26 SDK。
 
 ```sh
-git clone https://github.com/weijianz-opc/AllInOneIME.git
+git clone https://github.com/MicroZ-LLC/AllInOneIME.git
 cd AllInOneIME
 make install
 ```
@@ -349,5 +349,5 @@ Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添�
 
 ## 许可证
 
-Copyright © 2026 [Weijian Zhang](https://weijianz.com)。GPL-3.0，见 [LICENSE](LICENSE)。用到的第三方组件（librime 及插件为 BSD-3-Clause，雾凇拼音为 GPL-3.0）
+Copyright © 2026 MicroZ LLC。GPL-3.0，见 [LICENSE](LICENSE)。用到的第三方组件（librime 及插件为 BSD-3-Clause，雾凇拼音为 GPL-3.0）
 见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

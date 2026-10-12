@@ -34,7 +34,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 Weijian Zhang (https://weijianz.com). Licensed under the GNU GPL v3.0.</string>
+	<string>Copyright © 2026 MicroZ LLC. Licensed under the GNU GPL v3.0.</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>为 @claude 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。</string>
 	<key>NSContactsUsageDescription</key>
