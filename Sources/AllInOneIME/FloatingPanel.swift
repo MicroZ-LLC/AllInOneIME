@@ -783,15 +783,20 @@ private struct ListHeightKey: PreferenceKey {
 /// reminders and the Claude tasks. Follows light and dark mode and the interface language (`tr`).
 struct FloatingPanelView: View {
     @ObservedObject var panel: FloatingPanel
+    @Environment(\.colorScheme) private var scheme
 
-    private static let cornerRadius: CGFloat = 12
+    private static let cornerRadius: CGFloat = 14
+    /// Frosted glass (what's behind the window, blurred). Off for the self-test's images: an offscreen
+    /// rendering has nothing behind it, so they show the solid color instead.
+    static var glass = true
 
     var body: some View {
         let _ = panel.chinese  // drawn again in the other language
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+        let dark = scheme == .dark
         VStack(spacing: 0) {
             header
-            Divider()
+            Rectangle().fill(Color.primary.opacity(dark ? 0.12 : 0.08)).frame(height: 0.5).padding(.horizontal, 12)
             ScrollView(.vertical) {
                 lists.background(GeometryReader { proxy in
                     Color.clear.preference(key: ListHeightKey.self, value: proxy.size.height)
@@ -800,9 +805,25 @@ struct FloatingPanelView: View {
             .frame(height: max(0, min(panel.listHeight, FloatingPanel.maxHeight - FloatingPanel.headerHeight - 1)))
         }
         .frame(width: FloatingPanel.width)
-        .background(shape.fill(Color(nsColor: CandidateView.background)))
-        .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .background {
+            ZStack {
+                if Self.glass { GlassView() } else { Color(nsColor: CandidateView.background) }
+                // Light falling on the glass from above.
+                LinearGradient(colors: [.white.opacity(dark ? 0.07 : 0.28), .white.opacity(0)],
+                               startPoint: .top, endPoint: .center)
+            }
+        }
         .clipShape(shape)
+        .overlay(
+            // A bright upper edge fading downwards, the edge of a glass pane, over a hairline that keeps it
+            // apart from a background of the same color.
+            ZStack {
+                shape.strokeBorder(Color.black.opacity(dark ? 0.5 : 0.1), lineWidth: 0.5)
+                shape.strokeBorder(LinearGradient(colors: [.white.opacity(dark ? 0.28 : 0.75), .white.opacity(dark ? 0.04 : 0.2)],
+                                                  startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                    .padding(0.5)
+            }
+        )
         .onPreferenceChange(ListHeightKey.self) { height in
             // Collapsed, the lists are gone: their height is kept for when they're back.
             MainActor.assumeIsolated { panel.listHeight = height }
@@ -834,8 +855,9 @@ struct FloatingPanelView: View {
             Image(systemName: symbol)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
+                .frame(width: 22, height: 22)
+                .contentShape(Circle())
+                .hoverHighlight(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -853,7 +875,7 @@ struct FloatingPanelView: View {
             section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .claude)) { tasks }
         }
         .frame(maxWidth: .infinity, alignment: .leading)  // short lines (the empty ones) stay on the left
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 10)
     }
 
@@ -871,7 +893,7 @@ struct FloatingPanelView: View {
                     Text(DashboardText.ago(note.saved, now: panel.now, chinese: UIText.chinese))
                         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }
-                .contentShape(Rectangle())
+                .rowHover()
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
@@ -916,7 +938,11 @@ struct FloatingPanelView: View {
     private func reminderRow(_ reminder: RemindersBridge.Reminder) -> some View {
         let done = panel.completing.contains(reminder.id)
         let due = panel.due(reminder)
-        return HStack(spacing: 6) {
+        return reminderRowContent(reminder, done: done, due: due).rowHover()
+    }
+
+    private func reminderRowContent(_ reminder: RemindersBridge.Reminder, done: Bool, due: String?) -> some View {
+        HStack(spacing: 6) {
             Button { panel.complete(reminder) } label: {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 14))
@@ -971,8 +997,9 @@ struct FloatingPanelView: View {
                             .accessibilityLabel(tr("清除搜索", "Clear the search"))
                     }
                 }
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                .padding(.horizontal, 7).padding(.vertical, 4)
+                .background(Color.primary.opacity(scheme == .dark ? 0.1 : 0.06), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
             }
             if shown.isEmpty {
                 line(tr("没有匹配的任务", "No matching tasks"))
@@ -1006,7 +1033,7 @@ struct FloatingPanelView: View {
                     }
                 }
             }
-            .contentShape(Rectangle())
+            .rowHover()
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -1020,7 +1047,10 @@ struct FloatingPanelView: View {
 
     private func section<Content: View>(_ title: String, _ icon: CandidateView.Icon,
                                         @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // A card of its own on the glass, a shade lighter, like Control Center's modules.
+        let card = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        let dark = scheme == .dark
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 IconView(icon: icon, size: 16)
                 Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
@@ -1029,10 +1059,53 @@ struct FloatingPanelView: View {
             .accessibilityAddTraits(.isHeader)
             content()
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(card.fill(Color.white.opacity(dark ? 0.06 : 0.42)))
+        .overlay(card.strokeBorder(Color.white.opacity(dark ? 0.08 : 0.6), lineWidth: 0.5))
+        .shadow(color: .black.opacity(dark ? 0.2 : 0.05), radius: 3, y: 1)
     }
 
     private func line(_ text: String) -> some View {
         Text(text).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The panel's frosted glass: the windows behind it, blurred, in the light or dark mode's tint.
+private struct GlassView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active  // the window is never key: keep it frosted, not flat gray
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
+
+/// A soft highlight under the pointer.
+private struct HoverHighlight<S: Shape>: ViewModifier {
+    let shape: S
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(shape.fill(Color.primary.opacity(hovering ? 0.08 : 0)))
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+private extension View {
+    func hoverHighlight<S: Shape>(_ shape: S) -> some View { modifier(HoverHighlight(shape: shape)) }
+
+    /// A list row: the whole row is clickable and lights up under the pointer, its text where it was.
+    func rowHover() -> some View {
+        padding(.horizontal, 5).padding(.vertical, 2)
+            .contentShape(Rectangle())
+            .hoverHighlight(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .padding(.horizontal, -5).padding(.vertical, -2)
     }
 }
 

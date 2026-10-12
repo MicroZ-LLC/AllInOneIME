@@ -191,7 +191,13 @@ extension SelfTest {
         func render(_ name: String) {
             guard let window = panel.window, let view = window.contentView else { return check(false, "no window to render") }
             window.appearance = NSAppearance(named: .aqua)
-            defer { window.appearance = nil }
+            FloatingPanelView.glass = false  // nothing behind an offscreen rendering to blur
+            panel.objectWillChange.send()
+            defer {
+                window.appearance = nil
+                FloatingPanelView.glass = true
+                panel.objectWillChange.send()
+            }
             _ = pump(timeout: 0.5) { false }
             view.layoutSubtreeIfNeeded()
             guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
