@@ -1292,11 +1292,22 @@ public final class Composer {
         return [.updateMarkedText, .showPanel]
     }
 
-    /// Leaves the palette: what was typed ("@", "@na") goes in as typed, then `event` acts as usual.
+    /// Leaves the palette: what was typed ("@", "@na") goes in as typed, then `event` acts as usual. A
+    /// letter in Chinese mode is a name being typed (「@lisi」 for @李四): only the "@" goes in, and the letters
+    /// typed after it are pinyin.
     private func commitPalette(then event: KeyEvent) -> Response {
-        let typed = finish(committing: draft)
+        let query = paletteQuery ?? ""
+        let pinyin = !query.isEmpty && event.printableText?.allSatisfy(\.isLetter) == true
+            && engine.map { !$0.snapshot().isAsciiMode } == true
+        let typed = finish(committing: pinyin ? "@" : draft)
+        var effects = typed
+        if pinyin {
+            for letter in query {
+                effects += handleLevelOne(KeyEvent(keyCode: 0, characters: String(letter))).effects
+            }
+        }
         let next = handleLevelOne(event)
-        return Response(effects: typed + next.effects, handled: next.handled)
+        return Response(effects: effects + next.effects, handled: next.handled)
     }
 
     private func appendTyped(_ text: String, afterVoice: Bool = false) {

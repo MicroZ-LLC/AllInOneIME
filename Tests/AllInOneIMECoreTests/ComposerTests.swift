@@ -1407,6 +1407,15 @@ struct ComposerTests {
         #expect(m.draft == "@improve 你好@" && m.paletteQuery == "")
         type("x", m)
         #expect(m.draft == "@improve 你好@" && m.paletteQuery == nil && me.input == "x")
+        // A name after "@" in Chinese mode (「@lisi」 for @李四): the "@" goes in, the letters are pinyin.
+        let (name, ne) = palette("l")
+        #expect(name.paletteQuery == "l")
+        #expect(commits(name.handleKeyDown(k("i")).effects) == ["@"])
+        type("si", name)
+        #expect(name.paletteQuery == nil && ne.input == "lisi")
+        // In English mode it stays "@li…" as typed.
+        let (en, _) = palette("l", english: true)
+        #expect(commits(en.handleKeyDown(k("i")).effects) == ["@l"])
         let (w, _) = composer(key: .optionTap)
         type("nihao", w)
         #expect(commits(w.handleKeyDown(spaceKey)) == ["你好"])
