@@ -800,6 +800,26 @@ struct ReminderParserTests {
         #expect(fromNow(7200, parse("两 个 小时后开会"), at: now))
     }
 
+    /// A span of time is due at its start, and all of it leaves the title.
+    @Test func timeSpansStartAtTheirStart() {
+        let now = Self.realNow()
+        let parser = ReminderParser()
+        let cases: [(String, DateComponents, String)] = [
+            ("明天3-4点开会", Self.on(1, at: 15, from: now), "开会"),
+            ("明天三到四点开会", Self.on(1, at: 15, from: now), "开会"),
+            ("明天下午3点到4点开会", Self.on(1, at: 15, from: now), "开会"),
+            ("明天3点半至4点半开会", Self.on(1, at: 15, 30, from: now), "开会"),
+            ("明天上午9~10点面试", Self.on(1, at: 9, from: now), "面试"),
+        ]
+        for (text, due, title) in cases {
+            let draft = parser.parse(text, now: now)
+            #expect(draft.due == due && draft.hasTime && draft.title == title, "\(text): \(draft)")
+        }
+        // Not spans: points counted, a time then going somewhere.
+        #expect(parser.parse("明天3点到公司", now: now).due == Self.on(1, at: 15, from: now))
+        #expect(parser.parse("明天3点到公司", now: now).title == "到公司")
+    }
+
     @Test func theSystemsDetectorInChinese() {
         let now = Self.realNow()
         let parser = ReminderParser()
