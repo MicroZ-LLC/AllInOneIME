@@ -210,6 +210,17 @@ final class AllInOneIMEInputController: IMKInputController {
     var voiceFile: (url: URL, speed: Double)?
     /// False in the self-test: the microphone (and its permission prompt) is never touched.
     static var microphoneAllowed = true
+    /// Whether marked text this controller set may be in the document. Empty marked text is only sent
+    /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
+    /// deleting the selected text (a Shift tap, a focus change).
+    private var hasMarkedText = false
+    /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a
+    /// Shift-click or ⌥-click is no tap of the key. The self-test replaces this.
+    var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { seconds in
+        let kinds: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
+                                    .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
+        return kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
+    }
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 
@@ -237,6 +248,7 @@ final class AllInOneIMEInputController: IMKInputController {
         super.activateServer(sender)
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
+            hasMarkedText = false
             fieldSession += 1
             Self.activeController = self
             ensureEngine()
@@ -280,6 +292,7 @@ final class AllInOneIMEInputController: IMKInputController {
             Task { @MainActor in await paste(text) }
         } else {
             client?.insertText(text, replacementRange: Self.notFound)
+            hasMarkedText = false  // the inserted text took the marked text's place
         }
     }
 
@@ -493,6 +506,9 @@ final class AllInOneIMEInputController: IMKInputController {
             return
         }
         ensureEngine()
+        // The key was held up to the event; the pointer is asked later, so look back that much further.
+        let late = max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0)
+        composer.pointerUsedWithin = { [pointerUsedWithin] in pointerUsedWithin($0 + late) }
         perform(composer.handleFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags),
                                             timestamp: event.timestamp),
                 client: client)
@@ -1001,7 +1017,10 @@ final class AllInOneIMEInputController: IMKInputController {
         guard let client else { return }
         let text = composer.markedText
         guard !text.isEmpty else {
+            // Nothing of ours is marked: leave the document (and any selection in it) alone.
+            guard hasMarkedText || (Self.markedLength(client) ?? 0) > 0 else { return }
             client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
+            hasMarkedText = false
             return
         }
         let length = (text as NSString).length
@@ -1011,6 +1030,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let cursor = String(text.prefix(composer.markedCursor)).utf16.count
         client.setMarkedText(
             attributed, selectionRange: NSRange(location: cursor, length: 0), replacementRange: Self.notFound)
+        hasMarkedText = true
         markedWatch.didSet(expected: text, reportedLength: Self.markedLength(client))
     }
 

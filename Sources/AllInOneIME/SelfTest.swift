@@ -6,12 +6,21 @@ import Carbon
 import InputMethodKit
 import SwiftUI
 
-/// Records what the input method does to a text field.
+/// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
+/// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
+/// which deletes it).
 final class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
     var inserted: [String] = []
     var document = ""
+    var selection: NSRange?
+
+    private func replaceSelection() {
+        guard marked.isEmpty, let range = selection else { return }
+        document = (document as NSString).replacingCharacters(in: range, with: "")
+        selection = nil
+    }
     /// Screen rect of the caret line, used to position the candidate panel.
     var caretRect = NSRect(x: 420, y: 560, width: 1, height: 18)
 
@@ -22,17 +31,19 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = Self.plain(string)
+        replaceSelection()
         inserted.append(s)
         document += s
         marked = ""
     }
 
     func setMarkedText(_ string: Any!, selectionRange: NSRange, replacementRange: NSRange) {
+        replaceSelection()
         marked = Self.plain(string)
         markedSelection = selectionRange
     }
 
-    func selectedRange() -> NSRange { NSRange(location: (document as NSString).length, length: 0) }
+    func selectedRange() -> NSRange { selection ?? NSRange(location: (document as NSString).length, length: 0) }
 
     func markedRange() -> NSRange {
         marked.isEmpty
@@ -201,6 +212,34 @@ enum SelfTest {
 
     static func escape(_ c: AllInOneIMEInputController, _ client: FakeTextClient) -> Bool {
         press(c, client, "\u{1B}", code: VirtualKey.escape)
+    }
+
+    /// Selected text survives a Shift tap and a field change (nothing of ours is marked, so no empty marked
+    /// text is sent, which NSTextView puts in the selection's place); a Shift-click isn't a tap.
+    static func testSelectionKept(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— Selected text left alone")
+        let (document, inserted) = (client.document, client.inserted)
+        defer { (client.document, client.inserted, client.selection) = (document, inserted, nil) }
+        let latin = controller.composer.engineState.isAsciiMode
+        client.document = "hello world"
+        client.selection = NSRange(location: 6, length: 5)
+        tapShift(controller, client)
+        check(client.document == "hello world" && client.selection != nil, "a Shift tap keeps the selected text (\(client.document))")
+        tapShift(controller, client)  // back
+        controller.commitComposition(client)
+        controller.activateServer(client)
+        check(client.document == "hello world" && client.selection != nil, "so does a field change (\(client.document))")
+        // Shift held for a click that extends the selection: no switch.
+        controller.pointerUsedWithin = { _ in true }
+        tapShift(controller, client)
+        controller.pointerUsedWithin = { _ in false }
+        check(controller.composer.engineState.isAsciiMode == latin && client.document == "hello world",
+              "a Shift-click doesn't switch Chinese and English")
+        // Typing still replaces it, as typing over a selection does.
+        type("ni", controller, client)
+        check(!client.document.contains("world") && client.selection == nil,
+              "typing replaces the selection (\(client.document)|\(client.marked))")
+        _ = escape(controller, client)
     }
 
     /// Shift pressed and released on its own.
@@ -1669,6 +1708,7 @@ enum SelfTest {
         // check pastes them itself.
         controller.canPasteInTerminal = { false }
         controller.pasteInTerminal = { _ in }
+        controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.saveCommandUsage = { _ in }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
@@ -2109,6 +2149,7 @@ enum SelfTest {
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
         testToolCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
+        testSelectionKept(controller, client)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

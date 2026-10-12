@@ -484,6 +484,14 @@ struct ComposerTests {
         #expect(c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 14).isEmpty)
         #expect(e.ascii)
 
+        // Nor is a quick Shift-click (the click never reaches the input method; the app is asked).
+        var asked: TimeInterval?
+        c.pointerUsedWithin = { asked = $0; return true }
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 14.5)
+        #expect(c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 14.7).isEmpty)
+        #expect(e.ascii && abs((asked ?? 0) - 0.2) < 0.001)  // since Shift went down
+        c.pointerUsedWithin = { _ in false }
+
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 15)
         #expect(c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 15.2).contains(.notice("中")))
         #expect(!e.ascii)
@@ -1244,6 +1252,10 @@ struct ComposerTests {
     @Test func whatIsNotAnOptionTap() {
         let (c, _) = improveDraft(key: .optionTap)
         type("nihao", c)
+        // An ⌥-click or ⌥-drag.
+        c.pointerUsedWithin = { _ in true }
+        #expect(tapOption(c).isEmpty)
+        c.pointerUsedWithin = { _ in false }
         // Held too long.
         _ = option(c, down: true, at: 1)
         #expect(option(c, down: false, at: 2).isEmpty)

@@ -324,6 +324,9 @@ public final class Composer {
     private var voiceKeySided = false
     /// When Shift went down with no other key since (nil once any key is pressed).
     private var shiftPressedAt: TimeInterval?
+    /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`: a Shift-click
+    /// or ⌥-click is no tap of the key (the mouse never reaches the input method). Set by the app.
+    public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { _ in false }
     /// Which Option key went down on its own, and when (nil once anything else happens).
     private var optionPressed: (keyCode: UInt16, at: TimeInterval)?
     private var warnedNotReady = false
@@ -770,8 +773,8 @@ public final class Composer {
     /// the sentence (a hold of the right one still dictates).
     /// The application always receives modifier changes as well. `timestamp` is in seconds.
     public func handleFlagsChanged(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
-        if isOptionTap(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp), actionKey == .optionTap,
-           let effects = actionKeyPressed() {
+        if let held = optionTapHeld(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp),
+           !pointerUsedWithin(held), actionKey == .optionTap, let effects = actionKeyPressed() {
             voiceArmed = false  // a tap of right ⌥, not a hold
             shiftPressedAt = nil
             return effects
@@ -783,8 +786,9 @@ public final class Composer {
             shiftPressedAt = timestamp
             return []
         }
+        let held = shiftPressedAt.map { timestamp - $0 }
         let toggle = isShift && !modifiers.contains(.shift)
-            && shiftPressedAt.map { timestamp - $0 <= Self.shiftTapWindow } == true
+            && held.map { $0 <= Self.shiftTapWindow && !pointerUsedWithin(max($0, 0)) } == true
         shiftPressedAt = nil
         // With one input language Shift stays put, except to leave the letters a command switched to
         // (Chinese inside `@python print("…")`).
@@ -801,26 +805,28 @@ public final class Composer {
     public static let voiceArmDelay: TimeInterval = 0.2
 
     /// Tracks the Option keys. True for the release of one that went down on its own and came back
-    /// up within `optionTapWindow`, with no key or other modifier (including the other Option) between.
-    private func isOptionTap(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> Bool {
+    /// up within `optionTapWindow`, with no key or other modifier (including the other Option) between:
+    /// how long it was held. Nil otherwise.
+    private func optionTapHeld(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> TimeInterval? {
         let side: KeyModifiers
         switch keyCode {
         case VirtualKey.leftOption: side = .leftOption
         case VirtualKey.rightOption: side = .rightOption
         default:
             optionPressed = nil  // another modifier changed
-            return false
+            return nil
         }
         let sided = !modifiers.isDisjoint(with: [.leftOption, .rightOption])
         let down = sided ? modifiers.contains(side) : modifiers.contains(.option)
         if down {
             let alone = modifiers.subtracting([.option, side, .capsLock]).isEmpty && optionPressed == nil
             optionPressed = alone ? (keyCode, timestamp) : nil
-            return false
+            return nil
         }
         defer { optionPressed = nil }
-        guard let pressed = optionPressed, pressed.keyCode == keyCode else { return false }
-        return timestamp - pressed.at <= Self.optionTapWindow
+        guard let pressed = optionPressed, pressed.keyCode == keyCode else { return nil }
+        let held = timestamp - pressed.at
+        return held <= Self.optionTapWindow ? max(held, 0) : nil
     }
 
     /// The voice key: arms on press, dictation runs while it is held, stops on release. Nil for
