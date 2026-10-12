@@ -719,6 +719,13 @@ public final class Composer {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
+        // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
+        // also insert the result, or send the message it shows to confirm.
+        if event.isRepeat, isLevelTwo || !draft.isEmpty,
+           [VirtualKey.returnKey, VirtualKey.keypadEnter, VirtualKey.space, VirtualKey.tab].contains(event.keyCode)
+            || isLevelTwo && event.printableText?.first?.isNumber == true {
+            return .consumed()
+        }
         if isActionKey(event), let effects = actionKeyPressed() {
             draftEndsWithVoice = false
             return .consumed(effects)

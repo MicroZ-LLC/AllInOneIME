@@ -493,7 +493,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let response = composer.handleKeyDown(KeyEvent(
             keyCode: event.keyCode, characters: event.characters ?? "",
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            modifiers: Self.modifiers(event.modifierFlags)))
+            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat))
         perform(response.effects, client: client)
         return response.handled
     }

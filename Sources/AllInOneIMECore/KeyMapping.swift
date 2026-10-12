@@ -22,15 +22,18 @@ public struct KeyEvent: Equatable, Sendable {
     /// `NSEvent.charactersIgnoringModifiers` (still reflects Shift)
     public var charactersIgnoringModifiers: String
     public var modifiers: KeyModifiers
+    /// Sent again because the key is held (`NSEvent.isARepeat`).
+    public var isRepeat: Bool
 
     public init(
         keyCode: UInt16, characters: String, charactersIgnoringModifiers: String? = nil,
-        modifiers: KeyModifiers = []
+        modifiers: KeyModifiers = [], isRepeat: Bool = false
     ) {
         self.keyCode = keyCode
         self.characters = characters
         self.charactersIgnoringModifiers = charactersIgnoringModifiers ?? characters
         self.modifiers = modifiers
+        self.isRepeat = isRepeat
     }
 
     /// The text this key types, if it is printable and not a shortcut.

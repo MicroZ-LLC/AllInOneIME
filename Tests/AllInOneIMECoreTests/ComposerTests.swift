@@ -1843,3 +1843,26 @@ struct ComposerTests {
         #expect(d.handleKeyDown(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command)) == .passThrough)
     }
 }
+
+extension ComposerTests {
+    /// A held key goes no further than its first press: holding ⏎ runs the command, and the repeats don't
+    /// insert the result (or send a message shown to confirm).
+    @Test func heldKeysDontConfirm() {
+        let held = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", isRepeat: true)
+        let (c, _) = improveDraft(key: .enter)
+        type("nihao", c)
+        #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "你好", id: 1))
+        #expect(c.handleKeyDown(held) == .consumed())
+        _ = c.receive(final, isFinal: true, id: 1)
+        #expect(c.handleKeyDown(held) == .consumed() && c.isLevelTwo)
+        #expect(c.handleKeyDown(KeyEvent(keyCode: 0x12, characters: "1", isRepeat: true)) == .consumed() && c.isLevelTwo)
+        #expect(!commits(c.handleKeyDown(enterKey)).isEmpty)  // pressed again: inserted
+        // Other held keys still repeat (⌫ in a draft).
+        let (d, _) = improveDraft(key: .enter)
+        type("nihao", d)
+        _ = d.handleKeyDown(spaceKey)
+        let before = d.draft
+        _ = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}", isRepeat: true))
+        #expect(d.draft != before)
+    }
+}
