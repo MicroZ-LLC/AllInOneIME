@@ -249,6 +249,10 @@ func printStatus() -> Int32 {
     return 0
 }
 
+// A command's program that exits before reading all it is sent (`@py`, a custom run command) closes its
+// pipe: writing to it must fail, not end the input method (and the text being typed) with SIGPIPE.
+signal(SIGPIPE, SIG_IGN)
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 // A script plugin's own process (started by the input method): nothing else runs, nothing else is printed.

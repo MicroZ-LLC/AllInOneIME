@@ -186,6 +186,7 @@ struct CommandTests {
         #expect(SearchResult.web("github.com/weijianz-opc/AllInOneIME")?.name == "github.com/weijianz-opc/AllInOneIME")
         #expect(SearchResult.web("www.example.app")?.path == "https://www.example.app")
         #expect(SearchResult.web("http://localhost:8080/a")?.webURL?.port == 8080)
+        #expect(SearchResult(name: "", path: "HTTPS://example.com").webURL != nil)  // opened in the browser, not as a file
         #expect(SearchResult.web("baidu.cn")?.webURL?.host == "baidu.cn")
         // localhost and IP addresses, with a port or not: a server here or on the network, over http (it listed nothing).
         #expect(SearchResult.web("localhost:3000") == SearchResult(name: "localhost:3000", path: "http://localhost:3000"))

@@ -424,7 +424,8 @@ public struct SearchResult: Equatable, Sendable {
 
     /// A web address in the list (`@open github.com`): opened in the default browser.
     public var webURL: URL? {
-        guard path.hasPrefix("http://") || path.hasPrefix("https://") else { return nil }
+        let scheme = path.prefix(8).lowercased()
+        guard scheme.hasPrefix("http://") || scheme.hasPrefix("https://") else { return nil }  // HTTPS:// too
         return URL(string: path)
     }
 
