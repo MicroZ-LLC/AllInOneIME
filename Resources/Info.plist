@@ -4,63 +4,54 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
-	<!-- The name and permission prompts are localized in en.lproj and zh-Hans.lproj (InfoPlist.strings),
-	     which also makes system-provided UI follow the user's language. Input Sources shows the name
-	     from there. -->
+	<key>CFBundleDisplayName</key>
+	<string>AllInOneIME</string>
 	<key>CFBundleExecutable</key>
 	<string>AllInOneIME</string>
-	<!-- Bundle and input source IDs keep the original name: macOS keys the enabled input source,
-	     the microphone permission and the settings by them. -->
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.aipinyin.inputmethod.AIPinyin</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>AllInOneIME</string>
-	<key>CFBundleDisplayName</key>
-	<string>AllInOneIME</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.5.0</string>
+	<string>0.6.0</string>
 	<key>CFBundleVersion</key>
-	<string>5</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
-	<key>LSUIElement</key>
-	<true/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 MicroZ LLC. Licensed under the GNU GPL v3.0.</string>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>为 @claude 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。</string>
-	<key>NSContactsUsageDescription</key>
-	<string>用 @imessage 时按名字、拼音、手机号或邮箱找收件人。只读取姓名、电话和邮箱，不会上传。</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>按住右 ⌥ 说话时录音。语音在这台 Mac 上识别成文字，不会上传。</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>按住右 ⌥ 说话时把语音识别成文字（在这台 Mac 上完成）。</string>
-	<!-- @reminder adds to Reminders through EventKit, with full access (macOS 14) so it can make its
-	     list and read it back. Without these strings macOS denies the access without asking. -->
-	<key>NSRemindersUsageDescription</key>
-	<string>用 @reminder 时把提醒加进「提醒事项」（AllInOneIME 列表）；悬浮面板列出这个列表里的提醒。</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>用 @reminder 时把提醒加进「提醒事项」（AllInOneIME 列表）；悬浮面板列出这个列表里的提醒。</string>
+	<string>6</string>
 	<key>InputMethodConnectionName</key>
 	<string>com.aipinyin.inputmethod.AIPinyin_Connection</string>
 	<key>InputMethodServerControllerClass</key>
 	<string>AllInOneIMEInputController</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>为 @claude 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。</string>
+	<key>NSContactsUsageDescription</key>
+	<string>用 @imessage 时按名字、拼音、手机号或邮箱找收件人。只读取姓名、电话和邮箱，不会上传。</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 MicroZ LLC. Licensed under the GNU GPL v3.0.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>按住右 ⌥ 说话时录音。语音在这台 Mac 上识别成文字，不会上传。</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>用 @reminder 时把提醒加进「提醒事项」（AllInOneIME 列表）；悬浮面板列出这个列表里的提醒。</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>用 @reminder 时把提醒加进「提醒事项」（AllInOneIME 列表）；悬浮面板列出这个列表里的提醒。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>按住右 ⌥ 说话时把语音识别成文字（在这台 Mac 上完成）。</string>
+	<key>TISIconIsTemplate</key>
+	<true/>
 	<key>TISInputSourceID</key>
 	<string>com.aipinyin.inputmethod.AIPinyin</string>
 	<key>TISIntendedLanguage</key>
 	<string>zh-Hans</string>
-	<key>TISIconIsTemplate</key>
-	<true/>
-	<!-- Hans only, like Apple's pinyin: adding Latn makes the source ASCII-capable, and
-	     ASCII-capable sources stay active in password fields. -->
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Hans</string>
