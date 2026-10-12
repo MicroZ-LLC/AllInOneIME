@@ -343,7 +343,7 @@ struct PluginLibraryTests {
     @Test func errorsReadInEnglish() {
         #expect(PluginLibraryError.hashMismatch("main.js").errorDescription == "main.js doesn't match the signed index; nothing was changed")
         #expect(PluginLibraryError.localPlugin("stock").errorDescription?.hasPrefix("A local plugin named stock") == true)
-        #expect(PluginLibrary.defaultBaseURL.absoluteString == "https://raw.githubusercontent.com/weijianz-opc/AllInOneIME-plugins/main/")
+        #expect(PluginLibrary.defaultBaseURL.absoluteString == "https://raw.githubusercontent.com/MircoZ-LLC/AllInOneIME-plugins/main/")
         #expect(PluginLibrary.publicKey.count == 32)
     }
 }
