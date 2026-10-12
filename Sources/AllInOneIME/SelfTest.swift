@@ -334,6 +334,19 @@ enum SelfTest {
         check((try? Config.load(from: url))?.actionKey == model.config.actionKey, "the action key is saved")
         model.config.actionKey = key
         model.save()
+        // Changed elsewhere while the window is open (the input method's menu): read again, so the window's
+        // next save doesn't put the old value back.
+        if var outside = try? Config.load(from: url) {
+            outside.improveTranslates.toggle()
+            try? outside.write(to: url)
+            model.reloadIfChanged()
+            model.save()
+            check((try? Config.load(from: url))?.improveTranslates == outside.improveTranslates,
+                  "a change made elsewhere survives the window's next save")
+            outside.improveTranslates.toggle()
+            try? outside.write(to: url)
+            model.reloadIfChanged()
+        }
 
         // The test button makes a live request with the window's settings.
         model.runTest()

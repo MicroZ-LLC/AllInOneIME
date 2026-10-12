@@ -74,9 +74,14 @@ final class SettingsModel: ObservableObject {
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
     var profileShownAs: String?
 
+    /// When the config file was last read or written here: changed since (the input method's menu, an
+    /// editor), it is read again before the window shows it (`reloadIfChanged`).
+    private var fileDate: Date?
+
     init(configURL: URL = Config.defaultURL, persists: Bool = true) {
         self.configURL = configURL
         self.persists = persists
+        fileDate = Self.modificationDate(configURL)
         do {
             config = try Config.load(from: configURL)
         } catch {
@@ -94,10 +99,28 @@ final class SettingsModel: ObservableObject {
         guard canSave, persists else { return }
         do {
             try config.write(to: configURL)
+            fileDate = Self.modificationDate(configURL)
             saveError = nil
         } catch {
             saveError = tr("保存失败：", "Couldn't save: ") + error.localizedDescription
         }
+    }
+
+    /// Reads the config file again if something else changed it, so the window shows it and its next save
+    /// doesn't put back what was there before.
+    func reloadIfChanged() {
+        guard persists, case let date = Self.modificationDate(configURL), date != fileDate else { return }
+        fileDate = date
+        do {
+            config = try Config.load(from: configURL)
+            loadError = nil
+        } catch {
+            loadError = UIText.describe(error)
+        }
+    }
+
+    private static func modificationDate(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     /// Switches the window's language at once (nil: follow the system) and saves the choice.
@@ -1038,6 +1061,10 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
+            model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
+            model.reloadIfChanged()
         }
         .onDisappear { model.save() }
     }
@@ -1467,6 +1494,7 @@ struct SettingsView: View {
 final class SettingsWindow {
     static let shared = SettingsWindow()
     private var window: NSWindow?
+    private var closing: NSObjectProtocol?
 
     static var title: String { tr("AllInOneIME 设置", "AllInOneIME Settings") }
 
@@ -1481,6 +1509,12 @@ final class SettingsWindow {
             UIText.choice = model.config.uiLanguage
             let host = NSHostingController(rootView: SettingsView(model: model))
             let window = NSWindow(contentViewController: host)
+            // Fields saved on ⏎ (a model ID, the base URL) are saved when the window closes too.
+            if let closing { NotificationCenter.default.removeObserver(closing) }
+            closing = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
+                                                             queue: .main) { _ in
+                MainActor.assumeIsolated { model.save() }
+            }
             window.title = Self.title
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false

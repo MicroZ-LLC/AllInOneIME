@@ -223,6 +223,8 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
 }
 
 extension Notification.Name {
+    /// The input method's menu changed a setting in the config file (an open settings window reads it again).
+    static let allInOneIMEConfigChanged = Notification.Name("AllInOneIMEConfigChanged")
     /// AgentMonitor looked at the background tasks (every few seconds while it watches some). userInfo:
     /// "sessions" ([AgentSession], as `claude agents --json --all` listed them). Posted on the main thread.
     static let allInOneIMEAgentsPolled = Notification.Name("AllInOneIMEAgentsPolled")

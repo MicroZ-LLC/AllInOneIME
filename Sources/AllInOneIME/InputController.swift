@@ -1648,6 +1648,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 var config = try Config.load()
                 config.rewriteStyles = Self.toggled(name, in: config.rewriteStyles)
                 try config.write()
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("rewrite styles now \(config.rewriteStyles.joined(separator: ","), privacy: .public)")
             } catch {
                 log.error("could not update rewrite styles: \(String(describing: error), privacy: .public)")
@@ -1673,6 +1674,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 config.outputLanguage = OutputLanguage(raw)
                 config.normalizeLanguages()
                 try config.write()
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("output language now \(raw, privacy: .public)")
             } catch {
                 log.error("could not update the output language: \(String(describing: error), privacy: .public)")
@@ -1691,6 +1693,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 var config = try Config.load()
                 config.improveTranslates.toggle()
                 try config.write()
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("@improve also translates: \(config.improveTranslates, privacy: .public)")
             } catch {
                 log.error("could not update @improve: \(String(describing: error), privacy: .public)")
@@ -1710,6 +1713,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 config.defaultInput = language
                 config.normalizeLanguages()
                 try config.write()
+                NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("default input now \(config.defaultInput.rawValue, privacy: .public)")
                 applySettings()
             } catch {
