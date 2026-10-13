@@ -1083,16 +1083,21 @@ struct SettingsView: View {
             let shown = SettingsPage.allCases.filter { $0.matches(query) }
             List(selection: Binding(get: { page }, set: { if let new = $0 { page = new } })) {
                 // In groups, like System Settings: what you type with, what it runs, the rest.
-                ForEach(SettingsPage.groups, id: \.self) { group in
-                    let items = group.filter(shown.contains)
-                    if !items.isEmpty {
-                        Section {
-                            ForEach(items) { item in
-                                Label { Text(item.title).font(.system(size: 13.5)) } icon: { IconTile(icon: item.icon, size: 24) }
-                                    .padding(.vertical, 3)
-                                    .tag(item)
-                            }
+                let groups = SettingsPage.groups.map { $0.filter(shown.contains) }.filter { !$0.isEmpty }
+                ForEach(groups.indices, id: \.self) { index in
+                    // A thin line between the groups.
+                    if index > 0 {
+                        Divider().padding(.horizontal, 6).padding(.vertical, 2)
+                            .selectionDisabled()
+                    }
+                    ForEach(groups[index]) { item in
+                        Label {
+                            Text(item.title).font(.system(size: 13.5)).padding(.leading, 4)
+                        } icon: {
+                            IconTile(icon: item.icon, size: 24)
                         }
+                        .padding(.vertical, 3)
+                        .tag(item)
                     }
                 }
             }
@@ -1993,9 +1998,14 @@ struct IconTile: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+        // Fitted into the same box whatever its shape: a wide symbol (translate) stays inside the tile.
         Image(systemName: icon.symbol)
-            .font(.system(size: size * 0.52, weight: .semibold))
+            .resizable()
+            .symbolRenderingMode(.monochrome)
+            .fontWeight(.semibold)
+            .scaledToFit()
             .foregroundStyle(.white)
+            .frame(width: size * 0.7, height: size * 0.58)  // wider than tall: a wide symbol gets the room
             .shadow(color: .black.opacity(0.15), radius: 0.5, y: 0.5)
             .frame(width: size, height: size)
             .background {
