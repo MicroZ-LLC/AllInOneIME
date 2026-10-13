@@ -384,6 +384,12 @@ enum SelfTest {
             UIText.choice = chinese ? .chinese : .english
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.profileShownAs = "default"  // README images are public: not the user's own profile name
+            if !chinese {
+                // The English README's: someone who writes English, translating into Spanish, French and German.
+                preview.config.setOrder([Language.english])
+                preview.config.setOrder(["es", "fr", "de"].map(OutputLanguage.init))
+                preview.config.uiLanguage = .english
+            }
             preview.runTest()
             _ = pump(timeout: 20) { preview.testStatus != .running }
             let host = NSHostingView(rootView: SettingsView(model: preview))
@@ -590,7 +596,7 @@ enum SelfTest {
         /// Holds the key for the length of the file, then releases it and waits for the transcript.
         /// With `sendWhileHolding`, ⌥Space is pressed before the key is released: the recording stops
         /// and the sentence goes to the model once the transcript is final.
-        func dictate(_ url: URL, snapshotName: String? = nil, sendWhileHolding: Bool = false) -> Bool {
+        func dictate(_ url: URL, snapshotName: String? = nil, snapshotAt: Int = 4, sendWhileHolding: Bool = false) -> Bool {
             controller.voiceFile = (url, speed: 1)
             let seconds = (try? AVAudioFile(forReading: url)).map { Double($0.length) / $0.processingFormat.sampleRate } ?? 2
             optionKey(down: true)
@@ -601,7 +607,7 @@ enum SelfTest {
             }
             var snapped = false
             _ = pump(timeout: seconds + 0.6) {
-                if let snapshotName, !snapped, controller.composer.voice.text.count >= 4 {
+                if let snapshotName, !snapped, controller.composer.voice.text.count >= snapshotAt {
                     snapped = true
                     readmeSnapshot(snapshotName, controller, client, in: snapshotDirectory)
                 }
@@ -669,7 +675,7 @@ enum SelfTest {
         controller.applySettings()
         tapShift(controller, client)
         improve(controller, client)
-        if dictate(englishAudio, sendWhileHolding: true) {
+        if dictate(englishAudio, snapshotName: "8-voice-english", snapshotAt: 17, sendWhileHolding: true) {  // README (docs/en)
             let draft = controller.composer.draft
             check(controller.composer.isLatinDraft && draft.lowercased().contains("blocker"), "English transcript: \(draft)")
             if finishConversion(controller, "voice + ⌥Space → English polish") {
@@ -1424,6 +1430,92 @@ enum SelfTest {
         }
     }
 
+    /// The English README's images (docs/en, `en-*`): what someone who writes English sees, not the
+    /// Chinese scenes with the interface in English. English is the only input language, @translate goes
+    /// into Spanish, French and German, and the interface is English. Live requests; the settings it
+    /// started with come back afterwards.
+    static func englishReadmeScenes(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
+                                    in snapshotDirectory: URL) {
+        let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
+        defer {
+            controller.commitComposition(client)
+            (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
+            controller.applySettings()
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        let languages = ["es", "fr", "de"].map(OutputLanguage.init)
+        settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
+        settings.setOrder([Language.english])
+        settings.setOrder(languages)
+        settings.uiLanguage = .english
+        settings.actionKey = .enter
+        controller.loadSettings = { SelfTest.settings }
+        controller.applySettings()
+        controller.converter = Converter(loadConfig: {
+            var config = try Config.load()
+            config.setOrder([Language.english])
+            config.setOrder(languages)
+            return config
+        })
+        controller.composer.setInputMode(.english)
+        _ = pump(timeout: 6) { controller.panelModel().detail == nil }  // a notice from before isn't in the images
+        func shown() -> Bool {
+            let model = controller.panelModel()
+            return !([model.footer, model.detail ?? ""] + model.rows.map(\.comment)).joined().containsHan
+        }
+
+        // @translate: one sentence into each language added.
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        type("t", controller, client)
+        press(controller, client, "\t", code: VirtualKey.tab)
+        let late = "running 10 minutes late, start without me"
+        type(late, controller, client)
+        check(client.marked == "translate › " + late, "English README: an English @translate draft (\(client.marked))")
+        snapshot("en-translate-draft", in: snapshotDirectory)
+        _ = enter(controller, client)
+        if finishConversion(controller, "English README @translate") {
+            let lines = controller.composer.choices.filter { if case .translation = $0.kind { return true } else { return false } }
+            check(lines.count == 3 && controller.panelModel().rows.allSatisfy { !$0.text.containsHan },
+                  "English README: Spanish, French and German lines (\(lines.map(\.text)))")
+            snapshot("en-translate", in: snapshotDirectory)
+        }
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        controller.commitComposition(client)
+
+        // @improve: English polished, plus rewrites, in English.
+        improve(controller, client)
+        let rough = "this is a blocker bug your team need fix it asap"
+        type(rough, controller, client)
+        snapshot("en-improve-draft", in: snapshotDirectory)
+        _ = enter(controller, client)
+        if finishConversion(controller, "English README @improve") {
+            check(controller.panelModel().rows.allSatisfy { !$0.text.containsHan }, "English README: English polish and rewrites")
+            snapshot("en-improve", in: snapshotDirectory)
+            snapshot("en-improve-dark", in: snapshotDirectory, appearance: .darkAqua)
+        }
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        controller.commitComposition(client)
+
+        // The command list, then @question asked in English.
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        snapshot("en-palette", in: snapshotDirectory)
+        type("q", controller, client)
+        _ = enter(controller, client)
+        type("what is quantum computing", controller, client)
+        _ = enter(controller, client)
+        if finishConversion(controller, "English README @question") {
+            let answer = controller.composer.choices.last
+            check(answer?.kind == .answer && answer?.text.containsHan == false, "English README: an English answer (\(answer?.text.prefix(50) ?? ""))")
+            snapshot("en-question", in: snapshotDirectory)
+        }
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        check(shown(), "English README: an English interface throughout")
+    }
+
     /// A panel the README shows: snapshotted as it is (Chinese interface, docs/), then the same state
     /// with the English interface as `<name>-en` (docs/en), so both show the same results and no
     /// request is made twice.
@@ -1440,6 +1532,8 @@ enum SelfTest {
         check(!interface.joined().containsHan, "\(name)-en: English interface (\(model.footer) | \(model.detail ?? "-"))")
         CandidatePanel.shared.show(model, anchor: client.caretRect)
         snapshot(name + "-en", in: directory, appearance: appearance)
+        // The text line above the panel, for the README image (a transcript isn't known beforehand).
+        try? Data(client.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
         settings.uiLanguage = language
         controller.applySettings()
         CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)
@@ -1762,6 +1856,7 @@ enum SelfTest {
         controller.commitComposition(client)
         (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
         controller.applySettings()
+        englishReadmeScenes(controller, client, in: snapshotDirectory)
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
         var openHistory = OpenHistory()

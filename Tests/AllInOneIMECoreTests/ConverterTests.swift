@@ -195,9 +195,12 @@ struct ConverterTests {
         // Default presets: the format asks for exactly those lines, in that order.
         let tags = RewriteStyle.resolve(Config.default.rewriteStyles).map(\.tag)
         #expect(tags == ["POLISH", "CONCISE", "FORMAL"])
-        let positions = tags.compactMap { systemText.range(of: "\n\($0): ")?.lowerBound }
+        let positions = tags.compactMap { systemText.range(of: "\nSTYLE_\($0): ")?.lowerBound }
         #expect(positions.count == 3 && positions == positions.sorted())
         #expect(!systemText.contains("CASUAL") && !systemText.contains("TACTFUL"))
+        // Answers tag rewrites STYLE_…; the bare tags of before still read.
+        #expect(RewriteStyle.forTag("STYLE_POLISH")?.tag == "POLISH" && RewriteStyle.forTag("POLISH")?.tag == "POLISH"
+                && RewriteStyle.forTag("STYLE_JARGON")?.tag == "JARGON" && RewriteStyle.forTag("STYLE_NOPE") == nil)
         // Few-shot answers carry exactly the configured rewrite lines.
         let firstAnswer = try #require((messages[1]["content"] as? [[String: Any]])?.first?["text"] as? String)
         #expect(CandidateParser.parse(firstAnswer, isFinal: true).rewrites.map(\.style) == ["润色", "简洁", "正式"])
@@ -208,7 +211,7 @@ struct ConverterTests {
         config.rewriteStyles = ["正式", "简洁", "不存在", "正式"]
         let request = Prompt.request(for: "你好", config: config)
         let system = request.system.first?.text ?? ""
-        #expect(system.contains("\nFORMAL: ") && system.contains("\nCONCISE: ") && !system.contains("\nPOLISH: "))
+        #expect(system.contains("\nSTYLE_FORMAL: ") && system.contains("\nSTYLE_CONCISE: ") && !system.contains("\nSTYLE_POLISH: "))
         let answer = request.messages[1].content.first?.text ?? ""
         #expect(CandidateParser.parse(answer, isFinal: true).rewrites.map(\.style) == ["正式", "简洁"])
 
@@ -248,7 +251,7 @@ struct ConverterTests {
         let request = Prompt.request(for: "this is a blocker bug", config: config)
         let system = request.system.first?.text ?? ""
         #expect(system.contains("\nZH: <how a native Simplified Chinese speaker") && !system.contains("\nEN: "))
-        #expect(system.contains("\nJARGON: ") && system.contains("bandwidth"))
+        #expect(system.contains("\nSTYLE_JARGON: ") && system.contains("bandwidth"))
         for (index, example) in Prompt.examples.enumerated() {
             let answer = request.messages[index * 2 + 1].content.first?.text ?? ""
             let parsed = CandidateParser.parse(answer, isFinal: true, output: .chinese)
@@ -269,7 +272,7 @@ struct ConverterTests {
         // The examples are in English and Chinese: none are sent for Japanese, just the sentence.
         #expect(request.messages.count == 1 && request.messages.first?.content.first?.text == "辛苦了")
         // The answer's JA lines are the versions; lines in another language are ignored.
-        let answer = "JA: お疲れさまです\nEN: Thanks\nja: ご苦労さま\n**JA:** お疲れ！\nPOLISH: 辛苦啦"
+        let answer = "JA: お疲れさまです\nEN: Thanks\nja: ご苦労さま\n**JA:** お疲れ！\nSTYLE_POLISH: 辛苦啦"
         let parsed = CandidateParser.parse(answer, isFinal: true, output: OutputLanguage("ja"))
         #expect(parsed.versions.map(\.text) == ["お疲れさまです", "ご苦労さま", "お疲れ！"])
         #expect(parsed.rewrites.map(\.style) == ["润色"])
@@ -355,10 +358,10 @@ struct ConverterTests {
         let cut = Converter.finalResult(text, stopReason: "max_tokens")
         #expect(cut.versions.map(\.text) == ["I'm under the weather.", "I'm not feeling well."])
         #expect(cut.versions.allSatisfy { $0.isComplete })
-        let rewriteCut = Converter.finalResult(text + "ff.\nPOLISH: 我今天", stopReason: "max_tokens")
+        let rewriteCut = Converter.finalResult(text + "ff.\nSTYLE_POLISH: 我今天", stopReason: "max_tokens")
         #expect(rewriteCut.versions.count == 3)
         #expect(rewriteCut.rewrites.isEmpty)
-        let secondCut = Converter.finalResult(text + "ff.\nPOLISH: 我今天身体不太舒服。\nFORMAL: 今天", stopReason: "max_tokens")
+        let secondCut = Converter.finalResult(text + "ff.\nSTYLE_POLISH: 我今天身体不太舒服。\nSTYLE_FORMAL: 今天", stopReason: "max_tokens")
         #expect(secondCut.rewrites == [Rewrite(style: "润色", line: CandidateLine("我今天身体不太舒服。"))])
         let normal = Converter.finalResult(text, stopReason: "end_turn")
         #expect(normal.versions.last?.text == "I feel a bit o")  // finished normally: last line is complete

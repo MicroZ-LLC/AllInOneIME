@@ -558,7 +558,8 @@ final class SettingsModel: ObservableObject {
         let snapshot = config
         testTask = Task { [weak self] in
             let converter = Converter(loadConfig: { snapshot })
-            let sample = "我今天有点不舒服"
+            // In the first input language: an English-only user sees an English test.
+            let sample = snapshot.inputLanguages.first == .english ? "i dont feel so good today" : "我今天有点不舒服"
             do {
                 var final = ConversionResult.empty
                 var elapsed: TimeInterval = 0
@@ -1086,7 +1087,8 @@ struct SettingsView: View {
         let key = UIText.howToPress(model.config.actionKey)
         return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
-                  "A regular pinyin input method. Type @ first for commands: @improve polishes and rewrites, @translate "
+                  (model.config.inputLanguages.contains(.chinese) ? "A regular pinyin input method. " : "")
+                      + "Type @ first for commands: @improve polishes and rewrites, @translate "
                       + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }

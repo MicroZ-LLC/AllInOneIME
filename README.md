@@ -4,29 +4,28 @@
 
 English | [中文](README.zh-CN.md)
 
-A macOS input method. Day to day it's a regular pinyin input method that runs locally, built on Rime + rime-ice
-(雾凇拼音). Start a sentence with `@` for a command and press ⏎ when done to run it: `@improve` has a large language
-model polish it and give a few rewrites, `@translate` translates into the languages you pick, `@question` asks a
-question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web address. You can also
-hold right ⌥ and talk.
+A macOS input method with AI commands in every text field. Start a sentence with `@` and press ⏎ when done:
+`@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
+`@question` asks a question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web
+address. You can also hold right ⌥ and talk. Without `@`, your keys go to the app as usual. It's also a full
+Chinese (pinyin) input method, built on Rime and rime-ice, for those who want one.
 
 Author: [Weijian Zhang](https://weijianz.com)
 
-![Two steps: @translate plus pinyin, then ⏎ for three idiomatic English versions](docs/en/demo.png)
+![@translate and a sentence, then ⏎: a line in Spanish, French and German](docs/en/demo.png)
 
-![@improve plus pinyin, then ⏎: polished versions and rewrites in the same language](docs/en/improve.png)
-
-![@improve with English: English polish (with Jargon); with Chinese: Chinese polish and rewrites](docs/en/english.png)
+![@improve and a rough sentence, then ⏎: polished versions, plus rewrites](docs/en/improve.png)
 
 For more detail (every command and setting, installation troubleshooting, privacy), see the [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki).
 
 ## How to use
 
-Without `@`, it works like any other pinyin input method: picking a word inserts it, ⏎ is Return, in English mode letters are typed directly, and nothing goes online.
+Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
+To write in English only, set **Input languages** to English in the settings (see [Input and translation](#input-and-translation)).
 
 | Key | What it does |
 |---|---|
-| Type pinyin, Space / digits | Pick words, as in any pinyin input method |
+| Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
 | `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (names starting with them first, then names containing them). ⏎, Tab, Space or a digit chooses |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original |
@@ -35,8 +34,8 @@ Without `@`, it works like any other pinyin input method: picking a word inserts
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
 | ⏎ (nothing written after the command yet) | Uses the clipboard text: it's shown in the command first, then ⏎ runs it. E.g. after copying a paragraph: `@i` ⏎ ⏎ ⏎. Works in any app |
 | Esc, ⌫ | Back to the sentence to keep editing; typing just continues it |
-| Tap Shift | Switch between Chinese and English |
-| Hold right ⌥ | Talk, release to stop. Chinese in Chinese mode, English in English mode. In a command, the text goes after it; otherwise it's inserted directly |
+| Tap Shift | With both Chinese and English as input languages: switch between them |
+| Hold right ⌥ | Talk, release to stop. English in English mode, Chinese in Chinese mode. In a command, the text goes after it; otherwise it's inserted directly |
 
 ## @ commands (beta)
 
@@ -48,30 +47,30 @@ Without `@`, it works like any other pinyin input method: picking a word inserts
 | `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
-| `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's Chinese name counts for what's in it: `下载 pdf` finds the PDFs in Downloads). Apps are found by their Chinese names too (计算器 for Calculator, 系统设置 for System Settings; tap Shift to type Chinese), and so are Finder and the standard folders (访达, 下载 for Downloads, 桌面 for Desktop, 文稿 for Documents), and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
+| `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
 | `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
 | `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
-| `@calculate` | Calculates on this Mac; the result appears in the candidates, ⏎ or Space inserts it: `@calculate 23*17` → `391`. It also works inside a sentence: `@reply 总价是 @calculate 23*17 元` ("the total is … yuan") |
+| `@calculate` | Calculates on this Mac; the result appears in the candidates, ⏎ or Space inserts it: `@calculate 23*17` → `391`. It also works inside a sentence: `@reply the total is @calculate 23*17 dollars` |
 | `@py` | Runs a line of Python (the Mac's `python3`) and inserts the result: the value of the code's last expression, e.g. `@py 2**100`, `@py import math; math.sqrt(2)`, or else what it printed. Not offered without `python3` (Xcode's command line tools have it) |
 | `@js` | Runs a line of JavaScript and inserts the same: the value of the last expression or what `console.log` printed, e.g. `@js [1, 2, 3].map(x => x * 2)`. It uses macOS's built-in JavaScriptCore, so there's nothing to install; it can't read files, reach the network or run other programs |
-| `@imessage` | Sends an iMessage: type a name, its pinyin (in full or the initials, like `zs`), a phone number or an email and pick the recipient in the candidate panel (the ones you messaged lately come first; a full number or address works too), then write the message (commands inside it such as `@stock AAPL` run first). ⏎ shows "Send to 张三 (…): message" in the panel, ⏎ again sends it, Esc goes back to editing; nothing is typed into the text field. The first time, macOS asks whether AllInOneIME may access Contacts and control Messages: click OK for both |
+| `@imessage` | Sends an iMessage: type a name, a phone number or an email (a Chinese name also by its pinyin, in full or the initials) and pick the recipient in the candidate panel (the ones you messaged lately come first; a full number or address works too), then write the message (commands inside it such as `@stock AAPL` run first). ⏎ shows "Send to Alex (…): message" in the panel, ⏎ again sends it, Esc goes back to editing; nothing is typed into the text field. The first time, macOS asks whether AllInOneIME may access Contacts and control Messages: click OK for both |
 
-Example: `@q` ⏎, type `什么是量子计算` ("what is quantum computing"), ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
+Example: `@q` ⏎, type `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
 `@reminder call Bob tomorrow at 3pm` ⏎, check the time it read, then ⏎ again to add it. Once the command is chosen, you can also hold right ⌥
-and talk. `@open` and `@calculate` switch to English letters for the moment and go back to Chinese when you're done.
+and talk. In Chinese mode, `@open` and `@calculate` switch to English letters for the moment and go back to Chinese when you're done.
 
-The code for `@py` and `@js` is typed in English letters too, and full-width punctuation becomes ASCII (`print（“牛逼”）` → `print("牛逼")`); write it on one line, with `;` between statements.
+The code for `@py` and `@js` is typed in English letters, and full-width punctuation (from Chinese mode) becomes ASCII; write it on one line, with `;` between statements.
 It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
 Output with several lines is inserted as printed; in a terminal it goes in as one line (a terminal runs every line it is given).
 A terminal inside an editor (VS Code, Cursor, JetBrains) can't be told apart from the editor itself, so there any command's output with several lines goes in as it is.
-Both also work inside another command's sentence: `@reply 答案是 @py 2**100` ("the answer is …"); put code with spaces in 「」 or quotes: `@question explain @py「sum(x * x for x in range(10))」`.
+Both also work inside another command's sentence: `@reply the answer is @py 2**100`; put code with spaces in quotes: `@question explain @py "sum(x * x for x in range(10))"`.
 Not the other way round: the code of `@py` and `@js` always runs exactly as you typed it, and `@commands` in it don't run first.
 
 ![Typing @ opens the command list; @question plus a question, then ⏎ for the answer](docs/en/commands.png)
 
 ![@open finds apps as you type; starting with /, it's a path: the folder is listed, Tab completes](docs/en/open.png)
 
-When `@` isn't followed by a command, as in `@张三` (a name) or `@john`, the `@` is inserted as usual, so @-mentioning
+When `@` isn't followed by a command, as in `@john`, the `@` is inserted as usual, so @-mentioning
 people in chat apps still works.
 `@question`, `@improve` and `@translate` send to your own Bedrock only when you press the action key; `@open` searches only on this
 Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@claude` uses the Claude Code installed on your Mac (the `claude` command) and its own account, and it asks you
@@ -82,8 +81,7 @@ the message; without the Messages app it isn't offered.
 `@calculate` works on this Mac, offline: `+ - * /` (also `× ÷`), `^` or `**` for powers, parentheses, percent (`50%` is 0.5,
 `200*5%` is 10; as on a calculator, a percentage added or subtracted is of what comes before: `100+10%` is 110,
 `100-10%` is 90), the functions `sqrt abs round floor ceil ln log exp sin cos tan min max pow` (`log` is base 10, angles
-are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too
-(`（１＋２）×３`). Arithmetic is exact in decimal, so `0.1+0.2` is `0.3`; results have at most 15 significant digits, and
+are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too. Arithmetic is exact in decimal, so `0.1+0.2` is `0.3`; results have at most 15 significant digits, and
 whole numbers of up to 38 digits are written out in full (`2^100` → `1267650600228229401496703205376`).
 
 ### Notes and reminders
@@ -91,11 +89,9 @@ whole numbers of up to 38 digits are written out in full (`2^100` → `126765060
 `@note` makes a new note; its first line is the title. After copying some text, `@note` ⏎ ⏎ ⏎ (or ⌃V after `@note `) saves it with its line breaks, shown as ↵ in the command.
 If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed.
 
-`@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year`, and in Chinese `明天下午3点` (tomorrow 3 pm),
-`明晚7点` (tomorrow 7 pm), `3点半` (half past 3), `30分钟后` (in 30 minutes), `下周一 9:30` (next Monday 9:30), `15号` (the 15th), `月底` (the end of the month), `下个月` (next month), `月初` (the 1st), `年底` (the end of the year), `元旦` (New Year's Day), `圣诞节` (Christmas).
-Lunar holidays (`春节`, Chinese New Year; `中秋`, the Mid-Autumn Festival) fall on a different day each year and aren't read: write the date. `写3点建议` ("write 3 suggestions") counts points: no time.
-The day and the time can be apart (`tomorrow call Bob at 5`); weeks start on Monday, so `下周日` is next week's Sunday.
-A time without am or pm (`3点半`, `at 5`) is the next one, never between midnight and 6 a.m. unless `凌晨` (before dawn) is written; a time already past today is tomorrow, but a part of the day still going (`this afternoon`, `tonight`) is today, all day; a date already past this year is next year's.
+`@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year` (Chinese times too).
+The day and the time can be apart (`tomorrow call Bob at 5`); weeks start on Monday.
+A time without am or pm (`at 5`) is the next one, never between midnight and 6 a.m.; a time already past today is tomorrow, but a part of the day still going (`this afternoon`, `tonight`) is today, all day; a date already past this year is next year's.
 Written to repeat (`standup every Monday at 9`), it is added once, for the next time: the words stay in the title and the row says "once only".
 The row to confirm shows the time it read, e.g. "tomorrow 3:00 PM" (following the Mac's 12/24-hour setting); if it's wrong, Esc goes back to the text. With no time or date in it, it has none ("no date").
 
@@ -130,7 +126,7 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 - `{input}` becomes what you wrote after the command, and it always stays within the one argument it's in: no shell is involved. For a shell, say so, like `sh` above (`zsh -c`).
 - `stdin`: what goes to the program's standard input, with `{input}` replaced too.
 - A `link`'s `url` must be `https://`, with `{input}` once, after the `?` or `#`; the text is encoded (a space is `%20`, a newline `%0A`), 4000 characters at most.
-- `run` and `terminal` type English letters by default (like `@open`; Chinese comes back after), and full-width punctuation becomes ASCII: `print（“牛逼”）` → `print("牛逼")`. Set `"ascii": false` to keep text as typed.
+- `run` and `terminal` type English letters by default (like `@open`; in Chinese mode, Chinese comes back after), and full-width punctuation becomes ASCII. Set `"ascii": false` to keep text as typed.
 - Programs run in your home folder with your login shell's PATH (so Homebrew, pyenv and nvm installs are found). `run` stops a program after 10 seconds (`timeoutSeconds`) or when it prints too much; Esc stops it at any time.
 - `summary` is the description in the command list (optional).
 - When the program in `argv` isn't found (say, no `python3`), the command isn't offered and `@python …` is inserted as text; once it's installed, the command appears in the next text field.
@@ -149,15 +145,15 @@ contacts before installing; the library's index is signed and every file must ma
 Folder"): local plugins, never overwritten by the library.
 "Link" plugins run no code: they put the text into a web address and open it in the browser, like `@x nice weather
 today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
-(`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 日元 人民币`, one line
+(`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`, one line
 with the date of the rate (rates by ExchangeRate-API). Writing one: [docs/plugins.md](docs/plugins.md).
 
-Commands that fetch something (plugins and programs) also work inside a sentence: `@reply 告诉他 @stock AAPL 现在多少钱`.
+Commands that fetch something (plugins and programs) also work inside a sentence: `@reply tell her @stock AAPL is up today`.
 The inner ones run first, their output takes their place, and the outer command works on the result. The argument is
 the word after the command, plus the uppercase codes or numbers right after it (`@stock AAPL TSLA`, `@stock 600519 700`);
-a lowercase word ends it (`@stock SNDK is good to buy` looks up SNDK). Quotes mark it exactly: `@stock「aapl tsla」`.
+a lowercase word ends it (`@stock SNDK is good to buy` looks up SNDK). Quotes mark it exactly: `@stock "aapl tsla"`.
 `@calculate` works inside a sentence too; its argument is the whole expression after it, spaces included, up to other text:
-`@reply 总价是 @calculate 23 * 17 元`.
+`@reply the total is @calculate 23 * 17 dollars`.
 Inside `@claude` and terminal commands they aren't run: those get the text as written (typing `@` there doesn't open the command list).
 
 ### Action key
@@ -193,41 +189,36 @@ What it reads, and when:
 
 In the settings:
 
-- **Input languages**: Chinese (pinyin), English, or both. Drag them into order: new text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch. A new user has Chinese only.
-- **Translate (@translate)**: add the languages to translate into (English, Japanese, Korean, French, Traditional Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new user has English only.
+- **Input languages**: English, Chinese (pinyin), or both. A new install starts with Chinese only: to write English, add English and remove Chinese (or drag English first). New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
+- **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install has English only.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
 ## Rewrite styles
 
-After lines 1–3 come the rewrites, **in the language you typed**: Chinese rewrites for Chinese, English rewrites for English. Pick any of them in the settings:
+After lines 1–3 come the rewrites, **in the language you typed**: English rewrites for English, Chinese rewrites for Chinese. Pick any of them in the settings:
 
 - Polish: same tone, more natural
 - Concise
 - Formal: for managers and clients
 - Casual
 - Tactful
-- Jargon: big-tech jargon in Chinese (对齐 align, 抓手 lever, 颗粒度 granularity…), Amazon-speak in English (bandwidth, circle back…). Bad news is played down, e.g. "this is a blocker bug" → "Oh! Looks like your team has the bandwidth to fix this minor issue!"
+- Jargon: Amazon-speak in English (bandwidth, circle back…), big-tech jargon in Chinese. Bad news is played down, e.g. "this is a blocker bug" → "Oh! Looks like your team has the bandwidth to fix this minor issue!"
 
 Rewrites that only change punctuation or repeat another line aren't shown.
 
 ### Jargon list (your own terms)
 
 Jargon has no built-in term list. You can prepare your own (for example, the phrases your team uses), and the model
-prefers its terms. In the candidates, the Jargon line notes what the terms it used mean, e.g.
-"Jargon · PRFAQ＝新功能提案文档" (new-feature proposal doc).
+prefers its terms. In the candidates, the Jargon line notes what the terms it used mean.
 
-The list is a text file with one term per line, optionally followed by its meaning, separated by "：" (full-width colon),
-"=" or a Tab (you can copy two columns from a spreadsheet and paste them). Lines starting with `#` are comments:
+The list is a text file with one term per line, optionally followed by its meaning, separated by "=", a colon or a
+Tab (you can copy two columns from a spreadsheet and paste them). Lines starting with `#` are comments:
 
 ```
-PRFAQ：新功能提案文档（先写新闻稿和 FAQ）
-COE：事故复盘文档
-two-way door：可以随时撤回的决定
-抓手：着力点
+PRFAQ = a new-feature proposal: the press release and FAQ, written first
+COE = an incident review
+two-way door = a decision you can undo at any time
 ```
-
-(In English: PRFAQ = new-feature proposal doc, press release and FAQ written first; COE = incident review doc;
-two-way door = a decision you can undo at any time; 抓手 = point of leverage.)
 
 Under "Rewrite Styles → Jargon list" in the settings, click "New" to create an empty list at `~/.config/allinoneime/jargon.txt` and open it;
 if you already have a list file, click "Choose File…" to use it where it is (`jargonFile` in the config). Changes apply right away.
@@ -255,7 +246,7 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
 
 1. Download `AllInOneIME-<version>.dmg` from [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) (only from there) and open it.
 2. Double-click "Install AllInOneIME" in it and click Install. The input method goes into `~/Library/Input Methods`
-   and "AllInOneIME Settings" into `~/Applications` ("AllInOneIME 设置" on a Chinese system). For this user only; no administrator password needed.
+   and "AllInOneIME Settings" into `~/Applications`. For this user only; no administrator password needed.
 3. The installer isn't notarized by Apple yet, so macOS can't verify who made it, and the first time it says it can't verify "Install AllInOneIME":
    click Done (Cancel on macOS 14), open System Settings → Privacy & Security, click Open Anyway near the bottom, and confirm.
    Each new version's installer needs this once.
@@ -263,14 +254,15 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
 After that, AllInOneIME is enabled and in your input sources; switch to it with Ctrl+Space
 (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings → Keyboard).
 If the installer tells you to add it by hand, this Mac doesn't let programs enable it, so add it once yourself:
-System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → Chinese, Simplified → AllInOneIME.
+System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → Chinese, Simplified → AllInOneIME
+(macOS lists it under Chinese because it can type pinyin; it types English just as well).
 
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
 To update, install again from the new version's disk image, without uninstalling first; settings, the jargon list and learned words are kept.
 Before upgrading, read the [changelog](CHANGELOG.md): it has each version's changes and upgrade notes.
 
-If you had AIPinyin (AI 拼音) installed, just install: the old AIPinyin.app and "AI 拼音设置" (its settings launcher) are removed,
+If you had AIPinyin installed (AllInOneIME's earlier name), just install: the old AIPinyin.app and its settings launcher are removed,
 and the entry in your input sources gets the new name, with no need to add it again. Settings, the jargon list and learned words move to the new folders
 (`~/.config/allinoneime` and others) on first launch, and each old folder is left as a link to the new one.
 
@@ -299,7 +291,7 @@ Translations and rewrites use your own AI provider, and the costs go to your acc
 2. Create an access key with the `bedrock:InvokeModelWithResponseStream` permission and put it in a profile in `~/.aws/credentials`.
    Only such static keys are supported for now, not SSO or assume-role.
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
-   Pick the profile, region and model, and click "Test Connection". "Language" at the top of the settings window can be 中文 or English; by default ("System") it follows the system
+   Pick the profile, region and model, and click "Test Connection". "Language" at the top of the settings window can be English or Chinese; by default ("System") it follows the system
    (Chinese if Chinese comes before English in the system's preferred languages, English otherwise). The settings window, the hints in the candidate panel and the input menu all follow it.
 
 <img src="docs/en/settings.png" width="420" alt="The settings window">
@@ -323,19 +315,19 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 | Key | What it does | Default |
 |---|---|---|
-| `inputLanguages` | Input languages, the first is the default: `["zh"]`, `["zh", "en"]`, `["en"]` | `["zh"]` |
-| `outputLanguages` | What `@translate` translates into, in order: `["en", "ja"]`, … | `["en"]` |
+| `inputLanguages` | Input languages, the first is the default: `["en"]`, `["en", "zh"]`, `["zh"]` | `["zh"]` |
+| `outputLanguages` | What `@translate` translates into, in order: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
 | `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
 | `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"`, `"en"` | `null` (follow the system) |
-| `rewriteStyles` | Rewrite styles, e.g. `["润色", "简洁", "黑话"]` (Polish, Concise, Jargon) | `["润色", "简洁", "正式"]` (Polish, Concise, Formal) |
+| `rewriteStyles` | Rewrite styles: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, e.g. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 
 ## Privacy
 
-- Pinyin typing and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
+- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command or press the action key with nothing written after a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
@@ -353,7 +345,7 @@ make test         # unit tests, plus tests that run the real Rime engine
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
-make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # try translation and rewrites in the terminal (styles Concise, Jargon; "I'm not feeling well today")
+make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
 make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized)
 ```
