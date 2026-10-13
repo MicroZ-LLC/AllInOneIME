@@ -1399,7 +1399,11 @@ enum SelfTest {
     static func snapshot(_ name: String, in directory: URL, appearance: NSAppearance.Name = .aqua) {
         let view = CandidatePanel.shared.view
         view.appearance = NSAppearance(named: appearance)
-        defer { view.appearance = nil }
+        view.drawsBackground = true  // nothing behind an offscreen image to blur
+        defer {
+            view.appearance = nil
+            view.drawsBackground = false
+        }
         let url = directory.appendingPathComponent("\(name).png")
         guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
         view.cacheDisplay(in: view.bounds, to: rep)

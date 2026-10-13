@@ -45,6 +45,27 @@ enum PanelShowcase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             MainActor.assumeIsolated {
                 capture("panel.png")
+                // The candidate panel, as under a line being typed at the backdrop's left.
+                panel.closeDropDown()
+                let rows = (chinese ? ["哦", "噢", "喔", "欧", "偶"] : ["oh", "ok", "of", "on", "out"]).enumerated().map {
+                    CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+                }
+                let line = NSRect(x: backdrop.minX + 60, y: backdrop.maxY - 150, width: 2, height: 20)
+                CandidatePanel.shared.appearance = appearance
+                CandidatePanel.shared.show(CandidateView.Model(rows: rows, highlighted: 0,
+                                                               footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands"),
+                                           anchor: line)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+            MainActor.assumeIsolated {
+                capture("candidates.png")
+                CandidatePanel.shared.hide()
+                panel.show(below: anchor)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) {
+            MainActor.assumeIsolated {
                 if case let .list(rows) = panel.tasks, let row = rows.first { panel.showSwiped(.task(row.id)) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                     MainActor.assumeIsolated {

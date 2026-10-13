@@ -233,13 +233,14 @@ screenshots: selftest
 	swift Scripts/make-readme-images.swift "$(OUT)" docs/en en
 
 # The menu bar panel on screen, frosted glass over a colorful window (an offscreen render can't blur):
-# docs/panel-glass.png and docs/panel-swipe.png (a row swiped open), and docs/en/ in English. Shows
+# docs/panel-glass.png, docs/panel-swipe.png (a row swiped open) and docs/candidates-glass.png (the
+# candidate panel), and docs/en/ in English. Shows
 # windows for a few seconds; needs the screen unlocked.
 panel-images: app
 	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs/en
 	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs zh
-	mv docs/en/panel.png docs/en/panel-glass.png
-	mv docs/panel.png docs/panel-glass.png
+	mv docs/en/panel.png docs/en/panel-glass.png && mv docs/en/candidates.png docs/en/candidates-glass.png
+	mv docs/panel.png docs/panel-glass.png && mv docs/candidates.png docs/candidates-glass.png
 
 # Types into a real NSTextView in a separate app through the *installed* input method and the
 # system text input path (switches the input source for the test and restores it afterwards).

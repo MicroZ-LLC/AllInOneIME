@@ -10,6 +10,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- The candidate panel and the menu bar panel use the system's own glass, as its menus do: Liquid Glass on macOS 26 and later (Clear or Tinted, as set in System Settings → Appearance), a frosted material before; both turn solid with Reduce Transparency (Accessibility → Display).
 - The settings window is laid out like System Settings: a sidebar with a search field and pages (General, Input, Translate & Rewrite, Custom Commands, Plugins, Voice Input, AI Provider, Advanced, About), each page's settings in grouped cards. It opens on the page you had last.
 
 ## 0.6.1 (2026-10-12)
