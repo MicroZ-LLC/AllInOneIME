@@ -646,19 +646,23 @@ struct SettingsView: View {
     @ViewBuilder private var generalSection: some View {
         Section {
             // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
-            LabeledContent(tr("执行键", "Action key")) {
+            LabeledContent {
                 HStack(spacing: 8) {
                     KeyRecorder(key: $model.config.actionKey)
                     if model.config.actionKey != .enter {
                         Button(tr("恢复 ⏎", "Use ⏎")) { model.config.actionKey = .enter }
                     }
                 }
+            } label: {
+                titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey))
             }
             .disabled(!model.canSave)
-            Text(Self.actionKeyNote(model.config.actionKey))
-                .font(.caption).foregroundStyle(.secondary)
             // Results typed in character by character, like a person typing.
-            Toggle(tr("逐字上屏", "Type results out"), isOn: $model.config.typeOut)
+            Toggle(isOn: $model.config.typeOut) {
+                titled(tr("逐字上屏", "Type results out"),
+                       tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
+                          "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
+            }
             if model.config.typeOut {
                 // A log scale: from 6 s a character to 40 a second, the slow end as easy to set.
                 LabeledContent(tr("打字速度", "Typing speed")) {
@@ -673,31 +677,20 @@ struct SettingsView: View {
                 }
                 Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
             }
-            Text(tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。打的时候按 Esc 停下，按别的键就把剩下的一次打完。",
-                    "A command's result (a translation, a polish, an answer…) is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
-                .font(.caption).foregroundStyle(.secondary)
-            Toggle(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
-                   isOn: $model.config.claudeInBackground)
-            Text(tr("开着：交给 Claude Code 后台去做，做完弹通知，点通知或用 @tasks 查看；关掉：在终端打开 Claude Code 接着聊。",
-                    "On: Claude Code works in the background and you get a notification when it's done (click it, or @tasks); off: Claude Code opens in Terminal to talk."))
-                .font(.caption).foregroundStyle(.secondary)
-        } header: {
-            // An introduction above the settings, not one of them.
-            Text(commandsSummary)
-                .font(.callout).fontWeight(.regular).foregroundStyle(.secondary)
-                .textCase(nil).fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 4)
+            Toggle(isOn: $model.config.claudeInBackground) {
+                titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
+                       tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk."))
+            }
         }
     }
 
     @ViewBuilder private var menuBarSection: some View {
         Section {
-            Toggle(tr("在菜单栏显示图标", "Show the icon in the menu bar"),
-                   isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
-                .disabled(!model.canSave)
-            Text(tr("点菜单栏的图标，下拉出用 @note 存的笔记、@reminder 加的提醒和后台的 Claude 任务；点别处就收起。",
-                    "Click the menu bar icon for the notes saved with @note, the reminders added with @reminder and the background Claude tasks; a click elsewhere closes it."))
-                .font(.caption).foregroundStyle(.secondary)
+            Toggle(isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) })) {
+                titled(tr("在菜单栏显示图标", "Show in Menu Bar"),
+                       tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away"))
+            }
+            .disabled(!model.canSave)
         } header: {
             SectionTitle(tr("菜单栏面板", "Menu Bar Panel"), icon: CommandIcons.panel)
         }
@@ -707,7 +700,7 @@ struct SettingsView: View {
         Section {
             // The input languages added, in the user's order: the first is the default; with two, Shift
             // switches between them.
-            LabeledContent(tr("输入语言", "Input languages")) {
+            LabeledContent {
                 HStack(spacing: 6) {
                     LanguageChips(items: model.config.inputLanguages, name: AllInOneIMEInputController.inputName,
                                   firstNote: tr("默认", "default"),
@@ -722,11 +715,12 @@ struct SettingsView: View {
                         .fixedSize()
                     }
                 }
+            } label: {
+                titled(tr("输入语言", "Input languages"),
+                       model.config.inputLanguages.count > 1
+                       ? tr("第一个是默认，单按 Shift 切换", "New fields start in the first; tap Shift to switch")
+                       : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
             }
-            Text(model.config.inputLanguages.count > 1
-                 ? tr("拖动排序，第一个是新输入框的默认。单按 Shift 切换中英文。", "Drag to reorder: new text fields start in the first. Tap Shift to switch.")
-                 : tr("只有一种输入语言时 Shift 不切换。", "With one input language, Shift doesn't switch."))
-                .font(.caption).foregroundStyle(.secondary)
         } header: {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
         }
@@ -736,7 +730,7 @@ struct SettingsView: View {
     @ViewBuilder private var translateSection: some View {
         Section {
             // @translate writes a line in each, in this order (three versions with only one).
-            LabeledContent(tr("翻译语言", "Languages")) {
+            LabeledContent {
                 HStack(spacing: 6) {
                     LanguageChips(items: model.config.outputLanguages, name: UIText.name,
                                   firstNote: nil,
@@ -748,10 +742,9 @@ struct SettingsView: View {
                     }
                     .fixedSize()
                 }
+            } label: {
+                titled(tr("翻译语言", "Languages"), tr("每种一行，拖动排序", "A line in each; drag to reorder"))
             }
-            Text(tr("@translate 按这个顺序每种语言出一行（只有一种就出 3 个版本），和原文同一种语言的跳过。拖动排序。",
-                    "@translate writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. Drag to reorder."))
-                .font(.caption).foregroundStyle(.secondary)
         } header: {
             SectionTitle(tr("翻译（@translate）", "Translate (@translate)"), icon: CommandIcons.translate)
         }
@@ -761,7 +754,7 @@ struct SettingsView: View {
     @ViewBuilder private var rewriteSection: some View {
         Section {
             // Like the languages: the styles added, in the order they're shown; drag to reorder.
-            LabeledContent(tr("风格", "Styles")) {
+            LabeledContent {
                 HStack(spacing: 6) {
                     let on = RewriteStyle.resolve(model.config.rewriteStyles)
                     LanguageChips(items: on.map(\.name), name: { RewriteStyle.named($0).map(UIText.name) ?? $0 },
@@ -778,17 +771,16 @@ struct SettingsView: View {
                         .fixedSize()
                     }
                 }
+            } label: {
+                titled(tr("风格", "Styles"), model.config.rewriteStyles.isEmpty
+                       ? tr("没有风格时只出 1–3 行", "With none, lines 1–3 only")
+                       : tr("用你写的语言改写，拖动排序", "In the language you wrote; drag to reorder"))
             }
             .disabled(!model.canSave)
-            Text(model.config.rewriteStyles.isEmpty
-                 ? tr("没有风格时只出 1–3 行。", "With no styles, you get lines 1–3 only.")
-                 : tr("拖动排序，候选里按这个顺序出。改写用原文的语言：打中文出中文改写，打英文出英文改写。",
-                      "Drag to reorder: the candidates follow this order. Rewrites are in the language you typed."))
-                .font(.caption).foregroundStyle(.secondary)
-            Toggle(tr("@improve 同时翻译（等于 @translate @improve）", "@improve also translates (as @translate @improve)"),
-                   isOn: $model.config.improveTranslates)
-                .disabled(!model.canSave)
-            Text(inputSummary).font(.caption).foregroundStyle(.secondary)
+            Toggle(isOn: $model.config.improveTranslates) {
+                titled(tr("@improve 同时翻译", "@improve also translates"), inputSummary)
+            }
+            .disabled(!model.canSave)
         } header: {
             SectionTitle(tr("改写风格（@improve）", "Rewrite Styles (@improve)"), icon: CommandIcons.improve)
         }
@@ -796,21 +788,25 @@ struct SettingsView: View {
 
     @ViewBuilder private var jargonSection: some View {
         Section {
-            LabeledContent(tr("黑话库", "Jargon list")) {
+            LabeledContent {
                 HStack(spacing: 8) {
                     Text(model.jargonExists ? tr("\(model.jargonCount) 个词", "\(model.jargonCount) terms") : tr("未设置", "Not set"))
                         .foregroundStyle(.secondary)
                     Button(tr("选择文件…", "Choose File…")) { model.chooseJargonFile() }
                     Button(model.jargonExists ? tr("打开", "Open") : tr("新建", "New")) { model.openJargonFile() }
                 }
+            } label: {
+                titled(tr("黑话库", "Jargon list"), model.jargonExists ? model.jargonPath : tr("你团队自己的说法", "Your team's own terms"))
             }
             .disabled(!model.canSave)
-            Text(tr("用你自己的词表：文本文件，每行一个词，可以加解释（如 bandwidth：精力、时间）。加了「黑话」风格后模型优先用这些词，候选里会注明意思。",
-                    "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
-                 + (model.jargonExists ? tr("\n文件：", "\nFile: ") + model.jargonPath : ""))
-                .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
         } header: {
             SectionTitle(tr("黑话库", "Jargon List"), icon: CommandIcons.jargon)
+        } footer: {
+            Text(tr("用你自己的词表：文本文件，每行一个词，可以加解释（如 bandwidth：精力、时间）。加了「黑话」风格后模型优先用这些词，候选里会注明意思。",
+                    "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
+                 )
+                .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
     }
 
@@ -839,11 +835,13 @@ struct SettingsView: View {
             Button(tr("添加命令…", "Add Command…")) {
                 commandEdit = CommandEdit(index: nil, command: CustomCommand(name: "", type: .prompt))
             }
+        } header: {
+            SectionTitle(tr("自定义 @ 命令", "Custom @ Commands"), icon: CommandIcons.commands)
+        } footer: {
             Text(tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
                     "Once saved, type @ and its name at the start of any text field, like @improve."))
                 .font(.caption).foregroundStyle(.secondary)
-        } header: {
-            SectionTitle(tr("自定义 @ 命令", "Custom @ Commands"), icon: CommandIcons.commands)
+                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
     }
@@ -889,8 +887,11 @@ struct SettingsView: View {
 
     @ViewBuilder private var voiceSection: some View {
         Section {
-            Toggle(tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"), isOn: $model.config.voiceInput)
-                .disabled(!model.canSave)
+            Toggle(isOn: $model.config.voiceInput) {
+                titled(tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"),
+                       tr("在这台 Mac 上识别，不上传", "Recognized on this Mac, never uploaded"))
+            }
+            .disabled(!model.canSave)
             if VoiceInput.isSupported {
                 ForEach([Language.chinese, .english], id: \.self) { language in
                     LabeledContent(tr("\(language.displayName)语音模型", "\(UIText.name(language)) speech model")) {
@@ -905,14 +906,18 @@ struct SettingsView: View {
                     }
                 }
                 if let error = model.voiceError { Text(error).foregroundStyle(.red) }
-                Text(tr("中文模式说中文，英文模式说英文。语音在这台 Mac 上识别，不上传；识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
-                        "Speak Chinese in Chinese mode and English in English mode. Speech is recognized on this Mac and never uploaded; the text is typed in, or after the @ command you are writing."))
-                    .font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(tr("需要 macOS 26 或更新版本。", "Needs macOS 26 or later.")).font(.caption).foregroundStyle(.secondary)
             }
         } header: {
             SectionTitle(tr("语音输入", "Voice Input"), icon: CommandIcons.voice)
+        } footer: {
+            if VoiceInput.isSupported {
+                Text(tr("中文模式说中文，英文模式说英文。识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
+                        "Speak English in English mode and Chinese in Chinese mode. The text is typed in, or after the @ command you are writing."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+            }
         }
     }
 
@@ -1026,18 +1031,32 @@ struct SettingsView: View {
 
     @ViewBuilder private var filesSection: some View {
         Section {
-            HStack {
-                Button(tr("打开配置文件", "Open Config File")) { NSWorkspace.shared.open(model.configURL) }
-                Button(tr("打开 Rime 用户目录", "Open Rime User Folder")) {
-                    NSWorkspace.shared.open(RimeDirectories.user)
-                }
-            }
             let path = (model.configURL.path as NSString).abbreviatingWithTildeInPath
-            Text(tr("所有设置都存在 \(path)，改完立即生效。", "All settings are stored in \(path) and apply right away."))
-                .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            LabeledContent {
+                Button(tr("打开", "Open")) { NSWorkspace.shared.open(model.configURL) }
+            } label: {
+                titled(tr("配置文件", "Config file"), path)
+            }
+            LabeledContent {
+                Button(tr("打开", "Open")) { NSWorkspace.shared.open(RimeDirectories.user) }
+            } label: {
+                titled(tr("Rime 用户目录", "Rime user folder"), tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings"))
+            }
             if let saveError = model.saveError {
                 Text(saveError).foregroundStyle(.red)
             }
+        } footer: {
+            Text(tr("改完立即生效，不用重启。", "Changes apply right away, with no restart."))
+                .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+        }
+    }
+
+    /// A row's title with a short explanation under it, as System Settings shows them.
+    private func titled(_ title: String, _ note: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1056,15 +1075,25 @@ struct SettingsView: View {
                         .accessibilityLabel(tr("清除搜索", "Clear the search"))
                 }
             }
-            .padding(.horizontal, 10).padding(.vertical, 6)
-            .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.75)))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+            .padding(.horizontal, 12)
             let shown = SettingsPage.allCases.filter { $0.matches(query) }
             List(selection: Binding(get: { page }, set: { if let new = $0 { page = new } })) {
-                ForEach(shown) { item in
-                    Label { Text(item.title) } icon: { IconTile(icon: item.icon, size: 22) }
-                        .padding(.vertical, 2)
-                        .tag(item)
+                // In groups, like System Settings: what you type with, what it runs, the rest.
+                ForEach(SettingsPage.groups, id: \.self) { group in
+                    let items = group.filter(shown.contains)
+                    if !items.isEmpty {
+                        Section {
+                            ForEach(items) { item in
+                                Label { Text(item.title).font(.system(size: 13.5)) } icon: { IconTile(icon: item.icon, size: 24) }
+                                    .padding(.vertical, 3)
+                                    .tag(item)
+                            }
+                        }
+                    }
                 }
             }
             .listStyle(.sidebar)
@@ -1084,9 +1113,10 @@ struct SettingsView: View {
     @ViewBuilder private var fuzzySection: some View {
         if model.config.inputLanguages.contains(.chinese) {
             Section {
-                Toggle(tr("允许模糊音", "Allow fuzzy pinyin"),
-                       isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
-                                     set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) }))
+                Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
+                                     set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
+                    titled(tr("允许模糊音", "Allow fuzzy pinyin"), tr("比如 zh 和 z、n 和 l 不分", "For sounds you don't tell apart, like zh and z"))
+                }
                 if !model.config.fuzzyPinyin.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)], alignment: .leading, spacing: 8) {
                         ForEach(FuzzyPinyin.pairs) { pair in
@@ -1103,11 +1133,13 @@ struct SettingsView: View {
                           systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
+            } header: {
+                SectionTitle(tr("模糊音", "Fuzzy Pinyin"), icon: CommandIcons.input)
+            } footer: {
                 Text(tr("分不清的音两种拼法都能打出来，比如 z ↔ zh：打 zi 也有「之」，打 zhi 也有「字」。改完词库会重新部署，一两秒。",
                         "Sounds you don't tell apart can be typed either way, e.g. z ↔ zh: zi also offers 之, zhi also offers 字. The dictionaries are deployed again after a change, in a second or two."))
                     .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("模糊音", "Fuzzy Pinyin"), icon: CommandIcons.input)
+                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
             }
             .disabled(!model.canSave)
         }
@@ -1123,6 +1155,8 @@ struct SettingsView: View {
                     Text(tr("版本 \(version)", "Version \(version)")).foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 Text("© 2026 MicroZ LLC · GPL-3.0").font(.caption).foregroundStyle(.secondary)
+                Text(commandsSummary).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
@@ -1169,6 +1203,9 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
+            // A white page under light gray cards, as in Raycast and System Settings (dark in dark mode).
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
             .id(page)  // a page starts at its top
         }
         .navigationSplitViewStyle(.balanced)
@@ -1955,11 +1992,22 @@ struct IconTile: View {
     var size: CGFloat = 20
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
         Image(systemName: icon.symbol)
-            .font(.system(size: size * 0.55, weight: .semibold))
+            .font(.system(size: size * 0.52, weight: .semibold))
             .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.15), radius: 0.5, y: 0.5)
             .frame(width: size, height: size)
-            .background(Color(nsColor: icon.color), in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+            .background {
+                // A little depth, like the icons of System Settings: lighter at the top, a fine edge.
+                ZStack {
+                    shape.fill(Color(nsColor: icon.color))
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0), .black.opacity(0.08)],
+                                              startPoint: .top, endPoint: .bottom))
+                }
+            }
+            .overlay(shape.strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.12), radius: 1, y: 0.5)
             .accessibilityHidden(true)
     }
 }
@@ -1976,7 +2024,7 @@ private struct SectionTitle: View {
 
     // Plain, like System Settings: the page's icon is in the sidebar.
     var body: some View {
-        Text(title).font(.headline).foregroundStyle(.primary)
+        Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.primary).padding(.top, 6)
     }
 }
 
@@ -1986,6 +2034,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     case general, input, writing, commands, plugins, voice, provider, advanced, about
 
     var id: String { rawValue }
+
+    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice], [.commands, .plugins, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
