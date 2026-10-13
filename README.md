@@ -192,6 +192,7 @@ What it reads, and when:
 In the settings:
 
 - **Input languages**: English, Chinese (pinyin), or both. A new install starts with Chinese only: to write English, add English and remove Chinese (or drag English first). New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
+- **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. Turn on "Allow fuzzy pinyin" under Input and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
 - **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install has English only.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
@@ -326,6 +327,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rewriteStyles` | Rewrite styles: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, e.g. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
+| `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
 
 ## Privacy
 

@@ -2,6 +2,16 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Added
+
+- Fuzzy pinyin: with Chinese input, turn on "Allow fuzzy pinyin" under Input and pick the pairs you don't tell apart (z ↔ zh, c ↔ ch, s ↔ sh, n ↔ l, f ↔ h, r ↔ l, an ↔ ang, en ↔ eng, in ↔ ing, ian ↔ iang, uan ↔ uang): either spelling then finds the word. Applied in a second or two; a `rime_ice.custom.yaml` of your own in the Rime user folder is never written over.
+
+### Changed
+
+- The settings window is laid out like System Settings: a sidebar with a search field and pages (General, Input, Translate & Rewrite, Custom Commands, Plugins, Voice Input, AI Provider, Advanced, About), each page's settings in grouped cards. It opens on the page you had last.
+
 ## 0.6.1 (2026-10-12)
 
 ### Changed

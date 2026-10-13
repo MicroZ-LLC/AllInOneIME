@@ -266,8 +266,8 @@ enum SelfTest {
         config.setOrder([Language.chinese, .english])
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model))
-        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 560, height: 1700),
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))  // its chips' page
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
         window.contentView = host
@@ -392,32 +392,10 @@ enum SelfTest {
             }
             preview.runTest()
             _ = pump(timeout: 20) { preview.testStatus != .running }
-            let host = NSHostingView(rootView: SettingsView(model: preview))
-            // Shorter than the form, so the window below grows to its exact height (no empty space).
-            var size = NSSize(width: 560, height: 1200)
-            let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: size.width, height: size.height),
-                                  styleMask: [.titled], backing: .buffered, defer: false)
-            window.alphaValue = 0
-            window.appearance = NSAppearance(named: .aqua)  // README images are light, whatever the Mac uses
-            window.contentView = host
-            host.layoutSubtreeIfNeeded()
-            _ = pump(timeout: 0.5) { false }
-            // The form scrolls in its window: taller than that, the window grows so nothing is cut off.
-            for _ in 0..<3 {
-                guard let height = scrolledHeight(host)?.rounded(.up), height > size.height else { break }
-                size.height = height
-                window.setContentSize(size)
-                host.layoutSubtreeIfNeeded()
-                _ = pump(timeout: 0.3) { false }
+            // The AI provider page, with the connection test's result: what the README's setup shows.
+            SettingsImage.render(preview, page: .provider, to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
+                _ = pump(timeout: seconds) { false }
             }
-            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
-                host.cacheDisplay(in: host.bounds, to: rep)
-                if let png = rep.representation(using: .png, properties: [:]) {
-                    try? png.write(to: snapshotDirectory.appendingPathComponent("\(name).png"))
-                    print("  snapshot \(snapshotDirectory.path)/\(name).png (\(Int(size.width))×\(Int(size.height)))")
-                }
-            }
-            window.close()
         }
         render("6-settings", chinese: true)  // README
         render("6-settings-en", chinese: false)  // README (docs/en)

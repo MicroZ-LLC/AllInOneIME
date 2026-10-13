@@ -83,3 +83,22 @@ enum PanelShowcase {
         }
     }
 }
+
+/// `AllInOneIME --settings-image OUT-DIR [zh] [dark]`: every page of the settings window drawn offscreen,
+/// `settings-<page>.png`, from the config file as it is (nothing is saved).
+@MainActor
+enum SettingsPageImages {
+    static func run(output: URL, chinese: Bool, dark: Bool) -> Never {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        UIText.choice = chinese ? .chinese : .english
+        let model = SettingsModel(configURL: Config.defaultURL, persists: false)
+        model.profileShownAs = "default"  // not the user's own profile name
+        for page in SettingsPage.allCases {
+            SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
+                                 appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        }
+        exit(0)
+    }
+}

@@ -436,6 +436,21 @@ extension SelfTest {
         preview.setMenuBarIcon(false)
         check(applied == [false, true] && (try? Config.load(from: url))?.menuBarIcon == true, "…and shows it again; a preview does neither")
 
+        // Fuzzy pinyin: saved in the catalog's order and applied (Rime deployed again); the user's own Rime file reported.
+        var fuzzyApplied: [[String]] = []
+        model.applyFuzzyPinyin = { ids in
+            fuzzyApplied.append(ids)
+            return ids.contains("n-l") ? .userFile : .written
+        }
+        model.setFuzzyPinyin(SettingsModel.fuzzyDefaults)
+        check(fuzzyApplied == [SettingsModel.fuzzyDefaults] && !model.fuzzyBlocked
+              && (try? Config.load(from: url))?.fuzzyPinyin == SettingsModel.fuzzyDefaults, "turning fuzzy pinyin on saves and applies the usual pairs")
+        model.setFuzzy("n-l", on: true)
+        check(model.config.fuzzyPinyin == ["z-zh", "c-ch", "s-sh", "n-l", "en-eng", "in-ing"] && model.fuzzyBlocked,
+              "a pair added in the catalog's order; the user's own rime_ice.custom.yaml is reported")
+        model.setFuzzyPinyin([])
+        check(fuzzyApplied.last == [] && (try? Config.load(from: url))?.fuzzyPinyin == [], "…and off again")
+
         // Closed: a note saved with @note is recorded all the same; nothing else runs.
         let (kept, readsBefore) = (SavedNotesStore.load(stand.defaults).notes.count, stand.reminderReads)
         post(.allInOneIMENoteSaved, ["id": "x-coredata://sample/p4", "title": "x"])

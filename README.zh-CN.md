@@ -180,6 +180,7 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 在设置里：
 
 - **输入语言**：中文（拼音）、英文，或者两个都要。拖动排序，第一个是新输入框的默认；有两个时单按 Shift 切换，只有一个时 Shift 不切换。新用户只有中文。
+- **模糊音**（中文输入时）：分不清的音两种拼法都能打出来，比如 z ↔ zh、n ↔ l、in ↔ ing。在「输入」里打开「允许模糊音」，再勾要的几组；改完词库重新部署，一两秒。它写的是 Rime 用户目录里的 `rime_ice.custom.yaml`，那里如果有你自己的这个文件，不会覆盖。
 - **翻译（@translate）**：加你要翻译成的语言（英文、日语、韩语、法语、繁体中文…），拖动排序。`@translate` 按这个顺序每种语言出一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。新用户只有英文。
 - `@improve` 只润色、给改写风格，不翻译；`@translate @improve` 写在一起，一次请求同时翻译和改写。设置里打开「@improve 同时翻译」，`@improve` 就一直这样。
 
@@ -313,6 +314,7 @@ make install
 | `rewriteStyles` | 改写风格，例如 `["润色", "简洁", "黑话"]` | `["润色", "简洁", "正式"]` |
 | `jargonFile` | 你自己的黑话词表文件 | `null`（即 `~/.config/allinoneime/jargon.txt`） |
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
+| `fuzzyPinyin` | 模糊音：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 
 ## 隐私
 

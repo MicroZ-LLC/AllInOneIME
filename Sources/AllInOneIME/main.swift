@@ -34,6 +34,32 @@ enum RimeDirectories {
     }
 }
 
+/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on.
+enum RimeFuzzy {
+    /// Writes (or removes) the patch; nil when it couldn't. `.written` and `.removed` need a deployment.
+    @discardableResult
+    static func write(_ ids: [String]) -> FuzzyPinyin.Outcome? {
+        guard let shared = RimeDirectories.shared else { return nil }
+        do {
+            let outcome = try FuzzyPinyin.apply(ids, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
+                                                userDir: RimeDirectories.user)
+            if outcome == .userFile { log.notice("fuzzy pinyin not applied: the Rime folder has the user's own \(FuzzyPinyin.fileName, privacy: .public)") }
+            return outcome
+        } catch {
+            log.error("could not write the fuzzy pinyin patch: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    /// Changed in the settings: written, and Rime deployed again when it changed (about a second).
+    @discardableResult
+    static func apply(_ ids: [String]) -> FuzzyPinyin.Outcome? {
+        let outcome = write(ids)
+        if outcome == .written || outcome == .removed { RimeService.shared.redeploy() }
+        return outcome
+    }
+}
+
 /// Opens the settings window when the input method is "opened" again (the AllInOneIME Settings app does
 /// that). The text input system never sends reopen events, so typing is unaffected.
 final class IMEAppDelegate: NSObject, NSApplicationDelegate {
@@ -73,8 +99,11 @@ func runServer(showSettings: Bool = false) -> Never {
     }
     if let shared = RimeDirectories.shared, FileManager.default.fileExists(atPath: shared.path) {
         do {
+            // The fuzzy pinyin patch as the config has it, before the first deployment (a full one when it changed).
+            let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
             try RimeService.shared.start(
-                sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs)
+                sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
+                fullCheck: fuzzy == .written || fuzzy == .removed)
             RimeReadinessLogger.shared.start()
         } catch {
             log.fault("could not start Rime: \(String(describing: error), privacy: .public)")
@@ -116,8 +145,11 @@ func prepareDictionaries() {
     }
     let started = Date()
     do {
+        // The fuzzy pinyin patch as the config has it, before the first deployment (a full one when it changed).
+        let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
         try RimeService.shared.start(
-            sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs)
+            sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
+            fullCheck: fuzzy == .written || fuzzy == .removed)
     } catch {
         printError("could not start Rime: \(error)")
         return
@@ -295,6 +327,11 @@ case "--selftest":
 case "--showcase":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-showcase")
     MainActor.assumeIsolated { PanelShowcase.run(output: directory, dark: arguments.contains("dark"), chinese: arguments.contains("zh")) }
+case "--settings-image":
+    let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
+    MainActor.assumeIsolated {
+        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"))
+    }
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)
