@@ -765,6 +765,9 @@ final class FloatingPanel: ObservableObject {
         action()
     }
 
+    /// `row` swiped open, its 「移除」 button showing (`--showcase`'s image).
+    func showSwiped(_ row: PanelRow) { (swipedRow, swipeOffset) = (row, -RowSwipe.buttonWidth) }
+
     func closeSwipe() {
         guard swipedRow != nil else { return }
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { (swipedRow, swipeOffset) = (nil, 0) }
