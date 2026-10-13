@@ -2,6 +2,16 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.1 (2026-10-12)
+
+### Changed
+
+- The plugin library comes from `plugins.allinoneime.com` (the same signed files as before), and the settings window and the DMG's read-me link to allinoneime.com.
+
+### Fixed
+
+- `@imessage` still ran `@py`, `@js` and custom run commands inside pasted or dictated text; they stay text there now, as everywhere else, with a notice.
+
 ## 0.6.0 (2026-10-12)
 
 ### Added
@@ -14,7 +24,6 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - An API key goes only to the service it was saved for: switching a provider's base URL to another service (a relay) no longer sends it the key saved for the one before; save the key again for the new one. A key saved before this version is tied to the first service it's used with. A base URL over plain `http://` is refused unless it's this Mac or the local network (Ollama, LM Studio).
 - Commands that run code (`@py`, `@js`, custom run commands) inside pasted, dictated or given-back text stay text, with a notice: copying a web page with `@py …` in it no longer runs it. `@calculate` and plugin commands still run.
-- The plugin library comes from `plugins.allinoneime.com` (the same signed files as before), and the settings window links to allinoneime.com.
 
 ### Fixed
 
