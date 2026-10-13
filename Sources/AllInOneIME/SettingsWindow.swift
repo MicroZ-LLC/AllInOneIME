@@ -706,7 +706,8 @@ struct SettingsView: View {
                 HStack(spacing: 6) {
                     LanguageChips(items: model.config.inputLanguages, name: AllInOneIMEInputController.inputName,
                                   firstNote: tr("默认", "default"),
-                                  reorder: { model.config.setOrder($0) }, remove: removeInputLanguage)
+                                  reorder: { model.config.setOrder($0) }, remove: removeInputLanguage,
+                                  selected: shownInput, select: { inputTab = $0 })
                     let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
                     if !missing.isEmpty {
                         Menu(tr("添加…", "Add…")) {
@@ -718,19 +719,11 @@ struct SettingsView: View {
                     }
                 }
             } label: {
+                // The chips are tabs too: a click shows that language's settings in the card below.
                 titled(tr("输入语言", "Input languages"),
                        model.config.inputLanguages.count > 1
-                       ? tr("第一个是默认，单按 Shift 切换", "New fields start in the first; tap Shift to switch")
-                       : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
-            }
-            // Each language has settings of its own: pick one, they show in the card below.
-            LabeledContent(tr("各语言设置", "Language settings")) {
-                Picker("", selection: Binding(get: { shownInput }, set: { inputTab = $0 })) {
-                    ForEach(model.config.inputLanguages, id: \.self) { language in
-                        Text(AllInOneIMEInputController.inputName(language)).tag(language)
-                    }
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                       ? tr("最左边是默认，拖动换位置；点一个看它的设置。单按 Shift 切换", "The first is the default: drag to reorder, click one for its settings. Tap Shift to switch")
+                       : tr("点它看它的设置。只有一种时 Shift 不切换", "Click it for its settings. With one, Shift doesn't switch"))
             }
         } header: {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
@@ -1827,6 +1820,9 @@ private struct LanguageChips<Item: Hashable>: View {
     var keepsOne = true
     let reorder: ([Item]) -> Void
     let remove: (Item) -> Void
+    /// Chips that are also tabs: the one whose settings show (highlighted), and a click picks another.
+    var selected: Item? = nil
+    var select: ((Item) -> Void)? = nil
     @State private var frames: [Item: CGRect] = [:]
     @State private var dragging: Item?
     @State private var offset: CGFloat = 0
@@ -1844,6 +1840,7 @@ private struct LanguageChips<Item: Hashable>: View {
                     .opacity(dragging == item ? 0.8 : 1)
             }
         }
+        .padding(1)  // room for the picked chip's outline
         .onPreferenceChange(ChipFrames.self) { all in
             frames = Dictionary(uniqueKeysWithValues: all.compactMap { key, frame in (key.base as? Item).map { ($0, frame) } })
         }
@@ -1853,14 +1850,17 @@ private struct LanguageChips<Item: Hashable>: View {
     private func chip(_ item: Item) -> some View {
         let first = item == items.first && firstNote != nil
         let label = first && items.count > 1 ? name(item) + " · " + (firstNote ?? "") : name(item)
+        let picked = select != nil && item == selected
         return HStack(spacing: 2) {
-            Text(label).foregroundStyle(first ? .primary : .secondary)
+            Text(label).foregroundStyle(picked || first ? .primary : .secondary)
                 .overlay {
-                    if items.count > 1 {
-                        DragHandle(onChanged: { dx in
+                    if items.count > 1 || select != nil {
+                        DragHandle(onTap: { select?(item) }, onChanged: { dx in
+                            guard items.count > 1 else { return }
                             dragging = item
                             offset = dx
                         }, onEnded: { x in
+                            guard items.count > 1 else { return }
                             let moved = ChipOrder.moved(item, in: items, to: x, midX: { frames[$0]?.midX })
                             dragging = nil
                             offset = 0
@@ -1876,26 +1876,32 @@ private struct LanguageChips<Item: Hashable>: View {
             }
         }
         .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
+        .background(picked ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
+        .overlay(Capsule().strokeBorder(picked ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1))
+        .accessibilityAddTraits(picked ? .isSelected : [])
         .help(firstNote.map { tr("拖动排序，第一个是\($0)", "Drag to reorder; the first is \($0)") } ?? tr("拖动排序", "Drag to reorder"))
     }
 }
 
 /// Tracks a mouse drag itself (its own event loop from mouseDown to mouseUp), so the table view under
 /// the Form never sees it: reports the horizontal distance while dragging and the pointer's x in the
-/// window where it's let go. A click without moving does nothing.
+/// window where it's let go. A click without moving is a tap.
 private struct DragHandle: NSViewRepresentable {
+    /// A click without moving.
+    var onTap: () -> Void = {}
     var onChanged: (CGFloat) -> Void
     var onEnded: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> HandleView { HandleView() }
 
     func updateNSView(_ view: HandleView, context: Context) {
+        view.onTap = onTap
         view.onChanged = onChanged
         view.onEnded = onEnded
     }
 
     final class HandleView: NSView {
+        var onTap: (() -> Void)?
         var onChanged: ((CGFloat) -> Void)?
         var onEnded: ((CGFloat) -> Void)?
 
@@ -1909,7 +1915,7 @@ private struct DragHandle: NSViewRepresentable {
             while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
                 let dx = next.locationInWindow.x - start
                 if next.type == .leftMouseUp {
-                    if moved { onEnded?(next.locationInWindow.x) }
+                    if moved { onEnded?(next.locationInWindow.x) } else { onTap?() }
                     break
                 }
                 if abs(dx) > 3 { moved = true }
