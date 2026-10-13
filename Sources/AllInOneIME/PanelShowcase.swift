@@ -116,6 +116,9 @@ enum SettingsPageImages {
         UIText.choice = chinese ? .chinese : .english
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.profileShownAs = "default"  // not the user's own profile name
+        // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
+        if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
+        if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
         for page in SettingsPage.allCases {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }

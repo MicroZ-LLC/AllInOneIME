@@ -806,7 +806,7 @@ struct SettingsView: View {
                     "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
                  )
                 .font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
     }
 
@@ -841,7 +841,7 @@ struct SettingsView: View {
             Text(tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
                     "Once saved, type @ and its name at the start of any text field, like @improve."))
                 .font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
     }
@@ -916,7 +916,7 @@ struct SettingsView: View {
                 Text(tr("中文模式说中文，英文模式说英文。识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
                         "Speak English in English mode and Chinese in Chinese mode. The text is typed in, or after the @ command you are writing."))
                     .font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
             }
         }
     }
@@ -1048,7 +1048,7 @@ struct SettingsView: View {
         } footer: {
             Text(tr("改完立即生效，不用重启。", "Changes apply right away, with no restart."))
                 .font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
     }
 
@@ -1144,7 +1144,7 @@ struct SettingsView: View {
                 Text(tr("分不清的音两种拼法都能打出来，比如 z ↔ zh：打 zi 也有「之」，打 zhi 也有「字」。改完词库会重新部署，一两秒。",
                         "Sounds you don't tell apart can be typed either way, e.g. z ↔ zh: zi also offers 之, zhi also offers 字. The dictionaries are deployed again after a change, in a second or two."))
                     .font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
             }
             .disabled(!model.canSave)
         }

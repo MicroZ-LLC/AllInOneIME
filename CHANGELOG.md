@@ -2,7 +2,7 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
-## Unreleased
+## 0.6.1 (2026-10-12)
 
 ### Added
 
@@ -12,11 +12,6 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - The candidate panel and the menu bar panel use the system's own glass, as its menus do: Liquid Glass on macOS 26 and later (Clear or Tinted, as set in System Settings → Appearance), a frosted material before; both turn solid with Reduce Transparency (Accessibility → Display).
 - The settings window is laid out like System Settings: a sidebar with a search field and pages (General, Input, Translate & Rewrite, Custom Commands, Plugins, Voice Input, AI Provider, Advanced, About), each page's settings in grouped cards. It opens on the page you had last.
-
-## 0.6.1 (2026-10-12)
-
-### Changed
-
 - The plugin library comes from `plugins.allinoneime.com` (the same signed files as before), and the settings window and the DMG's read-me link to allinoneime.com.
 - The English README and its screenshots are in English throughout: typing English, translating into Spanish, French and German.
 
