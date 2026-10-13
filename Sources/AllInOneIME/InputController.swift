@@ -1369,7 +1369,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 case let .rewrite(style):
                     // A jargon (黑话) line notes what the terms from the user's jargon list in it mean.
                     let note = style == RewriteStyle.jargonName
-                        ? JargonLibrary.annotation(for: choice.text, entries: LiveJargon.entries(for: config)) : nil
+                        ? JargonLibrary.annotation(for: choice.text, entries: LiveJargon.entries(for: config), chinese: UIText.chinese) : nil
                     let name = RewriteStyle.named(style).map(UIText.name) ?? style
                     return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
                                              comment: note.map { "\(name) · \($0)" } ?? name,

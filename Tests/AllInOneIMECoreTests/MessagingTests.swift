@@ -228,6 +228,28 @@ extension ComposerTests {
         #expect(sends(sent.effects) == [.sendMessage(zhang, text: "Apple Inc. AAPL 336.64 USD", command: .imessage)] && commits(sent).isEmpty)
     }
 
+    @Test func imessagePastedCodeCommandsStayText() {
+        // As everywhere else: in pasted text, commands that run code don't run; @calculate does.
+        let (c, _) = imessage()
+        c.commands = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+        _ = c.handleKeyDown(tab)
+        paste("@py「import os」 @stock AAPL @calculate 2*3", into: c)
+        let run = c.handleKeyDown(enterKey)
+        guard case let .startPlan(outer, plan, _)? = run.effects.first else {
+            Issue.record("expected a plan, got \(run.effects)")
+            return
+        }
+        #expect(outer == .imessage && plan.inner.map(\.command.name) == ["calculate"])
+        #expect(run.effects.contains(.notice(c.messages.codeNotRun)) && sends(run.effects).isEmpty)
+        // Nothing else to run: the message is shown as it is, to confirm, with the notice.
+        let (d, _) = imessage()
+        _ = d.handleKeyDown(tab)
+        paste("@js 1+1", into: d)
+        let shown = d.handleKeyDown(enterKey)
+        #expect(d.phase == .choosing && d.choices.first?.text == "@js 1+1" && d.choices.first?.kind == .send)
+        #expect(shown.effects.contains(.notice(d.messages.codeNotRun)) && sends(shown.effects).isEmpty)
+    }
+
     @Test func imessageSendsSearchResultsAsTheList() async throws {
         let (c, _) = imessage()
         _ = c.handleKeyDown(tab)

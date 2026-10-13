@@ -765,6 +765,9 @@ final class FloatingPanel: ObservableObject {
         action()
     }
 
+    /// `row` swiped open, its 「移除」 button showing (`--showcase`'s image).
+    func showSwiped(_ row: PanelRow) { (swipedRow, swipeOffset) = (row, -RowSwipe.buttonWidth) }
+
     func closeSwipe() {
         guard swipedRow != nil else { return }
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { (swipedRow, swipeOffset) = (nil, 0) }
@@ -948,23 +951,27 @@ struct FloatingPanelView: View {
         .frame(width: FloatingPanel.width)
         .background {
             ZStack {
-                if Self.glass { GlassView() } else { Color(nsColor: CandidateView.background) }
-                // Light falling on the glass from above.
-                LinearGradient(colors: [.white.opacity(dark ? 0.07 : 0.28), .white.opacity(0)],
-                               startPoint: .top, endPoint: .center)
+                if Self.glass { GlassView(cornerRadius: Self.cornerRadius) } else { Color(nsColor: CandidateView.background) }
+                // Light falling on the glass from above (Liquid Glass lights itself).
+                if !GlassView.isLiquid {
+                    LinearGradient(colors: [.white.opacity(dark ? 0.07 : 0.28), .white.opacity(0)],
+                                   startPoint: .top, endPoint: .center)
+                }
             }
         }
         .clipShape(shape)
-        .overlay(
+        .overlay {
             // A bright upper edge fading downwards, the edge of a glass pane, over a hairline that keeps it
-            // apart from a background of the same color.
-            ZStack {
-                shape.strokeBorder(Color.black.opacity(dark ? 0.5 : 0.1), lineWidth: 0.5)
-                shape.strokeBorder(LinearGradient(colors: [.white.opacity(dark ? 0.28 : 0.75), .white.opacity(dark ? 0.04 : 0.2)],
-                                                  startPoint: .top, endPoint: .bottom), lineWidth: 1)
-                    .padding(0.5)
+            // apart from a background of the same color (Liquid Glass draws its own edge).
+            if !GlassView.isLiquid || !Self.glass {
+                ZStack {
+                    shape.strokeBorder(Color.black.opacity(dark ? 0.5 : 0.1), lineWidth: 0.5)
+                    shape.strokeBorder(LinearGradient(colors: [.white.opacity(dark ? 0.28 : 0.75), .white.opacity(dark ? 0.04 : 0.2)],
+                                                      startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                        .padding(0.5)
+                }
             }
-        )
+        }
         .onPreferenceChange(ListHeightKey.self) { height in
             // Collapsed, the lists are gone: their height is kept for when they're back.
             MainActor.assumeIsolated { panel.listHeight = height }
@@ -1252,9 +1259,22 @@ struct FloatingPanelView: View {
     }
 }
 
-/// The panel's frosted glass: the windows behind it, blurred, in the light or dark mode's tint.
+/// The panel's glass, the system's own like the candidate panel's: Liquid Glass on macOS 26 (Clear or
+/// Tinted, as set in Appearance), a frosted material before; both solid with Reduce Transparency.
 private struct GlassView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
+    var cornerRadius: CGFloat
+
+    static var isLiquid: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = cornerRadius
+            return glass
+        }
         let view = NSVisualEffectView()
         view.material = .hudWindow
         view.blendingMode = .behindWindow
@@ -1262,7 +1282,7 @@ private struct GlassView: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ view: NSView, context: Context) {}
 }
 
 /// A soft highlight under the pointer.

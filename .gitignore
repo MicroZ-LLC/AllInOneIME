@@ -7,3 +7,6 @@ xcuserdata/
 # librime release + rime-ice data, downloaded and checksummed by `make deps`
 ThirdParty/
 
+
+# wrangler (site/): its local cache
+.wrangler/

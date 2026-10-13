@@ -335,4 +335,31 @@ struct RimeEngineTests {
         type("nihao", into: fresh)
         #expect(fresh.snapshot().candidates.first?.text == "你好")
     }
+
+    /// Fuzzy pinyin: with n ↔ l, "lan" also offers the nan words (难, 南, 男); off again, it doesn't.
+    @Test func fuzzyPinyinWithTheRealEngine() throws {
+        _ = try RimeFixture.startup.get()
+        let schema = RimeFixture.sharedData.appendingPathComponent("rime_ice.schema.yaml")
+        func candidates(_ input: String) throws -> [String] {
+            let s = try RimeFixture.session()
+            type(input, into: s)
+            return s.snapshot().candidates.map(\.text)
+        }
+        let nan: Set = ["难", "南", "男"]
+        defer {
+            _ = try? FuzzyPinyin.apply([], schema: schema, userDir: RimeFixture.userData)
+            RimeService.shared.redeploy()
+            RimeService.shared.waitUntilReady(timeout: 120)
+        }
+        #expect(try FuzzyPinyin.apply(["n-l"], schema: schema, userDir: RimeFixture.userData) == .written)
+        RimeService.shared.redeploy()
+        #expect(RimeService.shared.waitUntilReady(timeout: 120))
+        let fuzzy = try candidates("lan")
+        #expect(fuzzy.contains { nan.contains($0) }, "lan with n ↔ l: \(fuzzy)")
+        #expect(try FuzzyPinyin.apply([], schema: schema, userDir: RimeFixture.userData) == .removed)
+        RimeService.shared.redeploy()
+        #expect(RimeService.shared.waitUntilReady(timeout: 120))
+        let plain = try candidates("lan")
+        #expect(!plain.contains { nan.contains($0) }, "lan without fuzzy pinyin: \(plain)")
+    }
 }

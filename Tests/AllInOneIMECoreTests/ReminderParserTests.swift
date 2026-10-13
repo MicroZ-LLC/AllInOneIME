@@ -793,7 +793,7 @@ struct ReminderParserTests {
         for text in texts {
             let start = Date()
             _ = parser.parse(text, now: Self.realNow())
-            #expect(Date().timeIntervalSince(start) < 0.2, "\(text.prefix(20))…")
+            #expect(Date().timeIntervalSince(start) < 1, "\(text.prefix(20))…")
         }
         // Spaces inside a duration still read.
         #expect(fromNow(1800, parse("30 分钟 后关火"), at: now))

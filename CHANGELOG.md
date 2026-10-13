@@ -2,6 +2,26 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.1 (2026-10-12)
+
+### Added
+
+- Fuzzy pinyin: on the Input page, pick Chinese (pinyin) in the bar of input languages, turn on "Fuzzy pinyin" and pick the pairs you don't tell apart (z ↔ zh, c ↔ ch, s ↔ sh, n ↔ l, f ↔ h, r ↔ l, an ↔ ang, en ↔ eng, in ↔ ing, ian ↔ iang, uan ↔ uang): either spelling then finds the word. Applied in a second or two; a `rime_ice.custom.yaml` of your own in the Rime user folder is never written over.
+
+### Changed
+
+- The candidate panel and the menu bar panel use the system's own glass, as its menus do: Liquid Glass on macOS 26 and later (Clear or Tinted, as set in System Settings → Appearance), a frosted material before; both turn solid with Reduce Transparency (Accessibility → Display).
+- The settings window is laid out like System Settings: a sidebar with a search field and pages (General, Input, Translate & Rewrite, Custom Commands, Plugins, Voice Input, AI Provider, Advanced, About), each page's settings in grouped cards. It opens on the page you had last.
+- The plugin library comes from `plugins.allinoneime.com` (the same signed files as before), and the settings window and the DMG's read-me link to allinoneime.com.
+- The English README and its screenshots are in English throughout: typing English, translating into Spanish, French and German.
+
+### Fixed
+
+- `@imessage` still ran `@py`, `@js` and custom run commands inside pasted or dictated text; they stay text there now, as everywhere else, with a notice.
+- With `@translate @improve` (or "@improve also translates") into languages such as Spanish, French and German, the rewrites came back translated: the Polish style even in the Polish language. They're in the language you wrote again.
+- With English as the only input language, the settings window no longer calls itself a pinyin input method, and Test Connection tries an English sentence.
+- In an English interface, the Jargon line's note on your terms uses plain punctuation ("bandwidth = time and energy").
+
 ## 0.6.0 (2026-10-12)
 
 ### Added

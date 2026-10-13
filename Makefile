@@ -27,7 +27,7 @@ RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
 RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
 
-.PHONY: all deps build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -231,6 +231,16 @@ selftest: app
 screenshots: selftest
 	swift Scripts/make-readme-images.swift "$(OUT)" docs
 	swift Scripts/make-readme-images.swift "$(OUT)" docs/en en
+
+# The menu bar panel on screen, frosted glass over a colorful window (an offscreen render can't blur):
+# docs/panel-glass.png, docs/panel-swipe.png (a row swiped open) and docs/candidates-glass.png (the
+# candidate panel), and docs/en/ in English. Shows
+# windows for a few seconds; needs the screen unlocked.
+panel-images: app
+	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs/en
+	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs zh
+	mv docs/en/panel.png docs/en/panel-glass.png && mv docs/en/candidates.png docs/en/candidates-glass.png
+	mv docs/panel.png docs/panel-glass.png && mv docs/candidates.png docs/candidates-glass.png
 
 # Types into a real NSTextView in a separate app through the *installed* input method and the
 # system text input path (switches the input source for the test and restores it afterwards).

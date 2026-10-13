@@ -50,7 +50,7 @@ struct WritingModeTests {
         let request = Prompt.request(for: "牛的啊", mode: .both, config: three)
         let system = request.system.first?.text ?? ""
         #expect(system.contains("\nJA: <the sentence in Japanese") && system.contains("\nEN: <the sentence in English")
-                && !system.contains("\nZH: ") && system.contains("\nPOLISH: ") && system.contains("\nCONCISE: "))
+                && !system.contains("\nZH: ") && system.contains("\nSTYLE_POLISH: ") && system.contains("\nSTYLE_CONCISE: "))
         // Examples need Japanese, which they aren't written in: the sentence goes alone.
         #expect(request.messages.count == 1)
         // English and Chinese only: the examples are answered the same way (a line per language).
@@ -59,7 +59,7 @@ struct WritingModeTests {
         let polish = Prompt.request(for: "牛的啊", mode: .improve, config: three)
         #expect((polish.system.first?.text ?? "").contains("\nZH: <how a native Simplified Chinese speaker") && polish.messages.count > 1)
 
-        let answer = "EN: That's awesome\nJA: すごいね\nPOLISH: 太厉害了\nZH: 牛\nCONCISE: 牛"
+        let answer = "EN: That's awesome\nJA: すごいね\nSTYLE_POLISH: 太厉害了\nZH: 牛\nSTYLE_CONCISE: 牛"
         let parsed = CandidateParser.parse(answer, isFinal: true, output: nil, translations: [OutputLanguage("ja"), .english])
         // In the user's order, whatever order the model answered in; a line in another language is ignored.
         #expect(parsed.translations.map(\.language.code) == ["ja", "en"] && parsed.translations.map(\.line.text) == ["すごいね", "That's awesome"])

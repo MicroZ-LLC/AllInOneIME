@@ -111,8 +111,13 @@ public struct RewriteStyle: Equatable, Sendable {
         return names.compactMap(named).filter { seen.insert($0.tag).inserted }
     }
 
-    /// Matches an answer line's tag (e.g. "CONCISE", "简洁") to a preset; older tag spellings included.
+    /// The tag of its lines in the prompt and the answer: "STYLE_POLISH". A bare "POLISH" next to language
+    /// tags (ES, FR, DE) was taken for one: the line came back in Polish.
+    var lineTag: String { "STYLE_" + tag }
+
+    /// Matches an answer line's tag (e.g. "STYLE_CONCISE", "CONCISE", "简洁") to a preset; older tag spellings included.
     static func forTag(_ tag: String) -> RewriteStyle? {
+        for prefix in ["STYLE_", "STYLE-", "STYLE "] where tag.hasPrefix(prefix) { return forTag(String(tag.dropFirst(prefix.count))) }
         switch tag {
         case "POLISHED", "优化": return named("润色")
         default: return named(tag)

@@ -1598,10 +1598,8 @@ public final class Composer {
         // so no command's output (a web page, a program's) is executed. With text the user didn't type in the
         // draft, commands that run code stay text (`draftHasOutsideText`).
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
-        let inners = draftHasOutsideText ? commands.filter { !$0.runsCode } : commands
-        let plan = local || parsed?.command.runsCode == true ? nil : CommandPlan.make(input, commands: inners)
-        let codeLeft = draftHasOutsideText && plan != nil
-            && CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode }
+        let inner = local || parsed?.command.runsCode == true ? nil : innerPlan(input)
+        let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
@@ -1662,15 +1660,25 @@ public final class Composer {
         searchResults = []
         highlightOverride = nil
         activeCommand = command
-        let plan = CommandPlan.make(input, commands: commands)
+        let (plan, codeLeft) = innerPlan(input)
         let usage = plan.inner.map(\.command).map(used)
+        let notice: [Effect] = codeLeft ? [.notice(messages.codeNotRun)] : []
         guard !plan.isEmpty else {
             phase = .choosing
             result = ConversionResult(versions: [CandidateLine(input)])
-            return .consumed([.updateMarkedText, .showPanel])
+            return .consumed([.updateMarkedText, .showPanel] + notice)
         }
         phase = .translating(id: requestCounter)
-        return .consumed([.startPlan(outer: command, plan: plan, id: requestCounter), .updateMarkedText, .showPanel] + usage)
+        return .consumed([.startPlan(outer: command, plan: plan, id: requestCounter), .updateMarkedText, .showPanel] + usage + notice)
+    }
+
+    /// The commands inside `input` that run first. With text the user didn't type in the draft (pasted,
+    /// dictated, given back), commands that run code stay text (`draftHasOutsideText`); `codeLeft`: some
+    /// did, which a notice says.
+    private func innerPlan(_ input: String) -> (plan: CommandPlan, codeLeft: Bool) {
+        guard draftHasOutsideText else { return (CommandPlan.make(input, commands: commands), false) }
+        let plan = CommandPlan.make(input, commands: commands.filter { !$0.runsCode })
+        return (plan, CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode })
     }
 
     /// The app took the text being typed into the document on its own (`MarkedTextWatch`): start over

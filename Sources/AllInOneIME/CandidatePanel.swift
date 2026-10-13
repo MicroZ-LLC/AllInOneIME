@@ -33,7 +33,33 @@ final class CandidatePanel: NSPanel {
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        contentView = view
+        view.drawsBackground = false
+        contentView = Self.glass(around: view)
+    }
+
+    /// The system's own material behind the rows, so the panel looks like the system's menus and follows
+    /// its settings: Liquid Glass on macOS 26 (Clear or Tinted, as set in Appearance), the menu material
+    /// before; both turn solid with Reduce Transparency (Accessibility → Display).
+    private static func glass(around view: NSView) -> NSView {
+        view.autoresizingMask = [.width, .height]
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = CandidateView.Metrics.cornerRadius
+            glass.contentView = view
+            return glass
+        }
+        let effect = NSVisualEffectView()
+        effect.material = .menu
+        effect.blendingMode = .behindWindow
+        effect.state = .active  // the panel is never key: keep it frosted
+        let radius = CandidateView.Metrics.cornerRadius
+        effect.maskImage = NSImage(size: NSSize(width: radius * 2 + 1, height: radius * 2 + 1), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }.with { $0.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius); $0.resizingMode = .stretch }
+        effect.addSubview(view)
+        return effect
     }
 
     override var canBecomeKey: Bool { false }
@@ -160,6 +186,10 @@ final class CandidateView: NSView {
         var labelOrigin: NSPoint
         var iconFrame: NSRect?
     }
+
+    /// Its own solid background: off in the panel, where the system's glass is behind it (`CandidatePanel`);
+    /// on for an offscreen image, which has nothing behind it to blur.
+    var drawsBackground = true
 
     var model = Model() {
         didSet { if model != oldValue { relayout() } }
@@ -302,11 +332,13 @@ final class CandidateView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let shape = NSBezierPath(
             roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: Metrics.cornerRadius, yRadius: Metrics.cornerRadius)
-        Self.background.setFill()
-        shape.fill()
-        NSColor.separatorColor.setStroke()
-        shape.lineWidth = 1
-        shape.stroke()
+        if drawsBackground {
+            Self.background.setFill()
+            shape.fill()
+            NSColor.separatorColor.setStroke()
+            shape.lineWidth = 1
+            shape.stroke()
+        }
 
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
             let highlighted = index == model.highlighted
@@ -369,5 +401,13 @@ final class CandidateView: NSView {
         if let index = rowLayouts.firstIndex(where: { $0.frame.contains(point) }) {
             onSelect?(index)
         }
+    }
+}
+
+
+private extension NSImage {
+    func with(_ change: (NSImage) -> Void) -> NSImage {
+        change(self)
+        return self
     }
 }

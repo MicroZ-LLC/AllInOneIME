@@ -141,6 +141,26 @@ final class SettingsModel: ObservableObject {
         if persists { applyMenuBarIcon(on) }
     }
 
+    // MARK: Fuzzy pinyin
+
+    /// Fuzzy pinyin couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
+    @Published private(set) var fuzzyBlocked = false
+    /// Writes the patch and deploys Rime again (the self-test's preview model doesn't).
+    var applyFuzzyPinyin: @MainActor ([String]) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0) }
+    /// What turning it on picks: the pairs most often mixed up.
+    static let fuzzyDefaults = ["z-zh", "c-ch", "s-sh", "en-eng", "in-ing"]
+
+    func setFuzzyPinyin(_ ids: [String]) {
+        config.fuzzyPinyin = FuzzyPinyin.known(ids)
+        save()
+        guard persists else { return }
+        fuzzyBlocked = applyFuzzyPinyin(config.fuzzyPinyin) == .userFile
+    }
+
+    func setFuzzy(_ id: String, on: Bool) {
+        setFuzzyPinyin(on ? config.fuzzyPinyin + [id] : config.fuzzyPinyin.filter { $0 != id })
+    }
+
     // MARK: Styles
 
     func isStyleOn(_ style: RewriteStyle) -> Bool {
@@ -558,7 +578,8 @@ final class SettingsModel: ObservableObject {
         let snapshot = config
         testTask = Task { [weak self] in
             let converter = Converter(loadConfig: { snapshot })
-            let sample = "我今天有点不舒服"
+            // In the first input language: an English-only user sees an English test.
+            let sample = snapshot.inputLanguages.first == .english ? "i dont feel so good today" : "我今天有点不舒服"
             do {
                 var final = ConversionResult.empty
                 var elapsed: TimeInterval = 0
@@ -598,404 +619,669 @@ struct SettingsView: View {
     /// The web search key being typed (likewise).
     @State private var newSearchKey = ""
     @State private var removingSearchKey = false
+    /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
+    @State private var page: SettingsPage
+    @State private var query = ""
+    /// The input language whose settings the Input page shows.
+    @State private var inputTab: Language = .chinese
+    private let remembersPage: Bool
+    static let pageKey = "settingsPage"
 
-    var body: some View {
-        Form {
-            if let loadError = model.loadError {
-                Section {
-                    Label(tr("配置文件有误，未做修改：", "The config file has an error and was left as is: ") + loadError,
-                          systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                    Button(tr("打开配置文件", "Open Config File")) { NSWorkspace.shared.open(model.configURL) }
-                }
-            }
+    /// `page`: shown as given and not remembered (the self-test's images); nil: the one shown last.
+    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil) {
+        self.model = model
+        if let inputTab { _inputTab = State(initialValue: inputTab) }
+        remembersPage = page == nil
+        _page = State(initialValue: page ?? UserDefaults.standard.string(forKey: Self.pageKey).flatMap(SettingsPage.init) ?? .general)
+    }
 
+    @ViewBuilder private var loadErrorSection: some View {
+        if let loadError = model.loadError {
             Section {
-                // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
-                LabeledContent(tr("执行键", "Action key")) {
-                    HStack(spacing: 8) {
-                        KeyRecorder(key: $model.config.actionKey)
-                        if model.config.actionKey != .enter {
-                            Button(tr("恢复 ⏎", "Use ⏎")) { model.config.actionKey = .enter }
-                        }
+                Label(tr("配置文件有误，未做修改：", "The config file has an error and was left as is: ") + loadError,
+                      systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+                Button(tr("打开配置文件", "Open Config File")) { NSWorkspace.shared.open(model.configURL) }
+            }
+        }
+    }
+
+    @ViewBuilder private var generalSection: some View {
+        Section {
+            // Return by default; "Record…" takes the next key pressed (or a tap of ⌥).
+            LabeledContent {
+                HStack(spacing: 8) {
+                    KeyRecorder(key: $model.config.actionKey)
+                    if model.config.actionKey != .enter {
+                        Button(tr("恢复 ⏎", "Use ⏎")) { model.config.actionKey = .enter }
                     }
                 }
-                .disabled(!model.canSave)
-                Text(Self.actionKeyNote(model.config.actionKey))
-                    .font(.caption).foregroundStyle(.secondary)
-                // Results typed in character by character, like a person typing.
-                Toggle(tr("逐字上屏", "Type results out"), isOn: $model.config.typeOut)
-                if model.config.typeOut {
-                    // A log scale: from 6 s a character to 40 a second, the slow end as easy to set.
-                    LabeledContent(tr("打字速度", "Typing speed")) {
-                        HStack(spacing: 8) {
-                            Text(tr("慢", "Slow")).font(.caption).foregroundStyle(.secondary)
-                            Slider(value: Binding(get: { TypeOut.position(of: model.config.typeOutRate) },
-                                                  set: { model.config.typeOutRate = Self.roundedRate(TypeOut.rate(at: $0)) }))
-                                .frame(width: 180)
-                            Text(tr("快", "Fast")).font(.caption).foregroundStyle(.secondary)
-                            Text(Self.rateLabel(model.config.typeOutRate)).monospacedDigit().frame(minWidth: 92, alignment: .trailing)
-                        }
-                    }
-                    Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
-                }
-                Text(tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。打的时候按 Esc 停下，按别的键就把剩下的一次打完。",
-                        "A command's result (a translation, a polish, an answer…) is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
-                       isOn: $model.config.claudeInBackground)
-                Text(tr("开着：交给 Claude Code 后台去做，做完弹通知，点通知或用 @tasks 查看；关掉：在终端打开 Claude Code 接着聊。",
-                        "On: Claude Code works in the background and you get a notification when it's done (click it, or @tasks); off: Claude Code opens in Terminal to talk."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                // An introduction above the settings, not one of them.
-                Text(commandsSummary)
-                    .font(.callout).fontWeight(.regular).foregroundStyle(.secondary)
-                    .textCase(nil).fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 4)
-            }
-
-            Section {
-                Toggle(tr("在菜单栏显示图标", "Show the icon in the menu bar"),
-                       isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
-                    .disabled(!model.canSave)
-                Text(tr("点菜单栏的图标，下拉出用 @note 存的笔记、@reminder 加的提醒和后台的 Claude 任务；点别处就收起。",
-                        "Click the menu bar icon for the notes saved with @note, the reminders added with @reminder and the background Claude tasks; a click elsewhere closes it."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("菜单栏面板", "Menu Bar Panel"), icon: CommandIcons.panel)
-            }
-
-            Section {
-                // The input languages added, in the user's order: the first is the default; with two, Shift
-                // switches between them.
-                LabeledContent(tr("输入语言", "Input languages")) {
-                    HStack(spacing: 6) {
-                        LanguageChips(items: model.config.inputLanguages, name: AllInOneIMEInputController.inputName,
-                                      firstNote: tr("默认", "default"),
-                                      reorder: { model.config.setOrder($0) }, remove: removeInputLanguage)
-                        let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
-                        if !missing.isEmpty {
-                            Menu(tr("添加…", "Add…")) {
-                                ForEach(missing, id: \.self) { language in
-                                    Button(AllInOneIMEInputController.inputName(language)) { addInputLanguage(language) }
-                                }
-                            }
-                            .fixedSize()
-                        }
-                    }
-                }
-                Text(model.config.inputLanguages.count > 1
-                     ? tr("拖动排序，第一个是新输入框的默认。单按 Shift 切换中英文。", "Drag to reorder: new text fields start in the first. Tap Shift to switch.")
-                     : tr("只有一种输入语言时 Shift 不切换。", "With one input language, Shift doesn't switch."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
+            } label: {
+                titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey))
             }
             .disabled(!model.canSave)
+            // Results typed in character by character, like a person typing.
+            Toggle(isOn: $model.config.typeOut) {
+                titled(tr("逐字上屏", "Type results out"),
+                       tr("命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
+                          "A command's result is typed in character by character, like a person typing; pinyin picks still go in at once. Esc stops it; any other key types the rest at once."))
+            }
+            if model.config.typeOut {
+                // A log scale: from 6 s a character to 40 a second, the slow end as easy to set.
+                LabeledContent(tr("打字速度", "Typing speed")) {
+                    HStack(spacing: 8) {
+                        Text(tr("慢", "Slow")).font(.caption).foregroundStyle(.secondary)
+                        Slider(value: Binding(get: { TypeOut.position(of: model.config.typeOutRate) },
+                                              set: { model.config.typeOutRate = Self.roundedRate(TypeOut.rate(at: $0)) }))
+                            .frame(width: 180)
+                        Text(tr("快", "Fast")).font(.caption).foregroundStyle(.secondary)
+                        Text(Self.rateLabel(model.config.typeOutRate)).monospacedDigit().frame(minWidth: 92, alignment: .trailing)
+                    }
+                }
+                Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
+            }
+            Toggle(isOn: $model.config.claudeInBackground) {
+                titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
+                       tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk."))
+            }
+        }
+    }
 
-            Section {
-                // @translate writes a line in each, in this order (three versions with only one).
-                LabeledContent(tr("翻译语言", "Languages")) {
-                    HStack(spacing: 6) {
-                        LanguageChips(items: model.config.outputLanguages, name: UIText.name,
-                                      firstNote: nil,
-                                      reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
+    @ViewBuilder private var menuBarSection: some View {
+        Section {
+            Toggle(isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) })) {
+                titled(tr("在菜单栏显示图标", "Show in Menu Bar"),
+                       tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away"))
+            }
+            .disabled(!model.canSave)
+        } header: {
+            SectionTitle(tr("菜单栏面板", "Menu Bar Panel"), icon: CommandIcons.panel)
+        }
+    }
+
+    @ViewBuilder private var inputSection: some View {
+        Section {
+            // The input languages added, as tabs: the one picked shows its settings in the card below. The
+            // first is the default (new text fields start in it); with two, Shift switches between them.
+            LabeledContent {
+                HStack(spacing: 8) {
+                    Picker("", selection: Binding(get: { shownInput }, set: { inputTab = $0 })) {
+                        ForEach(model.config.inputLanguages, id: \.self) { language in
+                            Text(AllInOneIMEInputController.inputName(language)
+                                 + (language == model.config.inputLanguages.first && model.config.inputLanguages.count > 1
+                                    ? tr(" · 默认", " · default") : ""))
+                                .tag(language)
+                        }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
+                    if !missing.isEmpty {
+                        Menu {
+                            ForEach(missing, id: \.self) { language in
+                                Button(AllInOneIMEInputController.inputName(language)) {
+                                    addInputLanguage(language)
+                                    inputTab = language
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .menuIndicator(.hidden).fixedSize()
+                        .help(tr("添加输入语言", "Add an input language"))
+                        .accessibilityLabel(tr("添加输入语言", "Add an input language"))
+                    }
+                }
+            } label: {
+                titled(tr("输入语言", "Input languages"),
+                       model.config.inputLanguages.count > 1
+                       ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
+                       : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
+            }
+        } header: {
+            SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
+        }
+        .disabled(!model.canSave)
+    }
+
+    @ViewBuilder private var translateSection: some View {
+        Section {
+            // @translate writes a line in each, in this order (three versions with only one).
+            LabeledContent {
+                HStack(spacing: 6) {
+                    LanguageChips(items: model.config.outputLanguages, name: UIText.name,
+                                  firstNote: nil,
+                                  reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
+                    Menu(tr("添加…", "Add…")) {
+                        ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
+                            Button(UIText.name(language)) { addOutputLanguage(language) }
+                        }
+                    }
+                    .fixedSize()
+                }
+            } label: {
+                titled(tr("翻译语言", "Languages"), tr("每种一行，拖动排序", "A line in each; drag to reorder"))
+            }
+        } header: {
+            SectionTitle(tr("翻译（@translate）", "Translate (@translate)"), icon: CommandIcons.translate)
+        }
+        .disabled(!model.canSave)
+    }
+
+    @ViewBuilder private var rewriteSection: some View {
+        Section {
+            // Like the languages: the styles added, in the order they're shown; drag to reorder.
+            LabeledContent {
+                HStack(spacing: 6) {
+                    let on = RewriteStyle.resolve(model.config.rewriteStyles)
+                    LanguageChips(items: on.map(\.name), name: { RewriteStyle.named($0).map(UIText.name) ?? $0 },
+                                  firstNote: nil, keepsOne: false,
+                                  reorder: { model.setStyleOrder($0) },
+                                  remove: { name in RewriteStyle.named(name).map { model.setStyle($0, on: false) } })
+                    let missing = RewriteStyle.catalog.filter { !on.contains($0) }
+                    if !missing.isEmpty {
                         Menu(tr("添加…", "Add…")) {
-                            ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
-                                Button(UIText.name(language)) { addOutputLanguage(language) }
+                            ForEach(missing, id: \.name) { style in
+                                Button(UIText.name(style) + " — " + UIText.summary(style)) { model.setStyle(style, on: true) }
                             }
                         }
                         .fixedSize()
                     }
                 }
-                Text(tr("@translate 按这个顺序每种语言出一行（只有一种就出 3 个版本），和原文同一种语言的跳过。拖动排序。",
-                        "@translate writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. Drag to reorder."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("翻译（@translate）", "Translate (@translate)"), icon: CommandIcons.translate)
+            } label: {
+                titled(tr("风格", "Styles"), model.config.rewriteStyles.isEmpty
+                       ? tr("没有风格时只出 1–3 行", "With none, lines 1–3 only")
+                       : tr("用你写的语言改写，拖动排序", "In the language you wrote; drag to reorder"))
             }
             .disabled(!model.canSave)
-
-            Section {
-                // Like the languages: the styles added, in the order they're shown; drag to reorder.
-                LabeledContent(tr("风格", "Styles")) {
-                    HStack(spacing: 6) {
-                        let on = RewriteStyle.resolve(model.config.rewriteStyles)
-                        LanguageChips(items: on.map(\.name), name: { RewriteStyle.named($0).map(UIText.name) ?? $0 },
-                                      firstNote: nil, keepsOne: false,
-                                      reorder: { model.setStyleOrder($0) },
-                                      remove: { name in RewriteStyle.named(name).map { model.setStyle($0, on: false) } })
-                        let missing = RewriteStyle.catalog.filter { !on.contains($0) }
-                        if !missing.isEmpty {
-                            Menu(tr("添加…", "Add…")) {
-                                ForEach(missing, id: \.name) { style in
-                                    Button(UIText.name(style) + " — " + UIText.summary(style)) { model.setStyle(style, on: true) }
-                                }
-                            }
-                            .fixedSize()
-                        }
-                    }
-                }
-                .disabled(!model.canSave)
-                Text(model.config.rewriteStyles.isEmpty
-                     ? tr("没有风格时只出 1–3 行。", "With no styles, you get lines 1–3 only.")
-                     : tr("拖动排序，候选里按这个顺序出。改写用原文的语言：打中文出中文改写，打英文出英文改写。",
-                          "Drag to reorder: the candidates follow this order. Rewrites are in the language you typed."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(tr("@improve 同时翻译（等于 @translate @improve）", "@improve also translates (as @translate @improve)"),
-                       isOn: $model.config.improveTranslates)
-                    .disabled(!model.canSave)
-                Text(inputSummary).font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("改写风格（@improve）", "Rewrite Styles (@improve)"), icon: CommandIcons.improve)
-            }
-
-            Section {
-                LabeledContent(tr("黑话库", "Jargon list")) {
-                    HStack(spacing: 8) {
-                        Text(model.jargonExists ? tr("\(model.jargonCount) 个词", "\(model.jargonCount) terms") : tr("未设置", "Not set"))
-                            .foregroundStyle(.secondary)
-                        Button(tr("选择文件…", "Choose File…")) { model.chooseJargonFile() }
-                        Button(model.jargonExists ? tr("打开", "Open") : tr("新建", "New")) { model.openJargonFile() }
-                    }
-                }
-                .disabled(!model.canSave)
-                Text(tr("用你自己的词表：文本文件，每行一个词，可以加解释（如 bandwidth：精力、时间）。加了「黑话」风格后模型优先用这些词，候选里会注明意思。",
-                        "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
-                     + (model.jargonExists ? tr("\n文件：", "\nFile: ") + model.jargonPath : ""))
-                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-            } header: {
-                SectionTitle(tr("黑话库", "Jargon List"), icon: CommandIcons.jargon)
-            }
-
-            Section {
-                ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            IconTile(icon: CommandIcons.icon(for: command))
-                            Text("@" + command.name).font(.body.monospaced())
-                            Text(UIText.customKind(command)).foregroundStyle(.secondary)
-                            if let summary = command.summary {
-                                Text(summary).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Spacer()
-                            Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                            Button(tr("删除", "Delete")) { commandToDelete = index }
-                        }
-                        if Self.hiddenByBuiltIn(command) {
-                            Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
-                                  systemImage: "exclamationmark.triangle")
-                                .font(.caption).foregroundStyle(.orange)
-                        }
-                    }
-                }
-                Button(tr("添加命令…", "Add Command…")) {
-                    commandEdit = CommandEdit(index: nil, command: CustomCommand(name: "", type: .prompt))
-                }
-                Text(tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
-                        "Once saved, type @ and its name at the start of any text field, like @improve."))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(tr("自定义 @ 命令", "Custom @ Commands"), icon: CommandIcons.commands)
+            Toggle(isOn: $model.config.improveTranslates) {
+                titled(tr("@improve 同时翻译", "@improve also translates"), inputSummary)
             }
             .disabled(!model.canSave)
+        } header: {
+            SectionTitle(tr("改写风格（@improve）", "Rewrite Styles (@improve)"), icon: CommandIcons.improve)
+        }
+    }
 
-            Section {
-                ForEach(model.plugins, id: \.name) { plugin in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            IconTile(icon: CommandIcons.icon(for: plugin))
-                            Text("@" + plugin.name).font(.body.monospaced())
-                            Text(plugin.manifest.summary?.text(chinese: UIText.chinese) ?? "").foregroundStyle(.secondary).lineLimit(1)
-                            Spacer()
-                            if let update = model.libraryUpdate(for: plugin) {
-                                Button(tr("更新到 \(update.version)", "Update to \(update.version)")) { pluginToInstall = update }
-                            }
-                            Button(tr("删除", "Remove")) { pluginToRemove = plugin }
+    @ViewBuilder private var jargonSection: some View {
+        Section {
+            LabeledContent {
+                HStack(spacing: 8) {
+                    Text(model.jargonExists ? tr("\(model.jargonCount) 个词", "\(model.jargonCount) terms") : tr("未设置", "Not set"))
+                        .foregroundStyle(.secondary)
+                    Button(tr("选择文件…", "Choose File…")) { model.chooseJargonFile() }
+                    Button(model.jargonExists ? tr("打开", "Open") : tr("新建", "New")) { model.openJargonFile() }
+                }
+            } label: {
+                titled(tr("黑话库", "Jargon list"), model.jargonExists ? model.jargonPath : tr("你团队自己的说法", "Your team's own terms"))
+            }
+            .disabled(!model.canSave)
+        } header: {
+            SectionTitle(tr("黑话库", "Jargon List"), icon: CommandIcons.jargon)
+        } footer: {
+            Text(tr("用你自己的词表：文本文件，每行一个词，可以加解释（如 bandwidth：精力、时间）。加了「黑话」风格后模型优先用这些词，候选里会注明意思。",
+                    "Your own term list: a text file, one term per line, optionally with its meaning (e.g. bandwidth: time and energy). With the Jargon style added, the model prefers these terms and the candidates explain them.")
+                 )
+                .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+        }
+    }
+
+    @ViewBuilder private var commandsSection: some View {
+        Section {
+            ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        IconTile(icon: CommandIcons.icon(for: command))
+                        Text("@" + command.name).font(.body.monospaced())
+                        Text(UIText.customKind(command)).foregroundStyle(.secondary)
+                        if let summary = command.summary {
+                            Text(summary).foregroundStyle(.secondary).lineLimit(1)
                         }
-                        Text(pluginDetail(plugin)).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
+                        Button(tr("删除", "Delete")) { commandToDelete = index }
+                    }
+                    if Self.hiddenByBuiltIn(command) {
+                        Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
+                              systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
                     }
                 }
-                ForEach(model.skippedPlugins, id: \.folder) { skipped in
-                    Label(tr("没有加载 \(skipped.folder)：", "Not loaded, \(skipped.folder): ") + skipped.reason,
-                          systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
+            }
+            Button(tr("添加命令…", "Add Command…")) {
+                commandEdit = CommandEdit(index: nil, command: CustomCommand(name: "", type: .prompt))
+            }
+        } header: {
+            SectionTitle(tr("自定义 @ 命令", "Custom @ Commands"), icon: CommandIcons.commands)
+        } footer: {
+            Text(tr("保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
+                    "Once saved, type @ and its name at the start of any text field, like @improve."))
+                .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+        }
+        .disabled(!model.canSave)
+    }
+
+    @ViewBuilder private var pluginsSection: some View {
+        Section {
+            ForEach(model.plugins, id: \.name) { plugin in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        IconTile(icon: CommandIcons.icon(for: plugin))
+                        Text("@" + plugin.name).font(.body.monospaced())
+                        Text(plugin.manifest.summary?.text(chinese: UIText.chinese) ?? "").foregroundStyle(.secondary).lineLimit(1)
+                        Spacer()
+                        if let update = model.libraryUpdate(for: plugin) {
+                            Button(tr("更新到 \(update.version)", "Update to \(update.version)")) { pluginToInstall = update }
+                        }
+                        Button(tr("删除", "Remove")) { pluginToRemove = plugin }
+                    }
+                    Text(pluginDetail(plugin)).font(.caption).foregroundStyle(.secondary)
                 }
-                if model.plugins.isEmpty, model.skippedPlugins.isEmpty {
-                    Text(tr("还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
-                            "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command."))
-                        .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(model.skippedPlugins, id: \.folder) { skipped in
+                Label(tr("没有加载 \(skipped.folder)：", "Not loaded, \(skipped.folder): ") + skipped.reason,
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            if model.plugins.isEmpty, model.skippedPlugins.isEmpty {
+                Text(tr("还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
+                        "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
+                Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
+            }
+            if let error = model.pluginError { Text(error).foregroundStyle(.red) }
+            pluginLibrary
+        } header: {
+            SectionTitle(tr("插件", "Plugins"), icon: CommandIcons.plugins)
+        }
+        .disabled(!model.canSave)
+    }
+
+    @ViewBuilder private var voiceSection: some View {
+        Section {
+            Toggle(isOn: $model.config.voiceInput) {
+                titled(tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"),
+                       tr("在这台 Mac 上识别，不上传", "Recognized on this Mac, never uploaded"))
+            }
+            .disabled(!model.canSave)
+            if VoiceInput.isSupported {
+                ForEach([Language.chinese, .english], id: \.self) { language in
+                    LabeledContent(tr("\(language.displayName)语音模型", "\(UIText.name(language)) speech model")) {
+                        modelStatus(language)
+                    }
                 }
+                LabeledContent(tr("麦克风", "Microphone")) {
+                    switch model.microphone {
+                    case .granted: Text(tr("已允许", "Allowed")).foregroundStyle(.secondary)
+                    case .notDetermined: Button(tr("允许使用麦克风", "Allow Microphone")) { model.microphoneAction() }
+                    case .denied: Button(tr("已拒绝，去系统设置打开", "Denied: Open System Settings")) { model.microphoneAction() }
+                    }
+                }
+                if let error = model.voiceError { Text(error).foregroundStyle(.red) }
+            } else {
+                Text(tr("需要 macOS 26 或更新版本。", "Needs macOS 26 or later.")).font(.caption).foregroundStyle(.secondary)
+            }
+        } header: {
+            SectionTitle(tr("语音输入", "Voice Input"), icon: CommandIcons.voice)
+        } footer: {
+            if VoiceInput.isSupported {
+                Text(tr("中文模式说中文，英文模式说英文。识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
+                        "Speak English in English mode and Chinese in Chinese mode. The text is typed in, or after the @ command you are writing."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+            }
+        }
+    }
+
+    @ViewBuilder private var providerSection: some View {
+        Section {
+            Picker(tr("服务", "Provider"), selection: $model.config.provider) {
+                ForEach(Provider.offered, id: \.self) { provider in
+                    Text(UIText.name(provider)).tag(provider)
+                }
+            }
+            if model.config.provider == .bedrock {
+                bedrockSettings
+            } else if model.config.provider == .hosted {
+                hostedSettings
+            } else {
+                apiKeySettings(model.config.provider)
+            }
+            HStack {
+                Button(tr("测试连接", "Test Connection")) { model.runTest() }
+                    .disabled(model.testStatus == .running)
+                switch model.testStatus {
+                case .idle: EmptyView()
+                case .running: ProgressView().controlSize(.small)
+                case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                }
+            }
+        } header: {
+            SectionTitle(tr("AI 服务", "AI Provider"), icon: CommandIcons.provider)
+        }
+        .disabled(!model.canSave)
+    }
+
+    @ViewBuilder private var webSearchSection: some View {
+        if Command.webSearchOffered {
+            // The key lives in the keychain, not in the config file: this works even when the file is broken.
+            Section {
                 HStack {
-                    Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
-                    Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
-                }
-                if let error = model.pluginError { Text(error).foregroundStyle(.red) }
-                pluginLibrary
-            } header: {
-                SectionTitle(tr("插件", "Plugins"), icon: CommandIcons.plugins)
-            }
-            .disabled(!model.canSave)
-
-            Section {
-                Toggle(tr("按住右 ⌥ 说话，松开结束", "Hold right ⌥ to talk, release to stop"), isOn: $model.config.voiceInput)
-                    .disabled(!model.canSave)
-                if VoiceInput.isSupported {
-                    ForEach([Language.chinese, .english], id: \.self) { language in
-                        LabeledContent(tr("\(language.displayName)语音模型", "\(UIText.name(language)) speech model")) {
-                            modelStatus(language)
-                        }
-                    }
-                    LabeledContent(tr("麦克风", "Microphone")) {
-                        switch model.microphone {
-                        case .granted: Text(tr("已允许", "Allowed")).foregroundStyle(.secondary)
-                        case .notDetermined: Button(tr("允许使用麦克风", "Allow Microphone")) { model.microphoneAction() }
-                        case .denied: Button(tr("已拒绝，去系统设置打开", "Denied: Open System Settings")) { model.microphoneAction() }
-                        }
-                    }
-                    if let error = model.voiceError { Text(error).foregroundStyle(.red) }
-                    Text(tr("中文模式说中文，英文模式说英文。语音在这台 Mac 上识别，不上传；识别出的文字直接上屏，在 @ 命令里就接在命令后面。",
-                            "Speak Chinese in Chinese mode and English in English mode. Speech is recognized on this Mac and never uploaded; the text is typed in, or after the @ command you are writing."))
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text(tr("需要 macOS 26 或更新版本。", "Needs macOS 26 or later.")).font(.caption).foregroundStyle(.secondary)
-                }
-            } header: {
-                SectionTitle(tr("语音输入", "Voice Input"), icon: CommandIcons.voice)
-            }
-
-            Section {
-                Picker(tr("服务", "Provider"), selection: $model.config.provider) {
-                    ForEach(Provider.offered, id: \.self) { provider in
-                        Text(UIText.name(provider)).tag(provider)
+                    SecureField("API key", text: $newSearchKey,
+                                prompt: Text(tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key")))
+                        .onSubmit { saveSearchKey() }
+                    Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
+                    if model.searchKeySource == .keychain {
+                        Button(tr("删除", "Remove")) { removingSearchKey = true }
+                            .confirmationDialog(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                                isPresented: $removingSearchKey) {
+                                Button(tr("删除", "Remove"), role: .destructive) { model.saveSearchKey("") }
+                            }
                     }
                 }
-                if model.config.provider == .bedrock {
-                    bedrockSettings
-                } else if model.config.provider == .hosted {
-                    hostedSettings
-                } else {
-                    apiKeySettings(model.config.provider)
-                }
+                Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
+                if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
                 HStack {
-                    Button(tr("测试连接", "Test Connection")) { model.runTest() }
-                        .disabled(model.testStatus == .running)
-                    switch model.testStatus {
+                    Button(tr("测试", "Test")) { model.testSearch() }
+                        .disabled(model.searchTestStatus == .running || model.searchKeySource == APIKeys.Source.none)
+                    Button(tr("获取 API key…", "Get an API Key…")) { NSWorkspace.shared.open(WebSearch.backend.keyPage) }
+                    switch model.searchTestStatus {
                     case .idle: EmptyView()
                     case .running: ProgressView().controlSize(.small)
                     case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
                     case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
                     }
                 }
+                Text(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
+                            + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
+                        "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
+                            + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
+                            + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell."))
+                    .font(.caption).foregroundStyle(.secondary)
             } header: {
-                SectionTitle(tr("AI 服务", "AI Provider"), icon: CommandIcons.provider)
-            }
-            .disabled(!model.canSave)
-
-            if Command.webSearchOffered {
-                // The key lives in the keychain, not in the config file: this works even when the file is broken.
-                Section {
-                    HStack {
-                        SecureField("API key", text: $newSearchKey,
-                                    prompt: Text(tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key")))
-                            .onSubmit { saveSearchKey() }
-                        Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
-                        if model.searchKeySource == .keychain {
-                            Button(tr("删除", "Remove")) { removingSearchKey = true }
-                                .confirmationDialog(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
-                                                    isPresented: $removingSearchKey) {
-                                    Button(tr("删除", "Remove"), role: .destructive) { model.saveSearchKey("") }
-                                }
-                        }
-                    }
-                    Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
-                    if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
-                    HStack {
-                        Button(tr("测试", "Test")) { model.testSearch() }
-                            .disabled(model.searchTestStatus == .running || model.searchKeySource == APIKeys.Source.none)
-                        Button(tr("获取 API key…", "Get an API Key…")) { NSWorkspace.shared.open(WebSearch.backend.keyPage) }
-                        switch model.searchTestStatus {
-                        case .idle: EmptyView()
-                        case .running: ProgressView().controlSize(.small)
-                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                        }
-                    }
-                    Text(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
-                                + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
-                            "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
-                                + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                                + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell."))
-                        .font(.caption).foregroundStyle(.secondary)
-                } header: {
-                    SectionTitle(tr("网页搜索（@search）", "Web Search (@search)"), icon: CommandIcons.webSearch)
-                }
-            }
-
-            Section {
-                Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
-                    Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
-                }
-                Toggle(tr("Bedrock：发送 temperature（有的模型不支持，报错时关掉）",
-                          "Bedrock: send temperature (some models don't support it; turn it off if requests fail)"),
-                       isOn: temperatureOn)
-                if let t = model.config.temperature {
-                    Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),
-                           in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
-                }
-                Stepper(value: $model.config.timeoutSeconds, in: 5...60, step: 5) {
-                    Text(tr("超时 \(Int(model.config.timeoutSeconds)) 秒", "Timeout \(Int(model.config.timeoutSeconds)) s"))
-                }
-            } header: {
-                SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
-            }
-            .disabled(!model.canSave)
-
-            Section {
-                // Following the system by default; the languages are written in their own language, so
-                // they can be found whatever the window is in.
-                Picker(tr("界面语言", "Interface language"), selection: Binding(get: { model.config.uiLanguage },
-                                                                              set: { model.setUILanguage($0) })) {
-                    Text(tr("跟随系统", "Same as the system")).tag(Language?.none)
-                    Divider()
-                    Text("中文").tag(Language?.some(.chinese))
-                    Text("English").tag(Language?.some(.english))
-                }
-                .pickerStyle(.menu)
-            }
-
-            Section {
-                HStack {
-                    Button(tr("打开配置文件", "Open Config File")) { NSWorkspace.shared.open(model.configURL) }
-                    Button(tr("打开 Rime 用户目录", "Open Rime User Folder")) {
-                        NSWorkspace.shared.open(RimeDirectories.user)
-                    }
-                }
-                let path = (model.configURL.path as NSString).abbreviatingWithTildeInPath
-                Text(tr("所有设置都存在 \(path)，改完立即生效。", "All settings are stored in \(path) and apply right away."))
-                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                if let saveError = model.saveError {
-                    Text(saveError).foregroundStyle(.red)
-                }
-            } footer: {
-                // At the very end, out of the way; selectable for bug reports, the same in both languages.
-                VStack(spacing: 2) {
-                    if let version = Self.version {
-                        Text("AllInOneIME \(version)").textSelection(.enabled)
-                    }
-                    HStack(spacing: 0) {
-                        Text("© 2026 MicroZ LLC · ")
-                        Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
-                        Text(" · GPL-3.0")
-                    }
-                }
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+                SectionTitle(tr("网页搜索（@search）", "Web Search (@search)"), icon: CommandIcons.webSearch)
             }
         }
-        .formStyle(.grouped)
-        .frame(minWidth: 520, idealWidth: 560, minHeight: 360, idealHeight: 760)
+    }
+
+    @ViewBuilder private var advancedSection: some View {
+        Section {
+            Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
+                Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
+            }
+            Toggle(tr("Bedrock：发送 temperature（有的模型不支持，报错时关掉）",
+                      "Bedrock: send temperature (some models don't support it; turn it off if requests fail)"),
+                   isOn: temperatureOn)
+            if let t = model.config.temperature {
+                Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),
+                       in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
+            }
+            Stepper(value: $model.config.timeoutSeconds, in: 5...60, step: 5) {
+                Text(tr("超时 \(Int(model.config.timeoutSeconds)) 秒", "Timeout \(Int(model.config.timeoutSeconds)) s"))
+            }
+        } header: {
+            SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
+        }
+        .disabled(!model.canSave)
+    }
+
+    @ViewBuilder private var interfaceSection: some View {
+        Section {
+            // Following the system by default; the languages are written in their own language, so
+            // they can be found whatever the window is in.
+            Picker(tr("界面语言", "Interface language"), selection: Binding(get: { model.config.uiLanguage },
+                                                                          set: { model.setUILanguage($0) })) {
+                Text(tr("跟随系统", "Same as the system")).tag(Language?.none)
+                Divider()
+                Text("中文").tag(Language?.some(.chinese))
+                Text("English").tag(Language?.some(.english))
+            }
+            .pickerStyle(.menu)
+        }
+    }
+
+    @ViewBuilder private var filesSection: some View {
+        Section {
+            let path = (model.configURL.path as NSString).abbreviatingWithTildeInPath
+            LabeledContent {
+                Button(tr("打开", "Open")) { NSWorkspace.shared.open(model.configURL) }
+            } label: {
+                titled(tr("配置文件", "Config file"), path)
+            }
+            LabeledContent {
+                Button(tr("打开", "Open")) { NSWorkspace.shared.open(RimeDirectories.user) }
+            } label: {
+                titled(tr("Rime 用户目录", "Rime user folder"), tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings"))
+            }
+            if let saveError = model.saveError {
+                Text(saveError).foregroundStyle(.red)
+            }
+        } footer: {
+            Text(tr("改完立即生效，不用重启。", "Changes apply right away, with no restart."))
+                .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+        }
+    }
+
+    /// A row's title with a short explanation under it, as System Settings shows them.
+    private func titled(_ title: String, _ note: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: Pages
+
+    /// Like System Settings: a search field, then the pages, each with its icon.
+    private var sidebar: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField(tr("搜索设置…", "Search settings…"), text: $query)
+                    .textFieldStyle(.plain)
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                        .accessibilityLabel(tr("清除搜索", "Clear the search"))
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.75)))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+            .padding(.horizontal, 12)
+            let shown = SettingsPage.allCases.filter { $0.matches(query) }
+            List(selection: Binding(get: { page }, set: { if let new = $0 { page = new } })) {
+                // In groups, like System Settings: what you type with, what it runs, the rest.
+                let groups = SettingsPage.groups.map { $0.filter(shown.contains) }.filter { !$0.isEmpty }
+                ForEach(groups.indices, id: \.self) { index in
+                    // A thin line between the groups.
+                    if index > 0 {
+                        Divider().padding(.horizontal, 6).padding(.vertical, 2)
+                            .selectionDisabled()
+                    }
+                    ForEach(groups[index]) { item in
+                        Label {
+                            Text(item.title).font(.system(size: 13.5)).padding(.leading, 4)
+                        } icon: {
+                            if item == .about {
+                                // The app's own icon, as Raycast's About has.
+                                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 26, height: 26)
+                                    .accessibilityHidden(true)
+                            } else {
+                                IconTile(icon: item.icon, size: 24)
+                            }
+                        }
+                        .padding(.vertical, 3)
+                        .tag(item)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .onChange(of: query) {
+                // The first page that matches comes up as you type.
+                if let first = shown.first, !shown.contains(page) { page = first }
+            }
+            if shown.isEmpty {
+                Text(tr("没有匹配的设置", "No matching settings")).font(.callout).foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    /// 模糊音: shown with Chinese (pinyin) input.
+    /// The input language whose settings show below the languages (the first, until another is picked).
+    private var shownInput: Language {
+        model.config.inputLanguages.contains(inputTab) ? inputTab : model.config.inputLanguages.first ?? .chinese
+    }
+
+    /// The settings of the input language picked above: pinyin's fuzzy sounds; none for English yet.
+    @ViewBuilder private var inputLanguageSection: some View {
+        Section {
+            switch shownInput {
+            case .chinese:
+                Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
+                                     set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
+                    titled(tr("模糊音", "Fuzzy pinyin"),
+                           tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之"))
+                }
+                if !model.config.fuzzyPinyin.isEmpty {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)], alignment: .leading, spacing: 8) {
+                        ForEach(FuzzyPinyin.pairs) { pair in
+                            Toggle(pair.label, isOn: Binding(get: { model.config.fuzzyPinyin.contains(pair.id) },
+                                                             set: { model.setFuzzy(pair.id, on: $0) }))
+                                .toggleStyle(.checkbox)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    }
+                }
+                if model.fuzzyBlocked {
+                    Label(tr("Rime 用户目录里有你自己的 \(FuzzyPinyin.fileName)，没有改动它，模糊音没有生效。",
+                             "The Rime user folder has your own \(FuzzyPinyin.fileName): it was left as is, so fuzzy pinyin isn't on."),
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            case .english:
+                Text(tr("英文模式直接打字母，暂时没有要设置的。", "In English, letters are typed as they are: nothing to set yet."))
+                    .foregroundStyle(.secondary)
+            }
+            // Its place among the input languages: the default, or not added at all.
+            let languages = model.config.inputLanguages
+            if languages.count > 1, let index = languages.firstIndex(of: shownInput) {
+                // Its place in the order (the tabs above follow it); the first is the default.
+                LabeledContent {
+                    HStack(spacing: 4) {
+                        Button { moveInput(shownInput, by: -1) } label: { Image(systemName: "chevron.left") }
+                            .disabled(index == 0)
+                            .help(tr("往前移", "Move earlier")).accessibilityLabel(tr("往前移", "Move earlier"))
+                        Button { moveInput(shownInput, by: 1) } label: { Image(systemName: "chevron.right") }
+                            .disabled(index == languages.count - 1)
+                            .help(tr("往后移", "Move later")).accessibilityLabel(tr("往后移", "Move later"))
+                    }
+                } label: {
+                    titled(tr("位置", "Position"),
+                           tr("第 \(index + 1) 个，共 \(languages.count) 个；第一个是默认", "\(index + 1) of \(languages.count); the first is the default"))
+                }
+                if shownInput != languages.first {
+                    LabeledContent {
+                        Button(tr("设为默认", "Make Default")) {
+                            model.config.setOrder([shownInput] + languages.filter { $0 != shownInput })
+                        }
+                    } label: {
+                        titled(tr("默认输入语言", "Default input language"), tr("新输入框从这种语言开始", "New text fields start in this one"))
+                    }
+                }
+                LabeledContent {
+                    Button(tr("移除", "Remove"), role: .destructive) { removeInputLanguage(shownInput) }
+                } label: {
+                    titled(tr("移除这种输入语言", "Remove this input language"), tr("以后可以再用 ＋ 加回来", "You can add it back with +"))
+                }
+            }
+        } header: {
+            SectionTitle(AllInOneIMEInputController.inputName(shownInput), icon: CommandIcons.input)
+        } footer: {
+            if shownInput == .chinese {
+                Text(tr("改完词库会重新部署，一两秒生效。", "Applied in a second or two: the dictionaries are deployed again."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+            }
+        }
+        .disabled(!model.canSave)
+    }
+
+    /// The version, who makes it, where to read more.
+    private var aboutSection: some View {
+        Section {
+            VStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
+                Text("AllInOneIME").font(.title2).bold()
+                if let version = Self.version {
+                    Text(tr("版本 \(version)", "Version \(version)")).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+                Text("© 2026 MicroZ LLC · GPL-3.0").font(.caption).foregroundStyle(.secondary)
+                Text(commandsSummary).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            LabeledContent(tr("网站", "Website")) { Link("allinoneime.com", destination: URL(string: "https://allinoneime.com")!) }
+            LabeledContent(tr("使用说明", "Documentation")) { Link("Wiki", destination: URL(string: "https://allinoneime.com/docs")!) }
+            LabeledContent(tr("更新日志", "What's new")) {
+                Link(tr("更新日志", "Changelog"), destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME/releases")!)
+            }
+            LabeledContent(tr("源代码", "Source code")) {
+                Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
+        } detail: {
+            Form {
+                loadErrorSection
+                switch page {
+                case .general:
+                    generalSection
+                    menuBarSection
+                    interfaceSection
+                case .input:
+                    inputSection
+                    inputLanguageSection
+                case .writing:
+                    translateSection
+                    rewriteSection
+                    jargonSection
+                case .commands: commandsSection
+                case .plugins:
+                    pluginsSection
+                    webSearchSection
+                case .voice: voiceSection
+                case .provider: providerSection
+                case .advanced:
+                    advancedSection
+                    filesSection
+                case .about: aboutSection
+                }
+            }
+            .formStyle(.grouped)
+            // A white page under light gray cards, as in Raycast and System Settings (dark in dark mode).
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
+            .id(page)  // a page starts at its top
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onChange(of: page) { if remembersPage { UserDefaults.standard.set(page.rawValue, forKey: Self.pageKey) } }
+        .frame(minWidth: 760, idealWidth: 860, minHeight: 480, idealHeight: 720)
         // Text fields save on Return; everything else (pickers, steppers, toggles) saves on change.
         .sheet(item: $commandEdit) { edit in
             CommandEditor(edit: edit, others: model.config.customCommands.enumerated()
@@ -1086,7 +1372,8 @@ struct SettingsView: View {
         let key = UIText.howToPress(model.config.actionKey)
         return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
-                  "A regular pinyin input method. Type @ first for commands: @improve polishes and rewrites, @translate "
+                  (model.config.inputLanguages.contains(.chinese) ? "A regular pinyin input method. " : "")
+                      + "Type @ first for commands: @improve polishes and rewrites, @translate "
                       + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }
@@ -1101,6 +1388,14 @@ struct SettingsView: View {
     private func addInputLanguage(_ language: Language) {
         model.config.inputLanguages.append(language)
         model.config.normalizeLanguages()
+    }
+
+    /// Moves an input language one place earlier (-1) or later (1); the first is the default.
+    private func moveInput(_ language: Language, by step: Int) {
+        var languages = model.config.inputLanguages
+        guard let index = languages.firstIndex(of: language), languages.indices.contains(index + step) else { return }
+        languages.swapAt(index, index + step)
+        model.config.setOrder(languages)
     }
 
     /// Removes an input language (one always stays); the next one becomes the default.
@@ -1517,12 +1812,14 @@ final class SettingsWindow {
                 MainActor.assumeIsolated { model.save() }
             }
             window.title = Self.title
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            // The sidebar runs up under the traffic lights, as in System Settings.
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.toolbarStyle = .unified
             window.isReleasedWhenClosed = false
-            // The whole form is about 1620 pt tall (English, with a connection test result); on smaller
-            // screens it scrolls.
             let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height ?? 900
-            window.setContentSize(NSSize(width: 560, height: min(1630, visible - 60)))
+            window.setContentSize(NSSize(width: 880, height: min(760, visible - 60)))
             window.center()
             self.window = window
         }
@@ -1581,6 +1878,9 @@ private struct LanguageChips<Item: Hashable>: View {
     var keepsOne = true
     let reorder: ([Item]) -> Void
     let remove: (Item) -> Void
+    /// Chips that are also tabs: the one whose settings show (highlighted), and a click picks another.
+    var selected: Item? = nil
+    var select: ((Item) -> Void)? = nil
     @State private var frames: [Item: CGRect] = [:]
     @State private var dragging: Item?
     @State private var offset: CGFloat = 0
@@ -1598,6 +1898,7 @@ private struct LanguageChips<Item: Hashable>: View {
                     .opacity(dragging == item ? 0.8 : 1)
             }
         }
+        .padding(1)  // room for the picked chip's outline
         .onPreferenceChange(ChipFrames.self) { all in
             frames = Dictionary(uniqueKeysWithValues: all.compactMap { key, frame in (key.base as? Item).map { ($0, frame) } })
         }
@@ -1607,14 +1908,17 @@ private struct LanguageChips<Item: Hashable>: View {
     private func chip(_ item: Item) -> some View {
         let first = item == items.first && firstNote != nil
         let label = first && items.count > 1 ? name(item) + " · " + (firstNote ?? "") : name(item)
+        let picked = select != nil && item == selected
         return HStack(spacing: 2) {
-            Text(label).foregroundStyle(first ? .primary : .secondary)
+            Text(label).foregroundStyle(picked || first ? .primary : .secondary)
                 .overlay {
-                    if items.count > 1 {
-                        DragHandle(onChanged: { dx in
+                    if items.count > 1 || select != nil {
+                        DragHandle(onTap: { select?(item) }, onChanged: { dx in
+                            guard items.count > 1 else { return }
                             dragging = item
                             offset = dx
                         }, onEnded: { x in
+                            guard items.count > 1 else { return }
                             let moved = ChipOrder.moved(item, in: items, to: x, midX: { frames[$0]?.midX })
                             dragging = nil
                             offset = 0
@@ -1630,26 +1934,32 @@ private struct LanguageChips<Item: Hashable>: View {
             }
         }
         .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
+        .background(picked ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
+        .overlay(Capsule().strokeBorder(picked ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1))
+        .accessibilityAddTraits(picked ? .isSelected : [])
         .help(firstNote.map { tr("拖动排序，第一个是\($0)", "Drag to reorder; the first is \($0)") } ?? tr("拖动排序", "Drag to reorder"))
     }
 }
 
 /// Tracks a mouse drag itself (its own event loop from mouseDown to mouseUp), so the table view under
 /// the Form never sees it: reports the horizontal distance while dragging and the pointer's x in the
-/// window where it's let go. A click without moving does nothing.
+/// window where it's let go. A click without moving is a tap.
 private struct DragHandle: NSViewRepresentable {
+    /// A click without moving.
+    var onTap: () -> Void = {}
     var onChanged: (CGFloat) -> Void
     var onEnded: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> HandleView { HandleView() }
 
     func updateNSView(_ view: HandleView, context: Context) {
+        view.onTap = onTap
         view.onChanged = onChanged
         view.onEnded = onEnded
     }
 
     final class HandleView: NSView {
+        var onTap: (() -> Void)?
         var onChanged: ((CGFloat) -> Void)?
         var onEnded: ((CGFloat) -> Void)?
 
@@ -1663,7 +1973,7 @@ private struct DragHandle: NSViewRepresentable {
             while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
                 let dx = next.locationInWindow.x - start
                 if next.type == .leftMouseUp {
-                    if moved { onEnded?(next.locationInWindow.x) }
+                    if moved { onEnded?(next.locationInWindow.x) } else { onTap?() }
                     break
                 }
                 if abs(dx) > 3 { moved = true }
@@ -1774,11 +2084,27 @@ struct IconTile: View {
     var size: CGFloat = 20
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+        // Fitted into the same box whatever its shape: a wide symbol (translate) stays inside the tile.
         Image(systemName: icon.symbol)
-            .font(.system(size: size * 0.55, weight: .semibold))
+            .resizable()
+            .symbolRenderingMode(.monochrome)
+            .fontWeight(.semibold)
+            .scaledToFit()
             .foregroundStyle(.white)
+            .frame(width: size * 0.7, height: size * 0.58)  // wider than tall: a wide symbol gets the room
+            .shadow(color: .black.opacity(0.15), radius: 0.5, y: 0.5)
             .frame(width: size, height: size)
-            .background(Color(nsColor: icon.color), in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+            .background {
+                // A little depth, like the icons of System Settings: lighter at the top, a fine edge.
+                ZStack {
+                    shape.fill(Color(nsColor: icon.color))
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0), .black.opacity(0.08)],
+                                              startPoint: .top, endPoint: .bottom))
+                }
+            }
+            .overlay(shape.strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.12), radius: 1, y: 0.5)
             .accessibilityHidden(true)
     }
 }
@@ -1793,10 +2119,117 @@ private struct SectionTitle: View {
         self.icon = icon
     }
 
+    // Plain, like System Settings: the page's icon is in the sidebar.
     var body: some View {
-        HStack(spacing: 8) {
-            IconTile(icon: icon, size: 22)
-            Text(title)
+        Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.primary).padding(.top, 6)
+    }
+}
+
+
+/// The settings window's pages, in the sidebar's order.
+enum SettingsPage: String, CaseIterable, Identifiable {
+    case general, input, writing, commands, plugins, voice, provider, advanced, about
+
+    var id: String { rawValue }
+
+    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice], [.commands, .plugins, .provider], [.advanced, .about]]
+
+    var title: String {
+        switch self {
+        case .general: return tr("通用", "General")
+        case .input: return tr("输入", "Input")
+        case .writing: return tr("翻译与改写", "Translate & Rewrite")
+        case .commands: return tr("自定义命令", "Custom Commands")
+        case .plugins: return tr("插件", "Plugins")
+        case .voice: return tr("语音输入", "Voice Input")
+        case .provider: return tr("AI 服务", "AI Provider")
+        case .advanced: return tr("高级", "Advanced")
+        case .about: return tr("关于", "About")
         }
+    }
+
+    var icon: CandidateView.Icon {
+        switch self {
+        case .general: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
+        case .input: return CommandIcons.input
+        case .writing: return CommandIcons.translate
+        case .commands: return CommandIcons.commands
+        case .plugins: return CommandIcons.plugins
+        case .voice: return CommandIcons.voice
+        case .provider: return CommandIcons.provider
+        case .advanced: return CommandIcons.advanced
+        case .about: return CandidateView.Icon(symbol: "info", color: .systemBlue)
+        }
+    }
+
+    /// Words its settings go by, in both languages, for the search field.
+    private var keywords: String {
+        switch self {
+        case .general: return "action key return 执行键 回车 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
+        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
+        case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
+        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页"
+        case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
+        case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection 服务 模型 密钥 测试连接"
+        case .advanced: return "tokens temperature timeout config file rime folder 高级 超时 温度 配置文件 目录"
+        case .about: return "about version website github license 关于 版本 网站"
+        }
+    }
+
+    func matches(_ query: String) -> Bool {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return true }
+        let text = (title + " " + keywords).lowercased()
+        return words.allSatisfy { text.contains($0) }
+    }
+}
+
+
+/// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
+enum SettingsImage {
+    @MainActor
+    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, to url: URL,
+                       appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
+        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab))
+        // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
+        // doesn't tell how tall its content is).
+        let size = NSSize(width: 880, height: 2600)
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: size.width, height: size.height),
+                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.alphaValue = 0
+        window.appearance = NSAppearance(named: appearance)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        settle(0.8)
+        defer { window.close() }
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let cropped = trimmed(rep, sidebar: 300) else { return }
+        try? cropped.representation(using: .png, properties: [:])?.write(to: url)
+        print("  \(url.path) (\(Int(cropped.size.width))×\(Int(cropped.size.height)))")
+    }
+
+    /// `rep` without the rows below the page's last content (right of the sidebar), 24 pt kept, at least 560 pt tall.
+    private static func trimmed(_ rep: NSBitmapImageRep, sidebar: CGFloat) -> NSBitmapImageRep? {
+        let scale = CGFloat(rep.pixelsWide) / rep.size.width
+        let (w, h) = (rep.pixelsWide, rep.pixelsHigh)
+        let x0 = Int(sidebar * scale)
+        guard let background = rep.colorAt(x: w - 4, y: h - 4) else { return nil }
+        func differs(_ c: NSColor?) -> Bool {
+            guard let c = c?.usingColorSpace(.deviceRGB), let b = background.usingColorSpace(.deviceRGB) else { return false }
+            return abs(c.redComponent - b.redComponent) + abs(c.greenComponent - b.greenComponent) + abs(c.blueComponent - b.blueComponent) > 0.03
+        }
+        var last = 0
+        for y in stride(from: h - 1, through: 0, by: -1) {
+            if stride(from: x0, to: w - 30, by: 3).contains(where: { differs(rep.colorAt(x: $0, y: y)) }) { last = y; break }
+        }
+        let height = min(h, max(Int(560 * scale), last + Int(24 * scale)))
+        guard let cg = rep.cgImage?.cropping(to: CGRect(x: 0, y: 0, width: w, height: height)) else { return nil }
+        let out = NSBitmapImageRep(cgImage: cg)
+        out.size = NSSize(width: rep.size.width, height: CGFloat(height) / scale)
+        return out
     }
 }

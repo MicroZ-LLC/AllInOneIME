@@ -263,11 +263,13 @@ enum SelfTest {
     /// table view, and letting go left of the first chip makes it the default. Nothing is saved.
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        config.setOrder([Language.chinese, .english])
+        // The translate languages are dragged into order (the input languages are a segmented bar now).
+        let japanese = OutputLanguage("ja")
+        config.setOrder([OutputLanguage.english, japanese])
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model))
-        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 560, height: 1700),
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .writing))  // its chips' page
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
         window.contentView = host
@@ -277,15 +279,15 @@ enum SelfTest {
         func handles(in view: NSView) -> [NSView] {
             (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
         }
-        // The input languages' row is the top one: its two handles, left to right.
+        // The translate languages' row is the top one: its two handles, left to right.
         let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
         guard let top = all.map(\.1.midY).max() else { return check(false, "language chips have drag handles") }
         let row = all.filter { abs($0.1.midY - top) < 4 }.sorted { $0.1.minX < $1.1.minX }
-        guard row.count == 2 else { return check(false, "two input language chips (\(row.count))") }
-        let (english, frame) = row[1]
+        guard row.count == 2 else { return check(false, "two translate language chips (\(row.count))") }
+        let (second, frame) = row[1]
         let start = NSPoint(x: frame.midX, y: frame.midY)
         let hit = host.superview.flatMap { window.contentView?.hitTest($0.convert(start, from: nil)) }
-        check(hit.map { $0 === english || $0.isDescendant(of: english) } == true,
+        check(hit.map { $0 === second || $0.isDescendant(of: second) } == true,
               "a click on a language chip reaches its drag handle (\(hit.map { String(describing: Swift.type(of: $0)) } ?? "nothing"))")
         func mouse(_ type: NSEvent.EventType, x: CGFloat) -> NSEvent? {
             NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: start.y), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -295,10 +297,10 @@ enum SelfTest {
         for event in [mouse(.leftMouseDragged, x: start.x - 20), mouse(.leftMouseDragged, x: target), mouse(.leftMouseUp, x: target)] {
             if let event { NSApp.postEvent(event, atStart: false) }
         }
-        if let down = mouse(.leftMouseDown, x: start.x) { english.mouseDown(with: down) }
-        _ = pump(timeout: 1) { model.config.inputLanguages.first == .english }
-        check(model.config.inputLanguages == [.english, .chinese] && model.config.defaultInput == .english,
-              "dragging English before Chinese makes it the default input (\(model.config.inputLanguages.map(\.rawValue)))")
+        if let down = mouse(.leftMouseDown, x: start.x) { second.mouseDown(with: down) }
+        _ = pump(timeout: 1) { model.config.outputLanguages.first == japanese }
+        check(model.config.outputLanguages == [japanese, .english],
+              "dragging Japanese before English puts it first (\(model.config.outputLanguages.map(\.code)))")
     }
 
     static func testSettingsWindow(snapshotDirectory: URL) {
@@ -384,34 +386,18 @@ enum SelfTest {
             UIText.choice = chinese ? .chinese : .english
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.profileShownAs = "default"  // README images are public: not the user's own profile name
+            if !chinese {
+                // The English README's: someone who writes English, translating into Spanish, French and German.
+                preview.config.setOrder([Language.english])
+                preview.config.setOrder(["es", "fr", "de"].map(OutputLanguage.init))
+                preview.config.uiLanguage = .english
+            }
             preview.runTest()
             _ = pump(timeout: 20) { preview.testStatus != .running }
-            let host = NSHostingView(rootView: SettingsView(model: preview))
-            // Shorter than the form, so the window below grows to its exact height (no empty space).
-            var size = NSSize(width: 560, height: 1200)
-            let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: size.width, height: size.height),
-                                  styleMask: [.titled], backing: .buffered, defer: false)
-            window.alphaValue = 0
-            window.appearance = NSAppearance(named: .aqua)  // README images are light, whatever the Mac uses
-            window.contentView = host
-            host.layoutSubtreeIfNeeded()
-            _ = pump(timeout: 0.5) { false }
-            // The form scrolls in its window: taller than that, the window grows so nothing is cut off.
-            for _ in 0..<3 {
-                guard let height = scrolledHeight(host)?.rounded(.up), height > size.height else { break }
-                size.height = height
-                window.setContentSize(size)
-                host.layoutSubtreeIfNeeded()
-                _ = pump(timeout: 0.3) { false }
+            // The AI provider page, with the connection test's result: what the README's setup shows.
+            SettingsImage.render(preview, page: .provider, to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
+                _ = pump(timeout: seconds) { false }
             }
-            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
-                host.cacheDisplay(in: host.bounds, to: rep)
-                if let png = rep.representation(using: .png, properties: [:]) {
-                    try? png.write(to: snapshotDirectory.appendingPathComponent("\(name).png"))
-                    print("  snapshot \(snapshotDirectory.path)/\(name).png (\(Int(size.width))×\(Int(size.height)))")
-                }
-            }
-            window.close()
         }
         render("6-settings", chinese: true)  // README
         render("6-settings-en", chinese: false)  // README (docs/en)
@@ -590,7 +576,7 @@ enum SelfTest {
         /// Holds the key for the length of the file, then releases it and waits for the transcript.
         /// With `sendWhileHolding`, ⌥Space is pressed before the key is released: the recording stops
         /// and the sentence goes to the model once the transcript is final.
-        func dictate(_ url: URL, snapshotName: String? = nil, sendWhileHolding: Bool = false) -> Bool {
+        func dictate(_ url: URL, snapshotName: String? = nil, snapshotAt: Int = 4, sendWhileHolding: Bool = false) -> Bool {
             controller.voiceFile = (url, speed: 1)
             let seconds = (try? AVAudioFile(forReading: url)).map { Double($0.length) / $0.processingFormat.sampleRate } ?? 2
             optionKey(down: true)
@@ -601,7 +587,7 @@ enum SelfTest {
             }
             var snapped = false
             _ = pump(timeout: seconds + 0.6) {
-                if let snapshotName, !snapped, controller.composer.voice.text.count >= 4 {
+                if let snapshotName, !snapped, controller.composer.voice.text.count >= snapshotAt {
                     snapped = true
                     readmeSnapshot(snapshotName, controller, client, in: snapshotDirectory)
                 }
@@ -669,7 +655,7 @@ enum SelfTest {
         controller.applySettings()
         tapShift(controller, client)
         improve(controller, client)
-        if dictate(englishAudio, sendWhileHolding: true) {
+        if dictate(englishAudio, snapshotName: "8-voice-english", snapshotAt: 17, sendWhileHolding: true) {  // README (docs/en)
             let draft = controller.composer.draft
             check(controller.composer.isLatinDraft && draft.lowercased().contains("blocker"), "English transcript: \(draft)")
             if finishConversion(controller, "voice + ⌥Space → English polish") {
@@ -1415,13 +1401,103 @@ enum SelfTest {
     static func snapshot(_ name: String, in directory: URL, appearance: NSAppearance.Name = .aqua) {
         let view = CandidatePanel.shared.view
         view.appearance = NSAppearance(named: appearance)
-        defer { view.appearance = nil }
+        view.drawsBackground = true  // nothing behind an offscreen image to blur
+        defer {
+            view.appearance = nil
+            view.drawsBackground = false
+        }
         let url = directory.appendingPathComponent("\(name).png")
         guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
         view.cacheDisplay(in: view.bounds, to: rep)
         if let png = rep.representation(using: .png, properties: [:]), (try? png.write(to: url)) != nil {
             print("  snapshot \(url.path)")
         }
+    }
+
+    /// The English README's images (docs/en, `en-*`): what someone who writes English sees, not the
+    /// Chinese scenes with the interface in English. English is the only input language, @translate goes
+    /// into Spanish, French and German, and the interface is English. Live requests; the settings it
+    /// started with come back afterwards.
+    static func englishReadmeScenes(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
+                                    in snapshotDirectory: URL) {
+        let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
+        defer {
+            controller.commitComposition(client)
+            (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
+            controller.applySettings()
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        let languages = ["es", "fr", "de"].map(OutputLanguage.init)
+        settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
+        settings.setOrder([Language.english])
+        settings.setOrder(languages)
+        settings.uiLanguage = .english
+        settings.actionKey = .enter
+        controller.loadSettings = { SelfTest.settings }
+        controller.applySettings()
+        controller.converter = Converter(loadConfig: {
+            var config = try Config.load()
+            config.setOrder([Language.english])
+            config.setOrder(languages)
+            return config
+        })
+        controller.composer.setInputMode(.english)
+        _ = pump(timeout: 6) { controller.panelModel().detail == nil }  // a notice from before isn't in the images
+        func shown() -> Bool {
+            let model = controller.panelModel()
+            return !([model.footer, model.detail ?? ""] + model.rows.map(\.comment)).joined().containsHan
+        }
+
+        // @translate: one sentence into each language added.
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        type("t", controller, client)
+        press(controller, client, "\t", code: VirtualKey.tab)
+        let late = "running 10 minutes late, start without me"
+        type(late, controller, client)
+        check(client.marked == "translate › " + late, "English README: an English @translate draft (\(client.marked))")
+        snapshot("en-translate-draft", in: snapshotDirectory)
+        _ = enter(controller, client)
+        if finishConversion(controller, "English README @translate") {
+            let lines = controller.composer.choices.filter { if case .translation = $0.kind { return true } else { return false } }
+            check(lines.count == 3 && controller.panelModel().rows.allSatisfy { !$0.text.containsHan },
+                  "English README: Spanish, French and German lines (\(lines.map(\.text)))")
+            snapshot("en-translate", in: snapshotDirectory)
+        }
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        controller.commitComposition(client)
+
+        // @improve: English polished, plus rewrites, in English.
+        improve(controller, client)
+        let rough = "this is a blocker bug your team need fix it asap"
+        type(rough, controller, client)
+        snapshot("en-improve-draft", in: snapshotDirectory)
+        _ = enter(controller, client)
+        if finishConversion(controller, "English README @improve") {
+            check(controller.panelModel().rows.allSatisfy { !$0.text.containsHan }, "English README: English polish and rewrites")
+            snapshot("en-improve", in: snapshotDirectory)
+            snapshot("en-improve-dark", in: snapshotDirectory, appearance: .darkAqua)
+        }
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        controller.commitComposition(client)
+
+        // The command list, then @question asked in English.
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        snapshot("en-palette", in: snapshotDirectory)
+        type("q", controller, client)
+        _ = enter(controller, client)
+        type("what is quantum computing", controller, client)
+        _ = enter(controller, client)
+        if finishConversion(controller, "English README @question") {
+            let answer = controller.composer.choices.last
+            check(answer?.kind == .answer && answer?.text.containsHan == false, "English README: an English answer (\(answer?.text.prefix(50) ?? ""))")
+            snapshot("en-question", in: snapshotDirectory)
+        }
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+        check(shown(), "English README: an English interface throughout")
     }
 
     /// A panel the README shows: snapshotted as it is (Chinese interface, docs/), then the same state
@@ -1440,6 +1516,8 @@ enum SelfTest {
         check(!interface.joined().containsHan, "\(name)-en: English interface (\(model.footer) | \(model.detail ?? "-"))")
         CandidatePanel.shared.show(model, anchor: client.caretRect)
         snapshot(name + "-en", in: directory, appearance: appearance)
+        // The text line above the panel, for the README image (a transcript isn't known beforehand).
+        try? Data(client.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
         settings.uiLanguage = language
         controller.applySettings()
         CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)
@@ -1762,6 +1840,7 @@ enum SelfTest {
         controller.commitComposition(client)
         (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
         controller.applySettings()
+        englishReadmeScenes(controller, client, in: snapshotDirectory)
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
         var openHistory = OpenHistory()
