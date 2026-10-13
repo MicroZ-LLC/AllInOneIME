@@ -1,0 +1,9 @@
+name = "allinoneime-site"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+routes = [
+  { pattern = "allinoneime.com", custom_domain = true },
+  { pattern = "www.allinoneime.com", custom_domain = true },
+  { pattern = "plugins.allinoneime.com", custom_domain = true },
+]

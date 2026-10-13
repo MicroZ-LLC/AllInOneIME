@@ -986,7 +986,7 @@ struct SettingsView: View {
                     }
                     HStack(spacing: 0) {
                         Text("© 2026 MicroZ LLC · ")
-                        Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+                        Link("allinoneime.com", destination: URL(string: "https://allinoneime.com")!)
                         Text(" · GPL-3.0")
                     }
                 }
