@@ -77,7 +77,8 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 ## The library (milestone 2, done)
 
 A public repo [`MicroZ-LLC/AllInOneIME-plugins`](https://github.com/MicroZ-LLC/AllInOneIME-plugins), served from
-`https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-plugins/main/` (`PluginLibrary.defaultBaseURL`):
+`https://plugins.allinoneime.com/` (`PluginLibrary.defaultBaseURL`; a Cloudflare Worker, `site/`, passing on its
+main branch's files; 0.5.0 reads `raw.githubusercontent.com/…/main/` directly):
 
 - `plugins/<name>/<version>/`: `plugin.json` and its files. A version folder never changes once published (CI
   refuses a pull request that modifies one); an update is a new folder.

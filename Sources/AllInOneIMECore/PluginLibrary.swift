@@ -138,7 +138,7 @@ public enum PluginLibraryError: Error, LocalizedError, Equatable {
 /// every file matches the index's sha256. Network only when asked (opening or refreshing the library,
 /// installing): no background polling.
 public struct PluginLibrary: Sendable {
-    public static let defaultBaseURL = URL(string: "https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-plugins/main/")!
+    public static let defaultBaseURL = URL(string: "https://plugins.allinoneime.com/")!
     /// The library's Ed25519 public key (raw, base64); its private half is in the maintainer's keychain
     /// (the library repo's scripts/build-index signs with it).
     public static let publicKey = Data(base64Encoded: "UPEZUcV35+GKMGKuBUm+EG2M8jro4F23vyskaCLcBIE=")!
