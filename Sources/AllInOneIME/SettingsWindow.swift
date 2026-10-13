@@ -622,6 +622,8 @@ struct SettingsView: View {
     /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
+    /// The input language whose settings the Input page shows.
+    @State private var inputTab: Language = .chinese
     private let remembersPage: Bool
     static let pageKey = "settingsPage"
 
@@ -720,6 +722,15 @@ struct SettingsView: View {
                        model.config.inputLanguages.count > 1
                        ? tr("第一个是默认，单按 Shift 切换", "New fields start in the first; tap Shift to switch")
                        : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
+            }
+            // Each language has settings of its own: pick one, they show in the card below.
+            LabeledContent(tr("各语言设置", "Language settings")) {
+                Picker("", selection: Binding(get: { shownInput }, set: { inputTab = $0 })) {
+                    ForEach(model.config.inputLanguages, id: \.self) { language in
+                        Text(AllInOneIMEInputController.inputName(language)).tag(language)
+                    }
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
         } header: {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
@@ -1115,12 +1126,20 @@ struct SettingsView: View {
     }
 
     /// 模糊音: shown with Chinese (pinyin) input.
-    @ViewBuilder private var fuzzySection: some View {
-        if model.config.inputLanguages.contains(.chinese) {
-            Section {
+    /// The input language whose settings show below the languages (the first, until another is picked).
+    private var shownInput: Language {
+        model.config.inputLanguages.contains(inputTab) ? inputTab : model.config.inputLanguages.first ?? .chinese
+    }
+
+    /// The settings of the input language picked above: pinyin's fuzzy sounds; none for English yet.
+    @ViewBuilder private var inputLanguageSection: some View {
+        Section {
+            switch shownInput {
+            case .chinese:
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
-                    titled(tr("允许模糊音", "Allow fuzzy pinyin"), tr("比如 zh 和 z、n 和 l 不分", "For sounds you don't tell apart, like zh and z"))
+                    titled(tr("模糊音", "Fuzzy pinyin"),
+                           tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之"))
                 }
                 if !model.config.fuzzyPinyin.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)], alignment: .leading, spacing: 8) {
@@ -1138,16 +1157,20 @@ struct SettingsView: View {
                           systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
-            } header: {
-                SectionTitle(tr("模糊音", "Fuzzy Pinyin"), icon: CommandIcons.input)
-            } footer: {
-                Text(tr("分不清的音两种拼法都能打出来，比如 z ↔ zh：打 zi 也有「之」，打 zhi 也有「字」。改完词库会重新部署，一两秒。",
-                        "Sounds you don't tell apart can be typed either way, e.g. z ↔ zh: zi also offers 之, zhi also offers 字. The dictionaries are deployed again after a change, in a second or two."))
+            case .english:
+                Text(tr("英文模式直接打字母，暂时没有要设置的。", "In English, letters are typed as they are: nothing to set yet."))
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            SectionTitle(AllInOneIMEInputController.inputName(shownInput), icon: CommandIcons.input)
+        } footer: {
+            if shownInput == .chinese {
+                Text(tr("改完词库会重新部署，一两秒生效。", "Applied in a second or two: the dictionaries are deployed again."))
                     .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
             }
-            .disabled(!model.canSave)
         }
+        .disabled(!model.canSave)
     }
 
     /// The version, who makes it, where to read more.
@@ -1190,7 +1213,7 @@ struct SettingsView: View {
                     interfaceSection
                 case .input:
                     inputSection
-                    fuzzySection
+                    inputLanguageSection
                 case .writing:
                     translateSection
                     rewriteSection

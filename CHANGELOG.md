@@ -6,7 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
-- Fuzzy pinyin: with Chinese input, turn on "Allow fuzzy pinyin" under Input and pick the pairs you don't tell apart (z ↔ zh, c ↔ ch, s ↔ sh, n ↔ l, f ↔ h, r ↔ l, an ↔ ang, en ↔ eng, in ↔ ing, ian ↔ iang, uan ↔ uang): either spelling then finds the word. Applied in a second or two; a `rime_ice.custom.yaml` of your own in the Rime user folder is never written over.
+- Fuzzy pinyin: on the Input page, pick Chinese (pinyin) under "Language settings", turn on "Fuzzy pinyin" and pick the pairs you don't tell apart (z ↔ zh, c ↔ ch, s ↔ sh, n ↔ l, f ↔ h, r ↔ l, an ↔ ang, en ↔ eng, in ↔ ing, ian ↔ iang, uan ↔ uang): either spelling then finds the word. Applied in a second or two; a `rime_ice.custom.yaml` of your own in the Rime user folder is never written over.
 
 ### Changed
 
