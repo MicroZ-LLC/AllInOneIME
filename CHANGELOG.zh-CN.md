@@ -6,7 +6,7 @@
 
 ### 新增
 
-- 模糊音：在设置的「输入」页，点输入语言里的「中文（拼音）」，打开「模糊音」，勾上你分不清的几组（z ↔ zh、c ↔ ch、s ↔ sh、n ↔ l、f ↔ h、r ↔ l、an ↔ ang、en ↔ eng、in ↔ ing、ian ↔ iang、uan ↔ uang），两种拼法都能打出来。一两秒生效；Rime 用户目录里你自己的 `rime_ice.custom.yaml` 不会被覆盖。
+- 模糊音：在设置的「输入」页，在输入语言的分段条里点「中文（拼音）」，打开「模糊音」，勾上你分不清的几组（z ↔ zh、c ↔ ch、s ↔ sh、n ↔ l、f ↔ h、r ↔ l、an ↔ ang、en ↔ eng、in ↔ ing、ian ↔ iang、uan ↔ uang），两种拼法都能打出来。一两秒生效；Rime 用户目录里你自己的 `rime_ice.custom.yaml` 不会被覆盖。
 
 ### 改动
 

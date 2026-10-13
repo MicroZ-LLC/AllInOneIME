@@ -123,6 +123,12 @@ enum SettingsPageImages {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        // The Input page with each input language's tab picked.
+        for language in model.config.inputLanguages {
+            SettingsImage.render(model, page: .input, inputTab: language,
+                                 to: output.appendingPathComponent("settings-input-\(language.rawValue).png"),
+                                 appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        }
         exit(0)
     }
 }

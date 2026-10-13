@@ -263,10 +263,12 @@ enum SelfTest {
     /// table view, and letting go left of the first chip makes it the default. Nothing is saved.
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        config.setOrder([Language.chinese, .english])
+        // The translate languages are dragged into order (the input languages are a segmented bar now).
+        let japanese = OutputLanguage("ja")
+        config.setOrder([OutputLanguage.english, japanese])
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))  // its chips' page
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .writing))  // its chips' page
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -277,15 +279,15 @@ enum SelfTest {
         func handles(in view: NSView) -> [NSView] {
             (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
         }
-        // The input languages' row is the top one: its two handles, left to right.
+        // The translate languages' row is the top one: its two handles, left to right.
         let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
         guard let top = all.map(\.1.midY).max() else { return check(false, "language chips have drag handles") }
         let row = all.filter { abs($0.1.midY - top) < 4 }.sorted { $0.1.minX < $1.1.minX }
-        guard row.count == 2 else { return check(false, "two input language chips (\(row.count))") }
-        let (english, frame) = row[1]
+        guard row.count == 2 else { return check(false, "two translate language chips (\(row.count))") }
+        let (second, frame) = row[1]
         let start = NSPoint(x: frame.midX, y: frame.midY)
         let hit = host.superview.flatMap { window.contentView?.hitTest($0.convert(start, from: nil)) }
-        check(hit.map { $0 === english || $0.isDescendant(of: english) } == true,
+        check(hit.map { $0 === second || $0.isDescendant(of: second) } == true,
               "a click on a language chip reaches its drag handle (\(hit.map { String(describing: Swift.type(of: $0)) } ?? "nothing"))")
         func mouse(_ type: NSEvent.EventType, x: CGFloat) -> NSEvent? {
             NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: start.y), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -295,10 +297,10 @@ enum SelfTest {
         for event in [mouse(.leftMouseDragged, x: start.x - 20), mouse(.leftMouseDragged, x: target), mouse(.leftMouseUp, x: target)] {
             if let event { NSApp.postEvent(event, atStart: false) }
         }
-        if let down = mouse(.leftMouseDown, x: start.x) { english.mouseDown(with: down) }
-        _ = pump(timeout: 1) { model.config.inputLanguages.first == .english }
-        check(model.config.inputLanguages == [.english, .chinese] && model.config.defaultInput == .english,
-              "dragging English before Chinese makes it the default input (\(model.config.inputLanguages.map(\.rawValue)))")
+        if let down = mouse(.leftMouseDown, x: start.x) { second.mouseDown(with: down) }
+        _ = pump(timeout: 1) { model.config.outputLanguages.first == japanese }
+        check(model.config.outputLanguages == [japanese, .english],
+              "dragging Japanese before English puts it first (\(model.config.outputLanguages.map(\.code)))")
     }
 
     static func testSettingsWindow(snapshotDirectory: URL) {

@@ -628,8 +628,9 @@ struct SettingsView: View {
     static let pageKey = "settingsPage"
 
     /// `page`: shown as given and not remembered (the self-test's images); nil: the one shown last.
-    init(model: SettingsModel, page: SettingsPage? = nil) {
+    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil) {
         self.model = model
+        if let inputTab { _inputTab = State(initialValue: inputTab) }
         remembersPage = page == nil
         _page = State(initialValue: page ?? UserDefaults.standard.string(forKey: Self.pageKey).flatMap(SettingsPage.init) ?? .general)
     }
@@ -700,30 +701,41 @@ struct SettingsView: View {
 
     @ViewBuilder private var inputSection: some View {
         Section {
-            // The input languages added, in the user's order: the first is the default; with two, Shift
-            // switches between them.
+            // The input languages added, as tabs: the one picked shows its settings in the card below. The
+            // first is the default (new text fields start in it); with two, Shift switches between them.
             LabeledContent {
-                HStack(spacing: 6) {
-                    LanguageChips(items: model.config.inputLanguages, name: AllInOneIMEInputController.inputName,
-                                  firstNote: tr("默认", "default"),
-                                  reorder: { model.config.setOrder($0) }, remove: removeInputLanguage,
-                                  selected: shownInput, select: { inputTab = $0 })
+                HStack(spacing: 8) {
+                    Picker("", selection: Binding(get: { shownInput }, set: { inputTab = $0 })) {
+                        ForEach(model.config.inputLanguages, id: \.self) { language in
+                            Text(AllInOneIMEInputController.inputName(language)
+                                 + (language == model.config.inputLanguages.first && model.config.inputLanguages.count > 1
+                                    ? tr(" · 默认", " · default") : ""))
+                                .tag(language)
+                        }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
                     let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
                     if !missing.isEmpty {
-                        Menu(tr("添加…", "Add…")) {
+                        Menu {
                             ForEach(missing, id: \.self) { language in
-                                Button(AllInOneIMEInputController.inputName(language)) { addInputLanguage(language) }
+                                Button(AllInOneIMEInputController.inputName(language)) {
+                                    addInputLanguage(language)
+                                    inputTab = language
+                                }
                             }
+                        } label: {
+                            Image(systemName: "plus")
                         }
-                        .fixedSize()
+                        .menuIndicator(.hidden).fixedSize()
+                        .help(tr("添加输入语言", "Add an input language"))
+                        .accessibilityLabel(tr("添加输入语言", "Add an input language"))
                     }
                 }
             } label: {
-                // The chips are tabs too: a click shows that language's settings in the card below.
                 titled(tr("输入语言", "Input languages"),
                        model.config.inputLanguages.count > 1
-                       ? tr("最左边是默认，拖动换位置；点一个看它的设置。单按 Shift 切换", "The first is the default: drag to reorder, click one for its settings. Tap Shift to switch")
-                       : tr("点它看它的设置。只有一种时 Shift 不切换", "Click it for its settings. With one, Shift doesn't switch"))
+                       ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
+                       : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
             }
         } header: {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
@@ -1098,7 +1110,13 @@ struct SettingsView: View {
                         Label {
                             Text(item.title).font(.system(size: 13.5)).padding(.leading, 4)
                         } icon: {
-                            IconTile(icon: item.icon, size: 24)
+                            if item == .about {
+                                // The app's own icon, as Raycast's About has.
+                                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 26, height: 26)
+                                    .accessibilityHidden(true)
+                            } else {
+                                IconTile(icon: item.icon, size: 24)
+                            }
                         }
                         .padding(.vertical, 3)
                         .tag(item)
@@ -1153,6 +1171,38 @@ struct SettingsView: View {
             case .english:
                 Text(tr("英文模式直接打字母，暂时没有要设置的。", "In English, letters are typed as they are: nothing to set yet."))
                     .foregroundStyle(.secondary)
+            }
+            // Its place among the input languages: the default, or not added at all.
+            let languages = model.config.inputLanguages
+            if languages.count > 1, let index = languages.firstIndex(of: shownInput) {
+                // Its place in the order (the tabs above follow it); the first is the default.
+                LabeledContent {
+                    HStack(spacing: 4) {
+                        Button { moveInput(shownInput, by: -1) } label: { Image(systemName: "chevron.left") }
+                            .disabled(index == 0)
+                            .help(tr("往前移", "Move earlier")).accessibilityLabel(tr("往前移", "Move earlier"))
+                        Button { moveInput(shownInput, by: 1) } label: { Image(systemName: "chevron.right") }
+                            .disabled(index == languages.count - 1)
+                            .help(tr("往后移", "Move later")).accessibilityLabel(tr("往后移", "Move later"))
+                    }
+                } label: {
+                    titled(tr("位置", "Position"),
+                           tr("第 \(index + 1) 个，共 \(languages.count) 个；第一个是默认", "\(index + 1) of \(languages.count); the first is the default"))
+                }
+                if shownInput != languages.first {
+                    LabeledContent {
+                        Button(tr("设为默认", "Make Default")) {
+                            model.config.setOrder([shownInput] + languages.filter { $0 != shownInput })
+                        }
+                    } label: {
+                        titled(tr("默认输入语言", "Default input language"), tr("新输入框从这种语言开始", "New text fields start in this one"))
+                    }
+                }
+                LabeledContent {
+                    Button(tr("移除", "Remove"), role: .destructive) { removeInputLanguage(shownInput) }
+                } label: {
+                    titled(tr("移除这种输入语言", "Remove this input language"), tr("以后可以再用 ＋ 加回来", "You can add it back with +"))
+                }
             }
         } header: {
             SectionTitle(AllInOneIMEInputController.inputName(shownInput), icon: CommandIcons.input)
@@ -1338,6 +1388,14 @@ struct SettingsView: View {
     private func addInputLanguage(_ language: Language) {
         model.config.inputLanguages.append(language)
         model.config.normalizeLanguages()
+    }
+
+    /// Moves an input language one place earlier (-1) or later (1); the first is the default.
+    private func moveInput(_ language: Language, by step: Int) {
+        var languages = model.config.inputLanguages
+        guard let index = languages.firstIndex(of: language), languages.indices.contains(index + step) else { return }
+        languages.swapAt(index, index + step)
+        model.config.setOrder(languages)
     }
 
     /// Removes an input language (one always stays); the next one becomes the default.
@@ -2131,9 +2189,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
 enum SettingsImage {
     @MainActor
-    static func render(_ model: SettingsModel, page: SettingsPage, to url: URL, appearance: NSAppearance.Name = .aqua,
-                       settle: (TimeInterval) -> Void) {
-        let host = NSHostingView(rootView: SettingsView(model: model, page: page))
+    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, to url: URL,
+                       appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
+        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)
