@@ -1,8 +1,10 @@
 // Builds the README images from the panels rendered by `AllInOneIME --selftest`:
 //   swift Scripts/make-readme-images.swift /tmp/allinoneime-selftest docs          Chinese interface and captions
-//   swift Scripts/make-readme-images.swift /tmp/allinoneime-selftest docs/en en    English (the `-en` renders)
-// demo.png      pinyin → translation, side by side, each under a text line with the inline (marked) text
-// english.png   English typed directly → English polish (with jargon, 黑话); Chinese as the output language
+//   swift Scripts/make-readme-images.swift /tmp/allinoneime-selftest docs/en en    English: the `en-*` scenes
+//                 (English typed, translated into Spanish, French and German) and the `-en` renders
+// demo.png      @translate, side by side, each under a text line with the inline (marked) text
+// improve.png   @improve: polished, plus rewrites
+// english.png   (Chinese only) English typed directly → English polish; Chinese as the output language
 // voice.png     dictation (hold right ⌥) after a command
 // commands.png  the @ command palette → @question's answer
 // open.png      @open: Spotlight as you type, and a path listing a folder (only macOS's own apps)
@@ -28,8 +30,17 @@ func render(_ name: String) -> URL {
     source.appendingPathComponent(name + (language == "en" ? "-en" : "") + ".png")
 }
 
-func load(_ name: String) -> NSBitmapImageRep {
-    let url = render(name)
+func load(_ name: String) -> NSBitmapImageRep { load(url: render(name)) }
+
+/// One of the English README's own scenes (`en-*.png`), as it is.
+func loadScene(_ name: String) -> NSBitmapImageRep { load(url: source.appendingPathComponent(name + ".png")) }
+
+/// The text line above a panel, as the self-test saved it (`<name>.marked.txt`), else `fallback`.
+func marked(_ name: String, _ fallback: String) -> String {
+    (try? String(contentsOf: source.appendingPathComponent(name + ".marked.txt"), encoding: .utf8)).flatMap { $0.isEmpty ? nil : $0 } ?? fallback
+}
+
+func load(url: URL) -> NSBitmapImageRep {
     guard let data = try? Data(contentsOf: url), let rep = NSBitmapImageRep(data: data) else {
         fatalError("missing \(url.path); run `make selftest` first")
     }
@@ -104,38 +115,62 @@ func composite(_ steps: [Step], to name: String) throws {
     try image.write(to: output.appendingPathComponent(name))
 }
 
-try composite([
-    Step(caption: tr("① 开头打 @translate，再打拼音", "① Type @translate, then pinyin"),
-         marked: "translate › wo jin tian you dian bu shu fu", panel: load("2-translate-pinyin")),
-    Step(caption: tr("② 按 ⏎：三种地道的英文说法", "② Press ⏎: three idiomatic English versions"),
-         marked: "translate › 我今天有点不舒服", panel: load("3-translate")),
-], to: "demo.png")
+if language == "en" {
+    try composite([
+        Step(caption: "① Type @translate and a sentence", marked: "translate › running 10 minutes late, start without me",
+             panel: loadScene("en-translate-draft")),
+        Step(caption: "② Press ⏎: a line in each language you added", marked: "translate › running 10 minutes late, start without me",
+             panel: loadScene("en-translate")),
+    ], to: "demo.png")
+    try composite([
+        Step(caption: "① Type @improve and a rough sentence", marked: "improve › this is a blocker bug your team need fix it asap",
+             panel: loadScene("en-improve-draft")),
+        Step(caption: "② Press ⏎: polished versions, plus rewrites", marked: "improve › this is a blocker bug your team need fix it asap",
+             panel: loadScene("en-improve")),
+    ], to: "improve.png")
+    try composite([
+        Step(caption: "Type @improve, then hold right ⌥ to talk", marked: marked("8-voice-english", "improve › This is a blocker"),
+             panel: load("8-voice-english")),
+    ], to: "voice.png")
+    try composite([
+        Step(caption: "① Type @ first: the command list; letters filter it", marked: "@", panel: loadScene("en-palette")),
+        Step(caption: "② @question and a question, press ⏎: the answer", marked: "question › what is quantum computing",
+             panel: loadScene("en-question")),
+    ], to: "commands.png")
+} else {
+    try composite([
+        Step(caption: tr("① 开头打 @translate，再打拼音", "① Type @translate, then pinyin"),
+             marked: "translate › wo jin tian you dian bu shu fu", panel: load("2-translate-pinyin")),
+        Step(caption: tr("② 按 ⏎：三种地道的英文说法", "② Press ⏎: three idiomatic English versions"),
+             marked: "translate › 我今天有点不舒服", panel: load("3-translate")),
+    ], to: "demo.png")
 
-try composite([
-    Step(caption: tr("① 开头打 @improve，再打拼音", "① Type @improve, then pinyin"),
-         marked: "improve › wo jin tian you dian bu shu fu", panel: load("1b-sentence-pinyin")),
-    Step(caption: tr("② 按 ⏎：润色 + 改写，不翻译", "② Press ⏎: polished, plus rewrites (no translation)"),
-         marked: "improve › 我今天有点不舒服", panel: load("4-final-light")),
-], to: "improve.png")
+    try composite([
+        Step(caption: tr("① 开头打 @improve，再打拼音", "① Type @improve, then pinyin"),
+             marked: "improve › wo jin tian you dian bu shu fu", panel: load("1b-sentence-pinyin")),
+        Step(caption: tr("② 按 ⏎：润色 + 改写，不翻译", "② Press ⏎: polished, plus rewrites (no translation)"),
+             marked: "improve › 我今天有点不舒服", panel: load("4-final-light")),
+    ], to: "improve.png")
 
-try composite([
-    Step(caption: tr("@improve 加英文：英文润色（含黑话）", "@improve with English: English polish (incl. Jargon)"),
-         marked: "improve › this is a blocker bug your team need fix it asap", panel: load("7-english-light")),
-    Step(caption: tr("@improve 加中文：中文润色 + 改写", "@improve with Chinese: Chinese polish + rewrites"),
-         marked: "improve › 这个项目的进度太慢了", panel: load("7b-chinese-output")),
-], to: "english.png")
+    try composite([
+        Step(caption: tr("@improve 加英文：英文润色（含黑话）", "@improve with English: English polish (incl. Jargon)"),
+             marked: "improve › this is a blocker bug your team need fix it asap", panel: load("7-english-light")),
+        Step(caption: tr("@improve 加中文：中文润色 + 改写", "@improve with Chinese: Chinese polish + rewrites"),
+             marked: "improve › 这个项目的进度太慢了", panel: load("7b-chinese-output")),
+    ], to: "english.png")
 
-try composite([
-    Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
-         marked: "improve › 我今天有", panel: load("8-voice")),
-], to: "voice.png")
+    try composite([
+        Step(caption: tr("先打 @improve，再按住右 ⌥ 说话", "Type @improve, then hold right ⌥ to talk"),
+             marked: "improve › 我今天有", panel: load("8-voice")),
+    ], to: "voice.png")
 
-try composite([
-    Step(caption: tr("① 开头打 @：命令列表，打字母筛选", "① Type @ first: the command list; letters filter it"),
-         marked: "@", panel: load("10-palette")),
-    Step(caption: tr("② @question 加问题，按 ⏎：回答", "② @question and a question, press ⏎: the answer"),
-         marked: "question › 什么是量子计算", panel: load("11-question")),
-], to: "commands.png")
+    try composite([
+        Step(caption: tr("① 开头打 @：命令列表，打字母筛选", "① Type @ first: the command list; letters filter it"),
+             marked: "@", panel: load("10-palette")),
+        Step(caption: tr("② @question 加问题，按 ⏎：回答", "② @question and a question, press ⏎: the answer"),
+             marked: "question › 什么是量子计算", panel: load("11-question")),
+    ], to: "commands.png")
+}
 
 try composite([
     Step(caption: tr("① @open 加名字：边打边找", "① @open and a name: results as you type"),
@@ -144,8 +179,9 @@ try composite([
          marked: "open › /System/Applications/", panel: load("12b-open-path")),
 ], to: "open.png")
 
-for (from, to) in [("4-final-dark", "panel-dark.png"), ("6-settings", "settings.png"), ("14-dashboard", "dashboard.png")] {
+let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
+for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
-    try FileManager.default.copyItem(at: render(from), to: output.appendingPathComponent(to))
+    try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png")
