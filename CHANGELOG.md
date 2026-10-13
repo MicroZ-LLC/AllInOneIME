@@ -14,6 +14,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - `@imessage` still ran `@py`, `@js` and custom run commands inside pasted or dictated text; they stay text there now, as everywhere else, with a notice.
 - With `@translate @improve` (or "@improve also translates") into languages such as Spanish, French and German, the rewrites came back translated: the Polish style even in the Polish language. They're in the language you wrote again.
 - With English as the only input language, the settings window no longer calls itself a pinyin input method, and Test Connection tries an English sentence.
+- In an English interface, the Jargon line's note on your terms uses plain punctuation ("bandwidth = time and energy").
 
 ## 0.6.0 (2026-10-12)
 

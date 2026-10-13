@@ -63,6 +63,8 @@ struct JargonLibraryTests {
         #expect(JargonLibrary.used(in: "nothing here", entries: entries).isEmpty)
         #expect(JargonLibrary.annotation(for: english, entries: entries) == "bandwidth＝精力、时间，circle back＝回头再跟进")
         #expect(JargonLibrary.annotation(for: "plain words", entries: entries) == nil)
+        // An English interface: plain = and commas.
+        #expect(JargonLibrary.annotation(for: english, entries: entries, chinese: false) == "bandwidth = 精力、时间, circle back = 回头再跟进")
         let wordy = [JargonEntry(term: "PRFAQ", meaning: "新功能提案文档，先写新闻稿和常见问题再开发")]
         #expect(JargonLibrary.annotation(for: "Let's write a PRFAQ.", entries: wordy) == "PRFAQ＝新功能提案文档，先写新闻稿…")
     }

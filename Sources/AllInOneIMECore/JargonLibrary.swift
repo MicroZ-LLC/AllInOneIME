@@ -126,14 +126,15 @@ public enum JargonLibrary {
         return out
     }
 
-    /// "bandwidth＝精力、时间，抓手＝着力点" for the terms `text` uses (meanings shortened), or nil.
-    public static func annotation(for text: String, entries: [JargonEntry]) -> String? {
+    /// "bandwidth＝精力、时间，抓手＝着力点" for the terms `text` uses (meanings shortened), or nil; in an
+    /// English interface "bandwidth = time and energy, LP = Leadership Principles".
+    public static func annotation(for text: String, entries: [JargonEntry], chinese: Bool = true) -> String? {
         let terms = used(in: text, entries: entries)
         guard !terms.isEmpty else { return nil }
         return terms.map { entry in
             let meaning = entry.meaning.count > 14 ? String(entry.meaning.prefix(13)) + "…" : entry.meaning
-            return "\(entry.term)＝\(meaning)"
-        }.joined(separator: "，")
+            return entry.term + (chinese ? "＝" : " = ") + meaning
+        }.joined(separator: chinese ? "，" : ", ")
     }
 
     static func match(_ term: String, in text: String) -> Range<String.Index>? {
