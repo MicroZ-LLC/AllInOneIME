@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AllInOneIME — 在 Mac 的任何输入框里用 AI 命令</title>
+<meta name="description" content="macOS 输入法：在任何 App 里打 @improve、@translate、@question，按回车，选结果。用你自己的 AI 服务，免费开源。也是完整的拼音输入法。">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" hreflang="en" href="https://allinoneime.com/">
+<meta property="og:title" content="AllInOneIME — 在任何输入框里用 AI 命令">
+<meta property="og:description" content="在 Mac 的任何 App 里打 @improve、@translate、@question，按回车，选结果。">
+<meta property="og:image" content="https://allinoneime.com/images/demo-zh.png">
+<meta property="og:url" content="https://allinoneime.com/zh/">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/zh/"><img src="/images/icon.png" alt="">AllInOneIME</a>
+    <nav class="nav-links">
+      <a class="hide-small" href="#features">功能</a>
+      <a class="hide-small" href="#privacy">隐私</a>
+      <a class="hide-small" href="/docs">文档</a>
+      <a class="hide-small" href="https://github.com/MicroZ-LLC/AllInOneIME">GitHub</a>
+      <a href="/" lang="en">English</a>
+      <a class="btn btn-primary btn-small" href="/download">下载</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <img class="hero-icon" src="/images/icon.png" alt="AllInOneIME">
+      <div class="eyebrow">macOS 输入法</div>
+      <h1>任何输入框里，<br>都能用 AI 命令。</h1>
+      <p class="lead">在 Mac 的任何 App 里，开头打 <code>@improve</code>、<code>@translate</code> 或 <code>@question</code>，按回车，选一个结果。不用复制到聊天窗口，也不用切换 App。</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/download">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 4.9c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5z"/></svg>
+          下载 macOS 版
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/MicroZ-LLC/AllInOneIME">在 GitHub 上看</a>
+      </div>
+      <p class="fineprint">免费开源 · macOS 14 及以上 · Apple 芯片和 Intel 都能用</p>
+      <div class="shot fade"><img src="/images/demo-zh.png" alt="开头打 @translate 再打拼音，按回车：三种地道的英文说法"></div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="split fade">
+        <div class="split-text">
+          <span class="tag">@improve</span>
+          <h3>写在哪里，就在哪里改得更好。</h3>
+          <p>先给三种润色后的说法，再按你选的风格改写：简洁、正式、口语、委婉，还有大厂黑话。都用你写的那种语言。</p>
+          <p>按数字选一个，或者直接回车选第一个；<code>0</code> 保留原文。</p>
+        </div>
+        <div class="shot"><img src="/images/improve-zh.png" alt="@improve 加拼音，按回车：润色和改写" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split reverse fade">
+        <div class="split-text">
+          <span class="tag">@translate · @question</span>
+          <h3>翻译成你要的语言，有问题直接问。</h3>
+          <p><code>@translate</code> 按你排的顺序，每种语言出一行：英文、日语、法语、德语、西班牙语等等。</p>
+          <p><code>@question</code> 直接给答案，可以上屏，也可以 ⌘C 复制。单打一个 <code>@</code> 就是命令列表。</p>
+        </div>
+        <div class="shot"><img src="/images/commands-zh.png" alt="打 @ 弹出命令列表；@question 加问题，回车出答案" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>不只是写字，整台 Mac 都能用。</h2>
+        <p>每个命令都以 <code>@</code> 开头，在任何输入框里都能用。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">✦</span>@claude</div><p>把任务交给 Claude Code 在后台做，做完通知你。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#64748b">⌕</span>@open</div><p>边打边找文件、文件夹和 App，也能打开网址。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#eab308">✎</span>@note</div><p>把文字存进「备忘录」，换行都保留。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#ef4444">◷</span>@reminder</div><p>加一个提醒，时间直接写在里面：「明天下午3点给张三打电话」。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">=</span>@calculate</div><p>在本机精确计算，写在句子中间也行。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#0ea5e9">›_</span>@py · @js</div><p>运行一行 Python 或 JavaScript，把结果上屏。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#10b981">✉</span>@imessage</div><p>不离开当前 App 就能发 iMessage。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#8b5cf6">＋</span>自己加</div><p>自己的 AI 指令、程序、网页搜索，还有签过名的插件库里的 <code>@stock</code> 等插件。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split fade">
+        <div class="split-text">
+          <span class="tag">菜单栏</span>
+          <h3>笔记、提醒、Claude 任务，点一下就在。</h3>
+          <p>点菜单栏的 ∞，下拉出用 <code>@note</code> 存的笔记、加的提醒，和 Claude Code 正在做的任务。往左滑一行就能移除。</p>
+          <p>和 macOS 一样的玻璃效果，跟着系统设置走。</p>
+        </div>
+        <div class="shot plain"><img src="/images/panel-swipe-zh.jpg" alt="菜单栏面板：笔记、提醒和 Claude 任务" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split reverse fade">
+        <div class="split-text">
+          <span class="tag">语音</span>
+          <h3>按住右 ⌥ 说话。</h3>
+          <p>边说边出字，在你的 Mac 上识别，音频不上传。先打命令（比如 <code>@improve</code>）再说，说完回车就执行。</p>
+        </div>
+        <div class="shot"><img src="/images/voice.png" alt="打 @improve，再按住右 ⌥ 说话" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>你的 AI，你的密钥，你的 Mac。</h2>
+        <p>只连你选的 AI 服务，用你自己的密钥，而且只在你对命令按回车的时候。</p>
+      </div>
+      <div class="pillars fade">
+        <div class="card pillar"><h4>打字时什么都不发</h4><p>只有执行命令时才发出去。密码框和其他安全输入时，从不发送。</p></div>
+        <div class="card pillar"><h4>密钥在钥匙串里</h4><p>API 密钥存在 macOS 钥匙串里，每个只发给保存时的那个服务。</p></div>
+        <div class="card pillar"><h4>能在本机的都在本机</h4><p>语音、<code>@open</code>、<code>@calculate</code>、<code>@note</code> 和 <code>@reminder</code> 都不离开你的 Mac。</p></div>
+      </div>
+      <div class="providers fade">
+        <span>Amazon Bedrock</span><span>Claude API</span><span>Gemini</span><span>OpenAI</span><span>DeepSeek</span><span>Ollama（本机）</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split fade">
+        <div class="split-text">
+          <span class="tag">拼音</span>
+          <h3>本身就是完整的拼音输入法。</h3>
+          <p>基于 Rime 和雾凇拼音，在本机运行；分不清的音可以开模糊音。单按 Shift 切换中英文。</p>
+        </div>
+        <div class="shot"><img src="/images/settings-general-zh.png" alt="设置窗口" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap fade">
+      <img class="hero-icon" src="/images/icon.png" alt="">
+      <h2>下一句话就试试。</h2>
+      <p class="lead">免费开源，GPL-3.0 许可。</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/download">下载 macOS 版</a>
+        <a class="btn btn-ghost" href="/docs">看使用说明</a>
+      </div>
+      <p class="fineprint">还没有经过 Apple 公证：第一次打开时，到「系统设置 → 隐私与安全性」点「仍要打开」。</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 MicroZ LLC</span>
+    <nav>
+      <a href="/docs">文档</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME/releases">版本</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME-plugins">插件库</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME/wiki/隐私">隐私</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME">GitHub</a>
+      <a href="/" lang="en">English</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Sections fade in as they come into view.
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add("in"); seen.unobserve(entry.target); }
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".fade").forEach((el) => seen.observe(el));
+</script>
+</body>
+</html>

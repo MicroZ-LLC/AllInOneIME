@@ -1,10 +1,10 @@
-// allinoneime.com, a Cloudflare Worker (deployed with `npx wrangler@4 deploy` in this folder).
+// allinoneime.com, a Cloudflare Worker with the site's files (public/), deployed with
+// `npx wrangler@4 deploy` in this folder.
 //
+// allinoneime.com (and www.): the site; /download, the newest release's disk image; /docs, the wiki.
 // plugins.allinoneime.com: the plugin library (PluginLibrary.defaultBaseURL), the files of the
 // AllInOneIME-plugins repository as they are on its main branch; a push there is live within minutes.
 // The index is signed and the app checks every file against it, so this host is trusted with nothing.
-//
-// allinoneime.com (and www.): the repository for now, /docs the wiki, until there is a site.
 
 const PLUGINS = "https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-plugins/main";
 const PLUGINS_REPO = "https://github.com/MicroZ-LLC/AllInOneIME-plugins";
@@ -13,13 +13,29 @@ const REPO = "https://github.com/MicroZ-LLC/AllInOneIME";
 const TYPES = { json: "application/json", js: "text/javascript", md: "text/markdown; charset=utf-8", txt: "text/plain; charset=utf-8" };
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     if (url.hostname === "plugins.allinoneime.com") return plugins(request, url);
+    if (url.hostname === "www.allinoneime.com") return Response.redirect(`https://allinoneime.com${url.pathname}${url.search}`, 301);
     if (url.pathname === "/docs" || url.pathname.startsWith("/docs/")) return Response.redirect(`${REPO}/wiki`, 302);
-    return Response.redirect(REPO, 302);
+    if (url.pathname === "/download") return download();
+    return env.ASSETS.fetch(request);
   },
 };
+
+/// The newest release's disk image (asked of GitHub, cached for 5 minutes); its page if there is none.
+async function download() {
+  const latest = await fetch("https://api.github.com/repos/MicroZ-LLC/AllInOneIME/releases/latest", {
+    headers: { "user-agent": "allinoneime.com", accept: "application/vnd.github+json" },
+    cf: { cacheTtl: 300, cacheEverything: true },
+  });
+  if (latest.ok) {
+    const release = await latest.json();
+    const dmg = (release.assets || []).find((asset) => asset.name.endsWith(".dmg"));
+    if (dmg) return Response.redirect(dmg.browser_download_url, 302);
+  }
+  return Response.redirect(`${REPO}/releases/latest`, 302);
+}
 
 async function plugins(request, url) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method Not Allowed", { status: 405 });

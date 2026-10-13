@@ -7,3 +7,10 @@ routes = [
   { pattern = "www.allinoneime.com", custom_domain = true },
   { pattern = "plugins.allinoneime.com", custom_domain = true },
 ]
+
+# The site's pages and images; the Worker runs first (plugins host, /download, /docs), then serves them.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "404-page"
