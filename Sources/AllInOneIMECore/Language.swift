@@ -37,7 +37,27 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
     /// The languages that can be added, in the order the settings offer them.
     public static let catalog: [OutputLanguage] = [
         "en", "zh", "zh-Hant", "ja", "ko", "fr", "de", "es", "pt", "it", "ru", "vi", "th", "id", "ar",
+        "hi", "bn", "te", "mr", "ta", "gu", "kn", "ml", "pa", "ur",
     ].map(OutputLanguage.init)
+
+    /// The languages of India (and Urdu), named here rather than by `Locale`, which says "Bangla" and
+    /// varies by macOS version; and the script each is written in (`script`).
+    static let indian: [String: (english: String, chinese: String, script: String)] = [
+        "hi": ("Hindi", "印地语", "Devanagari"),
+        "bn": ("Bengali", "孟加拉语", "Bengali"),
+        "te": ("Telugu", "泰卢固语", "Telugu"),
+        "mr": ("Marathi", "马拉地语", "Devanagari"),
+        "ta": ("Tamil", "泰米尔语", "Tamil"),
+        "gu": ("Gujarati", "古吉拉特语", "Gujarati"),
+        "kn": ("Kannada", "卡纳达语", "Kannada"),
+        "ml": ("Malayalam", "马拉雅拉姆语", "Malayalam"),
+        "pa": ("Punjabi", "旁遮普语", "Gurmukhi"),
+        "ur": ("Urdu", "乌尔都语", "Urdu (Perso-Arabic)"),
+    ]
+
+    /// The script its lines are written in, for languages often typed in Latin letters instead
+    /// (Hinglish "aap kaise ho"): the answer is in the script, not romanized. Nil for the others.
+    var script: String? { Self.indian[code]?.script }
 
     /// The first of the system's preferred languages (`Locale.preferredLanguages`, "zh-Hans-CN", "ja-JP") that
     /// isn't English and can be translated into: a new user's translation language. Traditional Chinese
@@ -69,7 +89,9 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
         switch code {
         case "zh": return "Simplified Chinese"
         case "zh-Hant": return "Traditional Chinese"
-        default: return Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
+        default:
+            if let indian = Self.indian[code] { return "\(indian.english) (\(indian.script) script)" }
+            return Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
         }
     }
 
@@ -82,6 +104,7 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
         case ("zh-Hant", true): return "繁体中文"
         case ("zh-Hant", false): return "Traditional Chinese"
         default:
+            if let indian = Self.indian[code] { return chinese ? indian.chinese : indian.english }
             return Locale(identifier: chinese ? "zh-Hans" : "en").localizedString(forIdentifier: code) ?? code
         }
     }

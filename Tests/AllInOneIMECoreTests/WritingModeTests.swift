@@ -65,4 +65,46 @@ struct WritingModeTests {
         #expect(parsed.translations.map(\.language.code) == ["ja", "en"] && parsed.translations.map(\.line.text) == ["すごいね", "That's awesome"])
         #expect(parsed.versions.isEmpty && parsed.rewrites.map(\.style) == ["润色", "简洁"])
     }
+
+    @Test func indianLanguages() {
+        let codes = ["hi", "bn", "te", "mr", "ta", "gu", "kn", "ml", "pa", "ur"]
+        let languages = codes.map(OutputLanguage.init)
+        #expect(languages.allSatisfy(OutputLanguage.catalog.contains))
+        #expect(languages.map { $0.name(chinese: true) }
+                == ["印地语", "孟加拉语", "泰卢固语", "马拉地语", "泰米尔语", "古吉拉特语", "卡纳达语", "马拉雅拉姆语", "旁遮普语", "乌尔都语"])
+        #expect(languages.map { $0.name(chinese: false) }
+                == ["Hindi", "Bengali", "Telugu", "Marathi", "Tamil", "Gujarati", "Kannada", "Malayalam", "Punjabi", "Urdu"])
+        #expect(OutputLanguage("hi").promptName == "Hindi (Devanagari script)" && OutputLanguage("pa").promptName == "Punjabi (Gurmukhi script)")
+        // Every tag in the catalog is its own, and none is read as a rewrite style.
+        let tags = OutputLanguage.catalog.map(\.tag)
+        #expect(Set(tags).count == tags.count && tags.allSatisfy { RewriteStyle.forTag($0) == nil })
+        let answer = codes.map { "\($0.uppercased()): line \($0)" }.joined(separator: "\n") + "\nSTYLE_CONCISE: short"
+        let parsed = CandidateParser.parse(answer, isFinal: true, output: nil, translations: languages)
+        #expect(parsed.translations.map(\.language) == languages && parsed.translations.map(\.line.text) == codes.map { "line \($0)" })
+        // A new user's system language.
+        #expect(OutputLanguage.preferred(from: ["en-IN", "hi-IN"])?.code == "hi")
+        #expect(OutputLanguage.preferred(from: ["bn-BD"])?.code == "bn" && OutputLanguage.preferred(from: ["pa-Guru-IN"])?.code == "pa")
+        #expect(OutputLanguage.preferred(from: ["ur_PK"])?.code == "ur" && OutputLanguage.preferred(from: ["ta-LK", "en"])?.code == "ta")
+    }
+
+    /// Hinglish typed in Latin letters reads as English, so Hindi is a target, not "already in that
+    /// language": the lines ask for Devanagari.
+    @Test func romanizedHindiIsTranslatedIntoDevanagari() {
+        let hindi = config([.english, OutputLanguage("hi")])
+        let plan = WritingPlan.make(.translate, text: "aap kaise ho", config: hindi)
+        #expect(plan.input == .english && plan.versions == OutputLanguage("hi") && plan.translations.isEmpty)
+        let system = Prompt.request(for: "aap kaise ho", mode: .translate, config: hindi).system.first?.text ?? ""
+        #expect(system.contains("HI: <how a native Hindi (Devanagari script) speaker"))
+        #expect(system.contains("Write HI lines in the language's own script, never romanized"))
+        // Several targets: each line names its script.
+        let several = Prompt.request(for: "aap kaise ho", mode: .translate,
+                                     config: config([OutputLanguage("hi"), OutputLanguage("ta"), .chinese]))
+        let text = several.system.first?.text ?? ""
+        #expect(text.contains("\nHI: <the sentence in Hindi (Devanagari script)") && text.contains("\nTA: <the sentence in Tamil (Tamil script)")
+                && text.contains("Write HI, TA lines"))
+        // Without them the rule isn't there.
+        let japanese = Prompt.request(for: "aap kaise ho", mode: .translate, config: config([OutputLanguage("ja")]))
+        let japaneseText = japanese.system.first?.text ?? ""
+        #expect(!japaneseText.isEmpty && !japaneseText.contains("own script"))
+    }
 }

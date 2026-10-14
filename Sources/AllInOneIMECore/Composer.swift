@@ -340,6 +340,9 @@ public final class Composer {
     /// The last thing added to the draft was a transcript (Space then runs the command right away).
     private var draftEndsWithVoice = false
 
+    /// The accent of a dead key (⌥E: "´"), shown at the cursor until the next key composes it (`KeyEvent.composed`).
+    public private(set) var pendingAccent: String?
+
     public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = true, actionKey: ActionKey = .enter) {
         self.engine = engine
         self.voiceEnabled = voiceEnabled
@@ -375,13 +378,13 @@ public final class Composer {
         if isLevelTwo { return shownDraft }
         // What is being typed or said goes in at the cursor; what follows it (`tail`, shown the same) after.
         let shown = shownDraft, after = tail.count
-        return String(shown.dropLast(after)) + (engineState.isComposing ? engineState.preedit : "") + appendix(voice.text)
-            + String(shown.suffix(after))
+        return String(shown.dropLast(after)) + (engineState.isComposing ? engineState.preedit : "") + (pendingAccent ?? "")
+            + appendix(voice.text) + String(shown.suffix(after))
     }
 
     /// Caret position in `markedText`, in Characters.
     public var markedCursor: Int {
-        let before = shownDraft.count - tail.count
+        let before = shownDraft.count - tail.count + (pendingAccent?.count ?? 0)
         if voice != .off { return before + appendix(voice.text).count }
         guard !isLevelTwo, engineState.isComposing else { return before }
         return before + min(max(engineState.cursor, 0), engineState.preedit.count)
@@ -821,6 +824,48 @@ public final class Composer {
 
     private func dispatchKey(_ event: KeyEvent, afterVoice: Bool) -> Response {
         draftEndsWithVoice = false
+        var accentTyped: [Effect] = []
+        if pendingAccent != nil || event.isDeadKey {
+            switch handleDeadKey(event) {
+            case let .done(response): return response
+            case let .then(effects): accentTyped = effects
+            }
+        }
+        let response = dispatchOtherKey(event, afterVoice: afterVoice)
+        return Response(effects: accentTyped + response.effects, handled: response.handled)
+    }
+
+    private enum DeadKeyOutcome {
+        case done(Response)
+        /// The accent went in as is; the key does what it does.
+        case then([Effect])
+    }
+
+    /// A dead key waits, with its accent marked, for the key it goes on (`KeyEvent.composed`): in English
+    /// mode, and in a command's text in either mode. Not while pinyin is being typed (the key is then as before).
+    private func handleDeadKey(_ event: KeyEvent) -> DeadKeyOutcome {
+        if let accent = pendingAccent {
+            pendingAccent = nil
+            if let text = event.composed {
+                guard !draft.isEmpty else { return .done(.consumed([.commit(text)])) }
+                appendTyped(text)
+                setLevelOnePhase()
+                return .done(.consumed([.updateMarkedText, .showPanel]))
+            }
+            // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
+            if event.keyCode == VirtualKey.delete || event.keyCode == VirtualKey.escape { return .done(.consumed([.updateMarkedText])) }
+            guard !draft.isEmpty else { return .then([.commit(accent)]) }
+            insertIntoDraft(accent)
+            return .then([.updateMarkedText])
+        }
+        guard event.isDeadKey, !isLevelTwo, voice == .off, let engine, !engine.snapshot().isComposing,
+              !draft.isEmpty || engine.snapshot().isAsciiMode, !event.characters.isEmpty
+        else { return .then([]) }
+        pendingAccent = event.characters
+        return .done(.consumed([.updateMarkedText]))
+    }
+
+    private func dispatchOtherKey(_ event: KeyEvent, afterVoice: Bool) -> Response {
         let modifiers = event.modifiers.subtracting(.capsLock)
         if modifiers == .command, event.charactersIgnoringModifiers.lowercased() == "c", let text = copyableText {
             return .consumed([.copy(text), .notice(messages.copied)])  // the result stays up
@@ -1095,6 +1140,7 @@ public final class Composer {
     /// everything pending is committed as converted text, including speech recognized so far (but not a
     /// note with line breaks: `finishAsTyped`).
     public func commitAll() -> [Effect] {
+        typePendingAccent()
         var effects: [Effect] = []
         var spoken = ""
         if let id = voice.id {
@@ -1112,6 +1158,7 @@ public final class Composer {
     /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
     /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over).
     public func commitAsTyped() -> [Effect] {
+        typePendingAccent()
         var effects: [Effect] = []
         if let id = voice.id { effects = cancelVoice(id, refresh: false) }
         var text = draft
@@ -1119,6 +1166,13 @@ public final class Composer {
             text += engine.rawInput
         }
         return effects + finishAsTyped(text)
+    }
+
+    /// A dead key's accent with nothing after it goes in as is (the field lost, everything committed), as macOS does.
+    private func typePendingAccent() {
+        guard let accent = pendingAccent else { return }
+        pendingAccent = nil
+        insertIntoDraft(accent)
     }
 
     /// The draft is a note with line breaks (pasted, or back from a save that failed). Inserted as typed, each
@@ -1909,6 +1963,7 @@ public final class Composer {
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
         draft = ""
+        pendingAccent = nil
         messageRecipient = nil
         clearRecipientResults()
         draftEndsWithVoice = false

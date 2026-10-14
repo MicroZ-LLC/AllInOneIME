@@ -115,6 +115,14 @@ public enum Prompt {
             rules.append("One line per language tag above (" + plan.translations.map(\.tag).joined(separator: ", ")
                 + "), each the most idiomatic translation into that language, in that order.")
         }
+        // Hindi, Bengali … are often typed in Latin letters ("aap kaise ho"): that isn't the language's own
+        // script, so it is translated (written in the script), not polished as it is.
+        let scripts = ([plan.versions].compactMap { $0 } + plan.translations).filter { $0.script != nil }
+        if !scripts.isEmpty {
+            rules.append("Write " + scripts.map(\.tag).joined(separator: ", ") + " lines in the language's own script, never "
+                + "romanized. Input typed in Latin letters (romanized Hindi such as \"aap kaise ho\", Hinglish) "
+                + "is translated into that script.")
+        }
         if plan.versions.map({ $0 != plan.input }) == true || !plan.translations.isEmpty {
             rules.append("Translate what the user means, never word for word: slang, internet expressions and idioms "
                 + "get the natural equivalent a native speaker would use (牛的啊 is praise, \"That's awesome\", "

@@ -6,10 +6,12 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- Dead keys work under the input method: ⌥E then E (US), ^ then e (AZERTY), ' then a (US International) typed only "e" (or "´e" in a command's text), since macOS doesn't compose them for an input method. They are composed from your keyboard layout now, with the accent shown while it waits, outside commands in English mode and in a command's text (`@translate où est la gare`, `@improve Übermorgen`). Pinyin is unchanged.
 - Switching the interface language in the settings window left some controls (the action key's name, the language chips) in the old language until the page was opened again; the page redraws at once now.
 
 ### Added
 
+- Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Punjabi and Urdu as translation languages. Hindi typed in Latin letters ("aap kaise ho") is translated into Devanagari, each in its own script; a Mac set to one of them (hi-IN …) translates into it from the start.
 - ← → move the cursor in a command's text (`@question …`), as in any text field: type, pinyin, ⌫, a paste or speech go in where it is. ⌘← ⌘→ (or Home, End) go to the start or end of the text, ⌥← ⌥→ a word at a time, fn⌫ deletes after the cursor. The cursor never goes into the command itself; ⏎ runs the whole text.
 
 ### Changed
