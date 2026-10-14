@@ -1,23 +1,45 @@
-<img src="Resources/AppIcon.png" width="96" alt="AllInOneIME 图标" align="right">
+<div align="center">
+
+[English](README.md) · **简体中文** · [繁體中文](docs/readme/README_zh-TW.md) · [日本語](docs/readme/README_ja.md) · [한국어](docs/readme/README_ko.md) · [Français](docs/readme/README_fr.md) · [Deutsch](docs/readme/README_de.md) · [Español](docs/readme/README_es.md) · [Português (Brasil)](docs/readme/README_pt-BR.md) · [Italiano](docs/readme/README_it.md) · [Русский](docs/readme/README_ru.md) · [Tiếng Việt](docs/readme/README_vi.md) · [ไทย](docs/readme/README_th.md) · [Bahasa Indonesia](docs/readme/README_id.md) · [हिन्दी](docs/readme/README_hi.md) · [العربية](docs/readme/README_ar.md) · [Türkçe](docs/readme/README_tr.md)
+
+<br>
+
+<img src="Resources/AppIcon.png" width="112" alt="AllInOneIME 图标">
 
 # AllInOneIME
 
-[English](README.md) | 中文
+### 在 Mac 上任何输入框里，都能用 AI 命令。
 
-一个 macOS 输入法。平时就是普通拼音输入法，在本地运行，基于 Rime + 雾凇拼音。句子开头打 `@` 就是命令，
-写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，
-`@claude` 交给 Claude Code，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。还能打法语、韩语（韩文）和印地语
-（用拉丁字母打出天城文）。
+在任何 App 里打 `@improve`、`@translate` 或 `@question`，按 ⏎，选结果。<br>
+不用复制到聊天窗口，不用切换 App。用你自己的 AI 服务和 key。
 
-作者：[Weijian Zhang](https://weijianz.com)
+[![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)](#安装)
+[![Apple 芯片和 Intel](https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-555)](#安装)
+[![许可证：FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-f59e0b)](LICENSE)
+[![下载次数](https://img.shields.io/github/downloads/MicroZ-LLC/AllInOneIME/total?color=22c55e)](https://github.com/MicroZ-LLC/AllInOneIME/releases)
 
-![两步：@translate 加拼音，再按 ⏎ 出三种地道的英文说法](docs/demo.png)
+**[下载](https://allinoneime.com/download)** · **[官网](https://allinoneime.com/zh/)** · **[文档](https://github.com/MicroZ-LLC/AllInOneIME/wiki/首页)** · **[扩展](docs/extensions.md)**
+
+[怎么用](#怎么用) · [@ 命令](#-命令试用) · [自己加命令](#自己加命令) · [输入语言](#输入和翻译) · [语音](#语音输入) · [安装](#安装) · [隐私](#隐私)
+
+<br>
+
+<img src="docs/demo.png" width="820" alt="两步：@translate 加拼音，再按 ⏎ 出三种地道的英文说法">
+
+</div>
+
+> [!NOTE]
+> AllInOneIME 还没有经过 Apple 公证：第一次打开时，在 系统设置 → 隐私与安全性 里点「仍要打开」。只从
+> [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com/zh/) 下载。
+
+一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@claude` 交给 Claude Code，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
 
 ![@improve 加拼音，按 ⏎：原文语言的润色和改写](docs/improve.png)
 
 ![@improve 加英文：英文润色（含黑话）；加中文：中文润色和改写](docs/english.png)
 
-更详细的说明（每个命令和设置、安装排查、隐私）见 [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki)。
+更详细的说明（每个命令和设置、安装排查、隐私）见 [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki/首页)。作者：[Weijian Zhang](https://weijianz.com)，MicroZ LLC。
 
 ## 怎么用
 
