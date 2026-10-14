@@ -258,8 +258,15 @@ public struct Config: Codable, Equatable, Sendable {
     /// A new user's settings (no config file yet): the hosted service once it is set up, which needs
     /// nothing but a Google sign-in. A file without `provider` (from before providers) stays on Bedrock.
     public static var fresh: Config {
+        fresh(preferring: Locale.preferredLanguages)
+    }
+
+    /// `fresh`, translating into the first of `languages` (the system's preferred ones) that isn't
+    /// English (`OutputLanguage.preferred`); English when there is none, until one is added.
+    public static func fresh(preferring languages: [String]) -> Config {
         var config = Config.default
         if HostedService.isConfigured { config.provider = .hosted }
+        if let language = OutputLanguage.preferred(from: languages) { config.setOrder([language]) }
         return config
     }
 

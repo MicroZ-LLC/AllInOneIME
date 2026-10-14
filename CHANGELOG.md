@@ -11,6 +11,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Changed
 
 - A new install starts with English as its input language; add Chinese (pinyin) with + under Input. Existing settings don't change. The settings window's language follows the system until you pick one.
+- A new install translates into the first of the Mac's preferred languages that isn't English (Chinese, Japanese, French…). With English alone, `@translate` on an English sentence sends nothing: it says so and opens the settings on Translate & Rewrite to add a language.
 - ⏎ on a command with nothing after it no longer takes the clipboard's text: it only says to write something. Paste into a command with ⌃V (or ⌘V outside terminals), as before. A stray ⏎ no longer puts whatever was copied into the command.
 
 ## 0.6.1 (2026-10-12)

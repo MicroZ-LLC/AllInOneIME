@@ -1350,6 +1350,9 @@ struct SettingsView: View {
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
         }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
+            if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
             model.reloadIfChanged()
         }
@@ -1796,6 +1799,13 @@ final class SettingsWindow {
 
     /// After the window's language changed.
     func updateTitle() { window?.title = Self.title }
+
+    /// Shows the window on `page` (already open: it turns to it).
+    func show(page: SettingsPage) {
+        UserDefaults.standard.set(page.rawValue, forKey: SettingsView.pageKey)
+        show()
+        NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": page.rawValue])
+    }
 
     func show() {
         if window?.isVisible != true {

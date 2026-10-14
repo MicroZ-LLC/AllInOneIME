@@ -1074,6 +1074,15 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Streams level two for `input`: the improve conversion, a `.generate` command's answer, or what a
     /// `.run` command's program printed.
+    /// Whether `config` has a language to translate `input` into other than its own.
+    static func hasTranslationTarget(for input: String, config: Config) -> Bool {
+        let own = OutputLanguage(Language.of(input))
+        return config.outputLanguages.contains { $0 != own }
+    }
+
+    /// Opens the settings window on `page` (the self-test records it instead).
+    var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
+
     @MainActor
     private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil) {
         conversionTask?.cancel()
@@ -1083,6 +1092,15 @@ final class AllInOneIMEInputController: IMKInputController {
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
+        // @translate with no language to translate into but the sentence's own (a new user whose system has no
+        // other language): nothing is sent; the settings open where languages are added.
+        if command == .translate, !Self.hasTranslationTarget(for: input, config: loadSettings()) {
+            log.notice("conversion \(id): no language to translate into")
+            perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
+                                  id: id), client: nil)
+            openSettings(.writing)
+            return
+        }
         // An @calculate inside the text is worked out here first: a mistake in it is reported at once and in the
         // interface language (from inside the pipeline only its English description would arrive).
         if let plan, let error = Calculator.failure(in: plan) {

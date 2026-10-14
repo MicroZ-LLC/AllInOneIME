@@ -39,6 +39,24 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
         "en", "zh", "zh-Hant", "ja", "ko", "fr", "de", "es", "pt", "it", "ru", "vi", "th", "id", "ar",
     ].map(OutputLanguage.init)
 
+    /// The first of the system's preferred languages (`Locale.preferredLanguages`, "zh-Hans-CN", "ja-JP") that
+    /// isn't English and can be translated into: a new user's translation language. Traditional Chinese
+    /// for "zh-Hant…" and Taiwan, Hong Kong, Macau. Nil when there is none (English alone, or only ones
+    /// not offered).
+    public static func preferred(from identifiers: [String]) -> OutputLanguage? {
+        for identifier in identifiers {
+            let parts = identifier.replacingOccurrences(of: "_", with: "-").split(separator: "-").map(String.init)
+            guard let code = parts.first?.lowercased(), code != "en" else { continue }
+            var candidate = code
+            if code == "zh" {
+                let traditional = parts.dropFirst().contains { ["hant", "tw", "hk", "mo"].contains($0.lowercased()) }
+                candidate = traditional ? "zh-Hant" : "zh"
+            }
+            if let language = catalog.first(where: { $0.code == candidate }) { return language }
+        }
+        return nil
+    }
+
     /// The input language this is, when it is one ("zh" is Chinese; "zh-Hant" is not: Chinese typed in
     /// pinyin comes out simplified, so it is translated into traditional).
     public var input: Language? { Language(rawValue: code) }
