@@ -628,6 +628,8 @@ struct SettingsView: View {
     @ObservedObject private var packs = LanguagePackManager.shared
     /// The pack of an input language just removed: the dialog offers to delete it too.
     @State private var packToRemove: LanguagePack?
+    /// A pack the user asked to delete from its language's card (asked first, with its size).
+    @State private var packToDelete: LanguagePack?
     private let remembersPage: Bool
     static let pageKey = "settingsPage"
 
@@ -749,19 +751,6 @@ struct SettingsView: View {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
         }
         .disabled(!model.canSave)
-        .confirmationDialog(packToRemove.map { tr("也删除\($0.name.text(chinese: true))语言包？", "Also delete the \($0.name.en) language pack?") } ?? "",
-                            isPresented: Binding(get: { packToRemove != nil }, set: { if !$0 { packToRemove = nil } })) {
-            Button(tr("删除语言包", "Delete Pack"), role: .destructive) {
-                if let pack = packToRemove { packs.remove(pack) }
-                packToRemove = nil
-            }
-            Button(tr("保留", "Keep"), role: .cancel) { packToRemove = nil }
-        } message: {
-            if let pack = packToRemove {
-                Text(tr("占用 \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file))；以后用 ＋ 加回来时要重新下载。",
-                        "It takes \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)); adding the language back with + downloads it again."))
-            }
-        }
     }
 
     @ViewBuilder private var translateSection: some View {
@@ -1174,6 +1163,7 @@ struct SettingsView: View {
                           systemImage: "arrow.down.circle")
                         .foregroundStyle(.secondary)
                 }
+                packInfo(.chinesePinyin)
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(tr("模糊音", "Fuzzy pinyin"),
@@ -1225,10 +1215,14 @@ struct SettingsView: View {
                         titled(tr("默认输入语言", "Default input language"), tr("新输入框从这种语言开始", "New text fields start in this one"))
                     }
                 }
+            }
+            if languages.contains(shownInput), languages.count > 1 || shownInput != .english {
                 LabeledContent {
                     Button(tr("移除", "Remove"), role: .destructive) { removeInputLanguage(shownInput) }
                 } label: {
-                    titled(tr("移除这种输入语言", "Remove this input language"), tr("以后可以再用 ＋ 加回来", "You can add it back with +"))
+                    titled(tr("移除这种输入语言", "Remove this input language"),
+                           languages.count > 1 ? tr("以后可以再用 ＋ 加回来", "You can add it back with +")
+                                               : tr("只剩英文；以后可以再用 ＋ 加回来", "English stays; you can add it back with +"))
                 }
             }
         } header: {
@@ -1269,12 +1263,44 @@ struct SettingsView: View {
         }
     }
 
+    /// The input languages' pack dialogs, on the page rather than on the Input section (a Form section's own
+    /// dialog is not shown), and apart from `body`'s chain of modifiers (too long to type-check otherwise).
+    private func packDialogs(_ content: some View) -> some View {
+        content
+        .confirmationDialog(packToRemove.map { tr("也删除\($0.name.text(chinese: true))语言包？", "Also delete the \($0.name.en) language pack?") } ?? "",
+                            isPresented: Binding(get: { packToRemove != nil }, set: { if !$0 { packToRemove = nil } })) {
+            Button(tr("删除语言包", "Delete Pack"), role: .destructive) {
+                if let pack = packToRemove { packs.remove(pack) }
+                packToRemove = nil
+            }
+            Button(tr("保留", "Keep"), role: .cancel) { packToRemove = nil }
+        } message: {
+            if let pack = packToRemove {
+                Text(tr("占用 \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file))；以后用 ＋ 加回来时要重新下载。",
+                        "It takes \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)); adding the language back with + downloads it again."))
+            }
+        }
+        .confirmationDialog(packToDelete.map { tr("删除\($0.name.text(chinese: true))语言包？", "Delete the \($0.name.en) language pack?") } ?? "",
+                            isPresented: Binding(get: { packToDelete != nil }, set: { if !$0 { packToDelete = nil } })) {
+            Button(tr("删除语言包", "Delete Pack"), role: .destructive) {
+                if let pack = packToDelete { deletePack(pack) }
+                packToDelete = nil
+            }
+            Button(tr("取消", "Cancel"), role: .cancel) { packToDelete = nil }
+        } message: {
+            if let pack = packToDelete {
+                Text(tr("\(pack.name.text(chinese: true))也会从输入语言里移除。占用 \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file))；以后用 ＋ 加回来时要重新下载。",
+                        "\(pack.name.en) is removed from your input languages too. It takes \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)); adding it back with + downloads it again."))
+            }
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
         } detail: {
-            Form {
+            packDialogs(Form {
                 loadErrorSection
                 switch page {
                 case .general:
@@ -1306,7 +1332,7 @@ struct SettingsView: View {
             .background(Color(nsColor: .textBackgroundColor))
             // A page starts at its top, and is drawn anew in the other interface language: controls of their
             // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
-            .id("\(page.rawValue)-\(UIText.chinese)")
+            .id("\(page.rawValue)-\(UIText.chinese)"))
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: page) { if remembersPage { UserDefaults.standard.set(page.rawValue, forKey: Self.pageKey) } }
@@ -1470,6 +1496,31 @@ struct SettingsView: View {
         }
     }
 
+    /// What a language's card says about its pack: the version, its size, where it came from, and Delete.
+    @ViewBuilder private func packInfo(_ pack: LanguagePack) -> some View {
+        if case let .installed(record) = packs.state(pack) {
+            let size = ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)
+            LabeledContent {
+                Button(tr("删除…", "Delete…")) { packToDelete = pack }
+            } label: {
+                titled(tr("语言包", "Language pack"),
+                       record.source == .library
+                       ? tr("\(record.version) · \(size) · 从语言包库下载", "\(record.version) · \(size) · downloaded from the language library")
+                       : tr("\(record.version) · \(size) · 更新时从旧版本留下，没有重新下载",
+                            "\(record.version) · \(size) · kept from the earlier version when updating, not downloaded"))
+            }
+        }
+    }
+
+    /// Deletes a pack from its card: its language is removed from the input languages first.
+    private func deletePack(_ pack: LanguagePack) {
+        let languages = model.config.inputLanguages
+        if languages.contains(pack.language) {
+            model.config.setOrder(languages == [pack.language] ? [Language.english] : languages.filter { $0 != pack.language })
+        }
+        packs.remove(pack)
+    }
+
     /// Moves an input language one place earlier (-1) or later (1); the first is the default.
     private func moveInput(_ language: Language, by step: Int) {
         var languages = model.config.inputLanguages
@@ -1478,9 +1529,10 @@ struct SettingsView: View {
         model.config.setOrder(languages)
     }
 
-    /// Removes an input language (one always stays); the next one becomes the default.
+    /// Removes an input language; the next one becomes the default, or English when it was the only one.
     private func removeInputLanguage(_ language: Language) {
-        model.config.setOrder(AllInOneIMEInputController.toggled(language, in: model.config.inputLanguages))
+        let languages = model.config.inputLanguages
+        model.config.setOrder(languages == [language] ? [Language.english] : AllInOneIMEInputController.toggled(language, in: languages))
         // Its pack stays unless the user deletes it too (asked, with its size).
         if !model.config.inputLanguages.contains(language), let pack = LanguagePack.for(language), packs.isInstalled(pack) {
             packToRemove = pack
