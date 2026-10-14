@@ -1,23 +1,50 @@
-<img src="Resources/AppIcon.png" width="96" alt="AllInOneIME icon" align="right">
+<div align="center">
+
+**English** · [简体中文](README.zh-CN.md) · [繁體中文](docs/readme/README_zh-TW.md) · [日本語](docs/readme/README_ja.md) · [한국어](docs/readme/README_ko.md) · [Français](docs/readme/README_fr.md) · [Deutsch](docs/readme/README_de.md) · [Español](docs/readme/README_es.md) · [Português (Brasil)](docs/readme/README_pt-BR.md) · [Italiano](docs/readme/README_it.md) · [Русский](docs/readme/README_ru.md) · [Tiếng Việt](docs/readme/README_vi.md) · [ไทย](docs/readme/README_th.md) · [Bahasa Indonesia](docs/readme/README_id.md) · [हिन्दी](docs/readme/README_hi.md) · [العربية](docs/readme/README_ar.md) · [Türkçe](docs/readme/README_tr.md)
+
+<br>
+
+<img src="Resources/AppIcon.png" width="112" alt="AllInOneIME icon">
 
 # AllInOneIME
 
-English | [中文](README.zh-CN.md)
+### AI commands in every text field on your Mac.
+
+Type `@improve`, `@translate` or `@question` in any app, press ⏎, and pick the result.<br>
+No copying into a chat window, no switching apps. Your own AI provider, your own keys.
+
+[![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)](#installation)
+[![Apple silicon and Intel](https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-555)](#installation)
+[![License: FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-f59e0b)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/MicroZ-LLC/AllInOneIME/total?color=22c55e)](https://github.com/MicroZ-LLC/AllInOneIME/releases)
+
+**[Download](https://allinoneime.com/download)** · **[Website](https://allinoneime.com)** · **[Docs](https://github.com/MicroZ-LLC/AllInOneIME/wiki)** · **[Extensions](docs/extensions.md)**
+
+[How to use](#how-to-use) · [Commands](#-commands-beta) · [Your own commands](#your-own-commands) · [Languages](#input-and-translation) · [Voice](#voice-input) · [Installation](#installation) · [Privacy](#privacy)
+
+<br>
+
+<img src="docs/en/demo.png" width="820" alt="@translate and a sentence, then ⏎: a line in Spanish, French and German">
+
+</div>
+
+> [!NOTE]
+> AllInOneIME isn't notarized by Apple yet: the first time, allow it in System Settings → Privacy & Security → Open
+> Anyway. Download it only from [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) or
+> [allinoneime.com](https://allinoneime.com).
 
 A macOS input method with AI commands in every text field. Start a sentence with `@` and press ⏎ when done:
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
 `@question` asks a question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web
-address. You can also hold right ⌥ and talk. Without `@`, your keys go to the app as usual. It's also a full
-Chinese (pinyin) input method, built on Rime and rime-ice, for those who want one, and types French, Korean (Hangul)
-and Hindi (Devanagari from Latin letters).
-
-Author: [Weijian Zhang](https://weijianz.com)
-
-![@translate and a sentence, then ⏎: a line in Spanish, French and German](docs/en/demo.png)
+address. You can also hold right ⌥ and talk. Without `@`, your keys go to the app as usual. It also types Chinese
+(pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
+your own scripts as @ commands.
 
 ![@improve and a rough sentence, then ⏎: polished versions, plus rewrites](docs/en/improve.png)
 
-For more detail (every command and setting, installation troubleshooting, privacy), see the [Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki).
+For more detail (every command and setting, installation troubleshooting, privacy), see the
+[Wiki](https://github.com/MicroZ-LLC/AllInOneIME/wiki). Made by [Weijian Zhang](https://weijianz.com) at MicroZ LLC.
 
 ## How to use
 
