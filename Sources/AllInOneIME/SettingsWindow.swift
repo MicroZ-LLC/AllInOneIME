@@ -1019,23 +1019,26 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder private var advancedSection: some View {
+    /// How each request is made, under the AI provider: output tokens, temperature (Bedrock), timeout.
+    @ViewBuilder private var requestSection: some View {
         Section {
             Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
                 Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
             }
-            Toggle(tr("Bedrock：发送 temperature（有的模型不支持，报错时关掉）",
-                      "Bedrock: send temperature (some models don't support it; turn it off if requests fail)"),
-                   isOn: temperatureOn)
-            if let t = model.config.temperature {
-                Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),
-                       in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
+            if model.config.provider == .bedrock {
+                Toggle(tr("发送 temperature（有的模型不支持，报错时关掉）",
+                          "Send temperature (some models don't support it; turn it off if requests fail)"),
+                       isOn: temperatureOn)
+                if let t = model.config.temperature {
+                    Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),
+                           in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
+                }
             }
             Stepper(value: $model.config.timeoutSeconds, in: 5...60, step: 5) {
                 Text(tr("超时 \(Int(model.config.timeoutSeconds)) 秒", "Timeout \(Int(model.config.timeoutSeconds)) s"))
             }
         } header: {
-            SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
+            SectionTitle(tr("模型参数", "Model Settings"), icon: CommandIcons.provider)
         }
         .disabled(!model.canSave)
     }
@@ -1071,6 +1074,8 @@ struct SettingsView: View {
             if let saveError = model.saveError {
                 Text(saveError).foregroundStyle(.red)
             }
+        } header: {
+            SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
         } footer: {
             Text(tr("改完立即生效，不用重启。", "Changes apply right away, with no restart."))
                 .font(.caption).foregroundStyle(.secondary)
@@ -1319,10 +1324,10 @@ struct SettingsView: View {
                     pluginsSection
                     webSearchSection
                 case .voice: voiceSection
-                case .provider: providerSection
-                case .advanced:
-                    advancedSection
-                    filesSection
+                case .provider:
+                    providerSection
+                    requestSection
+                case .advanced: filesSection
                 case .about: aboutSection
                 }
             }
@@ -2314,8 +2319,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection 服务 模型 密钥 测试连接"
-        case .advanced: return "tokens temperature timeout config file rime folder 高级 超时 温度 配置文件 目录"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
+        case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license 关于 版本 网站"
         }
     }
