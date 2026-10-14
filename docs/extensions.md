@@ -8,9 +8,19 @@ This is protocol version **1**. Within version 1, changes only add things: keys 
 newer extension still loads in an older app. An extension that needs a newer protocol (`schemaVersion` above the
 app's) is listed in Settings as needing a newer AllInOneIME, and isn't run.
 
-Examples of every feature are in [`Examples/extensions`](../Examples/extensions): a list that reruns (`clock.sh`), a
-command that shows progress (`countdown.sh`), one that takes no input (`uuid.sh`), one in the background
-(`timer.sh`), a status line (`battery.sh`), and a bundle with a preference and shared code (`units/`).
+[`Examples/extensions`](../Examples/extensions) has an example of every feature, to start from:
+
+| Example | Shows |
+|---|---|
+| `clock.sh` | a `list` run again as you type, and every 30 seconds (`rerun`); rows with `text.copy` |
+| `countdown.sh` | `show`: progress as it prints; an optional argument; `timeout`; `ALLINONEIME_LANGUAGE` |
+| `uuid.sh` | `input none`: the action key on its name runs it; `insert` |
+| `timer.sh` | `background`: a notification with a `summary` and its `detail` |
+| `battery.sh` | a `status` line (`status self`, `statusRefresh`) |
+| `say.sh` | `confirm`, and `silent` (its last line as a notice) |
+| `word-count.sh` | a Raycast Script Command as Raycast writes it (`mode compact`, `packageName`) |
+| `bookmarks/` | a bundle: each list row action (`open`, `copy`, `run` for a second step), a row of information only, a text and a password preference |
+| `units/` | a bundle: a dropdown preference, two commands sharing code in `lib/` through `ALLINONEIME_EXTENSION_DIR` |
 
 ## 1. Where extensions come from
 
@@ -101,7 +111,9 @@ shows when it arrives. A failed one keeps the value it had.
 
 They're passed as `$1`…`$3`.
 
-**Environment.** The login shell's environment (its PATH), with `/usr/local/bin` added to PATH, and:
+**Environment.** The input method's own environment, with the PATH of your login shell (read once, so Homebrew,
+pyenv and nvm programs are found) and `/usr/local/bin` added to it. Other variables your shell's startup files
+export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pass settings. And:
 
 | Variable | Value |
 |---|---|
@@ -118,11 +130,17 @@ They're passed as `$1`…`$3`.
 
 **Process.**
 
-- It runs in its folder (or `currentDirectoryPath`), with no standard input: as itself when it's executable and has
-  a `#!` line; through its `#!` line when it isn't executable; with `/bin/sh` when it's executable without one (as
-  a shell would run it).
+- It runs in its folder (or `currentDirectoryPath`), with no standard input, started as a shell would start it:
+  - an executable file runs as itself: a compiled program, or a script whose `#!` line the system reads;
+  - a script that isn't executable runs through the program on its `#!` line (`#!/usr/bin/env python3` →
+    `/usr/bin/env python3 script`), and so does one whose `#!` line follows a byte order mark (the system doesn't
+    read it then);
+  - an executable text file without a `#!` line runs with `/bin/sh` (as a shell does when the system can't run it);
+  - a file that's neither executable nor has a `#!` line isn't loaded (Settings says why).
 - It runs in a process group of its own. Stopping it (Esc, its `timeout`, more than 64 KB of output, a newer query
-  of the same command) sends SIGTERM to the group, then SIGKILL half a second later: what it started goes too.
+  of the same command) sends SIGTERM to the group, then SIGKILL half a second later: what it started goes too. When
+  it ends by itself, what it started in the background and left running keeps running, as after a script run in a
+  shell (a server it starts on purpose, say); wait for it (`wait`) if it should end with the script.
 - One process per command at a time: a newer query stops the one before.
 - Nothing runs while secure input is on (a password field, the lock screen).
 - An extension doesn't run inside another command's text (`@question … @flights …` leaves it as text).
@@ -166,10 +184,13 @@ A command that prints nothing ends with a short notice that it ran (a list that 
   `arg`, else the title), or `run` (runs the command again with `arg` as `$1` and `ALLINONEIME_ACTION=run`, a second
   step: a list it prints is shown to pick from; anything else is offered to insert). Without `action`: `open` when
   `arg` is an http(s) address or a path, else `insert`.
-- `open` opens an `http://` or `https://` address in the default browser, or a file, folder or app given by a
-  `file://` address, an absolute path or a `~/…` path that exists, as Finder would. Files Terminal would run
-  (`.command`, `.tool`, `.terminal`), other schemes (`smb:`, `mailto:`, an app's own) and relative paths aren't
-  opened: a notice says so, and the list stays. Nothing opened this way goes into `@open`'s history.
+- `open` opens an `http://` or `https://` address in the default browser, or a folder, an app or a file given by
+  a `file://` address, an absolute path or a `~/…` path that exists, as Finder would. It never opens what opening
+  would run: an executable file (a program, a script with its executable bit, `/usr/bin/say`), or a file or bundle
+  named `.sh`, `.bash`, `.zsh`, `.csh`, `.tcsh`, `.ksh`, `.fish`, `.command`, `.tool`, `.terminal`, `.py`, `.pyw`,
+  `.rb`, `.pl`, `.php`, `.lua`, `.tcl`, `.js`, `.jar`, `.applescript`, `.scpt`, `.workflow` or `.action`. Other
+  schemes (`smb:`, `mailto:`, an app's own) and relative paths aren't opened either: a notice says so, and the list
+  stays. Nothing opened this way goes into `@open`'s history.
 - `valid: false`: a row of information only, not picked.
 - `text.copy`: what ⌘C copies of the row.
 - `autocomplete`: what Tab puts after the command name.

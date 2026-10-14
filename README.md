@@ -158,7 +158,7 @@ missing instead of running. What it prints is used as its `output` says:
 |---|---|
 | `insert` (default) | All of it, and each line, to insert |
 | `show` | Shown in the panel as it prints (progress); nothing inserted. Leave the field and it goes on in the background (up to four at once) |
-| `list` | A list in Alfred's Script Filter JSON, run again as you type; picking a row inserts, opens (a web address, file or folder), copies or runs a second step |
+| `list` | A list in Alfred's Script Filter JSON, run again as you type; picking a row inserts, opens (a web address, file or folder; never something that would run), copies or runs a second step |
 | `silent` | Its last line near the cursor; nothing inserted |
 
 A command can also take no input (`input none`: ⏎ on its name runs it), run in the `background` and notify you when
