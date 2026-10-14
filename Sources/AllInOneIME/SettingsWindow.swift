@@ -720,25 +720,30 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
-                    let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
-                    if !missing.isEmpty {
-                        Menu {
-                            ForEach(missing, id: \.self) { language in
-                                // A language whose pack isn't here says it downloads first.
-                                let download = !packs.isUsable(language)
-                                Button(AllInOneIMEInputController.inputName(language)
-                                       + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
-                                    addInputLanguage(language)
-                                }
-                                .disabled(LanguagePack.for(language).map(isDownloading) ?? false)
+                    // Always there, so it's clear where languages are added: one to five of them.
+                    let languages = model.config.inputLanguages
+                    let missing = Language.allCases.filter { !languages.contains($0) }
+                    let full = languages.count >= Config.maxInputLanguages
+                    Menu {
+                        ForEach(missing, id: \.self) { language in
+                            // A language whose pack isn't here says it downloads first.
+                            let download = !packs.isUsable(language)
+                            Button(AllInOneIMEInputController.inputName(language)
+                                   + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
+                                addInputLanguage(language)
                             }
-                        } label: {
-                            Image(systemName: "plus")
+                            .disabled(LanguagePack.for(language).map(isDownloading) ?? false)
                         }
-                        .menuIndicator(.hidden).fixedSize()
-                        .help(tr("添加输入语言", "Add an input language"))
-                        .accessibilityLabel(tr("添加输入语言", "Add an input language"))
+                        if !missing.isEmpty { Divider() }
+                        Text(tr("更多输入语言即将支持", "More input languages are coming"))
+                    } label: {
+                        Image(systemName: "plus")
                     }
+                    .menuIndicator(.hidden).fixedSize()
+                    .disabled(full)
+                    .help(full ? tr("最多 \(Config.maxInputLanguages) 种输入语言", "Up to \(Config.maxInputLanguages) input languages")
+                               : tr("添加输入语言", "Add an input language"))
+                    .accessibilityLabel(tr("添加输入语言", "Add an input language"))
                 }
             } label: {
                 titled(tr("输入语言", "Input languages"),

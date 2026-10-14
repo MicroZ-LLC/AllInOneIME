@@ -35,6 +35,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// The input languages added, in the user's order: pinyin (Chinese), English letters, or both
     /// (Shift switches). The first is the default. A new user has English only; with one, Shift doesn't switch.
     public var inputLanguages: [Language]
+    /// At least one input language, at most this many.
+    public static let maxInputLanguages = 5
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
     public var defaultInput: Language
     /// `@improve` also translates, as `@translate @improve` (one request with both).
@@ -192,7 +194,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// The chosen output language and the default input lead their lists (whoever sets
-    /// `outputLanguage` or `defaultInput` moves it to the front); at least one input language; no
+    /// `outputLanguage` or `defaultInput` moves it to the front); one to five input languages; no
     /// language twice. To reorder, set the list and then its first as the chosen one (`setOrder`).
     public mutating func normalizeLanguages() {
         var seenOutput = Set<OutputLanguage>()
@@ -201,6 +203,7 @@ public struct Config: Codable, Equatable, Sendable {
         var seenInput = Set<Language>()
         inputLanguages = inputLanguages.filter { seenInput.insert($0).inserted }
         if inputLanguages.isEmpty { inputLanguages = [.english] }
+        inputLanguages = Array(inputLanguages.prefix(Self.maxInputLanguages))
         if inputLanguages.contains(defaultInput) {
             inputLanguages = [defaultInput] + inputLanguages.filter { $0 != defaultInput }
         } else {
