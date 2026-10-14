@@ -27,7 +27,16 @@ RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
 RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
 
-.PHONY: all deps build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+# The Chinese language pack (Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
+# its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
+# Its archive is a release asset of the plugin library repository, listed in its signed packs.json.
+PACK_ID      := zh-pinyin
+PACK_VERSION := 1.0.0
+PACK_NAME    := $(PACK_ID)-$(PACK_VERSION)
+PACK         := $(BUILD_DIR)/packs/$(PACK_NAME).tar.xz
+PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-plugins/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
+
+.PHONY: all deps pack install-pack build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -74,7 +83,8 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	cp $(RIME_LIB) "$(APP)/Contents/Frameworks/"
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
-	cp -R $(RIME_DATA) "$(APP)/Contents/SharedSupport/rime"
+	# Only rime-ice's Lua scripts (code, so never downloaded): the dictionaries are the Chinese pack.
+	cp -R $(RIME_DATA)/lua "$(APP)/Contents/SharedSupport/rime-lua"
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
@@ -193,6 +203,16 @@ dmg:
 test: deps
 	swift test
 
+# build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for
+# Scripts/build-packs-index.swift. The minimum app version is this one.
+pack: $(RIME_BUILT)
+	Scripts/make-language-pack.sh $(RIME_DATA) $(PACK_ID) $(PACK_VERSION) $(VERSION) "rime-ice $(RIME_ICE_TAG)" "$(PACK_URL)" $(PACK)
+
+# The Chinese pack from this checkout's data, into the installed input method's packs folder, without a
+# download (a developer's Mac before the pack is published).
+install-pack: $(RIME_BUILT)
+	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(CURDIR)/$(RIME_DATA)" $(PACK_VERSION)
+
 # Stops the running IME (macOS relaunches it on next use), replaces the bundle, registers it
 # (--register also keeps it in the user's input sources, so Ctrl+Space reaches it).
 # The bundle is moved, not copied: macOS launches input methods by bundle ID, and with a second
@@ -203,6 +223,11 @@ install: app settings-app
 	@pkill -x $(LEGACY_APP_NAME) || true
 	mkdir -p "$(INSTALL_DIR)"
 	-"$(LSREGISTER)" -u "$(LEGACY_INSTALLED_APP)" "$(LEGACY_SETTINGS_APP)" 2>/dev/null
+	# Versions up to 0.6.1 bundled the Chinese data: it becomes the pack before that app goes (the same
+	# rime-ice data as pack $(PACK_VERSION)), so pinyin keeps working without a download.
+	@if [ -d "$(INSTALLED_APP)/Contents/SharedSupport/rime" ]; then \
+		"$(APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(INSTALLED_APP)/Contents/SharedSupport/rime" $(PACK_VERSION) || true; \
+	fi
 	rm -rf "$(INSTALLED_APP)" "$(LEGACY_INSTALLED_APP)"
 	mv "$(APP)" "$(INSTALL_DIR)/"
 	mkdir -p "$(USER_APPS)"
@@ -221,10 +246,10 @@ uninstall:
 status:
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --status
 
-# Drives the input controller (real Rime engine, live Bedrock call) with a fake text field.
+# Drives the input controller (real Rime engine on this checkout's data, live Bedrock call) with a fake text field.
 OUT ?= /tmp/allinoneime-selftest
 selftest: app
-	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)"
+	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(CURDIR)/$(RIME_DATA)"
 
 # README images, rendered by the self-test (needs a working Bedrock setup): docs/ with the Chinese
 # interface and captions, docs/en/ with the English ones (the same states, rendered in English).

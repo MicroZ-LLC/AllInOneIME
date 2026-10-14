@@ -140,6 +140,7 @@ enum Installer {
             }
             throw error
         }
+        adoptChinesePack(from: movedAside.map(\.to))
         // No second copy (same bundle ID) for macOS to find while the new one registers.
         try? manager.removeItem(at: aside)
         // In case macOS started the old copy again in between: from now on it starts the new one.
@@ -150,6 +151,27 @@ enum Installer {
         let register = try run(executable.path, ["--register"])
         guard register.status == 0 else { throw Failure.register(register.status, register.output) }
         return register.output
+    }
+
+    /// Versions up to 0.6.1 bundled the Chinese data; the app now downloads it as a language pack. A user
+    /// who typed Chinese keeps it without a download: the old app's copy (moved aside, among `previous`)
+    /// becomes the pack, the same rime-ice data as its first version. Nothing for an English-only user,
+    /// and a failure only means the input method downloads the pack at launch instead.
+    static func adoptChinesePack(from previous: [URL]) {
+        let store = LanguagePackStore()
+        let rimeUser = home.appendingPathComponent("Library/Application Support/AllInOneIME/Rime", isDirectory: true)
+        guard store.installed(.chinesePinyin) == nil,
+              LanguagePackMigration.wantsChinese(rimeUserFolder: rimeUser) else { return }
+        for app in previous {
+            let data = app.appendingPathComponent("Contents/SharedSupport/rime", isDirectory: true)
+            guard isFolder(data) else { continue }
+            do {
+                try store.adopt(.chinesePinyin, from: data, version: "1.0.0")
+                return
+            } catch {
+                NSLog("AllInOneIME installer: could not keep the Chinese data: %@", String(describing: error))
+            }
+        }
     }
 
     /// Disables the input method and removes it from the input sources, stops it, and deletes both

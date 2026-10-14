@@ -624,6 +624,10 @@ struct SettingsView: View {
     @State private var query = ""
     /// The input language whose settings the Input page shows.
     @State private var inputTab: Language = .chinese
+    /// The language packs and their downloads (Chinese is a download: the app ships English only).
+    @ObservedObject private var packs = LanguagePackManager.shared
+    /// The pack of an input language just removed: the dialog offers to delete it too.
+    @State private var packToRemove: LanguagePack?
     private let remembersPage: Bool
     static let pageKey = "settingsPage"
 
@@ -718,10 +722,13 @@ struct SettingsView: View {
                     if !missing.isEmpty {
                         Menu {
                             ForEach(missing, id: \.self) { language in
-                                Button(AllInOneIMEInputController.inputName(language)) {
+                                // A language whose pack isn't here says it downloads first.
+                                let download = !packs.isUsable(language)
+                                Button(AllInOneIMEInputController.inputName(language)
+                                       + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
                                     addInputLanguage(language)
-                                    inputTab = language
                                 }
+                                .disabled(LanguagePack.for(language).map(isDownloading) ?? false)
                             }
                         } label: {
                             Image(systemName: "plus")
@@ -737,10 +744,24 @@ struct SettingsView: View {
                        ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
                        : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
             }
+            ForEach(LanguagePack.catalog) { pack in packRow(pack) }
         } header: {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
         }
         .disabled(!model.canSave)
+        .confirmationDialog(packToRemove.map { tr("也删除\($0.name.text(chinese: true))语言包？", "Also delete the \($0.name.en) language pack?") } ?? "",
+                            isPresented: Binding(get: { packToRemove != nil }, set: { if !$0 { packToRemove = nil } })) {
+            Button(tr("删除语言包", "Delete Pack"), role: .destructive) {
+                if let pack = packToRemove { packs.remove(pack) }
+                packToRemove = nil
+            }
+            Button(tr("保留", "Keep"), role: .cancel) { packToRemove = nil }
+        } message: {
+            if let pack = packToRemove {
+                Text(tr("占用 \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file))；以后用 ＋ 加回来时要重新下载。",
+                        "It takes \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)); adding the language back with + downloads it again."))
+            }
+        }
     }
 
     @ViewBuilder private var translateSection: some View {
@@ -1147,6 +1168,12 @@ struct SettingsView: View {
         Section {
             switch shownInput {
             case .chinese:
+                if !packs.isInstalled(.chinesePinyin) {
+                    // An upgrade whose pack is still on its way (its progress is shown above).
+                    Label(tr("语言包下载完以后才能打中文。", "Chinese can be typed once its language pack has downloaded."),
+                          systemImage: "arrow.down.circle")
+                        .foregroundStyle(.secondary)
+                }
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(tr("模糊音", "Fuzzy pinyin"),
@@ -1390,9 +1417,57 @@ struct SettingsView: View {
         return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english).")
     }
 
+    /// Adds an input language; one whose pack isn't installed is added once the pack has downloaded
+    /// (until then it isn't an input mode), and its tab is then shown.
     private func addInputLanguage(_ language: Language) {
-        model.config.inputLanguages.append(language)
-        model.config.normalizeLanguages()
+        guard let pack = LanguagePack.for(language), !packs.isInstalled(pack) else {
+            model.config.inputLanguages.append(language)
+            model.config.normalizeLanguages()
+            inputTab = language
+            return
+        }
+        let model = model
+        packs.download(pack) {
+            guard !model.config.inputLanguages.contains(language) else { return }
+            model.config.inputLanguages.append(language)
+            model.config.normalizeLanguages()
+            model.save()  // the window may be closed by now
+        }
+        inputTab = language
+    }
+
+    private func isDownloading(_ pack: LanguagePack) -> Bool {
+        if case .downloading = packs.state(pack) { return true }
+        return false
+    }
+
+    /// A pack's download in progress (with Cancel) or its failure (with Retry); nothing otherwise.
+    @ViewBuilder private func packRow(_ pack: LanguagePack) -> some View {
+        switch packs.state(pack) {
+        case let .downloading(share):
+            LabeledContent {
+                HStack(spacing: 8) {
+                    if let share {
+                        ProgressView(value: share).frame(width: 140)
+                        Text("\(Int(share * 100))%").monospacedDigit().foregroundStyle(.secondary)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                    Button(tr("取消", "Cancel")) { packs.cancel(pack) }
+                }
+            } label: {
+                titled(tr("正在下载\(pack.name.text(chinese: true))语言包", "Downloading the \(pack.name.en) language pack"),
+                       tr("下载完就能用，不用重启", "Ready when it's done, no restart"))
+            }
+        case let .failed(message):
+            LabeledContent {
+                Button(tr("重试", "Retry")) { addInputLanguage(pack.language) }
+            } label: {
+                titled(tr("\(pack.name.text(chinese: true))语言包没有下载成功", "The \(pack.name.en) language pack didn't download"), message)
+            }
+        case .notInstalled, .installed:
+            EmptyView()
+        }
     }
 
     /// Moves an input language one place earlier (-1) or later (1); the first is the default.
@@ -1406,6 +1481,10 @@ struct SettingsView: View {
     /// Removes an input language (one always stays); the next one becomes the default.
     private func removeInputLanguage(_ language: Language) {
         model.config.setOrder(AllInOneIMEInputController.toggled(language, in: model.config.inputLanguages))
+        // Its pack stays unless the user deletes it too (asked, with its size).
+        if !model.config.inputLanguages.contains(language), let pack = LanguagePack.for(language), packs.isInstalled(pack) {
+            packToRemove = pack
+        }
     }
 
     private func addOutputLanguage(_ language: OutputLanguage) {
