@@ -171,6 +171,26 @@ struct KeyboardLayoutTests {
         #expect(commits(t.composer.commitAll()) == ["´"] && t.composer.pendingAccent == nil)
     }
 
+    /// An accent waiting for its letter is a composition, like a Hangul syllable: the language doesn't switch under it.
+    @Test func aPendingAccentIsAComposition() throws {
+        let t = try Typist("com.apple.keylayout.US")
+        t.press(keyE, .option)
+        #expect(t.composer.pendingAccent == "´" && t.composer.isComposing)
+        t.composer.setInputMode(.chinese)
+        #expect(t.composer.inputLanguage == .english)  // refused while it waits
+        #expect(commits(t.press(keyE)) == ["é"])
+        #expect(!t.composer.isComposing)
+        t.press(keyE, .option)
+        t.press(VirtualKey.escape)  // takes it back
+        #expect(t.composer.pendingAccent == nil && !t.composer.isComposing)
+        // AZERTY's ^.
+        let french = try Typist("com.apple.keylayout.French")
+        french.press(0x21)
+        #expect(french.composer.pendingAccent == "^" && french.composer.isComposing)
+        french.type("e")
+        #expect(french.composer.pendingAccent == nil && !french.composer.isComposing)
+    }
+
     @Test func aLayoutOtherThanTheKeysLeavesThemAlone() throws {
         // The keys say "q" where the layout has "a": not this layout's keys, nothing is composed.
         let us = try #require(KeyboardLayout(id: "com.apple.keylayout.US"))

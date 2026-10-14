@@ -353,11 +353,16 @@ public final class Composer {
     public var hindiTables: HindiTables? {
         didSet {
             guard hindiTables != oldValue else { return }
+            // A word being typed goes with the engine: its first spelling stays in a command's text, else it's dropped
+            // (nothing can be inserted from here).
+            let typed = hindiActive ? hindiEngine?.commitComposition() ?? "" : ""
             hindiEngine = hindiTables.map(HindiEngine.init(tables:))
+            if !typed.isEmpty, !draft.isEmpty { insertIntoDraft(typed) }
             // The pack deleted while Hindi was typed: on in another of the user's languages (not Chinese they
             // may not have).
             if hindiEngine == nil, hindiActive { enter(fallbackLanguage(for: .hindi)) }
             engineState = engine?.snapshot() ?? .empty
+            if !isLevelTwo { setLevelOnePhase() }
         }
     }
     /// Hindi is the input language (its engine in place of librime).
@@ -389,8 +394,12 @@ public final class Composer {
     public var hangulTables: HangulTables? {
         didSet {
             guard hangulTables != oldValue else { return }
+            // A syllable being typed stays in a command's text, else it's dropped (nothing can be inserted from here).
+            let typed = hangul.flush()
+            if !typed.isEmpty, !draft.isEmpty { insertIntoDraft(typed) }
             hangul = HangulComposer(tables: hangulTables ?? .none)
             if hangulTables == nil, inputLanguage == .korean { enter(fallbackLanguage(for: .korean)) }  // the pack deleted
+            if !isLevelTwo { setLevelOnePhase() }
         }
     }
     /// The language typed while the engine is in its ASCII mode: English, French or Korean (Chinese is pinyin).
@@ -972,6 +981,7 @@ public final class Composer {
     private func handleDeadKey(_ event: KeyEvent) -> DeadKeyOutcome {
         if let accent = pendingAccent {
             pendingAccent = nil
+            setLevelOnePhase()
             if let text = event.composed {
                 guard !draft.isEmpty else { return .done(.consumed([.commit(text)])) }
                 appendTyped(text)
@@ -988,6 +998,7 @@ public final class Composer {
               !draft.isEmpty || engine.snapshot().isAsciiMode, !event.characters.isEmpty
         else { return .then([]) }
         pendingAccent = event.characters
+        setLevelOnePhase()  // an accent waiting is a composition (`isComposing`), like a Hangul syllable
         return .done(.consumed([.updateMarkedText]))
     }
 
@@ -1682,7 +1693,7 @@ public final class Composer {
     }
 
     private func setLevelOnePhase() {
-        phase = draft.isEmpty && !engineState.isComposing && hangul.isEmpty && voice == .off ? .idle : .drafting
+        phase = draft.isEmpty && !engineState.isComposing && hangul.isEmpty && pendingAccent == nil && voice == .off ? .idle : .drafting
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
         if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
         restoreInputModeAfterOpen()

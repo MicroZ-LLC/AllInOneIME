@@ -124,6 +124,21 @@ struct HindiTests {
         #expect(c.inputLanguage == .english)  // not Chinese, which isn't one of them
     }
 
+    /// The pack deleted while a word is typed: its first spelling stays in a command's text, else it goes.
+    @Test func deletingThePackMidWord() {
+        let c = hindi()
+        _ = type("nam", c)
+        c.hindiTables = nil
+        #expect(!c.isComposing && c.phase == .idle && c.markedText.isEmpty && c.inputLanguage == .english)
+        let d = hindi()
+        _ = d.handleKeyDown(at)
+        _ = type("tr", d)
+        _ = d.handleKeyDown(tab)
+        _ = type("aap", d)
+        d.hindiTables = nil
+        #expect(d.draft == "@translate आप" && !d.engineState.isComposing && d.phase == .drafting)
+    }
+
     /// Hindi being typed in a command's text: what the action key does is said for Hindi, not Chinese.
     @Test func theTextLanguageWhileHindiIsTyped() {
         let c = hindi()

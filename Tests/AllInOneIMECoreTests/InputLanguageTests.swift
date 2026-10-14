@@ -264,6 +264,21 @@ struct InputLanguageTests {
         #expect(c.inputLanguage == .english)
     }
 
+    /// The pack deleted while a syllable is typed: it stays in a command's text, else it goes, and nothing is composed.
+    @Test func deletingThePackMidSyllable() {
+        let c = korean()
+        _ = type("gk", c)
+        c.hangulTables = nil
+        #expect(!c.isComposing && c.phase == .idle && c.markedText.isEmpty)
+        let d = korean()
+        _ = d.handleKeyDown(at)
+        _ = type("tr", d)
+        _ = d.handleKeyDown(tab)
+        _ = type("dkssud", d)  // 녕 being typed
+        d.hangulTables = nil
+        #expect(d.draft == "@translate 안녕" && d.hangul.isEmpty && d.phase == .drafting)
+    }
+
     @Test func configKeepsUnknownLanguagesOutAndLayoutsByLanguage() throws {
         let json = #"{"inputLanguages": ["ko", "xx", "fr"], "keyboardLayouts": {"fr": "com.apple.keylayout.French-PC"}, "uiLanguage": "fr"}"#
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
