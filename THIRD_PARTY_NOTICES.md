@@ -456,7 +456,8 @@ Apache License
 
 ## rime-ice
 
-rime-ice is licensed under the GNU General Public License v3.0; its full text is the `LICENSE` file that comes
-with it. Its Lua scripts are included unmodified in the app bundle under
-`Contents/SharedSupport/rime-lua`, with that `LICENSE`; the rest of its source (schemas, dictionaries, its LICENSE), unmodified,
+rime-ice is licensed under the GNU General Public License v3.0 (not the license of AllInOneIME itself). Its full
+text is `Contents/SharedSupport/rime-lua/LICENSE` in the app, `LICENSE-rime-ice-GPL-3.0.txt` on the disk image,
+and `LICENSE` in the Chinese pack. Its Lua scripts are included unmodified in the app bundle under
+`Contents/SharedSupport/rime-lua`; the rest of its source (schemas, dictionaries, its LICENSE), unmodified,
 with dictionaries prebuilt from it, is the Chinese (pinyin) language pack, downloaded when Chinese is added.

@@ -33,6 +33,7 @@ mkdir -p "$stage"
 ditto "$installer" "$stage/$(basename "$installer")"
 cp "$repo/Resources/DMG-ReadMe.txt" "$stage/Read Me 安装说明.txt"
 cp "$repo/LICENSE" "$stage/LICENSE.txt"
+cp "$repo/ThirdParty/rime-data/LICENSE" "$stage/LICENSE-rime-ice-GPL-3.0.txt"
 cp "$repo/THIRD_PARTY_NOTICES.md" "$stage/THIRD_PARTY_NOTICES.md"
 cp "$repo/Resources/AppIcon.icns" "$stage/.VolumeIcon.icns"
 
