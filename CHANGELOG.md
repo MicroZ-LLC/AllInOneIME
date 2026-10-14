@@ -39,6 +39,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - A new install starts with English as its input language; add Chinese (pinyin) with + under Input. Existing settings don't change. The settings window's language follows the system until you pick one.
 - A new install translates into the first of the Mac's preferred languages that isn't English (Chinese, Japanese, French…). With English alone, `@translate` on an English sentence sends nothing: it says so and opens the settings on Translate & Rewrite to add a language.
 - ⏎ on a command with nothing after it no longer takes the clipboard's text: it only says to write something. Paste into a command with ⌃V (or ⌘V outside terminals), as before. A stray ⏎ no longer puts whatever was copied into the command.
+- The README is in 17 languages now: English and Chinese, plus Traditional Chinese, Japanese, Korean, Hindi, French, German, Spanish, Italian, Portuguese (Brazil), Russian, Turkish, Arabic, Vietnamese, Thai and Indonesian (`docs/readme/`), with a new header (languages, badges, links). The Say Aloud example (`Examples/extensions/say.sh`) speaks Chinese, Korean, Japanese and Hindi text in a voice of that language.
 
 ## 0.6.1 (2026-10-12)
 
