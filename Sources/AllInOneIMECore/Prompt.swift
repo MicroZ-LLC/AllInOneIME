@@ -201,10 +201,14 @@ public enum Prompt {
         var messages: [ConverseRequest.Message] = []
         // Each example is answered as the user's sentence would be (its own language decides what is
         // polished and what translated). Examples needing a language they aren't written in are left out:
-        // the format and the rules are in the system prompt.
+        // the format and the rules are in the system prompt. A sentence in neither Chinese nor English (Korean,
+        // Hindi, French) gets only examples answered with its own lines: the Chinese and English ones would teach
+        // others (three EN lines where it asks for an EN and a ZH line, and the model leaves ZH out).
+        let mixed = plan.input == .chinese || plan.input == .english
         for index in examples.indices {
             let examplePlan = WritingPlan.make(mode, text: examples[index].input, config: config)
-            guard let answer = exampleAnswer(index, plan: examplePlan) else { continue }
+            guard mixed || examplePlan.lineTags == plan.lineTags,
+                  let answer = exampleAnswer(index, plan: examplePlan) else { continue }
             messages.append(.init(role: "user", text: examples[index].input))
             messages.append(.init(role: "assistant", text: answer))
         }

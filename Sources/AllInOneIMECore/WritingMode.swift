@@ -66,6 +66,11 @@ public struct WritingPlan: Equatable, Sendable {
     /// How many lines the answer has.
     var lineCount: Int { (versions == nil ? 0 : 3) + translations.count + styles.count }
 
+    /// The tags of the answer's lines, in order ("EN", "EN", "EN", "STYLE_POLISH" …).
+    var lineTags: [String] {
+        (versions.map { Array(repeating: $0.tag, count: 3) } ?? []) + translations.map(\.tag) + styles.map(\.lineTag)
+    }
+
     /// Part of the cache key: the same sentence asks for different lines in another plan.
     var key: String {
         [versions?.code ?? "-", translations.map(\.code).joined(separator: "+"), styles.map(\.tag).joined(separator: ",")]

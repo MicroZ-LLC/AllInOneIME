@@ -101,6 +101,55 @@ struct WritingModeTests {
         #expect(chinese.contains("typing a sentence: Chinese, English, or a mix of both.\n"))
     }
 
+    /// The tags of the format lines a request's system prompt asks for, in order.
+    func formatTags(_ request: ConverseRequest) -> [String] {
+        let system = request.system.first?.text ?? ""
+        guard let start = system.range(of: "Reply in exactly this format and nothing else:\n"),
+              let end = system.range(of: "\n\nRules:", range: start.upperBound..<system.endIndex) else { return [] }
+        return system[start.upperBound..<end.lowerBound].components(separatedBy: "\n").map { String($0.prefix { $0 != ":" }) }
+    }
+
+    /// The examples a Korean, Hindi or French sentence gets are answered with exactly the lines asked of it: three EN
+    /// lines in an example where it asks for an EN and a ZH line made the model leave ZH out. The Chinese and English
+    /// sentences keep theirs, each answered as its own sentence would be.
+    @Test func exampleAnswersHaveTheLinesTheRequestAsksFor() {
+        let sentences: [(String, Language)] = [("牛的啊", .chinese), ("this is a blocker bug your team need fix it asap", .english),
+                                                ("오늘 몸이 좀 안 좋아요", .korean), ("आज मेरी तबीयत ठीक नहीं है", .hindi),
+                                                ("on se voit demain soir ?", .french)]
+        let outputs: [[OutputLanguage]] = [[.english], [.chinese], [.english, .chinese], [.chinese, .english],
+                                           [.english, OutputLanguage("ja"), .chinese], [OutputLanguage("ja")],
+                                           [OutputLanguage("fr"), .english], [OutputLanguage("ko"), .english, .chinese]]
+        var checked = 0
+        for (text, language) in sentences {
+            for output in outputs {
+                for styles in [["润色", "简洁"], []] {
+                    var c = config(output, styles: styles)
+                    c.inputLanguages = [.english, .chinese, .french, .korean, .hindi]
+                    #expect(c.language(of: text) == language)
+                    for mode in [WritingMode.improve, .translate, .both] {
+                        let request = Prompt.request(for: text, mode: mode, config: c)
+                        let format = formatTags(request)
+                        #expect(!format.isEmpty)
+                        let examples = request.messages.dropLast()
+                        for (question, answer) in zip(examples.filter { $0.role == "user" }, examples.filter { $0.role == "assistant" }) {
+                            let tags = (answer.content.first?.text ?? "").components(separatedBy: "\n").map { String($0.prefix { $0 != ":" }) }
+                            if language == .chinese || language == .english {
+                                #expect(tags == WritingPlan.make(mode, text: question.content.first?.text ?? "", config: c).lineTags)
+                            } else {
+                                #expect(tags == format, "\(text) \(output.map(\.code)) \(mode): \(tags) for \(format)")
+                            }
+                            checked += 1
+                        }
+                    }
+                }
+            }
+        }
+        #expect(checked > 0)
+        // With English and Chinese, a Korean sentence asks for a line in each, and gets no example of three EN lines.
+        let korean = Prompt.request(for: "오늘 몸이 좀 안 좋아요", mode: .translate, config: config([.english, .chinese]))
+        #expect(formatTags(korean) == ["EN", "ZH"] && korean.messages.count == 1)
+    }
+
     @Test func indianLanguages() {
         let codes = ["hi", "bn", "te", "mr", "ta", "gu", "kn", "ml", "pa", "ur"]
         let languages = codes.map(OutputLanguage.init)
