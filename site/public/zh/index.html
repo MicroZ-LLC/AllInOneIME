@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AllInOneIME — 在 Mac 的任何输入框里用 AI 命令</title>
-<meta name="description" content="macOS 输入法：在任何 App 里打 @improve、@translate、@question，按回车，选结果。用你自己的 AI 服务，免费开源。也是完整的拼音输入法。">
+<meta name="description" content="macOS 输入法：在任何 App 里打 @improve、@translate、@question，按回车，选结果。用你自己的 AI 服务，免费，源码公开。也是完整的拼音输入法。">
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="alternate" hreflang="en" href="https://allinoneime.com/">
@@ -44,7 +44,7 @@
         </a>
         <a class="btn btn-ghost" href="https://github.com/MicroZ-LLC/AllInOneIME">在 GitHub 上看</a>
       </div>
-      <p class="fineprint">免费开源 · macOS 14 及以上 · Apple 芯片和 Intel 都能用</p>
+      <p class="fineprint">免费 · macOS 14 及以上 · Apple 芯片和 Intel 都能用</p>
       <div class="shot fade"><img src="/images/demo-zh.png" alt="开头打 @translate 再打拼音，按回车：三种地道的英文说法"></div>
     </div>
   </div>
@@ -98,6 +98,20 @@
 
   <section class="tight">
     <div class="wrap">
+      <div class="split reverse fade">
+        <div class="split-text">
+          <span class="tag">脚本扩展</span>
+          <h3>用脚本写你自己的 @ 命令。</h3>
+          <p>任何语言的脚本，加几行元数据，就是一个 @ 命令：可以上屏输出、显示进度、边打字边给出 Alfred 那样的列表来选，或者在后台运行，完成后通知你。</p>
+          <p>Raycast 脚本命令拿来就能用。写法见 <a href="https://github.com/MicroZ-LLC/AllInOneIME/blob/mainline/docs/extensions.md">扩展协议</a>。</p>
+        </div>
+        <div class="shot"><img src="/images/extensions-zh.png" alt="设置：脚本扩展，扩展包和它们的命令" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
       <div class="split fade">
         <div class="split-text">
           <span class="tag">菜单栏</span>
@@ -144,11 +158,12 @@
     <div class="wrap">
       <div class="split fade">
         <div class="split-text">
-          <span class="tag">拼音</span>
-          <h3>本身就是完整的拼音输入法。</h3>
-          <p>基于 Rime 和雾凇拼音，在本机运行；分不清的音可以开模糊音。单按 Shift 切换中英文。</p>
+          <span class="tag">输入语言</span>
+          <h3>英文、中文、法语、韩语、印地语。</h3>
+          <p>中文用拼音（基于 Rime 和雾凇拼音，分不清的音可以开模糊音），法语用它自己的键盘布局，韩语打谚文，印地语用拉丁字母拼出天城文。单按 Shift 切到下一种。</p>
+          <p>中文、韩语和印地语是语言包，添加时下载。</p>
         </div>
-        <div class="shot"><img src="/images/settings-general-zh.png" alt="设置窗口" loading="lazy"></div>
+        <div class="shot"><img src="/images/settings-languages-zh.png" alt="设置：五种输入语言，和韩语的语言包" loading="lazy"></div>
       </div>
     </div>
   </section>
@@ -157,7 +172,7 @@
     <div class="wrap fade">
       <img class="hero-icon" src="/images/icon.png" alt="">
       <h2>下一句话就试试。</h2>
-      <p class="lead">免费开源，GPL-3.0 许可。</p>
+      <p class="lead">免费，源码在 GitHub 上公开。</p>
       <div class="cta">
         <a class="btn btn-primary" href="/download">下载 macOS 版</a>
         <a class="btn btn-ghost" href="/docs">看使用说明</a>

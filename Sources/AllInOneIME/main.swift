@@ -12,18 +12,37 @@ let usage = """
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
-      --selftest [DIR]  drive the input controller (real Rime engine, live Bedrock call) with a
-                        fake text field; writes panel snapshots to DIR (default /tmp/allinoneime-selftest)
+      --selftest [DIR] [--rime-data DATA]
+                        drive the input controller (real Rime engine on DATA, else the installed
+                        Chinese pack; live Bedrock call) with a fake text field; writes panel snapshots
+                        to DIR (default /tmp/allinoneime-selftest)
+      --install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]
+                        download and install a language pack (zh-pinyin) as Settings does; plain http
+                        is allowed to this Mac only, for a test server
+      --adopt-pack DATA [VERSION]
+                        install the Chinese pack from a Rime data folder (ThirdParty/rime-data, or an
+                        older app's Contents/SharedSupport/rime) without downloading
     """
 
 func printError(_ message: String) {
     FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
-/// Where level one keeps its data: dictionaries shipped in the bundle, learned words per user.
+/// Where level one keeps its data: the Chinese language pack's dictionaries, learned words per user,
+/// and the Lua scripts the pack's schemas use (in the bundle: packs are data only).
 enum RimeDirectories {
+    /// The self-test's data folder instead of the pack (`--rime-data`).
+    static var override: URL?
+
+    /// The installed Chinese pack's folder; nil until it is downloaded.
     static var shared: URL? {
-        Bundle.main.sharedSupportURL?.appendingPathComponent("rime")
+        if let override { return override }
+        let store = LanguagePackStore()
+        return store.installed(.chinesePinyin) == nil ? nil : store.folder(.chinesePinyin)
+    }
+    /// The app's copy of rime-ice's Lua scripts, linked into the pack (`LanguagePackStore.linkCode`).
+    static var code: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-lua")
     }
     static var user: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -69,7 +88,26 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { SettingsWindow.shared.show() }
         return false
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+    }
 }
+
+/// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
+/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), then the input method ends, as
+/// the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main
+/// thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+private let terminationSignal: DispatchSourceSignal = {
+    signal(SIGTERM, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
+    source.setEventHandler {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
+        CommandRunner.stopAll()
+        _exit(0)
+    }
+    return source
+}()
 
 func runServer(showSettings: Bool = false) -> Never {
     let app = NSApplication.shared
@@ -82,6 +120,9 @@ func runServer(showSettings: Bool = false) -> Never {
         exit(1)
     }
     log.info("IMKServer started: \(name, privacy: .public)")
+    terminationSignal.resume()
+    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
+    DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @claude tasks: notifications, and tasks from before a restart watched again.
@@ -97,20 +138,8 @@ func runServer(showSettings: Bool = false) -> Never {
     if showSettings {
         DispatchQueue.main.async { MainActor.assumeIsolated { SettingsWindow.shared.show() } }
     }
-    if let shared = RimeDirectories.shared, FileManager.default.fileExists(atPath: shared.path) {
-        do {
-            // The fuzzy pinyin patch as the config has it, before the first deployment (a full one when it changed).
-            let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
-            try RimeService.shared.start(
-                sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
-                fullCheck: fuzzy == .written || fuzzy == .removed)
-            RimeReadinessLogger.shared.start()
-        } catch {
-            log.fault("could not start Rime: \(String(describing: error), privacy: .public)")
-        }
-    } else {
-        log.fault("Rime data missing from the bundle; pinyin input disabled")
-    }
+    // librime on the Chinese pack if it's installed; an upgraded user who had Chinese gets it downloaded.
+    MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }
@@ -136,22 +165,17 @@ final class RimeReadinessLogger: NSObject {
     }
 }
 
-/// Deploys the bundled Rime data into the user's directory now, so the first keystroke after
-/// installing doesn't wait for it.
+/// Deploys the Chinese pack into the user's directory now, so the first keystroke after installing
+/// doesn't wait for it. Without the pack there is nothing to deploy: English needs no dictionaries.
 func prepareDictionaries() {
-    guard let shared = RimeDirectories.shared, FileManager.default.fileExists(atPath: shared.path) else {
-        printError("Rime data missing from the bundle")
+    guard RimeDirectories.shared != nil else {
+        print("dictionaries: no Chinese pack (English only; Chinese is added in Settings → Input with +)")
         return
     }
     let started = Date()
-    do {
-        // The fuzzy pinyin patch as the config has it, before the first deployment (a full one when it changed).
-        let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
-        try RimeService.shared.start(
-            sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
-            fullCheck: fuzzy == .written || fuzzy == .removed)
-    } catch {
-        printError("could not start Rime: \(error)")
+    MainActor.assumeIsolated { RimeStartup.start() }
+    guard RimeService.shared.isStarted else {
+        printError("could not start Rime")
         return
     }
     let ready = RimeService.shared.waitUntilReady(timeout: 120)
@@ -202,13 +226,13 @@ func register() -> Int32 {
         print(tr("""
 
             macOS 需要你手动添加一次（“键盘”设置应该已经打开）：
-              系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME → 添加
+              系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加
             之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。
             """, """
 
             macOS needs you to add it once (Keyboard settings should have opened):
               System Settings → Keyboard → Text Input › Input Sources "Edit…" → + at the bottom left
-              → Chinese, Simplified → AllInOneIME → Add
+              → English → AllInOneIME → Add
             Then switch to AllInOneIME with Ctrl+Space or the 🌐 key.
             """))
     }
@@ -257,9 +281,12 @@ func printStatus() -> Int32 {
     } catch {
         print("config:      ✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
     }
-    let rimeShared = RimeDirectories.shared?.path ?? "?"
-    let hasData = FileManager.default.fileExists(atPath: rimeShared + "/build/rime_ice.table.bin")
-    print("rime:        librime \(RimeService.shared.version), data \(hasData ? "bundled" : "✗ missing") (\(rimeShared))")
+    let store = LanguagePackStore()
+    for pack in LanguagePack.catalog {
+        let record = store.installed(pack)
+        print("pack:        \(pack.id) \(record.map { "\($0.version) (\($0.source.rawValue))" } ?? "not installed") (\(store.folder(pack).path))")
+    }
+    print("rime:        librime \(RimeService.shared.version), data \(RimeDirectories.shared?.path ?? "none (English only)")")
     print("rime user:   \(RimeDirectories.user.path)")
 
     guard let source = R.source() else {
@@ -279,6 +306,74 @@ func printStatus() -> Int32 {
     print("selected:    \(R.bool(source, kTISPropertyInputSourceIsSelected))")
     print("current:     \(R.currentSourceID() ?? "?")")
     return 0
+}
+
+/// `--install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]`: the settings' download, from a
+/// terminal (and against a test library: another key, plain http to this Mac).
+func installPack(_ arguments: [String]) -> Int32 {
+    func option(_ name: String) -> String? {
+        arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+    }
+    guard let id = arguments.first, let pack = LanguagePack.catalog.first(where: { $0.id == id }) else {
+        printError("usage: --install-pack \(LanguagePack.catalog.map(\.id).joined(separator: "|")) [--library URL] [--key BASE64] [--packs-dir DIR]")
+        return 2
+    }
+    var library = LanguagePackLibrary(allowsLocalHTTP: true)
+    if let url = option("--library").flatMap(URL.init(string:)) { library = LanguagePackLibrary(baseURL: url, allowsLocalHTTP: true) }
+    if let key = option("--key") {
+        guard let raw = Data(base64Encoded: key) else { printError("--key: not base64"); return 2 }
+        library.publicKey = raw
+    }
+    if let dir = option("--packs-dir") { library.store = LanguagePackStore(directory: URL(fileURLWithPath: dir)) }
+    let started = Date()
+    let outcome = InstallOutcome()
+    Task.detached { [library] in
+        do {
+            let record = try await library.install(pack) { share in
+                FileHandle.standardError.write(Data(String(format: "\rdownloading %3.0f%%", share * 100).utf8))
+            }
+            outcome.set(.success(record))
+        } catch {
+            outcome.set(.failure(error))
+        }
+    }
+    while outcome.get() == nil { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+    FileHandle.standardError.write(Data("\n".utf8))
+    switch outcome.get()! {
+    case let .success(record):
+        print(String(format: "installed %@ %@ in %.1fs: %@", pack.id, record.version, Date().timeIntervalSince(started),
+                     library.store.folder(pack).path))
+        return 0
+    case let .failure(error):
+        printError("✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
+        return 1
+    }
+}
+
+/// The outcome of a background install, polled by the main thread.
+final class InstallOutcome: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Result<LanguagePackRecord, Error>?
+    func set(_ result: Result<LanguagePackRecord, Error>) { lock.withLock { value = result } }
+    func get() -> Result<LanguagePackRecord, Error>? { lock.withLock { value } }
+}
+
+/// `--adopt-pack DATA [VERSION]`: the Chinese pack from a Rime data folder, without downloading (the
+/// developer's ThirdParty/rime-data, or what an older app bundled: `make install` does that).
+func adoptPack(_ arguments: [String]) -> Int32 {
+    guard let path = arguments.first else {
+        printError("usage: --adopt-pack DATA [VERSION]")
+        return 2
+    }
+    do {
+        let record = try LanguagePackStore().adopt(.chinesePinyin, from: URL(fileURLWithPath: path),
+                                                   version: arguments.count > 1 ? arguments[1] : "0.0.0")
+        print("pack:        \(LanguagePack.chinesePinyin.id) \(record.version) (\(record.source.rawValue))")
+        return 0
+    } catch {
+        printError("✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
+        return 1
+    }
 }
 
 // A command's program that exits before reading all it is sent (`@py`, a custom run command) closes its
@@ -322,7 +417,10 @@ case "--disable":
 case "--status":
     exit(printStatus())
 case "--selftest":
-    let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-selftest")
+    if let index = arguments.firstIndex(of: "--rime-data"), arguments.indices.contains(index + 1) {
+        RimeDirectories.override = URL(fileURLWithPath: arguments[index + 1])
+    }
+    let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
     exit(MainActor.assumeIsolated { SelfTest.run(snapshotDirectory: directory) })
 case "--showcase":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-showcase")
@@ -330,8 +428,15 @@ case "--showcase":
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
     MainActor.assumeIsolated {
-        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"))
+        // `extensions=<folder>`: the Custom Commands page shows that folder's extensions instead of the user's.
+        let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
+        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
+                               extensions: extensions)
     }
+case "--install-pack":
+    exit(installPack(Array(arguments.dropFirst())))
+case "--adopt-pack":
+    exit(adoptPack(Array(arguments.dropFirst())))
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)

@@ -8,7 +8,8 @@ A macOS input method with AI commands in every text field. Start a sentence with
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
 `@question` asks a question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web
 address. You can also hold right ⌥ and talk. Without `@`, your keys go to the app as usual. It's also a full
-Chinese (pinyin) input method, built on Rime and rime-ice, for those who want one.
+Chinese (pinyin) input method, built on Rime and rime-ice, for those who want one, and types French, Korean (Hangul)
+and Hindi (Devanagari from Latin letters).
 
 Author: [Weijian Zhang](https://weijianz.com)
 
@@ -21,7 +22,7 @@ For more detail (every command and setting, installation troubleshooting, privac
 ## How to use
 
 Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
-To write in English only, set **Input languages** to English in the settings (see [Input and translation](#input-and-translation)).
+A new install writes English; to type Chinese (pinyin), French, Korean or Hindi too, add it in the settings (see [Input and translation](#input-and-translation)).
 
 | Key | What it does |
 |---|---|
@@ -32,10 +33,9 @@ To write in English only, set **Input languages** to English in the settings (se
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
 | ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
-| ⏎ (nothing written after the command yet) | Uses the clipboard text: it's shown in the command first, then ⏎ runs it. E.g. after copying a paragraph: `@i` ⏎ ⏎ ⏎. Works in any app |
 | Esc, ⌫ | Back to the sentence to keep editing; typing just continues it |
-| Tap Shift | With both Chinese and English as input languages: switch between them |
-| Hold right ⌥ | Talk, release to stop. English in English mode, Chinese in Chinese mode. In a command, the text goes after it; otherwise it's inserted directly |
+| Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
+| Hold right ⌥ | Talk, release to stop. In the language you're typing (English, Chinese, French, Korean or Hindi). In a command, the text goes after it; otherwise it's inserted directly |
 
 ## @ commands (beta)
 
@@ -86,7 +86,7 @@ whole numbers of up to 38 digits are written out in full (`2^100` → `126765060
 
 ### Notes and reminders
 
-`@note` makes a new note; its first line is the title. After copying some text, `@note` ⏎ ⏎ ⏎ (or ⌃V after `@note `) saves it with its line breaks, shown as ↵ in the command.
+`@note` makes a new note; its first line is the title. After copying some text, ⌃V after `@note ` (or ⌘V, outside terminals) saves it with its line breaks, shown as ↵ in the command.
 If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed.
 
 `@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year` (Chinese times too).
@@ -132,6 +132,46 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 - When the program in `argv` isn't found (say, no `python3`), the command isn't offered and `@python …` is inserted as text; once it's installed, the command appears in the next text field.
 
 `run` and `terminal` run code on your Mac: only add commands you wrote and trust. They, too, run only when you press the action key, and never during secure input.
+
+### Script extensions
+
+Add your own @ commands as programs: a script in any language (bash, Python, Node, Swift, …) with a few lines of
+metadata in its comments. Put it in `~/.config/allinoneime/extensions`, or in a folder you add under Settings →
+Custom Commands → Script Extensions. Raycast Script Commands work as they are, and folders that already hold them are
+found with Spotlight.
+
+```bash
+#!/bin/bash
+# @allinoneime.schemaVersion 1
+# @allinoneime.title Flights
+# @allinoneime.argument1 {"type": "text", "placeholder": "from city"}
+# @allinoneime.argument2 {"type": "text", "placeholder": "to city"}
+
+echo "Flights from $1 to $2"
+```
+
+`flights.sh` is `@flights`. Write its arguments after it, commas between: `@flights beijing, new york` runs it with
+`beijing` and `new york` as `$1` and `$2` (more commas stay in the last one); a required one left empty says what's
+missing instead of running. What it prints is used as its `output` says:
+
+| `output` | What happens |
+|---|---|
+| `insert` (default) | All of it, and each line, to insert |
+| `show` | Shown in the panel as it prints (progress); nothing inserted. Leave the field and it goes on in the background (up to four at once) |
+| `list` | A list in Alfred's Script Filter JSON, run again as you type; picking a row inserts, opens (a web address, file or folder; never something that would run), copies or runs a second step |
+| `silent` | Its last line near the cursor; nothing inserted |
+
+A command can also take no input (`input none`: ⏎ on its name runs it), run in the `background` and notify you when
+it's done (the menu bar panel lists it meanwhile), show a `status` beside its name in the command list, or ask first
+(`confirm`). It runs in its own folder with your login shell's PATH and `ALLINONEIME_*` variables: the interface and
+input language, the app you're typing in, the text. A **bundle** is a folder with an `extension.json` naming its
+commands: they share code and preferences, which Settings shows (passwords go to the keychain). Settings lists every
+command with a switch, and the scripts left out with why.
+
+Raycast's modes map as `fullOutput` → `show`, `compact` and `silent` → `silent`, `inline` with `refreshTime` → a
+status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Examples/extensions](Examples/extensions)
+has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
+or a list as you type it), never during secure input, and stop when the input method quits.
 
 ### Plugins
 
@@ -191,9 +231,16 @@ What it reads, and when:
 
 In the settings:
 
-- **Input languages**: English, Chinese (pinyin), or both. A new install starts with Chinese only: to write English, add English and remove Chinese (or drag English first). New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
+- **Input languages**: one to five of English, Chinese (pinyin), French, Korean and Hindi, added with + (always there; greyed out at five). A new install starts with English only. New text fields start in the first; tap Shift for the next, in their order; with one, Shift doesn't switch.
+  - **French** types with its own keyboard layout: AZERTY unless you pick another on its card. Its dead keys (^, ¨, `, ´, ~) compose from it too.
+  - **Korean** types Hangul in the 2-set (Dubeolsik) layout, each syllable put together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ.
+  - **Hindi**: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them; otherwise Space inserts the first spelling, a digit another, ⏎ the letters as typed, and "." the danda (।).
+  - A command's name, `@open`'s text and code (`@py`, `@js`) are typed in letters whatever the language; it comes back after the command.
+  - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages (French is told apart from English when it's one of your input languages).
+- **Language packs**: the app comes with English (and French, which needs only macOS's layout). Chinese, Korean and Hindi are packs you download when you add them: adding Chinese (pinyin) downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart; Korean's pack (its key table and how jamo make syllables) and Hindi's (its letters and common words) are a few kilobytes. A pack is data only (dictionaries, tables and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Each language's card shows its pack (version, size, where it came from) with Delete…, and removing the language offers to delete its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
 - **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. On the Input page, pick Chinese (pinyin) in the bar of input languages, turn on "Fuzzy pinyin" and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
-- **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install has English only.
+- **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese, Hindi, Bengali, Tamil and the other main Indian languages…) and drag them into order. Hindi typed in Latin letters ("aap kaise ho") comes back in Devanagari. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` opens this page to add one.
+- **Keyboard layouts**: French types with the layout picked on its card (`keyboardLayouts` in the config). For the other languages, under the input method macOS keeps your last Latin layout (AZERTY, QWERTZ, Spanish, US International…), so you type as usual, `@` included wherever your layout has it, and dead keys compose in a command's text too (⌥E then E → é, ^ then e → ê). Layouts without Latin letters (Russian, Hindi InScript) can't be used under an input method: switch to them with ⌃Space, or paste (⌃V) or dictate text into a command.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
 ## Rewrite styles
@@ -233,7 +280,7 @@ Only the first 150 terms are read. With "Jargon" checked, the list is sent to Be
 
 <img src="docs/en/voice.png" width="340" alt="Hold right ⌥ to talk">
 
-Hold right ⌥ and talk; when you let go, the text is inserted. If you type a command first (e.g. `@improve `, `@question `) and then talk, the text goes after the command and ⏎ runs it; you can also press ⏎ without letting go of right ⌥ to run it as soon as you finish. Speech is recognized on the Mac by macOS's built-in speech recognition (SpeechAnalyzer), and no audio is uploaded; it needs macOS 26 or later.
+Hold right ⌥ and talk; when you let go, the text is inserted. It's recognized in the language you're typing (English, Chinese, French, Korean or Hindi). If you type a command first (e.g. `@improve `, `@question `) and then talk, the text goes after the command and ⏎ runs it; you can also press ⏎ without letting go of right ⌥ to run it as soon as you finish. Speech is recognized on the Mac by macOS's built-in speech recognition (SpeechAnalyzer), and no audio is uploaded; it needs macOS 26 or later.
 
 The first time:
 
@@ -257,8 +304,8 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
 After that, AllInOneIME is enabled and in your input sources; switch to it with Ctrl+Space
 (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings → Keyboard).
 If the installer tells you to add it by hand, this Mac doesn't let programs enable it, so add it once yourself:
-System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → Chinese, Simplified → AllInOneIME
-(macOS lists it under Chinese because it can type pinyin; it types English just as well).
+System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → English → AllInOneIME
+(it types pinyin too once you add Chinese under Input in its settings).
 
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
@@ -282,6 +329,7 @@ make install
 ```
 
 `make install` downloads librime and the rime-ice dictionaries and verifies them, builds, and installs into the same places, adding it to your input sources the same way.
+The app it installs has no Chinese dictionaries (they're the Chinese language pack): an install that had them keeps them as the pack; otherwise `make install-pack` installs the pack from the checkout's dictionaries, without a download.
 `make status` shows the installed version (`version:`) and whether it's in your input sources (`listed:`). To uninstall: `make uninstall`.
 
 ## Setting up the AI
@@ -318,7 +366,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 | Key | What it does | Default |
 |---|---|---|
-| `inputLanguages` | Input languages, the first is the default: `["en"]`, `["en", "zh"]`, `["zh"]` | `["zh"]` |
+| `inputLanguages` | Input languages, one to five, the first is the default: `"en"` English, `"zh"` Chinese (pinyin), `"fr"` French, `"ko"` Korean, `"hi"` Hindi, e.g. `["en", "zh"]`, `["fr", "en", "ko"]`. Chinese, Korean and Hindi work once their pack is installed | `["en"]` (a new install) |
+| `keyboardLayouts` | The keyboard layout an input language types with, by its code (only French so far): `{"fr": "com.apple.keylayout.French-PC"}` | French: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | What `@translate` translates into, in order: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
@@ -334,8 +383,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
-- The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command or press the action key with nothing written after a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
-- In password fields (secure input) it doesn't compose text and can't record. Whenever the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
+- The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
+- In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text and can't record: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
@@ -346,6 +395,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
+make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
+make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -362,9 +413,22 @@ Code layout:
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" on the disk image: installs, updates and uninstalls
 
+Language packs have their own library, apart from the plugins: the repository
+[MicroZ-LLC/AllInOneIME-languages](https://github.com/MicroZ-LLC/AllInOneIME-languages), served at
+https://languages.allinoneime.com/, signed with their own key. `make pack` builds the archive; it's published as a
+release asset there (release `zh-pinyin-<version>`, `ko-hangul-<version>`, `hi-phonetic-<version>`), and `swift Scripts/build-packs-index.swift <languages repo>
+build/packs/*.tar.xz.json` writes `packs.json` there and signs it into `packs.json.sig` with the language packs' key
+from the keychain (`allinoneime-languages-signing`). The app reads https://languages.allinoneime.com/packs.json, checks
+the signature, then the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and
+`AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`.
+
 The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to remember the added input source and the microphone permission, so changing it would mean adding the input method and granting the permission again.
 
 ## License
 
-Copyright © 2026 MicroZ LLC. GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
-are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Copyright © 2026 MicroZ LLC. Source available under the [Functional Source License 1.1](LICENSE) (FSL-1.1-ALv2): use it,
+read it, change it and share it for anything but a competing product. Each version becomes Apache-2.0 two years after
+its release. Versions up to 0.6.1 were released under the GPL-3.0 and stay available under it.
+
+Third-party components (librime and its plugins under BSD-3-Clause; rime-ice's Lua scripts and the Chinese language pack
+under GPL-3.0) are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

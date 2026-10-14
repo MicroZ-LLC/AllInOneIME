@@ -177,21 +177,18 @@ extension ComposerTests {
         #expect(!readsClipboard(s.handleKeyDown(shifted).effects) && s.draft == "@improve ")
     }
 
-    @Test func theActionKeyOnAnEmptyCommandTakesTheClipboard() {
+    @Test func theActionKeyOnAnEmptyCommandOnlyHints() {
+        // Nothing after the command: a hint; the clipboard isn't read (⌃V or ⌘V brings its text in).
         for terminal in [false, true] {
             let (c, _) = improveDraft(key: .enter)
             c.pastesIntoDraft = !terminal
-            // The text is shown in the command first; the action key again runs it.
-            #expect(c.handleKeyDown(enterKey) == .consumed([.readClipboard(id: 1)]) && !c.isLevelTwo)
-            #expect(c.pasted("这个方案还不够好", id: 1) == [.updateMarkedText, .showPanel])
-            #expect(c.draft == "@improve 这个方案还不够好" && !c.isLevelTwo)
-            #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "这个方案还不够好", id: 1))
+            #expect(c.handleKeyDown(enterKey) == .consumed([.notice(c.messages.typeAfterCommand)]) && !c.isLevelTwo)
+            #expect(c.draft == "@improve ")
         }
-        // An Option tap or ⌥Space as the action key too; nothing on the clipboard: the old hint.
+        // An Option tap as the action key too.
         let (t, _) = palette("i")
         _ = t.handleKeyDown(tab)
-        #expect(tapOption(t) == [.readClipboard(id: 1)])
-        #expect(t.pasted(nil, id: 1) == [.notice(t.messages.typeAfterCommand)] && t.draft == "@improve ")
+        #expect(tapOption(t) == [.notice(t.messages.typeAfterCommand)] && t.draft == "@improve ")
         // A command with text after it runs as before.
         let (d, _) = improveDraft(key: .enter)
         type("nihao", d)

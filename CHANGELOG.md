@@ -2,6 +2,44 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.2 (2026-10-14)
+
+### Fixed
+
+- Dead keys work under the input method: ⌥E then E (US), ^ then e (AZERTY), ' then a (US International) typed only "e" (or "´e" in a command's text), since macOS doesn't compose them for an input method. They are composed from your keyboard layout now, with the accent shown while it waits, outside commands in English mode and in a command's text (`@translate où est la gare`, `@improve Übermorgen`). Pinyin is unchanged.
+- Switching the interface language in the settings window left some controls (the action key's name, the language chips) in the old language until the page was opened again; the page redraws at once now.
+
+### Added
+
+- Script extensions: @ commands that are programs outside the app, in any language, with a few lines of metadata in their comments (docs/extensions.md, protocol 1). Put them in `~/.config/allinoneime/extensions` or a folder you add under Settings → Custom Commands, and `flights.sh` is `@flights`; arguments go after it, commas between them (`@flights beijing, new york`).
+  - What they print can be inserted (`insert`), shown as it comes with nothing inserted (`show`, a progress), offered as a list to pick from as you type (`list`, Alfred's Script Filter JSON: picking a row inserts, opens, copies or runs a second step), or said near the cursor (`silent`); a JSON `summary` with a `detail` shows both.
+  - A command can take no input (⏎ on its name runs it), run in the background and notify you when it's done (the menu bar panel lists it; a `show` left running when you leave the field goes on too), show a status beside its name in the command list, or ask first.
+  - Scripts get `ALLINONEIME_*` environment variables: the interface and input language, the app you're typing in, the text.
+  - Bundles: a folder with `extension.json` holds several commands that share code and preferences; Settings shows the preferences (passwords go to the keychain).
+  - Raycast Script Commands work as they are, and folders holding them are found with Spotlight (on by default; hide the ones you don't want).
+  - Settings lists the folders, the bundles, every command with a switch, and the scripts left out with why (a protocol newer than the app's among them). Examples of each kind are in Examples/extensions.
+- French, Korean and Hindi as input languages, next to English and Chinese: add them under Input → +.
+  - French types with its own keyboard layout: AZERTY unless you pick another on its card (`keyboardLayouts` in the config), its dead keys (^, ¨, `, ´, ~) too. The other languages keep the layout you use in the system.
+  - Korean types Hangul in the 2-set (Dubeolsik) layout, putting each syllable together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ. It works in a command's text too.
+  - Hindi: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them (karna → करना, nahi → नहीं); otherwise pick a spelling: Space inserts the first and a space, a digit another, ⏎ the letters as typed, and "." types the danda (।).
+  - Dictation (hold right ⌥) listens in the language you're typing.
+  - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into each of your languages but its own (English and Chinese both, with those two). (French is told apart from English when French is one of your input languages.)
+- Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Punjabi and Urdu as translation languages. Hindi typed in Latin letters ("aap kaise ho") is translated into Devanagari, each in its own script; a Mac set to one of them (hi-IN …) translates into it from the start.
+- ← → move the cursor in a command's text (`@question …`), as in any text field: type, pinyin, ⌫, a paste or speech go in where it is. ⌘← ⌘→ (or Home, End) go to the start or end of the text, ⌥← ⌥→ a word at a time, fn⌫ deletes after the cursor. The cursor never goes into the command itself; ⏎ runs the whole text.
+
+### Changed
+
+- Korean and Hindi are language packs, like Chinese: adding either downloads its small pack (Korean's key table and how jamo make syllables; Hindi's letters and common words), data only, signed and checked like the Chinese pack. Their cards show the pack with Delete…. French needs no pack: its layout is macOS's.
+- A tap of Shift goes through your input languages in their order (English → French → Korean → …, then back to the first), as they're ordered under Input; with one, Shift doesn't switch.
+- One to five input languages: the + under Input is always shown, its menu ending with "More input languages are coming", and greyed out once there are five.
+- The model's settings (output tokens, temperature, timeout) are a Model Settings card on the AI Provider page now, no longer under Advanced; "Send temperature" shows only for Bedrock, the one provider it applies to. Advanced keeps the config file and the Rime user folder.
+- License: from this version on, AllInOneIME is source available under the Functional Source License 1.1 (FSL-1.1-ALv2) instead of the GPL-3.0. It's still free, and you can read, change and share the source for anything but a competing product; each version becomes Apache-2.0 two years after its release. 0.6.1 and earlier stay available under the GPL-3.0. rime-ice's Lua scripts and the Chinese pack are still GPL-3.0, with their license.
+- Chinese (pinyin) is a language pack now: the app comes with English only (about 120 MB smaller), and adding Chinese (pinyin) under Input → + downloads its dictionaries with a progress bar; pinyin works when it's done, without a restart. The pack is data only, listed in a signed index and checked against its SHA-256, like plugins. Its card under Input shows the pack (version, size, where it came from) with Delete…; removing Chinese also offers to delete the pack. Updating keeps Chinese without a download: the installer keeps the dictionaries the previous version came with (if it can't, the input method downloads them once by itself).
+- AllInOneIME is now an English input source: to add it by hand, it's under English (no longer Chinese, Simplified) in System Settings → Keyboard → Input Sources → +. Installing the update changes it in place: it stays in your input sources and nothing needs to be added again. Password fields still switch to the system's keyboard (U.S. or ABC) and back, as before.
+- A new install starts with English as its input language; add Chinese (pinyin) with + under Input. Existing settings don't change. The settings window's language follows the system until you pick one.
+- A new install translates into the first of the Mac's preferred languages that isn't English (Chinese, Japanese, French…). With English alone, `@translate` on an English sentence sends nothing: it says so and opens the settings on Translate & Rewrite to add a language.
+- ⏎ on a command with nothing after it no longer takes the clipboard's text: it only says to write something. Paste into a command with ⌃V (or ⌘V outside terminals), as before. A stray ⏎ no longer puts whatever was copied into the command.
+
 ## 0.6.1 (2026-10-12)
 
 ### Added

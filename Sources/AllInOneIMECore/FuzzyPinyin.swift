@@ -13,7 +13,7 @@ public enum FuzzyPinyin {
         let rules: [String]
     }
 
-    /// Initials first, then finals; rime-ice's own list, in its order.
+    /// Initials first, then finals: the common pairs, in the order rime-ice's schema lists them.
     public static let pairs: [Pair] = [
         Pair(id: "z-zh", rules: ["derive/^zh/z/", "derive/^z([^h])/zh$1/"]),
         Pair(id: "c-ch", rules: ["derive/^ch/c/", "derive/^c([^h])/ch$1/"]),

@@ -23,12 +23,26 @@ struct DescribedError: LocalizedError {
 }
 
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
-/// shows up there) and at most every 30 seconds otherwise.
+/// shows up there) and at most every 30 seconds otherwise: then in the background, never while a key is
+/// handled (the key gets the plugins as last scanned). Main thread only.
 enum LivePlugins {
     private static var cached: (at: Date, result: (plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]))?
+    private static var scanning = false
 
     static func current(rescan: Bool = false) -> [InstalledPlugin] {
-        if !rescan, let cached, Date().timeIntervalSince(cached.at) < 30 { return cached.result.plugins }
+        guard rescan || cached == nil else {
+            if let cached, Date().timeIntervalSince(cached.at) >= 30, !scanning {
+                scanning = true
+                DispatchQueue.global(qos: .utility).async {
+                    let result = PluginStore.load()
+                    DispatchQueue.main.async {
+                        self.cached = (Date(), result)
+                        scanning = false
+                    }
+                }
+            }
+            return cached?.result.plugins ?? []
+        }
         let result = PluginStore.load()
         cached = (Date(), result)
         return result.plugins
@@ -99,6 +113,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
+    /// A dead key typed before the next key (`DeadKeyComposer`).
+    private var deadKeys = DeadKeyComposer()
     /// Shown once each time composing gets paused for secure input.
     private var secureNoticeShown = false
     var converter: Converter = sharedConverter
@@ -150,6 +166,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
     private var checkedCommands: [Command] = []
     private var missingCommands: Set<String> = []
+    /// A check ended while a command was being written: its result applies once that's done.
+    private var missingCheckWaiting = false
     /// The latest check (an older one that finishes later is ignored).
     private var programCheck = 0
     /// Background `@claude` tasks: starting one, the list, opening one (the self-test supplies its own).
@@ -158,6 +176,25 @@ final class AllInOneIMEInputController: IMKInputController {
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
     /// A custom `run` command: runs its program in the background (the self-test supplies its own).
     var runProgram: (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { CommandRunner.run($0, input: $1) }
+    /// The script extensions for these settings (`rescan`: a text field became active: the index is built
+    /// again in the background, and Spotlight may look for Raycast script folders). The self-test supplies its
+    /// own: never the user's.
+    var loadExtensions: (Config, _ rescan: Bool) -> ExtensionIndex = { config, rescan in
+        if rescan { LiveExtensions.discoverIfDue(config) }
+        return LiveExtensions.current(config, rescan: rescan)
+    }
+    /// The values a bundle's commands get (`LiveExtensions.preferences`, the keychain read for passwords). Called
+    /// off the main thread, never while a key is handled.
+    var extensionPreferences: @Sendable (ExtensionBundle, Config) -> [String: String] = { LiveExtensions.preferences(of: $0, config: $1) }
+    /// The command list as last built from the settings and the extensions (`CatalogCache`).
+    private var catalog = CatalogCache()
+    /// Where script extensions run (`ScriptTasks.shared`).
+    lazy var scriptTasks: ScriptTasks = MainActor.assumeIsolated { ScriptTasks.shared }
+    /// The script extension run of this field's request (`Composer.Effect.startScript`): its request and run.
+    private var scriptRun: (request: Int, run: Int)?
+    /// A `list` command's text being run (or waiting for its `queryDelay`), and that run.
+    private var listRunKey: String?
+    private var listTask: Task<Void, Never>?
     /// A script plugin: runs in this program's own child process (`--run-plugin`).
     var runPlugin: (InstalledPlugin, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { PluginRunner.run($0, input: $1) }
     /// `@search`'s key: the keychain's, else the login shell's (the self-test supplies its own: it never reads
@@ -202,6 +239,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var liveSearchTask: Task<Void, Never>?
     /// The default input mode last applied to this session (re-applied when the setting changes).
     private var appliedDefaultInput: Language?
+    /// The keyboard layout this text field was last told to type with (`applyKeyboardLayout`).
+    private var appliedLayout: String?
     /// The recording in progress (a `DictationSession`, which needs macOS 26).
     private var voiceSession: AnyObject?
     /// Identifies the latest press of the voice key (older hold timers are ignored).
@@ -249,6 +288,7 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
+            appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
             ensureEngine()
@@ -372,12 +412,20 @@ final class AllInOneIMEInputController: IMKInputController {
     // MARK: - Level one engine
 
     /// Creates the Rime session once librime has finished deploying (and again after a re-deploy).
+    /// Without the Chinese pack librime never starts: English letters (`LatinEngine`), so typing and
+    /// commands work; while it deploys, keys go through as before.
     @MainActor
     func ensureEngine() {
         if let session, session.isValid { return }
         guard let fresh = RimeService.shared.makeSession() else {
-            composer.engine = nil
             session = nil
+            if RimeService.shared.isStarted {
+                composer.engine = nil
+            } else if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
+                composer.engine = LatinEngine()
+                appliedDefaultInput = nil
+                applySettings()
+            }
             return
         }
         session = fresh
@@ -396,17 +444,44 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
         (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
-        setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true)), recheck: true)
+        setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
+                                    disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
-        composer.inputLanguages = config.inputLanguages
+        composer.messages.actionKeyName = UIText.name(config.actionKey)
+        // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
+        // The Korean and Hindi packs' data, for their input (nil without the pack).
+        composer.hangulTables = LanguagePackManager.shared.hangulTables()
+        composer.hindiTables = LanguagePackManager.shared.hindiTables()
+        let languages = LanguagePackManager.shared.usable(config.inputLanguages)
+        let defaultInput = languages.contains(config.defaultInput) ? config.defaultInput : languages[0]
+        composer.inputLanguages = languages
         // With one input language, a field is always in it (it may have been switched before it was the only one).
-        let onlyOne = config.inputLanguages.count == 1
-        if appliedDefaultInput != config.defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
-            composer.setInputMode(config.defaultInput)
-            appliedDefaultInput = config.defaultInput
+        let onlyOne = languages.count == 1
+        if appliedDefaultInput != defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
+            composer.setInputMode(defaultInput)
+            appliedDefaultInput = defaultInput
         }
+        applyKeyboardLayout(config: config)
+    }
+
+    /// Types with the keyboard layout of the input language in effect: French with its own (AZERTY by
+    /// default, `Config.keyboardLayouts`), the others with the one the user picked in the system (or for
+    /// English). macOS translates the keys with it for this text field, typing and shortcuts alike.
+    @MainActor
+    private func applyKeyboardLayout(config: Config? = nil, client: IMKTextInput? = nil) {
+        let config = config ?? loadSettings()
+        let language = composer.inputLanguage
+        let id = config.keyboardLayout(for: language.isLatin ? language : .english) ?? Self.systemLayoutID
+        guard let id, id != appliedLayout, let target = client ?? clientOverride ?? self.client() else { return }
+        target.overrideKeyboard(withKeyboardNamed: id)
+        appliedLayout = id
+    }
+
+    /// The layout the user types Latin letters with in the system's input sources (U.S., ABC, AZERTY …).
+    private static var systemLayoutID: String? {
+        TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
     /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@claude`
@@ -429,8 +504,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 guard let self, self.programCheck == check else { return }
                 if !missing.isEmpty { log.notice("commands hidden, their program isn't installed: \(missing.count)") }
                 self.missingCommands = missing
-                // Not while a command is being written: the draft keeps the commands it started with.
-                if !self.composer.isComposing { self.composer.commands = commands.filter { !missing.contains($0.name) } }
+                // Not while a command is being written: the draft keeps the commands it started with, and they're
+                // filtered once it's done (`missingCheckWaiting`).
+                if self.composer.isComposing {
+                    self.missingCheckWaiting = true
+                } else {
+                    self.composer.commands = commands.filter { !missing.contains($0.name) }
+                }
             }
         }
     }
@@ -469,7 +549,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if !secureNoticeShown, let chars = event.characters, !chars.isEmpty,
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 secureNoticeShown = true
-                perform([.notice(tr("安全输入中：暂停拼音，直接输入", "Secure input: pinyin paused, keys go straight in"))],
+                perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))],
                         client: client)
             }
             return false
@@ -486,14 +566,29 @@ final class AllInOneIMEInputController: IMKInputController {
         ensureEngine()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
         if !composer.isComposing {
-            setCommands(Command.catalog(loadSettings().customCommands, plugins: LivePlugins.current()))
+            // Built again only when what it's made of changed (`CatalogCache`): not for each key.
+            let config = loadSettings()
+            let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
+                                                      index: loadExtensions(config, false), disabled: config.disabledExtensions)
+            if changed {
+                setCommands(commands)
+            } else if missingCheckWaiting {
+                // A check of the programs that ended while a command was being written.
+                composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
+            }
+            missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
         }
-        let response = composer.handleKeyDown(KeyEvent(
+        // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
+        if composer.pendingAccent == nil { deadKeys.reset() }
+        let key = deadKeys.compose(KeyEvent(
             keyCode: event.keyCode, characters: event.characters ?? "",
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat))
+            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
+            in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
+        let response = composer.handleKeyDown(key)
+        if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
         return response.handled
     }
@@ -550,6 +645,8 @@ final class AllInOneIMEInputController: IMKInputController {
             switch effect {
             case .updateMarkedText:
                 updateMarkedText(target)
+            case .inputLanguageChanged:
+                applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
             case let .typeOut(text):
@@ -568,6 +665,18 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .startRun(command, input, id):
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
                 startConversion(input, id: id, command: command)
+            case let .startScript(command, arguments, query, id, action):
+                if refusedForSecureInput(id: id, client: target, running: true) { break }
+                startScript(command, arguments: arguments, query: query, id: id, action: action)
+            case let .startBackgroundScript(command, arguments, query):
+                startInBackground(command, arguments: arguments, query: query, client: target)
+            case let .detachScript(id):
+                // The field was left while a `show` runs: it goes on, and says when it's done.
+                if let run = scriptRun, run.request == id { scriptTasks.detach(run.run) }
+                scriptRun = nil
+            case .refreshList:
+                listRunKey = nil  // run it now (below), not after its delay
+                scheduleListRun(now: true)
             case let .search(query, id):
                 conversionTask?.cancel()
                 conversionTask = Task { @MainActor [weak self] in
@@ -588,8 +697,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 if SearchResult(name: "", path: path).webURL == nil { recordOpen(path) }
             case let .openLink(url):
                 // The site is public (a plugin's or the user's own template); the text in it is not.
-                log.notice("link command: opening \(url.host ?? "-", privacy: .public) in the browser")
-                openItem(url.absoluteString)
+                log.notice("link command: opening \(url.isFileURL ? "a file" : url.host ?? "-", privacy: .public)")
+                // A file (a script list's row) by its path, which isn't kept in @open's history.
+                openItem(url.isFileURL ? url.path : url.absoluteString)
             case let .startBackgroundAgent(prompt):
                 Task { @MainActor [weak self] in
                     do {
@@ -665,6 +775,8 @@ final class AllInOneIMEInputController: IMKInputController {
             case .cancelConversion:
                 conversionTask?.cancel()
                 conversionTask = nil
+                if let run = scriptRun { scriptTasks.cancel(run.run) }
+                scriptRun = nil
             case .showPanel:
                 showPanel(target)
             case .hidePanel:
@@ -689,6 +801,168 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         scheduleLiveSearch()
         scheduleRecipientSearch()
+        scheduleListRun()
+        refreshStatuses()
+    }
+
+    // MARK: - Script extensions
+
+    /// What a script extension is told about where it runs (`ScriptContext`).
+    @MainActor
+    private func scriptContext(query: String) -> ScriptContext {
+        ScriptContext(language: UIText.chinese ? "zh" : "en", inputLanguage: composer.inputLanguage.rawValue,
+                      app: (clientOverride ?? client())?.bundleIdentifier(), query: query)
+    }
+
+    /// The environment `command` runs with, or the message that keeps it from running: a required preference
+    /// of its bundle isn't set yet. The keychain (password preferences) and the login shell's PATH are read off
+    /// the main thread: never while a key is handled.
+    @MainActor
+    private func scriptEnvironment(_ command: ScriptCommand, query: String, status: Bool = false,
+                                   action: Bool = false) async -> Result<[String: String], DescribedError> {
+        await environmentMaker(command, query: query, status: status, action: action)()
+    }
+
+    /// What builds `command`'s environment (`scriptEnvironment`), with what it needs of this text field taken now:
+    /// it needs nothing of the field afterwards, which may be gone by the time it runs.
+    @MainActor
+    private func environmentMaker(_ command: ScriptCommand, query: String, status: Bool = false,
+                                  action: Bool = false) -> @Sendable () async -> Result<[String: String], DescribedError> {
+        let config = loadSettings()
+        let bundle = loadExtensions(config, false).bundle(of: command)
+        let context = scriptContext(query: query)
+        let preferences = extensionPreferences
+        let missingMessage = { (missing: ExtensionBundle.Preference, bundle: ExtensionBundle) in
+            tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
+        }
+        return {
+            await Task.detached(priority: .userInitiated) { () -> Result<[String: String], DescribedError> in
+                let values = bundle.map { preferences($0, config) } ?? [:]
+                if let bundle, let missing = bundle.preferences.first(where: { $0.required && (values[$0.name] ?? "").isEmpty }) {
+                    return .failure(DescribedError(message: missingMessage(missing, bundle)))
+                }
+                return .success(context.environment(for: command, base: ShellEnvironment.current, preferences: values,
+                                                    status: status, action: action))
+            }.value
+        }
+    }
+
+    /// Runs a script extension for this field's request: what it prints goes to the composer as it comes. It
+    /// starts once its environment is ready (the request may be gone by then: Esc, another key).
+    @MainActor
+    private func startScript(_ command: Command, arguments: [String], query: String, id: Int, action: Bool) {
+        guard let script = command.script else { return }
+        if let run = scriptRun { scriptTasks.cancel(run.run) }
+        scriptRun = nil
+        lastElapsed = nil
+        lastFromCache = false
+        log.notice("conversion \(id) started (an extension, \(arguments.count) arguments)")
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let environment: [String: String]
+            switch await self.scriptEnvironment(script, query: query, action: action) {
+            case let .success(env): environment = env
+            case let .failure(error):
+                self.perform(self.composer.fail(error.message, id: id), client: nil)
+                return
+            }
+            guard self.composer.phase == .translating(id: id) else { return }
+            let started = Date()
+            let run = self.scriptTasks.start(script, arguments: arguments, environment: environment, detached: false) { [weak self] event in
+                guard let self else { return }
+                switch event {
+                case let .update(update):
+                    if update.isFinal {
+                        self.lastElapsed = Date().timeIntervalSince(started)
+                        if self.scriptRun?.request == id { self.scriptRun = nil }
+                    }
+                    self.perform(self.composer.receiveScript(update.output, isFinal: update.isFinal, id: id), client: nil)
+                case let .failed(error):
+                    if self.scriptRun?.request == id { self.scriptRun = nil }
+                    log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public)")
+                    self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
+                }
+            }
+            self.scriptRun = run.map { (id, $0) }
+        }
+    }
+
+    /// A `background` script extension: started on its own; the menu bar panel lists it and a notification says
+    /// how it went. Not during secure input (nothing runs then), nor twice at once, nor more than four.
+    @MainActor
+    private func startInBackground(_ command: Command, arguments: [String], query: String, client: IMKTextInput?) {
+        guard let script = command.script else { return }
+        guard !secureInputActive() else {
+            showNotice(tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
+                          "Secure input is on (a password field or the lock screen): the command was not run"), client: client)
+            return
+        }
+        // Held by ScriptTasks while the environment is made, not by this field: it starts even if the field is gone
+        // by then. What went wrong is said here, or in the field being typed in then.
+        scriptTasks.startInBackground(script, arguments: arguments, prepare: environmentMaker(script, query: query)) { [weak self] message in
+            (self ?? Self.activeController)?.showNotice(message, client: nil)
+        }
+    }
+
+    /// A `list` command as it's typed: run after its `queryDelay` once the text stops changing (the run before
+    /// stopped), and again after the list's `rerun` while the same text is shown. `now`: without the delay.
+    @MainActor
+    private func scheduleListRun(now: Bool = false) {
+        let query = composer.listQuery
+        let command = composer.draftCommand
+        let key = query.flatMap { query in command.map { $0.name + "\u{0}" + query } }
+        guard key != listRunKey else { return }
+        listRunKey = key
+        listTask?.cancel()
+        listTask = nil
+        guard let query, let command, let script = command.script else { return }
+        guard !secureInputActive(), case let .success(arguments) = script.arguments(from: query) else { return }
+        listTask = Task { @MainActor [weak self] in
+            var delay = now ? 0 : script.queryDelay
+            var environment: [String: String]?
+            while true {
+                if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+                guard let self, !Task.isCancelled else { return }
+                if environment == nil {
+                    switch await self.scriptEnvironment(script, query: query) {
+                    case let .success(env): environment = env
+                    case let .failure(error):
+                        // A required preference isn't set: the list says so.
+                        if !Task.isCancelled { self.perform(self.composer.receiveList(.text(error.message), for: query), client: nil) }
+                        return
+                    }
+                }
+                guard !Task.isCancelled, let env = environment else { return }
+                var output: ScriptOutput?
+                do {
+                    for try await update in CommandRunner.run(script, arguments: arguments, environment: env) where update.isFinal {
+                        output = update.output
+                    }
+                } catch {
+                    output = .text(UIText.describe(error))
+                }
+                guard !Task.isCancelled, let output else { return }
+                self.perform(self.composer.receiveList(output, for: query), client: nil)
+                guard case let .list(list) = output, let rerun = list.rerun else { return }
+                delay = rerun
+            }
+        }
+    }
+
+    /// The status lines of the commands the list shows, when they're due (`ScriptStatus`); each one that ends
+    /// redraws the list and lets the next due one start.
+    @MainActor
+    private func refreshStatuses() {
+        guard composer.paletteQuery != nil else { return }
+        let shown = composer.paletteVisible.compactMap(\.script).filter { $0.status != nil }
+        guard !shown.isEmpty, !secureInputActive() else { return }
+        ScriptStatus.shared.refresh(shown, environment: { [weak self] command in
+            guard let self, case let .success(env) = await self.scriptEnvironment(command, query: "", status: true) else { return nil }
+            return env
+        }) { [weak self] in
+            guard let self, self.composer.paletteQuery != nil else { return }
+            self.perform([.showPanel], client: nil)
+        }
     }
 
     /// A send command's recipient as it is typed: a short pause, then the contacts that match (Contacts
@@ -1074,6 +1348,15 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Streams level two for `input`: the improve conversion, a `.generate` command's answer, or what a
     /// `.run` command's program printed.
+    /// Whether `config` has a language to translate `input` into other than its own.
+    static func hasTranslationTarget(for input: String, config: Config) -> Bool {
+        let own = OutputLanguage(config.language(of: input))
+        return config.outputLanguages.contains { $0 != own }
+    }
+
+    /// Opens the settings window on `page` (the self-test records it instead).
+    var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
+
     @MainActor
     private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil) {
         conversionTask?.cancel()
@@ -1083,6 +1366,15 @@ final class AllInOneIMEInputController: IMKInputController {
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
+        // @translate with no language to translate into but the sentence's own (a new user whose system has no
+        // other language): nothing is sent; the settings open where languages are added.
+        if command == .translate, !Self.hasTranslationTarget(for: input, config: loadSettings()) {
+            log.notice("conversion \(id): no language to translate into")
+            perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
+                                  id: id), client: nil)
+            openSettings(.writing)
+            return
+        }
         // An @calculate inside the text is worked out here first: a mistake in it is reported at once and in the
         // interface language (from inside the pipeline only its English description would arrive).
         if let plan, let error = Calculator.failure(in: plan) {
@@ -1323,11 +1615,11 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
-        // A command with nothing after it: the action key takes the clipboard's text.
+        // A command with nothing after it yet: what to do (the action key alone only hints).
         if composer.sentText.isEmpty {
-            return "\(how) → " + tr("用剪贴板里的文字", "use the clipboard text")
+            return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
-        return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config, draft: composer.draft)
+        return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -1375,11 +1667,19 @@ final class AllInOneIMEInputController: IMKInputController {
                                              comment: note.map { "\(name) · \($0)" } ?? name,
                                              style: .translation, isComplete: choice.isComplete)
                 case .answer:
-                    // A program's output may have several lines; they are inserted as printed.
+                    // A program's output may have several lines; they are inserted as printed. A script's summary
+                    // has its detail beside it.
                     let text = choice.text.replacingOccurrences(of: "\n", with: " ↵ ")
                     return CandidateView.Row(label: choice.label, text: Self.preview(text),
-                                             comment: UIText.answerLabel(composer.activeCommand),
+                                             comment: choice.detail.map { Self.preview($0) } ?? UIText.answerLabel(composer.activeCommand),
                                              style: .translation, isComplete: choice.isComplete)
+                case .shown:
+                    // What a `show` script printed: shown as it comes, never inserted.
+                    return CandidateView.Row(label: "", text: Self.preview(choice.text), comment: choice.detail.map { Self.preview($0) } ?? "",
+                                             style: .candidate)
+                case .item:
+                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
+                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate)
                 case let .file(path) where path.hasPrefix(SearchResult.agentPrefix):
                     // A background task: its last reply, shortened.
                     let reply = composer.searchResults.first { $0.path == path }?.detail ?? ""
@@ -1411,24 +1711,35 @@ final class AllInOneIMEInputController: IMKInputController {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = Language.of(composer.sentText).matches(config.outputLanguage)
+                let polishing = config.language(of: composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
-                    : command?.kind == .run ? tr("运行中…", "Running…")
+                    : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
+                    ?? (command?.kind == .run ? tr("运行中…", "Running…")
                     : command?.kind == .link ? tr("运行句中的命令，然后在浏览器打开…", "Running the commands inside, then opening the browser…")
                     : command == .open ? tr("搜索中…", "Searching…")
                     : command == .tasks ? tr("读取后台任务…", "Reading the background tasks…")
                     : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
-                    : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…")
+                    : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…"))
                 model.status = choices.count <= 1 ? .loading(loading) : .none
                 model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
+                    : command?.script?.output == .show
+                    ? tr("运行中… · ⌘C 复制 · Esc 停止 · 离开输入框后在后台继续", "Running… · ⌘C copy · Esc stop · goes on in the background if you leave")
+                    : command?.script != nil ? tr("运行中… · Esc 停止", "Running… · Esc stop")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
+            case .choosing where command?.script != nil:
+                let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
+                model.footer = command?.script?.output == .show && !picks
+                    ? tr("⏎ 关闭 · ⌘C 复制全部 · Esc 返回", "⏎ close · ⌘C copy all · Esc back")
+                    : picks ? tr("⏎ 选中这一项 · 数字选择 · ⌘C 复制 · Esc 返回", "⏎ pick · digits pick · ⌘C copy · Esc back")
+                    : tr("空格 / ⏎ 上屏 · 数字选择 · ⌘C 复制 · Esc 返回", "Space / ⏎ insert · digits pick · ⌘C copy · Esc back")
+                model.detail = lastElapsed.map { String(format: "%.1fs", $0) }
             case .choosing:
                 model.footer = command == .open
                     ? tr("空格 / ⏎ 打开 · 数字选择 · ⌘C 复制路径 · Esc 返回", "Space / ⏎ open · digits pick · ⌘C copy path · Esc back")
@@ -1467,7 +1778,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     ? tr("识别完就发送 · Esc 取消", "Sends once recognized · Esc cancel")
                     : tr("识别中… · Esc 取消", "Recognizing… · Esc cancel")
             }
-            model.detail = composer.engineState.isAsciiMode ? composer.messages.englishMode : composer.messages.chineseMode
+            model.detail = composer.messages.mode(composer.inputLanguage)
         } else if composer.engineState.isComposing {
             let state = composer.engineState
             model.rows = state.candidates.map {
@@ -1476,9 +1787,8 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = state.highlighted
             let key = composer.actionKey
             if let command = composer.draftCommand {
-                // Pinyin in an @ command: the action key converts it and runs the command.
-                let input: Language = composer.sentText.containsHan || !composer.engineState.isAsciiMode ? .chinese : .english
-                let action = UIText.action(command, input: input, config: config, draft: composer.draft)
+                // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
+                let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
                 model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
@@ -1492,12 +1802,28 @@ final class AllInOneIMEInputController: IMKInputController {
             let first = composer.paletteFirstVisible, total = composer.paletteMatches.count
             model.rows = composer.paletteVisible.enumerated().map {
                 CandidateView.Row(label: String($0.offset + 1), text: "@" + $0.element.name,
-                                  comment: UIText.summary($0.element), style: .candidate,
-                                  icon: CommandIcons.icon(for: $0.element))
+                                  comment: UIText.summary($0.element, status: $0.element.script.flatMap(ScriptStatus.shared.text(for:))),
+                                  style: .candidate, icon: CommandIcons.icon(for: $0.element))
             }
             model.highlighted = composer.paletteHighlighted - first
             if total > Composer.paletteRows { model.detail = "\(first + 1)–\(first + model.rows.count) / \(total)" }
-            model.footer = tr("⏎ / Tab / 空格 选择 · Esc 取消", "⏎ / Tab / Space choose · Esc cancel")
+            // A script extension that takes no input: the action key runs it, Tab and Space only pick it.
+            let matches = composer.paletteMatches, key = UIText.name(composer.actionKey)
+            model.footer = matches.indices.contains(composer.paletteHighlighted)
+                && matches[composer.paletteHighlighted].script?.input == ScriptCommand.Input.none
+                ? tr("\(key) 运行 · Tab / 空格 选择 · Esc 取消", "\(key) run · Tab / Space choose · Esc cancel")
+                : tr("⏎ / Tab / 空格 选择 · Esc 取消", "⏎ / Tab / Space choose · Esc cancel")
+        } else if let list = composer.currentList {
+            // A script's list as you type: its rows (those of information unnumbered and dimmed).
+            let choices = Composer.itemChoicesForPanel(list.items)
+            model.rows = choices.map {
+                CandidateView.Row(label: $0.label, text: Self.preview($0.text), comment: $0.detail.map { Self.preview($0) } ?? "",
+                                  style: $0.label.isEmpty ? .original : .candidate)
+            }
+            model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
+            if list.items.isEmpty { model.status = .hint(tr("没有结果", "No results")) }
+            model.footer = tr("\(UIText.name(composer.actionKey)) 选中这一项 · ↑↓ 选择 · Tab 补全 · ⌘C 复制 · Esc 取消",
+                              "\(UIText.name(composer.actionKey)) pick · ↑↓ choose · Tab complete · ⌘C copy · Esc cancel")
         } else if !composer.currentLiveResults.isEmpty {
             // "@open …" as you type: what matches now.
             model.rows = composer.currentLiveResults.map { result in
@@ -1575,11 +1901,14 @@ final class AllInOneIMEInputController: IMKInputController {
         let inputs = NSMenu()
         // The added input languages, the default one checked (a new text field starts in it).
         for language in current.inputLanguages {
-            let item = NSMenuItem(title: Self.inputName(language), action: #selector(setDefaultInput(_:)), keyEquivalent: "")
+            // One whose pack isn't there yet can't be typed: shown, greyed, with why.
+            let usable = LanguagePackManager.shared.isUsable(language)
+            let title = Self.inputName(language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
+            let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.rawValue
             item.state = current.defaultInput == language ? .on : .off
-            item.isEnabled = config != nil
+            item.isEnabled = config != nil && usable
             inputs.addItem(item)
         }
         inputs.addItem(.separator())

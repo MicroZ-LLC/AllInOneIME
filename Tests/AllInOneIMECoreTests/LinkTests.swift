@@ -148,12 +148,11 @@ struct LinkTests {
         #expect(commits(effects).isEmpty && c.draft.isEmpty && !c.isLevelTwo && c.phase == .idle)
     }
 
-    @Test func aLinkCommandWithNothingAfterItTakesTheClipboard() {
+    @Test func aLinkCommandWithNothingAfterItOnlyHints() {
         let c = composer(Command.catalog([], plugins: [linkPlugin()]))
         type("@x ", c)
-        // Like any command: the clipboard's text, or else a hint; nothing opens empty.
-        #expect(c.handleKeyDown(enterKey).effects == [.readClipboard(id: 1)])
-        #expect(c.pasted(nil, id: 1) == [.notice("在命令后面写上内容")] && c.draft == "@x ")
+        // Like any command: a hint; nothing opens empty, and the clipboard isn't read.
+        #expect(c.handleKeyDown(enterKey).effects == [.notice("在命令后面写上内容")] && c.draft == "@x ")
     }
 
     @Test func secureInputAndLongTextsAreRefused() {

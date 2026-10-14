@@ -6,6 +6,7 @@ routes = [
   { pattern = "allinoneime.com", custom_domain = true },
   { pattern = "www.allinoneime.com", custom_domain = true },
   { pattern = "plugins.allinoneime.com", custom_domain = true },
+  { pattern = "languages.allinoneime.com", custom_domain = true },
 ]
 
 # The site's pages and images; the Worker runs first (plugins host, /download, /docs), then serves them.

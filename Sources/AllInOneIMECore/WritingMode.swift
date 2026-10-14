@@ -44,7 +44,11 @@ public struct WritingPlan: Equatable, Sendable {
     /// `mode` for `text`: translations go to the added output languages other than the sentence's
     /// own (in the user's order); one target gets three versions, several get a line each.
     public static func make(_ mode: WritingMode, text: String, config: Config) -> WritingPlan {
-        let input = OutputLanguage(Language.of(text))
+        make(mode, input: OutputLanguage(config.language(of: text)), config: config)
+    }
+
+    /// `mode` for a sentence written in `input`.
+    public static func make(_ mode: WritingMode, input: OutputLanguage, config: Config) -> WritingPlan {
         let styles = mode == .translate ? [] : RewriteStyle.resolve(config.rewriteStyles)
         guard mode != .improve else { return WritingPlan(versions: input, translations: [], styles: styles, input: input) }
         let targets = config.outputLanguages.filter { $0 != input }
@@ -61,6 +65,11 @@ public struct WritingPlan: Equatable, Sendable {
 
     /// How many lines the answer has.
     var lineCount: Int { (versions == nil ? 0 : 3) + translations.count + styles.count }
+
+    /// The tags of the answer's lines, in order ("EN", "EN", "EN", "STYLE_POLISH" …).
+    var lineTags: [String] {
+        (versions.map { Array(repeating: $0.tag, count: 3) } ?? []) + translations.map(\.tag) + styles.map(\.lineTag)
+    }
 
     /// Part of the cache key: the same sentence asks for different lines in another plan.
     var key: String {

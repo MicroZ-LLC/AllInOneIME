@@ -109,7 +109,7 @@ enum PanelShowcase {
 /// `settings-<page>.png`, from the config file as it is (nothing is saved).
 @MainActor
 enum SettingsPageImages {
-    static func run(output: URL, chinese: Bool, dark: Bool) -> Never {
+    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -119,6 +119,11 @@ enum SettingsPageImages {
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
+        // Public examples rather than the user's own folders, when given (`extensions=<folder>`).
+        if let extensions {
+            model.config.extensionFolders = [ExtensionStore.abbreviated((extensions as NSString).expandingTildeInPath)]
+            model.config.findRaycastScripts = false
+        }
         for page in SettingsPage.allCases {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }

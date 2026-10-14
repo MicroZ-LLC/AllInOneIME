@@ -2,6 +2,7 @@
 
 Plugins kept with the app's source. They are **not installed with the app**: the plugin library
 (Settings → Plugins, coming in 0.5.0) publishes them, signed, from its own repository.
+They're under the MIT license there and here, like the rest of [AllInOneIME-plugins](https://github.com/MicroZ-LLC/AllInOneIME-plugins).
 
 | Plugin | Type | What it does |
 | --- | --- | --- |

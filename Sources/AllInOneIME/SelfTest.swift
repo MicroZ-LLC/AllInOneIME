@@ -105,6 +105,7 @@ enum SelfTest {
     static var settings: Config = {
         var config = Config.default
         config.claudeInBackground = false  // @claude records a Terminal launch here; nothing starts in the background
+        config.setOrder([Language.chinese, .english])  // pinyin first, Shift to English (a new install has English only)
         return config
     }()
     /// Live Bedrock calls with the real config (model, credentials, styles), the translation languages pinned to English then Chinese
@@ -261,6 +262,31 @@ enum SelfTest {
     /// Dragging a language chip in the real settings form (offscreen; events posted to this app's own
     /// queue, so the pointer doesn't move): the mouse reaches the chip's drag handle, not the form's
     /// table view, and letting go left of the first chip makes it the default. Nothing is saved.
+    /// Switching the interface language redraws the page at once, controls of its own too (the action key
+    /// showed 「回车」 in English until the page was opened again).
+    static func testLanguageSwitchRedraws(in directory: URL) {
+        let pickedBefore = UIText.choice
+        defer { UIText.choice = pickedBefore }
+        UIText.choice = .chinese
+        let model = SettingsModel(configURL: Config.defaultURL, persists: false)
+        model.config.actionKey = .enter
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.alphaValue = 0
+        window.contentView = host
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        _ = pump(timeout: 0.5) { false }
+        model.setUILanguage(.english)
+        _ = pump(timeout: 0.6) { false }
+        // The page as drawn now (the accessibility tree is empty offscreen): looked at for the action key's name.
+        if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+            host.cacheDisplay(in: host.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("settings-switched-to-english.png"))
+        }
+    }
+
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
         // The translate languages are dragged into order (the input languages are a segmented bar now).
@@ -403,6 +429,7 @@ enum SelfTest {
         render("6-settings-en", chinese: false)  // README (docs/en)
         UIText.choice = pickedBefore
         testLanguageDrag()
+        testLanguageSwitchRedraws(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.
@@ -460,6 +487,13 @@ enum SelfTest {
         check(controller.panelModel().status == draftHint(controller, input: .english),
               "the hint names the action key (\(controller.panelModel().status))")
         snapshot("7a-english-draft", in: snapshotDirectory)
+        // ← moves the cursor in the command's text, and the app's caret with it; End back to the end.
+        let end = client.markedSelection.location
+        for _ in 0..<4 { _ = press(controller, client, "", code: VirtualKey.left) }
+        check(client.markedSelection.location == end - 4 && client.marked == "improve › " + sentence + " ",
+              "← moves the caret in the command's text (\(client.markedSelection.location) of \(end))")
+        _ = press(controller, client, "", code: VirtualKey.end)
+        check(client.markedSelection.location == end, "End puts it back at the end")
         check(act(controller, client), "the action key sends it")
         if finishConversion(controller, "English polish") {
             let choices = controller.composer.choices
@@ -989,12 +1023,11 @@ enum SelfTest {
         _ = enter(controller, client)  // converts the pinyin and saves
         check(pump(timeout: 2) { notes.count == 2 } && notes.last == "你好", "…also while secure input is on (\(notes))")
         controller.secureInputActive = saved.3
-        // Nothing after it: ⏎ takes the clipboard's text (as for every command), its lines too, shown with 「 ↵ 」;
-        // ⏎ again saves it as it was.
+        // ⌃V takes the clipboard's text, its lines too, shown with 「 ↵ 」; ⏎ saves it as it was.
         controller.readClipboard = { "牛奶\n鸡蛋\n面包" }
         note("", in: controller, client)
-        check(enter(controller, client) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
-              "⏎ on an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
+        check(press(controller, client, "v", code: 0x09, flags: .control) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
+              "⌃V in an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
         controller.readClipboard = saved.4
         _ = enter(controller, client)
         check(pump(timeout: 2) { notes.count == 3 } && notes.last == "牛奶\n鸡蛋\n面包",
@@ -1194,7 +1227,7 @@ enum SelfTest {
             field.ensureEngine()
             field.applySettings()
             note("", in: field, otherClient)
-            _ = enter(field, otherClient)
+            _ = press(field, otherClient, "v", code: 0x09, flags: .control)  // ⌃V: the clipboard's text in
             _ = pump(timeout: 1) { otherClient.marked == "note › 买牛奶" }
             _ = enter(field, otherClient)
             field.inputControllerWillClose()
@@ -1222,10 +1255,10 @@ enum SelfTest {
             terminal.saveNote = controller.saveNote
             terminal.addReminder = controller.addReminder
             terminal.activateServer(terminalClient)
-            /// ⏎ on an empty @note: the clipboard's lines in the draft.
+            /// ⌃V in an empty @note: the clipboard's lines in the draft.
             func pending() -> Bool {
                 note("", in: terminal, terminalClient)
-                _ = enter(terminal, terminalClient)
+                _ = press(terminal, terminalClient, "v", code: 0x09, flags: .control)
                 return pump(timeout: 1) { terminalClient.marked == "note › cd ~/project ↵ rm -rf build ↵ make install" }
             }
             let unsaved = "笔记还没存，原文已复制到剪贴板"
@@ -1414,6 +1447,41 @@ enum SelfTest {
         }
     }
 
+    /// @translate with nothing to translate into but the sentence's own language (a new user whose system
+    /// has no other language): no request, a notice, and the settings open on Translate & Rewrite.
+    static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        let (settingsBefore, loadBefore, openBefore) = (settings, controller.loadSettings, controller.openSettings)
+        var opened: [SettingsPage] = []
+        defer {
+            controller.commitComposition(client)
+            (settings, controller.loadSettings, controller.openSettings) = (settingsBefore, loadBefore, openBefore)
+            controller.applySettings()
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        settings = (try? Config.load()) ?? .default
+        settings.typeOut = false
+        settings.setOrder([Language.english])
+        settings.setOrder([OutputLanguage.english])
+        settings.uiLanguage = .english
+        controller.loadSettings = { SelfTest.settings }
+        controller.openSettings = { opened.append($0) }
+        controller.applySettings()
+        controller.composer.setInputMode(.english)
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        type("t", controller, client)
+        press(controller, client, "\t", code: VirtualKey.tab)
+        type("good morning", controller, client)
+        _ = enter(controller, client)
+        _ = pump(timeout: 0.5) { !opened.isEmpty }
+        let shown = controller.panelModel()
+        check(opened == [.writing] && !controller.composer.choices.contains { $0.kind == .version },
+              "@translate with nothing to translate into opens the settings on Translate & Rewrite, no request (\(opened))")
+        let text = [shown.footer, shown.detail ?? "", "\(shown.status)"].joined(separator: " | ")
+        check(text.contains("No language to translate into"), "…and says why (\(text))")
+        _ = escape(controller, client)
+        _ = escape(controller, client)
+    }
+
     /// The English README's images (docs/en, `en-*`): what someone who writes English sees, not the
     /// Chinese scenes with the interface in English. English is the only input language, @translate goes
     /// into Spanish, French and German, and the interface is English. Live requests; the settings it
@@ -1596,6 +1664,20 @@ enum SelfTest {
         let python = CommandRunner.isInstalled("python3", path: ShellEnvironment.current["PATH"])
         check(pump(timeout: 10) { controller.composer.commands.contains(.py) == python },
               "@py is offered only with python3 installed (python3: \(python))")
+        // A check of the programs that ends while a command is being written applies once that's done.
+        controller.programInstalled = { $0 != Command.py.program }
+        press(controller, client, "@", code: 0x13, flags: .shift)  // composing: the list is up
+        controller.setCommands(Command.catalog([]), recheck: true)
+        _ = pump(timeout: 1) { false }  // the check runs in the background meanwhile
+        let keptWhileComposing = controller.composer.commands.contains(.py) == python
+        _ = escape(controller, client)
+        press(controller, client, "@", code: 0x13, flags: .shift)  // the next key outside a command applies it
+        check(keptWhileComposing && !controller.composer.commands.contains(.py),
+              "a program check that ended while a command was written hides @py once it's done")
+        _ = escape(controller, client)
+        controller.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
+        controller.setCommands(Command.catalog([]), recheck: true)
+        _ = pump(timeout: 10) { controller.composer.commands.contains(.py) == python }
 
         // Symbols with their US-layout keys (`type` sends key code 0 for anything not in `keyCodes`).
         let symbols: [Character: (UInt16, NSEvent.ModifierFlags)] = [
@@ -1717,6 +1799,8 @@ enum SelfTest {
             }
         }
 
+        testExtensions(controller, client, start: start, typeText: typeText, waitForEnd: waitForEnd, clear: clear)
+
         // Without a key nothing is sent: the error says where to add one. (No live search here.) @search is
         // off for now (`Command.webSearchOffered`): then it isn't in the list at all.
         if !Command.webSearchOffered {
@@ -1737,6 +1821,128 @@ enum SelfTest {
         check(!controller.composer.isComposing && client.marked.isEmpty, "nothing left composing")
     }
 
+    /// Script extensions, made in a temporary folder (never the user's own): one that takes no input completes
+    /// on Tab and runs on the action key, its line goes in; a Raycast silent one inserts nothing; a missing
+    /// argument runs nothing; a list as you type, its row picked; a bundle's preference and the language reach
+    /// the script; a background one notifies when it's done.
+    static func testExtensions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, start: (String) -> Bool,
+                               typeText: (String) -> Void, waitForEnd: () -> Void, clear: () -> Void) {
+        print("— script extensions (a temporary folder)")
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-selftest-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder.appendingPathComponent("stbundle"), withIntermediateDirectories: true)
+        let (loadExtensions, notify, ask) = (controller.loadExtensions, controller.scriptTasks.notify, controller.scriptTasks.askToNotify)
+        // Preferences that take a while to read (as the keychain may): a key never waits for them.
+        let preferences = controller.extensionPreferences
+        controller.extensionPreferences = { bundle, _ in
+            Thread.sleep(forTimeInterval: 0.3)
+            return bundle.values([:])
+        }
+        var notified: [String] = []
+        controller.scriptTasks.notify = { _, title, body in notified.append(title + " | " + body) }
+        controller.scriptTasks.askToNotify = {}
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            controller.loadExtensions = loadExtensions
+            controller.scriptTasks.notify = notify
+            controller.scriptTasks.askToNotify = ask
+            controller.extensionPreferences = preferences
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        func add(_ name: String, _ prefix: String, _ metadata: [String], _ body: String) {
+            let text = (["#!/bin/bash", "# @\(prefix).schemaVersion 1"] + metadata.map { "# @\(prefix)." + $0 } + [body]).joined(separator: "\n")
+            let file = folder.appendingPathComponent(name)
+            try? Data(text.utf8).write(to: file)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        }
+        add("sthello.sh", "allinoneime", ["title Self-test Hello", "input none"], #"echo working; echo "hello from $(basename "$PWD") in $ALLINONEIME_LANGUAGE""#)
+        add("stquiet.sh", "raycast", ["title Self-test Quiet", "mode silent"], "echo quiet")
+        add("stneeds.sh", "allinoneime", ["title Self-test Needs", #"argument1 {"type": "text", "placeholder": "city"}"#], #"echo "$1""#)
+        add("stlist.sh", "allinoneime", ["title Self-test List", "output list", "queryDelay 10"],
+            #"printf '{"items": [{"title": "first %s", "arg": "picked-%s"}, {"title": "info", "valid": false}]}' "$1" "$1""#)
+        add("stwait.sh", "allinoneime", ["title Self-test Wait", "input none", "background true"], #"sleep 0.3; echo '{"summary": "waited", "detail": "0.3 s"}'"#)
+        add("stbundle/greet.sh", "allinoneime", [], #"echo "$ALLINONEIME_PREF_GREETING, $1""#)
+        let manifest = #"{"schemaVersion": 1, "name": "stbundle", "title": "Self-test Bundle", "version": "1.0", "#
+            + #""preferences": [{"name": "greeting", "type": "textfield", "title": "Greeting", "default": "hi"}], "#
+            + #""commands": [{"script": "greet.sh", "name": "stgreet", "title": "Self-test Greet", "input": "optional"}]}"#
+        try? Data(manifest.utf8).write(to: folder.appendingPathComponent("stbundle/extension.json"))
+        var index = ExtensionStore.load([.init(path: folder.path, found: false)])
+        index.generation = 1_000_000  // another than the empty one's: the command list is built again for it
+        check(index.commands.map(\.name) == ["stgreet", "sthello", "stlist", "stneeds", "stwait", "stquiet"] && index.skipped.isEmpty,
+              "extensions read from a folder: the bundle's first, Raycast's last (\(index.commands.map(\.name)), \(index.skipped.count) skipped)")
+        controller.loadExtensions = { _, _ in index }
+        controller.composer.setInputMode(.english)  // the texts below are typed as letters
+
+        let before = client.inserted.count
+        if start("sthello") {
+            check(!controller.composer.isLevelTwo, "Tab only completes a command that takes no input")
+            _ = act(controller, client)
+            waitForEnd()
+            let answer = controller.composer.choices.first
+            _ = enter(controller, client)
+            let expected = "working\nhello from " + folder.lastPathComponent + " in " + (UIText.chinese ? "zh" : "en")
+            check(answer?.text == expected && client.inserted.last == expected && !controller.composer.isComposing,
+                  "…the action key runs it; its output goes in, with the folder and the language it was told (\(client.inserted.last ?? ""))")
+        } else {
+            check(false, "@sthello is picked from the list ('\(client.marked)')")
+        }
+        clear()
+        let count = client.inserted.count
+        if start("stquiet") {
+            _ = act(controller, client)
+            _ = pump(timeout: 5) { !controller.composer.isComposing }
+            check(client.inserted.count == count && client.marked.isEmpty && !controller.composer.isComposing,
+                  "a Raycast silent script inserts nothing")
+        }
+        clear()
+        if start("stneeds") {
+            _ = act(controller, client)
+            check(!controller.composer.isLevelTwo && client.marked == "stneeds › ", "a script missing its argument doesn't run (\(client.marked))")
+        }
+        clear()
+        if start("stlist") {
+            let typing = Date()
+            typeText("abc")
+            let took = Date().timeIntervalSince(typing)
+            check(took < 0.25, String(format: "typing a list's text doesn't wait for its environment (3 keys in %.0f ms)", took * 1000))
+            _ = pump(timeout: 5) { controller.composer.currentList != nil }
+            let rows = controller.panelModel().rows.map(\.text)
+            check(rows == ["first abc", "info"], "a list runs as the text is typed, its rows shown (\(rows))")
+            _ = act(controller, client)
+            check(client.inserted.last == "picked-abc" && !controller.composer.isComposing,
+                  "the action key does the highlighted row's action: inserts its arg (\(client.inserted.last ?? ""))")
+        }
+        clear()
+        if start("stgreet") {
+            typeText("bob")
+            _ = act(controller, client)
+            waitForEnd()
+            _ = enter(controller, client)
+            check(client.inserted.last == "hi, bob", "a bundle's preference reaches its script (\(client.inserted.last ?? ""))")
+        }
+        clear()
+        if start("stwait") {
+            _ = act(controller, client)
+            check(!controller.composer.isComposing && client.marked.isEmpty, "a background command starts and the draft is done")
+            _ = pump(timeout: 5) { !notified.isEmpty }
+            check(notified.first?.hasSuffix("| waited\n0.3 s") == true && controller.scriptTasks.background.first?.outcome == .done,
+                  "…it notifies with its summary and detail when done, and the menu bar panel lists it (\(notified))")
+            controller.scriptTasks.background.forEach { controller.scriptTasks.remove($0.id) }
+            // Started from no text field at all (as when the field's controller is gone while the environment is
+            // made): ScriptTasks holds it, and it runs.
+            notified = []
+            let wait = index.commands.first { $0.name == "stwait" }!
+            controller.scriptTasks.startInBackground(wait, arguments: [], prepare: {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                return .success(ShellEnvironment.current)
+            }, say: { notified.append($0) })
+            _ = pump(timeout: 5) { !notified.isEmpty }
+            check(notified.first?.hasSuffix("| waited\n0.3 s") == true, "…and one started without its text field still runs (\(notified))")
+            controller.scriptTasks.background.forEach { controller.scriptTasks.remove($0.id) }
+        }
+        clear()
+        check(client.inserted.count == before + 3, "only the extensions' results went in")
+    }
+
     /// The composer's notices (`Composer.Messages`): Chinese wording → English wording.
     static let englishNotices: [String: String] = Dictionary(
         zip(Mirror(reflecting: Composer.Messages.chinese).children.compactMap { $0.value as? String },
@@ -1753,10 +1959,16 @@ enum SelfTest {
         check(NSClassFromString(className) == AllInOneIMEInputController.self,
               "Info.plist controller class '\(className)' resolves")
 
-        // Level one: the bundled dictionaries with a throw-away user directory.
+        // Level one: the Chinese data (`--rime-data`, which `make selftest` passes, else the installed pack)
+        // with a throw-away user directory.
         guard let shared = RimeDirectories.shared, FileManager.default.fileExists(atPath: shared.path) else {
-            print("✗ Rime data missing from the bundle")
+            print("✗ no Rime data: pass --rime-data ThirdParty/rime-data or install the Chinese pack")
             return 1
+        }
+        // A downloaded pack has no Lua of its own: the app's is linked in, as at launch.
+        if FileManager.default.fileExists(atPath: shared.appendingPathComponent("install.json").path) {
+            check((try? LanguagePackStore(directory: shared.deletingLastPathComponent())
+                .linkCode(.chinesePinyin, from: RimeDirectories.code)) != nil, "the app's Rime scripts linked into the pack")
         }
         let userDir = snapshotDirectory.appendingPathComponent("rime-user")
         let logDir = snapshotDirectory.appendingPathComponent("rime-log")
@@ -1801,6 +2013,7 @@ enum SelfTest {
         controller.pasteInTerminal = { _ in }
         controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
+        controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions), whatever the user added.
@@ -1810,6 +2023,7 @@ enum SelfTest {
         settings = (try? Config.load()) ?? .default
         settings.typeOut = false
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
+        settings.setOrder([Language.chinese, .english])  // pinyin, whatever the user's own default input is
         settings.uiLanguage = .chinese
         controller.loadSettings = { SelfTest.settings }
         controller.applySettings()
@@ -1841,6 +2055,7 @@ enum SelfTest {
         (controller.converter, settings, controller.loadSettings) = (converterBefore, settingsBefore, loadBefore)
         controller.applySettings()
         englishReadmeScenes(controller, client, in: snapshotDirectory)
+        testNothingToTranslateInto(controller, client)
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
         var openHistory = OpenHistory()
@@ -1962,27 +2177,23 @@ enum SelfTest {
         controller.readClipboard = { nil }
         check(!press(controller, client, "v", code: 0x09, flags: .command), "⌘V with nothing pending is the app's")
         controller.commitComposition(client)
-        // In a terminal (it pastes on ⌘V itself) ⌘V stays the terminal's; ⏎ on the empty command takes
-        // the clipboard instead, shown first, ⏎ again runs it.
+        // In a terminal (it pastes on ⌘V itself) ⌘V stays the terminal's. ⏎ on the empty command only hints:
+        // the clipboard isn't read (⌃V brings its text in).
         client.bundleIDOverride = "com.mitchellh.ghostty"
         controller.activateServer(client)
-        controller.readClipboard = { clipboard }
+        var clipboardReads = 0
+        controller.readClipboard = { clipboardReads += 1; return clipboard }
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
+        _ = enter(controller, client)  // picks @improve
+        check(controller.panelModel().status == .hint("写点内容，或按 ⌃V 粘贴"), "the hint says to write or paste (\(controller.panelModel().status))")
         _ = enter(controller, client)
-        check(controller.panelModel().status == .hint("⏎ → 用剪贴板里的文字"), "the hint names the clipboard (\(controller.panelModel().status))")
+        _ = pump(timeout: 0.5) { false }
+        check(clipboardReads == 0 && client.marked == "improve › " && !controller.composer.isLevelTwo
+              && controller.panelModel().detail == "在命令后面写上内容",
+              "⏎ on the empty command only hints; the clipboard isn't read (\(client.marked))")
         check(!press(controller, client, "v", code: 0x09, flags: .command) && client.inserted.last == "@improve ",
               "in a terminal ⌘V reaches the terminal (no second copy in the command)")
-        press(controller, client, "@", code: 0x13, flags: .shift)
-        type("i", controller, client)
-        _ = enter(controller, client)
-        check(enter(controller, client) && pump(timeout: 1) { client.marked != "improve › " }
-              && client.marked == "improve › 这个项目的进度太慢了我们需要尽快想办法" && !controller.composer.isLevelTwo,
-              "⏎ on the empty command shows the clipboard's text in it (\(client.marked))")
-        _ = enter(controller, client)
-        _ = pump(timeout: 3) { controller.composer.phase == .choosing }
-        check(controller.composer.phase == .choosing && controller.composer.choices.first?.text == "这个项目的进度太慢了我们需要尽快想办法",
-              "⏎ again improves it")
         controller.commitComposition(client)
         // ⌃V works in a terminal too (it doesn't paste on ⌃V itself), also after text already typed.
         press(controller, client, "@", code: 0x13, flags: .shift)

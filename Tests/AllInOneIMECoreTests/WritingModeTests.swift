@@ -65,4 +65,130 @@ struct WritingModeTests {
         #expect(parsed.translations.map(\.language.code) == ["ja", "en"] && parsed.translations.map(\.line.text) == ["すごいね", "That's awesome"])
         #expect(parsed.versions.isEmpty && parsed.rewrites.map(\.style) == ["润色", "简洁"])
     }
+
+    /// Korean, Hindi and French are told apart from English: @improve keeps them, @translate translates them into
+    /// English too.
+    @Test func koreanHindiAndFrenchKeepTheirLanguage() {
+        #expect(Language.of("오늘 몸이 좀 안 좋아요") == .korean && Language.of("ㅋㅋ") == .korean)
+        #expect(Language.of("आज मेरी तबीयत ठीक नहीं है") == .hindi)
+        #expect(Language.of("我check一下") == .chinese && Language.of("check it") == .english)
+        // French only for someone who types it, and only when the words are French.
+        #expect(Language.of("je me sens pas très bien") == .english)
+        #expect(Language.of("je me sens pas très bien", french: true) == .french)
+        #expect(Language.of("this bug is blocker, your team need fix it asap", french: true) == .english)
+        var french = config([.english, .chinese])
+        french.inputLanguages = [.english, .french]
+        #expect(french.language(of: "on se voit demain ?") == .french)
+
+        let outputs = config([.english, OutputLanguage("ja"), .chinese])
+        for (text, code) in [("오늘 몸이 좀 안 좋아요", "ko"), ("आज मेरी तबीयत ठीक नहीं है", "hi")] {
+            let improve = WritingPlan.make(.improve, text: text, config: outputs)
+            #expect(improve.input.code == code && improve.versions?.code == code)
+            let translate = WritingPlan.make(.translate, text: text, config: outputs)
+            #expect(translate.translations == [.english, OutputLanguage("ja"), .chinese])
+        }
+        var frenchOutputs = outputs
+        frenchOutputs.inputLanguages = [.english, .french]
+        #expect(WritingPlan.make(.improve, text: "on se voit demain ?", config: frenchOutputs).versions == OutputLanguage("fr"))
+
+        // The prompt asks for Korean lines and says the sentence is Korean.
+        let korean = Prompt.request(for: "오늘 몸이 좀 안 좋아요", mode: .improve, config: outputs).system.first?.text ?? ""
+        #expect(korean.contains("typing a sentence in Korean.") && korean.contains("Exactly 3 KO lines, always in Korean."))
+        #expect(korean.contains("rewrite the sentence in Korean"))
+        #expect(!korean.contains("always in English"))
+        // Chinese and English as before.
+        let chinese = Prompt.request(for: "牛的啊", mode: .improve, config: outputs).system.first?.text ?? ""
+        #expect(chinese.contains("typing a sentence: Chinese, English, or a mix of both.\n"))
+    }
+
+    /// The tags of the format lines a request's system prompt asks for, in order.
+    func formatTags(_ request: ConverseRequest) -> [String] {
+        let system = request.system.first?.text ?? ""
+        guard let start = system.range(of: "Reply in exactly this format and nothing else:\n"),
+              let end = system.range(of: "\n\nRules:", range: start.upperBound..<system.endIndex) else { return [] }
+        return system[start.upperBound..<end.lowerBound].components(separatedBy: "\n").map { String($0.prefix { $0 != ":" }) }
+    }
+
+    /// The examples a Korean, Hindi or French sentence gets are answered with exactly the lines asked of it: three EN
+    /// lines in an example where it asks for an EN and a ZH line made the model leave ZH out. The Chinese and English
+    /// sentences keep theirs, each answered as its own sentence would be.
+    @Test func exampleAnswersHaveTheLinesTheRequestAsksFor() {
+        let sentences: [(String, Language)] = [("牛的啊", .chinese), ("this is a blocker bug your team need fix it asap", .english),
+                                                ("오늘 몸이 좀 안 좋아요", .korean), ("आज मेरी तबीयत ठीक नहीं है", .hindi),
+                                                ("on se voit demain soir ?", .french)]
+        let outputs: [[OutputLanguage]] = [[.english], [.chinese], [.english, .chinese], [.chinese, .english],
+                                           [.english, OutputLanguage("ja"), .chinese], [OutputLanguage("ja")],
+                                           [OutputLanguage("fr"), .english], [OutputLanguage("ko"), .english, .chinese]]
+        var checked = 0
+        for (text, language) in sentences {
+            for output in outputs {
+                for styles in [["润色", "简洁"], []] {
+                    var c = config(output, styles: styles)
+                    c.inputLanguages = [.english, .chinese, .french, .korean, .hindi]
+                    #expect(c.language(of: text) == language)
+                    for mode in [WritingMode.improve, .translate, .both] {
+                        let request = Prompt.request(for: text, mode: mode, config: c)
+                        let format = formatTags(request)
+                        #expect(!format.isEmpty)
+                        let examples = request.messages.dropLast()
+                        for (question, answer) in zip(examples.filter { $0.role == "user" }, examples.filter { $0.role == "assistant" }) {
+                            let tags = (answer.content.first?.text ?? "").components(separatedBy: "\n").map { String($0.prefix { $0 != ":" }) }
+                            if language == .chinese || language == .english {
+                                #expect(tags == WritingPlan.make(mode, text: question.content.first?.text ?? "", config: c).lineTags)
+                            } else {
+                                #expect(tags == format, "\(text) \(output.map(\.code)) \(mode): \(tags) for \(format)")
+                            }
+                            checked += 1
+                        }
+                    }
+                }
+            }
+        }
+        #expect(checked > 0)
+        // With English and Chinese, a Korean sentence asks for a line in each, and gets no example of three EN lines.
+        let korean = Prompt.request(for: "오늘 몸이 좀 안 좋아요", mode: .translate, config: config([.english, .chinese]))
+        #expect(formatTags(korean) == ["EN", "ZH"] && korean.messages.count == 1)
+    }
+
+    @Test func indianLanguages() {
+        let codes = ["hi", "bn", "te", "mr", "ta", "gu", "kn", "ml", "pa", "ur"]
+        let languages = codes.map(OutputLanguage.init)
+        #expect(languages.allSatisfy(OutputLanguage.catalog.contains))
+        #expect(languages.map { $0.name(chinese: true) }
+                == ["印地语", "孟加拉语", "泰卢固语", "马拉地语", "泰米尔语", "古吉拉特语", "卡纳达语", "马拉雅拉姆语", "旁遮普语", "乌尔都语"])
+        #expect(languages.map { $0.name(chinese: false) }
+                == ["Hindi", "Bengali", "Telugu", "Marathi", "Tamil", "Gujarati", "Kannada", "Malayalam", "Punjabi", "Urdu"])
+        #expect(OutputLanguage("hi").promptName == "Hindi (Devanagari script)" && OutputLanguage("pa").promptName == "Punjabi (Gurmukhi script)")
+        // Every tag in the catalog is its own, and none is read as a rewrite style.
+        let tags = OutputLanguage.catalog.map(\.tag)
+        #expect(Set(tags).count == tags.count && tags.allSatisfy { RewriteStyle.forTag($0) == nil })
+        let answer = codes.map { "\($0.uppercased()): line \($0)" }.joined(separator: "\n") + "\nSTYLE_CONCISE: short"
+        let parsed = CandidateParser.parse(answer, isFinal: true, output: nil, translations: languages)
+        #expect(parsed.translations.map(\.language) == languages && parsed.translations.map(\.line.text) == codes.map { "line \($0)" })
+        // A new user's system language.
+        #expect(OutputLanguage.preferred(from: ["en-IN", "hi-IN"])?.code == "hi")
+        #expect(OutputLanguage.preferred(from: ["bn-BD"])?.code == "bn" && OutputLanguage.preferred(from: ["pa-Guru-IN"])?.code == "pa")
+        #expect(OutputLanguage.preferred(from: ["ur_PK"])?.code == "ur" && OutputLanguage.preferred(from: ["ta-LK", "en"])?.code == "ta")
+    }
+
+    /// Hinglish typed in Latin letters reads as English, so Hindi is a target, not "already in that
+    /// language": the lines ask for Devanagari.
+    @Test func romanizedHindiIsTranslatedIntoDevanagari() {
+        let hindi = config([.english, OutputLanguage("hi")])
+        let plan = WritingPlan.make(.translate, text: "aap kaise ho", config: hindi)
+        #expect(plan.input == .english && plan.versions == OutputLanguage("hi") && plan.translations.isEmpty)
+        let system = Prompt.request(for: "aap kaise ho", mode: .translate, config: hindi).system.first?.text ?? ""
+        #expect(system.contains("HI: <how a native Hindi (Devanagari script) speaker"))
+        #expect(system.contains("Write HI lines in the language's own script, never romanized"))
+        // Several targets: each line names its script.
+        let several = Prompt.request(for: "aap kaise ho", mode: .translate,
+                                     config: config([OutputLanguage("hi"), OutputLanguage("ta"), .chinese]))
+        let text = several.system.first?.text ?? ""
+        #expect(text.contains("\nHI: <the sentence in Hindi (Devanagari script)") && text.contains("\nTA: <the sentence in Tamil (Tamil script)")
+                && text.contains("Write HI, TA lines"))
+        // Without them the rule isn't there.
+        let japanese = Prompt.request(for: "aap kaise ho", mode: .translate, config: config([OutputLanguage("ja")]))
+        let japaneseText = japanese.system.first?.text ?? ""
+        #expect(!japaneseText.isEmpty && !japaneseText.contains("own script"))
+    }
 }

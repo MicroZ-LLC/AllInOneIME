@@ -24,6 +24,10 @@ public struct KeyEvent: Equatable, Sendable {
     public var modifiers: KeyModifiers
     /// Sent again because the key is held (`NSEvent.isARepeat`).
     public var isRepeat: Bool
+    /// A dead key (⌥E, AZERTY's ^): `characters` is its accent, which goes on the next key (`DeadKeyComposer`).
+    public var isDeadKey = false
+    /// What this key types after a dead key ("é" for E after ⌥E; "´n" where the accent doesn't combine).
+    public var composed: String?
 
     public init(
         keyCode: UInt16, characters: String, charactersIgnoringModifiers: String? = nil,

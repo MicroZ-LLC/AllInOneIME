@@ -33,8 +33,18 @@ public struct Config: Codable, Equatable, Sendable {
     /// is the one in use. A new user has one.
     public var outputLanguages: [OutputLanguage]
     /// The input languages added, in the user's order: pinyin (Chinese), English letters, or both
-    /// (Shift switches). The first is the default. A new user has one; with one, Shift doesn't switch.
+    /// (Shift switches). The first is the default. A new user has English only; with one, Shift doesn't switch.
     public var inputLanguages: [Language]
+    /// The keyboard layout `language` types with: the one picked for it, else its default (nil: the system's).
+    public func keyboardLayout(for language: Language) -> String? {
+        keyboardLayouts[language.rawValue] ?? language.defaultKeyboardLayout
+    }
+
+    /// The language `text` is written in (`Language.of`): French only for someone who types it.
+    public func language(of text: String) -> Language { Language.of(text, french: inputLanguages.contains(.french)) }
+
+    /// At least one input language, at most this many.
+    public static let maxInputLanguages = 5
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
     public var defaultInput: Language
     /// `@improve` also translates, as `@translate @improve` (one request with both).
@@ -50,6 +60,18 @@ public struct Config: Codable, Equatable, Sendable {
     public var uiLanguage: Language?
     /// The user's own @ commands, after the built-in ones (see `CustomCommand`).
     public var customCommands: [CustomCommand]
+    /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
+    /// command and Raycast script in them is an @ command, after the custom ones. A new user has
+    /// `ExtensionStore.defaultFolder`.
+    public var extensionFolders: [String]
+    /// Also the folders Spotlight finds holding Raycast scripts (`ExtensionStore.discover`), less
+    /// `hiddenExtensionFolders`.
+    public var findRaycastScripts: Bool
+    public var hiddenExtensionFolders: [String]
+    /// Extension commands turned off: a command's id (`ScriptCommand.id`) or a bundle's name.
+    public var disabledExtensions: [String]
+    /// The bundles' preferences that aren't passwords (those are in the keychain): bundle name → name → value.
+    public var extensionPreferences: [String: [String: String]]
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
@@ -57,6 +79,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
     public var fuzzyPinyin: [String]
+    /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
+    /// where it isn't the language's default (`Language.defaultKeyboardLayout`).
+    public var keyboardLayouts: [String: String]
     /// A command's result is typed into the document character by character, like a person typing
     /// (pinyin picks still go in at once), at `typeOutRate` characters a second (1/6: 6 s a character),
     /// in bursts of changing pace when `typeOutVaries`.
@@ -93,7 +118,7 @@ public struct Config: Codable, Equatable, Sendable {
         maxTokens: Int, temperature: Double?, timeoutSeconds: Double,
         rewriteStyles: [String] = RewriteStyle.defaultNames,
         outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
-        inputLanguages: [Language] = [.chinese], defaultInput: Language = .chinese,
+        inputLanguages: [Language] = [.english], defaultInput: Language = .english,
         voiceInput: Bool = true, jargonFile: String? = nil,
         actionKey: ActionKey = .enter, uiLanguage: Language? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
@@ -120,9 +145,15 @@ public struct Config: Codable, Equatable, Sendable {
         self.actionKey = actionKey
         self.uiLanguage = uiLanguage
         self.customCommands = customCommands
+        self.extensionFolders = [ExtensionStore.defaultFolder]
+        self.findRaycastScripts = true
+        self.hiddenExtensionFolders = []
+        self.disabledExtensions = []
+        self.extensionPreferences = [:]
         self.claudeInBackground = true
         self.menuBarIcon = true
         self.fuzzyPinyin = []
+        self.keyboardLayouts = [:]
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
         self.typeOutVaries = false
@@ -143,7 +174,8 @@ public struct Config: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin
+        case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts
         case provider, anthropic, gemini, openai
     }
 
@@ -162,21 +194,31 @@ public struct Config: Codable, Equatable, Sendable {
         rewriteStyles = try c.decodeIfPresent([String].self, forKey: .rewriteStyles) ?? d.rewriteStyles
         // A file from before languages could be added had both, in the menu and on Shift: it keeps them.
         outputLanguages = try c.decodeIfPresent([OutputLanguage].self, forKey: .outputLanguages) ?? [.english, .chinese]
-        inputLanguages = try c.decodeIfPresent([Language].self, forKey: .inputLanguages) ?? [.chinese, .english]
+        // Codes this version doesn't know (a language a later one added) are left out, not an error.
+        inputLanguages = try c.decodeIfPresent([String].self, forKey: .inputLanguages).map { $0.compactMap(Language.init(rawValue:)) }
+            ?? [.chinese, .english]
         // Without the chosen one named, it's the first of the list.
         outputLanguage = try c.decodeIfPresent(OutputLanguage.self, forKey: .outputLanguage)
             ?? (c.contains(.outputLanguages) ? outputLanguages.first : nil) ?? d.outputLanguage
-        defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput)
-            ?? (c.contains(.inputLanguages) ? inputLanguages.first : nil) ?? d.defaultInput
+        // A file from before input languages started in Chinese; a new user starts in English (`Config.default`).
+        defaultInput = (try? c.decodeIfPresent(Language.self, forKey: .defaultInput)).flatMap { $0 }
+            ?? (c.contains(.inputLanguages) ? inputLanguages.first : .chinese) ?? d.defaultInput
         improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
-        uiLanguage = try c.decodeIfPresent(Language.self, forKey: .uiLanguage)
+        uiLanguage = (try? c.decodeIfPresent(Language.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isInterfaceLanguage ? $0 : nil }
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
+        extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
+        findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
+        hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
+        disabledExtensions = try c.decodeIfPresent([String].self, forKey: .disabledExtensions) ?? d.disabledExtensions
+        extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
+            ?? d.extensionPreferences
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
+        keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
         typeOut = try c.decodeIfPresent(Bool.self, forKey: .typeOut) ?? d.typeOut
         // A file from before the slider: "slow", "normal", "fast" or "random" (normal, varying).
         let older = try? c.decodeIfPresent(String.self, forKey: .typeOutSpeed)
@@ -191,7 +233,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// The chosen output language and the default input lead their lists (whoever sets
-    /// `outputLanguage` or `defaultInput` moves it to the front); at least one input language; no
+    /// `outputLanguage` or `defaultInput` moves it to the front); one to five input languages; no
     /// language twice. To reorder, set the list and then its first as the chosen one (`setOrder`).
     public mutating func normalizeLanguages() {
         var seenOutput = Set<OutputLanguage>()
@@ -199,7 +241,8 @@ public struct Config: Codable, Equatable, Sendable {
         outputLanguages = outputLanguages.filter { seenOutput.insert($0).inserted }
         var seenInput = Set<Language>()
         inputLanguages = inputLanguages.filter { seenInput.insert($0).inserted }
-        if inputLanguages.isEmpty { inputLanguages = [.chinese] }
+        if inputLanguages.isEmpty { inputLanguages = [.english] }
+        inputLanguages = Array(inputLanguages.prefix(Self.maxInputLanguages))
         if inputLanguages.contains(defaultInput) {
             inputLanguages = [defaultInput] + inputLanguages.filter { $0 != defaultInput }
         } else {
@@ -242,9 +285,15 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(actionKey, forKey: .actionKey)
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
         try c.encode(customCommands, forKey: .customCommands)
+        try c.encode(extensionFolders, forKey: .extensionFolders)
+        try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
+        try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
+        try c.encode(disabledExtensions, forKey: .disabledExtensions)
+        try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
+        try c.encode(keyboardLayouts, forKey: .keyboardLayouts)
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
@@ -257,8 +306,15 @@ public struct Config: Codable, Equatable, Sendable {
     /// A new user's settings (no config file yet): the hosted service once it is set up, which needs
     /// nothing but a Google sign-in. A file without `provider` (from before providers) stays on Bedrock.
     public static var fresh: Config {
+        fresh(preferring: Locale.preferredLanguages)
+    }
+
+    /// `fresh`, translating into the first of `languages` (the system's preferred ones) that isn't
+    /// English (`OutputLanguage.preferred`); English when there is none, until one is added.
+    public static func fresh(preferring languages: [String]) -> Config {
         var config = Config.default
         if HostedService.isConfigured { config.provider = .hosted }
+        if let language = OutputLanguage.preferred(from: languages) { config.setOrder([language]) }
         return config
     }
 

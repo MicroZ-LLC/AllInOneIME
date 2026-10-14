@@ -1,6 +1,7 @@
 import AllInOneIMECore
 import AppKit
 import AuthenticationServices
+import Carbon
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -401,6 +402,114 @@ final class SettingsModel: ObservableObject {
         NSWorkspace.shared.open(PluginStore.directory)
     }
 
+    // MARK: Script extensions
+
+    /// The folders looked in, what's in them (`ExtensionIndex`), the names each command got, and what was left
+    /// out (with the names another command has: `Command.hiddenScripts`).
+    @Published private(set) var extensionFolders: [ExtensionStore.Folder] = []
+    @Published private(set) var extensionIndex = ExtensionIndex.empty
+    @Published private(set) var extensionNames: [String: String] = [:]
+    @Published private(set) var skippedExtensions: [ExtensionStore.Skipped] = []
+    /// The commands on but left out of the list because another command has their name: id → why.
+    @Published private(set) var hiddenExtensions: [String: ScriptCommand.Problem] = [:]
+    /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
+    @Published private(set) var passwordsSaved: Set<String> = []
+    @Published private(set) var extensionError: String?
+
+    /// Reads the folders again; `discover`: Spotlight looks for Raycast script folders first, in the background
+    /// (not for a preview), and the list follows when it's done.
+    func refreshExtensions(discover: Bool = false) {
+        extensionFolders = ExtensionStore.folders(config, found: LiveExtensions.found)
+        let index = LiveExtensions.load(config)
+        extensionIndex = index
+        let enabled = index.enabled(config.disabledExtensions)
+        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
+        extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
+            .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
+        skippedExtensions = index.skipped
+        hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
+        passwordsSaved = Set(index.bundles.flatMap { bundle in
+            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
+                APIKeys.keychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name)) == nil
+                    ? nil : bundle.name + "/" + preference.name
+            }
+        })
+        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
+    }
+
+    /// Adds a folder of extensions (asked with an open panel); one Spotlight found and was hidden is shown again.
+    func addExtensionFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = tr("添加", "Add")
+        panel.message = tr("选择放脚本或扩展包的文件夹", "Choose a folder of scripts or extension bundles")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let path = ExtensionStore.abbreviated(url.path)
+        if !config.extensionFolders.contains(path) { config.extensionFolders.append(path) }
+        config.hiddenExtensionFolders.removeAll { $0 == path }
+        save()
+        refreshExtensions()
+    }
+
+    /// An added folder is removed from the list; a found one is hidden (or shown again).
+    func removeExtensionFolder(_ folder: ExtensionStore.Folder) {
+        if folder.found {
+            if folder.hidden {
+                config.hiddenExtensionFolders.removeAll { $0 == folder.path }
+            } else {
+                config.hiddenExtensionFolders.append(folder.path)
+            }
+        } else {
+            config.extensionFolders.removeAll { $0 == folder.path }
+        }
+        save()
+        refreshExtensions()
+    }
+
+    /// Shows a folder in Finder (the suggested one is made first).
+    func revealExtensionFolder(_ folder: ExtensionStore.Folder) {
+        if folder.path == ExtensionStore.defaultFolder, persists {
+            try? FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
+        }
+        NSWorkspace.shared.open(folder.url)
+    }
+
+    /// Whether a command (its id) or a bundle (its name) is on.
+    func isEnabled(_ id: String) -> Bool { !config.disabledExtensions.contains(id) }
+
+    func setEnabled(_ id: String, _ on: Bool) {
+        config.disabledExtensions.removeAll { $0 == id }
+        if !on { config.disabledExtensions.append(id) }
+        save()
+        refreshExtensions()
+    }
+
+    /// A preference's value as saved (not a password's), else its default.
+    func preference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference) -> String {
+        config.extensionPreferences[bundle.name]?[preference.name] ?? preference.defaultValue ?? ""
+    }
+
+    /// Saves a preference: a password in the keychain (empty: removed), anything else in the config file.
+    func setPreference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference, _ value: String) {
+        guard persists else { return }
+        if preference.kind == .password {
+            do {
+                try APIKeys.save(value, account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name),
+                                 label: "AllInOneIME: \(bundle.title) – \(preference.title)")
+                extensionError = nil
+            } catch {
+                extensionError = tr("没有存进钥匙串：", "Couldn't save it in the keychain: ") + error.localizedDescription
+            }
+        } else {
+            config.extensionPreferences[bundle.name, default: [:]][preference.name] = value
+            save()
+        }
+        refreshExtensions()
+    }
+
     // MARK: Plugin library
 
     private let library = PluginLibrary()
@@ -579,7 +688,13 @@ final class SettingsModel: ObservableObject {
         testTask = Task { [weak self] in
             let converter = Converter(loadConfig: { snapshot })
             // In the first input language: an English-only user sees an English test.
-            let sample = snapshot.inputLanguages.first == .english ? "i dont feel so good today" : "我今天有点不舒服"
+            let sample = switch snapshot.inputLanguages.first ?? .english {
+            case .chinese: "我今天有点不舒服"
+            case .english: "i dont feel so good today"
+            case .french: "je me sens pas tres bien aujourdhui"
+            case .korean: "오늘 몸이 좀 안 좋아요"
+            case .hindi: "आज मेरी तबीयत ठीक नहीं है"
+            }
             do {
                 var final = ConversionResult.empty
                 var elapsed: TimeInterval = 0
@@ -624,6 +739,12 @@ struct SettingsView: View {
     @State private var query = ""
     /// The input language whose settings the Input page shows.
     @State private var inputTab: Language = .chinese
+    /// The language packs and their downloads (Chinese is a download: the app ships English only).
+    @ObservedObject private var packs = LanguagePackManager.shared
+    /// The pack of an input language just removed: the dialog offers to delete it too.
+    @State private var packToRemove: LanguagePack?
+    /// A pack the user asked to delete from its language's card (asked first, with its size).
+    @State private var packToDelete: LanguagePack?
     private let remembersPage: Bool
     static let pageKey = "settingsPage"
 
@@ -714,22 +835,30 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
-                    let missing = Language.allCases.filter { !model.config.inputLanguages.contains($0) }
-                    if !missing.isEmpty {
-                        Menu {
-                            ForEach(missing, id: \.self) { language in
-                                Button(AllInOneIMEInputController.inputName(language)) {
-                                    addInputLanguage(language)
-                                    inputTab = language
-                                }
+                    // Always there, so it's clear where languages are added: one to five of them.
+                    let languages = model.config.inputLanguages
+                    let missing = Language.allCases.filter { !languages.contains($0) }
+                    let full = languages.count >= Config.maxInputLanguages
+                    Menu {
+                        ForEach(missing, id: \.self) { language in
+                            // A language whose pack isn't here says it downloads first.
+                            let download = !packs.isUsable(language)
+                            Button(AllInOneIMEInputController.inputName(language)
+                                   + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
+                                addInputLanguage(language)
                             }
-                        } label: {
-                            Image(systemName: "plus")
+                            .disabled(LanguagePack.for(language).map(isDownloading) ?? false)
                         }
-                        .menuIndicator(.hidden).fixedSize()
-                        .help(tr("添加输入语言", "Add an input language"))
-                        .accessibilityLabel(tr("添加输入语言", "Add an input language"))
+                        if !missing.isEmpty { Divider() }
+                        Text(tr("更多输入语言即将支持", "More input languages are coming"))
+                    } label: {
+                        Image(systemName: "plus")
                     }
+                    .menuIndicator(.hidden).fixedSize()
+                    .disabled(full)
+                    .help(full ? tr("最多 \(Config.maxInputLanguages) 种输入语言", "Up to \(Config.maxInputLanguages) input languages")
+                               : tr("添加输入语言", "Add an input language"))
+                    .accessibilityLabel(tr("添加输入语言", "Add an input language"))
                 }
             } label: {
                 titled(tr("输入语言", "Input languages"),
@@ -737,6 +866,7 @@ struct SettingsView: View {
                        ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
                        : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
             }
+            ForEach(LanguagePack.catalog) { pack in packRow(pack) }
         } header: {
             SectionTitle(tr("输入", "Input"), icon: CommandIcons.input)
         }
@@ -860,6 +990,118 @@ struct SettingsView: View {
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
+    }
+
+    /// Script extensions (docs/extensions.md): where they're looked for, the bundles and their preferences, the
+    /// commands (each turned on or off), and what was left out, with why.
+    @ViewBuilder private var extensionsSection: some View {
+        Section {
+            Toggle(isOn: $model.config.findRaycastScripts) {
+                titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
+                       tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
+                          "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
+            }
+            ForEach(model.extensionFolders, id: \.path) { folder in
+                HStack {
+                    Image(systemName: folder.found ? "sparkle.magnifyingglass" : "folder").foregroundStyle(.secondary)
+                        .frame(width: 20)
+                    Text(folder.path).font(.body.monospaced()).lineLimit(1).truncationMode(.middle)
+                        .foregroundStyle(folder.hidden ? .secondary : .primary)
+                    Text(folder.hidden ? tr("自动找到 · 已隐藏", "found · hidden") : folder.found ? tr("自动找到", "found") : tr("添加的", "added"))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(tr("在访达中显示", "Show in Finder")) { model.revealExtensionFolder(folder) }
+                    Button(folder.found ? (folder.hidden ? tr("显示", "Show") : tr("隐藏", "Hide")) : tr("移除", "Remove")) {
+                        model.removeExtensionFolder(folder)
+                    }
+                }
+            }
+            Button(tr("添加文件夹…", "Add Folder…")) { model.addExtensionFolder() }
+            ForEach(model.extensionIndex.bundles, id: \.name) { bundle in bundleRow(bundle) }
+            ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == nil }, id: \.id) { command in extensionRow(command) }
+            ForEach(model.skippedExtensions, id: \.self) { skipped in
+                // A bundle's extension.json is named with its folder ("units/extension.json").
+                let file = skipped.file.lastPathComponent == ExtensionBundle.manifestName
+                    ? skipped.file.deletingLastPathComponent().lastPathComponent + "/" + skipped.file.lastPathComponent
+                    : skipped.file.lastPathComponent
+                Label(tr("没有加载 \(file)：", "Not loaded, \(file): ") + UIText.describe(skipped.problem, file: skipped.file),
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            if model.extensionIndex.commands.isEmpty, model.skippedExtensions.isEmpty {
+                Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
+                        "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let error = model.extensionError { Text(error).foregroundStyle(.red) }
+        } header: {
+            SectionTitle(tr("脚本扩展", "Script Extensions"), icon: CommandIcons.scripts)
+        } footer: {
+            Text(tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
+                    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one."))
+                .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+        }
+        .disabled(!model.canSave)
+    }
+
+    /// A bundle: its switch, title, version and author, its preferences, and its commands.
+    @ViewBuilder private func bundleRow(_ bundle: ExtensionBundle) -> some View {
+        let on = model.isEnabled(bundle.name)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "shippingbox.fill").foregroundStyle(.secondary).frame(width: 20)
+                Text(bundle.title).fontWeight(.medium)
+                Text([bundle.version, bundle.author].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Toggle("", isOn: Binding(get: { on }, set: { model.setEnabled(bundle.name, $0) })).labelsHidden().toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            ForEach(bundle.preferences, id: \.name) { preference in
+                PreferenceField(preference: preference, value: model.preference(bundle, preference),
+                                saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name)) {
+                    model.setPreference(bundle, preference, $0)
+                }
+                .padding(.leading, 28)
+            }
+            if on {
+                ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == bundle.name }, id: \.id) { command in
+                    extensionRow(command).padding(.leading, 28)
+                }
+            }
+        }
+    }
+
+    /// A command: its icon, the name it got, its title and description, what it does, and its switch; one
+    /// left out because another command has its name says so.
+    private func extensionRow(_ command: ScriptCommand) -> some View {
+        let hidden = model.hiddenExtensions[command.id]
+        let on = model.isEnabled(command.id) && hidden == nil
+        let name = model.extensionNames[command.id] ?? command.name
+        let input = command.input == .none ? tr("不用输入", "no input")
+            : tr("\(command.arguments.count) 个参数", command.arguments.count == 1 ? "1 argument" : "\(command.arguments.count) arguments")
+        let traits = [command.background ? tr("后台", "background") : UIText.name(command.output), input,
+                      command.status != nil ? tr("状态", "status") : nil].compactMap { $0 }.joined(separator: " · ")
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                IconTile(icon: CommandIcons.icon(for: command))
+                Text("@" + name).font(.body.monospaced()).foregroundStyle(on ? .primary : .secondary)
+                Text(command.title).lineLimit(1).foregroundStyle(on ? .primary : .secondary)
+                if command.source == .raycast { Text("Raycast").font(.caption).foregroundStyle(.secondary) }
+                Spacer()
+                Text(traits).font(.caption).foregroundStyle(.secondary)
+                Toggle("", isOn: Binding(get: { model.isEnabled(command.id) }, set: { model.setEnabled(command.id, $0) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+            }
+            if let description = command.description {
+                Text(description).font(.caption).foregroundStyle(.secondary).lineLimit(2).padding(.leading, 28)
+            }
+            if let hidden {
+                Label(tr("没有加载：", "Not loaded: ") + UIText.describe(hidden, file: command.file), systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange).padding(.leading, 28)
+            }
+        }
+        .help(ExtensionStore.abbreviated(command.file.path))
     }
 
     @ViewBuilder private var pluginsSection: some View {
@@ -1009,23 +1251,26 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder private var advancedSection: some View {
+    /// How each request is made, under the AI provider: output tokens, temperature (Bedrock), timeout.
+    @ViewBuilder private var requestSection: some View {
         Section {
             Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
                 Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
             }
-            Toggle(tr("Bedrock：发送 temperature（有的模型不支持，报错时关掉）",
-                      "Bedrock: send temperature (some models don't support it; turn it off if requests fail)"),
-                   isOn: temperatureOn)
-            if let t = model.config.temperature {
-                Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),
-                       in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
+            if model.config.provider == .bedrock {
+                Toggle(tr("发送 temperature（有的模型不支持，报错时关掉）",
+                          "Send temperature (some models don't support it; turn it off if requests fail)"),
+                       isOn: temperatureOn)
+                if let t = model.config.temperature {
+                    Slider(value: Binding(get: { t }, set: { model.config.temperature = ($0 * 10).rounded() / 10 }),
+                           in: 0...1) { Text("temperature \(String(format: "%.1f", t))") }
+                }
             }
             Stepper(value: $model.config.timeoutSeconds, in: 5...60, step: 5) {
                 Text(tr("超时 \(Int(model.config.timeoutSeconds)) 秒", "Timeout \(Int(model.config.timeoutSeconds)) s"))
             }
         } header: {
-            SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
+            SectionTitle(tr("模型参数", "Model Settings"), icon: CommandIcons.provider)
         }
         .disabled(!model.canSave)
     }
@@ -1061,6 +1306,8 @@ struct SettingsView: View {
             if let saveError = model.saveError {
                 Text(saveError).foregroundStyle(.red)
             }
+        } header: {
+            SectionTitle(tr("高级", "Advanced"), icon: CommandIcons.advanced)
         } footer: {
             Text(tr("改完立即生效，不用重启。", "Changes apply right away, with no restart."))
                 .font(.caption).foregroundStyle(.secondary)
@@ -1145,6 +1392,15 @@ struct SettingsView: View {
     /// The settings of the input language picked above: pinyin's fuzzy sounds; none for English yet.
     @ViewBuilder private var inputLanguageSection: some View {
         Section {
+            // The language's pack: still on its way (its progress is shown above), or what's installed.
+            if let pack = LanguagePack.for(shownInput) {
+                if !packs.isInstalled(pack) {
+                    Label(tr("语言包下载完以后才能打\(pack.name.text(chinese: true))。", "\(pack.name.en) can be typed once its language pack has downloaded."),
+                          systemImage: "arrow.down.circle")
+                        .foregroundStyle(.secondary)
+                }
+                packInfo(pack)
+            }
             switch shownInput {
             case .chinese:
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
@@ -1170,6 +1426,24 @@ struct SettingsView: View {
                 }
             case .english:
                 Text(tr("英文模式直接打字母，暂时没有要设置的。", "In English, letters are typed as they are: nothing to set yet."))
+                    .foregroundStyle(.secondary)
+            case .french:
+                // The layout French types with (AZERTY unless picked); Shift to French switches to it.
+                Picker(selection: Binding(get: { model.config.keyboardLayout(for: .french) ?? "" },
+                                          set: { model.config.keyboardLayouts[Language.french.rawValue] = $0 })) {
+                    ForEach(KeyboardLayouts.latin, id: \.id) { layout in Text(layout.name).tag(layout.id) }
+                } label: {
+                    titled(tr("键盘布局", "Keyboard layout"),
+                           tr("切到法语时按这个布局打字；死键（^、¨、´）也按它组合", "French types with this layout, its dead keys (^, ¨, ´) too"))
+                }
+                .pickerStyle(.menu)
+            case .korean:
+                Text(tr("두벌식（两套式）：按键位打字母，自动组成音节，比如 g k s → 한。Shift 打紧音（ㄲ ㄸ ㅃ ㅆ ㅉ）和 ㅒ ㅖ。",
+                        "Dubeolsik (2-set): keys give jamo, composed into syllables as you type, e.g. g k s → 한. Shift for ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ."))
+                    .foregroundStyle(.secondary)
+            case .hindi:
+                Text(tr("用拉丁字母按发音打，出天城文：namaste → नमस्ते。常用词按词表拼写，其他词可以从几种写法里选：空格上屏第一个，数字选别的，⏎ 上屏原样的字母，. 打出 ।",
+                        "Type it as it sounds in Latin letters, get Devanagari: namaste → नमस्ते. Common words are spelled from a list; for others pick a spelling: Space inserts the first, a digit another, ⏎ the letters as typed, . the danda (।)."))
                     .foregroundStyle(.secondary)
             }
             // Its place among the input languages: the default, or not added at all.
@@ -1198,10 +1472,14 @@ struct SettingsView: View {
                         titled(tr("默认输入语言", "Default input language"), tr("新输入框从这种语言开始", "New text fields start in this one"))
                     }
                 }
+            }
+            if languages.contains(shownInput), languages.count > 1 || shownInput != .english {
                 LabeledContent {
                     Button(tr("移除", "Remove"), role: .destructive) { removeInputLanguage(shownInput) }
                 } label: {
-                    titled(tr("移除这种输入语言", "Remove this input language"), tr("以后可以再用 ＋ 加回来", "You can add it back with +"))
+                    titled(tr("移除这种输入语言", "Remove this input language"),
+                           languages.count > 1 ? tr("以后可以再用 ＋ 加回来", "You can add it back with +")
+                                               : tr("只剩英文；以后可以再用 ＋ 加回来", "English stays; you can add it back with +"))
                 }
             }
         } header: {
@@ -1225,7 +1503,7 @@ struct SettingsView: View {
                 if let version = Self.version {
                     Text(tr("版本 \(version)", "Version \(version)")).foregroundStyle(.secondary).textSelection(.enabled)
                 }
-                Text("© 2026 MicroZ LLC · GPL-3.0").font(.caption).foregroundStyle(.secondary)
+                Text("© 2026 MicroZ LLC · FSL-1.1-ALv2").font(.caption).foregroundStyle(.secondary)
                 Text(commandsSummary).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
             }
@@ -1242,12 +1520,44 @@ struct SettingsView: View {
         }
     }
 
+    /// The input languages' pack dialogs, on the page rather than on the Input section (a Form section's own
+    /// dialog is not shown), and apart from `body`'s chain of modifiers (too long to type-check otherwise).
+    private func packDialogs(_ content: some View) -> some View {
+        content
+        .confirmationDialog(packToRemove.map { tr("也删除\($0.name.text(chinese: true))语言包？", "Also delete the \($0.name.en) language pack?") } ?? "",
+                            isPresented: Binding(get: { packToRemove != nil }, set: { if !$0 { packToRemove = nil } })) {
+            Button(tr("删除语言包", "Delete Pack"), role: .destructive) {
+                if let pack = packToRemove { packs.remove(pack) }
+                packToRemove = nil
+            }
+            Button(tr("保留", "Keep"), role: .cancel) { packToRemove = nil }
+        } message: {
+            if let pack = packToRemove {
+                Text(tr("占用 \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file))；以后用 ＋ 加回来时要重新下载。",
+                        "It takes \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)); adding the language back with + downloads it again."))
+            }
+        }
+        .confirmationDialog(packToDelete.map { tr("删除\($0.name.text(chinese: true))语言包？", "Delete the \($0.name.en) language pack?") } ?? "",
+                            isPresented: Binding(get: { packToDelete != nil }, set: { if !$0 { packToDelete = nil } })) {
+            Button(tr("删除语言包", "Delete Pack"), role: .destructive) {
+                if let pack = packToDelete { deletePack(pack) }
+                packToDelete = nil
+            }
+            Button(tr("取消", "Cancel"), role: .cancel) { packToDelete = nil }
+        } message: {
+            if let pack = packToDelete {
+                Text(tr("\(pack.name.text(chinese: true))也会从输入语言里移除。占用 \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file))；以后用 ＋ 加回来时要重新下载。",
+                        "\(pack.name.en) is removed from your input languages too. It takes \(ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)); adding it back with + downloads it again."))
+            }
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
         } detail: {
-            Form {
+            packDialogs(Form {
                 loadErrorSection
                 switch page {
                 case .general:
@@ -1261,15 +1571,17 @@ struct SettingsView: View {
                     translateSection
                     rewriteSection
                     jargonSection
-                case .commands: commandsSection
+                case .commands:
+                    commandsSection
+                    extensionsSection
                 case .plugins:
                     pluginsSection
                     webSearchSection
                 case .voice: voiceSection
-                case .provider: providerSection
-                case .advanced:
-                    advancedSection
-                    filesSection
+                case .provider:
+                    providerSection
+                    requestSection
+                case .advanced: filesSection
                 case .about: aboutSection
                 }
             }
@@ -1277,7 +1589,9 @@ struct SettingsView: View {
             // A white page under light gray cards, as in Raycast and System Settings (dark in dark mode).
             .scrollContentBackground(.hidden)
             .background(Color(nsColor: .textBackgroundColor))
-            .id(page)  // a page starts at its top
+            // A page starts at its top, and is drawn anew in the other interface language: controls of their
+            // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
+            .id("\(page.rawValue)-\(UIText.chinese)"))
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: page) { if remembersPage { UserDefaults.standard.set(page.rawValue, forKey: Self.pageKey) } }
@@ -1338,8 +1652,15 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
+        .onChange(of: model.config.findRaycastScripts) {
+            model.save()
+            model.refreshExtensions(discover: model.config.findRaycastScripts)
+        }
+        .onChange(of: page) { if page == .commands { model.refreshExtensions(discover: true) } }
+        .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onAppear {
             model.refreshPlugins()
+            model.refreshExtensions(discover: page == .commands)
             model.refreshKeys()
             model.refreshSearchKey()
             model.refreshAccount()
@@ -1349,6 +1670,9 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
+            if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
             model.reloadIfChanged()
@@ -1367,27 +1691,100 @@ struct SettingsView: View {
         Command.builtins.contains { $0.name == command.name.lowercased() }
     }
 
-    /// The commands, at the top: what this input method does beyond pinyin.
+    /// The commands, at the top: what this input method does beyond typing the user's input languages.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
+        let languages = model.config.inputLanguages.map(AllInOneIMEInputController.inputName).joined(separator: tr("、", ", "))
+        return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
-                  (model.config.inputLanguages.contains(.chinese) ? "A regular pinyin input method. " : "")
+                  "A regular input method: \(languages). "
                       + "Type @ first for commands: @improve polishes and rewrites, @translate "
                       + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }
 
-    /// What @improve does for Chinese and for English input.
+    /// What @improve does for each input language: "@improve: Chinese → polish / rewrite; Korean → …".
     private var inputSummary: String {
-        let chinese = UIText.action(input: .chinese, config: model.config)
-        let english = UIText.action(input: .english, config: model.config)
-        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english).")
+        let each = model.config.inputLanguages.map { "\(UIText.name($0)) → \(UIText.action(input: $0, config: model.config))" }
+        return tr("@improve：打", "@improve: ") + each.joined(separator: tr("；打", "; ")) + tr("。", ".")
     }
 
+    /// Adds an input language; one whose pack isn't installed is added once the pack has downloaded
+    /// (until then it isn't an input mode), and its tab is then shown.
     private func addInputLanguage(_ language: Language) {
-        model.config.inputLanguages.append(language)
-        model.config.normalizeLanguages()
+        guard let pack = LanguagePack.for(language), !packs.isInstalled(pack) else {
+            model.config.inputLanguages.append(language)
+            model.config.normalizeLanguages()
+            inputTab = language
+            return
+        }
+        let model = model
+        packs.download(pack) {
+            guard !model.config.inputLanguages.contains(language) else { return }
+            model.config.inputLanguages.append(language)
+            model.config.normalizeLanguages()
+            model.save()  // the window may be closed by now
+        }
+        inputTab = language
+    }
+
+    private func isDownloading(_ pack: LanguagePack) -> Bool {
+        if case .downloading = packs.state(pack) { return true }
+        return false
+    }
+
+    /// A pack's download in progress (with Cancel) or its failure (with Retry); nothing otherwise.
+    @ViewBuilder private func packRow(_ pack: LanguagePack) -> some View {
+        switch packs.state(pack) {
+        case let .downloading(share):
+            LabeledContent {
+                HStack(spacing: 8) {
+                    if let share {
+                        ProgressView(value: share).frame(width: 140)
+                        Text("\(Int(share * 100))%").monospacedDigit().foregroundStyle(.secondary)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                    Button(tr("取消", "Cancel")) { packs.cancel(pack) }
+                }
+            } label: {
+                titled(tr("正在下载\(pack.name.text(chinese: true))语言包", "Downloading the \(pack.name.en) language pack"),
+                       tr("下载完就能用，不用重启", "Ready when it's done, no restart"))
+            }
+        case let .failed(message):
+            LabeledContent {
+                Button(tr("重试", "Retry")) { addInputLanguage(pack.language) }
+            } label: {
+                titled(tr("\(pack.name.text(chinese: true))语言包没有下载成功", "The \(pack.name.en) language pack didn't download"), message)
+            }
+        case .notInstalled, .installed:
+            EmptyView()
+        }
+    }
+
+    /// What a language's card says about its pack: the version, its size, where it came from, and Delete.
+    @ViewBuilder private func packInfo(_ pack: LanguagePack) -> some View {
+        if case let .installed(record) = packs.state(pack) {
+            let size = ByteCountFormatter.string(fromByteCount: packs.store.size(pack), countStyle: .file)
+            LabeledContent {
+                Button(tr("删除…", "Delete…")) { packToDelete = pack }
+            } label: {
+                titled(tr("语言包", "Language pack"),
+                       record.source == .library
+                       ? tr("\(record.version) · \(size) · 从语言包库下载", "\(record.version) · \(size) · downloaded from the language library")
+                       : tr("\(record.version) · \(size) · 更新时从旧版本留下，没有重新下载",
+                            "\(record.version) · \(size) · kept from the earlier version when updating, not downloaded"))
+            }
+        }
+    }
+
+    /// Deletes a pack from its card: its language is removed from the input languages first.
+    private func deletePack(_ pack: LanguagePack) {
+        let languages = model.config.inputLanguages
+        if languages.contains(pack.language) {
+            model.config.setOrder(languages == [pack.language] ? [Language.english] : languages.filter { $0 != pack.language })
+        }
+        packs.remove(pack)
     }
 
     /// Moves an input language one place earlier (-1) or later (1); the first is the default.
@@ -1398,9 +1795,14 @@ struct SettingsView: View {
         model.config.setOrder(languages)
     }
 
-    /// Removes an input language (one always stays); the next one becomes the default.
+    /// Removes an input language; the next one becomes the default, or English when it was the only one.
     private func removeInputLanguage(_ language: Language) {
-        model.config.setOrder(AllInOneIMEInputController.toggled(language, in: model.config.inputLanguages))
+        let languages = model.config.inputLanguages
+        model.config.setOrder(languages == [language] ? [Language.english] : AllInOneIMEInputController.toggled(language, in: languages))
+        // Its pack stays unless the user deletes it too (asked, with its size).
+        if !model.config.inputLanguages.contains(language), let pack = LanguagePack.for(language), packs.isInstalled(pack) {
+            packToRemove = pack
+        }
     }
 
     private func addOutputLanguage(_ language: OutputLanguage) {
@@ -1797,6 +2199,13 @@ final class SettingsWindow {
     /// After the window's language changed.
     func updateTitle() { window?.title = Self.title }
 
+    /// Shows the window on `page` (already open: it turns to it).
+    func show(page: SettingsPage) {
+        UserDefaults.standard.set(page.rawValue, forKey: SettingsView.pageKey)
+        show()
+        NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": page.rawValue])
+    }
+
     func show() {
         if window?.isVisible != true {
             // (Re)build so the window reflects the config file as it is now.
@@ -2084,9 +2493,19 @@ struct IconTile: View {
     var size: CGFloat = 20
 
     var body: some View {
+        if let path = icon.image, let image = CommandIcons.image(path) {
+            Image(nsImage: image).resizable().scaledToFit().frame(width: size, height: size).accessibilityHidden(true)
+        } else if let emoji = icon.emoji {
+            Text(emoji).font(.system(size: size * 0.8)).frame(width: size, height: size).accessibilityHidden(true)
+        } else {
+            tile
+        }
+    }
+
+    private var tile: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
         // Fitted into the same box whatever its shape: a wide symbol (translate) stays inside the tile.
-        Image(systemName: icon.symbol)
+        return Image(systemName: icon.symbol)
             .resizable()
             .symbolRenderingMode(.monochrome)
             .fontWeight(.semibold)
@@ -2168,11 +2587,11 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .general: return "action key return 执行键 回车 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
-        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页"
+        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection 服务 模型 密钥 测试连接"
-        case .advanced: return "tokens temperature timeout config file rime folder 高级 超时 温度 配置文件 目录"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
+        case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license 关于 版本 网站"
         }
     }
@@ -2231,5 +2650,79 @@ enum SettingsImage {
         let out = NSBitmapImageRep(cgImage: cg)
         out.size = NSSize(width: rep.size.width, height: CGFloat(height) / scale)
         return out
+    }
+}
+
+/// The keyboard layouts installed on this Mac that type Latin letters (U.S., ABC, French, French – PC, Swiss
+/// French …), by name, for picking the one an input language types with.
+enum KeyboardLayouts {
+    struct Layout: Hashable { let id: String; let name: String }
+
+    static let latin: [Layout] = {
+        let filter = [kTISPropertyInputSourceType as String: kTISTypeKeyboardLayout as String,
+                      kTISPropertyInputSourceIsASCIICapable as String: true] as CFDictionary
+        let sources = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource] ?? []
+        let layouts = sources.compactMap { source -> Layout? in
+            guard let id = InputSourceRegistrar.string(source, kTISPropertyInputSourceID),
+                  let name = InputSourceRegistrar.string(source, kTISPropertyLocalizedName) else { return nil }
+            return Layout(id: id, name: name)
+        }
+        return Array(Set(layouts)).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }()
+}
+
+/// A bundle's preference (`ExtensionBundle.Preference`): a text field, a password (saved in the keychain, never
+/// shown again), a checkbox or a menu. Text is saved on Return and when the field loses focus.
+private struct PreferenceField: View {
+    let preference: ExtensionBundle.Preference
+    let value: String
+    /// A password: one is in the keychain.
+    let saved: Bool
+    let save: (String) -> Void
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        LabeledContent {
+            switch preference.kind {
+            case .checkbox:
+                Toggle("", isOn: Binding(get: { value == "true" }, set: { save($0 ? "true" : "false") })).labelsHidden()
+            case .dropdown:
+                Picker("", selection: Binding(get: { value }, set: { save($0) })) {
+                    ForEach(preference.choices, id: \.value) { Text($0.title).tag($0.value) }
+                }
+                .labelsHidden().frame(maxWidth: 220)
+            case .password:
+                HStack {
+                    SecureField("", text: $text, prompt: Text(saved ? tr("已存在钥匙串里", "Saved in the keychain") : tr("未设置", "Not set")))
+                        .labelsHidden().focused($focused)
+                        .onSubmit { commitPassword() }
+                        .onChange(of: focused) { if !focused { commitPassword() } }
+                        .frame(maxWidth: 220)
+                    if saved { Button(tr("移除", "Remove")) { save("") } }
+                }
+            case .textfield:
+                TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
+                    .labelsHidden().focused($focused)
+                    .onSubmit { save(text) }
+                    .onChange(of: focused) { if !focused, text != value { save(text) } }
+                    .onAppear { text = value }
+                    .frame(maxWidth: 220)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(preference.title + (preference.required ? " *" : ""))
+                if let description = preference.description {
+                    Text(description).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    /// A password typed is saved (and the field emptied); an empty field leaves the saved one alone.
+    private func commitPassword() {
+        guard !text.isEmpty else { return }
+        save(text)
+        text = ""
     }
 }

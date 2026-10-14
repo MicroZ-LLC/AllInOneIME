@@ -615,13 +615,13 @@ struct ComposerTests {
             #expect(commits(r) == ["@improve ok"], "\(key)")
             #expect(c.phase == .idle && c.draft.isEmpty, "\(key)")
         }
-        // Editing keys stay with the command (Return runs it, Esc clears it).
+        // Editing keys stay with the command (Return runs it, Esc clears it); ← moves the cursor in its text.
         let editingKeys = [upKey, downKey, KeyEvent(keyCode: VirtualKey.tab, characters: "\t"),
                            KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")]
         for key in editingKeys {
             let (c, _) = improveDraft(english: true)
             type("ok", c)
-            #expect(c.handleKeyDown(key) == .consumed() && c.draft == "@improve ok", "\(key)")
+            #expect(c.handleKeyDown(key).handled && c.draft == "@improve ok", "\(key)")
         }
     }
 
@@ -1439,11 +1439,10 @@ struct ComposerTests {
         #expect(send("i", "nihao").1.first == .startConversion(input: "你好", id: 1))  // @improve: the default
         let (marked, _) = send("q", "nihao")
         #expect(marked.markedText == "question › 你好" && marked.activeCommand == .question)
-        // Nothing after the command: the clipboard's text is asked for; without any, a hint, no request.
+        // Nothing after the command: a hint, no request, the clipboard not read.
         let (e, _) = palette("q")
         _ = e.handleKeyDown(tab)
-        #expect(tapOption(e) == [.readClipboard(id: 1)] && !e.isLevelTwo)
-        #expect(e.pasted(nil, id: 1) == [.notice("在命令后面写上内容")] && !e.isLevelTwo)
+        #expect(tapOption(e) == [.notice("在命令后面写上内容")] && !e.isLevelTwo)
     }
 
     @Test func customCommandsGoToTheirCommand() {

@@ -198,16 +198,22 @@ public struct PluginLibrary: Sendable {
     /// The index in `data`, if `signature` (base64) is the library key's signature of exactly these bytes.
     /// The signature is checked before the index is parsed at all.
     public static func verify(index data: Data, signature: Data, publicKey: Data) throws -> PluginIndex {
-        let text = String(decoding: signature, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { throw PluginLibraryError.missingSignature }
-        guard let raw = Data(base64Encoded: text),
-              let key = try? Curve25519.Signing.PublicKey(rawRepresentation: publicKey),
-              key.isValidSignature(raw, for: data) else { throw PluginLibraryError.badSignature }
+        try checkSignature(data, signature: signature, publicKey: publicKey)
         struct Schema: Decodable { var schema: Int }
         guard let schema = try? JSONDecoder().decode(Schema.self, from: data).schema else { throw PluginLibraryError.malformedIndex }
         guard schema == Self.schema else { throw PluginLibraryError.unsupportedSchema(schema) }
         guard let index = try? JSONDecoder().decode(PluginIndex.self, from: data) else { throw PluginLibraryError.malformedIndex }
         return index
+    }
+
+    /// Throws unless `signature` (base64) is `publicKey`'s Ed25519 signature of exactly `data`. Also used
+    /// for the language packs' index (`LanguagePackLibrary`), signed with the same key.
+    static func checkSignature(_ data: Data, signature: Data, publicKey: Data) throws {
+        let text = String(decoding: signature, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw PluginLibraryError.missingSignature }
+        guard let raw = Data(base64Encoded: text),
+              let key = try? Curve25519.Signing.PublicKey(rawRepresentation: publicKey),
+              key.isValidSignature(raw, for: data) else { throw PluginLibraryError.badSignature }
     }
 
     /// What this app can install: per plugin, the newest version whose `api`, `minAppVersion` and type

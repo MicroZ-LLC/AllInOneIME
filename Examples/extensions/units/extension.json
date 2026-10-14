@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "name": "units",
+  "title": "Unit Converter",
+  "version": "1.0.0",
+  "author": "AllInOneIME examples",
+  "description": "Length, weight and temperature conversions, sharing one table (lib/units.awk).",
+  "preferences": [
+    { "name": "precision", "type": "dropdown", "title": "Decimals", "default": "2",
+      "data": [{ "title": "0", "value": "0" }, { "title": "2", "value": "2" }, { "title": "4", "value": "4" }] }
+  ],
+  "commands": [
+    { "script": "convert.sh", "name": "convert", "title": "Convert Units", "icon": "ruler", "output": "list",
+      "keywords": "units, km, miles, celsius",
+      "argument1": { "type": "text", "placeholder": "amount and unit, like 10 km" } },
+    { "script": "units.sh", "name": "unitlist", "title": "Units Known", "output": "show", "input": "none" }
+  ]
+}
