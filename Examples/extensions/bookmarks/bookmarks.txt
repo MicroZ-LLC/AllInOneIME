@@ -1,0 +1,4 @@
+Swift	https://www.swift.org
+Apple Developer	https://developer.apple.com
+Wikipedia	https://www.wikipedia.org
+Home folder	~/

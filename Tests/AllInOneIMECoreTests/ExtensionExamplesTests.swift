@@ -25,16 +25,22 @@ struct ExtensionExamplesTests {
     @Test func theExamplesLoad() throws {
         let index = ExtensionStore.load([.init(path: Self.examples.path, found: false)])
         #expect(index.skipped.isEmpty, "\(index.skipped)")
-        #expect(index.commands.map(\.name) == ["convert", "unitlist", "battery", "clock", "countdown", "timer", "uuid"])
-        #expect(index.bundles.map(\.name) == ["units"] && index.bundles.first?.preferences.map(\.name) == ["precision"])
+        #expect(index.commands.map(\.name)
+            == ["bm", "convert", "unitlist", "battery", "clock", "countdown", "say", "timer", "uuid", "wordcount"])
+        #expect(index.bundles.map(\.name) == ["bookmarks", "units"])
+        #expect(index.bundles.map { $0.preferences.map(\.kind) } == [[.textfield, .password], [.dropdown]])
         let byName = Dictionary(uniqueKeysWithValues: index.commands.map { ($0.name, $0) })
+        // Every feature of the protocol has an example.
         #expect(byName["clock"]?.output == .list && byName["countdown"]?.output == .show && byName["uuid"]?.input == ScriptCommand.Input.none)
         #expect(byName["timer"]?.background == true && byName["battery"]?.status?.isSelf == true && byName["convert"]?.output == .list)
+        #expect(byName["say"]?.confirm == true && byName["say"]?.output == .silent)
+        #expect(byName["wordcount"]?.source == .raycast && byName["wordcount"]?.output == .silent && byName["wordcount"]?.group == "Text")
+        #expect(byName["bm"]?.output == .list && byName["bm"]?.source == .bundle("bookmarks"))
     }
 
     @Test func theExamplesRun() async throws {
         let index = ExtensionStore.load([.init(path: Self.examples.path, found: false)])
-        let bundle = try #require(index.bundles.first)
+        let bundle = try #require(index.bundles.first { $0.name == "units" })
         let prefs = bundle.values([:])
         // A list that reruns: the cities matching, with their time.
         let clock = composer(index)
@@ -84,5 +90,40 @@ struct ExtensionExamplesTests {
             status = update.output.lines.first
         }
         #expect(status.map { $0 == "AC" || $0.hasSuffix("%") } == true, "\(status ?? "nil")")
+    }
+
+    /// The bookmarks bundle: each row action (open, copy, a second step with `run`), and a password preference.
+    @Test func theBookmarksRowActions() async throws {
+        let index = ExtensionStore.load([.init(path: Self.examples.path, found: false)])
+        let bookmarks = try #require(index.bundles.first { $0.name == "bookmarks" })
+        let prefs = bookmarks.values(["token": "t0ken"])
+        func listed(_ text: String) async throws -> Composer {
+            let c = composer(index)
+            typeKeys("@bm " + text, c)
+            let query = try #require(c.listQuery), script = try #require(c.draftCommand?.script)
+            var output = ScriptOutput.text("")
+            for try await update in CommandRunner.run(script, arguments: [query], environment: environment(script, query: query, preferences: prefs))
+            where update.isFinal { output = update.output }
+            _ = c.receiveList(output, for: query)
+            return c
+        }
+        let open = try await listed("swi")
+        #expect(open.currentList?.items.map(\.action) == [.open, .copy, .run, .insert] && open.currentList?.items.last?.valid == false)
+        #expect(open.handleKeyDown(enterKey).effects.contains(.openLink(URL(string: "https://www.swift.org")!)))
+        let copy = try await listed("swi")
+        _ = copy.handleKeyDown(downKey)
+        #expect(copy.handleKeyDown(enterKey).effects.contains(.copy("https://www.swift.org")))
+        let details = try await listed("swi")
+        _ = details.handleKeyDown(downKey)
+        _ = details.handleKeyDown(downKey)
+        await finish(details.handleKeyDown(enterKey).effects, in: details, preferences: prefs)
+        #expect(details.choices.first?.text == "https://www.swift.org" && details.choices.first?.detail == "Swift · a checker token is set")
+        // The home folder row opens a folder (allowed); the word count is a Raycast silent script.
+        let home = try await listed("home")
+        #expect(home.handleKeyDown(enterKey).effects.contains(.openLink(URL(fileURLWithPath: NSHomeDirectory()))))
+        let words = composer(index)
+        typeKeys("@wordcount hello big world", words)
+        let said = await finish(words.handleKeyDown(enterKey).effects, in: words)
+        #expect(said.contains(.notice("3 words, 15 characters")))
     }
 }
