@@ -378,5 +378,9 @@ The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to rem
 
 ## License
 
-Copyright © 2026 MicroZ LLC. GPL-3.0; see [LICENSE](LICENSE). Third-party components (librime and its plugins under BSD-3-Clause, rime-ice under GPL-3.0)
-are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Copyright © 2026 MicroZ LLC. Source available under the [Functional Source License 1.1](LICENSE) (FSL-1.1-ALv2): use it,
+read it, change it and share it for anything but a competing product. Each version becomes Apache-2.0 two years after
+its release. Versions up to 0.6.1 were released under the GPL-3.0 and stay available under it.
+
+Third-party components (librime and its plugins under BSD-3-Clause; rime-ice's Lua scripts and the Chinese language pack
+under GPL-3.0) are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -357,5 +357,7 @@ Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添�
 
 ## 许可证
 
-Copyright © 2026 MicroZ LLC。GPL-3.0，见 [LICENSE](LICENSE)。用到的第三方组件（librime 及插件为 BSD-3-Clause，雾凇拼音为 GPL-3.0）
-见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Copyright © 2026 MicroZ LLC。源码公开，采用 [Functional Source License 1.1](LICENSE)（FSL-1.1-ALv2）：
+除了做竞品，怎么用、读、改、分享都行。每个版本发布满两年后转为 Apache-2.0。0.6.1 及以前的版本以 GPL-3.0 发布，仍可按 GPL-3.0 使用。
+
+用到的第三方组件（librime 及插件为 BSD-3-Clause；雾凇拼音的 Lua 脚本和中文语言包为 GPL-3.0）见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

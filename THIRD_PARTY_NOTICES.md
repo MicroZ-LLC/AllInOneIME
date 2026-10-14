@@ -456,7 +456,7 @@ Apache License
 
 ## rime-ice
 
-rime-ice is licensed under the GNU General Public License v3.0 (the same text as `LICENSE` in this
-repository). Its Lua scripts are included unmodified in the app bundle under
-`Contents/SharedSupport/rime-lua`; the rest of its source (schemas, dictionaries, its LICENSE), unmodified,
+rime-ice is licensed under the GNU General Public License v3.0; its full text is the `LICENSE` file that comes
+with it. Its Lua scripts are included unmodified in the app bundle under
+`Contents/SharedSupport/rime-lua`, with that `LICENSE`; the rest of its source (schemas, dictionaries, its LICENSE), unmodified,
 with dictionaries prebuilt from it, is the Chinese (pinyin) language pack, downloaded when Chinese is added.

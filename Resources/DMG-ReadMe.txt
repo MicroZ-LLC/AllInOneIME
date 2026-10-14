@@ -14,7 +14,7 @@ AllInOneIME 安装说明
 卸载：打开「安装 AllInOneIME」，点「卸载…」。设置和学到的词会保留。
 需要 macOS 14 或更新版本；语音输入需要 macOS 26 或更新版本。
 使用说明：https://allinoneime.com/docs
-作者：Weijian Zhang（https://weijianz.com）。依据 GPL-3.0 开源。
+作者：Weijian Zhang（https://weijianz.com）。源码公开，采用 FSL-1.1-ALv2 许可（LICENSE.txt）。
 
 
 Installing AllInOneIME
@@ -38,5 +38,5 @@ Documentation: https://allinoneime.com/docs
 
 
 Copyright © 2026 MicroZ LLC.
-License: GPL-3.0 (LICENSE.txt). Third-party components: THIRD_PARTY_NOTICES.md.
+License: FSL-1.1-ALv2, source available (LICENSE.txt). Third-party components: THIRD_PARTY_NOTICES.md.
 Source code: https://github.com/MicroZ-LLC/AllInOneIME

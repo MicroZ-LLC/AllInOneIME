@@ -86,6 +86,7 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
 	# Only rime-ice's Lua scripts (code, so never downloaded): the dictionaries are the Chinese pack.
 	cp -R $(RIME_DATA)/lua "$(APP)/Contents/SharedSupport/rime-lua"
+	cp $(RIME_DATA)/LICENSE "$(APP)/Contents/SharedSupport/rime-lua/LICENSE"
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for

@@ -1252,7 +1252,7 @@ struct SettingsView: View {
                 if let version = Self.version {
                     Text(tr("版本 \(version)", "Version \(version)")).foregroundStyle(.secondary).textSelection(.enabled)
                 }
-                Text("© 2026 MicroZ LLC · GPL-3.0").font(.caption).foregroundStyle(.secondary)
+                Text("© 2026 MicroZ LLC · FSL-1.1-ALv2").font(.caption).foregroundStyle(.secondary)
                 Text(commandsSummary).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
             }
