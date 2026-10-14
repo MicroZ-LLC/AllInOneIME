@@ -133,6 +133,73 @@ struct InputLanguageTests {
         #expect(effects.contains(.startVoice(id: 1, language: .korean)))
     }
 
+    func holdToTalk(_ c: Composer, at t: Double) -> [Composer.Effect] {
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.rightOption, modifiers: [.option, .rightOption], timestamp: t)
+        return c.voiceHoldElapsed()
+    }
+
+    @Test func dictationFinishesTheSyllableFirst() {
+        let c = korean()
+        _ = type("gks", c)  // 한 being typed
+        let start = holdToTalk(c, at: 1)
+        // It goes in before the recording starts: the transcript comes after it, not before.
+        #expect(commits(start) == ["한"])
+        #expect(start.contains(.startVoice(id: 1, language: .korean)))
+        #expect(commits(c.voiceFinished("hello", id: 1)) == ["hello"])
+        #expect(c.markedText.isEmpty)
+        // In a command's text, the same: the syllable, then what was said.
+        let d = korean()
+        _ = d.handleKeyDown(at)
+        _ = type("tr", d)
+        _ = d.handleKeyDown(tab)
+        _ = type("dkssud", d)  // 안 + 녕 being typed
+        _ = holdToTalk(d, at: 1)
+        _ = d.voiceFinished("hello", id: 1)
+        #expect(d.draft == "@translate 안녕 hello")
+    }
+
+    /// A syllable being typed, with nothing else, is a composition: the controller commits it when a password field
+    /// takes over and doesn't switch the language under it.
+    @Test func aSyllableBeingTypedIsAComposition() {
+        let c = korean()
+        _ = type("gk", c)
+        #expect(c.markedText == "하")
+        #expect(c.isComposing)
+        #expect(c.phase == .drafting)
+        c.setInputMode(.english)
+        #expect(c.inputLanguage == .korean)  // refused while it's typed
+        #expect(commits(c.commitAsTyped()) == ["하"])
+        #expect(!c.isComposing)
+        // Taken back key by key: nothing left, nothing composed.
+        _ = type("gk", c)
+        _ = c.handleKeyDown(backspaceKey)
+        _ = c.handleKeyDown(backspaceKey)
+        #expect(!c.isComposing)
+        // Finished by another key: done too.
+        _ = type("gk", c)
+        _ = c.handleKeyDown(spaceKey)
+        #expect(!c.isComposing)
+        // The app took it: it's gone, not typed again.
+        _ = type("gk", c)
+        _ = c.appTookMarkedText()
+        #expect(c.markedText.isEmpty && !c.isComposing)
+        #expect(commits(c.commitAll()).isEmpty)
+    }
+
+    /// The action key as an Option tap (no key that would finish the syllable first): it's still in the text sent.
+    @Test func anOptionTapSendsTheSyllableToo() {
+        let c = korean()
+        c.actionKey = .optionTap
+        _ = c.handleKeyDown(at)
+        _ = type("tr", c)
+        _ = c.handleKeyDown(tab)
+        _ = type("dkssud", c)  // 녕 being typed
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftOption, modifiers: [.option, .leftOption], timestamp: 1)
+        let run = c.handleFlagsChanged(keyCode: VirtualKey.leftOption, modifiers: [], timestamp: 1.1)
+        #expect(run.contains { if case .startConversion(input: "안녕", id: _) = $0 { return true } else { return false } })
+        #expect(c.hangul.isEmpty)
+    }
+
     @Test func configKeepsUnknownLanguagesOutAndLayoutsByLanguage() throws {
         let json = #"{"inputLanguages": ["ko", "xx", "fr"], "keyboardLayouts": {"fr": "com.apple.keylayout.French-PC"}, "uiLanguage": "fr"}"#
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))

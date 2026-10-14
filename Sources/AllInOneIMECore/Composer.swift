@@ -872,6 +872,7 @@ public final class Composer {
             let done = hangul.feed(jamo)
             if !done.isEmpty { effects += typeFinished(done) }
         }
+        setLevelOnePhase()  // a syllable being typed is a composition (`isComposing`)
         return .consumed(effects + [.updateMarkedText] + (draft.isEmpty ? [] : [.showPanel]))
     }
 
@@ -879,7 +880,9 @@ public final class Composer {
     private func finishHangul() -> [Effect] {
         guard !hangul.isEmpty else { return [] }
         let text = hangul.flush()
-        return typeFinished(text) + [.updateMarkedText]
+        let effects = typeFinished(text)
+        setLevelOnePhase()
+        return effects + [.updateMarkedText]
     }
 
     /// Finished Hangul: into the command's text, or into the document.
@@ -1663,7 +1666,7 @@ public final class Composer {
     }
 
     private func setLevelOnePhase() {
-        phase = draft.isEmpty && !engineState.isComposing && voice == .off ? .idle : .drafting
+        phase = draft.isEmpty && !engineState.isComposing && hangul.isEmpty && voice == .off ? .idle : .drafting
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
         if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
         restoreInputModeAfterOpen()
@@ -1734,7 +1737,8 @@ public final class Composer {
     // MARK: - Voice
 
     private func startVoice() -> [Effect] {
-        var effects: [Effect] = []
+        // A Hangul syllable being typed goes in first: the transcript follows it.
+        var effects = finishHangul()
         if isLevelTwo { effects += backToDraft() }
         // "@q" + hold right ⌥: the command is picked, and the dictation is what follows it.
         if paletteQuery != nil, !paletteMatches.isEmpty { effects += complete(paletteMatches) }
@@ -1822,6 +1826,8 @@ public final class Composer {
     }
 
     private func startAction() -> Response {
+        // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
+        if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
         let parsed = Command.parse(draft, in: commands)
         // Only an @ command is ever sent: without one the input method just types.
         guard parsed != nil else { return .consumed() }
@@ -1957,6 +1963,8 @@ public final class Composer {
         let wasRequesting = isLevelTwo
         let recording = voice.id
         draft = ""
+        pendingAccent = nil
+        _ = hangul.flush()
         messageRecipient = nil
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
