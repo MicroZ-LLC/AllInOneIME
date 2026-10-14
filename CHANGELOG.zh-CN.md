@@ -11,6 +11,7 @@
 
 ### 新增
 
+- Raycast 脚本命令可以当 @ 命令用：把给 Raycast 写的脚本（github.com/raycast/script-commands）放进 `~/.config/allinoneime/scripts` 或在 设置 → 自定义命令 里添加的文件夹，`flights.sh` 就是 `@flights`。已经放着 Raycast 脚本的文件夹会用聚焦自动找到（默认打开，不想要的可以隐藏）。参数写在命令后面，用逗号隔开（`@flights beijing, new york`）；没有参数的脚本一选就运行；`fullOutput` 可以上屏全部或任意一行，`compact` 和 `inline` 上屏最后一行，`silent` 只显示；`needsConfirmation` 会先问。设置里列出文件夹、命令和没加载的脚本及原因。
 - 输入语言新增法语、韩语、印地语，和英文、中文并列：在「输入」里用 ＋ 添加。
   - 法语用它自己的键盘布局打字：默认 AZERTY，也可以在它的卡片里换一种（配置里的 `keyboardLayouts`），死键（^、¨、`、´、~）也按它组合。其他语言还是用你在系统里用的布局。
   - 韩语用两套式（두벌식）键盘打韩文，边打边组成音节（g k s → 한）；按住 Shift 打紧音 ㄲ ㄸ ㅃ ㅆ ㅉ 和 ㅒ ㅖ。命令的文字里也能打。

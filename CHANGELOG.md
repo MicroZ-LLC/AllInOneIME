@@ -11,6 +11,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
+- Raycast Script Commands run as @ commands: put a script written for Raycast (github.com/raycast/script-commands) in `~/.config/allinoneime/scripts` or a folder you add under Settings → Custom Commands, and `flights.sh` is `@flights`. Folders that already hold Raycast scripts are found with Spotlight (on by default; hide the ones you don't want). Arguments go after the command, commas between them (`@flights beijing, new york`); a script without arguments runs as it's picked; `fullOutput` inserts all or any line, `compact` and `inline` the last line, `silent` only shows it; `needsConfirmation` asks first. Settings lists the folders, the commands and the scripts left out, with why.
 - French, Korean and Hindi as input languages, next to English and Chinese: add them under Input → +.
   - French types with its own keyboard layout: AZERTY unless you pick another on its card (`keyboardLayouts` in the config), its dead keys (^, ¨, `, ´, ~) too. The other languages keep the layout you use in the system.
   - Korean types Hangul in the 2-set (Dubeolsik) layout, putting each syllable together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ. It works in a command's text too.

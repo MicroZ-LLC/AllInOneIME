@@ -127,6 +127,48 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 
 `run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
 
+#### Raycast 脚本命令
+
+给 [Raycast](https://github.com/raycast/script-commands) 写的脚本命令也能直接当 @ 命令用，不用改：任何语言的脚本（bash、Python、
+Node、Swift……），注释里写着 `@raycast.` 元数据。
+
+```bash
+#!/bin/bash
+# @raycast.schemaVersion 1
+# @raycast.title Flights
+# @raycast.mode compact
+# @raycast.packageName Travel
+# @raycast.icon ✈️
+# @raycast.argument1 { "type": "text", "placeholder": "from city" }
+# @raycast.argument2 { "type": "text", "placeholder": "to city" }
+
+echo "Flights from $1 to $2"
+```
+
+放进 `~/.config/allinoneime/scripts`，或者在 设置 → 自定义命令 → Raycast 脚本命令 里添加任何文件夹。已经放着 Raycast
+脚本的文件夹会用聚焦（Spotlight）自动找到（可以在那里关掉，不想要的文件夹可以隐藏）；和 Raycast 一样只读文件夹本身、
+不读子文件夹，名字里带 `.template.` 的文件不算。
+
+- 命令名取文件名里的英文字母：`flights.sh` 是 `@flights`，`convert-timestamp.sh` 是 `@converttimestamp`。名字已经被内置命令、
+  插件、自定义命令或更早找到的脚本占用时，归它们；设置里会列出这样的脚本、读不懂的脚本和原因。
+- 参数写在命令后面。一个参数就是后面的全部文字；两三个参数用逗号（`,` 或 `，`）隔开：`@flights beijing, new york` 运行时
+  `$1` 是 `beijing`，`$2` 是 `new york`（多出来的逗号留在最后一个里）。必填的没写会提示缺什么（「还要写：to city」），不运行；
+  下拉选项（dropdown）写选项的名字或值都行；`percentEncoded` 的参数先编码。
+- 没有参数的脚本在列表里一选（⏎、Tab 或空格）就运行。写了 `needsConfirmation true` 的，第一次按会先问（「运行「Flights」？⏎ 确认」），
+  再按一次才运行。
+
+| `mode` | 在这里 |
+|---|---|
+| `fullOutput` | 全部输出可以上屏（1），每一行也可以单独上屏（2–9）；最长运行 60 秒 |
+| `compact` | 最后一行，可以上屏 |
+| `inline` | 和 `compact` 一样（不会定时刷新：`refreshTime` 不起作用） |
+| `silent` | 最后一行显示在光标旁边，不上屏 |
+
+脚本在它自己的文件夹（或 `currentDirectoryPath`）里运行，用你的登录 shell 的 PATH 再加上 `/usr/local/bin`；有执行权限就直接运行，
+否则用第一行的 `#!` 运行。输出里的颜色代码会去掉。脚本出错退出时，最后一行就是错误信息。10 秒后停止（`fullOutput` 是 60 秒），
+Esc 随时停止。`icon` 只显示 emoji；`refreshTime`、`iconDark`、`authorURL` 不起作用。和 `run` 命令一样，脚本会在你的 Mac 上执行代码
+（只用信得过的），只在你选中或运行时运行，安全输入时不运行。
+
 ### 插件
 
 插件是别人写好的 `@` 命令，不是人人都要的放在这里，比如 `@stock AAPL 600519 700` 查股价。
