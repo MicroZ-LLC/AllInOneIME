@@ -1277,7 +1277,9 @@ struct SettingsView: View {
             // A white page under light gray cards, as in Raycast and System Settings (dark in dark mode).
             .scrollContentBackground(.hidden)
             .background(Color(nsColor: .textBackgroundColor))
-            .id(page)  // a page starts at its top
+            // A page starts at its top, and is drawn anew in the other interface language: controls of their
+            // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
+            .id("\(page.rawValue)-\(UIText.chinese)")
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: page) { if remembersPage { UserDefaults.standard.set(page.rawValue, forKey: Self.pageKey) } }

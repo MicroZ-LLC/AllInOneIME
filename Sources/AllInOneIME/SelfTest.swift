@@ -262,6 +262,31 @@ enum SelfTest {
     /// Dragging a language chip in the real settings form (offscreen; events posted to this app's own
     /// queue, so the pointer doesn't move): the mouse reaches the chip's drag handle, not the form's
     /// table view, and letting go left of the first chip makes it the default. Nothing is saved.
+    /// Switching the interface language redraws the page at once, controls of its own too (the action key
+    /// showed 「回车」 in English until the page was opened again).
+    static func testLanguageSwitchRedraws(in directory: URL) {
+        let pickedBefore = UIText.choice
+        defer { UIText.choice = pickedBefore }
+        UIText.choice = .chinese
+        let model = SettingsModel(configURL: Config.defaultURL, persists: false)
+        model.config.actionKey = .enter
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.alphaValue = 0
+        window.contentView = host
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        _ = pump(timeout: 0.5) { false }
+        model.setUILanguage(.english)
+        _ = pump(timeout: 0.6) { false }
+        // The page as drawn now (the accessibility tree is empty offscreen): looked at for the action key's name.
+        if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+            host.cacheDisplay(in: host.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("settings-switched-to-english.png"))
+        }
+    }
+
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
         // The translate languages are dragged into order (the input languages are a segmented bar now).
@@ -404,6 +429,7 @@ enum SelfTest {
         render("6-settings-en", chinese: false)  // README (docs/en)
         UIText.choice = pickedBefore
         testLanguageDrag()
+        testLanguageSwitchRedraws(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.
@@ -1852,6 +1878,7 @@ enum SelfTest {
         settings = (try? Config.load()) ?? .default
         settings.typeOut = false
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
+        settings.setOrder([Language.chinese, .english])  // pinyin, whatever the user's own default input is
         settings.uiLanguage = .chinese
         controller.loadSettings = { SelfTest.settings }
         controller.applySettings()
