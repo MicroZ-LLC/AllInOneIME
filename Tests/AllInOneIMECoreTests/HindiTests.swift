@@ -20,6 +20,9 @@ struct HindiTests {
     @Test func commonWordsComeFirstSpelledAsHindiWritesThem() {
         #expect(HindiTransliteration(tables: PackData.hindi).candidates("karna").first == "करना")
         #expect(HindiTransliteration(tables: PackData.hindi).candidates("nahi").first == "नहीं")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("bilkul").first == "बिल्कुल")
+        // "sir" is सर (sir) or सिर (head): no word from the list, both spellings by rule.
+        #expect(PackData.hindi.words["sir"] == nil)
         #expect(HindiTransliteration(tables: PackData.hindi).candidates("main").first == "मैं")
         // A capital starting a sentence is the word, not a retroflex letter.
         #expect(HindiTransliteration(tables: PackData.hindi).candidates("Main").first == "मैं")
