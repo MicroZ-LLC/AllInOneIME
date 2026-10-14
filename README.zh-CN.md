@@ -127,6 +127,41 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 
 `run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
 
+### 脚本扩展
+
+用程序加自己的 @ 命令：任何语言的脚本（bash、Python、Node、Swift……），注释里写几行元数据。放进
+`~/.config/allinoneime/extensions`，或者在 设置 → 自定义命令 → 脚本扩展 里添加的文件夹。Raycast 的脚本命令不用改就能用，
+已经放着它们的文件夹会用聚焦（Spotlight）自动找到。
+
+```bash
+#!/bin/bash
+# @allinoneime.schemaVersion 1
+# @allinoneime.title Flights
+# @allinoneime.argument1 {"type": "text", "placeholder": "from city"}
+# @allinoneime.argument2 {"type": "text", "placeholder": "to city"}
+
+echo "Flights from $1 to $2"
+```
+
+`flights.sh` 就是 `@flights`。参数写在命令后面，用逗号（`,` 或 `，`）隔开：`@flights beijing, new york` 运行时 `$1` 是
+`beijing`，`$2` 是 `new york`（多出来的逗号留在最后一个里）；必填的没写会提示缺什么，不运行。输出按 `output` 处理：
+
+| `output` | 结果 |
+|---|---|
+| `insert`（默认） | 全部输出和每一行都可以上屏 |
+| `show` | 边运行边显示在面板里（进度），不上屏；离开输入框就转到后台继续（最多同时四个） |
+| `list` | 输出 Alfred Script Filter 格式的列表，边打字边重新运行；选中一项可以上屏、打开（网址、文件或文件夹；不会打开会运行的东西）、复制或运行下一步 |
+| `silent` | 最后一行显示在光标旁边，不上屏 |
+
+命令还可以不要输入（`input none`：在列表里按 ⏎ 就运行）、在后台运行完成后通知你（`background`，期间菜单栏面板里能看到）、
+在命令列表里名字旁边显示状态（`status`）、运行前先确认（`confirm`）。脚本在自己的文件夹里运行，用你的登录 shell 的 PATH，
+还有 `ALLINONEIME_*` 环境变量：界面和输入的语言、正在打字的 App、命令后面的文字。**扩展包**是带 `extension.json` 的文件夹，
+列出它的命令：它们共用代码和偏好设置，设置里能填（密码存在钥匙串里）。设置里每个命令都有开关，没加载的脚本会写明原因。
+
+Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent` → `silent`，带 `refreshTime` 的 `inline` → 状态。
+完整的协议见 [docs/extensions.md](docs/extensions.md)（英文），[Examples/extensions](Examples/extensions) 里每种都有例子。
+扩展会在你的 Mac 上执行代码，只用信得过的；只在你运行时运行（状态和边打字边出的列表也算），安全输入时不运行，输入法退出时会停止。
+
 ### 插件
 
 插件是别人写好的 `@` 命令，不是人人都要的放在这里，比如 `@stock AAPL 600519 700` 查股价。

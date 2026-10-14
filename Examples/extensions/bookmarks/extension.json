@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "bookmarks",
+  "title": "Bookmarks",
+  "version": "1.0.0",
+  "author": "AllInOneIME examples",
+  "description": "Your bookmarks, as you type: open one, copy its address, or see its details.",
+  "preferences": [
+    { "name": "file", "type": "textfield", "title": "Bookmarks file",
+      "description": "One a line: a title, a tab, an address. Empty: the bundle's own bookmarks.txt" },
+    { "name": "token", "type": "password", "title": "Link checker token",
+      "description": "An example of a password preference: kept in the keychain, it reaches the script as ALLINONEIME_PREF_TOKEN" }
+  ],
+  "commands": [
+    { "script": "bookmarks.sh", "name": "bm", "title": "Bookmarks", "icon": "bookmark.fill", "output": "list",
+      "keywords": "links, favorites", "queryDelay": 100,
+      "argument1": { "type": "text", "placeholder": "title", "optional": true } }
+  ]
+}

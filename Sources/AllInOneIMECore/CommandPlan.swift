@@ -28,8 +28,9 @@ public struct CommandPlan: Equatable, Sendable {
     /// Nothing to run first: the text is used as it is.
     public var isEmpty: Bool { inner.isEmpty }
 
-    /// Commands that can run inside a text: the ones that fetch something.
-    public static func canBeInner(_ command: Command) -> Bool { command.kind == .run }
+    /// Commands that can run inside a text: the ones that fetch something (not a Raycast script: its
+    /// arguments, confirmation and modes are for running it on its own).
+    public static func canBeInner(_ command: Command) -> Bool { command.kind == .run && command.script == nil }
 
     /// Commands whose argument inside a text is a phrase (`phrase(_:from:commands:)`), not a symbol:
     /// what to search for is words, often Chinese (`@search 苹果发布会`).

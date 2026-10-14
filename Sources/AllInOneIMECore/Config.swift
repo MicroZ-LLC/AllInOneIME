@@ -60,6 +60,18 @@ public struct Config: Codable, Equatable, Sendable {
     public var uiLanguage: Language?
     /// The user's own @ commands, after the built-in ones (see `CustomCommand`).
     public var customCommands: [CustomCommand]
+    /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
+    /// command and Raycast script in them is an @ command, after the custom ones. A new user has
+    /// `ExtensionStore.defaultFolder`.
+    public var extensionFolders: [String]
+    /// Also the folders Spotlight finds holding Raycast scripts (`ExtensionStore.discover`), less
+    /// `hiddenExtensionFolders`.
+    public var findRaycastScripts: Bool
+    public var hiddenExtensionFolders: [String]
+    /// Extension commands turned off: a command's id (`ScriptCommand.id`) or a bundle's name.
+    public var disabledExtensions: [String]
+    /// The bundles' preferences that aren't passwords (those are in the keychain): bundle name → name → value.
+    public var extensionPreferences: [String: [String: String]]
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
@@ -133,6 +145,11 @@ public struct Config: Codable, Equatable, Sendable {
         self.actionKey = actionKey
         self.uiLanguage = uiLanguage
         self.customCommands = customCommands
+        self.extensionFolders = [ExtensionStore.defaultFolder]
+        self.findRaycastScripts = true
+        self.hiddenExtensionFolders = []
+        self.disabledExtensions = []
+        self.extensionPreferences = [:]
         self.claudeInBackground = true
         self.menuBarIcon = true
         self.fuzzyPinyin = []
@@ -157,6 +174,7 @@ public struct Config: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
+        case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts
         case provider, anthropic, gemini, openai
     }
@@ -191,6 +209,12 @@ public struct Config: Codable, Equatable, Sendable {
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
         uiLanguage = (try? c.decodeIfPresent(Language.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isInterfaceLanguage ? $0 : nil }
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
+        extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
+        findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
+        hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
+        disabledExtensions = try c.decodeIfPresent([String].self, forKey: .disabledExtensions) ?? d.disabledExtensions
+        extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
+            ?? d.extensionPreferences
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
@@ -261,6 +285,11 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(actionKey, forKey: .actionKey)
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
         try c.encode(customCommands, forKey: .customCommands)
+        try c.encode(extensionFolders, forKey: .extensionFolders)
+        try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
+        try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
+        try c.encode(disabledExtensions, forKey: .disabledExtensions)
+        try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)

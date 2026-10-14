@@ -3,8 +3,8 @@ import os
 
 /// A command typed at the start of a draft, e.g. "@question 量子计算是什么". The action key then
 /// runs it on the rest of the draft. Without one, nothing is sent: the input method just types.
-/// The built-in commands come first; the user's own (`Config.customCommands`) follow them
-/// (`catalog`).
+/// The built-in commands come first; the user's own (`Config.customCommands`) and script extensions
+/// (`ScriptCommand`) follow them (`catalog`).
 public struct Command: Hashable, Sendable {
     public let name: String
     public let kind: Kind
@@ -12,6 +12,8 @@ public struct Command: Hashable, Sendable {
     public let custom: CustomCommand?
     /// The installed plugin, for a command from one.
     public let plugin: InstalledPlugin?
+    /// The script extension, for a command from one (a `.run` command).
+    public let script: ScriptCommand?
 
     public enum Kind: Equatable, Sendable {
         /// The improve conversion (versions and rewrites).
@@ -39,11 +41,12 @@ public struct Command: Hashable, Sendable {
         case message
     }
 
-    init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil) {
+    init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil) {
         self.name = name
         self.kind = kind
         self.custom = custom
         self.plugin = plugin
+        self.script = script
     }
 
     /// Polish in the sentence's own language, with the rewrite styles (`WritingMode.improve`).
@@ -108,10 +111,10 @@ public struct Command: Hashable, Sendable {
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
     public var isCode: Bool { self == .py || self == .js }
 
-    /// Its text goes to code or a program the user wrote: `@py`, `@js`, a custom `run` command. None of it
-    /// runs inside another command's text unless typed there (`Composer`: not from a paste, dictation or a
-    /// restored draft), and other commands don't run inside its text.
-    public var runsCode: Bool { isCode || custom != nil && kind == .run }
+    /// Its text goes to code or a program the user wrote: `@py`, `@js`, a custom `run` command, a script
+    /// extension. None of it runs inside another command's text unless typed there (`Composer`: not from a paste,
+    /// dictation or a restored draft), and other commands don't run inside its text.
+    public var runsCode: Bool { isCode || (custom != nil || script != nil) && kind == .run }
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
@@ -135,9 +138,13 @@ public struct Command: Hashable, Sendable {
     }
 
     /// The built-in commands, then the installed plugins, then the user's valid ones
-    /// (`CustomCommand.isValid`) whose names are still free, in the order of the config. When names
-    /// clash, built-in > plugin > custom; one hidden by a built-in is logged (`logHidden`).
-    public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = []) -> [Command] {
+    /// (`CustomCommand.isValid`) whose names are still free, in the order of the config, then the script
+    /// extensions (`ExtensionIndex.commands`: a bundle's, a single script's, a Raycast script's) likewise, one
+    /// whose name is taken under its `alias` if that's free. When names clash, built-in > plugin > custom >
+    /// extension; a plugin or custom command hidden by a built-in is logged (`logHidden`), an extension's
+    /// shows in Settings (`hiddenScripts`).
+    public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = [],
+                               scripts: [ScriptCommand] = []) -> [Command] {
         let builtinNames = Set(builtins.map(\.name))
         var taken = builtinNames
         let fromPlugins = plugins.compactMap { plugin -> Command? in
@@ -173,7 +180,29 @@ public struct Command: Hashable, Sendable {
             case .link: kind = .link
             }
             return Command(name: name, kind: kind, custom: definition)
+        } + scripts.compactMap { script in
+            script.names.first { taken.insert($0).inserted }.map { Command(name: $0, kind: .run, script: script) }
         }
+    }
+
+    /// The extensions `catalog` leaves out because another command has their name (and alias), and which.
+    public static func hiddenScripts(_ scripts: [ScriptCommand], custom: [CustomCommand],
+                                     plugins: [InstalledPlugin] = []) -> [(script: ScriptCommand, owner: ScriptCommand.Owner)] {
+        var owners: [String: ScriptCommand.Owner] = [:]
+        for command in builtins { owners[command.name] = .builtIn }
+        for plugin in plugins where owners[plugin.name] == nil { owners[plugin.name] = .plugin }
+        for definition in custom where definition.isValid && owners[definition.name.lowercased()] == nil {
+            owners[definition.name.lowercased()] = .custom
+        }
+        var hidden: [(ScriptCommand, ScriptCommand.Owner)] = []
+        for script in scripts {
+            if let free = script.names.first(where: { owners[$0] == nil }) {
+                owners[free] = .command(script.id)
+            } else if let owner = owners[script.name] {
+                hidden.append((script, owner))
+            }
+        }
+        return hidden
     }
 
     private static let catalogLog = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")

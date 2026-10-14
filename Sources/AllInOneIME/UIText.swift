@@ -113,6 +113,7 @@ enum UIText {
             return plugin.manifest.summary?.text(chinese: chinese) ?? tr("插件", "Plugin")
         }
         if let custom = command.custom { return custom.summary ?? customKind(custom) }
+        if let script = command.script { return summary(script) }
         switch command {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
         case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
@@ -133,6 +134,70 @@ enum UIText {
         }
     }
 
+    /// A script extension in the list: its title and group ("Flights · Travel"), "(Raycast)" for a Raycast script,
+    /// and its status line if it has one ("Pomodoro · 12:04 left").
+    static func summary(_ script: ScriptCommand, status: String? = nil) -> String {
+        let group = (script.group ?? "").isEmpty || script.group == script.title ? "" : " · " + script.group!
+        let raycast = script.source == .raycast ? tr("（Raycast）", " (Raycast)") : ""
+        return script.title + group + raycast + (status.map { " · " + $0 } ?? "")
+    }
+
+    /// `summary(_ command:)`, with a script extension's status line.
+    static func summary(_ command: Command, status: String?) -> String {
+        command.script.map { summary($0, status: status) } ?? summary(command)
+    }
+
+    /// What a script's text should hold: its arguments' placeholders, with commas between ("from city, to city").
+    static func placeholders(_ script: ScriptCommand) -> String {
+        script.arguments.enumerated().map { index, argument in
+            (argument.placeholder.isEmpty ? "$\(index + 1)" : argument.placeholder) + (argument.optional ? tr("（可选）", " (optional)") : "")
+        }.joined(separator: ", ")
+    }
+
+    /// Why a script, a bundle or a command of one isn't loaded (Settings).
+    static func describe(_ problem: ScriptCommand.Problem, file: URL) -> String {
+        switch problem {
+        case let .missing(key): return tr("缺少 \(key)", "\(key) is missing")
+        case let .newerProtocol(version):
+            return tr("要更新版的 AllInOneIME（协议版本 \(version)，这一版支持 \(ScriptCommand.protocolVersion)）",
+                      "Needs a newer AllInOneIME (protocol \(version); this one speaks \(ScriptCommand.protocolVersion))")
+        case let .badValue(key, value): return tr("\(key) 的值用不了：\(value)", "\(key) can't be “\(value)”")
+        case let .badArgument(n): return tr("argument\(n) 读不懂（要是 JSON，前面的参数也要有）",
+                                            "argument\(n) can't be read (it must be JSON, after the ones before it)")
+        case .notRunnable: return tr("不能运行：没有执行权限，第一行也不是 #!", "Can't be run: not executable, and no #! line")
+        case .noName: return tr("文件名里没有英文字母，做不了命令名", "No letter in the file name to name the command")
+        case .notForMac: return tr("不是给 macOS 用的（platform）", "Not for macOS (platform)")
+        case let .badBundle(problem):
+            switch problem {
+            case .notJSON: return tr("extension.json 不是 JSON 对象", "extension.json isn't a JSON object")
+            case .badName: return tr("扩展包的 name 只能用字母、数字、- 和 _", "The bundle's name must be letters, digits, - or _")
+            case .noCommands: return tr("extension.json 里没有命令", "extension.json names no commands")
+            case .badPreference: return tr("有一个偏好设置没有 name，或者 type 不认识", "A preference has no name, or a type this app doesn't know")
+            }
+        case .brokenLink: return tr("这个替身（符号链接）指向的东西不在了", "A link to something that isn't there")
+        case .bundleTaken: return tr("已经有一个同名的扩展包", "Another bundle with this name is loaded")
+        case let .nameTaken(taken, owner):
+            let name = "@" + taken
+            switch owner {
+            case .builtIn: return tr("\(name) 是内置命令的名字", "\(name) is a built-in command")
+            case .plugin: return tr("\(name) 是一个插件的名字", "\(name) is a plugin's name")
+            case .custom: return tr("\(name) 是一个自定义命令的名字", "\(name) is one of your custom commands")
+            case let .command(id):
+                return tr("这个名字已经给了 \(id)（先找到的生效）", "The name is taken by \(id), found first")
+            }
+        }
+    }
+
+    /// What a script extension does with what it prints, as Settings lists it.
+    static func name(_ output: ScriptCommand.Output) -> String {
+        switch output {
+        case .insert: return tr("上屏", "insert")
+        case .show: return tr("显示", "show")
+        case .list: return tr("列表", "list")
+        case .silent: return tr("提示", "notice")
+        }
+    }
+
     /// A custom command without a summary of its own, by what it does.
     static func customKind(_ custom: CustomCommand) -> String {
         switch custom.type {
@@ -147,6 +212,11 @@ enum UIText {
     /// `draft`: the text typed, so `@translate @improve …` reads as both.
     static func action(_ command: Command, input: Language, config: Config, draft: String = "") -> String {
         if command.plugin != nil, command.kind == .run { return tr("运行插件", "run the plugin") }
+        if let script = command.script {
+            if script.output == .list { return tr("选中这一项", "pick") }
+            let run = script.background ? tr("在后台运行", "run in the background") : tr("运行", "run")
+            return script.arguments.isEmpty || placeholders(script) == "$1" ? run : run + tr("（\(placeholders(script))）", " (\(placeholders(script)))")
+        }
         if command.kind == .link { return tr("在浏览器打开", "open in the browser") }
         switch command.custom?.type {
         case .prompt?: return tr("AI 生成", "generate")

@@ -133,6 +133,46 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 
 `run` and `terminal` run code on your Mac: only add commands you wrote and trust. They, too, run only when you press the action key, and never during secure input.
 
+### Script extensions
+
+Add your own @ commands as programs: a script in any language (bash, Python, Node, Swift, …) with a few lines of
+metadata in its comments. Put it in `~/.config/allinoneime/extensions`, or in a folder you add under Settings →
+Custom Commands → Script Extensions. Raycast Script Commands work as they are, and folders that already hold them are
+found with Spotlight.
+
+```bash
+#!/bin/bash
+# @allinoneime.schemaVersion 1
+# @allinoneime.title Flights
+# @allinoneime.argument1 {"type": "text", "placeholder": "from city"}
+# @allinoneime.argument2 {"type": "text", "placeholder": "to city"}
+
+echo "Flights from $1 to $2"
+```
+
+`flights.sh` is `@flights`. Write its arguments after it, commas between: `@flights beijing, new york` runs it with
+`beijing` and `new york` as `$1` and `$2` (more commas stay in the last one); a required one left empty says what's
+missing instead of running. What it prints is used as its `output` says:
+
+| `output` | What happens |
+|---|---|
+| `insert` (default) | All of it, and each line, to insert |
+| `show` | Shown in the panel as it prints (progress); nothing inserted. Leave the field and it goes on in the background (up to four at once) |
+| `list` | A list in Alfred's Script Filter JSON, run again as you type; picking a row inserts, opens (a web address, file or folder; never something that would run), copies or runs a second step |
+| `silent` | Its last line near the cursor; nothing inserted |
+
+A command can also take no input (`input none`: ⏎ on its name runs it), run in the `background` and notify you when
+it's done (the menu bar panel lists it meanwhile), show a `status` beside its name in the command list, or ask first
+(`confirm`). It runs in its own folder with your login shell's PATH and `ALLINONEIME_*` variables: the interface and
+input language, the app you're typing in, the text. A **bundle** is a folder with an `extension.json` naming its
+commands: they share code and preferences, which Settings shows (passwords go to the keychain). Settings lists every
+command with a switch, and the scripts left out with why.
+
+Raycast's modes map as `fullOutput` → `show`, `compact` and `silent` → `silent`, `inline` with `refreshTime` → a
+status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Examples/extensions](Examples/extensions)
+has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
+or a list as you type it), never during secure input, and stop when the input method quits.
+
 ### Plugins
 
 Plugins are ready-made `@` commands for things not everyone needs, like `@stock AAPL 600519 700` for stock quotes.

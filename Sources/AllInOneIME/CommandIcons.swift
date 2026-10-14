@@ -2,12 +2,13 @@ import AllInOneIMECore
 import AppKit
 
 /// The icons of the command list, like the colored squares of iOS Settings: one for each built-in
-/// command, one for each kind of custom command, a plugin's own (or a puzzle piece). A custom command
-/// or a plugin may name its own SF Symbol and color.
+/// command, one for each kind of custom command, a plugin's own (or a puzzle piece), a script extension's
+/// own (an emoji, an image or a symbol). A custom command or a plugin may name its own SF Symbol and color.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon {
         if let plugin = command.plugin { return icon(for: plugin) }
         if let custom = command.custom { return icon(for: custom) }
+        if let script = command.script { return icon(for: script) }
         switch command {
         case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
         case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
@@ -32,6 +33,42 @@ enum CommandIcons {
     static func icon(for plugin: InstalledPlugin) -> CandidateView.Icon {
         CandidateView.Icon(symbol: plugin.manifest.icon ?? (plugin.manifest.type == .link ? "link" : "puzzlepiece.extension.fill"),
                            color: color(plugin.manifest.color) ?? .systemPink)
+    }
+
+    /// A script extension's icon: its emoji, its image file, or its SF Symbol; else one for what it does, in
+    /// teal (Raycast's red for a Raycast script).
+    static func icon(for script: ScriptCommand) -> CandidateView.Icon {
+        let color: NSColor = script.source == .raycast ? .systemRed : .systemTeal
+        let symbol = script.background ? "clock.arrow.circlepath" : script.status != nil ? "gauge.with.dots.needle.33percent" : {
+            switch script.output {
+            case .insert: return "text.cursor"
+            case .show: return "text.alignleft"
+            case .list: return "list.bullet"
+            case .silent: return "bolt.fill"
+            }
+        }()
+        switch script.icon {
+        case let .emoji(emoji)?: return CandidateView.Icon(symbol: symbol, color: color, emoji: emoji)
+        case let .image(url)? where image(url.path) != nil:
+            return CandidateView.Icon(symbol: symbol, color: color, image: url.path)
+        case let .symbol(name)? where NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil:
+            return CandidateView.Icon(symbol: name, color: color)
+        default: return CandidateView.Icon(symbol: symbol, color: color)
+        }
+    }
+
+    static let scripts = CandidateView.Icon(symbol: "terminal.fill", color: .systemTeal)
+
+    /// An extension's image file, read again only when its modification date changes (the list is drawn on each
+    /// key: a stat then, not a read).
+    private static var images: [String: (date: Date?, image: NSImage?)] = [:]
+
+    static func image(_ path: String) -> NSImage? {
+        let date = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+        if let known = images[path], known.date == date { return known.image }
+        let image = date == nil ? nil : NSImage(contentsOfFile: path)
+        images[path] = (date, image)
+        return image
     }
 
     /// A custom command's own icon, or one for its type.

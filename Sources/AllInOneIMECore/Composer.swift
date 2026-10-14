@@ -84,6 +84,15 @@ public final class Composer {
         case addReminder(ReminderDraft, input: String)
         /// Run a custom `run` command's program on `input`; what it prints arrives via `receive`.
         case startRun(Command, input: String, id: Int)
+        /// Run a script extension (`Command.script`) with its `arguments` ($1 $2 $3) for the text `query`; what it
+        /// prints arrives via `receiveScript`. `action`: a list item's `run` action (`ScriptItem.Action.run`).
+        case startScript(Command, arguments: [String], query: String, id: Int, action: Bool)
+        /// Start a `background` script extension: the draft is done, a notification says how it went.
+        case startBackgroundScript(Command, arguments: [String], query: String)
+        /// The field was left while a `show` script runs (request `id`): it keeps going in the background.
+        case detachScript(id: Int)
+        /// Run the `list` command being typed now (`listQuery`), not after its `queryDelay`.
+        case refreshList
         /// Send `text` to `recipient` with a send command (`@imessage`): the user confirmed it in the panel.
         case sendMessage(Recipient, text: String, command: Command)
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
@@ -147,6 +156,10 @@ public final class Composer {
             case reminder(ReminderDraft)
             /// The message a send command (`@imessage`) will send, to confirm; picking it sends it.
             case send
+            /// A line a `show` script printed: shown, never inserted (⏎ closes, ⌘C copies all of it).
+            case shown
+            /// A row of a script's list (`ScriptItem`): picking it does its action.
+            case item(ScriptItem)
 
             public var isRewrite: Bool {
                 if case .rewrite = self { return true }
@@ -157,6 +170,8 @@ public final class Composer {
         public var kind: Kind
         public var text: String
         public var isComplete: Bool
+        /// Shown under the text: a script result's `detail`, a list row's subtitle.
+        public var detail: String? = nil
     }
 
     public private(set) var phase: Phase = .idle
@@ -206,6 +221,25 @@ public final class Composer {
         public var frenchMode = "法"
         public var koreanMode = "韩"
         public var hindiMode = "印"
+        /// A script extension's required arguments left empty: their placeholders follow.
+        public var scriptNeeds = "还要写："
+        /// A script's dropdown value that isn't one of its choices: their titles follow.
+        public var scriptChoices = "只能是这几个之一："
+        /// A script that asks first (`confirm`), with "{title}" and "{key}" (`actionKeyName`).
+        public var confirmScript = "运行「{title}」？{key} 确认"
+        /// A script that printed nothing (or a silent one): its title follows.
+        public var scriptRan = "已运行："
+        /// A `background` script started: its title follows.
+        public var scriptStarted = "在后台运行，完成后通知你："
+        /// A list row's `open` with something that can't be opened: it follows.
+        public var cantOpen = "打不开："
+        /// The action key's name in the interface language (the controller sets it).
+        public var actionKeyName = "⏎"
+
+        /// Asks before running a script (`confirm`).
+        public func confirm(_ script: ScriptCommand) -> String {
+            confirmScript.replacingOccurrences(of: "{title}", with: script.title).replacingOccurrences(of: "{key}", with: actionKeyName)
+        }
 
         /// The notice of a switch of input language.
         public func mode(_ language: Language) -> String {
@@ -253,12 +287,38 @@ public final class Composer {
             noteNotSaved: "The note wasn't saved; its text is on the clipboard",
             pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)",
             codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text",
-            frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi")
+            frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi",
+            scriptNeeds: "Needs: ", scriptChoices: "Pick one of: ", confirmScript: "Run {title}? {key} again", scriptRan: "Ran ",
+            scriptStarted: "Running in the background, you'll be notified: ", cantOpen: "Can't open: ")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
     /// The commands "@" offers: the built-in ones and the user's (`Command.catalog`).
-    public var commands: [Command] = Command.builtins
+    public var commands: [Command] = Command.builtins {
+        didSet {
+            commandsByName = Self.byName(commands)
+            commandsGeneration &+= 1
+        }
+    }
+    /// `commands` by name, for the draft's command (`parse`), and how many times they were set: what the
+    /// command list matched is kept per query while they and the usage stay the same (`paletteMatches`).
+    /// With many script extensions, a key mustn't go through all of them again and again.
+    private var commandsByName = Composer.byName(Command.builtins)
+    private var commandsGeneration = 0
+    /// What the command list matched (positions in `commands`), by query, while `commands` and the usage stay.
+    private var paletteCache: (generation: Int, usage: CommandUsage, matches: [String: (positions: [Int], commands: [Command])])
+        = (-1, CommandUsage(), [:])
+
+    private static func byName(_ commands: [Command]) -> [String: Command] {
+        Dictionary(commands.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The command at the start of `text` and what follows it (as `Command.parse`, by name).
+    private func parse(_ text: String) -> (command: Command, content: String)? {
+        guard text.hasPrefix("@"), let space = text.firstIndex(of: " ") else { return nil }
+        guard let command = commandsByName[text[text.index(after: text.startIndex)..<space].lowercased()] else { return nil }
+        return (command, String(text[text.index(after: space)...]))
+    }
     /// How much each command is used: the list shows the most used first (set by the controller,
     /// shared by its text fields).
     public var commandUsage = CommandUsage()
@@ -316,10 +376,21 @@ public final class Composer {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
         // highlight starts at the first again (`opensLiveResult`).
         didSet {
-            if draft != oldValue { resetLiveHighlight() }
+            if draft != oldValue {
+                resetLiveHighlight()
+                confirmedScript = nil
+            }
             if draft.isEmpty { draftHasOutsideText = false }
         }
     }
+    /// The draft a script extension asked about (`confirm`): the action key on it again runs it.
+    private var confirmedScript: String?
+    /// What the script extension of the request in level two printed (so far, for `show`).
+    public private(set) var scriptOutput: ScriptOutput?
+    /// The list a `list` command printed for the text as it's typed (`listQuery`), and the highlighted row.
+    private var listResults: ScriptList?
+    private var listResultsQuery: String?
+    public private(set) var listHighlight = 0
     /// Text the user didn't type is in the draft (pasted, dictated, a draft given back): a command in it that
     /// runs code (`Command.runsCode`) stays text. Something copied from a web page may hide "@py …".
     private var draftHasOutsideText = false
@@ -538,7 +609,7 @@ public final class Composer {
     public var shownDraft: String {
         guard draft.contains("@") else { return draft }
         let chars = Array(draft)
-        let names = Set(commands.map(\.name))
+        let names = commandsByName
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
@@ -555,10 +626,11 @@ public final class Composer {
                 continue
             }
             var j = i + 1
-            while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
+            // A name is letters, then (a script extension's: `@base64`) digits too.
+            while j < chars.count, chars[j].isASCII, chars[j].isLetter || j > i + 1 && chars[j].isNumber { j += 1 }
             let name = String(chars[(i + 1)..<j]).lowercased()
             let afterWord = i > 0 && chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)
-            if !afterWord, i == 0 || !asTyped, names.contains(name), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
+            if !afterWord, i == 0 || !asTyped, names[name] != nil, j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
                 out += String(chars[(i + 1)..<j]) + " › "  // a chosen command
                 i = chars[j] == " " ? j + 1 : j
             } else if i == paletteAt, pickingCommand {
@@ -594,6 +666,8 @@ public final class Composer {
             }
         case .reminder?:
             return pendingReminder.map { [Choice(label: "1", kind: .reminder($0), text: $0.title, isComplete: true)] } ?? []
+        case .run? where activeCommand?.script != nil:
+            return scriptChoices
         case .generate?, .run?, .link?:
             var out = [Choice(label: "0", kind: .original, text: sentText, isComplete: true)]
             if let line = result.versions.first {
@@ -636,6 +710,13 @@ public final class Composer {
     public var highlighted: Int {
         let all = choices
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
+        // A script's: the first row that can be picked (none for what a `show` prints).
+        if activeCommand?.script != nil {
+            return all.firstIndex {
+                if case let .item(item) = $0.kind { return item.valid }
+                return $0.kind == .answer
+            } ?? 0
+        }
         if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
             || activeCommand?.kind == .message { return 0 }
         if case .translating = phase { return 1 }
@@ -650,7 +731,7 @@ public final class Composer {
 
     /// What level two works on: the text after the draft's command ("@question 量子计算" → "量子计算").
     public var sentText: String {
-        Command.parse(draft, in: commands).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
+        parse(draft).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
     }
 
     /// The language of the text after the command, for what the action key will do with it ("translate to …"): the
@@ -662,7 +743,7 @@ public final class Composer {
     }
 
     /// The command at the start of the draft, once its name is complete ("@question …").
-    public var draftCommand: Command? { Command.parse(draft, in: commands)?.command }
+    public var draftCommand: Command? { parse(draft)?.command }
 
     /// While a command name is typed after "@" at the start of the draft: the letters so far.
     public var paletteQuery: String? { palette?.query }
@@ -673,39 +754,70 @@ public final class Composer {
     private var palette: (query: String, nested: Bool, at: String.Index)? {
         guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
-        guard query.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
+        guard query.first?.isNumber != true, query.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
         let before = draft[draft.index(before: at)]
         guard draftCommand != nil, !takesTextAsTyped, !(before.isASCII && (before.isLetter || before.isNumber)) else { return nil }
         return (String(query), true, at)
     }
 
-    /// The draft is a note, a reminder, a search, code (`@py`, `@js`) or a terminal command (`@claude`, a custom
-    /// one): no command inside its text runs first (`startAction`; Terminal and Claude Code get the text as typed),
-    /// so an "@" in it is just text (no list to pick a command from, none shown as picked).
+    /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@claude`, a custom
+    /// one) or a script extension: no command inside its text runs first (`startAction`; Terminal, Claude Code and
+    /// the script get the text as typed), so an "@" in it is just text (no list to pick a command from, none
+    /// shown as picked).
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.isCode
+            || command.isCode || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
     /// and inside `@translate` `@improve` (or the other way round): written together, one request does both.
+    /// The draft's command and the words of the draft are read once, and the commands that run inside a text
+    /// are kept while the commands stay (`innerCommands`): with many extensions, a key inside a text mustn't go
+    /// through all of them again.
     private var paletteCommands: [Command] {
         guard palette?.nested == true else { return commands }
-        return commands.filter { CommandPlan.canBeInner($0) || pairsWithDraft($0) }
+        if innerCommands.generation != commandsGeneration {
+            innerCommands = (commandsGeneration, commands.filter(CommandPlan.canBeInner))
+        }
+        guard let draftCommand, draftCommand.kind == .convert else { return innerCommands.commands }
+        // The writing commands (built in, first in the catalog) that pair with the draft's and aren't written yet.
+        let written = Set(draft.split(separator: " ").map(String.init))
+        let pairs = commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }
+            .filter { $0.kind == .convert && $0 != draftCommand && !written.contains("@" + $0.name) }
+        return pairs + innerCommands.commands
     }
-
-    private func pairsWithDraft(_ command: Command) -> Bool {
-        guard let draftCommand, draftCommand.kind == .convert, command.kind == .convert, command != draftCommand else { return false }
-        return !draft.components(separatedBy: " ").contains("@" + command.name)
-    }
+    private var innerCommands: (generation: Int, commands: [Command]) = (-1, [])
 
     /// Commands offered for `paletteQuery`, and the highlighted one.
     /// All of them, the most used first, or what matches the letters (`Command.palette`); the list shows
     /// `paletteRows` at a time from `paletteFirstVisible`.
     public var paletteMatches: [Command] {
-        paletteQuery.map { Command.palette($0, in: paletteCommands, usage: commandUsage, limit: .max) } ?? []
+        guard let (query, nested, _) = palette else { return [] }
+        // Inside a text, the few that run there; at the start, all of them: kept for this query.
+        if nested { return Command.palette(query, in: paletteCommands, usage: commandUsage, limit: .max) }
+        return matches(for: query)
+    }
+
+    /// All the commands the list offers for `query` at the start of a draft, kept by query (typing a letter,
+    /// then ⌫, asks again for one just asked); a new query looks only at what its longest known start matched.
+    private func matches(for query: String) -> [Command] {
+        let query = query.lowercased()
+        if paletteCache.generation != commandsGeneration || paletteCache.usage != commandUsage || paletteCache.matches.count > 64 {
+            paletteCache = (commandsGeneration, commandUsage, [:])
+        }
+        if let known = paletteCache.matches[query] { return known.commands }  // the same array: nothing copied
+        var start = query
+        var candidates: [Int]?
+        while !start.isEmpty, candidates == nil {
+            start.removeLast()
+            candidates = paletteCache.matches[start].map { $0.positions.sorted() }  // back in catalog order
+        }
+        let found = Command.paletteIndices(query, in: commands, candidates: candidates, usage: commandUsage)
+        let matched = found.map { commands[$0] }
+        paletteCache.matches[query] = (found, matched)
+        return matched
     }
     public var paletteHighlighted: Int { min(paletteHighlight, max(paletteMatches.count - 1, 0)) }
 
@@ -847,12 +959,16 @@ public final class Composer {
 
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.
     public var copyableText: String? {
+        // A `show` script's output: all of it; a list row: its `text.copy`.
+        if isLevelTwo, activeCommand?.script?.output == .show, let output = scriptOutput, !output.isEmpty { return output.copyText }
+        if !isLevelTwo, let item = listItem { return item.copyText }
         if isLevelTwo {
             let all = choices
             guard all.indices.contains(highlighted), all[highlighted].isComplete, !all[highlighted].text.isEmpty else { return nil }
             if case let .file(path) = all[highlighted].kind {
                 return searchResults.first { $0.path == path }?.detail ?? path  // a task: its reply
             }
+            if case let .item(item) = all[highlighted].kind { return item.copyText }
             return all[highlighted].text
         }
         let live = currentLiveResults
@@ -1341,11 +1457,11 @@ public final class Composer {
     /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
     /// says it wasn't saved. A one-line note goes in like any other draft.
     private func finishAsTyped(_ text: String) -> [Effect] {
-        guard draftIsNoteWithLines, let content = Command.parse(text, in: commands)?.content else {
-            return finish(committing: text)
+        guard draftIsNoteWithLines, let content = parse(text)?.content else {
+            return finish(committing: text, leaving: true)
         }
         let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        return finish(committing: "") + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
+        return finish(committing: "", leaving: true) + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
     }
 
     /// Re-reads the engine (e.g. after it became available).
@@ -1526,8 +1642,9 @@ public final class Composer {
             return query.isEmpty || matches.isEmpty ? leave() : .consumed(complete(matches))
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
             // Picks, like Tab; "@" alone goes in as typed (inside a text, Return runs the command as usual).
+            // As the action key, it also runs a command that takes no input.
             if query.isEmpty || matches.isEmpty { return nested ? nil : .consumed(finish(committing: draft)) }
-            return .consumed(complete(matches))
+            return .consumed(complete(matches, run: actionKey == .enter))
         case VirtualKey.escape:
             // Removes the "@…" (inside a text, only that).
             draft = nested ? String(draft[..<at]) : ""
@@ -1546,12 +1663,19 @@ public final class Composer {
             break
         }
         if plain, let text = event.printableText, text.count == 1, let c = text.first, c.isASCII {
-            if c.isLetter, !Command.palette(query + text, in: paletteCommands, usage: commandUsage).isEmpty {
+            let next = query + text
+            if c.isLetter, !(nested ? Command.palette(next, in: paletteCommands, usage: commandUsage) : self.matches(for: next)).isEmpty {
                 draft += text
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
             }
-            // Digits pick from the rows shown.
+            // A digit that goes on a name being typed (`@base6`) is part of it…
+            if c.isNumber, !query.isEmpty, paletteCommands.contains(where: { $0.name.hasPrefix(query.lowercased() + text) }) {
+                draft += text
+                paletteHighlight = 0
+                return .consumed([.updateMarkedText, .showPanel])
+            }
+            // …other digits pick from the rows shown.
             if let n = c.wholeNumberValue, n >= 1, matches.indices.contains(paletteFirstVisible + n - 1) {
                 return .consumed(complete(matches, at: paletteFirstVisible + n - 1))
             }
@@ -1561,11 +1685,20 @@ public final class Composer {
 
     /// Picks a palette command: the draft becomes "@name " (inside a text, the "@…" typed does), and the
     /// rest of the sentence follows.
-    private func complete(_ matches: [Command], at index: Int? = nil) -> [Effect] {
+    private func complete(_ matches: [Command], at index: Int? = nil, run: Bool = false) -> [Effect] {
         let command = matches[index ?? paletteHighlighted]
         // Nothing to write after it: picked, it's done (only at the start of a draft).
         if command.kind == .settings, palette?.nested != true {
             return finish(committing: "") + [.openSettings, used(command)]
+        }
+        // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
+        // Space only complete its name.
+        if run, command.script?.input == ScriptCommand.Input.none, palette?.nested != true {
+            draft = "@\(command.name) "
+            paletteHighlight = 0
+            setLevelOnePhase()
+            let run = startAction().effects
+            return isLevelTwo ? run : [.updateMarkedText, .showPanel] + run
         }
         let nested = palette?.nested == true
         draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "@\(command.name) "
@@ -1625,6 +1758,20 @@ public final class Composer {
     private func handleDraftKey(_ event: KeyEvent, afterVoice: Bool) -> Response? {
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
         if let response = handleRecipientKey(event) { return response }
+        // A script's list as you type: ↑↓ move among the rows to pick, Tab completes the highlighted row's text.
+        if let items = currentList?.items, !items.isEmpty, plain {
+            switch event.keyCode {
+            case VirtualKey.up, VirtualKey.down:
+                moveListHighlight(by: event.keyCode == VirtualKey.up ? -1 : 1, in: items)
+                return .consumed([.showPanel])
+            case VirtualKey.tab:
+                guard let complete = listItem?.autocomplete, let command = draftCommand else { return .consumed() }
+                draft = "@\(command.name) " + complete
+                return .consumed([.updateMarkedText, .showPanel])
+            default:
+                break
+            }
+        }
         let live = currentLiveResults
         if !live.isEmpty, plain {
             switch event.keyCode {
@@ -1881,7 +2028,7 @@ public final class Composer {
     private func startAction() -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
-        let parsed = Command.parse(draft, in: commands)
+        let parsed = parse(draft)
         // Only an @ command is ever sent: without one the input method just types.
         guard parsed != nil else { return .consumed() }
         let input = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1899,6 +2046,7 @@ public final class Composer {
             activeCommand = parsed?.command
             return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(parsed!.command)])
         }
+        if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if let command = parsed?.command, command.kind == .terminal {
@@ -1958,6 +2106,184 @@ public final class Composer {
         }
         let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
         return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+    }
+
+    /// A script extension: the text as its arguments (`ScriptCommand.arguments(from:)`), or a notice of what is
+    /// missing; one that asks first (`confirm`) says what will run, and the action key again runs it. A
+    /// `background` one starts and the draft is done; a `list` one acts on the row picked as it's typed.
+    private func startScript(_ command: Command, _ script: ScriptCommand, input: String) -> Response {
+        if script.output == .list, !isLevelTwo { return .consumed(actOnList(command)) }
+        let arguments: [String]
+        switch script.arguments(from: input) {
+        case let .success(values): arguments = values
+        case let .failure(problem): return .consumed([argumentNotice(problem, script)])
+        }
+        if script.confirm, confirmedScript != draft {
+            confirmedScript = draft
+            return .consumed([.notice(messages.confirm(script))])
+        }
+        if script.background {
+            return .consumed(finish(committing: "") + [.startBackgroundScript(command, arguments: arguments, query: input),
+                                                       .notice(messages.scriptStarted + script.title), used(command)])
+        }
+        return .consumed(runScript(command, arguments: arguments, query: input, action: false) + [used(command)])
+    }
+
+    /// Level two for a script extension's run: what it prints arrives via `receiveScript`.
+    private func runScript(_ command: Command, arguments: [String], query: String, action: Bool) -> [Effect] {
+        requestCounter += 1
+        phase = .translating(id: requestCounter)
+        result = .empty
+        scriptOutput = nil
+        searchResults = []
+        pendingReminder = nil
+        highlightOverride = nil
+        activeCommand = command
+        return [.startScript(command, arguments: arguments, query: query, id: requestCounter, action: action), .updateMarkedText, .showPanel]
+    }
+
+    /// What a script extension printed (`show`: so far, as it comes): `silent` says its last line (or summary)
+    /// near the caret, as does any that printed nothing; `show` shows it; the others offer it to insert, or
+    /// its list's rows to pick.
+    public func receiveScript(_ output: ScriptOutput, isFinal: Bool, id: Int) -> [Effect] {
+        guard phase == .translating(id: id), let script = activeCommand?.script else { return [] }
+        guard isFinal else {
+            guard script.output == .show else { return [] }
+            scriptOutput = output
+            return [.showPanel]
+        }
+        scriptOutput = output
+        if script.output == .silent || output.isEmpty {
+            return finish(committing: "") + [.notice(output.headline ?? messages.scriptRan + script.title)]
+        }
+        phase = .choosing
+        return [.showPanel]
+    }
+
+    /// The rows of a script extension's run in level two.
+    private var scriptChoices: [Choice] {
+        guard let output = scriptOutput, let script = activeCommand?.script else { return [] }
+        let shows = script.output == .show
+        switch output {
+        case let .list(list):
+            return Self.itemChoices(list.items)
+        case let .summary(summary, detail):
+            return [Choice(label: shows ? "" : "1", kind: shows ? .shown : .answer, text: summary, isComplete: true, detail: detail)]
+        case let .text(text):
+            let lines = output.lines
+            // The last lines of a progress; all of it, then each line, to insert.
+            if shows { return lines.suffix(Self.shownLines).map { Choice(label: "", kind: .shown, text: $0, isComplete: true) } }
+            let each = lines.count > 1 ? lines.prefix(8).map { $0 } : []
+            return ([text] + each).enumerated().map { Choice(label: String($0.offset + 1), kind: .answer, text: $0.element, isComplete: true) }
+        }
+    }
+
+    /// How many of a `show` script's last lines the panel has.
+    public static let shownLines = 12
+
+    /// A list's rows as the panel shows them while the text is typed (`itemChoices`): unnumbered, since a digit
+    /// typed there is text ("10 km"); ↑↓ and the action key pick.
+    public static func itemChoicesForPanel(_ items: [ScriptItem]) -> [Choice] { itemChoices(items, numbered: false) }
+
+    /// A list's rows: the ones to pick numbered 1–9 (in level two, where digits pick), the rest (information)
+    /// unnumbered.
+    static func itemChoices(_ items: [ScriptItem], numbered: Bool = true) -> [Choice] {
+        var number = 0
+        return items.map { item in
+            if item.valid { number += 1 }
+            let label = numbered && item.valid && number <= 9 ? String(number) : ""
+            return Choice(label: label, kind: .item(item), text: item.title, isComplete: true, detail: item.subtitle)
+        }
+    }
+
+    // MARK: Lists as you type
+
+    /// The text after a `list` command while it's typed: what the controller runs it on after its `queryDelay`
+    /// (and again, after its `rerun`), cancelling the run before (`receiveList`).
+    public var listQuery: String? {
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, draftCommand?.script?.output == .list else { return nil }
+        return sentText
+    }
+
+    /// The list that belongs to the current `listQuery`.
+    public var currentList: ScriptList? {
+        listQuery != nil && listResultsQuery == listQuery ? listResults : nil
+    }
+
+    /// The list printed for `query`: ↑↓ pick a row, the action key does its action, Tab completes its
+    /// `autocomplete`. A list run again for the same text (`rerun`) keeps the row picked. Anything but a list
+    /// is a row of information with what it said.
+    public func receiveList(_ output: ScriptOutput, for query: String) -> [Effect] {
+        guard query == listQuery else { return [] }
+        var list: ScriptList
+        switch output {
+        case let .list(printed): list = printed
+        case let .summary(summary, detail): list = ScriptList(items: [ScriptItem(title: summary, subtitle: detail, valid: false)])
+        case .text: list = ScriptList(items: output.headline.map { [ScriptItem(title: $0, valid: false)] } ?? [])
+        }
+        let again = listResultsQuery == query
+        listResults = list
+        listResultsQuery = query
+        if !again || !list.items.indices.contains(listHighlight) || !list.items[listHighlight].valid {
+            listHighlight = list.items.firstIndex(where: \.valid) ?? 0
+        }
+        return [.showPanel]
+    }
+
+    /// The highlighted row of the list, when it can be picked.
+    public var listItem: ScriptItem? {
+        guard let items = currentList?.items, items.indices.contains(listHighlight), items[listHighlight].valid else { return nil }
+        return items[listHighlight]
+    }
+
+    /// The action key on a `list` command: the highlighted row's action, or (no list yet) a run now; with a
+    /// required argument left empty, a notice of what's missing (it doesn't run without it).
+    private func actOnList(_ command: Command) -> [Effect] {
+        guard let item = listItem else {
+            guard currentList == nil, let script = command.script else { return [] }
+            if case let .failure(problem) = script.arguments(from: sentText) { return [argumentNotice(problem, script)] }
+            return [.refreshList]
+        }
+        return perform(item, of: command)
+    }
+
+    /// The notice for text that can't be a script's arguments.
+    private func argumentNotice(_ problem: ScriptCommand.ArgumentProblem, _ script: ScriptCommand) -> Effect {
+        switch problem {
+        case let .missing(placeholders):
+            // Its one free-text argument: as for any command, a hint to write something.
+            if script.arguments.count == 1, script.arguments[0].placeholder.isEmpty { return .notice(messages.typeAfterCommand) }
+            return .notice(messages.scriptNeeds + placeholders.joined(separator: ", "))
+        case let .notAChoice(_, titles):
+            return .notice(messages.scriptChoices + titles.joined(separator: ", "))
+        }
+    }
+
+    /// Moves the list's highlight among the rows that can be picked.
+    private func moveListHighlight(by step: Int, in items: [ScriptItem]) {
+        guard items.contains(where: \.valid) else { return }
+        var index = listHighlight
+        repeat { index = (index + step + items.count) % items.count } while !items[index].valid
+        listHighlight = index
+    }
+
+    /// A list row's action (`ScriptItem.Action`): insert, open or copy (the draft is done), or run the command
+    /// again with its `arg` (level two shows what that prints).
+    private func perform(_ item: ScriptItem, of command: Command) -> [Effect] {
+        guard item.valid else { return [] }
+        let usage = used(command)
+        switch item.action {
+        case .insert:
+            return (typesResults ? finish(committing: "") + [.typeOut(item.insertText)] : finish(committing: item.insertText)) + [usage]
+        case .open:
+            // Only a web address, or a file or folder that's there; anything else is said, not tried.
+            guard let url = item.openURL else { return [.notice(messages.cantOpen + (item.arg ?? item.title))] }
+            return finish(committing: "") + [.openLink(url), usage]
+        case .copy:
+            return finish(committing: "") + [.copy(item.copyText), .notice(messages.copied), usage]
+        case .run:
+            return runScript(command, arguments: [item.arg ?? item.title], query: sentText, action: true) + [usage]
+        }
     }
 
     /// Opens a `link` command's address with `text` in it: the composition ends with nothing inserted,
@@ -2064,7 +2390,7 @@ public final class Composer {
     private func actionKeyPressed() -> [Effect]? {
         guard let engine else { return nil }
         if isLevelTwo { return acceptInLevelTwo() }
-        if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches) }
+        if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches, run: true) }
         guard draftCommand != nil else { return nil }
         if voice != .off { return actAfterVoice() }
         // @open with results as you type: open the highlighted one right away (only content matches: listed
@@ -2121,6 +2447,7 @@ public final class Composer {
         var effects: [Effect] = []
         if case .translating = phase { effects.append(.cancelConversion) }
         result = .empty
+        scriptOutput = nil
         searchResults = []
         pendingReminder = nil
         activeCommand = nil
@@ -2133,6 +2460,9 @@ public final class Composer {
         let all = choices
         guard all.indices.contains(index), all[index].isComplete, !all[index].text.isEmpty else { return [] }
         if case let .file(path) = all[index].kind { return finish(committing: "") + [.open(path: path)] }
+        // What a `show` script printed isn't inserted: picking it closes the panel.
+        if all[index].kind == .shown { return finish(committing: "") }
+        if case let .item(item) = all[index].kind, let command = activeCommand { return perform(item, of: command) }
         if case let .reminder(reminder) = all[index].kind {
             let input = sentText  // before the draft is cleared: it comes back if the reminder can't be added
             return finish(committing: "") + [.addReminder(reminder, input: input)]
@@ -2153,10 +2483,13 @@ public final class Composer {
         return [.showPanel]
     }
 
-    /// Ends the composition, inserting `text`, and clears the engine.
-    private func finish(committing text: String) -> [Effect] {
+    /// Ends the composition, inserting `text`, and clears the engine. `leaving`: the field is left (or everything
+    /// committed): a `show` script still running keeps going in the background (`detachScript`).
+    private func finish(committing text: String, leaving: Bool = false) -> [Effect] {
         var effects: [Effect] = []
-        if case .translating = phase { effects.append(.cancelConversion) }
+        if case let .translating(id) = phase {
+            effects.append(leaving && activeCommand?.script?.output == .show ? .detachScript(id: id) : .cancelConversion)
+        }
         if let id = voice.id { effects += cancelVoice(id, refresh: false) }
         engine?.clearComposition()
         engineState = engine?.snapshot() ?? .empty
@@ -2168,6 +2501,9 @@ public final class Composer {
         draftEndsWithVoice = false
         actsAfterVoice = false
         result = .empty
+        scriptOutput = nil
+        listResults = nil
+        listResultsQuery = nil
         searchResults = []
         pendingReminder = nil
         activeCommand = nil

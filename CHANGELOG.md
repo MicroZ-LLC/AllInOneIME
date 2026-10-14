@@ -11,6 +11,13 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
+- Script extensions: @ commands that are programs outside the app, in any language, with a few lines of metadata in their comments (docs/extensions.md, protocol 1). Put them in `~/.config/allinoneime/extensions` or a folder you add under Settings → Custom Commands, and `flights.sh` is `@flights`; arguments go after it, commas between them (`@flights beijing, new york`).
+  - What they print can be inserted (`insert`), shown as it comes with nothing inserted (`show`, a progress), offered as a list to pick from as you type (`list`, Alfred's Script Filter JSON: picking a row inserts, opens, copies or runs a second step), or said near the cursor (`silent`); a JSON `summary` with a `detail` shows both.
+  - A command can take no input (⏎ on its name runs it), run in the background and notify you when it's done (the menu bar panel lists it; a `show` left running when you leave the field goes on too), show a status beside its name in the command list, or ask first.
+  - Scripts get `ALLINONEIME_*` environment variables: the interface and input language, the app you're typing in, the text.
+  - Bundles: a folder with `extension.json` holds several commands that share code and preferences; Settings shows the preferences (passwords go to the keychain).
+  - Raycast Script Commands work as they are, and folders holding them are found with Spotlight (on by default; hide the ones you don't want).
+  - Settings lists the folders, the bundles, every command with a switch, and the scripts left out with why (a protocol newer than the app's among them). Examples of each kind are in Examples/extensions.
 - French, Korean and Hindi as input languages, next to English and Chinese: add them under Input → +.
   - French types with its own keyboard layout: AZERTY unless you pick another on its card (`keyboardLayouts` in the config), its dead keys (^, ¨, `, ´, ~) too. The other languages keep the layout you use in the system.
   - Korean types Hangul in the 2-set (Dubeolsik) layout, putting each syllable together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ. It works in a command's text too.

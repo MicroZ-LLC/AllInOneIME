@@ -295,6 +295,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     func finish() -> Never {
         reset()
         restoreConfig()
+        if let extensionFolder { try? FileManager.default.removeItem(at: extensionFolder) }
         if let originalSource {
             selectInputSource(originalSource)
             pump(0.3)
@@ -349,7 +350,8 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // The test's own settings, whatever the user's (theirs come back after: `restoreConfig`): Chinese first, so it
         // starts in pinyin; results inserted at once, not typed out; @improve polishes without translating, and
-        // Chinese translates into English.
+        // Chinese translates into English. None of the user's script extensions is offered: they run programs of
+        // their own.
         check(setConfig {
             $0["inputLanguages"] = ["zh", "en"]
             $0["defaultInput"] = "zh"
@@ -357,6 +359,8 @@ final class Harness: NSObject, NSApplicationDelegate {
             $0["improveTranslates"] = false
             $0["outputLanguages"] = ["en", "zh"]
             $0["outputLanguage"] = "en"
+            $0["extensionFolders"] = [String]()
+            $0["findRaycastScripts"] = false
         }, "config file readable, to set the test's languages")
 
         guard let context = textView.inputContext else {
@@ -555,8 +559,71 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        extensions()
         frenchAndKorean()
         finish()
+    }
+
+    /// The script extensions made for the test (in a temporary folder), removed when it ends.
+    var extensionFolder: URL?
+
+    /// 7. Script extensions from a temporary folder the test's config points at (no network, no model): a list shows
+    ///    its rows as the command is picked and the action key inserts the one highlighted; a command that takes no
+    ///    input is only completed by Tab and runs on the action key; what it prints is inserted.
+    func extensions() {
+        print("— script extensions (a temporary folder)")
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-realtest-\(UUID().uuidString)")
+        extensionFolder = folder
+        let scripts = [
+            "rtlist.sh": "# @allinoneime.output list\n# @allinoneime.input optional\n"
+                + #"printf '{"items": [{"title": "Row one", "arg": "rt-row-one"}, {"title": "Row two", "arg": "rt-row-two"}]}\n'"#,
+            "rtecho.sh": "# @allinoneime.input none\necho rt-insert-ok",
+        ]
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for (name, body) in scripts {
+                let file = folder.appendingPathComponent(name)
+                try Data(("#!/bin/bash\n# @allinoneime.schemaVersion 1\n" + body + "\n").utf8).write(to: file)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+            }
+        } catch {
+            check(false, "the test's extensions written (\(error))")
+            return
+        }
+        guard setConfig({ $0["extensionFolders"] = [folder.path] }) else {
+            check(false, "config file readable, to add the test's extension folder")
+            return
+        }
+        // The text field again: the input method reads its extensions in the background when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(1.5)
+        textView.string = ""
+
+        // A list: rows as soon as it's picked (its text is optional); ↓ and the action key insert the second row.
+        command("rtlist")
+        check(waitUntil(2) { self.marked == "rtlist › " }, "@rtlist is picked from the list (\(marked))")
+        pump(1)  // its run, after its query delay
+        key("", 0x7D)  // ↓
+        act()
+        check(waitUntil(3) { self.committed == "rt-row-two" && self.marked.isEmpty },
+              "the list's rows are shown, and the action key inserts the one picked ('\(committed)')")
+        reset()
+        textView.string = ""
+
+        // No input: Tab only completes it; the action key runs it; its output is inserted.
+        command("rtecho")
+        pump(0.5)
+        check(marked == "rtecho › " && committed.isEmpty, "Tab completes a command that takes no input, without running it (\(marked))")
+        act()
+        let inserted = waitUntil(5) {
+            if self.committed.isEmpty, !self.marked.isEmpty { self.space() }  // ignored until its output is in
+            return self.committed == "rt-insert-ok"
+        }
+        check(inserted && marked.isEmpty, "the action key runs it, and what it printed is inserted ('\(committed)')")
+        reset()
+        textView.string = ""
     }
 
     /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes

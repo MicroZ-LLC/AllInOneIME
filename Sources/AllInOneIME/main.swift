@@ -88,7 +88,26 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { SettingsWindow.shared.show() }
         return false
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+    }
 }
+
+/// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
+/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), then the input method ends, as
+/// the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main
+/// thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+private let terminationSignal: DispatchSourceSignal = {
+    signal(SIGTERM, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
+    source.setEventHandler {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
+        CommandRunner.stopAll()
+        _exit(0)
+    }
+    return source
+}()
 
 func runServer(showSettings: Bool = false) -> Never {
     let app = NSApplication.shared
@@ -101,6 +120,9 @@ func runServer(showSettings: Bool = false) -> Never {
         exit(1)
     }
     log.info("IMKServer started: \(name, privacy: .public)")
+    terminationSignal.resume()
+    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
+    DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @claude tasks: notifications, and tasks from before a restart watched again.
@@ -406,7 +428,10 @@ case "--showcase":
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
     MainActor.assumeIsolated {
-        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"))
+        // `extensions=<folder>`: the Custom Commands page shows that folder's extensions instead of the user's.
+        let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
+        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
+                               extensions: extensions)
     }
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
