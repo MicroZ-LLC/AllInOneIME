@@ -1,6 +1,7 @@
 import AllInOneIMECore
 import AppKit
 import AuthenticationServices
+import Carbon
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -579,7 +580,13 @@ final class SettingsModel: ObservableObject {
         testTask = Task { [weak self] in
             let converter = Converter(loadConfig: { snapshot })
             // In the first input language: an English-only user sees an English test.
-            let sample = snapshot.inputLanguages.first == .english ? "i dont feel so good today" : "我今天有点不舒服"
+            let sample = switch snapshot.inputLanguages.first ?? .english {
+            case .chinese: "我今天有点不舒服"
+            case .english: "i dont feel so good today"
+            case .french: "je me sens pas tres bien aujourdhui"
+            case .korean: "오늘 몸이 좀 안 좋아요"
+            case .hindi: "आज मेरी तबीयत ठीक नहीं है"
+            }
             do {
                 var final = ConversionResult.empty
                 var elapsed: TimeInterval = 0
@@ -1165,15 +1172,17 @@ struct SettingsView: View {
     /// The settings of the input language picked above: pinyin's fuzzy sounds; none for English yet.
     @ViewBuilder private var inputLanguageSection: some View {
         Section {
-            switch shownInput {
-            case .chinese:
-                if !packs.isInstalled(.chinesePinyin) {
-                    // An upgrade whose pack is still on its way (its progress is shown above).
-                    Label(tr("语言包下载完以后才能打中文。", "Chinese can be typed once its language pack has downloaded."),
+            // The language's pack: still on its way (its progress is shown above), or what's installed.
+            if let pack = LanguagePack.for(shownInput) {
+                if !packs.isInstalled(pack) {
+                    Label(tr("语言包下载完以后才能打\(pack.name.text(chinese: true))。", "\(pack.name.en) can be typed once its language pack has downloaded."),
                           systemImage: "arrow.down.circle")
                         .foregroundStyle(.secondary)
                 }
-                packInfo(.chinesePinyin)
+                packInfo(pack)
+            }
+            switch shownInput {
+            case .chinese:
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(tr("模糊音", "Fuzzy pinyin"),
@@ -1197,6 +1206,24 @@ struct SettingsView: View {
                 }
             case .english:
                 Text(tr("英文模式直接打字母，暂时没有要设置的。", "In English, letters are typed as they are: nothing to set yet."))
+                    .foregroundStyle(.secondary)
+            case .french:
+                // The layout French types with (AZERTY unless picked); Shift to French switches to it.
+                Picker(selection: Binding(get: { model.config.keyboardLayout(for: .french) ?? "" },
+                                          set: { model.config.keyboardLayouts[Language.french.rawValue] = $0 })) {
+                    ForEach(KeyboardLayouts.latin, id: \.id) { layout in Text(layout.name).tag(layout.id) }
+                } label: {
+                    titled(tr("键盘布局", "Keyboard layout"),
+                           tr("切到法语时按这个布局打字；死键（^、¨、´）也按它组合", "French types with this layout, its dead keys (^, ¨, ´) too"))
+                }
+                .pickerStyle(.menu)
+            case .korean:
+                Text(tr("두벌식（两套式）：按键位打字母，自动组成音节，比如 g k s → 한。Shift 打紧音（ㄲ ㄸ ㅃ ㅆ ㅉ）和 ㅒ ㅖ。",
+                        "Dubeolsik (2-set): keys give jamo, composed into syllables as you type, e.g. g k s → 한. Shift for ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ."))
+                    .foregroundStyle(.secondary)
+            case .hindi:
+                Text(tr("用拉丁字母按发音打，出天城文：namaste → नमस्ते。常用词按词表拼写，其他词可以从几种写法里选：空格上屏第一个，数字选别的，⏎ 上屏原样的字母，. 打出 ।",
+                        "Type it as it sounds in Latin letters, get Devanagari: namaste → नमस्ते. Common words are spelled from a list; for others pick a spelling: Space inserts the first, a digit another, ⏎ the letters as typed, . the danda (।)."))
                     .foregroundStyle(.secondary)
             }
             // Its place among the input languages: the default, or not added at all.
@@ -1435,22 +1462,22 @@ struct SettingsView: View {
         Command.builtins.contains { $0.name == command.name.lowercased() }
     }
 
-    /// The commands, at the top: what this input method does beyond pinyin.
+    /// The commands, at the top: what this input method does beyond typing the user's input languages.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
+        let languages = model.config.inputLanguages.map(AllInOneIMEInputController.inputName).joined(separator: tr("、", ", "))
+        return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
-                  (model.config.inputLanguages.contains(.chinese) ? "A regular pinyin input method. " : "")
+                  "A regular input method: \(languages). "
                       + "Type @ first for commands: @improve polishes and rewrites, @translate "
                       + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }
 
-    /// What @improve does for Chinese and for English input.
+    /// What @improve does for each input language: "@improve: Chinese → polish / rewrite; Korean → …".
     private var inputSummary: String {
-        let chinese = UIText.action(input: .chinese, config: model.config)
-        let english = UIText.action(input: .english, config: model.config)
-        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english).")
+        let each = model.config.inputLanguages.map { "\(UIText.name($0)) → \(UIText.action(input: $0, config: model.config))" }
+        return tr("@improve：打", "@improve: ") + each.joined(separator: tr("；打", "; ")) + tr("。", ".")
     }
 
     /// Adds an input language; one whose pack isn't installed is added once the pack has downloaded
@@ -2385,4 +2412,22 @@ enum SettingsImage {
         out.size = NSSize(width: rep.size.width, height: CGFloat(height) / scale)
         return out
     }
+}
+
+/// The keyboard layouts installed on this Mac that type Latin letters (U.S., ABC, French, French – PC, Swiss
+/// French …), by name, for picking the one an input language types with.
+enum KeyboardLayouts {
+    struct Layout: Hashable { let id: String; let name: String }
+
+    static let latin: [Layout] = {
+        let filter = [kTISPropertyInputSourceType as String: kTISTypeKeyboardLayout as String,
+                      kTISPropertyInputSourceIsASCIICapable as String: true] as CFDictionary
+        let sources = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource] ?? []
+        let layouts = sources.compactMap { source -> Layout? in
+            guard let id = InputSourceRegistrar.string(source, kTISPropertyInputSourceID),
+                  let name = InputSourceRegistrar.string(source, kTISPropertyLocalizedName) else { return nil }
+            return Layout(id: id, name: name)
+        }
+        return Array(Set(layouts)).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }()
 }

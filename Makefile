@@ -36,8 +36,12 @@ PACK_VERSION := 1.0.0
 PACK_NAME    := $(PACK_ID)-$(PACK_VERSION)
 PACK         := $(BUILD_DIR)/packs/$(PACK_NAME).tar.xz
 PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
+# Korean and Hindi: their tables, kept in this repository (LanguagePacks/<id>/), the same way.
+KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
+HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
+PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack install-pack build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -209,6 +213,15 @@ test: deps
 # Scripts/build-packs-index.swift. The minimum app version is this one.
 pack: $(RIME_BUILT)
 	Scripts/make-language-pack.sh $(RIME_DATA) $(PACK_ID) $(PACK_VERSION) $(VERSION) "rime-ice $(RIME_ICE_TAG)" "$(PACK_URL)" $(PACK)
+
+# Every pack: Chinese, Korean, Hindi.
+packs: pack $(KO_PACK) $(HI_PACK)
+
+$(KO_PACK): LanguagePacks/ko-hangul/hangul.json
+	Scripts/make-language-pack.sh LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@
+
+$(HI_PACK): LanguagePacks/hi-phonetic/hindi.json
+	Scripts/make-language-pack.sh LanguagePacks/hi-phonetic hi-phonetic 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/hi-phonetic-1.0.0/hi-phonetic-1.0.0.tar.xz" $@
 
 # The Chinese pack from this checkout's data, into the installed input method's packs folder, without a
 # download (a developer's Mac before the pack is published).

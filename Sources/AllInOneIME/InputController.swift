@@ -204,6 +204,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var liveSearchTask: Task<Void, Never>?
     /// The default input mode last applied to this session (re-applied when the setting changes).
     private var appliedDefaultInput: Language?
+    /// The keyboard layout this text field was last told to type with (`applyKeyboardLayout`).
+    private var appliedLayout: String?
     /// The recording in progress (a `DictationSession`, which needs macOS 26).
     private var voiceSession: AnyObject?
     /// Identifies the latest press of the voice key (older hold timers are ignored).
@@ -251,6 +253,7 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
+            appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
             ensureEngine()
@@ -383,7 +386,7 @@ final class AllInOneIMEInputController: IMKInputController {
             session = nil
             if RimeService.shared.isStarted {
                 composer.engine = nil
-            } else if !(composer.engine is LatinEngine) {
+            } else if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
                 composer.engine = LatinEngine()
                 appliedDefaultInput = nil
                 applySettings()
@@ -411,6 +414,9 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
+        // The Korean and Hindi packs' data, for their input (nil without the pack).
+        composer.hangulTables = LanguagePackManager.shared.hangulTables()
+        composer.hindiTables = LanguagePackManager.shared.hindiTables()
         let languages = LanguagePackManager.shared.usable(config.inputLanguages)
         let defaultInput = languages.contains(config.defaultInput) ? config.defaultInput : languages[0]
         composer.inputLanguages = languages
@@ -420,6 +426,25 @@ final class AllInOneIMEInputController: IMKInputController {
             composer.setInputMode(defaultInput)
             appliedDefaultInput = defaultInput
         }
+        applyKeyboardLayout(config: config)
+    }
+
+    /// Types with the keyboard layout of the input language in effect: French with its own (AZERTY by
+    /// default, `Config.keyboardLayouts`), the others with the one the user picked in the system (or for
+    /// English). macOS translates the keys with it for this text field, typing and shortcuts alike.
+    @MainActor
+    private func applyKeyboardLayout(config: Config? = nil, client: IMKTextInput? = nil) {
+        let config = config ?? loadSettings()
+        let language = composer.inputLanguage
+        let id = config.keyboardLayout(for: language.isLatin ? language : .english) ?? Self.systemLayoutID
+        guard let id, id != appliedLayout, let target = client ?? clientOverride ?? self.client() else { return }
+        target.overrideKeyboard(withKeyboardNamed: id)
+        appliedLayout = id
+    }
+
+    /// The layout the user types Latin letters with in the system's input sources (U.S., ABC, AZERTY …).
+    private static var systemLayoutID: String? {
+        TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
     /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@claude`
@@ -482,7 +507,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if !secureNoticeShown, let chars = event.characters, !chars.isEmpty,
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 secureNoticeShown = true
-                perform([.notice(tr("安全输入中：暂停拼音，直接输入", "Secure input: pinyin paused, keys go straight in"))],
+                perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))],
                         client: client)
             }
             return false
@@ -508,7 +533,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = deadKeys.compose(KeyEvent(
             keyCode: event.keyCode, characters: event.characters ?? "",
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat), in: KeyboardLayout.current())
+            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
+            in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
         let response = composer.handleKeyDown(key)
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
@@ -567,6 +593,8 @@ final class AllInOneIMEInputController: IMKInputController {
             switch effect {
             case .updateMarkedText:
                 updateMarkedText(target)
+            case .inputLanguageChanged:
+                applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
             case let .typeOut(text):
@@ -1093,7 +1121,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// `.run` command's program printed.
     /// Whether `config` has a language to translate `input` into other than its own.
     static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = OutputLanguage(Language.of(input))
+        let own = OutputLanguage(config.language(of: input))
         return config.outputLanguages.contains { $0 != own }
     }
 
@@ -1362,7 +1390,7 @@ final class AllInOneIMEInputController: IMKInputController {
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
-        return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config, draft: composer.draft)
+        return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -1446,7 +1474,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = Language.of(composer.sentText).matches(config.outputLanguage)
+                let polishing = config.language(of: composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.kind == .run ? tr("运行中…", "Running…")
@@ -1502,7 +1530,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     ? tr("识别完就发送 · Esc 取消", "Sends once recognized · Esc cancel")
                     : tr("识别中… · Esc 取消", "Recognizing… · Esc cancel")
             }
-            model.detail = composer.engineState.isAsciiMode ? composer.messages.englishMode : composer.messages.chineseMode
+            model.detail = composer.messages.mode(composer.inputLanguage)
         } else if composer.engineState.isComposing {
             let state = composer.engineState
             model.rows = state.candidates.map {
@@ -1511,9 +1539,8 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = state.highlighted
             let key = composer.actionKey
             if let command = composer.draftCommand {
-                // Pinyin in an @ command: the action key converts it and runs the command.
-                let input: Language = composer.sentText.containsHan || !composer.engineState.isAsciiMode ? .chinese : .english
-                let action = UIText.action(command, input: input, config: config, draft: composer.draft)
+                // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
+                let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
                 model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")

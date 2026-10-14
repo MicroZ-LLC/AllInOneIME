@@ -1,21 +1,67 @@
 import Foundation
+import NaturalLanguage
 
-/// The two languages the input method writes in: the default input mode and the output language.
+/// The languages the input method types (`Config.inputLanguages`), and the two its interface and its own
+/// sentences are in (Chinese, English; `Config.uiLanguage` is one of those).
 public enum Language: String, Codable, CaseIterable, Sendable {
     case chinese = "zh"
     case english = "en"
+    case french = "fr"
+    case korean = "ko"
+    case hindi = "hi"
 
     /// Name shown in the UI.
-    public var displayName: String { self == .chinese ? "中文" : "英文" }
+    public var displayName: String {
+        switch self {
+        case .chinese: return "中文"
+        case .english: return "英文"
+        case .french: return "法语"
+        case .korean: return "韩语"
+        case .hindi: return "印地语"
+        }
+    }
+
+    /// Its name in English.
+    public var englishName: String {
+        switch self {
+        case .chinese: return "Chinese"
+        case .english: return "English"
+        case .french: return "French"
+        case .korean: return "Korean"
+        case .hindi: return "Hindi"
+        }
+    }
 
     /// Tag of the level-two lines in this language ("EN: …", "ZH: …").
-    var tag: String { self == .chinese ? "ZH" : "EN" }
+    var tag: String { rawValue.uppercased() }
 
     /// Name used in the prompt.
-    var promptName: String { self == .chinese ? "Simplified Chinese" : "English" }
+    var promptName: String { self == .chinese ? "Simplified Chinese" : englishName }
 
-    /// The language a typed sentence is written in: Chinese as soon as it contains Chinese characters.
-    public static func of(_ text: String) -> Language { text.containsHan ? .chinese : .english }
+    /// Typed in Latin letters, as English is (French too, with its own keyboard layout); not pinyin or Hangul.
+    public var isLatin: Bool { self == .english || self == .french }
+
+    /// One the interface can be in.
+    public var isInterfaceLanguage: Bool { self == .chinese || self == .english }
+
+    /// The keyboard layout it types with by default (`Config.keyboardLayouts`), nil for the system's own.
+    public var defaultKeyboardLayout: String? { self == .french ? "com.apple.keylayout.French" : nil }
+
+    /// The language a typed sentence is written in, by its letters: Chinese as soon as it contains Chinese characters,
+    /// Korean in Hangul, Hindi in Devanagari. Latin letters are English, or French when `french` (one of the user's
+    /// input languages: `Config.language(of:)`) and the words read as French.
+    public static func of(_ text: String, french: Bool = false) -> Language {
+        if text.containsHan { return .chinese }
+        let scalars = text.unicodeScalars
+        // Syllables, and jamo on their own (ㅋㅋ).
+        if scalars.contains(where: { (0xAC00...0xD7A3).contains($0.value) || (0x3131...0x318E).contains($0.value) }) { return .korean }
+        if scalars.contains(where: { (0x0900...0x097F).contains($0.value) }) { return .hindi }
+        guard french else { return .english }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.languageConstraints = [.english, .french]
+        recognizer.processString(text)
+        return recognizer.dominantLanguage == .french ? .french : .english
+    }
 }
 
 /// A language the three main versions (1–3) can be written in: the user adds the ones they want

@@ -37,6 +37,7 @@ func screenIsLocked() -> Bool {
 let outputDirectory = URL(fileURLWithPath:
     CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") } ?? "/tmp/allinoneime-realtest")
 let originalSourceFile = outputDirectory.appendingPathComponent("original-source.txt")
+let configBackupFile = outputDirectory.appendingPathComponent("config.backup.json")
 
 func imeIsRunning() -> Bool {
     !NSRunningApplication.runningApplications(withBundleIdentifier: imeID).isEmpty
@@ -176,12 +177,16 @@ final class Harness: NSObject, NSApplicationDelegate {
         s.unicodeScalars.contains { $0.isASCII && $0.properties.isAlphabetic }
     }
 
-    /// The marked text after the command ("@improve 我今天" → "我今天").
+    /// The marked text after the command ("improve › 我今天" → "我今天": the input method shows a picked command
+    /// without its "@", and a "›" after it).
     var afterCommand: String {
         let text = marked
-        guard text.hasPrefix("@"), let space = text.firstIndex(of: " ") else { return text }
-        return String(text[text.index(after: space)...])
+        guard let arrow = text.range(of: " › ") else { return text }
+        return String(text[arrow.upperBound...])
     }
+
+    /// The text without punctuation and spaces: a version that only re-punctuates the sentence says the same.
+    static func wording(_ s: String) -> String { s.filter { !$0.isPunctuation && !$0.isWhitespace } }
 
     /// Space until no pinyin is left after the command (long input may need more than one pick).
     func confirmAll() {
@@ -192,7 +197,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// "@", the first letters of a command and Tab: the palette picks it ("@i" → "@improve ").
+    /// "@", the first letters of a command and Tab: the palette picks it ("@i" → "@improve ", shown "improve › ").
     func command(_ prefix: String) {
         key("@", keyCodes["2"]!, .shift)
         type(prefix)
@@ -289,6 +294,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     func finish() -> Never {
         reset()
+        restoreConfig()
         if let originalSource {
             selectInputSource(originalSource)
             pump(0.3)
@@ -341,6 +347,18 @@ final class Harness: NSObject, NSApplicationDelegate {
         let secure = (CGSessionCopyCurrentDictionary() as? [String: Any])?["kCGSSessionSecureInputPID"]
         note("secure input: \(IsSecureEventInputEnabled() ? "ON (pid \(secure ?? "?")) — translations will be refused" : "off")")
 
+        // The test's own settings, whatever the user's (theirs come back after: `restoreConfig`): Chinese first, so it
+        // starts in pinyin; results inserted at once, not typed out; @improve polishes without translating, and
+        // Chinese translates into English.
+        check(setConfig {
+            $0["inputLanguages"] = ["zh", "en"]
+            $0["defaultInput"] = "zh"
+            $0["typeOut"] = false
+            $0["improveTranslates"] = false
+            $0["outputLanguages"] = ["en", "zh"]
+            $0["outputLanguage"] = "en"
+        }, "config file readable, to set the test's languages")
+
         guard let context = textView.inputContext else {
             check(false, "text view has an input context")
             finish()
@@ -351,19 +369,33 @@ final class Harness: NSObject, NSApplicationDelegate {
         if context.selectedKeyboardInputSource != imeID { selectInputSource(imeID); pump(0.5) }
         check(context.selectedKeyboardInputSource == imeID,
               "AllInOneIME selected (context: \(context.selectedKeyboardInputSource ?? "nil"), system: \(currentInputSourceID() ?? "nil"))")
+        // The input method takes the settings when a text field becomes active: this one again, now that they're the
+        // test's (an input method already running would keep the user's, typing results out letter by letter).
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
 
-        // Warm-up: the first keys start the input method process (and wait for its dictionaries).
+        // Warm-up: the first keys start the input method process (and wait for its dictionaries), until "a" is
+        // pinyin. The test's config starts it in Chinese; should a field still be in another input language, Shift
+        // goes on through them (a key going straight in while the dictionaries load: Shift does nothing yet).
         var reachable = false
+        var shifts = 0
         let warmStart = Date()
         while Date().timeIntervalSince(warmStart) < 25 {
             let before = committed
             type("a")
-            if waitUntil(3, { !self.marked.isEmpty || self.committed != before }), !marked.isEmpty {
+            let answered = waitUntil(3) { !self.marked.isEmpty || self.committed != before }
+            if answered, marked == "a" {
                 reachable = true
                 escape()
                 break
             }
-            if committed != before { backspace() }  // the key went straight into the text: not ready yet
+            if !marked.isEmpty { escape() } else if committed != before { backspace() }
+            if answered, imeIsRunning(), shifts < 4 {
+                tapShift()
+                shifts += 1
+            }
             pump(1)
         }
         check(reachable, String(format: "input method answers (%.1fs, process running: %@)",
@@ -401,35 +433,40 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { self.marked.isEmpty && self.committed == "你好，\n" }, "Esc cancels pinyin")
         reset()
 
-        // 3. Level two: the action key on a finished @improve sentence translates; Space inserts the
-        //    first English line.
-        print("— level two: @improve translates (live Bedrock, key: \(actionKey))")
+        // 3. Level two: the action key on a finished @improve sentence polishes it, in Chinese (the language it
+        //    was written in); Space inserts the first version.
+        print("— level two: @improve polishes (live Bedrock, key: \(actionKey))")
         textView.string = ""
         command("i")
-        check(waitUntil(2) { self.marked == "@improve " }, "@i Tab picks @improve (marked: '\(marked)')")
+        check(waitUntil(2) { self.marked == "improve › " }, "@i Tab picks @improve (marked: '\(marked)')")
         type("wojintianyoudianbushufu")
-        _ = waitUntil(3) { self.marked != "@improve " }
+        _ = waitUntil(3) { self.marked != "improve › " }
         confirmAll()
         check(waitUntil(3) { Self.hasHan(self.afterCommand) && !Self.hasLatinLetter(self.afterCommand) },
               "sentence confirmed (marked: \(marked))")
+        let sentence = afterCommand.trimmingCharacters(in: .whitespaces)
         let started = Date()
         act()
-        let translated = waitUntil(20) {
-            if self.committed.isEmpty { self.space() }  // ignored until the first English line is complete
+        let polishedChinese = waitUntil(20) {
+            if self.committed.isEmpty { self.space() }  // ignored until the first version is complete
             return !self.committed.isEmpty
         }
-        let english = committed
-        check(translated && Self.looksEnglish(english) && marked.isEmpty,
-              String(format: "Space inserts English after %.1fs: '%@'", Date().timeIntervalSince(started), english))
+        let version = committed
+        check(polishedChinese && Self.hasHan(version) && !Self.hasLatinLetter(version) && marked.isEmpty
+              && Self.wording(version) != Self.wording(sentence),
+              String(format: "Space inserts a Chinese version, worded anew, after %.1fs: '%@' (from '%@')",
+                     Date().timeIntervalSince(started), version, sentence))
         reset()
 
-        // 4. Digit picks another candidate. With ⌥Space or a tap of ⌥ the key goes right on the pinyin
-        //    (it is converted first); with Space the sentence is confirmed first.
-        print("— level two: digit 2")
+        // 4. @translate translates into English (the test's output languages: English, Chinese), and a digit picks
+        //    another version. With ⌥Space or a tap of ⌥ the key goes right on the pinyin (it is converted first);
+        //    with Space the sentence is confirmed first.
+        print("— level two: @translate, digit 2")
         textView.string = ""
-        command("i")
+        command("tr")
+        check(waitUntil(2) { self.marked == "translate › " }, "@tr Tab picks @translate (marked: '\(marked)')")
         type("zhegexiangmudejindutaimanle")
-        _ = waitUntil(3) { self.marked != "@improve " }
+        _ = waitUntil(3) { self.marked != "translate › " }
         if actionKey == "space" { confirmAll() }
         act()
         check(waitUntil(3) { Self.hasHan(self.afterCommand) && !Self.hasLatinLetter(self.afterCommand) },
@@ -438,7 +475,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             if self.committed.isEmpty { self.key("2", keyCodes["2"]!); self.pump(0.3) }
             return !self.committed.isEmpty
         }
-        check(picked && Self.looksEnglish(committed), "digit 2 inserts another English version: '\(committed)'")
+        check(picked && Self.looksEnglish(committed) && marked.isEmpty, "digit 2 inserts an English version: '\(committed)'")
         reset()
 
         // 5. In level two, 0 keeps the Chinese and Esc goes back to the draft.
@@ -455,13 +492,13 @@ final class Harness: NSObject, NSApplicationDelegate {
         space()
         act()
         escape()
-        check(waitUntil(3) { self.marked == "@improve 你好" && self.committed == "你好" }, "Esc returns to the draft")
+        check(waitUntil(3) { self.marked == "improve › 你好" && self.committed == "你好" }, "Esc returns to the draft")
         type("ma")
         space()
         check(waitUntil(3) { self.afterCommand.hasPrefix("你好") && self.afterCommand.count == 3
                              && Self.hasHan(String(self.afterCommand.suffix(1))) },
               "typing continues the sentence (\(marked))")
-        let continued = marked
+        let continued = "@improve " + afterCommand  // as typed: the command with its "@"
         asTyped()
         check(waitUntil(3) { self.committed == "你好" + continued && self.marked.isEmpty },
               "⇧Return inserts it as typed (document: '\(committed)')")
@@ -503,7 +540,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             type(word)
             space()
         }
-        check(waitUntil(2) { self.marked == "@improve " + words.joined(separator: " ") + " " }, "sentence drafted (\(marked))")
+        check(waitUntil(2) { self.marked == "improve › " + words.joined(separator: " ") + " " }, "sentence drafted (\(marked))")
         let polishStarted = Date()
         act()
         let polished = waitUntil(20) {
@@ -518,7 +555,114 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        frenchAndKorean()
         finish()
+    }
+
+    /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
+    ///    through the input languages in order. The config gets them for the test and is restored after.
+    func frenchAndKorean() {
+        print("— French (AZERTY), Korean, Hindi")
+        guard addTestLanguages() else {
+            check(false, "config file readable, to add French and Korean for the test")
+            return
+        }
+        // The text field again, so the input method reads the languages and starts in French (the default).
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("q")
+        check(waitUntil(2) { self.committed == "a" }, "in French the A key of AZERTY types 'a' ('\(committed)')")
+        key("", 0x21)  // AZERTY's ^ dead key, where [ is on a US keyboard
+        type("e")
+        check(waitUntil(2) { self.committed == "aê" && self.marked.isEmpty }, "^ then e types ê ('\(committed)')")
+        tapShift()
+        textView.string = ""
+        type("gksrmf")
+        check(waitUntil(2) { self.committed == "한" && self.marked == "글" }, "after Shift, Korean: g k s r m f → 한 and 글 being typed ('\(committed)' + '\(marked)')")
+        space()
+        check(waitUntil(2) { self.committed == "한글 " && self.marked.isEmpty }, "Space finishes 글 and types a space ('\(committed)')")
+        command("tr")
+        type("dkssud")
+        check(waitUntil(2) { self.marked.hasSuffix(" 안녕") }, "Hangul in a command's text (\(marked))")
+        reset()
+        // @translate from Korean into the test's output languages, English and Chinese: a line in each, 1 the English
+        // and 2 the Chinese (live model output: only which script each is in is checked).
+        for (digit, english) in [("1", true), ("2", false)] {
+            textView.string = ""
+            command("tr")
+            for (index, word) in ["dhsmf", "ahadl", "wha", "dks", "whgdkdy"].enumerated() {  // 오늘 몸이 좀 안 좋아요
+                if index > 0 { space() }
+                type(word)
+            }
+            check(waitUntil(2) { self.afterCommand == "오늘 몸이 좀 안 좋아요" }, "Korean sentence after @translate (\(marked))")
+            if actionKey == "space" { space() }  // Space after a word is a space; the second runs it
+            act()
+            let inserted = waitUntil(20) {
+                if self.committed.isEmpty { self.key(digit, keyCodes[Character(digit)]!); self.pump(0.3) }
+                return !self.committed.isEmpty
+            }
+            let line = committed
+            check(inserted && marked.isEmpty
+                  && (english ? Self.looksEnglish(line) : Self.hasHan(line) && !Self.hasLatinLetter(line) && !line.contains("요")),
+                  "@translate from Korean: \(digit) inserts the \(english ? "English" : "Chinese") line: '\(line)'")
+            reset()
+        }
+        tapShift()
+        textView.string = ""
+        type("namaste")
+        check(waitUntil(2) { self.marked == "नमस्ते" }, "Shift again: Hindi, namaste shows नमस्ते (marked: \(marked))")
+        space()
+        check(waitUntil(2) { self.committed == "नमस्ते " && self.marked.isEmpty }, "Space inserts नमस्ते and a space ('\(committed)')")
+        type("hai")
+        key(".", keyCodes["."]!)
+        check(waitUntil(2) { self.committed == "नमस्ते है।" }, "hai then . types है। ('\(committed)')")
+        reset()
+        tapShift()
+        textView.string = ""
+        type("ni")
+        check(waitUntil(2) { !self.marked.isEmpty }, "Shift again: pinyin (marked: \(marked))")
+        reset()
+        tapShift()
+        textView.string = ""
+        type("q")
+        check(waitUntil(2) { self.committed == "q" }, "Shift again: English, the system's layout ('\(committed)')")
+        restoreConfig()
+    }
+
+    /// The user's config, kept while the test changes it (`restoreConfig`; a backup file too).
+    var savedConfig: Data?
+    static let configURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/allinoneime/config.json")
+
+    /// Changes the config for the test. The user's own is kept the first time (`restoreConfig` puts it back).
+    func setConfig(_ change: (inout [String: Any]) -> Void) -> Bool {
+        guard let data = try? Data(contentsOf: Self.configURL),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        if savedConfig == nil {
+            savedConfig = data
+            try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+            try? data.write(to: configBackupFile)
+        }
+        change(&json)
+        guard let out = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        return (try? out.write(to: Self.configURL, options: .atomic)) != nil
+    }
+
+    func addTestLanguages() -> Bool {
+        setConfig {
+            $0["inputLanguages"] = ["fr", "ko", "hi", "zh", "en"]
+            $0["defaultInput"] = "fr"
+            $0["keyboardLayouts"] = [String: String]()
+        }
+    }
+
+    func restoreConfig() {
+        guard let savedConfig else { return }
+        try? savedConfig.write(to: Self.configURL, options: .atomic)
+        try? FileManager.default.removeItem(at: configBackupFile)
+        self.savedConfig = nil
     }
 
     /// A value from the input method's config file (nil if unset or the file is missing).
@@ -536,6 +680,12 @@ case "--is-locked":
     print(screenIsLocked() ? "true" : "false")
     exit(0)
 case "--restore-input-source":
+    // And the config, if the test was stopped while it had changed it.
+    if let backup = try? Data(contentsOf: configBackupFile) {
+        try? backup.write(to: Harness.configURL, options: .atomic)
+        try? FileManager.default.removeItem(at: configBackupFile)
+        print("config restored")
+    }
     // Backup for when the test couldn't restore it itself (watchdog timeout or crash).
     if let original = try? String(contentsOf: originalSourceFile, encoding: .utf8)
         .trimmingCharacters(in: .whitespacesAndNewlines), !original.isEmpty, currentInputSourceID() != original {
