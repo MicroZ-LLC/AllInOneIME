@@ -1320,6 +1320,17 @@ public final class Composer {
         insertIntoDraft(accent)
     }
 
+    /// A dead key's accent still waiting goes in as is, as another key would type it (a switch of language,
+    /// dictation): nothing is left marked for a letter that isn't coming.
+    private func typeWaitingAccent() -> [Effect] {
+        guard let accent = pendingAccent else { return [] }
+        pendingAccent = nil
+        if !isLevelTwo { setLevelOnePhase() }
+        guard !draft.isEmpty else { return [.commit(accent)] }
+        insertIntoDraft(accent)
+        return [.updateMarkedText]
+    }
+
     /// The draft is a note with line breaks (pasted, or back from a save that failed). Inserted as typed, each
     /// break would be a Return: in a terminal every line would run as a command.
     private var draftIsNoteWithLines: Bool {
@@ -1727,7 +1738,7 @@ public final class Composer {
         // Out of the letters for code inside Korean text (`@translate 안녕 @py …`): back to Hangul.
         if nestedLatinFrom != nil, !restoreChineseAfterOpen, current == .korean {
             nestedLatinFrom = nil
-            return [.updateMarkedText, .notice(messages.mode(current))]
+            return typeWaitingAccent() + [.updateMarkedText, .notice(messages.mode(current))]
         }
         let next: Language
         if restoreChineseAfterOpen || nestedLatinFrom != nil || inputLanguages.count < 2 {
@@ -1737,7 +1748,7 @@ public final class Composer {
             next = inputLanguages[index % inputLanguages.count]
         }
         guard next != current else { return [] }
-        var effects = finishHangul()
+        var effects = typeWaitingAccent() + finishHangul()
         if current == .chinese {
             // Pinyin being typed goes in as librime's Shift does it (`toggleLatin`).
             effects += toggleLatin()
@@ -1779,8 +1790,8 @@ public final class Composer {
     // MARK: - Voice
 
     private func startVoice() -> [Effect] {
-        // A Hangul syllable being typed goes in first: the transcript follows it.
-        var effects = finishHangul()
+        // An accent waiting and a Hangul syllable being typed go in first: the transcript follows them.
+        var effects = typeWaitingAccent() + finishHangul()
         if isLevelTwo { effects += backToDraft() }
         // "@q" + hold right ⌥: the command is picked, and the dictation is what follows it.
         if paletteQuery != nil, !paletteMatches.isEmpty { effects += complete(paletteMatches) }

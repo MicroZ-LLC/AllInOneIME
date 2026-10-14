@@ -191,6 +191,31 @@ struct KeyboardLayoutTests {
         #expect(french.composer.pendingAccent == nil && !french.composer.isComposing)
     }
 
+    /// An accent waiting when the language switches or dictation starts goes in as is: none is left marked before
+    /// Hangul or after the transcript.
+    @Test func aWaitingAccentGoesInOnShiftAndDictation() throws {
+        let t = try Typist("com.apple.keylayout.US")
+        t.composer.hangulTables = PackData.hangul
+        t.composer.inputLanguages = [.english, .korean]
+        t.press(keyE, .option)
+        _ = t.composer.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
+        let shift = t.composer.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
+        #expect(commits(shift) == ["´"] && t.composer.pendingAccent == nil)
+        #expect(t.composer.inputLanguage == .korean)
+        t.press(5)  // g: ㅎ
+        t.press(40)  // k: ㅏ
+        #expect(t.composer.markedText == "하")
+        // Dictation in a command's text: the accent, then what was said.
+        let d = try Typist("com.apple.keylayout.US")
+        d.type("@improve caf")
+        d.press(keyE, .option)
+        _ = d.composer.handleFlagsChanged(keyCode: VirtualKey.rightOption, modifiers: [.option, .rightOption], timestamp: 2)
+        _ = d.composer.voiceHoldElapsed()
+        #expect(d.composer.pendingAccent == nil && d.composer.draft == "@improve caf´")
+        _ = d.composer.voiceFinished("hello", id: 1)
+        #expect(d.composer.draft.hasPrefix("@improve caf´") && d.composer.draft.hasSuffix("hello") && !d.composer.markedText.hasSuffix("´"))
+    }
+
     @Test func aLayoutOtherThanTheKeysLeavesThemAlone() throws {
         // The keys say "q" where the layout has "a": not this layout's keys, nothing is composed.
         let us = try #require(KeyboardLayout(id: "com.apple.keylayout.US"))
