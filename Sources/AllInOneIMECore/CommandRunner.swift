@@ -2,7 +2,8 @@ import Foundation
 
 /// Runs a `run` command (`CustomCommand`): the program starts in the home folder, without a shell,
 /// with the user's shell PATH; what it prints becomes the one result. It is stopped after its
-/// timeout, when it prints too much, or when the request is cancelled (Esc).
+/// timeout, when it prints too much, or when the request is cancelled (Esc). A Raycast script runs
+/// the same way, in its own folder (`run(_:arguments:environment:)`).
 public enum CommandRunner {
     /// Output kept from the program (more stops it).
     static let maxOutputBytes = 64 * 1024
@@ -27,11 +28,46 @@ public enum CommandRunner {
     /// time, the user's shell is started to read its PATH).
     public static func run(_ command: CustomCommand, input: String,
                            environment: [String: String]? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
+        let launch = Launch(argv: command.arguments(for: input), stdin: command.standardInput(for: input), timeout: command.timeout)
+        return run(launch, environment: environment)
+    }
+
+    /// Runs a Raycast script with `arguments` ($1 $2 $3, `RaycastScript.arguments(from:)`) in its folder (or
+    /// its `currentDirectoryPath`), /usr/local/bin on the PATH as Raycast adds it. Its result follows its
+    /// mode (`RaycastScript.result(for:)`); when it fails, its last line says why.
+    public static func run(_ script: RaycastScript, arguments: [String],
+                           environment: [String: String]? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
+        let launch = Launch(argv: script.launch + arguments, stdin: nil, timeout: script.timeout, directory: script.directory,
+                            result: script.result(for:), failureOnStandardOutput: true)
+        return run(launch, environment: environment, extraPath: "/usr/local/bin")
+    }
+
+    private static func run(_ launch: Launch, environment: [String: String]?,
+                            extraPath: String? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
-            let run = Run(command: command, input: input, continuation: continuation)
+            let run = Run(launch: launch, continuation: continuation)
             continuation.onTermination = { _ in run.cancel() }
-            DispatchQueue.global().async { run.start(environment: environment ?? ShellEnvironment.current) }
+            DispatchQueue.global().async {
+                var environment = environment ?? ShellEnvironment.current
+                if let extraPath, !(environment["PATH"] ?? "").split(separator: ":").contains(Substring(extraPath)) {
+                    environment["PATH"] = (environment["PATH"].map { $0 + ":" } ?? "") + extraPath
+                }
+                run.start(environment: environment)
+            }
         }
+    }
+
+    /// What is started, and how its output is read.
+    struct Launch: Sendable {
+        var argv: [String]
+        var stdin: String?
+        var timeout: Double
+        /// Where it runs (nil: the home folder).
+        var directory: URL? = nil
+        /// What it printed (`cleanOutput`) as the result: by default, one line with all of it.
+        var result: @Sendable (String) -> ConversionResult = { $0.isEmpty ? .empty : ConversionResult(versions: [CandidateLine($0)]) }
+        /// A failure's message may be on standard output, when nothing on standard error says why.
+        var failureOnStandardOutput = false
     }
 
     /// The program as it will be started: an absolute path, or the first match on `path`.
@@ -57,11 +93,12 @@ public enum CommandRunner {
         return !DeveloperTools.isStandIn(url) || DeveloperTools.installed(in: developerFolders)
     }
 
-    /// What the program printed, as inserted: control characters (colors, bells) removed, line
-    /// breaks and tabs kept, trailing blank lines dropped.
+    /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
+    /// removed, line breaks and tabs kept, trailing blank lines dropped.
     static func cleanOutput(_ data: Data) -> String {
         let text = String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\u{1B}\\][^\u{07}\u{1B}]*(\u{07}|\u{1B}\\\\)?", with: "", options: .regularExpression)
         var out = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
             if scalar == "\n" || scalar == "\t" { out.append(scalar); continue }
@@ -84,8 +121,7 @@ public enum CommandRunner {
 
     /// One run of a program. Its callbacks arrive on several queues; `lock` guards the state.
     private final class Run: @unchecked Sendable {
-        private let command: CustomCommand
-        private let input: String
+        private let launch: Launch
         private let continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation
         private let process = Process()
         private let lock = NSLock()
@@ -98,9 +134,8 @@ public enum CommandRunner {
         /// Both output pipes closed.
         private let pipes = DispatchGroup()
 
-        init(command: CustomCommand, input: String, continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) {
-            self.command = command
-            self.input = input
+        init(launch: Launch, continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) {
+            self.launch = launch
             self.continuation = continuation
         }
 
@@ -109,7 +144,7 @@ public enum CommandRunner {
             let skip = cancelled
             lock.unlock()
             guard !skip else { return }
-            let argv = command.arguments(for: input)
+            let argv = launch.argv
             guard let program = argv.first, let url = CommandRunner.resolve(program, path: environment["PATH"]) else {
                 continuation.finish(throwing: RunError.notFound(argv.first ?? ""))
                 return
@@ -117,7 +152,7 @@ public enum CommandRunner {
             process.executableURL = url
             process.arguments = Array(argv.dropFirst())
             process.environment = environment
-            process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+            process.currentDirectoryURL = launch.directory ?? FileManager.default.homeDirectoryForCurrentUser
             let stdout = Pipe(), stderr = Pipe(), stdin = Pipe()
             process.standardOutput = stdout
             process.standardError = stderr
@@ -139,13 +174,13 @@ public enum CommandRunner {
                 continuation.finish(throwing: RunError.notFound(program))
                 return
             }
-            let text = command.standardInput(for: input)
+            let text = launch.stdin
             DispatchQueue.global().async {
                 // Written off the caller's queue: a program that doesn't read would block the write.
                 if let text { try? stdin.fileHandleForWriting.write(contentsOf: Data(text.utf8)) }
                 try? stdin.fileHandleForWriting.close()
             }
-            let timeout = command.timeout
+            let timeout = max(launch.timeout, 0.1)
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [self] in stop(.timedOut(timeout)) }
         }
 
@@ -199,15 +234,18 @@ public enum CommandRunner {
             if let reason { return continuation.finish(throwing: reason) }
             guard status == 0 else {
                 // The last line with words says what went wrong (Python's traceback ends with it; markers
-                // like "~~^~~" above it are left out).
-                let message = CommandRunner.cleanOutput(errors).split(separator: "\n")
-                    .last { $0.contains { $0.isLetter } }?.trimmingCharacters(in: .whitespaces) ?? ""
+                // like "~~^~~" above it are left out). A Raycast script may say it on standard output.
+                func lastLine(_ data: Data) -> String? {
+                    CommandRunner.cleanOutput(data).split(separator: "\n")
+                        .last { $0.contains { $0.isLetter } }?.trimmingCharacters(in: .whitespaces)
+                }
+                let message = lastLine(errors) ?? (launch.failureOnStandardOutput ? lastLine(output) : nil) ?? ""
                 return continuation.finish(throwing: RunError.failed(status: status, message: String(message.prefix(300))))
             }
             let d = ContinuousClock.now - started
             let elapsed = Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
             let text = CommandRunner.cleanOutput(output)
-            let result = text.isEmpty ? ConversionResult.empty : ConversionResult(versions: [CandidateLine(text)])
+            let result = launch.result(text)
             continuation.yield(ConversionUpdate(result: result, rawText: text, isFinal: true, elapsed: elapsed,
                                                 firstTokenLatency: nil, fromCache: false))
             continuation.finish()
