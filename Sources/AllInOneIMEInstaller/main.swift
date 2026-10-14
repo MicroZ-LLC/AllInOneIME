@@ -20,12 +20,12 @@ let newVersion = Installer.version
 let manualAddHint = tr(
     """
     AllInOneIME 还不在你的输入法列表里，请自己添加一次：
-    系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME → 添加
+    系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加
     之后用 Ctrl+空格 切换到 AllInOneIME。
     """,
     """
     AllInOneIME isn't in your input sources yet, so add it once yourself:
-    System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → Chinese, Simplified → AllInOneIME → Add
+    System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → English → AllInOneIME → Add
     Then switch to it with Ctrl+Space.
     """)
 

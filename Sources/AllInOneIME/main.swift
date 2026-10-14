@@ -202,13 +202,13 @@ func register() -> Int32 {
         print(tr("""
 
             macOS 需要你手动添加一次（“键盘”设置应该已经打开）：
-              系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME → 添加
+              系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加
             之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。
             """, """
 
             macOS needs you to add it once (Keyboard settings should have opened):
               System Settings → Keyboard → Text Input › Input Sources "Edit…" → + at the bottom left
-              → Chinese, Simplified → AllInOneIME → Add
+              → English → AllInOneIME → Add
             Then switch to AllInOneIME with Ctrl+Space or the 🌐 key.
             """))
     }
