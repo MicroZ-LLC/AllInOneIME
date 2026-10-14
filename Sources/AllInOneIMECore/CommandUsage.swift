@@ -37,22 +37,35 @@ extension Command {
     /// them (`ScriptCommand.searchTerms`), each by use. Every match counts for `matching`; only these are shown.
     public static func palette(_ query: String, in commands: [Command], usage: CommandUsage,
                                limit: Int = paletteLimit, now: Date = Date()) -> [Command] {
-        let query = query.lowercased()
-        let ranked = commands.enumerated().compactMap { index, command -> (group: Int, score: Double, index: Int, command: Command)? in
+        paletteIndices(query, in: commands, usage: usage, now: now).prefix(limit).map { commands[$0] }
+    }
+
+    /// `palette`, as positions in `commands`, looking only at `candidates` (positions, in catalog order) when
+    /// given: what matched a shorter query this one goes on (a longer query matches no command it didn't).
+    static func paletteIndices(_ query: String, in commands: [Command], candidates: [Int]? = nil, usage: CommandUsage,
+                               now: Date = Date()) -> [Int] {
+        let query = Array(query.lowercased().utf8)
+        func starts(_ text: String.UTF8View, _ prefix: [UInt8]) -> Bool { text.starts(with: prefix) }
+        // Names and terms are ASCII: compared as bytes.
+        func contains(_ text: String.UTF8View, _ part: [UInt8]) -> Bool {
+            let bytes = Array(text)
+            guard bytes.count >= part.count else { return false }
+            return (0...(bytes.count - part.count)).contains { start in bytes[start..<start + part.count].elementsEqual(part) }
+        }
+        let ranked = (candidates ?? Array(commands.indices)).compactMap { index -> (group: Int, score: Double, index: Int)? in
+            let command = commands[index]
             let group: Int
-            if query.isEmpty || command.name.hasPrefix(query) {
+            if query.isEmpty || starts(command.name.utf8, query) {
                 group = 0
-            } else if command.name.contains(query) {
+            } else if contains(command.name.utf8, query) {
                 group = 1
-            } else if let script = command.script, script.searchTerms.contains(where: { $0.hasPrefix(query) }) {
+            } else if let script = command.script, script.searchTerms.contains(where: { starts($0.utf8, query) }) {
                 group = 2
             } else {
                 return nil
             }
-            return (group, usage.score(command.name, now: now), index, command)
+            return (group, usage.score(command.name, now: now), index)
         }
-        return ranked.sorted {
-            ($0.group, -$0.score, $0.index) < ($1.group, -$1.score, $1.index)
-        }.prefix(limit).map(\.command)
+        return ranked.sorted { ($0.group, -$0.score, $0.index) < ($1.group, -$1.score, $1.index) }.map(\.index)
     }
 }

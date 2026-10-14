@@ -374,7 +374,7 @@ final class CandidateView: NSView {
 
     /// A white symbol on a colored rounded square (a missing symbol: a generic one), or an emoji.
     static func draw(_ icon: Icon, in frame: NSRect) {
-        if let path = icon.image, let image = NSImage(contentsOfFile: path) {
+        if let path = icon.image, let image = CommandIcons.image(path) {
             image.draw(in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             return
         }

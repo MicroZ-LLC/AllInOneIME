@@ -167,10 +167,17 @@ enum UIText {
         case .notRunnable: return tr("不能运行：没有执行权限，第一行也不是 #!", "Can't be run: not executable, and no #! line")
         case .noName: return tr("文件名里没有英文字母，做不了命令名", "No letter in the file name to name the command")
         case .notForMac: return tr("不是给 macOS 用的（platform）", "Not for macOS (platform)")
-        case let .badBundle(reason): return tr("extension.json 有问题：", "extension.json: ") + reason
+        case let .badBundle(problem):
+            switch problem {
+            case .notJSON: return tr("extension.json 不是 JSON 对象", "extension.json isn't a JSON object")
+            case .badName: return tr("扩展包的 name 只能用字母、数字、- 和 _", "The bundle's name must be letters, digits, - or _")
+            case .noCommands: return tr("extension.json 里没有命令", "extension.json names no commands")
+            case .badPreference: return tr("有一个偏好设置没有 name，或者 type 不认识", "A preference has no name, or a type this app doesn't know")
+            }
+        case .brokenLink: return tr("这个替身（符号链接）指向的东西不在了", "A link to something that isn't there")
         case .bundleTaken: return tr("已经有一个同名的扩展包", "Another bundle with this name is loaded")
-        case let .nameTaken(owner):
-            let name = "@" + ScriptCommand.commandName(for: file)
+        case let .nameTaken(taken, owner):
+            let name = "@" + taken
             switch owner {
             case .builtIn: return tr("\(name) 是内置命令的名字", "\(name) is a built-in command")
             case .plugin: return tr("\(name) 是一个插件的名字", "\(name) is a plugin's name")

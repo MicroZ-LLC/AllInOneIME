@@ -322,11 +322,11 @@ struct ExtensionTests {
             folder.add("b/extension.json", json)
             return folder.load().skipped.first?.problem
         }
-        #expect(problem("[]") == .badBundle("extension.json isn't a JSON object"))
+        #expect(problem("[]") == .badBundle(.notJSON))
         #expect(problem(#"{"name": "b", "commands": [{"script": "x.sh"}]}"#) == .missing("schemaVersion"))
         #expect(problem(#"{"schemaVersion": 3, "name": "b", "commands": []}"#) == .newerProtocol(3))
-        #expect(problem(#"{"schemaVersion": 1, "name": "b c", "commands": [{"script": "x.sh"}]}"#) == .badBundle("its name must be letters, digits, - or _"))
-        #expect(problem(#"{"schemaVersion": 1, "name": "b", "commands": []}"#) == .badBundle("no commands"))
+        #expect(problem(#"{"schemaVersion": 1, "name": "b c", "commands": [{"script": "x.sh"}]}"#) == .badBundle(.badName))
+        #expect(problem(#"{"schemaVersion": 1, "name": "b", "commands": []}"#) == .badBundle(.noCommands))
         // Two bundles with one name: the first is kept.
         let folder = ScriptFolder()
         for name in ["a", "b"] {

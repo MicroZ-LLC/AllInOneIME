@@ -49,7 +49,7 @@ enum CommandIcons {
         }()
         switch script.icon {
         case let .emoji(emoji)?: return CandidateView.Icon(symbol: symbol, color: color, emoji: emoji)
-        case let .image(url)? where FileManager.default.fileExists(atPath: url.path):
+        case let .image(url)? where image(url.path) != nil:
             return CandidateView.Icon(symbol: symbol, color: color, image: url.path)
         case let .symbol(name)? where NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil:
             return CandidateView.Icon(symbol: name, color: color)
@@ -58,6 +58,16 @@ enum CommandIcons {
     }
 
     static let scripts = CandidateView.Icon(symbol: "terminal.fill", color: .systemTeal)
+
+    /// An extension's image file, read once (the list is drawn on each key: it isn't read again then).
+    private static var images: [String: NSImage?] = [:]
+
+    static func image(_ path: String) -> NSImage? {
+        if let known = images[path] { return known }
+        let image = NSImage(contentsOfFile: path)
+        images[path] = image
+        return image
+    }
 
     /// A custom command's own icon, or one for its type.
     static func icon(for custom: CustomCommand) -> CandidateView.Icon {

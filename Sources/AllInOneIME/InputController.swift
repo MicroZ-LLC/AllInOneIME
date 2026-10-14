@@ -23,12 +23,26 @@ struct DescribedError: LocalizedError {
 }
 
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
-/// shows up there) and at most every 30 seconds otherwise.
+/// shows up there) and at most every 30 seconds otherwise: then in the background, never while a key is
+/// handled (the key gets the plugins as last scanned). Main thread only.
 enum LivePlugins {
     private static var cached: (at: Date, result: (plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]))?
+    private static var scanning = false
 
     static func current(rescan: Bool = false) -> [InstalledPlugin] {
-        if !rescan, let cached, Date().timeIntervalSince(cached.at) < 30 { return cached.result.plugins }
+        guard rescan || cached == nil else {
+            if let cached, Date().timeIntervalSince(cached.at) >= 30, !scanning {
+                scanning = true
+                DispatchQueue.global(qos: .utility).async {
+                    let result = PluginStore.load()
+                    DispatchQueue.main.async {
+                        self.cached = (Date(), result)
+                        scanning = false
+                    }
+                }
+            }
+            return cached?.result.plugins ?? []
+        }
         let result = PluginStore.load()
         cached = (Date(), result)
         return result.plugins
@@ -167,8 +181,11 @@ final class AllInOneIMEInputController: IMKInputController {
         if rescan { LiveExtensions.discoverIfDue(config) }
         return LiveExtensions.current(config, rescan: rescan)
     }
-    /// The values a bundle's commands get (`LiveExtensions.preferences`; the self-test supplies its own).
-    var extensionPreferences: (ExtensionBundle, Config) -> [String: String] = { LiveExtensions.preferences(of: $0, config: $1) }
+    /// The values a bundle's commands get (`LiveExtensions.preferences`, the keychain read for passwords). Called
+    /// off the main thread, never while a key is handled.
+    var extensionPreferences: @Sendable (ExtensionBundle, Config) -> [String: String] = { LiveExtensions.preferences(of: $0, config: $1) }
+    /// The command list as last built from the settings and the extensions (`CatalogCache`).
+    private var catalog = CatalogCache()
     /// Where script extensions run (`ScriptTasks.shared`).
     lazy var scriptTasks: ScriptTasks = MainActor.assumeIsolated { ScriptTasks.shared }
     /// The script extension run of this field's request (`Composer.Effect.startScript`): its request and run.
@@ -425,8 +442,8 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
         (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
-        setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true),
-                                    scripts: loadExtensions(config, true).enabled(config.disabledExtensions)), recheck: true)
+        setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
+                                    disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
@@ -542,9 +559,11 @@ final class AllInOneIMEInputController: IMKInputController {
         ensureEngine()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
         if !composer.isComposing {
+            // Built again only when what it's made of changed (`CatalogCache`): not for each key.
             let config = loadSettings()
-            setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(),
-                                        scripts: loadExtensions(config, false).enabled(config.disabledExtensions)))
+            let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
+                                                      index: loadExtensions(config, false), disabled: config.disabledExtensions)
+            if changed { setCommands(commands) }
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
         }
@@ -665,8 +684,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 if SearchResult(name: "", path: path).webURL == nil { recordOpen(path) }
             case let .openLink(url):
                 // The site is public (a plugin's or the user's own template); the text in it is not.
-                log.notice("link command: opening \(url.host ?? "-", privacy: .public) in the browser")
-                openItem(url.absoluteString)
+                log.notice("link command: opening \(url.isFileURL ? "a file" : url.host ?? "-", privacy: .public)")
+                // A file (a script list's row) by its path, which isn't kept in @open's history.
+                openItem(url.isFileURL ? url.path : url.absoluteString)
             case let .startBackgroundAgent(prompt):
                 Task { @MainActor [weak self] in
                     do {
@@ -782,22 +802,30 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// The environment `command` runs with, or the message that keeps it from running: a required preference
-    /// of its bundle isn't set yet.
+    /// of its bundle isn't set yet. The keychain (password preferences) and the login shell's PATH are read off
+    /// the main thread: never while a key is handled.
     @MainActor
     private func scriptEnvironment(_ command: ScriptCommand, query: String, status: Bool = false,
-                                   action: Bool = false) -> Result<[String: String], DescribedError> {
+                                   action: Bool = false) async -> Result<[String: String], DescribedError> {
         let config = loadSettings()
         let bundle = loadExtensions(config, false).bundle(of: command)
-        let values = bundle.map { extensionPreferences($0, config) } ?? [:]
-        if let bundle, let missing = bundle.preferences.first(where: { $0.required && (values[$0.name] ?? "").isEmpty }) {
+        let context = scriptContext(query: query)
+        let preferences = extensionPreferences
+        let read = await Task.detached(priority: .userInitiated) { () -> (env: [String: String], missing: ExtensionBundle.Preference?) in
+            let values = bundle.map { preferences($0, config) } ?? [:]
+            let missing = bundle?.preferences.first { $0.required && (values[$0.name] ?? "").isEmpty }
+            return (context.environment(for: command, base: ShellEnvironment.current, preferences: values, status: status, action: action),
+                    missing)
+        }.value
+        if let missing = read.missing, let bundle {
             return .failure(DescribedError(message: tr("先在设置里填好「\(missing.title)」（\(bundle.title)）",
                                                        "Set “\(missing.title)” for \(bundle.title) in the settings first")))
         }
-        return .success(scriptContext(query: query).environment(for: command, base: ShellEnvironment.current, preferences: values,
-                                                                status: status, action: action))
+        return .success(read.env)
     }
 
-    /// Runs a script extension for this field's request: what it prints goes to the composer as it comes.
+    /// Runs a script extension for this field's request: what it prints goes to the composer as it comes. It
+    /// starts once its environment is ready (the request may be gone by then: Esc, another key).
     @MainActor
     private func startScript(_ command: Command, arguments: [String], query: String, id: Int, action: Bool) {
         guard let script = command.script else { return }
@@ -806,34 +834,38 @@ final class AllInOneIMEInputController: IMKInputController {
         lastElapsed = nil
         lastFromCache = false
         log.notice("conversion \(id) started (an extension, \(arguments.count) arguments)")
-        let environment: [String: String]
-        switch scriptEnvironment(script, query: query, action: action) {
-        case let .success(env): environment = env
-        case let .failure(error):
-            perform(composer.fail(error.message, id: id), client: nil)
-            return
-        }
-        let started = Date()
-        let run = scriptTasks.start(script, arguments: arguments, environment: environment, detached: false) { [weak self] event in
+        Task { @MainActor [weak self] in
             guard let self else { return }
-            switch event {
-            case let .update(update):
-                if update.isFinal {
-                    self.lastElapsed = Date().timeIntervalSince(started)
-                    if self.scriptRun?.request == id { self.scriptRun = nil }
-                }
-                self.perform(self.composer.receiveScript(update.output, isFinal: update.isFinal, id: id), client: nil)
-            case let .failed(error):
-                if self.scriptRun?.request == id { self.scriptRun = nil }
-                log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public)")
-                self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
+            let environment: [String: String]
+            switch await self.scriptEnvironment(script, query: query, action: action) {
+            case let .success(env): environment = env
+            case let .failure(error):
+                self.perform(self.composer.fail(error.message, id: id), client: nil)
+                return
             }
+            guard self.composer.phase == .translating(id: id) else { return }
+            let started = Date()
+            let run = self.scriptTasks.start(script, arguments: arguments, environment: environment, detached: false) { [weak self] event in
+                guard let self else { return }
+                switch event {
+                case let .update(update):
+                    if update.isFinal {
+                        self.lastElapsed = Date().timeIntervalSince(started)
+                        if self.scriptRun?.request == id { self.scriptRun = nil }
+                    }
+                    self.perform(self.composer.receiveScript(update.output, isFinal: update.isFinal, id: id), client: nil)
+                case let .failed(error):
+                    if self.scriptRun?.request == id { self.scriptRun = nil }
+                    log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public)")
+                    self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
+                }
+            }
+            self.scriptRun = run.map { (id, $0) }
         }
-        scriptRun = run.map { (id, $0) }
     }
 
     /// A `background` script extension: started on its own; the menu bar panel lists it and a notification says
-    /// how it went. Not during secure input (nothing runs then), nor twice at once.
+    /// how it went. Not during secure input (nothing runs then), nor twice at once, nor more than four.
     @MainActor
     private func startInBackground(_ command: Command, arguments: [String], query: String, client: IMKTextInput?) {
         guard let script = command.script else { return }
@@ -842,12 +874,15 @@ final class AllInOneIMEInputController: IMKInputController {
                           "Secure input is on (a password field or the lock screen): the command was not run"), client: client)
             return
         }
-        switch scriptEnvironment(script, query: query) {
-        case let .failure(error): showNotice(error.message, client: client)
-        case let .success(environment):
-            if scriptTasks.start(script, arguments: arguments, environment: environment, detached: true, handler: nil) == nil {
-                showNotice(tr("\(script.title) 已经在后台运行了（或后台命令太多）",
-                              "\(script.title) is already running in the background (or too many are)"), client: client)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            switch await self.scriptEnvironment(script, query: query) {
+            case let .failure(error): self.showNotice(error.message, client: nil)
+            case let .success(environment):
+                if self.scriptTasks.start(script, arguments: arguments, environment: environment, detached: true, handler: nil) == nil {
+                    self.showNotice(tr("\(script.title) 已经在后台运行了（或后台命令太多）",
+                                       "\(script.title) is already running in the background (or too many are)"), client: nil)
+                }
             }
         }
     }
@@ -865,28 +900,31 @@ final class AllInOneIMEInputController: IMKInputController {
         listTask = nil
         guard let query, let command, let script = command.script else { return }
         guard !secureInputActive(), case let .success(arguments) = script.arguments(from: query) else { return }
-        let environment: [String: String]
-        switch scriptEnvironment(script, query: query) {
-        case let .success(env): environment = env
-        case let .failure(error):
-            // A required preference isn't set: the list says so.
-            perform(composer.receiveList(.text(error.message), for: query), client: nil)
-            return
-        }
         listTask = Task { @MainActor [weak self] in
             var delay = now ? 0 : script.queryDelay
+            var environment: [String: String]?
             while true {
                 if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-                guard !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled else { return }
+                if environment == nil {
+                    switch await self.scriptEnvironment(script, query: query) {
+                    case let .success(env): environment = env
+                    case let .failure(error):
+                        // A required preference isn't set: the list says so.
+                        if !Task.isCancelled { self.perform(self.composer.receiveList(.text(error.message), for: query), client: nil) }
+                        return
+                    }
+                }
+                guard !Task.isCancelled, let env = environment else { return }
                 var output: ScriptOutput?
                 do {
-                    for try await update in CommandRunner.run(script, arguments: arguments, environment: environment) where update.isFinal {
+                    for try await update in CommandRunner.run(script, arguments: arguments, environment: env) where update.isFinal {
                         output = update.output
                     }
                 } catch {
                     output = .text(UIText.describe(error))
                 }
-                guard let self, !Task.isCancelled, let output else { return }
+                guard !Task.isCancelled, let output else { return }
                 self.perform(self.composer.receiveList(output, for: query), client: nil)
                 guard case let .list(list) = output, let rerun = list.rerun else { return }
                 delay = rerun
@@ -894,16 +932,15 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// The status lines of the commands the list shows, when they're due (`ScriptStatus`).
+    /// The status lines of the commands the list shows, when they're due (`ScriptStatus`); each one that ends
+    /// redraws the list and lets the next due one start.
     @MainActor
     private func refreshStatuses() {
         guard composer.paletteQuery != nil else { return }
         let shown = composer.paletteVisible.compactMap(\.script).filter { $0.status != nil }
         guard !shown.isEmpty, !secureInputActive() else { return }
         ScriptStatus.shared.refresh(shown, environment: { [weak self] command in
-            guard let self, case let .success(env) = self.scriptEnvironment(command, query: "", status: true) else {
-                return ShellEnvironment.current
-            }
+            guard let self, case let .success(env) = await self.scriptEnvironment(command, query: "", status: true) else { return nil }
             return env
         }) { [weak self] in
             guard let self, self.composer.paletteQuery != nil else { return }

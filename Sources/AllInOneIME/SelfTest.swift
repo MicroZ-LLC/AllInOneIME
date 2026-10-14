@@ -1817,6 +1817,12 @@ enum SelfTest {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-selftest-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: folder.appendingPathComponent("stbundle"), withIntermediateDirectories: true)
         let (loadExtensions, notify, ask) = (controller.loadExtensions, controller.scriptTasks.notify, controller.scriptTasks.askToNotify)
+        // Preferences that take a while to read (as the keychain may): a key never waits for them.
+        let preferences = controller.extensionPreferences
+        controller.extensionPreferences = { bundle, _ in
+            Thread.sleep(forTimeInterval: 0.3)
+            return bundle.values([:])
+        }
         var notified: [String] = []
         controller.scriptTasks.notify = { _, title, body in notified.append(title + " | " + body) }
         controller.scriptTasks.askToNotify = {}
@@ -1825,6 +1831,7 @@ enum SelfTest {
             controller.loadExtensions = loadExtensions
             controller.scriptTasks.notify = notify
             controller.scriptTasks.askToNotify = ask
+            controller.extensionPreferences = preferences
             controller.composer.setInputMode(settings.defaultInput)
         }
         func add(_ name: String, _ prefix: String, _ metadata: [String], _ body: String) {
@@ -1844,7 +1851,8 @@ enum SelfTest {
             + #""preferences": [{"name": "greeting", "type": "textfield", "title": "Greeting", "default": "hi"}], "#
             + #""commands": [{"script": "greet.sh", "name": "stgreet", "title": "Self-test Greet", "input": "optional"}]}"#
         try? Data(manifest.utf8).write(to: folder.appendingPathComponent("stbundle/extension.json"))
-        let index = ExtensionStore.load([.init(path: folder.path, found: false)])
+        var index = ExtensionStore.load([.init(path: folder.path, found: false)])
+        index.generation = 1_000_000  // another than the empty one's: the command list is built again for it
         check(index.commands.map(\.name) == ["stgreet", "sthello", "stlist", "stneeds", "stwait", "stquiet"] && index.skipped.isEmpty,
               "extensions read from a folder: the bundle's first, Raycast's last (\(index.commands.map(\.name)), \(index.skipped.count) skipped)")
         controller.loadExtensions = { _, _ in index }
@@ -1878,7 +1886,10 @@ enum SelfTest {
         }
         clear()
         if start("stlist") {
+            let typing = Date()
             typeText("abc")
+            let took = Date().timeIntervalSince(typing)
+            check(took < 0.25, String(format: "typing a list's text doesn't wait for its environment (3 keys in %.0f ms)", took * 1000))
             _ = pump(timeout: 5) { controller.composer.currentList != nil }
             let rows = controller.panelModel().rows.map(\.text)
             check(rows == ["first abc", "info"], "a list runs as the text is typed, its rows shown (\(rows))")
@@ -1899,8 +1910,8 @@ enum SelfTest {
             _ = act(controller, client)
             check(!controller.composer.isComposing && client.marked.isEmpty, "a background command starts and the draft is done")
             _ = pump(timeout: 5) { !notified.isEmpty }
-            check(notified.first?.hasSuffix("waited") == true && controller.scriptTasks.background.first?.outcome == .done,
-                  "…it notifies with its summary when done, and the menu bar panel lists it (\(notified))")
+            check(notified.first?.hasSuffix("| waited\n0.3 s") == true && controller.scriptTasks.background.first?.outcome == .done,
+                  "…it notifies with its summary and detail when done, and the menu bar panel lists it (\(notified))")
             controller.scriptTasks.background.forEach { controller.scriptTasks.remove($0.id) }
         }
         clear()

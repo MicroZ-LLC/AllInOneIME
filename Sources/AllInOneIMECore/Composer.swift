@@ -231,6 +231,8 @@ public final class Composer {
         public var scriptRan = "已运行："
         /// A `background` script started: its title follows.
         public var scriptStarted = "在后台运行，完成后通知你："
+        /// A list row's `open` with something that can't be opened: it follows.
+        public var cantOpen = "打不开："
         /// The action key's name in the interface language (the controller sets it).
         public var actionKeyName = "⏎"
 
@@ -287,12 +289,36 @@ public final class Composer {
             codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text",
             frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi",
             scriptNeeds: "Needs: ", scriptChoices: "Pick one of: ", confirmScript: "Run {title}? {key} again", scriptRan: "Ran ",
-            scriptStarted: "Running in the background, you'll be notified: ")
+            scriptStarted: "Running in the background, you'll be notified: ", cantOpen: "Can't open: ")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
     /// The commands "@" offers: the built-in ones and the user's (`Command.catalog`).
-    public var commands: [Command] = Command.builtins
+    public var commands: [Command] = Command.builtins {
+        didSet {
+            commandsByName = Self.byName(commands)
+            commandsGeneration &+= 1
+        }
+    }
+    /// `commands` by name, for the draft's command (`parse`), and how many times they were set: what the
+    /// command list matched is kept per query while they and the usage stay the same (`paletteMatches`).
+    /// With many script extensions, a key mustn't go through all of them again and again.
+    private var commandsByName = Composer.byName(Command.builtins)
+    private var commandsGeneration = 0
+    /// What the command list matched (positions in `commands`), by query, while `commands` and the usage stay.
+    private var paletteCache: (generation: Int, usage: CommandUsage, matches: [String: (positions: [Int], commands: [Command])])
+        = (-1, CommandUsage(), [:])
+
+    private static func byName(_ commands: [Command]) -> [String: Command] {
+        Dictionary(commands.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The command at the start of `text` and what follows it (as `Command.parse`, by name).
+    private func parse(_ text: String) -> (command: Command, content: String)? {
+        guard text.hasPrefix("@"), let space = text.firstIndex(of: " ") else { return nil }
+        guard let command = commandsByName[text[text.index(after: text.startIndex)..<space].lowercased()] else { return nil }
+        return (command, String(text[text.index(after: space)...]))
+    }
     /// How much each command is used: the list shows the most used first (set by the controller,
     /// shared by its text fields).
     public var commandUsage = CommandUsage()
@@ -583,7 +609,7 @@ public final class Composer {
     public var shownDraft: String {
         guard draft.contains("@") else { return draft }
         let chars = Array(draft)
-        let names = Set(commands.map(\.name))
+        let names = commandsByName
         let paletteAt = palette.map { draft.distance(from: draft.startIndex, to: $0.at) }
         let pickingCommand = palette.map { !$0.query.isEmpty && !paletteMatches.isEmpty } ?? false
         let inCommand = draftCommand != nil
@@ -604,7 +630,7 @@ public final class Composer {
             while j < chars.count, chars[j].isASCII, chars[j].isLetter || j > i + 1 && chars[j].isNumber { j += 1 }
             let name = String(chars[(i + 1)..<j]).lowercased()
             let afterWord = i > 0 && chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)
-            if !afterWord, i == 0 || !asTyped, names.contains(name), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
+            if !afterWord, i == 0 || !asTyped, names[name] != nil, j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]) {
                 out += String(chars[(i + 1)..<j]) + " › "  // a chosen command
                 i = chars[j] == " " ? j + 1 : j
             } else if i == paletteAt, pickingCommand {
@@ -705,7 +731,7 @@ public final class Composer {
 
     /// What level two works on: the text after the draft's command ("@question 量子计算" → "量子计算").
     public var sentText: String {
-        Command.parse(draft, in: commands).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
+        parse(draft).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
     }
 
     /// The language of the text after the command, for what the action key will do with it ("translate to …"): the
@@ -717,7 +743,7 @@ public final class Composer {
     }
 
     /// The command at the start of the draft, once its name is complete ("@question …").
-    public var draftCommand: Command? { Command.parse(draft, in: commands)?.command }
+    public var draftCommand: Command? { parse(draft)?.command }
 
     /// While a command name is typed after "@" at the start of the draft: the letters so far.
     public var paletteQuery: String? { palette?.query }
@@ -761,7 +787,30 @@ public final class Composer {
     /// All of them, the most used first, or what matches the letters (`Command.palette`); the list shows
     /// `paletteRows` at a time from `paletteFirstVisible`.
     public var paletteMatches: [Command] {
-        paletteQuery.map { Command.palette($0, in: paletteCommands, usage: commandUsage, limit: .max) } ?? []
+        guard let (query, nested, _) = palette else { return [] }
+        // Inside a text, the few that run there; at the start, all of them: kept for this query.
+        if nested { return Command.palette(query, in: paletteCommands, usage: commandUsage, limit: .max) }
+        return matches(for: query)
+    }
+
+    /// All the commands the list offers for `query` at the start of a draft, kept by query (typing a letter,
+    /// then ⌫, asks again for one just asked); a new query looks only at what its longest known start matched.
+    private func matches(for query: String) -> [Command] {
+        let query = query.lowercased()
+        if paletteCache.generation != commandsGeneration || paletteCache.usage != commandUsage || paletteCache.matches.count > 64 {
+            paletteCache = (commandsGeneration, commandUsage, [:])
+        }
+        if let known = paletteCache.matches[query] { return known.commands }  // the same array: nothing copied
+        var start = query
+        var candidates: [Int]?
+        while !start.isEmpty, candidates == nil {
+            start.removeLast()
+            candidates = paletteCache.matches[start].map { $0.positions.sorted() }  // back in catalog order
+        }
+        let found = Command.paletteIndices(query, in: commands, candidates: candidates, usage: commandUsage)
+        let matched = found.map { commands[$0] }
+        paletteCache.matches[query] = (found, matched)
+        return matched
     }
     public var paletteHighlighted: Int { min(paletteHighlight, max(paletteMatches.count - 1, 0)) }
 
@@ -1401,7 +1450,7 @@ public final class Composer {
     /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
     /// says it wasn't saved. A one-line note goes in like any other draft.
     private func finishAsTyped(_ text: String) -> [Effect] {
-        guard draftIsNoteWithLines, let content = Command.parse(text, in: commands)?.content else {
+        guard draftIsNoteWithLines, let content = parse(text)?.content else {
             return finish(committing: text, leaving: true)
         }
         let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1607,7 +1656,8 @@ public final class Composer {
             break
         }
         if plain, let text = event.printableText, text.count == 1, let c = text.first, c.isASCII {
-            if c.isLetter, !Command.palette(query + text, in: paletteCommands, usage: commandUsage).isEmpty {
+            let next = query + text
+            if c.isLetter, !(nested ? Command.palette(next, in: paletteCommands, usage: commandUsage) : self.matches(for: next)).isEmpty {
                 draft += text
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
@@ -1971,7 +2021,7 @@ public final class Composer {
     private func startAction() -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
-        let parsed = Command.parse(draft, in: commands)
+        let parsed = parse(draft)
         // Only an @ command is ever sent: without one the input method just types.
         guard parsed != nil else { return .consumed() }
         let input = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2059,12 +2109,7 @@ public final class Composer {
         let arguments: [String]
         switch script.arguments(from: input) {
         case let .success(values): arguments = values
-        case let .failure(.missing(placeholders)):
-            // Its one free-text argument: as for any command, a hint to write something.
-            if script.arguments.count == 1, script.arguments[0].placeholder.isEmpty { return .consumed([.notice(messages.typeAfterCommand)]) }
-            return .consumed([.notice(messages.scriptNeeds + placeholders.joined(separator: ", "))])
-        case let .failure(.notAChoice(_, titles)):
-            return .consumed([.notice(messages.scriptChoices + titles.joined(separator: ", "))])
+        case let .failure(problem): return .consumed([argumentNotice(problem, script)])
         }
         if script.confirm, confirmedScript != draft {
             confirmedScript = draft
@@ -2129,15 +2174,17 @@ public final class Composer {
     /// How many of a `show` script's last lines the panel has.
     public static let shownLines = 12
 
-    /// A list's rows as the panel shows them (`itemChoices`).
-    public static func itemChoicesForPanel(_ items: [ScriptItem]) -> [Choice] { itemChoices(items) }
+    /// A list's rows as the panel shows them while the text is typed (`itemChoices`): unnumbered, since a digit
+    /// typed there is text ("10 km"); ↑↓ and the action key pick.
+    public static func itemChoicesForPanel(_ items: [ScriptItem]) -> [Choice] { itemChoices(items, numbered: false) }
 
-    /// A list's rows: the ones to pick numbered 1–9, the rest (information) unnumbered.
-    static func itemChoices(_ items: [ScriptItem]) -> [Choice] {
+    /// A list's rows: the ones to pick numbered 1–9 (in level two, where digits pick), the rest (information)
+    /// unnumbered.
+    static func itemChoices(_ items: [ScriptItem], numbered: Bool = true) -> [Choice] {
         var number = 0
         return items.map { item in
             if item.valid { number += 1 }
-            let label = item.valid && number <= 9 ? String(number) : ""
+            let label = numbered && item.valid && number <= 9 ? String(number) : ""
             return Choice(label: label, kind: .item(item), text: item.title, isComplete: true, detail: item.subtitle)
         }
     }
@@ -2182,10 +2229,27 @@ public final class Composer {
         return items[listHighlight]
     }
 
-    /// The action key on a `list` command: the highlighted row's action, or (no list yet) a run now.
+    /// The action key on a `list` command: the highlighted row's action, or (no list yet) a run now; with a
+    /// required argument left empty, a notice of what's missing (it doesn't run without it).
     private func actOnList(_ command: Command) -> [Effect] {
-        guard let item = listItem else { return currentList == nil ? [.refreshList] : [] }
+        guard let item = listItem else {
+            guard currentList == nil, let script = command.script else { return [] }
+            if case let .failure(problem) = script.arguments(from: sentText) { return [argumentNotice(problem, script)] }
+            return [.refreshList]
+        }
         return perform(item, of: command)
+    }
+
+    /// The notice for text that can't be a script's arguments.
+    private func argumentNotice(_ problem: ScriptCommand.ArgumentProblem, _ script: ScriptCommand) -> Effect {
+        switch problem {
+        case let .missing(placeholders):
+            // Its one free-text argument: as for any command, a hint to write something.
+            if script.arguments.count == 1, script.arguments[0].placeholder.isEmpty { return .notice(messages.typeAfterCommand) }
+            return .notice(messages.scriptNeeds + placeholders.joined(separator: ", "))
+        case let .notAChoice(_, titles):
+            return .notice(messages.scriptChoices + titles.joined(separator: ", "))
+        }
     }
 
     /// Moves the list's highlight among the rows that can be picked.
@@ -2205,12 +2269,9 @@ public final class Composer {
         case .insert:
             return (typesResults ? finish(committing: "") + [.typeOut(item.insertText)] : finish(committing: item.insertText)) + [usage]
         case .open:
-            guard let target = item.openTarget else { return [] }
-            let lower = target.lowercased()
-            if lower.hasPrefix("http://") || lower.hasPrefix("https://"), let url = URL(string: target) {
-                return finish(committing: "") + [.openLink(url), usage]
-            }
-            return finish(committing: "") + [.open(path: target), usage]
+            // Only a web address, or a file or folder that's there; anything else is said, not tried.
+            guard let url = item.openURL else { return [.notice(messages.cantOpen + (item.arg ?? item.title))] }
+            return finish(committing: "") + [.openLink(url), usage]
         case .copy:
             return finish(committing: "") + [.copy(item.copyText), .notice(messages.copied), usage]
         case .run:

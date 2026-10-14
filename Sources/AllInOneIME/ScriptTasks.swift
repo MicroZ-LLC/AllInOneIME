@@ -38,8 +38,6 @@ final class ScriptTasks {
     private var tasks: [Int: Task<Void, Never>] = [:]
     private var handlers: [Int: (Event) -> Void] = [:]
     private var counter = 0
-    /// At most this many in the background at once.
-    static let maxBackground = 4
     /// Finished background runs kept for the panel.
     static let keptFinished = 8
 
@@ -67,8 +65,7 @@ final class ScriptTasks {
     func start(_ command: ScriptCommand, arguments: [String], environment: [String: String], detached: Bool,
                handler: ((Event) -> Void)?) -> Int? {
         if detached {
-            let running = runs.filter { $0.detached && $0.outcome == .running }
-            guard running.count < Self.maxBackground, !running.contains(where: { $0.command.id == command.id }) else { return nil }
+            guard BackgroundRuns.admits(command.id, running: runningInBackground) else { return nil }
             askToNotify()
         } else {
             // A newer query stops the older one.
@@ -109,9 +106,20 @@ final class ScriptTasks {
         changed()
     }
 
-    /// The field a run belonged to was left: it goes on in the background.
+    /// The ids of the commands running in the background.
+    private var runningInBackground: [String] {
+        runs.filter { $0.detached && $0.outcome == .running }.map(\.command.id)
+    }
+
+    /// The field a run belonged to was left: it goes on in the background, as one started there would
+    /// (`BackgroundRuns`): with four running already, or the same command, it's stopped instead.
     func detach(_ id: Int) {
         guard let index = runs.firstIndex(where: { $0.id == id }), runs[index].outcome == .running else { return }
+        guard BackgroundRuns.admits(runs[index].command.id, running: runningInBackground) else {
+            log.notice("extension run \(id) stopped: no room in the background")
+            cancel(id)
+            return
+        }
         handlers[id] = nil
         runs[index].detached = true
         askToNotify()
@@ -146,7 +154,7 @@ final class ScriptTasks {
         switch outcome {
         case .done:
             notify(id, tr("完成了：", "Done: ") + title,
-                   run.output?.headline ?? tr("点这里查看输出", "Click to see what it printed"))
+                   run.output?.notificationBody ?? tr("点这里查看输出", "Click to see what it printed"))
         case let .failed(message):
             notify(id, tr("出错了：", "Failed: ") + title, message)
         case .running: break

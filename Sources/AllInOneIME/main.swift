@@ -88,7 +88,23 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { SettingsWindow.shared.show() }
         return false
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+    }
 }
+
+/// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
+/// started, are stopped first (`CommandRunner.stopAll`), then the input method quits.
+private let terminationSignal: DispatchSourceSignal = {
+    signal(SIGTERM, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+    source.setEventHandler {
+        CommandRunner.stopAll()
+        exit(0)
+    }
+    return source
+}()
 
 func runServer(showSettings: Bool = false) -> Never {
     let app = NSApplication.shared
@@ -101,6 +117,9 @@ func runServer(showSettings: Bool = false) -> Never {
         exit(1)
     }
     log.info("IMKServer started: \(name, privacy: .public)")
+    terminationSignal.resume()
+    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
+    DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @claude tasks: notifications, and tasks from before a restart watched again.

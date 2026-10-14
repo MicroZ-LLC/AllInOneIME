@@ -12,6 +12,8 @@ enum LiveExtensions {
     private static var indexed: [ExtensionStore.Folder]?
     private static var rebuilding = false
     private static var rebuildAgain = false
+    /// What wants to know when the rebuilds under way and wanted are in.
+    private static var waiting: [() -> Void] = []
     private static let cache = ExtensionCache()
 
     /// The index as last built. `rescan`: build it again in the background (a text field became active);
@@ -25,32 +27,42 @@ enum LiveExtensions {
     /// The index built now, on this thread (the settings window, which shows what is there at once).
     static func load(_ config: Config) -> ExtensionIndex {
         let folders = ExtensionStore.folders(config, found: found)
-        index = ExtensionStore.load(folders, cache: cache)
+        var built = ExtensionStore.load(folders, cache: cache)
+        built.generation = built == index ? index.generation : index.generation &+ 1
+        index = built
         indexed = folders
         return index
     }
 
     private static func rebuild(_ folders: [ExtensionStore.Folder], done: (() -> Void)?) {
+        if let done { waiting.append(done) }
         guard !rebuilding else {
             rebuildAgain = true
             return
         }
         rebuilding = true
-        let cache = self.cache
+        let (cache, before) = (self.cache, index)
         DispatchQueue.global(qos: .utility).async {
-            let built = ExtensionStore.load(folders, cache: cache)
+            var built = ExtensionStore.load(folders, cache: cache)
+            // Compared here, off the main thread: the command list is built again only for a new generation.
+            let same = built == before
+            built.generation = same ? before.generation : before.generation &+ 1
             DispatchQueue.main.async {
-                if built != index, !built.commands.isEmpty || !built.skipped.isEmpty {
+                if !same, !built.commands.isEmpty || !built.skipped.isEmpty {
                     log.notice("extensions: \(built.commands.count) commands, \(built.bundles.count) bundles, \(built.skipped.count) skipped")
                 }
-                index = built
+                // Unless the settings read the folders meanwhile (`load`): theirs is as new.
+                if index.generation == before.generation { index = built }
                 indexed = folders
                 rebuilding = false
                 if rebuildAgain {
                     rebuildAgain = false
                     rebuild(ExtensionStore.folders(LiveConfig.current, found: found), done: nil)
+                    return
                 }
-                done?()
+                let done = waiting
+                waiting = []
+                done.forEach { $0() }
             }
         }
     }
@@ -101,44 +113,36 @@ enum LiveExtensions {
 }
 
 /// The status lines of the commands that have one (`ScriptCommand.status`), shown beside their names in the
-/// command list. Each is run in the background when the list shows it and its value is older than its refresh
-/// time, a few at a time and stopped after `ScriptCommand.Status.timeout`: a slow one never holds the list up,
-/// its value shows when it comes. Main thread only.
+/// command list: run in the background when the list shows them and they're due (`StatusSchedule`), a few at a
+/// time and stopped after `ScriptCommand.Status.timeout`. A slow one never holds the list up; one that ends,
+/// failed or not, lets the next due one start. Main thread only.
 @MainActor
 final class ScriptStatus {
     static let shared = ScriptStatus()
 
-    private var values: [String: (text: String?, at: Date)] = [:]
-    private var running: Set<String> = []
-    static let maxRunning = 2
+    private var schedule = StatusSchedule()
 
     /// The last status line of `command`, if it has one.
-    func text(for command: ScriptCommand) -> String? { values[command.id]?.text }
+    func text(for command: ScriptCommand) -> String? { schedule.text(for: command.id) }
 
-    /// Runs the status of those of `commands` whose value is due (`environment` gives each its environment);
-    /// `changed` is called when one arrives.
-    func refresh(_ commands: [ScriptCommand], environment: (ScriptCommand) -> [String: String], changed: @escaping () -> Void) {
-        let now = Date()
-        for command in commands {
-            guard let status = command.status, running.count < Self.maxRunning, !running.contains(command.id) else { continue }
-            if let value = values[command.id], now.timeIntervalSince(value.at) < status.refresh { continue }
-            running.insert(command.id)
-            let stream = CommandRunner.run(command, arguments: [], environment: environment(command), status: true)
-            let id = command.id
+    /// Runs the status of those of `commands` that are due (`environment` gives each its environment, nil: not
+    /// now); `ended` is called when one ends, to draw it and start the next due one.
+    func refresh(_ commands: [ScriptCommand], environment: @escaping (ScriptCommand) async -> [String: String]?,
+                 ended: @escaping () -> Void) {
+        for command in schedule.due(commands) {
             Task { @MainActor [weak self] in
                 var line: String?
-                do {
-                    for try await update in stream where update.isFinal {
-                        line = update.output.lines.first.map { String($0.prefix(40)) }
+                if let env = await environment(command) {
+                    do {
+                        for try await update in CommandRunner.run(command, arguments: [], environment: env, status: true) where update.isFinal {
+                            line = update.output.lines.first.map { String($0.prefix(40)) }
+                        }
+                    } catch {
+                        line = nil  // the value before stays until its next refresh time
                     }
-                } catch {
-                    line = nil  // its value stays empty until it works; tried again after its refresh time
                 }
-                guard let self else { return }
-                self.running.remove(id)
-                let old = self.values[id]?.text
-                self.values[id] = (line ?? old, Date())
-                if line != old { changed() }
+                self?.schedule.finished(command.id, line: line)
+                ended()
             }
         }
     }

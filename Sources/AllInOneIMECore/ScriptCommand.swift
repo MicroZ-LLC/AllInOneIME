@@ -140,12 +140,26 @@ public struct ScriptCommand: Hashable, Sendable {
         case noName
         /// Its `platform` leaves out macOS (Raycast).
         case notForMac
-        /// A bundle's `extension.json` that can't be read, and why.
-        case badBundle(String)
+        /// A bundle's `extension.json` that can't be used, and why.
+        case badBundle(BundleProblem)
         /// Another bundle with this name is loaded already.
         case bundleTaken
-        /// Another command has its name (and its `alias`, if any).
-        case nameTaken(by: Owner)
+        /// Another command has its name (and its `alias`, if any): the name, and what has it.
+        case nameTaken(String, by: Owner)
+        /// A symbolic link to nothing.
+        case brokenLink
+    }
+
+    /// What's wrong with an `extension.json`.
+    public enum BundleProblem: Hashable, Sendable {
+        /// It isn't a JSON object.
+        case notJSON
+        /// Its `name` isn't letters, digits, "-" and "_".
+        case badName
+        /// It names no commands.
+        case noCommands
+        /// A preference without a name, or of a type this app doesn't know.
+        case badPreference
     }
 
     /// What has a name a command wanted.
@@ -172,12 +186,15 @@ public struct ScriptCommand: Hashable, Sendable {
     public var name: String
     /// The name it takes when `name` is another command's (a bundle's way out of a clash).
     public var alias: String?
-    public var title: String
+    public var title: String { didSet { searchTerms = Self.terms(title, keywords) } }
     public var description: String?
     /// Shown after the title in the command list: a Raycast `packageName`, a bundle's title.
     public var group: String?
     /// More words the command list finds it by, besides its name and title.
-    public var keywords: [String]
+    public var keywords: [String] { didSet { searchTerms = Self.terms(title, keywords) } }
+    /// The words the command list finds it by besides its name: its title's words and its keywords, lowercased
+    /// (kept, not split again on each key).
+    public private(set) var searchTerms: [String]
     public var icon: Icon?
     public var input: Input
     public var arguments: [Argument]
@@ -212,6 +229,7 @@ public struct ScriptCommand: Hashable, Sendable {
         self.description = description
         self.group = group
         self.keywords = keywords
+        self.searchTerms = Self.terms(title ?? name, keywords)
         self.icon = icon
         self.input = input
         self.arguments = input == .none ? [] : arguments
@@ -252,9 +270,8 @@ public struct ScriptCommand: Hashable, Sendable {
     /// Raycast leaves out files named like `name.template.sh`: they are filled in before use. So does this.
     public static func isTemplate(_ file: URL) -> Bool { file.lastPathComponent.contains(".template.") }
 
-    /// The words the command list finds it by besides its name: its title's words and its keywords.
-    public var searchTerms: [String] {
-        (title.lowercased().split { !$0.isLetter && !$0.isNumber } .map(String.init) + keywords.map { $0.lowercased() })
+    static func terms(_ title: String, _ keywords: [String]) -> [String] {
+        title.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) + keywords.map { $0.lowercased() }
     }
 
     /// The emoji of its icon, if that's what it is.
@@ -286,8 +303,10 @@ extension ScriptCommand {
         for line in text.split(whereSeparator: \.isNewline) {
             for front in [FrontEnd.native, .raycast] {
                 guard let at = line.range(of: "@\(front.rawValue).") else { continue }
-                // Only comment marks before it.
-                guard line[..<at.lowerBound].allSatisfy({ $0.isWhitespace || "#/-;%'*".contains($0) }) else { continue }
+                // A comment mark before it, and nothing else (a line of text that mentions a key isn't metadata).
+                let before = line[..<at.lowerBound]
+                guard before.contains(where: { "#/-;%'*".contains($0) }),
+                      before.allSatisfy({ $0.isWhitespace || "#/-;%'*".contains($0) }) else { continue }
                 let rest = line[at.upperBound...]
                 let key = rest.prefix { $0.isLetter || $0.isNumber }
                 let value = rest.dropFirst(key.count).trimmingCharacters(in: .whitespaces)
@@ -306,6 +325,8 @@ extension ScriptCommand {
     /// `input: none`.
     static func nativeKeys(fromRaycast raycast: [String: String], folder: URL) -> Result<[String: String], Problem> {
         for key in ["schemaVersion", "title", "mode"] where raycast[key] == nil { return .failure(.missing(key)) }
+        // Raycast's own schema version (only 1 exists), not this protocol's.
+        guard raycast["schemaVersion"] == "1" else { return .failure(.badValue(key: "schemaVersion", value: raycast["schemaVersion"]!)) }
         if let platform = raycast["platform"]?.lowercased(), !platform.contains("mac") { return .failure(.notForMac) }
         var keys = raycast.filter { ["schemaVersion", "title", "description", "icon", "currentDirectoryPath",
                                      "argument1", "argument2", "argument3"].contains($0.key) }
@@ -329,7 +350,14 @@ extension ScriptCommand {
     /// The command a file's text describes, or why it can't be one; nil without metadata (any other file in
     /// a folder). `executable`: the file may be run as it is.
     public static func read(_ text: String, file: URL, executable: Bool) -> Result<ScriptCommand, Problem>? {
-        guard let (front, found) = metadata(in: text) else { return nil }
+        read(metadata(in: text), firstLine: firstLine(of: text), file: file, executable: executable)
+    }
+
+    /// `read`, from what a file's text holds that matters: its metadata and its first line (`ExtensionCache`
+    /// keeps only these).
+    static func read(_ metadata: (front: FrontEnd, keys: [String: String])?, firstLine: String,
+                     file: URL, executable: Bool) -> Result<ScriptCommand, Problem>? {
+        guard let (front, found) = metadata else { return nil }
         var keys = found
         if front == .raycast {
             switch nativeKeys(fromRaycast: found, folder: file.deletingLastPathComponent()) {
@@ -337,16 +365,22 @@ extension ScriptCommand {
             case let .failure(problem): return .failure(problem)
             }
         }
-        guard let launch = launch(for: file, text: text, executable: executable) else { return .failure(.notRunnable) }
+        guard let launch = launch(for: file, firstLine: firstLine, executable: executable) else { return .failure(.notRunnable) }
         return make(keys, source: front == .raycast ? .raycast : .script, file: file, launch: launch)
     }
 
-    /// How `file` is started: itself when it is executable, else the program on its "#!" line with it
-    /// ("#!/usr/bin/env python3" → /usr/bin/env python3 file); nil when neither.
-    static func launch(for file: URL, text: String, executable: Bool) -> [String]? {
+    /// The first line of `text`.
+    static func firstLine(of text: String) -> String {
+        String(text.prefix { $0 != "\n" && $0 != "\r" })
+    }
+
+    /// How `file` is started: itself when it is executable and has a "#!" line; else the program on that line
+    /// with it ("#!/usr/bin/env python3" → /usr/bin/env python3 file); an executable without one by /bin/sh, as
+    /// a shell runs it; nil when it's neither executable nor has a "#!" line.
+    static func launch(for file: URL, firstLine: String, executable: Bool) -> [String]? {
+        guard firstLine.hasPrefix("#!") else { return executable ? ["/bin/sh", file.path] : nil }
         if executable { return [file.path] }
-        guard let shebang = text.split(separator: "\n", maxSplits: 1).first, shebang.hasPrefix("#!") else { return nil }
-        let words = shebang.dropFirst(2).split(whereSeparator: \.isWhitespace).map(String.init)
+        let words = firstLine.dropFirst(2).split(whereSeparator: \.isWhitespace).map(String.init)
         return words.isEmpty ? nil : words + [file.path]
     }
 
@@ -388,6 +422,8 @@ extension ScriptCommand {
         // None declared: one free-text argument, required unless the input says otherwise.
         if arguments.isEmpty { arguments = [Argument()] }
         if declared == .optional { arguments = arguments.map { var a = $0; a.optional = true; return a } }
+        // `required`: something must be written, so the first argument is, whatever it says.
+        if declared == .required, arguments.allSatisfy(\.optional) { arguments[0].optional = false }
         let input = declared ?? (arguments.allSatisfy(\.optional) ? .optional : .required)
 
         guard let background = bool("background") else { return .failure(bad("background")) }
@@ -542,7 +578,8 @@ public struct ScriptContext: Equatable, Sendable {
         env["ALLINONEIME_LANGUAGE"] = language
         env["ALLINONEIME_INPUT_LANGUAGE"] = inputLanguage
         env["ALLINONEIME_APP"] = app ?? ""
-        env["ALLINONEIME_QUERY"] = query
+        // A password argument's value isn't repeated in the environment, where any program it starts could read it.
+        env["ALLINONEIME_QUERY"] = command.arguments.contains { $0.kind == .password } ? "" : query
         env["ALLINONEIME_EXTENSION_DIR"] = command.extensionDirectory.path
         if status { env["ALLINONEIME_STATUS"] = "1" }
         if action { env["ALLINONEIME_ACTION"] = "run" }

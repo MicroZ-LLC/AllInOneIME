@@ -90,22 +90,22 @@ public struct ExtensionBundle: Hashable, Sendable {
     /// The bundle in `folder` and its commands' entries (the keys of each, as strings), or why it can't be read.
     static func read(_ data: Data, folder: URL) -> Result<(ExtensionBundle, [[String: String]]), ScriptCommand.Problem> {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            return .failure(.badBundle("extension.json isn't a JSON object"))
+            return .failure(.badBundle(.notJSON))
         }
         guard let version = json["schemaVersion"] as? Int else { return .failure(.missing("schemaVersion")) }
         guard version <= ScriptCommand.protocolVersion else { return .failure(.newerProtocol(version)) }
         guard let name = json["name"] as? String, !name.isEmpty,
               name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else {
-            return .failure(.badBundle("its name must be letters, digits, - or _"))
+            return .failure(.badBundle(.badName))
         }
         guard let commands = json["commands"] as? [[String: Any]], !commands.isEmpty else {
-            return .failure(.badBundle("no commands"))
+            return .failure(.badBundle(.noCommands))
         }
         var preferences: [Preference] = []
         for item in json["preferences"] as? [[String: Any]] ?? [] {
             guard let name = item["name"] as? String, !name.isEmpty,
                   let kind = Preference.Kind(rawValue: item["type"] as? String ?? "textfield") else {
-                return .failure(.badBundle("a preference needs a name and a known type"))
+                return .failure(.badBundle(.badPreference))
             }
             let choices = (item["data"] as? [[String: Any]] ?? []).compactMap { choice -> ScriptCommand.Argument.Choice? in
                 guard let value = choice["value"].map({ "\($0)" }) else { return nil }
@@ -146,6 +146,13 @@ public struct ExtensionIndex: Equatable, Sendable {
     public var commands: [ScriptCommand]
     public var bundles: [ExtensionBundle]
     public var skipped: [ExtensionStore.Skipped]
+    /// Counts the indexes that differed from the one before (`LiveExtensions`): the command list is built again
+    /// only when it changes, not compared command by command on each key. Not part of `==`.
+    public var generation = 0
+
+    public static func == (a: ExtensionIndex, b: ExtensionIndex) -> Bool {
+        a.commands == b.commands && a.bundles == b.bundles && a.skipped == b.skipped
+    }
 
     public init(commands: [ScriptCommand] = [], bundles: [ExtensionBundle] = [], skipped: [ExtensionStore.Skipped] = []) {
         self.commands = commands
@@ -214,18 +221,28 @@ public enum ExtensionStore {
     }
 
     /// Reads `folders` (not those hidden): each one's bundles (subfolders with `extension.json`) and scripts,
-    /// by name, not deeper (as Raycast does). Files are read only when their size or date changed since
-    /// `cache` last saw them. Templates (`*.template.*`) and hidden files are left out.
+    /// by name, not deeper (as Raycast does). Symbolic links are followed: a linked folder, script or bundle
+    /// is read as the one it points to (a link to nothing is reported). Files are read only when their size,
+    /// date or permissions changed since `cache` last saw them; what it held for files gone is dropped.
+    /// Templates (`*.template.*`) and hidden files are left out.
     public static func load(_ folders: [Folder], cache: ExtensionCache = ExtensionCache()) -> ExtensionIndex {
         var bundles: [(ExtensionBundle, [ScriptCommand])] = []
         var scripts: [ScriptCommand] = []
         var skipped: [Skipped] = []
+        var seen = Set<String>()
+        func read(_ url: URL) -> ExtensionCache.File? {
+            seen.insert(url.path)
+            return cache.read(url)
+        }
         for folder in folders where !folder.hidden {
             for item in items(in: folder.url) {
-                if item.isFolder {
+                switch item.kind {
+                case .brokenLink:
+                    skipped.append(Skipped(file: item.url, problem: .brokenLink))
+                case .folder:
                     let manifest = item.url.appendingPathComponent(ExtensionBundle.manifestName)
-                    guard let data = cache.read(manifest)?.data else { continue }
-                    switch loadBundle(data, folder: item.url, cache: cache) {
+                    guard let data = read(manifest)?.json else { continue }
+                    switch loadBundle(data, folder: item.url, read: read) {
                     case let .success((bundle, commands, problems)):
                         if bundles.contains(where: { $0.0.name == bundle.name }) {
                             skipped.append(Skipped(file: manifest, problem: .bundleTaken))
@@ -236,8 +253,10 @@ public enum ExtensionStore {
                     case let .failure(problem):
                         skipped.append(Skipped(file: manifest, problem: problem))
                     }
-                } else if let file = cache.read(item.url), let text = file.text,
-                          let read = ScriptCommand.read(text, file: item.url, executable: file.executable) {
+                case .file:
+                    guard let file = read(item.url),
+                          let read = ScriptCommand.read(file.metadata, firstLine: file.firstLine, file: item.url,
+                                                        executable: file.executable) else { continue }
                     switch read {
                     case var .success(command):
                         command.id = abbreviated(item.url.path)
@@ -247,14 +266,15 @@ public enum ExtensionStore {
                 }
             }
         }
+        cache.keep(only: seen)
         // Bundles first, then single scripts, then Raycast's (stable within each).
         let ordered = bundles.flatMap(\.1) + scripts.filter { $0.source == .script } + scripts.filter { $0.source == .raycast }
         return ExtensionIndex(commands: ordered, bundles: bundles.map(\.0), skipped: skipped)
     }
 
     /// A bundle's commands (each entry's keys over its script's own `@allinoneime.` lines), and the entries
-    /// that can't be used.
-    static func loadBundle(_ data: Data, folder: URL, cache: ExtensionCache)
+    /// that can't be used (two with one name: the first is kept).
+    static func loadBundle(_ data: Data, folder: URL, read: (URL) -> ExtensionCache.File?)
         -> Result<(ExtensionBundle, [ScriptCommand], [Skipped]), ScriptCommand.Problem> {
         let bundle: ExtensionBundle, entries: [[String: String]]
         switch ExtensionBundle.read(data, folder: folder) {
@@ -265,22 +285,26 @@ public enum ExtensionStore {
         var skipped: [Skipped] = []
         for entry in entries {
             guard let script = entry["script"], !script.hasPrefix("/"), !script.split(separator: "/").contains("..") else {
-                skipped.append(Skipped(file: folder.appendingPathComponent(ExtensionBundle.manifestName), problem: .badValue(key: "script", value: entry["script"] ?? "")))
+                skipped.append(Skipped(file: folder.appendingPathComponent(ExtensionBundle.manifestName),
+                                       problem: .badValue(key: "script", value: entry["script"] ?? "")))
                 continue
             }
             let file = folder.appendingPathComponent(script)
-            let read = cache.read(file)
-            let text = read?.text ?? ""
-            guard let read, let launch = ScriptCommand.launch(for: file, text: text, executable: read.executable) else {
+            guard let found = read(file),
+                  let launch = ScriptCommand.launch(for: file, firstLine: found.firstLine, executable: found.executable) else {
                 skipped.append(Skipped(file: file, problem: .notRunnable))
                 continue
             }
-            var keys = ScriptCommand.metadata(in: text).flatMap { $0.front == .native ? $0.keys : nil } ?? [:]
+            var keys = found.metadata.flatMap { $0.front == .native ? $0.keys : nil } ?? [:]
             keys.merge(entry) { $1 }
             keys["script"] = nil
             let name = keys["name"]?.lowercased() ?? ScriptCommand.commandName(for: file)
-            switch ScriptCommand.make(keys, source: .bundle(bundle.name), file: file, launch: launch, id: "\(bundle.name)/\(name)",
-                                      extensionDirectory: folder) {
+            let id = "\(bundle.name)/\(name)"
+            if commands.contains(where: { $0.id == id }) {
+                skipped.append(Skipped(file: file, problem: .nameTaken(name, by: .command(id))))
+                continue
+            }
+            switch ScriptCommand.make(keys, source: .bundle(bundle.name), file: file, launch: launch, id: id, extensionDirectory: folder) {
             case var .success(command):
                 if command.group == nil { command.group = bundle.title }
                 commands.append(command)
@@ -290,15 +314,24 @@ public enum ExtensionStore {
         return .success((bundle, commands, skipped))
     }
 
-    /// The files and folders in `folder`, by name: not hidden ones, not templates.
-    static func items(in folder: URL) -> [(url: URL, isFolder: Bool)] {
-        let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey]
-        guard let items = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
-                                                                        options: [.skipsHiddenFiles]) else { return [] }
-        return items.filter { !ScriptCommand.isTemplate($0) }.sorted { $0.lastPathComponent < $1.lastPathComponent }.compactMap { url in
-            let values = try? url.resourceValues(forKeys: Set(keys))
-            if values?.isDirectory == true { return (url, true) }
-            return values?.isRegularFile == true ? (url, false) : nil
+    enum ItemKind { case file, folder, brokenLink }
+
+    /// The files and folders in `folder` (followed if it's a link), by name, links followed: not hidden ones,
+    /// not templates.
+    static func items(in folder: URL) -> [(url: URL, kind: ItemKind)] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return [] }
+        return names.filter { !$0.hasPrefix(".") && !$0.contains(".template.") }.sorted().compactMap { name in
+            let url = folder.appendingPathComponent(name)
+            var info = stat()
+            guard stat(url.path, &info) == 0 else {
+                var link = stat()
+                return lstat(url.path, &link) == 0 && (link.st_mode & S_IFMT) == S_IFLNK ? (url, .brokenLink) : nil
+            }
+            switch info.st_mode & S_IFMT {
+            case S_IFDIR: return (url, .folder)
+            case S_IFREG: return (url, .file)
+            default: return nil
+            }
         }
     }
 
@@ -331,8 +364,9 @@ public enum ExtensionStore {
     }
 
     static func isScript(_ file: URL) -> Bool {
-        guard let read = ExtensionCache().read(file), let text = read.text,
-              case .success? = ScriptCommand.read(text, file: file, executable: read.executable) else { return false }
+        guard let read = ExtensionCache().read(file),
+              case .success? = ScriptCommand.read(read.metadata, firstLine: read.firstLine, file: file, executable: read.executable)
+        else { return false }
         return true
     }
 
@@ -342,16 +376,21 @@ public enum ExtensionStore {
     }
 }
 
-/// The files read for the index, by path, kept while their size and modification date stay the same: a
-/// rebuild only reads what changed. Safe to use from any thread.
+/// What the index needs of the files it read, by path, kept while their size, modification date and
+/// permissions stay the same: a rebuild only reads what changed. Only that is kept (a script's metadata and
+/// first line, an `extension.json`), and files no longer read are dropped (`keep(only:)`). Safe to use from any
+/// thread.
 public final class ExtensionCache: @unchecked Sendable {
     public struct File: Sendable {
         var date: Date
-        var size: Int
-        /// The first `maxBytes` (nil for a binary file).
-        public var data: Data?
+        var size: Int64
+        var mode: UInt16
+        /// The `@allinoneime.` or `@raycast.` keys in its first 64 KB.
+        public var metadata: (front: ScriptCommand.FrontEnd, keys: [String: String])?
+        public var firstLine: String
+        /// An `extension.json`'s bytes.
+        public var json: Data?
         public var executable: Bool
-        public var text: String? { data.map { String(decoding: $0, as: UTF8.self) } }
     }
 
     private var files: [String: File] = [:]
@@ -361,21 +400,30 @@ public final class ExtensionCache: @unchecked Sendable {
 
     public init() {}
 
-    /// `url`'s first bytes and whether it may run, from the cache when its size and date are the same; nil when
-    /// it isn't a readable file.
+    /// What `url` (a link followed) holds for the index, from the cache when its size, date and permissions are
+    /// the same; nil when it isn't a readable regular file.
     public func read(_ url: URL) -> File? {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              attributes[.type] as? FileAttributeType == .typeRegular else { return nil }
-        let date = attributes[.modificationDate] as? Date ?? .distantPast
-        let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
-        if let cached = lock.withLock({ files[url.path] }), cached.date == date, cached.size == size { return cached }
+        var info = stat()
+        guard stat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let date = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec) + TimeInterval(info.st_mtimespec.tv_nsec) / 1e9)
+        let (size, mode) = (Int64(info.st_size), UInt16(info.st_mode))
+        if let cached = lock.withLock({ files[url.path] }), cached.date == date, cached.size == size, cached.mode == mode { return cached }
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         let data = (try? handle.read(upToCount: Self.maxBytes)) ?? Data()
-        let file = File(date: date, size: size, data: data.contains(0) ? nil : data,
-                        executable: FileManager.default.isExecutableFile(atPath: url.path))
+        let binary = data.contains(0)
+        let text = binary ? "" : String(decoding: data, as: UTF8.self)
+        let file = File(date: date, size: size, mode: mode, metadata: binary ? nil : ScriptCommand.metadata(in: text),
+                        firstLine: ScriptCommand.firstLine(of: text),
+                        json: url.lastPathComponent == ExtensionBundle.manifestName ? data : nil,
+                        executable: access(url.path, X_OK) == 0)
         lock.withLock { files[url.path] = file }
         return file
+    }
+
+    /// Drops what it holds for any file but `paths` (those gone, or no longer in a folder read).
+    public func keep(only paths: Set<String>) {
+        lock.withLock { files = files.filter { paths.contains($0.key) } }
     }
 
     /// How many files it holds (for the tests).

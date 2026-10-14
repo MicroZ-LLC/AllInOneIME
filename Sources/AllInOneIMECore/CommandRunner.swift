@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Runs a `run` command (`CustomCommand`): the program starts in the home folder, without a shell,
 /// with the user's shell PATH; what it prints becomes the one result. It is stopped after its
@@ -98,6 +99,30 @@ public enum CommandRunner {
 
     /// How often what a program printed so far is passed on (`Launch.streams`).
     static let streamInterval: Double = 0.1
+    /// How long a program stopped (Esc, its timeout) has to end before it and what it started are killed.
+    public static let stopGrace: Double = 0.5
+
+    /// The process groups of the programs running now (each runs in its own group: what it starts is in it too).
+    private static let groups = OSAllocatedUnfairLock(initialState: Set<pid_t>())
+
+    /// Stops every program still running, and what each started: the input method is quitting (an update,
+    /// logging out). Returns once they're gone, or after `grace` seconds, when they're killed.
+    public static func stopAll(grace: Double = stopGrace) {
+        stop(groups: runningGroups, grace: grace)
+    }
+
+    /// The process groups of the programs running now.
+    static var runningGroups: Set<pid_t> { groups.withLock { $0 } }
+
+    /// Stops `running` (process groups): SIGTERM, then after `grace` seconds SIGKILL to what's left.
+    static func stop(groups running: Set<pid_t>, grace: Double) {
+        guard !running.isEmpty else { return }
+        for group in running { kill(-group, SIGTERM) }
+        let deadline = Date().addingTimeInterval(grace)
+        while Date() < deadline, running.contains(where: { kill(-$0, 0) == 0 }) { usleep(20_000) }
+        for group in running { kill(-group, SIGKILL) }
+        groups.withLock { $0.subtract(running) }
+    }
 
     /// The program as it will be started: an absolute path, or the first match on `path`.
     public static func resolve(_ program: String, path: String?) -> URL? {
@@ -203,6 +228,9 @@ public enum CommandRunner {
             }
             do {
                 try process.run()
+                // Foundation starts it in a process group of its own (its id): stopping it reaches what it started.
+                let group = process.processIdentifier
+                CommandRunner.groups.withLock { _ = $0.insert(group) }
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
@@ -260,10 +288,11 @@ public enum CommandRunner {
             if running, let reason { stopReason = reason }
             lock.unlock()
             guard running else { return }
-            process.terminate()
-            let pid = process.processIdentifier
-            DispatchQueue.global().asyncAfter(deadline: .now() + 1) { [self] in
-                if process.isRunning { kill(pid, SIGKILL) }
+            // Its whole group: a script that ignores SIGTERM, or something it started, doesn't outlive it.
+            let group = process.processIdentifier
+            kill(-group, SIGTERM)
+            DispatchQueue.global().asyncAfter(deadline: .now() + CommandRunner.stopGrace) {
+                kill(-group, SIGKILL)
             }
         }
 
@@ -271,6 +300,8 @@ public enum CommandRunner {
             lock.lock()
             guard !finished else { return lock.unlock() }
             finished = true
+            let group = process.processIdentifier
+            CommandRunner.groups.withLock { _ = $0.remove(group) }
             let reason = stopReason, output = output, errors = errors, cancelled = cancelled
             lock.unlock()
             let status = process.terminationStatus

@@ -410,6 +410,8 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var extensionIndex = ExtensionIndex.empty
     @Published private(set) var extensionNames: [String: String] = [:]
     @Published private(set) var skippedExtensions: [ExtensionStore.Skipped] = []
+    /// The commands on but left out of the list because another command has their name: id → why.
+    @Published private(set) var hiddenExtensions: [String: ScriptCommand.Problem] = [:]
     /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
     @Published private(set) var passwordsSaved: Set<String> = []
     @Published private(set) var extensionError: String?
@@ -424,7 +426,8 @@ final class SettingsModel: ObservableObject {
         let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
         extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
             .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
-        skippedExtensions = index.skipped + hidden.map { ExtensionStore.Skipped(file: $0.script.file, problem: .nameTaken(by: $0.owner)) }
+        skippedExtensions = index.skipped
+        hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         passwordsSaved = Set(index.bundles.flatMap { bundle in
             bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
                 APIKeys.keychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name)) == nil
@@ -1017,8 +1020,11 @@ struct SettingsView: View {
             ForEach(model.extensionIndex.bundles, id: \.name) { bundle in bundleRow(bundle) }
             ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == nil }, id: \.id) { command in extensionRow(command) }
             ForEach(model.skippedExtensions, id: \.self) { skipped in
-                Label(tr("没有加载 \(skipped.file.lastPathComponent)：", "Not loaded, \(skipped.file.lastPathComponent): ")
-                          + UIText.describe(skipped.problem, file: skipped.file),
+                // A bundle's extension.json is named with its folder ("units/extension.json").
+                let file = skipped.file.lastPathComponent == ExtensionBundle.manifestName
+                    ? skipped.file.deletingLastPathComponent().lastPathComponent + "/" + skipped.file.lastPathComponent
+                    : skipped.file.lastPathComponent
+                Label(tr("没有加载 \(file)：", "Not loaded, \(file): ") + UIText.describe(skipped.problem, file: skipped.file),
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
@@ -1066,23 +1072,34 @@ struct SettingsView: View {
         }
     }
 
-    /// A command: its icon, the name it got, its title, what it does, and its switch.
+    /// A command: its icon, the name it got, its title and description, what it does, and its switch; one
+    /// left out because another command has its name says so.
     private func extensionRow(_ command: ScriptCommand) -> some View {
-        let on = model.isEnabled(command.id)
+        let hidden = model.hiddenExtensions[command.id]
+        let on = model.isEnabled(command.id) && hidden == nil
         let name = model.extensionNames[command.id] ?? command.name
         let input = command.input == .none ? tr("不用输入", "no input")
             : tr("\(command.arguments.count) 个参数", command.arguments.count == 1 ? "1 argument" : "\(command.arguments.count) arguments")
         let traits = [command.background ? tr("后台", "background") : UIText.name(command.output), input,
                       command.status != nil ? tr("状态", "status") : nil].compactMap { $0 }.joined(separator: " · ")
-        return HStack {
-            IconTile(icon: CommandIcons.icon(for: command))
-            Text("@" + name).font(.body.monospaced()).foregroundStyle(on ? .primary : .secondary)
-            Text(command.title).lineLimit(1).foregroundStyle(on ? .primary : .secondary)
-            if command.source == .raycast { Text("Raycast").font(.caption).foregroundStyle(.secondary) }
-            Spacer()
-            Text(traits).font(.caption).foregroundStyle(.secondary)
-            Toggle("", isOn: Binding(get: { on }, set: { model.setEnabled(command.id, $0) })).labelsHidden().toggleStyle(.switch)
-                .controlSize(.small)
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                IconTile(icon: CommandIcons.icon(for: command))
+                Text("@" + name).font(.body.monospaced()).foregroundStyle(on ? .primary : .secondary)
+                Text(command.title).lineLimit(1).foregroundStyle(on ? .primary : .secondary)
+                if command.source == .raycast { Text("Raycast").font(.caption).foregroundStyle(.secondary) }
+                Spacer()
+                Text(traits).font(.caption).foregroundStyle(.secondary)
+                Toggle("", isOn: Binding(get: { model.isEnabled(command.id) }, set: { model.setEnabled(command.id, $0) }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+            }
+            if let description = command.description {
+                Text(description).font(.caption).foregroundStyle(.secondary).lineLimit(2).padding(.leading, 28)
+            }
+            if let hidden {
+                Label(tr("没有加载：", "Not loaded: ") + UIText.describe(hidden, file: command.file), systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange).padding(.leading, 28)
+            }
         }
         .help(ExtensionStore.abbreviated(command.file.path))
     }
@@ -2476,7 +2493,7 @@ struct IconTile: View {
     var size: CGFloat = 20
 
     var body: some View {
-        if let path = icon.image, let image = NSImage(contentsOfFile: path) {
+        if let path = icon.image, let image = CommandIcons.image(path) {
             Image(nsImage: image).resizable().scaledToFit().frame(width: size, height: size).accessibilityHidden(true)
         } else if let emoji = icon.emoji {
             Text(emoji).font(.system(size: size * 0.8)).frame(width: size, height: size).accessibilityHidden(true)
@@ -2655,7 +2672,7 @@ enum KeyboardLayouts {
 }
 
 /// A bundle's preference (`ExtensionBundle.Preference`): a text field, a password (saved in the keychain, never
-/// shown again), a checkbox or a menu. Text is saved on Return or when the field loses focus.
+/// shown again), a checkbox or a menu. Text is saved on Return and when the field loses focus.
 private struct PreferenceField: View {
     let preference: ExtensionBundle.Preference
     let value: String
@@ -2663,6 +2680,7 @@ private struct PreferenceField: View {
     let saved: Bool
     let save: (String) -> Void
     @State private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         LabeledContent {
@@ -2676,14 +2694,18 @@ private struct PreferenceField: View {
                 .labelsHidden().frame(maxWidth: 220)
             case .password:
                 HStack {
-                    SecureField(saved ? tr("已存在钥匙串里", "Saved in the keychain") : tr("未设置", "Not set"), text: $text)
-                        .onSubmit { save(text); text = "" }
+                    SecureField("", text: $text, prompt: Text(saved ? tr("已存在钥匙串里", "Saved in the keychain") : tr("未设置", "Not set")))
+                        .labelsHidden().focused($focused)
+                        .onSubmit { commitPassword() }
+                        .onChange(of: focused) { if !focused { commitPassword() } }
                         .frame(maxWidth: 220)
                     if saved { Button(tr("移除", "Remove")) { save("") } }
                 }
             case .textfield:
-                TextField(preference.defaultValue ?? "", text: $text)
+                TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
+                    .labelsHidden().focused($focused)
                     .onSubmit { save(text) }
+                    .onChange(of: focused) { if !focused, text != value { save(text) } }
                     .onAppear { text = value }
                     .frame(maxWidth: 220)
             }
@@ -2695,5 +2717,12 @@ private struct PreferenceField: View {
                 }
             }
         }
+    }
+
+    /// A password typed is saved (and the field emptied); an empty field leaves the saved one alone.
+    private func commitPassword() {
+        guard !text.isEmpty else { return }
+        save(text)
+        text = ""
     }
 }

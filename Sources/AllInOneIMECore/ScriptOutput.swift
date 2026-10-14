@@ -49,6 +49,13 @@ public enum ScriptOutput: Hashable, Sendable {
         return lines.last
     }
 
+    /// What a background command's notification says under its title: the summary and its detail, else the
+    /// last line.
+    public var notificationBody: String? {
+        if case let .summary(summary, detail) = self, let detail, !detail.isEmpty { return summary + "\n" + detail }
+        return headline
+    }
+
     /// What ⌘C copies of it all: the text, or the summary and its detail.
     public var copyText: String {
         switch self {
@@ -134,6 +141,20 @@ public struct ScriptItem: Hashable, Sendable {
 
     /// What `copy` and ⌘C take: `text.copy`, its `arg`, or its title.
     public var copyText: String { copy ?? arg ?? title }
+
+    /// What `open` may open: an http(s) address; a `file://` address, an absolute path or a "~/" one that's there.
+    /// Not a file Terminal would run (`.command`, `.tool`, `.terminal`), nor any other scheme or a relative path.
+    public var openURL: URL? {
+        guard let target = openTarget else { return nil }
+        let lower = target.lowercased()
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") {
+            guard let url = URL(string: target), url.host != nil else { return nil }
+            return url
+        }
+        guard target.hasPrefix("/"), FileManager.default.fileExists(atPath: target),
+              !["command", "tool", "terminal"].contains((target as NSString).pathExtension.lowercased()) else { return nil }
+        return URL(fileURLWithPath: target)
+    }
 
     /// What `open` opens: a web address as it is, a path with "~" expanded.
     public var openTarget: String? {
