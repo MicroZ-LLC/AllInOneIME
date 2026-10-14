@@ -8,7 +8,8 @@ A macOS input method with AI commands in every text field. Start a sentence with
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
 `@question` asks a question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web
 address. You can also hold right ⌥ and talk. Without `@`, your keys go to the app as usual. It's also a full
-Chinese (pinyin) input method, built on Rime and rime-ice, for those who want one.
+Chinese (pinyin) input method, built on Rime and rime-ice, for those who want one, and types French, Korean (Hangul)
+and Hindi (Devanagari from Latin letters).
 
 Author: [Weijian Zhang](https://weijianz.com)
 
@@ -21,7 +22,7 @@ For more detail (every command and setting, installation troubleshooting, privac
 ## How to use
 
 Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
-A new install writes English; to type Chinese (pinyin) too, add it in the settings (see [Input and translation](#input-and-translation)).
+A new install writes English; to type Chinese (pinyin), French, Korean or Hindi too, add it in the settings (see [Input and translation](#input-and-translation)).
 
 | Key | What it does |
 |---|---|
@@ -33,8 +34,8 @@ A new install writes English; to type Chinese (pinyin) too, add it in the settin
 | ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
 | Esc, ⌫ | Back to the sentence to keep editing; typing just continues it |
-| Tap Shift | With both Chinese and English as input languages: switch between them |
-| Hold right ⌥ | Talk, release to stop. English in English mode, Chinese in Chinese mode. In a command, the text goes after it; otherwise it's inserted directly |
+| Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
+| Hold right ⌥ | Talk, release to stop. In the language you're typing (English, Chinese, French, Korean or Hindi). In a command, the text goes after it; otherwise it's inserted directly |
 
 ## @ commands (beta)
 
@@ -190,11 +191,16 @@ What it reads, and when:
 
 In the settings:
 
-- **Input languages**: English, Chinese (pinyin), or both. A new install starts with English only; to type Chinese too, add Chinese (pinyin) with +. New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
-- **Language packs**: the app comes with English only. Every other input language is a pack you download when you add it: adding Chinese (pinyin) downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart. The pack is data only (dictionaries and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Removing the language offers to delete its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
+- **Input languages**: one to five of English, Chinese (pinyin), French, Korean and Hindi, added with + (always there; greyed out at five). A new install starts with English only. New text fields start in the first; tap Shift for the next, in their order; with one, Shift doesn't switch.
+  - **French** types with its own keyboard layout: AZERTY unless you pick another on its card. Its dead keys (^, ¨, ´) compose from it too.
+  - **Korean** types Hangul in the 2-set (Dubeolsik) layout, each syllable put together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ.
+  - **Hindi**: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them; otherwise Space inserts the first spelling, a digit another, ⏎ the letters as typed, and "." the danda (।).
+  - A command's name, `@open`'s text and code (`@py`, `@js`) are typed in letters whatever the language; it comes back after the command.
+  - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages (French is told apart from English when it's one of your input languages).
+- **Language packs**: the app comes with English (and French, which needs only macOS's layout). Chinese, Korean and Hindi are packs you download when you add them: adding Chinese (pinyin) downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart; Korean's pack (its key table and how jamo make syllables) and Hindi's (its letters and common words) are a few kilobytes. A pack is data only (dictionaries, tables and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Each language's card shows its pack (version, size, where it came from) with Delete…, and removing the language offers to delete its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
 - **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. On the Input page, pick Chinese (pinyin) in the bar of input languages, turn on "Fuzzy pinyin" and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
 - **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese, Hindi, Bengali, Tamil and the other main Indian languages…) and drag them into order. Hindi typed in Latin letters ("aap kaise ho") comes back in Devanagari. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` opens this page to add one.
-- **Keyboard layouts**: under the input method macOS keeps your last Latin layout (AZERTY, QWERTZ, Spanish, US International…), so you type as usual, `@` included wherever your layout has it, and dead keys compose in a command's text too (⌥E then E → é, ^ then e → ê). Layouts without Latin letters (Russian, Hindi InScript) can't be used under an input method: switch to them with ⌃Space, or paste (⌃V) or dictate text into a command.
+- **Keyboard layouts**: French types with the layout picked on its card (`keyboardLayouts` in the config). For the other languages, under the input method macOS keeps your last Latin layout (AZERTY, QWERTZ, Spanish, US International…), so you type as usual, `@` included wherever your layout has it, and dead keys compose in a command's text too (⌥E then E → é, ^ then e → ê). Layouts without Latin letters (Russian, Hindi InScript) can't be used under an input method: switch to them with ⌃Space, or paste (⌃V) or dictate text into a command.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
 
 ## Rewrite styles
@@ -234,7 +240,7 @@ Only the first 150 terms are read. With "Jargon" checked, the list is sent to Be
 
 <img src="docs/en/voice.png" width="340" alt="Hold right ⌥ to talk">
 
-Hold right ⌥ and talk; when you let go, the text is inserted. If you type a command first (e.g. `@improve `, `@question `) and then talk, the text goes after the command and ⏎ runs it; you can also press ⏎ without letting go of right ⌥ to run it as soon as you finish. Speech is recognized on the Mac by macOS's built-in speech recognition (SpeechAnalyzer), and no audio is uploaded; it needs macOS 26 or later.
+Hold right ⌥ and talk; when you let go, the text is inserted. It's recognized in the language you're typing (English, Chinese, French, Korean or Hindi). If you type a command first (e.g. `@improve `, `@question `) and then talk, the text goes after the command and ⏎ runs it; you can also press ⏎ without letting go of right ⌥ to run it as soon as you finish. Speech is recognized on the Mac by macOS's built-in speech recognition (SpeechAnalyzer), and no audio is uploaded; it needs macOS 26 or later.
 
 The first time:
 
@@ -320,7 +326,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 | Key | What it does | Default |
 |---|---|---|
-| `inputLanguages` | Input languages, the first is the default: `["en"]`, `["en", "zh"]`, `["zh"]` | `["zh"]` |
+| `inputLanguages` | Input languages, one to five, the first is the default: `"en"` English, `"zh"` Chinese (pinyin), `"fr"` French, `"ko"` Korean, `"hi"` Hindi, e.g. `["en", "zh"]`, `["fr", "en", "ko"]`. Chinese, Korean and Hindi work once their pack is installed | `["en"]` (a new install) |
+| `keyboardLayouts` | The keyboard layout an input language types with, by its code (only French so far): `{"fr": "com.apple.keylayout.French-PC"}` | French: `com.apple.keylayout.French` (AZERTY) |
 | `outputLanguages` | What `@translate` translates into, in order: `["es", "fr", "de"]`, … | `["en"]` |
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
@@ -349,6 +356,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
+make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -368,7 +376,7 @@ Code layout:
 Language packs have their own library, apart from the plugins: the repository
 [MicroZ-LLC/AllInOneIME-languages](https://github.com/MicroZ-LLC/AllInOneIME-languages), served at
 https://languages.allinoneime.com/, signed with their own key. `make pack` builds the archive; it's published as a
-release asset there (release `zh-pinyin-<version>`), and `swift Scripts/build-packs-index.swift <languages repo>
+release asset there (release `zh-pinyin-<version>`, `ko-hangul-<version>`, `hi-phonetic-<version>`), and `swift Scripts/build-packs-index.swift <languages repo>
 build/packs/*.tar.xz.json` writes `packs.json` there and signs it into `packs.json.sig` with the language packs' key
 from the keychain (`allinoneime-languages-signing`). The app reads https://languages.allinoneime.com/packs.json, checks
 the signature, then the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and

@@ -11,11 +11,21 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
+- French, Korean and Hindi as input languages, next to English and Chinese: add them under Input → +.
+  - French types with its own keyboard layout: AZERTY unless you pick another on its card (`keyboardLayouts` in the config), its dead keys (^, ¨, ´) too. The other languages keep the layout you use in the system.
+  - Korean types Hangul in the 2-set (Dubeolsik) layout, putting each syllable together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ. It works in a command's text too.
+  - Hindi: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them (karna → करना, nahi → नहीं); otherwise pick a spelling: Space inserts the first and a space, a digit another, ⏎ the letters as typed, and "." types the danda (।).
+  - Dictation (hold right ⌥) listens in the language you're typing.
+  - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages, English included. (French is told apart from English when French is one of your input languages.)
 - Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Punjabi and Urdu as translation languages. Hindi typed in Latin letters ("aap kaise ho") is translated into Devanagari, each in its own script; a Mac set to one of them (hi-IN …) translates into it from the start.
 - ← → move the cursor in a command's text (`@question …`), as in any text field: type, pinyin, ⌫, a paste or speech go in where it is. ⌘← ⌘→ (or Home, End) go to the start or end of the text, ⌥← ⌥→ a word at a time, fn⌫ deletes after the cursor. The cursor never goes into the command itself; ⏎ runs the whole text.
 
 ### Changed
 
+- Korean and Hindi are language packs, like Chinese: adding either downloads its small pack (Korean's key table and how jamo make syllables; Hindi's letters and common words), data only, signed and checked like the Chinese pack. Their cards show the pack with Delete…. French needs no pack: its layout is macOS's.
+- A tap of Shift goes through your input languages in their order (English → French → Korean → …, then back to the first), as they're ordered under Input; with one, Shift doesn't switch.
+- One to five input languages: the + under Input is always shown, its menu ending with "More input languages are coming", and greyed out once there are five.
+- The model's settings (output tokens, temperature, timeout) are a Model Settings card on the AI Provider page now, no longer under Advanced; "Send temperature" shows only for Bedrock, the one provider it applies to. Advanced keeps the config file and the Rime user folder.
 - License: from this version on, AllInOneIME is source available under the Functional Source License 1.1 (FSL-1.1-ALv2) instead of the GPL-3.0. It's still free, and you can read, change and share the source for anything but a competing product; each version becomes Apache-2.0 two years after its release. 0.6.1 and earlier stay available under the GPL-3.0. rime-ice's Lua scripts and the Chinese pack are still GPL-3.0, with their license.
 - Chinese (pinyin) is a language pack now: the app comes with English only (about 120 MB smaller), and adding Chinese (pinyin) under Input → + downloads its dictionaries with a progress bar; pinyin works when it's done, without a restart. The pack is data only, listed in a signed index and checked against its SHA-256, like plugins. Its card under Input shows the pack (version, size, where it came from) with Delete…; removing Chinese also offers to delete the pack. Updating keeps Chinese without a download: the installer keeps the dictionaries the previous version came with (if it can't, the input method downloads them once by itself).
 - AllInOneIME is now an English input source: to add it by hand, it's under English (no longer Chinese, Simplified) in System Settings → Keyboard → Input Sources → +. Installing the update changes it in place: it stays in your input sources and nothing needs to be added again. Password fields still switch to the system's keyboard (U.S. or ABC) and back, as before.
