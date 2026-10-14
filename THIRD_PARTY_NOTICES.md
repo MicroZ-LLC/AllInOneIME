@@ -10,7 +10,7 @@ stored in this repository.
 | librime-lua (plugin, in the release build) | 68f9c36 | BSD-3-Clause | https://github.com/hchunhui/librime-lua |
 | librime-octagram (plugin, in the release build) | dfcc151 | BSD-3-Clause | https://github.com/lotem/librime-octagram |
 | librime-predict (plugin, in the release build) | 920bd41 | BSD-3-Clause | https://github.com/rime/librime-predict |
-| rime-ice 雾凇拼音 (schemas, dictionaries, Lua scripts) | 2026.06.30 | GPL-3.0 | https://github.com/iDvel/rime-ice |
+| rime-ice 雾凇拼音 (Lua scripts in the app; schemas and dictionaries in the Chinese language pack) | 2026.06.30 | GPL-3.0 | https://github.com/iDvel/rime-ice |
 
 The librime release build has these compiled into `librime.1.dylib` and its plugins (Lua into
 librime-lua); versions as pinned by librime 1.16.1:
@@ -457,5 +457,6 @@ Apache License
 ## rime-ice
 
 rime-ice is licensed under the GNU General Public License v3.0 (the same text as `LICENSE` in this
-repository). Its full source is included unmodified in the app bundle under
-`Contents/SharedSupport/rime`, together with dictionaries prebuilt from it.
+repository). Its Lua scripts are included unmodified in the app bundle under
+`Contents/SharedSupport/rime-lua`; the rest of its source (schemas, dictionaries, its LICENSE), unmodified,
+with dictionaries prebuilt from it, is the Chinese (pinyin) language pack, downloaded when Chinese is added.

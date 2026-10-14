@@ -1821,10 +1821,16 @@ enum SelfTest {
         check(NSClassFromString(className) == AllInOneIMEInputController.self,
               "Info.plist controller class '\(className)' resolves")
 
-        // Level one: the bundled dictionaries with a throw-away user directory.
+        // Level one: the Chinese data (`--rime-data`, which `make selftest` passes, else the installed pack)
+        // with a throw-away user directory.
         guard let shared = RimeDirectories.shared, FileManager.default.fileExists(atPath: shared.path) else {
-            print("✗ Rime data missing from the bundle")
+            print("✗ no Rime data: pass --rime-data ThirdParty/rime-data or install the Chinese pack")
             return 1
+        }
+        // A downloaded pack has no Lua of its own: the app's is linked in, as at launch.
+        if FileManager.default.fileExists(atPath: shared.appendingPathComponent("install.json").path) {
+            check((try? LanguagePackStore(directory: shared.deletingLastPathComponent())
+                .linkCode(.chinesePinyin, from: RimeDirectories.code)) != nil, "the app's Rime scripts linked into the pack")
         }
         let userDir = snapshotDirectory.appendingPathComponent("rime-user")
         let logDir = snapshotDirectory.appendingPathComponent("rime-log")

@@ -191,6 +191,7 @@ What it reads, and when:
 In the settings:
 
 - **Input languages**: English, Chinese (pinyin), or both. A new install starts with English only; to type Chinese too, add Chinese (pinyin) with +. New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
+- **Language packs**: the app comes with English only. Every other input language is a pack you download when you add it: adding Chinese (pinyin) downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart. The pack is data only (dictionaries and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Removing the language offers to delete its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
 - **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. On the Input page, pick Chinese (pinyin) in the bar of input languages, turn on "Fuzzy pinyin" and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
 - **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` opens this page to add one.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.
@@ -281,6 +282,7 @@ make install
 ```
 
 `make install` downloads librime and the rime-ice dictionaries and verifies them, builds, and installs into the same places, adding it to your input sources the same way.
+The app it installs has no Chinese dictionaries (they're the Chinese language pack): an install that had them keeps them as the pack; otherwise `make install-pack` installs the pack from the checkout's dictionaries, without a download.
 `make status` shows the installed version (`version:`) and whether it's in your input sources (`listed:`). To uninstall: `make uninstall`.
 
 ## Setting up the AI
@@ -345,6 +347,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
+make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -360,6 +363,13 @@ Code layout:
 - `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" on the disk image: installs, updates and uninstalls
+
+Language packs: `make pack` builds the archive; it's published as a release asset of the plugin library
+repository (MicroZ-LLC/AllInOneIME-plugins, release `zh-pinyin-<version>`), and `swift Scripts/build-packs-index.swift
+<plugins repo> build/packs/*.tar.xz.json` writes `packs.json` there and signs it into `packs.json.sig` with the plugin
+library's key from the keychain. The app reads https://plugins.allinoneime.com/packs.json, checks the signature, then
+the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and
+`AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`.
 
 The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to remember the added input source and the microphone permission, so changing it would mean adding the input method and granting the permission again.
 

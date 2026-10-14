@@ -372,12 +372,20 @@ final class AllInOneIMEInputController: IMKInputController {
     // MARK: - Level one engine
 
     /// Creates the Rime session once librime has finished deploying (and again after a re-deploy).
+    /// Without the Chinese pack librime never starts: English letters (`LatinEngine`), so typing and
+    /// commands work; while it deploys, keys go through as before.
     @MainActor
     func ensureEngine() {
         if let session, session.isValid { return }
         guard let fresh = RimeService.shared.makeSession() else {
-            composer.engine = nil
             session = nil
+            if RimeService.shared.isStarted {
+                composer.engine = nil
+            } else if !(composer.engine is LatinEngine) {
+                composer.engine = LatinEngine()
+                appliedDefaultInput = nil
+                applySettings()
+            }
             return
         }
         session = fresh
@@ -400,12 +408,15 @@ final class AllInOneIMEInputController: IMKInputController {
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
-        composer.inputLanguages = config.inputLanguages
+        // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
+        let languages = LanguagePackManager.shared.usable(config.inputLanguages)
+        let defaultInput = languages.contains(config.defaultInput) ? config.defaultInput : languages[0]
+        composer.inputLanguages = languages
         // With one input language, a field is always in it (it may have been switched before it was the only one).
-        let onlyOne = config.inputLanguages.count == 1
-        if appliedDefaultInput != config.defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
-            composer.setInputMode(config.defaultInput)
-            appliedDefaultInput = config.defaultInput
+        let onlyOne = languages.count == 1
+        if appliedDefaultInput != defaultInput || onlyOne, composer.engine != nil, !composer.isComposing {
+            composer.setInputMode(defaultInput)
+            appliedDefaultInput = defaultInput
         }
     }
 
@@ -1593,11 +1604,14 @@ final class AllInOneIMEInputController: IMKInputController {
         let inputs = NSMenu()
         // The added input languages, the default one checked (a new text field starts in it).
         for language in current.inputLanguages {
-            let item = NSMenuItem(title: Self.inputName(language), action: #selector(setDefaultInput(_:)), keyEquivalent: "")
+            // One whose pack isn't there yet can't be typed: shown, greyed, with why.
+            let usable = LanguagePackManager.shared.isUsable(language)
+            let title = Self.inputName(language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
+            let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.rawValue
             item.state = current.defaultInput == language ? .on : .off
-            item.isEnabled = config != nil
+            item.isEnabled = config != nil && usable
             inputs.addItem(item)
         }
         inputs.addItem(.separator())

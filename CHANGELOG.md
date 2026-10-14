@@ -14,6 +14,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- Chinese (pinyin) is a language pack now: the app comes with English only (about 120 MB smaller), and adding Chinese (pinyin) under Input → + downloads its dictionaries with a progress bar; pinyin works when it's done, without a restart. The pack is data only, listed in a signed index and checked against its SHA-256, like plugins. Removing Chinese offers to delete the pack. Updating keeps Chinese without a download: the installer keeps the dictionaries the previous version came with (if it can't, the input method downloads them once by itself).
 - A new install starts with English as its input language; add Chinese (pinyin) with + under Input. Existing settings don't change. The settings window's language follows the system until you pick one.
 - A new install translates into the first of the Mac's preferred languages that isn't English (Chinese, Japanese, French…). With English alone, `@translate` on an English sentence sends nothing: it says so and opens the settings on Translate & Rewrite to add a language.
 - ⏎ on a command with nothing after it no longer takes the clipboard's text: it only says to write something. Paste into a command with ⌃V (or ⌘V outside terminals), as before. A stray ⏎ no longer puts whatever was copied into the command.
