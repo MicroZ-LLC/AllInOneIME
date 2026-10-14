@@ -192,7 +192,7 @@ What it reads, and when:
 In the settings:
 
 - **Input languages**: one to five of English, Chinese (pinyin), French, Korean and Hindi, added with + (always there; greyed out at five). A new install starts with English only. New text fields start in the first; tap Shift for the next, in their order; with one, Shift doesn't switch.
-  - **French** types with its own keyboard layout: AZERTY unless you pick another on its card. Its dead keys (^, ¨, ´) compose from it too.
+  - **French** types with its own keyboard layout: AZERTY unless you pick another on its card. Its dead keys (^, ¨, `, ´, ~) compose from it too.
   - **Korean** types Hangul in the 2-set (Dubeolsik) layout, each syllable put together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ.
   - **Hindi**: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them; otherwise Space inserts the first spelling, a digit another, ⏎ the letters as typed, and "." the danda (।).
   - A command's name, `@open`'s text and code (`@py`, `@js`) are typed in letters whatever the language; it comes back after the command.

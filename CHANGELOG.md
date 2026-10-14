@@ -12,11 +12,11 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Added
 
 - French, Korean and Hindi as input languages, next to English and Chinese: add them under Input → +.
-  - French types with its own keyboard layout: AZERTY unless you pick another on its card (`keyboardLayouts` in the config), its dead keys (^, ¨, ´) too. The other languages keep the layout you use in the system.
+  - French types with its own keyboard layout: AZERTY unless you pick another on its card (`keyboardLayouts` in the config), its dead keys (^, ¨, `, ´, ~) too. The other languages keep the layout you use in the system.
   - Korean types Hangul in the 2-set (Dubeolsik) layout, putting each syllable together as you type (g k s → 한); Shift gives ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ. It works in a command's text too.
   - Hindi: type the words as they sound in Latin letters and get Devanagari (namaste → नमस्ते). Common words are spelled as Hindi writes them (karna → करना, nahi → नहीं); otherwise pick a spelling: Space inserts the first and a space, a digit another, ⏎ the letters as typed, and "." types the danda (।).
   - Dictation (hold right ⌥) listens in the language you're typing.
-  - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages, English included. (French is told apart from English when French is one of your input languages.)
+  - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into each of your languages but its own (English and Chinese both, with those two). (French is told apart from English when French is one of your input languages.)
 - Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Punjabi and Urdu as translation languages. Hindi typed in Latin letters ("aap kaise ho") is translated into Devanagari, each in its own script; a Mac set to one of them (hi-IN …) translates into it from the start.
 - ← → move the cursor in a command's text (`@question …`), as in any text field: type, pinyin, ⌫, a paste or speech go in where it is. ⌘← ⌘→ (or Home, End) go to the start or end of the text, ⌥← ⌥→ a word at a time, fn⌫ deletes after the cursor. The cursor never goes into the command itself; ⏎ runs the whole text.
 
