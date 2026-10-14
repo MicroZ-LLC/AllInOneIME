@@ -149,12 +149,14 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         if let data = try? JSONEncoder().encode(watch) { UserDefaults.standard.set(data, forKey: Self.key) }
     }
 
-    // Clicking the notification opens the task.
+    // Clicking the notification opens the task (or what a script extension printed in the background).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
-        let id = response.notification.request.content.userInfo["agent"] as? String
+        let info = response.notification.request.content.userInfo
+        let (id, run) = (info["agent"] as? String, info["scriptRun"] as? Int)
         DispatchQueue.main.async {
             if let id { MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
+            if let run { MainActor.assumeIsolated { ScriptTasks.shared.openResult(run) } }
             completionHandler()
         }
     }

@@ -123,8 +123,9 @@ final class CandidateView: NSView {
     struct Icon: Equatable {
         var symbol: String
         var color: NSColor
-        /// Drawn instead of the symbol on its square (a Raycast script's own emoji).
+        /// Drawn instead of the symbol on its square: a script extension's own emoji, or image file.
         var emoji: String? = nil
+        var image: String? = nil
     }
 
     enum Status: Equatable {
@@ -373,6 +374,10 @@ final class CandidateView: NSView {
 
     /// A white symbol on a colored rounded square (a missing symbol: a generic one), or an emoji.
     static func draw(_ icon: Icon, in frame: NSRect) {
+        if let path = icon.image, let image = NSImage(contentsOfFile: path) {
+            image.draw(in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            return
+        }
         if let emoji = icon.emoji {
             let text = NSAttributedString(string: emoji, attributes: [.font: NSFont.systemFont(ofSize: frame.height * 0.8)])
             let size = text.size()

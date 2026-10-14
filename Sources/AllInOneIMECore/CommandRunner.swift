@@ -2,7 +2,7 @@ import Foundation
 
 /// Runs a `run` command (`CustomCommand`): the program starts in the home folder, without a shell,
 /// with the user's shell PATH; what it prints becomes the one result. It is stopped after its
-/// timeout, when it prints too much, or when the request is cancelled (Esc). A Raycast script runs
+/// timeout, when it prints too much, or when the request is cancelled (Esc). A script extension runs
 /// the same way, in its own folder (`run(_:arguments:environment:)`).
 public enum CommandRunner {
     /// Output kept from the program (more stops it).
@@ -32,14 +32,38 @@ public enum CommandRunner {
         return run(launch, environment: environment)
     }
 
-    /// Runs a Raycast script with `arguments` ($1 $2 $3, `RaycastScript.arguments(from:)`) in its folder (or
-    /// its `currentDirectoryPath`), /usr/local/bin on the PATH as Raycast adds it. Its result follows its
-    /// mode (`RaycastScript.result(for:)`); when it fails, its last line says why.
-    public static func run(_ script: RaycastScript, arguments: [String],
-                           environment: [String: String]? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
-        let launch = Launch(argv: script.launch + arguments, stdin: nil, timeout: script.timeout, directory: script.directory,
-                            result: script.result(for:), failureOnStandardOutput: true)
-        return run(launch, environment: environment, extraPath: "/usr/local/bin")
+    /// What a script extension printed so far (`isFinal`: all of it, once it exited), read as its output.
+    public struct ScriptUpdate: Equatable, Sendable {
+        public var output: ScriptOutput
+        /// The text it printed, cleaned (`cleanOutput`).
+        public var text: String
+        public var isFinal: Bool
+    }
+
+    /// Runs a script extension with `arguments` ($1 $2 $3, `ScriptCommand.arguments(from:)`) in its folder (or
+    /// its `currentDirectoryPath`) with `environment` (`ScriptContext.environment`), /usr/local/bin on the PATH
+    /// as Raycast adds it. What it prints arrives as it comes (a progress shown), then all of it; when it fails,
+    /// its last line says why. `status`: its status line (`ScriptCommand.status`), stopped sooner.
+    public static func run(_ command: ScriptCommand, arguments: [String], environment: [String: String]? = nil,
+                           status: Bool = false) -> AsyncThrowingStream<ScriptUpdate, Error> {
+        let argv = status ? command.status?.launch ?? command.launch : command.launch + arguments
+        let timeout = status ? min(ScriptCommand.Status.timeout, command.timeout) : command.timeout
+        let launch = Launch(argv: argv, stdin: nil, timeout: timeout, directory: command.directory,
+                            failureOnStandardOutput: true, streams: !status)
+        let raw = run(launch, environment: environment, extraPath: "/usr/local/bin")
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await update in raw {
+                        continuation.yield(ScriptUpdate(output: .parse(update.rawText), text: update.rawText, isFinal: update.isFinal))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     private static func run(_ launch: Launch, environment: [String: String]?,
@@ -68,7 +92,12 @@ public enum CommandRunner {
         var result: @Sendable (String) -> ConversionResult = { $0.isEmpty ? .empty : ConversionResult(versions: [CandidateLine($0)]) }
         /// A failure's message may be on standard output, when nothing on standard error says why.
         var failureOnStandardOutput = false
+        /// What it printed so far arrives as it comes (`isFinal` false), a few times a second at most.
+        var streams = false
     }
+
+    /// How often what a program printed so far is passed on (`Launch.streams`).
+    static let streamInterval: Double = 0.1
 
     /// The program as it will be started: an absolute path, or the first match on `path`.
     public static func resolve(_ program: String, path: String?) -> URL? {
@@ -131,6 +160,9 @@ public enum CommandRunner {
         private var cancelled = false
         private var finished = false
         private let started = ContinuousClock.now
+        /// When what was printed so far was last passed on (`Launch.streams`), and whether more came since.
+        private var lastStreamed = ContinuousClock.now
+        private var streamPending = false
         /// Both output pipes closed.
         private let pipes = DispatchGroup()
 
@@ -157,7 +189,10 @@ public enum CommandRunner {
             process.standardOutput = stdout
             process.standardError = stderr
             process.standardInput = stdin
-            capture(stdout) { $0.output.append($1) }
+            capture(stdout) { run, chunk in
+                run.output.append(chunk)
+                run.streamPending = run.launch.streams
+            }
             capture(stderr) { $0.errors.append($1) }
             process.terminationHandler = { [self] _ in
                 // A program it started in the background may keep the pipes open: don't wait for that.
@@ -204,8 +239,17 @@ public enum CommandRunner {
                 lock.lock()
                 append(self, chunk)
                 let tooMuch = output.count + errors.count > CommandRunner.maxOutputBytes
+                var sofar: Data?
+                if streamPending, !finished, ContinuousClock.now - lastStreamed >= .seconds(CommandRunner.streamInterval) {
+                    (sofar, streamPending, lastStreamed) = (output, false, ContinuousClock.now)
+                }
                 lock.unlock()
                 if tooMuch { stop(.tooMuchOutput) }
+                if let sofar {
+                    let text = CommandRunner.cleanOutput(sofar)
+                    continuation.yield(ConversionUpdate(result: .empty, rawText: text, isFinal: false, elapsed: 0,
+                                                        firstTokenLatency: nil, fromCache: false))
+                }
             }
         }
 

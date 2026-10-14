@@ -402,59 +402,109 @@ final class SettingsModel: ObservableObject {
         NSWorkspace.shared.open(PluginStore.directory)
     }
 
-    // MARK: Raycast scripts
+    // MARK: Script extensions
 
-    /// The folders looked in, the scripts that are commands, and the files skipped (with the names another
-    /// command has: `Command.hiddenScripts`).
-    @Published private(set) var scriptFolders: [RaycastScriptStore.Folder] = []
-    @Published private(set) var scripts: [RaycastScript] = []
-    @Published private(set) var skippedScripts: [RaycastScriptStore.Skipped] = []
+    /// The folders looked in, what's in them (`ExtensionIndex`), the names each command got, and what was left
+    /// out (with the names another command has: `Command.hiddenScripts`).
+    @Published private(set) var extensionFolders: [ExtensionStore.Folder] = []
+    @Published private(set) var extensionIndex = ExtensionIndex.empty
+    @Published private(set) var extensionNames: [String: String] = [:]
+    @Published private(set) var skippedExtensions: [ExtensionStore.Skipped] = []
+    /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
+    @Published private(set) var passwordsSaved: Set<String> = []
+    @Published private(set) var extensionError: String?
 
-    /// Reads the folders again; `discover`: Spotlight looks for script folders first, in the background (not
-    /// for a preview), and the list follows when it's done.
-    func refreshScripts(discover: Bool = false) {
-        scriptFolders = RaycastScriptStore.folders(config, found: LiveScripts.found)
-        let (found, skipped) = LiveScripts.load(config, rescan: true)
-        let hidden = Command.hiddenScripts(found, custom: config.customCommands, plugins: plugins)
-        scripts = found.filter { script in !hidden.contains { $0.script == script } }
-        skippedScripts = skipped + hidden.map { RaycastScriptStore.Skipped(file: $0.script.file, problem: .nameTaken(by: $0.owner)) }
-        if discover, persists { LiveScripts.discoverIfDue(config, force: true) { [weak self] in self?.refreshScripts() } }
+    /// Reads the folders again; `discover`: Spotlight looks for Raycast script folders first, in the background
+    /// (not for a preview), and the list follows when it's done.
+    func refreshExtensions(discover: Bool = false) {
+        extensionFolders = ExtensionStore.folders(config, found: LiveExtensions.found)
+        let index = LiveExtensions.load(config)
+        extensionIndex = index
+        let enabled = index.enabled(config.disabledExtensions)
+        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
+        extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
+            .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
+        skippedExtensions = index.skipped + hidden.map { ExtensionStore.Skipped(file: $0.script.file, problem: .nameTaken(by: $0.owner)) }
+        passwordsSaved = Set(index.bundles.flatMap { bundle in
+            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
+                APIKeys.keychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name)) == nil
+                    ? nil : bundle.name + "/" + preference.name
+            }
+        })
+        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
     }
 
-    /// Adds a folder of scripts (asked with an open panel); one Spotlight found and was hidden is shown again.
-    func addScriptFolder() {
+    /// Adds a folder of extensions (asked with an open panel); one Spotlight found and was hidden is shown again.
+    func addExtensionFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
         panel.prompt = tr("添加", "Add")
-        panel.message = tr("选择放 Raycast 脚本的文件夹", "Choose a folder of Raycast scripts")
+        panel.message = tr("选择放脚本或扩展包的文件夹", "Choose a folder of scripts or extension bundles")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let path = RaycastScriptStore.abbreviated(url.path)
-        if !config.scriptFolders.contains(path) { config.scriptFolders.append(path) }
-        config.hiddenScriptFolders.removeAll { $0 == path }
+        let path = ExtensionStore.abbreviated(url.path)
+        if !config.extensionFolders.contains(path) { config.extensionFolders.append(path) }
+        config.hiddenExtensionFolders.removeAll { $0 == path }
         save()
-        refreshScripts()
+        refreshExtensions()
     }
 
     /// An added folder is removed from the list; a found one is hidden (or shown again).
-    func removeScriptFolder(_ folder: RaycastScriptStore.Folder) {
+    func removeExtensionFolder(_ folder: ExtensionStore.Folder) {
         if folder.found {
-            if folder.hidden { config.hiddenScriptFolders.removeAll { $0 == folder.path } } else { config.hiddenScriptFolders.append(folder.path) }
+            if folder.hidden {
+                config.hiddenExtensionFolders.removeAll { $0 == folder.path }
+            } else {
+                config.hiddenExtensionFolders.append(folder.path)
+            }
         } else {
-            config.scriptFolders.removeAll { $0 == folder.path }
+            config.extensionFolders.removeAll { $0 == folder.path }
         }
         save()
-        refreshScripts()
+        refreshExtensions()
     }
 
     /// Shows a folder in Finder (the suggested one is made first).
-    func revealScriptFolder(_ folder: RaycastScriptStore.Folder) {
-        if folder.path == RaycastScriptStore.defaultFolder, persists {
+    func revealExtensionFolder(_ folder: ExtensionStore.Folder) {
+        if folder.path == ExtensionStore.defaultFolder, persists {
             try? FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
         }
         NSWorkspace.shared.open(folder.url)
+    }
+
+    /// Whether a command (its id) or a bundle (its name) is on.
+    func isEnabled(_ id: String) -> Bool { !config.disabledExtensions.contains(id) }
+
+    func setEnabled(_ id: String, _ on: Bool) {
+        config.disabledExtensions.removeAll { $0 == id }
+        if !on { config.disabledExtensions.append(id) }
+        save()
+        refreshExtensions()
+    }
+
+    /// A preference's value as saved (not a password's), else its default.
+    func preference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference) -> String {
+        config.extensionPreferences[bundle.name]?[preference.name] ?? preference.defaultValue ?? ""
+    }
+
+    /// Saves a preference: a password in the keychain (empty: removed), anything else in the config file.
+    func setPreference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference, _ value: String) {
+        guard persists else { return }
+        if preference.kind == .password {
+            do {
+                try APIKeys.save(value, account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name),
+                                 label: "AllInOneIME: \(bundle.title) – \(preference.title)")
+                extensionError = nil
+            } catch {
+                extensionError = tr("没有存进钥匙串：", "Couldn't save it in the keychain: ") + error.localizedDescription
+            }
+        } else {
+            config.extensionPreferences[bundle.name, default: [:]][preference.name] = value
+            save()
+        }
+        refreshExtensions()
     }
 
     // MARK: Plugin library
@@ -939,15 +989,16 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// Raycast Script Commands: where they're looked for, the commands they made, and the files left out.
-    @ViewBuilder private var scriptsSection: some View {
+    /// Script extensions (docs/extensions.md): where they're looked for, the bundles and their preferences, the
+    /// commands (each turned on or off), and what was left out, with why.
+    @ViewBuilder private var extensionsSection: some View {
         Section {
             Toggle(isOn: $model.config.findRaycastScripts) {
                 titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
                        tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
                           "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
             }
-            ForEach(model.scriptFolders, id: \.path) { folder in
+            ForEach(model.extensionFolders, id: \.path) { folder in
                 HStack {
                     Image(systemName: folder.found ? "sparkle.magnifyingglass" : "folder").foregroundStyle(.secondary)
                         .frame(width: 20)
@@ -956,45 +1007,84 @@ struct SettingsView: View {
                     Text(folder.hidden ? tr("自动找到 · 已隐藏", "found · hidden") : folder.found ? tr("自动找到", "found") : tr("添加的", "added"))
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button(tr("在访达中显示", "Show in Finder")) { model.revealScriptFolder(folder) }
+                    Button(tr("在访达中显示", "Show in Finder")) { model.revealExtensionFolder(folder) }
                     Button(folder.found ? (folder.hidden ? tr("显示", "Show") : tr("隐藏", "Hide")) : tr("移除", "Remove")) {
-                        model.removeScriptFolder(folder)
+                        model.removeExtensionFolder(folder)
                     }
                 }
             }
-            Button(tr("添加文件夹…", "Add Folder…")) { model.addScriptFolder() }
-            ForEach(model.scripts, id: \.file) { script in
-                HStack {
-                    IconTile(icon: CommandIcons.icon(for: script))
-                    Text("@" + script.name).font(.body.monospaced())
-                    Text(script.title).lineLimit(1)
-                    Spacer()
-                    Text(UIText.name(script.mode) + " · " + (script.arguments.isEmpty ? tr("无参数", "no arguments")
-                                                               : tr("\(script.arguments.count) 个参数", script.arguments.count == 1 ? "1 argument" : "\(script.arguments.count) arguments")))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .help(RaycastScriptStore.abbreviated(script.file.path))
-            }
-            ForEach(model.skippedScripts, id: \.file) { skipped in
+            Button(tr("添加文件夹…", "Add Folder…")) { model.addExtensionFolder() }
+            ForEach(model.extensionIndex.bundles, id: \.name) { bundle in bundleRow(bundle) }
+            ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == nil }, id: \.id) { command in extensionRow(command) }
+            ForEach(model.skippedExtensions, id: \.self) { skipped in
                 Label(tr("没有加载 \(skipped.file.lastPathComponent)：", "Not loaded, \(skipped.file.lastPathComponent): ")
                           + UIText.describe(skipped.problem, file: skipped.file),
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
-            if model.scripts.isEmpty, model.skippedScripts.isEmpty {
-                Text(tr("还没有脚本。把 Raycast 的脚本命令（github.com/raycast/script-commands）放进上面的文件夹就行。",
-                        "No scripts yet. Put Raycast Script Commands (github.com/raycast/script-commands) in a folder above."))
+            if model.extensionIndex.commands.isEmpty, model.skippedExtensions.isEmpty {
+                Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
+                        "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above."))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if let error = model.extensionError { Text(error).foregroundStyle(.red) }
         } header: {
-            SectionTitle(tr("Raycast 脚本命令", "Raycast Script Commands"), icon: CommandIcons.scripts)
+            SectionTitle(tr("脚本扩展", "Script Extensions"), icon: CommandIcons.scripts)
         } footer: {
-            Text(tr("每个脚本是一个 @ 命令，名字取自文件名里的字母（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。compact、inline 上屏最后一行，fullOutput 可以上屏全部或其中一行，silent 只显示最后一行。",
-                    "Each script is an @ command named after the letters of its file name (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. compact and inline insert the last line, fullOutput all of it or any line, silent only shows the last line."))
+            Text(tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
+                    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one."))
                 .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
+    }
+
+    /// A bundle: its switch, title, version and author, its preferences, and its commands.
+    @ViewBuilder private func bundleRow(_ bundle: ExtensionBundle) -> some View {
+        let on = model.isEnabled(bundle.name)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "shippingbox.fill").foregroundStyle(.secondary).frame(width: 20)
+                Text(bundle.title).fontWeight(.medium)
+                Text([bundle.version, bundle.author].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Toggle("", isOn: Binding(get: { on }, set: { model.setEnabled(bundle.name, $0) })).labelsHidden().toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            ForEach(bundle.preferences, id: \.name) { preference in
+                PreferenceField(preference: preference, value: model.preference(bundle, preference),
+                                saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name)) {
+                    model.setPreference(bundle, preference, $0)
+                }
+                .padding(.leading, 28)
+            }
+            if on {
+                ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == bundle.name }, id: \.id) { command in
+                    extensionRow(command).padding(.leading, 28)
+                }
+            }
+        }
+    }
+
+    /// A command: its icon, the name it got, its title, what it does, and its switch.
+    private func extensionRow(_ command: ScriptCommand) -> some View {
+        let on = model.isEnabled(command.id)
+        let name = model.extensionNames[command.id] ?? command.name
+        let input = command.input == .none ? tr("不用输入", "no input")
+            : tr("\(command.arguments.count) 个参数", command.arguments.count == 1 ? "1 argument" : "\(command.arguments.count) arguments")
+        let traits = [command.background ? tr("后台", "background") : UIText.name(command.output), input,
+                      command.status != nil ? tr("状态", "status") : nil].compactMap { $0 }.joined(separator: " · ")
+        return HStack {
+            IconTile(icon: CommandIcons.icon(for: command))
+            Text("@" + name).font(.body.monospaced()).foregroundStyle(on ? .primary : .secondary)
+            Text(command.title).lineLimit(1).foregroundStyle(on ? .primary : .secondary)
+            if command.source == .raycast { Text("Raycast").font(.caption).foregroundStyle(.secondary) }
+            Spacer()
+            Text(traits).font(.caption).foregroundStyle(.secondary)
+            Toggle("", isOn: Binding(get: { on }, set: { model.setEnabled(command.id, $0) })).labelsHidden().toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .help(ExtensionStore.abbreviated(command.file.path))
     }
 
     @ViewBuilder private var pluginsSection: some View {
@@ -1466,7 +1556,7 @@ struct SettingsView: View {
                     jargonSection
                 case .commands:
                     commandsSection
-                    scriptsSection
+                    extensionsSection
                 case .plugins:
                     pluginsSection
                     webSearchSection
@@ -1547,13 +1637,13 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOutVaries) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
-            model.refreshScripts(discover: model.config.findRaycastScripts)
+            model.refreshExtensions(discover: model.config.findRaycastScripts)
         }
-        .onChange(of: page) { if page == .commands { model.refreshScripts(discover: true) } }
-        .onChange(of: model.config.customCommands) { model.refreshScripts() }  // a name a script had may be taken now
+        .onChange(of: page) { if page == .commands { model.refreshExtensions(discover: true) } }
+        .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onAppear {
             model.refreshPlugins()
-            model.refreshScripts(discover: page == .commands)
+            model.refreshExtensions(discover: page == .commands)
             model.refreshKeys()
             model.refreshSearchKey()
             model.refreshAccount()
@@ -2386,7 +2476,9 @@ struct IconTile: View {
     var size: CGFloat = 20
 
     var body: some View {
-        if let emoji = icon.emoji {
+        if let path = icon.image, let image = NSImage(contentsOfFile: path) {
+            Image(nsImage: image).resizable().scaledToFit().frame(width: size, height: size).accessibilityHidden(true)
+        } else if let emoji = icon.emoji {
             Text(emoji).font(.system(size: size * 0.8)).frame(width: size, height: size).accessibilityHidden(true)
         } else {
             tile
@@ -2478,7 +2570,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .general: return "action key return 执行键 回车 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
-        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts 脚本 文件夹 folder spotlight 聚焦"
+        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
@@ -2560,4 +2652,48 @@ enum KeyboardLayouts {
         }
         return Array(Set(layouts)).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }()
+}
+
+/// A bundle's preference (`ExtensionBundle.Preference`): a text field, a password (saved in the keychain, never
+/// shown again), a checkbox or a menu. Text is saved on Return or when the field loses focus.
+private struct PreferenceField: View {
+    let preference: ExtensionBundle.Preference
+    let value: String
+    /// A password: one is in the keychain.
+    let saved: Bool
+    let save: (String) -> Void
+    @State private var text = ""
+
+    var body: some View {
+        LabeledContent {
+            switch preference.kind {
+            case .checkbox:
+                Toggle("", isOn: Binding(get: { value == "true" }, set: { save($0 ? "true" : "false") })).labelsHidden()
+            case .dropdown:
+                Picker("", selection: Binding(get: { value }, set: { save($0) })) {
+                    ForEach(preference.choices, id: \.value) { Text($0.title).tag($0.value) }
+                }
+                .labelsHidden().frame(maxWidth: 220)
+            case .password:
+                HStack {
+                    SecureField(saved ? tr("已存在钥匙串里", "Saved in the keychain") : tr("未设置", "Not set"), text: $text)
+                        .onSubmit { save(text); text = "" }
+                        .frame(maxWidth: 220)
+                    if saved { Button(tr("移除", "Remove")) { save("") } }
+                }
+            case .textfield:
+                TextField(preference.defaultValue ?? "", text: $text)
+                    .onSubmit { save(text) }
+                    .onAppear { text = value }
+                    .frame(maxWidth: 220)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(preference.title + (preference.required ? " *" : ""))
+                if let description = preference.description {
+                    Text(description).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
 }

@@ -2,8 +2,8 @@ import AllInOneIMECore
 import AppKit
 
 /// The icons of the command list, like the colored squares of iOS Settings: one for each built-in
-/// command, one for each kind of custom command, a plugin's own (or a puzzle piece), a Raycast script's
-/// emoji (or a scroll). A custom command or a plugin may name its own SF Symbol and color.
+/// command, one for each kind of custom command, a plugin's own (or a puzzle piece), a script extension's
+/// own (an emoji, an image or a symbol). A custom command or a plugin may name its own SF Symbol and color.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon {
         if let plugin = command.plugin { return icon(for: plugin) }
@@ -35,12 +35,29 @@ enum CommandIcons {
                            color: color(plugin.manifest.color) ?? .systemPink)
     }
 
-    /// A Raycast script's emoji (`RaycastScript.emoji`), else a scroll in Raycast's red.
-    static func icon(for script: RaycastScript) -> CandidateView.Icon {
-        CandidateView.Icon(symbol: "scroll.fill", color: .systemRed, emoji: script.emoji)
+    /// A script extension's icon: its emoji, its image file, or its SF Symbol; else one for what it does, in
+    /// teal (Raycast's red for a Raycast script).
+    static func icon(for script: ScriptCommand) -> CandidateView.Icon {
+        let color: NSColor = script.source == .raycast ? .systemRed : .systemTeal
+        let symbol = script.background ? "clock.arrow.circlepath" : script.status != nil ? "gauge.with.dots.needle.33percent" : {
+            switch script.output {
+            case .insert: return "text.cursor"
+            case .show: return "text.alignleft"
+            case .list: return "list.bullet"
+            case .silent: return "bolt.fill"
+            }
+        }()
+        switch script.icon {
+        case let .emoji(emoji)?: return CandidateView.Icon(symbol: symbol, color: color, emoji: emoji)
+        case let .image(url)? where FileManager.default.fileExists(atPath: url.path):
+            return CandidateView.Icon(symbol: symbol, color: color, image: url.path)
+        case let .symbol(name)? where NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil:
+            return CandidateView.Icon(symbol: name, color: color)
+        default: return CandidateView.Icon(symbol: symbol, color: color)
+        }
     }
 
-    static let scripts = CandidateView.Icon(symbol: "scroll.fill", color: .systemRed)
+    static let scripts = CandidateView.Icon(symbol: "terminal.fill", color: .systemTeal)
 
     /// A custom command's own icon, or one for its type.
     static func icon(for custom: CustomCommand) -> CandidateView.Icon {

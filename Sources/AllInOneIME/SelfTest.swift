@@ -1785,7 +1785,7 @@ enum SelfTest {
             }
         }
 
-        testRaycastScripts(controller, client, start: start, waitForEnd: waitForEnd, clear: clear)
+        testExtensions(controller, client, start: start, typeText: typeText, waitForEnd: waitForEnd, clear: clear)
 
         // Without a key nothing is sent: the error says where to add one. (No live search here.) @search is
         // off for now (`Command.webSearchOffered`): then it isn't in the list at all.
@@ -1807,57 +1807,104 @@ enum SelfTest {
         check(!controller.composer.isComposing && client.marked.isEmpty, "nothing left composing")
     }
 
-    /// Raycast scripts, made in a temporary folder (never the user's own): one without arguments runs as it is
-    /// picked and its last line goes in; a silent one inserts nothing; one missing its argument doesn't run.
-    static func testRaycastScripts(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
-                                   start: (String) -> Bool, waitForEnd: () -> Void, clear: () -> Void) {
+    /// Script extensions, made in a temporary folder (never the user's own): one that takes no input completes
+    /// on Tab and runs on the action key, its line goes in; a Raycast silent one inserts nothing; a missing
+    /// argument runs nothing; a list as you type, its row picked; a bundle's preference and the language reach
+    /// the script; a background one notifies when it's done.
+    static func testExtensions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, start: (String) -> Bool,
+                               typeText: (String) -> Void, waitForEnd: () -> Void, clear: () -> Void) {
+        print("— script extensions (a temporary folder)")
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-selftest-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let loadScripts = controller.loadScripts
+        try? FileManager.default.createDirectory(at: folder.appendingPathComponent("stbundle"), withIntermediateDirectories: true)
+        let (loadExtensions, notify, ask) = (controller.loadExtensions, controller.scriptTasks.notify, controller.scriptTasks.askToNotify)
+        var notified: [String] = []
+        controller.scriptTasks.notify = { _, title, body in notified.append(title + " | " + body) }
+        controller.scriptTasks.askToNotify = {}
         defer {
             try? FileManager.default.removeItem(at: folder)
-            controller.loadScripts = loadScripts
+            controller.loadExtensions = loadExtensions
+            controller.scriptTasks.notify = notify
+            controller.scriptTasks.askToNotify = ask
+            controller.composer.setInputMode(settings.defaultInput)
         }
-        func add(_ name: String, _ metadata: [String], _ body: String) {
-            let text = (["#!/bin/bash", "# @raycast.schemaVersion 1"] + metadata.map { "# @raycast." + $0 } + [body]).joined(separator: "\n")
+        func add(_ name: String, _ prefix: String, _ metadata: [String], _ body: String) {
+            let text = (["#!/bin/bash", "# @\(prefix).schemaVersion 1"] + metadata.map { "# @\(prefix)." + $0 } + [body]).joined(separator: "\n")
             let file = folder.appendingPathComponent(name)
             try? Data(text.utf8).write(to: file)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
         }
-        add("selftest-hello.sh", ["title Self-test Hello", "mode compact"], #"echo working; echo "hello from $(basename "$PWD")""#)
-        add("selftest-quiet.sh", ["title Self-test Quiet", "mode silent"], "echo quiet")
-        add("selftest-needs.sh", ["title Self-test Needs", "mode compact", #"argument1 {"type": "text", "placeholder": "city"}"#], #"echo "$1""#)
-        let scripts = RaycastScriptStore.load([.init(path: folder.path, found: false)]).scripts
-        check(scripts.map(\.name) == ["selftesthello", "selftestneeds", "selftestquiet"], "Raycast scripts read from a folder (\(scripts.map(\.name)))")
-        controller.loadScripts = { _, _ in scripts }
+        add("sthello.sh", "allinoneime", ["title Self-test Hello", "input none"], #"echo working; echo "hello from $(basename "$PWD") in $ALLINONEIME_LANGUAGE""#)
+        add("stquiet.sh", "raycast", ["title Self-test Quiet", "mode silent"], "echo quiet")
+        add("stneeds.sh", "allinoneime", ["title Self-test Needs", #"argument1 {"type": "text", "placeholder": "city"}"#], #"echo "$1""#)
+        add("stlist.sh", "allinoneime", ["title Self-test List", "output list", "queryDelay 10"],
+            #"printf '{"items": [{"title": "first %s", "arg": "picked-%s"}, {"title": "info", "valid": false}]}' "$1" "$1""#)
+        add("stwait.sh", "allinoneime", ["title Self-test Wait", "input none", "background true"], #"sleep 0.3; echo '{"summary": "waited", "detail": "0.3 s"}'"#)
+        add("stbundle/greet.sh", "allinoneime", [], #"echo "$ALLINONEIME_PREF_GREETING, $1""#)
+        let manifest = #"{"schemaVersion": 1, "name": "stbundle", "title": "Self-test Bundle", "version": "1.0", "#
+            + #""preferences": [{"name": "greeting", "type": "textfield", "title": "Greeting", "default": "hi"}], "#
+            + #""commands": [{"script": "greet.sh", "name": "stgreet", "title": "Self-test Greet", "input": "optional"}]}"#
+        try? Data(manifest.utf8).write(to: folder.appendingPathComponent("stbundle/extension.json"))
+        let index = ExtensionStore.load([.init(path: folder.path, found: false)])
+        check(index.commands.map(\.name) == ["stgreet", "sthello", "stlist", "stneeds", "stwait", "stquiet"] && index.skipped.isEmpty,
+              "extensions read from a folder: the bundle's first, Raycast's last (\(index.commands.map(\.name)), \(index.skipped.count) skipped)")
+        controller.loadExtensions = { _, _ in index }
+        controller.composer.setInputMode(.english)  // the texts below are typed as letters
 
         let before = client.inserted.count
-        if start("selftesthello") {
+        if start("sthello") {
+            check(!controller.composer.isLevelTwo, "Tab only completes a command that takes no input")
+            _ = act(controller, client)
             waitForEnd()
-            let answer = controller.composer.choices.last
+            let answer = controller.composer.choices.first
             _ = enter(controller, client)
-            let expected = "hello from " + folder.lastPathComponent
+            let expected = "working\nhello from " + folder.lastPathComponent + " in " + (UIText.chinese ? "zh" : "en")
             check(answer?.text == expected && client.inserted.last == expected && !controller.composer.isComposing,
-                  "a Raycast script without arguments runs as it is picked; its last line goes in (\(client.inserted.last ?? ""))")
+                  "…the action key runs it; its output goes in, with the folder and the language it was told (\(client.inserted.last ?? ""))")
         } else {
-            check(false, "@selftesthello is picked from the list ('\(client.marked)')")
+            check(false, "@sthello is picked from the list ('\(client.marked)')")
         }
         clear()
         let count = client.inserted.count
-        if start("selftestquiet") {
-            waitForEnd()
-            _ = pump(timeout: 3) { !controller.composer.isComposing }
-            check(client.inserted.count == count && client.marked.isEmpty && !controller.composer.isComposing,
-                  "a silent script inserts nothing")
-        }
-        clear()
-        if start("selftestneeds") {
+        if start("stquiet") {
             _ = act(controller, client)
-            check(!controller.composer.isLevelTwo && client.marked == "selftestneeds › ",
-                  "a script missing its argument doesn't run (\(client.marked))")
+            _ = pump(timeout: 5) { !controller.composer.isComposing }
+            check(client.inserted.count == count && client.marked.isEmpty && !controller.composer.isComposing,
+                  "a Raycast silent script inserts nothing")
         }
         clear()
-        check(client.inserted.count == before + 1, "only the script's line went in")
+        if start("stneeds") {
+            _ = act(controller, client)
+            check(!controller.composer.isLevelTwo && client.marked == "stneeds › ", "a script missing its argument doesn't run (\(client.marked))")
+        }
+        clear()
+        if start("stlist") {
+            typeText("abc")
+            _ = pump(timeout: 5) { controller.composer.currentList != nil }
+            let rows = controller.panelModel().rows.map(\.text)
+            check(rows == ["first abc", "info"], "a list runs as the text is typed, its rows shown (\(rows))")
+            _ = act(controller, client)
+            check(client.inserted.last == "picked-abc" && !controller.composer.isComposing,
+                  "the action key does the highlighted row's action: inserts its arg (\(client.inserted.last ?? ""))")
+        }
+        clear()
+        if start("stgreet") {
+            typeText("bob")
+            _ = act(controller, client)
+            waitForEnd()
+            _ = enter(controller, client)
+            check(client.inserted.last == "hi, bob", "a bundle's preference reaches its script (\(client.inserted.last ?? ""))")
+        }
+        clear()
+        if start("stwait") {
+            _ = act(controller, client)
+            check(!controller.composer.isComposing && client.marked.isEmpty, "a background command starts and the draft is done")
+            _ = pump(timeout: 5) { !notified.isEmpty }
+            check(notified.first?.hasSuffix("waited") == true && controller.scriptTasks.background.first?.outcome == .done,
+                  "…it notifies with its summary when done, and the menu bar panel lists it (\(notified))")
+            controller.scriptTasks.background.forEach { controller.scriptTasks.remove($0.id) }
+        }
+        clear()
+        check(client.inserted.count == before + 3, "only the extensions' results went in")
     }
 
     /// The composer's notices (`Composer.Messages`): Chinese wording → English wording.
@@ -1930,7 +1977,7 @@ enum SelfTest {
         controller.pasteInTerminal = { _ in }
         controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
-        controller.loadScripts = { _, _ in [] }  // never the user's own Raycast scripts (the script check makes its own)
+        controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions), whatever the user added.

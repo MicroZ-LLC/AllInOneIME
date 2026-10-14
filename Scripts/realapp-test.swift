@@ -349,8 +349,8 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // The test's own settings, whatever the user's (theirs come back after: `restoreConfig`): Chinese first, so it
         // starts in pinyin; results inserted at once, not typed out; @improve polishes without translating, and
-        // Chinese translates into English. None of the user's Raycast scripts is offered: one without arguments
-        // runs as soon as it is picked.
+        // Chinese translates into English. None of the user's script extensions is offered: they run programs of
+        // their own.
         check(setConfig {
             $0["inputLanguages"] = ["zh", "en"]
             $0["defaultInput"] = "zh"
@@ -358,7 +358,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             $0["improveTranslates"] = false
             $0["outputLanguages"] = ["en", "zh"]
             $0["outputLanguage"] = "en"
-            $0["scriptFolders"] = [String]()
+            $0["extensionFolders"] = [String]()
             $0["findRaycastScripts"] = false
         }, "config file readable, to set the test's languages")
 

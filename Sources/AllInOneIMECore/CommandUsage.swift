@@ -33,7 +33,8 @@ extension Command {
 
     /// The commands the list shows for `query` (the letters after "@"), at most `limit`. Nothing
     /// typed: the most used, then the rest in catalog order. Letters: names starting with them, then
-    /// names containing them, each by use. Every match counts for `matching`; only these are shown.
+    /// names containing them, then script extensions with a word of their title or a keyword starting with
+    /// them (`ScriptCommand.searchTerms`), each by use. Every match counts for `matching`; only these are shown.
     public static func palette(_ query: String, in commands: [Command], usage: CommandUsage,
                                limit: Int = paletteLimit, now: Date = Date()) -> [Command] {
         let query = query.lowercased()
@@ -43,6 +44,8 @@ extension Command {
                 group = 0
             } else if command.name.contains(query) {
                 group = 1
+            } else if let script = command.script, script.searchTerms.contains(where: { $0.hasPrefix(query) }) {
+                group = 2
             } else {
                 return nil
             }
