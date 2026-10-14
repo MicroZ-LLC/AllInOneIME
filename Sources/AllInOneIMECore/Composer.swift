@@ -354,7 +354,9 @@ public final class Composer {
         didSet {
             guard hindiTables != oldValue else { return }
             hindiEngine = hindiTables.map(HindiEngine.init(tables:))
-            if hindiEngine == nil { hindiActive = false }
+            // The pack deleted while Hindi was typed: on in another of the user's languages (not Chinese they
+            // may not have).
+            if hindiEngine == nil, hindiActive { enter(fallbackLanguage(for: .hindi)) }
             engineState = engine?.snapshot() ?? .empty
         }
     }
@@ -385,13 +387,22 @@ public final class Composer {
     public private(set) var hangul = HangulComposer(tables: .none)
     /// The Korean pack's tables (set by the controller once the pack is installed).
     public var hangulTables: HangulTables? {
-        didSet { if hangulTables != oldValue { hangul = HangulComposer(tables: hangulTables ?? .none) } }
+        didSet {
+            guard hangulTables != oldValue else { return }
+            hangul = HangulComposer(tables: hangulTables ?? .none)
+            if hangulTables == nil, inputLanguage == .korean { enter(fallbackLanguage(for: .korean)) }  // the pack deleted
+        }
     }
     /// The language typed while the engine is in its ASCII mode: English, French or Korean (Chinese is pinyin).
     public private(set) var asciiLanguage: Language = .english
 
     /// The input language in effect.
     public var inputLanguage: Language { engineState.isAsciiMode ? asciiLanguage : nativeLanguage }
+
+    /// What to type in once `language`'s pack is gone: the first other input language (the default, normally).
+    private func fallbackLanguage(for language: Language) -> Language {
+        inputLanguages.first { $0 != language } ?? .english
+    }
 
     /// The language of the engine in place when it isn't in its ASCII mode.
     private var nativeLanguage: Language { hindiActive ? .hindi : .chinese }

@@ -258,6 +258,12 @@ struct InputLanguageTests {
         #expect(c.hangul.isEmpty)
     }
 
+    @Test func removingTheKoreanPackLeavesKorean() {
+        let c = korean()
+        c.hangulTables = nil
+        #expect(c.inputLanguage == .english)
+    }
+
     @Test func configKeepsUnknownLanguagesOutAndLayoutsByLanguage() throws {
         let json = #"{"inputLanguages": ["ko", "xx", "fr"], "keyboardLayouts": {"fr": "com.apple.keylayout.French-PC"}, "uiLanguage": "fr"}"#
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))

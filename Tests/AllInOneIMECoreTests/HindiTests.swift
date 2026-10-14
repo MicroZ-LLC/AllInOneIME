@@ -115,6 +115,15 @@ struct HindiTests {
         #expect(c.markedText == "नमस्ते")
     }
 
+    @Test func removingThePackFallsBackToAnInputLanguage() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hindiTables = PackData.hindi
+        c.inputLanguages = [.english, .korean, .hindi]
+        c.setInputMode(.hindi)
+        c.hindiTables = nil
+        #expect(c.inputLanguage == .english)  // not Chinese, which isn't one of them
+    }
+
     /// `@open` from Hindi types English letters, and Hindi comes back after it.
     @Test func aCommandsLettersAreEnglishInHindi() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
