@@ -25,14 +25,18 @@ In each folder:
 - **A single script** is a file in the folder with metadata (§2). Files whose name contains `.template.`, and hidden
   files, are left out. Subfolders aren't read, except bundles.
 - **A bundle** is a subfolder with an `extension.json` (§6): its commands, and settings they share.
+- **Symbolic links** are followed: a linked folder, script or bundle is read as what it points to. A link to nothing
+  is listed in Settings as such.
 
 The index of what the folders hold is kept in memory and rebuilt in the background when a text field becomes active
-or the settings change; a file is read again only when its size or modification date changed. Nothing is scanned or
-run while a key is being handled.
+or the settings change; a file is read again only when its size, modification date or permissions changed, and only
+its metadata and first line are kept. Nothing is scanned, read from the keychain or run while a key is being handled,
+and the command list stays fast with a thousand extensions.
 
 ## 2. Metadata
 
-Comment lines near the top of the file (within its first 64 KB), with any comment mark (`#`, `//`, `--`, `;`):
+Comment lines near the top of the file (within its first 64 KB), each starting with a comment mark (`#`, `//`, `--`,
+`;`, `%`, `'` or `*`); a line without one isn't metadata:
 
 ```bash
 #!/bin/bash
@@ -56,7 +60,7 @@ A file may use `@allinoneime.<key> <value>` (the protocol's own keys) or `@rayca
 | `group` | shown after the title in the command list | none (a bundle's title for its commands) |
 | `keywords` | comma-separated words the command list also finds it by | none |
 | `icon` | an emoji, an SF Symbol name, or an image file (a path from the script's folder) | one for its output |
-| `input` | `none`, `optional` or `required` | `required` if one of its arguments is, else `optional` |
+| `input` | `none`, `optional` or `required` (then its first argument is required, whatever it says) | `required` if one of its arguments is, else `optional` |
 | `argument1`…`argument3` | Raycast's JSON (below) | one free-text argument |
 | `output` | `insert`, `show`, `list` or `silent` (§4) | `insert` |
 | `background` | `true`: it starts, and the text field is free at once (§5) | `false` |
@@ -78,8 +82,9 @@ Tab or Space completes its name; the action key (⏎ by default) runs it. `optio
 
 **Status.** `self` runs the script itself, with `ALLINONEIME_STATUS=1` and no arguments. Anything else is a command
 line (no shell; quote with `"…"`), whose program is looked for in the script's folder first. A status is run only
-while the command list shows the command, at most every `statusRefresh`, a few at a time, and is stopped after 5
-seconds: a slow one never holds the list up; its value shows when it arrives.
+while the command list shows the command, at most every `statusRefresh`, two at a time (one that ends, failed or
+not, lets the next due one start), and is stopped after 5 seconds: a slow one never holds the list up; its value
+shows when it arrives. A failed one keeps the value it had.
 
 ## 3. Running
 
@@ -91,7 +96,8 @@ seconds: a slow one never holds the list up; its value shows when it arrives.
   all. `@flights beijing, new york` → `$1=beijing`, `$2=new york`.
 - A required argument left empty shows a notice naming the missing placeholders, and nothing runs. A dropdown takes a
   choice's title or value, in any case, and gets its value; anything else lists the choices. A `percentEncoded` value
-  is percent-encoded (as JavaScript's `encodeURIComponent`). A password is passed as typed.
+  is percent-encoded (as JavaScript's `encodeURIComponent`). A password is passed as typed (it shows as typed in
+  the text being written, too).
 
 They're passed as `$1`…`$3`.
 
@@ -104,7 +110,7 @@ They're passed as `$1`…`$3`.
 | `ALLINONEIME_LANGUAGE` | the interface language: `en` or `zh` |
 | `ALLINONEIME_INPUT_LANGUAGE` | the language being typed: `en`, `zh`, `fr`, `ko` or `hi` |
 | `ALLINONEIME_APP` | the bundle id of the app being typed in |
-| `ALLINONEIME_QUERY` | all the text after the command |
+| `ALLINONEIME_QUERY` | all the text after the command (empty for a command with a `password` argument) |
 | `ALLINONEIME_EXTENSION_DIR` | the bundle's folder (a single script's own folder) |
 | `ALLINONEIME_PREF_<NAME>` | each of the bundle's preferences (§6) |
 | `ALLINONEIME_STATUS` | `1` when it runs for its status line |
@@ -112,11 +118,14 @@ They're passed as `$1`…`$3`.
 
 **Process.**
 
-- It runs in its folder (or `currentDirectoryPath`), with no standard input, as itself when it's executable, else
-  through its `#!` line.
+- It runs in its folder (or `currentDirectoryPath`), with no standard input: as itself when it's executable and has
+  a `#!` line; through its `#!` line when it isn't executable; with `/bin/sh` when it's executable without one (as
+  a shell would run it).
+- It runs in a process group of its own. Stopping it (Esc, its `timeout`, more than 64 KB of output, a newer query
+  of the same command) sends SIGTERM to the group, then SIGKILL half a second later: what it started goes too.
 - One process per command at a time: a newer query stops the one before.
-- Esc stops it. So does its `timeout`, or more than 64 KB of output.
 - Nothing runs while secure input is on (a password field, the lock screen).
+- An extension doesn't run inside another command's text (`@question … @flights …` leaves it as text).
 - Color codes and other terminal escapes are removed from what it prints.
 
 **Exit status.** Non-zero is a failure: the last line of standard error with words in it (else of standard output)
@@ -128,7 +137,7 @@ is shown as the error. The action key tries again.
 |---|---|
 | `insert` | Candidates to insert: all of it (1), and when there are several lines, each line on its own (2–9). ⏎, Space or a digit inserts one; ⌘C copies it. |
 | `show` | Shown in the panel as it's printed (a progress), the last lines; nothing is inserted. ⌘C copies all of it, ⏎ closes. Left running when the text field is left, it goes on in the background (§5). |
-| `list` | A list in Alfred's Script Filter JSON (below), run again as the text after the command changes, `queryDelay` after the last key; the run before is stopped. ↑↓ pick a row, the action key does its action, Tab completes its `autocomplete`, ⌘C copies its `text.copy`. |
+| `list` | A list in Alfred's Script Filter JSON (below), run again as the text after the command changes, `queryDelay` after the last key; the run before is stopped. ↑↓ pick a row, the action key does its action, Tab completes its `autocomplete`, ⌘C copies its `text.copy`. The rows aren't numbered while you type (a digit is text: `@convert 10 km`). With a required argument left empty, the action key says what's missing. `confirm` and `background` don't apply to a list. |
 | `silent` | Its last line is shown near the cursor; nothing is inserted. |
 
 A command that prints nothing ends with a short notice that it ran (a list that prints nothing says "No results").
@@ -150,12 +159,17 @@ A command that prints nothing ends with a short notice that it ran (a list that 
   "rerun": 2.0 }
 ```
 
-- `title` (required), `subtitle`: the row. At most 50 rows are kept; the first 9 that can be picked are numbered.
+- `title` (required), `subtitle`: the row. At most 50 rows are kept. A list shown after a `run` step (below) numbers
+  the first 9 rows that can be picked, and digits pick them.
 - `arg`: what the action uses (a string, or the first of a list).
-- `action` (ours): `insert` (puts `arg`, or the title, where you type), `open` (opens `arg`: a web address, or a file
-  or folder path, `~/…` too), `copy` (copies `text.copy`, else `arg`, else the title), or `run` (runs the command
-  again with `arg` as `$1` and `ALLINONEIME_ACTION=run`, a second step: a list it prints is shown to pick from;
-  anything else is offered to insert). Without `action`: `open` when `arg` is a web address or a path, else `insert`.
+- `action` (ours): `insert` (puts `arg`, or the title, where you type), `open`, `copy` (copies `text.copy`, else
+  `arg`, else the title), or `run` (runs the command again with `arg` as `$1` and `ALLINONEIME_ACTION=run`, a second
+  step: a list it prints is shown to pick from; anything else is offered to insert). Without `action`: `open` when
+  `arg` is an http(s) address or a path, else `insert`.
+- `open` opens an `http://` or `https://` address in the default browser, or a file, folder or app given by a
+  `file://` address, an absolute path or a `~/…` path that exists, as Finder would. Files Terminal would run
+  (`.command`, `.tool`, `.terminal`), other schemes (`smb:`, `mailto:`, an app's own) and relative paths aren't
+  opened: a notice says so, and the list stays. Nothing opened this way goes into `@open`'s history.
 - `valid: false`: a row of information only, not picked.
 - `text.copy`: what ⌘C copies of the row.
 - `autocomplete`: what Tab puts after the command name.
@@ -170,9 +184,12 @@ Output that isn't a list shows as one row of information with its last line.
 it started). A `show` command still running when the text field is left goes on the same way.
 
 While it runs, the menu bar panel lists it under "Background Commands". When it's done, a notification shows its
-summary or last line (or the error); clicking the notification, or its row in the panel, opens what it printed in the
-default text editor. At most 4 run in the background at once, and a command isn't started twice while it runs. They
-don't outlive the input method (logging out, an update).
+summary and detail, or its last line (or the error); clicking the notification, or its row in the panel, opens what
+it printed in the default text editor. At most 4 run in the background at once, and a command isn't started twice
+while it runs: a `background` command started then says so instead, and a `show` left running then is stopped.
+
+When the input method quits (an update, logging out), what's running for extensions is stopped, with what it
+started. (If the input method crashes, they can't be.)
 
 ## 6. Bundles and preferences
 
@@ -208,13 +225,15 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
   `title`, `description`, `required`, `default`. Settings shows them under the bundle. Each reaches every command as
   `ALLINONEIME_PREF_<NAME>` (the name in capitals, other characters as `_`: `apiToken` → `ALLINONEIME_PREF_APITOKEN`);
   a checkbox is `true` or `false`. Password values are kept in the macOS keychain, never in a file; the others in the
-  config file. While a required preference has no value, its commands say so instead of running.
+  config file. While a required preference has no value, its commands say so instead of running. Settings saves a
+  text field on Return and when you leave it.
 
 ## 7. Names, order, turning things off
 
 - **Collisions** are resolved in this order: built-in commands, plugins, custom commands, bundles, single scripts,
   Raycast scripts; within each, the folders' order, then file names. A bundle command whose name is taken uses its
-  `alias` if that's free. Settings lists each command left out, and why.
+  `alias` if that's free. Two commands with one name in a bundle: the first is kept. Settings marks each command left
+  out, and why.
 - **Turning things off.** Each command, and each bundle as a whole, has a switch in Settings (`disabledExtensions` in
   the config: a command's id, or a bundle's name). A command turned off frees its name.
 - **The command list** ranks by use. Typing finds names starting with the letters, then names containing them, then
@@ -229,7 +248,7 @@ Raycast's keys are read as they are, and mean:
 
 | Raycast | Here |
 |---|---|
-| `schemaVersion`, `title`, `mode` | required, as in Raycast |
+| `schemaVersion`, `title`, `mode` | required, as in Raycast (Raycast's `schemaVersion` is `1`; another is reported) |
 | `mode fullOutput` | `output show` |
 | `mode compact`, `mode silent` | `output silent` |
 | `mode inline` with `refreshTime` | `status self`, `statusRefresh` = `refreshTime` (running it is `silent`) |

@@ -149,8 +149,8 @@ echo "Flights from $1 to $2"
 | `output` | 结果 |
 |---|---|
 | `insert`（默认） | 全部输出和每一行都可以上屏 |
-| `show` | 边运行边显示在面板里（进度），不上屏；离开输入框就转到后台继续 |
-| `list` | 输出 Alfred Script Filter 格式的列表，边打字边重新运行；选中一项可以上屏、打开、复制或运行下一步 |
+| `show` | 边运行边显示在面板里（进度），不上屏；离开输入框就转到后台继续（最多同时四个） |
+| `list` | 输出 Alfred Script Filter 格式的列表，边打字边重新运行；选中一项可以上屏、打开（网址、文件或文件夹）、复制或运行下一步 |
 | `silent` | 最后一行显示在光标旁边，不上屏 |
 
 命令还可以不要输入（`input none`：在列表里按 ⏎ 就运行）、在后台运行完成后通知你（`background`，期间菜单栏面板里能看到）、
@@ -160,7 +160,7 @@ echo "Flights from $1 to $2"
 
 Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent` → `silent`，带 `refreshTime` 的 `inline` → 状态。
 完整的协议见 [docs/extensions.md](docs/extensions.md)（英文），[Examples/extensions](Examples/extensions) 里每种都有例子。
-扩展会在你的 Mac 上执行代码，只用信得过的；只在你运行时运行（状态和边打字边出的列表也算），安全输入时不运行。
+扩展会在你的 Mac 上执行代码，只用信得过的；只在你运行时运行（状态和边打字边出的列表也算），安全输入时不运行，输入法退出时会停止。
 
 ### 插件
 

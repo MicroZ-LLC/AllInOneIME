@@ -157,8 +157,8 @@ missing instead of running. What it prints is used as its `output` says:
 | `output` | What happens |
 |---|---|
 | `insert` (default) | All of it, and each line, to insert |
-| `show` | Shown in the panel as it prints (progress); nothing inserted. Leave the field and it goes on in the background |
-| `list` | A list in Alfred's Script Filter JSON, run again as you type; picking a row inserts, opens, copies or runs a second step |
+| `show` | Shown in the panel as it prints (progress); nothing inserted. Leave the field and it goes on in the background (up to four at once) |
+| `list` | A list in Alfred's Script Filter JSON, run again as you type; picking a row inserts, opens (a web address, file or folder), copies or runs a second step |
 | `silent` | Its last line near the cursor; nothing inserted |
 
 A command can also take no input (`input none`: ⏎ on its name runs it), run in the `background` and notify you when
@@ -171,7 +171,7 @@ command with a switch, and the scripts left out with why.
 Raycast's modes map as `fullOutput` → `show`, `compact` and `silent` → `silent`, `inline` with `refreshTime` → a
 status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Examples/extensions](Examples/extensions)
 has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
-or a list as you type it), and never during secure input.
+or a list as you type it), never during secure input, and stop when the input method quits.
 
 ### Plugins
 
