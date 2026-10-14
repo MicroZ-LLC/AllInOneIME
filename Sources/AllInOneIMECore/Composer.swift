@@ -345,7 +345,9 @@ public final class Composer {
             engineState = engine?.snapshot() ?? .empty
         }
     }
-    private var primaryEngine: PinyinEngine?
+    /// The engine the controller set (`engine`), also while Hindi's is in its place: what to check for which
+    /// engine level one has (`LatinEngine` without the Chinese pack).
+    public private(set) var primaryEngine: PinyinEngine?
     /// Hindi's engine, on the Hindi pack's tables (`hindiTables`, set by the controller once the pack is installed).
     private var hindiEngine: HindiEngine?
     public var hindiTables: HindiTables? {

@@ -89,6 +89,32 @@ struct HindiTests {
         #expect(c.inputLanguage == .chinese)
     }
 
+    /// Without the Chinese pack level one is `LatinEngine`; in Hindi `engine` is Hindi's. The controller asks
+    /// `primaryEngine` whether it still has to put a `LatinEngine` in (and go back to the default language).
+    @Test func hindiWithoutTheChinesePack() {
+        let c = Composer(engine: LatinEngine(), actionKey: .enter)
+        c.hindiTables = PackData.hindi
+        c.inputLanguages = [.english, .hindi]
+        c.setInputMode(.english)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
+        #expect(c.inputLanguage == .hindi)
+        #expect(c.engine is HindiEngine)
+        #expect(c.primaryEngine is LatinEngine)
+        var resets = 0
+        for letter in "namaste" {
+            // `ensureEngine` before each key.
+            if !(c.primaryEngine is LatinEngine) {
+                c.engine = LatinEngine()
+                c.setInputMode(.english)
+                resets += 1
+            }
+            _ = c.handleKeyDown(k(String(letter)))
+        }
+        #expect(resets == 0)
+        #expect(c.markedText == "नमस्ते")
+    }
+
     @Test func shiftLeavesHindiWithTheWordTyped() {
         let c = hindi()
         _ = type("namaste", c)

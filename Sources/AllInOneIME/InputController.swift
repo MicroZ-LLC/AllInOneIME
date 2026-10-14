@@ -386,7 +386,7 @@ final class AllInOneIMEInputController: IMKInputController {
             session = nil
             if RimeService.shared.isStarted {
                 composer.engine = nil
-            } else if !(composer.engine is LatinEngine) {
+            } else if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
                 composer.engine = LatinEngine()
                 appliedDefaultInput = nil
                 applySettings()
