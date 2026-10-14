@@ -94,7 +94,7 @@ enum UIText {
     /// What `@improve` / `@translate` (or both) do with a sentence in `input`: "润色 / 改写",
     /// "翻译成英文、日语", "translate to English / rewrite".
     static func action(_ mode: WritingMode, input: Language, config: Config) -> String {
-        let plan = WritingPlan.make(mode, text: input == .chinese ? "中" : "a", config: config)
+        let plan = WritingPlan.make(mode, input: OutputLanguage(input), config: config)
         var parts: [String] = []
         let targets = ([plan.versions].compactMap { $0 }.filter { $0 != plan.input }) + plan.translations
         if !targets.isEmpty {

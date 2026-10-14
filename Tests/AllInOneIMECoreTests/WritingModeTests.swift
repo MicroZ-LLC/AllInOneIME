@@ -66,6 +66,41 @@ struct WritingModeTests {
         #expect(parsed.versions.isEmpty && parsed.rewrites.map(\.style) == ["润色", "简洁"])
     }
 
+    /// Korean, Hindi and French are told apart from English: @improve keeps them, @translate translates them into
+    /// English too.
+    @Test func koreanHindiAndFrenchKeepTheirLanguage() {
+        #expect(Language.of("오늘 몸이 좀 안 좋아요") == .korean && Language.of("ㅋㅋ") == .korean)
+        #expect(Language.of("आज मेरी तबीयत ठीक नहीं है") == .hindi)
+        #expect(Language.of("我check一下") == .chinese && Language.of("check it") == .english)
+        // French only for someone who types it, and only when the words are French.
+        #expect(Language.of("je me sens pas très bien") == .english)
+        #expect(Language.of("je me sens pas très bien", french: true) == .french)
+        #expect(Language.of("this bug is blocker, your team need fix it asap", french: true) == .english)
+        var french = config([.english, .chinese])
+        french.inputLanguages = [.english, .french]
+        #expect(french.language(of: "on se voit demain ?") == .french)
+
+        let outputs = config([.english, OutputLanguage("ja"), .chinese])
+        for (text, code) in [("오늘 몸이 좀 안 좋아요", "ko"), ("आज मेरी तबीयत ठीक नहीं है", "hi")] {
+            let improve = WritingPlan.make(.improve, text: text, config: outputs)
+            #expect(improve.input.code == code && improve.versions?.code == code)
+            let translate = WritingPlan.make(.translate, text: text, config: outputs)
+            #expect(translate.translations == [.english, OutputLanguage("ja"), .chinese])
+        }
+        var frenchOutputs = outputs
+        frenchOutputs.inputLanguages = [.english, .french]
+        #expect(WritingPlan.make(.improve, text: "on se voit demain ?", config: frenchOutputs).versions == OutputLanguage("fr"))
+
+        // The prompt asks for Korean lines and says the sentence is Korean.
+        let korean = Prompt.request(for: "오늘 몸이 좀 안 좋아요", mode: .improve, config: outputs).system.first?.text ?? ""
+        #expect(korean.contains("typing a sentence in Korean.") && korean.contains("Exactly 3 KO lines, always in Korean."))
+        #expect(korean.contains("rewrite the sentence in Korean"))
+        #expect(!korean.contains("always in English"))
+        // Chinese and English as before.
+        let chinese = Prompt.request(for: "牛的啊", mode: .improve, config: outputs).system.first?.text ?? ""
+        #expect(chinese.contains("typing a sentence: Chinese, English, or a mix of both.\n"))
+    }
+
     @Test func indianLanguages() {
         let codes = ["hi", "bn", "te", "mr", "ta", "gu", "kn", "ml", "pa", "ur"]
         let languages = codes.map(OutputLanguage.init)

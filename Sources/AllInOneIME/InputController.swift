@@ -1121,7 +1121,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// `.run` command's program printed.
     /// Whether `config` has a language to translate `input` into other than its own.
     static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = OutputLanguage(Language.of(input))
+        let own = OutputLanguage(config.language(of: input))
         return config.outputLanguages.contains { $0 != own }
     }
 
@@ -1390,7 +1390,7 @@ final class AllInOneIMEInputController: IMKInputController {
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
-        return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config, draft: composer.draft)
+        return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -1474,7 +1474,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = Language.of(composer.sentText).matches(config.outputLanguage)
+                let polishing = config.language(of: composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.kind == .run ? tr("运行中…", "Running…")

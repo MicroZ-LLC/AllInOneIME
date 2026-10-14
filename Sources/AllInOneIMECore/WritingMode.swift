@@ -44,7 +44,11 @@ public struct WritingPlan: Equatable, Sendable {
     /// `mode` for `text`: translations go to the added output languages other than the sentence's
     /// own (in the user's order); one target gets three versions, several get a line each.
     public static func make(_ mode: WritingMode, text: String, config: Config) -> WritingPlan {
-        let input = OutputLanguage(Language.of(text))
+        make(mode, input: OutputLanguage(config.language(of: text)), config: config)
+    }
+
+    /// `mode` for a sentence written in `input`.
+    public static func make(_ mode: WritingMode, input: OutputLanguage, config: Config) -> WritingPlan {
         let styles = mode == .translate ? [] : RewriteStyle.resolve(config.rewriteStyles)
         guard mode != .improve else { return WritingPlan(versions: input, translations: [], styles: styles, input: input) }
         let targets = config.outputLanguages.filter { $0 != input }

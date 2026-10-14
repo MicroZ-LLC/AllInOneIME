@@ -40,6 +40,9 @@ public struct Config: Codable, Equatable, Sendable {
         keyboardLayouts[language.rawValue] ?? language.defaultKeyboardLayout
     }
 
+    /// The language `text` is written in (`Language.of`): French only for someone who types it.
+    public func language(of text: String) -> Language { Language.of(text, french: inputLanguages.contains(.french)) }
+
     /// At least one input language, at most this many.
     public static let maxInputLanguages = 5
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
