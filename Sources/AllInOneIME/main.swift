@@ -406,7 +406,10 @@ case "--showcase":
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
     MainActor.assumeIsolated {
-        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"))
+        // `extensions=<folder>`: the Custom Commands page shows that folder's extensions instead of the user's.
+        let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
+        SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
+                               extensions: extensions)
     }
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
