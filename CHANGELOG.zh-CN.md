@@ -11,7 +11,13 @@
 
 ### 新增
 
-- Raycast 脚本命令可以当 @ 命令用：把给 Raycast 写的脚本（github.com/raycast/script-commands）放进 `~/.config/allinoneime/scripts` 或在 设置 → 自定义命令 里添加的文件夹，`flights.sh` 就是 `@flights`。已经放着 Raycast 脚本的文件夹会用聚焦自动找到（默认打开，不想要的可以隐藏）。参数写在命令后面，用逗号隔开（`@flights beijing, new york`）；没有参数的脚本一选就运行；`fullOutput` 可以上屏全部或任意一行，`compact` 和 `inline` 上屏最后一行，`silent` 只显示；`needsConfirmation` 会先问。设置里列出文件夹、命令和没加载的脚本及原因。
+- 脚本扩展：用 App 之外的程序加 @ 命令，任何语言，注释里写几行元数据（docs/extensions.md，协议版本 1）。放进 `~/.config/allinoneime/extensions` 或在 设置 → 自定义命令 里添加的文件夹，`flights.sh` 就是 `@flights`；参数写在后面，用逗号隔开（`@flights beijing, new york`）。
+  - 输出可以上屏（`insert`）、边运行边显示而不上屏（`show`，进度）、边打字边给出列表来选（`list`，Alfred Script Filter 格式：选中一项可以上屏、打开、复制或运行下一步），或在光标旁边提示（`silent`）；输出 JSON 的 `summary` 和 `detail` 会一起显示。
+  - 命令可以不要输入（在列表里按 ⏎ 就运行）、在后台运行完成后通知你（菜单栏面板里能看到；离开输入框时还在跑的 `show` 也会转到后台）、在命令列表里名字旁边显示状态，或运行前先确认。
+  - 脚本能拿到 `ALLINONEIME_*` 环境变量：界面和输入的语言、正在打字的 App、命令后面的文字。
+  - 扩展包：带 `extension.json` 的文件夹放几个命令，共用代码和偏好设置；设置里能填偏好（密码存在钥匙串里）。
+  - Raycast 的脚本命令不用改就能用，放着它们的文件夹会用聚焦自动找到（默认打开，不想要的可以隐藏）。
+  - 设置里列出文件夹、扩展包、每个命令（各有开关），以及没加载的脚本和原因（包括协议版本比 App 新的）。每种的例子在 Examples/extensions。
 - 输入语言新增法语、韩语、印地语，和英文、中文并列：在「输入」里用 ＋ 添加。
   - 法语用它自己的键盘布局打字：默认 AZERTY，也可以在它的卡片里换一种（配置里的 `keyboardLayouts`），死键（^、¨、`、´、~）也按它组合。其他语言还是用你在系统里用的布局。
   - 韩语用两套式（두벌식）键盘打韩文，边打边组成音节（g k s → 한）；按住 Shift 打紧音 ㄲ ㄸ ㅃ ㅆ ㅉ 和 ㅒ ㅖ。命令的文字里也能打。

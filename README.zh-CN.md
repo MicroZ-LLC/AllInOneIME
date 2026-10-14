@@ -127,47 +127,40 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 
 `run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
 
-#### Raycast 脚本命令
+### 脚本扩展
 
-给 [Raycast](https://github.com/raycast/script-commands) 写的脚本命令也能直接当 @ 命令用，不用改：任何语言的脚本（bash、Python、
-Node、Swift……），注释里写着 `@raycast.` 元数据。
+用程序加自己的 @ 命令：任何语言的脚本（bash、Python、Node、Swift……），注释里写几行元数据。放进
+`~/.config/allinoneime/extensions`，或者在 设置 → 自定义命令 → 脚本扩展 里添加的文件夹。Raycast 的脚本命令不用改就能用，
+已经放着它们的文件夹会用聚焦（Spotlight）自动找到。
 
 ```bash
 #!/bin/bash
-# @raycast.schemaVersion 1
-# @raycast.title Flights
-# @raycast.mode compact
-# @raycast.packageName Travel
-# @raycast.icon ✈️
-# @raycast.argument1 { "type": "text", "placeholder": "from city" }
-# @raycast.argument2 { "type": "text", "placeholder": "to city" }
+# @allinoneime.schemaVersion 1
+# @allinoneime.title Flights
+# @allinoneime.argument1 {"type": "text", "placeholder": "from city"}
+# @allinoneime.argument2 {"type": "text", "placeholder": "to city"}
 
 echo "Flights from $1 to $2"
 ```
 
-放进 `~/.config/allinoneime/scripts`，或者在 设置 → 自定义命令 → Raycast 脚本命令 里添加任何文件夹。已经放着 Raycast
-脚本的文件夹会用聚焦（Spotlight）自动找到（可以在那里关掉，不想要的文件夹可以隐藏）；和 Raycast 一样只读文件夹本身、
-不读子文件夹，名字里带 `.template.` 的文件不算。
+`flights.sh` 就是 `@flights`。参数写在命令后面，用逗号（`,` 或 `，`）隔开：`@flights beijing, new york` 运行时 `$1` 是
+`beijing`，`$2` 是 `new york`（多出来的逗号留在最后一个里）；必填的没写会提示缺什么，不运行。输出按 `output` 处理：
 
-- 命令名取文件名里的英文字母：`flights.sh` 是 `@flights`，`convert-timestamp.sh` 是 `@converttimestamp`。名字已经被内置命令、
-  插件、自定义命令或更早找到的脚本占用时，归它们；设置里会列出这样的脚本、读不懂的脚本和原因。
-- 参数写在命令后面。一个参数就是后面的全部文字；两三个参数用逗号（`,` 或 `，`）隔开：`@flights beijing, new york` 运行时
-  `$1` 是 `beijing`，`$2` 是 `new york`（多出来的逗号留在最后一个里）。必填的没写会提示缺什么（「还要写：to city」），不运行；
-  下拉选项（dropdown）写选项的名字或值都行；`percentEncoded` 的参数先编码。
-- 没有参数的脚本在列表里一选（⏎、Tab 或空格）就运行。写了 `needsConfirmation true` 的，第一次按会先问（「运行「Flights」？⏎ 确认」），
-  再按一次才运行。
-
-| `mode` | 在这里 |
+| `output` | 结果 |
 |---|---|
-| `fullOutput` | 全部输出可以上屏（1），每一行也可以单独上屏（2–9）；最长运行 60 秒 |
-| `compact` | 最后一行，可以上屏 |
-| `inline` | 和 `compact` 一样（不会定时刷新：`refreshTime` 不起作用） |
+| `insert`（默认） | 全部输出和每一行都可以上屏 |
+| `show` | 边运行边显示在面板里（进度），不上屏；离开输入框就转到后台继续 |
+| `list` | 输出 Alfred Script Filter 格式的列表，边打字边重新运行；选中一项可以上屏、打开、复制或运行下一步 |
 | `silent` | 最后一行显示在光标旁边，不上屏 |
 
-脚本在它自己的文件夹（或 `currentDirectoryPath`）里运行，用你的登录 shell 的 PATH 再加上 `/usr/local/bin`；有执行权限就直接运行，
-否则用第一行的 `#!` 运行。输出里的颜色代码会去掉。脚本出错退出时，最后一行就是错误信息。10 秒后停止（`fullOutput` 是 60 秒），
-Esc 随时停止。`icon` 只显示 emoji；`refreshTime`、`iconDark`、`authorURL` 不起作用。和 `run` 命令一样，脚本会在你的 Mac 上执行代码
-（只用信得过的），只在你选中或运行时运行，安全输入时不运行。
+命令还可以不要输入（`input none`：在列表里按 ⏎ 就运行）、在后台运行完成后通知你（`background`，期间菜单栏面板里能看到）、
+在命令列表里名字旁边显示状态（`status`）、运行前先确认（`confirm`）。脚本在自己的文件夹里运行，用你的登录 shell 的 PATH，
+还有 `ALLINONEIME_*` 环境变量：界面和输入的语言、正在打字的 App、命令后面的文字。**扩展包**是带 `extension.json` 的文件夹，
+列出它的命令：它们共用代码和偏好设置，设置里能填（密码存在钥匙串里）。设置里每个命令都有开关，没加载的脚本会写明原因。
+
+Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent` → `silent`，带 `refreshTime` 的 `inline` → 状态。
+完整的协议见 [docs/extensions.md](docs/extensions.md)（英文），[Examples/extensions](Examples/extensions) 里每种都有例子。
+扩展会在你的 Mac 上执行代码，只用信得过的；只在你运行时运行（状态和边打字边出的列表也算），安全输入时不运行。
 
 ### 插件
 
