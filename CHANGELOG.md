@@ -4,8 +4,13 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+### Added
+
+- ← → move the cursor in a command's text (`@question …`), as in any text field: type, pinyin, ⌫, a paste or speech go in where it is. ⌘← ⌘→ (or Home, End) go to the start or end of the text, ⌥← ⌥→ a word at a time, fn⌫ deletes after the cursor. The cursor never goes into the command itself; ⏎ runs the whole text.
+
 ### Changed
 
+- A new install starts with English as its input language; add Chinese (pinyin) with + under Input. Existing settings don't change. The settings window's language follows the system until you pick one.
 - ⏎ on a command with nothing after it no longer takes the clipboard's text: it only says to write something. Paste into a command with ⌃V (or ⌘V outside terminals), as before. A stray ⏎ no longer puts whatever was copied into the command.
 
 ## 0.6.1 (2026-10-12)

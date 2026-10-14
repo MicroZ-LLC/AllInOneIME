@@ -373,14 +373,85 @@ public final class Composer {
     /// Inline text: the draft followed by the engine's composition and any speech being recognized.
     public var markedText: String {
         if isLevelTwo { return shownDraft }
-        return shownDraft + (engineState.isComposing ? engineState.preedit : "") + appendix(voice.text)
+        // What is being typed or said goes in at the cursor; what follows it (`tail`, shown the same) after.
+        let shown = shownDraft, after = tail.count
+        return String(shown.dropLast(after)) + (engineState.isComposing ? engineState.preedit : "") + appendix(voice.text)
+            + String(shown.suffix(after))
     }
 
     /// Caret position in `markedText`, in Characters.
     public var markedCursor: Int {
-        if voice != .off { return markedText.count }
-        guard !isLevelTwo, engineState.isComposing else { return shownDraft.count }
-        return shownDraft.count + min(max(engineState.cursor, 0), engineState.preedit.count)
+        let before = shownDraft.count - tail.count
+        if voice != .off { return before + appendix(voice.text).count }
+        guard !isLevelTwo, engineState.isComposing else { return before }
+        return before + min(max(engineState.cursor, 0), engineState.preedit.count)
+    }
+
+    // MARK: The cursor in a command's text
+
+    /// What follows the cursor in the draft, when ← moved it back into the text after the command; typing,
+    /// pinyin, ⌫, a paste and speech then go in there. Replaced wholesale (a command picked, cleared), the
+    /// draft no longer ends with it and the cursor is back at the end (`tail`).
+    private var cursorTail = ""
+
+    /// `cursorTail` while it still holds: the draft ends with it, and the cursor stays after the command.
+    private var tail: String {
+        guard !cursorTail.isEmpty, !isLevelTwo, draft.hasSuffix(cursorTail),
+              draft.count - cursorTail.count >= textStart else { return "" }
+        return cursorTail
+    }
+
+    /// Where the text after the command starts (the cursor never goes into "@question ").
+    private var textStart: Int {
+        guard let command = draftCommand else { return 0 }
+        let header = "@\(command.name) "
+        return draft.hasPrefix(header) ? header.count : 0
+    }
+
+    /// The draft before the cursor.
+    private var beforeCursor: Substring { draft.dropLast(tail.count) }
+
+    /// `text` into the draft at the cursor.
+    private func insertIntoDraft(_ text: String) {
+        let after = tail
+        draft = String(draft.dropLast(after.count)) + text + after
+        cursorTail = after
+    }
+
+    /// ⌫ in the text: the character before the cursor (none before the command's text).
+    private func deleteBeforeCursor() {
+        let after = tail
+        guard draft.count - after.count > (after.isEmpty ? 0 : textStart) else { return }
+        draft = String(draft.dropLast(after.count).dropLast()) + after
+        cursorTail = after
+    }
+
+    /// ← → (⌘ or Home/End: to the start or end of the text, ⌥: a word at a time).
+    private func moveCursor(_ event: KeyEvent) -> [Effect] {
+        let after = tail, start = textStart
+        let position = draft.count - after.count
+        let chars = Array(draft)
+        let toEdge = event.modifiers.contains(.command) || event.keyCode == VirtualKey.home || event.keyCode == VirtualKey.end
+        let wordwise = event.modifiers.contains(.option)
+        let left = event.keyCode == VirtualKey.left || event.keyCode == VirtualKey.home
+        var target = position
+        if toEdge {
+            target = left ? start : chars.count
+        } else if left {
+            target = max(start, position - 1)
+            if wordwise {
+                while target > start, chars[target - 1] == " " { target -= 1 }
+                while target > start, chars[target - 1] != " " { target -= 1 }
+            }
+        } else {
+            target = min(chars.count, position + 1)
+            if wordwise {
+                while target < chars.count, chars[target] == " " { target += 1 }
+                while target < chars.count, chars[target] != " " { target += 1 }
+            }
+        }
+        cursorTail = String(chars[target...])
+        return [.updateMarkedText]
     }
 
     /// The draft as the app shows it while it is typed: commands without their "@" (`improve › 你好` for
@@ -516,7 +587,7 @@ public final class Composer {
     /// (`@reply 告诉他 @st`, not inside a word), where the commands that can run inside a text are offered.
     /// Not inside a note, a reminder, a search, code or a terminal command: they take their text as typed (`takesTextAsTyped`).
     private var palette: (query: String, nested: Bool, at: String.Index)? {
-        guard !isLevelTwo, voice == .off, !engineState.isComposing, let at = draft.lastIndex(of: "@") else { return nil }
+        guard !isLevelTwo, voice == .off, !engineState.isComposing, tail.isEmpty, let at = draft.lastIndex(of: "@") else { return nil }
         let query = draft[draft.index(after: at)...]
         guard query.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
         if at == draft.startIndex { return (String(query), false, at) }
@@ -763,6 +834,11 @@ public final class Composer {
            let response = pasteIntoDraft(evenWhereTheAppPastes: true) {
             return response
         }
+        // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
+        if modifiers == .command, event.keyCode == VirtualKey.left || event.keyCode == VirtualKey.right,
+           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil {
+            return .consumed(moveCursor(event))
+        }
         if modifiers.contains(.command) {
             // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
             // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
@@ -996,8 +1072,8 @@ public final class Composer {
             setLevelOnePhase()
             return [.commit(spoken), wantsPanel ? .showPanel : .hidePanel]
         }
-        draft += appendix(spoken)
-        draftEndsWithVoice = true
+        insertIntoDraft(appendix(spoken))
+        draftEndsWithVoice = tail.isEmpty
         draftHasOutsideText = true
         setLevelOnePhase()
         if translate { return startAction().effects }
@@ -1178,7 +1254,7 @@ public final class Composer {
         let text = clipboard.map(note ? Self.noteText : Self.oneLine) ?? ""
         guard !text.isEmpty else { return [.notice(messages.nothingToPaste)] }
         guard text.count <= limit else { return [.notice(tooLong)] }
-        draft += text
+        insertIntoDraft(text)
         draftHasOutsideText = true
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
@@ -1327,7 +1403,7 @@ public final class Composer {
     }
 
     private func appendTyped(_ text: String, afterVoice: Bool = false) {
-        draft += afterVoice ? appendix(text) : text  // "hello world" + "and" → "hello world and"
+        insertIntoDraft(afterVoice ? appendix(text) : text)  // "hello world" + "and" → "hello world and"
         // The argument of a command inside the text is done: back to Chinese for the rest of the sentence.
         if let from = nestedLatinFrom, text == " ", draft.count > from + 1 {
             nestedLatinFrom = nil
@@ -1357,8 +1433,8 @@ public final class Composer {
             // In English (Latin) mode Space separates words; a second Space in a row runs the command.
             // Right after dictation the sentence is finished, so one Space does. (With the other
             // action keys, Space in a draft is just a space: it goes on below.)
-            if engineState.isAsciiMode, !draft.hasSuffix(" "), !afterVoice {
-                draft += " "
+            if engineState.isAsciiMode, !beforeCursor.hasSuffix(" "), !afterVoice {
+                insertIntoDraft(" ")
                 return .consumed([.updateMarkedText, .showPanel])
             }
             return startAction()
@@ -1376,15 +1452,24 @@ public final class Composer {
                 }
                 return .consumed([.updateMarkedText, .showPanel])
             }
-            draft.removeLast()
+            deleteBeforeCursor()
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
         case VirtualKey.escape:
             draft = ""
             setLevelOnePhase()
             return .consumed([.updateMarkedText, .hidePanel])
-        case VirtualKey.tab, VirtualKey.left, VirtualKey.right, VirtualKey.up, VirtualKey.down,
-             VirtualKey.home, VirtualKey.end, VirtualKey.pageUp, VirtualKey.pageDown, VirtualKey.forwardDelete:
+        case VirtualKey.left, VirtualKey.right, VirtualKey.home, VirtualKey.end:
+            // The cursor moves in the text after the command, as in any text field.
+            return .consumed(moveCursor(event))
+        case VirtualKey.forwardDelete:
+            let after = tail
+            guard !after.isEmpty else { return .consumed() }
+            draft = String(draft.dropLast(after.count)) + after.dropFirst()
+            cursorTail = String(after.dropFirst())
+            setLevelOnePhase()
+            return .consumed([.updateMarkedText, .showPanel])
+        case VirtualKey.tab, VirtualKey.up, VirtualKey.down, VirtualKey.pageUp, VirtualKey.pageDown:
             return .consumed()
         default:
             return nil
@@ -1406,7 +1491,7 @@ public final class Composer {
     /// Engine output continues a draft (an @ command); otherwise it is inserted, as in any input method.
     private func accept(_ text: String) -> [Effect] {
         if !draft.isEmpty {
-            draft += text
+            insertIntoDraft(text)
             return []
         }
         return [.commit(text)]
@@ -1492,7 +1577,7 @@ public final class Composer {
 
     /// `text` as it continues the draft: English words get a separating space.
     private func appendix(_ text: String) -> String {
-        text.isEmpty ? "" : separator(before: text, after: draft) + text
+        text.isEmpty ? "" : separator(before: text, after: String(beforeCursor)) + text
     }
 
     private func separator(before text: String, after existing: String) -> String {

@@ -105,6 +105,7 @@ enum SelfTest {
     static var settings: Config = {
         var config = Config.default
         config.claudeInBackground = false  // @claude records a Terminal launch here; nothing starts in the background
+        config.setOrder([Language.chinese, .english])  // pinyin first, Shift to English (a new install has English only)
         return config
     }()
     /// Live Bedrock calls with the real config (model, credentials, styles), the translation languages pinned to English then Chinese
@@ -460,6 +461,13 @@ enum SelfTest {
         check(controller.panelModel().status == draftHint(controller, input: .english),
               "the hint names the action key (\(controller.panelModel().status))")
         snapshot("7a-english-draft", in: snapshotDirectory)
+        // ← moves the cursor in the command's text, and the app's caret with it; End back to the end.
+        let end = client.markedSelection.location
+        for _ in 0..<4 { _ = press(controller, client, "", code: VirtualKey.left) }
+        check(client.markedSelection.location == end - 4 && client.marked == "improve › " + sentence + " ",
+              "← moves the caret in the command's text (\(client.markedSelection.location) of \(end))")
+        _ = press(controller, client, "", code: VirtualKey.end)
+        check(client.markedSelection.location == end, "End puts it back at the end")
         check(act(controller, client), "the action key sends it")
         if finishConversion(controller, "English polish") {
             let choices = controller.composer.choices

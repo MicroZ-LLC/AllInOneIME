@@ -33,7 +33,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// is the one in use. A new user has one.
     public var outputLanguages: [OutputLanguage]
     /// The input languages added, in the user's order: pinyin (Chinese), English letters, or both
-    /// (Shift switches). The first is the default. A new user has one; with one, Shift doesn't switch.
+    /// (Shift switches). The first is the default. A new user has English only; with one, Shift doesn't switch.
     public var inputLanguages: [Language]
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
     public var defaultInput: Language
@@ -93,7 +93,7 @@ public struct Config: Codable, Equatable, Sendable {
         maxTokens: Int, temperature: Double?, timeoutSeconds: Double,
         rewriteStyles: [String] = RewriteStyle.defaultNames,
         outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
-        inputLanguages: [Language] = [.chinese], defaultInput: Language = .chinese,
+        inputLanguages: [Language] = [.english], defaultInput: Language = .english,
         voiceInput: Bool = true, jargonFile: String? = nil,
         actionKey: ActionKey = .enter, uiLanguage: Language? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
@@ -166,8 +166,9 @@ public struct Config: Codable, Equatable, Sendable {
         // Without the chosen one named, it's the first of the list.
         outputLanguage = try c.decodeIfPresent(OutputLanguage.self, forKey: .outputLanguage)
             ?? (c.contains(.outputLanguages) ? outputLanguages.first : nil) ?? d.outputLanguage
+        // A file from before input languages started in Chinese; a new user starts in English (`Config.default`).
         defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput)
-            ?? (c.contains(.inputLanguages) ? inputLanguages.first : nil) ?? d.defaultInput
+            ?? (c.contains(.inputLanguages) ? inputLanguages.first : .chinese) ?? d.defaultInput
         improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
@@ -199,7 +200,7 @@ public struct Config: Codable, Equatable, Sendable {
         outputLanguages = outputLanguages.filter { seenOutput.insert($0).inserted }
         var seenInput = Set<Language>()
         inputLanguages = inputLanguages.filter { seenInput.insert($0).inserted }
-        if inputLanguages.isEmpty { inputLanguages = [.chinese] }
+        if inputLanguages.isEmpty { inputLanguages = [.english] }
         if inputLanguages.contains(defaultInput) {
             inputLanguages = [defaultInput] + inputLanguages.filter { $0 != defaultInput }
         } else {

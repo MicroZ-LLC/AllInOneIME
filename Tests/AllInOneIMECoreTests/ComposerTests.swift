@@ -615,13 +615,13 @@ struct ComposerTests {
             #expect(commits(r) == ["@improve ok"], "\(key)")
             #expect(c.phase == .idle && c.draft.isEmpty, "\(key)")
         }
-        // Editing keys stay with the command (Return runs it, Esc clears it).
+        // Editing keys stay with the command (Return runs it, Esc clears it); ← moves the cursor in its text.
         let editingKeys = [upKey, downKey, KeyEvent(keyCode: VirtualKey.tab, characters: "\t"),
                            KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")]
         for key in editingKeys {
             let (c, _) = improveDraft(english: true)
             type("ok", c)
-            #expect(c.handleKeyDown(key) == .consumed() && c.draft == "@improve ok", "\(key)")
+            #expect(c.handleKeyDown(key).handled && c.draft == "@improve ok", "\(key)")
         }
     }
 

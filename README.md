@@ -21,7 +21,7 @@ For more detail (every command and setting, installation troubleshooting, privac
 ## How to use
 
 Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
-To write in English only, set **Input languages** to English in the settings (see [Input and translation](#input-and-translation)).
+A new install writes English; to type Chinese (pinyin) too, add it in the settings (see [Input and translation](#input-and-translation)).
 
 | Key | What it does |
 |---|---|
@@ -190,7 +190,7 @@ What it reads, and when:
 
 In the settings:
 
-- **Input languages**: English, Chinese (pinyin), or both. A new install starts with Chinese only: to write English, add English and remove Chinese (or drag English first). New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
+- **Input languages**: English, Chinese (pinyin), or both. A new install starts with English only; to type Chinese too, add Chinese (pinyin) with +. New text fields start in the first; with two, tap Shift to switch; with one, Shift doesn't switch.
 - **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. On the Input page, pick Chinese (pinyin) in the bar of input languages, turn on "Fuzzy pinyin" and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
 - **Translate (@translate)**: add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese…) and drag them into order. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install has English only.
 - `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in the settings to make `@improve` always do that.

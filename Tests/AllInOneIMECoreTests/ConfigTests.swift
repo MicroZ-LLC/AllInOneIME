@@ -115,8 +115,8 @@ struct ConfigTests {
     }
 
     @Test func addedLanguages() throws {
-        // A new user: one input language and one output language.
-        #expect(Config.default.inputLanguages == [.chinese] && Config.default.outputLanguages == [.english])
+        // A new user: English in, English out (translations added in the settings).
+        #expect(Config.default.inputLanguages == [.english] && Config.default.defaultInput == .english && Config.default.outputLanguages == [.english])
         // A file from before languages could be added keeps both, as the menu and Shift had them.
         let old = try decode(#"{"outputLanguage": "zh"}"#)
         // The chosen one comes first.
@@ -126,10 +126,10 @@ struct ConfigTests {
         // Any output language can be added; the chosen one is always among them.
         let japanese = try decode(#"{"outputLanguage": "ja", "outputLanguages": ["en"], "inputLanguages": ["en"], "defaultInput": "zh"}"#)
         #expect(japanese.outputLanguages == [OutputLanguage("ja"), .english] && japanese.outputLanguage.code == "ja")
-        // The default input is one that's on; none on means Chinese; no duplicates.
+        // The default input is one that's on; none on means English; no duplicates.
         #expect(japanese.inputLanguages == [.english] && japanese.defaultInput == .english)
         let none = try decode(#"{"inputLanguages": [], "outputLanguages": ["fr", "fr", "en"]}"#)
-        #expect(none.inputLanguages == [.chinese] && none.outputLanguages.map(\.code) == ["fr", "en"] && none.outputLanguage.code == "fr")
+        #expect(none.inputLanguages == [.english] && none.outputLanguages.map(\.code) == ["fr", "en"] && none.outputLanguage.code == "fr")
         // Reordering (dragging in the settings): the first becomes the one in use, the default input.
         var dragged = none
         dragged.setOrder([OutputLanguage.english, OutputLanguage("fr")])
