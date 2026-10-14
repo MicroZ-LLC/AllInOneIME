@@ -221,6 +221,8 @@ final class FloatingPanel: ObservableObject {
     /// Reminders being ticked off (their box is checked until they're gone from the list).
     @Published private(set) var completing: Set<String> = []
     @Published private(set) var tasks: TasksState = .loading
+    /// The script extensions running in the background, and those done lately (`ScriptTasks.background`).
+    @Published private(set) var scriptRuns: [ScriptTasks.Run] = []
     /// What's typed in the tasks' search field (shown once there are more than `AgentTaskList.shown`).
     @Published var taskQuery = ""
     /// The row swiped to the left (`swipeOffset`: how far; its 「移除」 button shows in the gap).
@@ -341,6 +343,7 @@ final class FloatingPanel: ObservableObject {
         chinese = UIText.chinese
         now = sources.now()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
+        scriptRuns = ScriptTasks.shared.background
         (reminders, tasks, completing, message, sessions, replies) = (.loading, .loading, [], nil, nil, AgentReplyCache())
         (swipedRow, swipeOffset, hoveredRow, tracking, swallowingMomentum) = (nil, 0, nil, nil, false)
         unseen = false
@@ -420,6 +423,7 @@ final class FloatingPanel: ObservableObject {
         }
         // It doesn't look by itself while none runs: a look at once shows the new one.
         on(.allInOneIMEAgentStarted) { panel, _ in panel.lookAtTasks(force: true) }
+        on(.allInOneIMEScriptRunsChanged) { panel, _ in panel.scriptRuns = ScriptTasks.shared.background }
         // Displays changed (one unplugged, the resolution): closed, like a menu; the icon opens it again.
         on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.closeDropDown() }
         on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.chinese = UIText.chinese }
@@ -740,6 +744,9 @@ final class FloatingPanel: ObservableObject {
             case let .task(id):
                 remember(id, under: Self.dismissedTasksKey)
                 if case let .list(rows) = tasks { tasks = .list(rows.filter { $0.id != id }) }
+            case let .scriptRun(id):
+                ScriptTasks.shared.remove(id)  // stopped if it still runs
+                scriptRuns = ScriptTasks.shared.background
             }
         }
         log.notice("menu bar panel: a row was removed")
@@ -915,7 +922,7 @@ final class DashboardHostingView: NSHostingView<FloatingPanelView> {
 
 /// A row of the panel, to swipe away.
 enum PanelRow: Hashable {
-    case note(String), reminder(String), task(String)
+    case note(String), reminder(String), task(String), scriptRun(Int)
 }
 
 private struct ListHeightKey: PreferenceKey {
@@ -1021,6 +1028,9 @@ struct FloatingPanelView: View {
             section(tr("备忘录", "Notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
             section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .claude)) { tasks }
+            if !panel.scriptRuns.isEmpty {
+                section(tr("后台命令", "Background Commands"), CommandIcons.scripts) { scriptRuns }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)  // short lines (the empty ones) stay on the left
         .padding(.horizontal, 10)
@@ -1195,6 +1205,41 @@ struct FloatingPanelView: View {
             .joined(separator: tr("，", ", ")))
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(tr("在终端里打开", "Opens it in Terminal"))
+    }
+
+    /// The script extensions in the background: running, done or failed; a click opens what they printed.
+    @ViewBuilder
+    private var scriptRuns: some View {
+        ForEach(panel.scriptRuns) { run in
+            let progress: AgentSession.Progress = run.outcome == .running ? .working : run.outcome == .done ? .done : .needsYou
+            let ago = DashboardText.ago(run.finished ?? run.started, now: panel.now, chinese: UIText.chinese)
+            let line: String? = {
+                if case let .failed(message) = run.outcome { return message }
+                return run.output?.headline
+            }()
+            swipeable(.scriptRun(run.id)) {
+                Button { panel.click { ScriptTasks.shared.openResult(run.id) } } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        IconView(icon: CommandIcons.icon(for: progress), size: 16).padding(.top, 1)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 6) {
+                                Text(run.command.title).font(.system(size: 13)).lineLimit(1)
+                                Spacer(minLength: 6)
+                                Text(ago).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            if let line { Text(line).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1) }
+                        }
+                    }
+                    .rowHover()
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel([run.command.title, FloatingPanel.progressName(progress), ago, line].compactMap { $0 }
+                    .joined(separator: tr("，", ", ")))
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(tr("打开它的输出", "Opens what it printed"))
+            }
+        }
     }
 
     // MARK: Parts
