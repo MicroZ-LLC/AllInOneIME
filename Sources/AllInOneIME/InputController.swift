@@ -99,6 +99,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
+    /// A dead key typed before the next key (`DeadKeyComposer`).
+    private var deadKeys = DeadKeyComposer()
     /// Shown once each time composing gets paused for secure input.
     private var secureNoticeShown = false
     var converter: Converter = sharedConverter
@@ -490,10 +492,14 @@ final class AllInOneIMEInputController: IMKInputController {
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
         }
-        let response = composer.handleKeyDown(KeyEvent(
+        // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
+        if composer.pendingAccent == nil { deadKeys.reset() }
+        let key = deadKeys.compose(KeyEvent(
             keyCode: event.keyCode, characters: event.characters ?? "",
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat))
+            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat), in: KeyboardLayout.current())
+        let response = composer.handleKeyDown(key)
+        if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
         return response.handled
     }

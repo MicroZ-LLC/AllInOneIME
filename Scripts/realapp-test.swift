@@ -485,6 +485,16 @@ final class Harness: NSObject, NSApplicationDelegate {
         tapShift()
         type("abc")
         check(waitUntil(2) { self.committed == "abc" && self.marked.isEmpty }, "after Shift, letters are typed as English ('\(committed)')")
+        // Dead keys: macOS doesn't compose them for an input method; it does (US layout: ⌥E then E).
+        key("", keyCodes["e"]!, .option)
+        type("e")
+        check(waitUntil(2) { self.committed == "abcé" && self.marked.isEmpty }, "⌥E E types é ('\(committed)')")
+        command("i")
+        type("caf")
+        key("", keyCodes["e"]!, .option)
+        type("e")
+        check(waitUntil(2) { self.marked.hasSuffix(" café") }, "⌥E E types é in a command's text (\(marked))")
+        reset()
         print("— English @improve (live Bedrock)")
         textView.string = ""
         command("i")
