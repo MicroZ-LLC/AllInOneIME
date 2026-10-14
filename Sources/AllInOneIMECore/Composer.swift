@@ -644,6 +644,14 @@ public final class Composer {
         Command.parse(draft, in: commands).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
     }
 
+    /// The language of the text after the command, for what the action key will do with it ("translate to …"): the
+    /// one it's written in (`Config.language(of:)`), or while it's only letters so far (pinyin or Hindi being
+    /// typed), the one being typed.
+    public func textLanguage(config: Config) -> Language {
+        let written = config.language(of: sentText)
+        return written == .english && !inputLanguage.isLatin ? inputLanguage : written
+    }
+
     /// The command at the start of the draft, once its name is complete ("@question …").
     public var draftCommand: Command? { Command.parse(draft, in: commands)?.command }
 

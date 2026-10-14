@@ -507,7 +507,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if !secureNoticeShown, let chars = event.characters, !chars.isEmpty,
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 secureNoticeShown = true
-                perform([.notice(tr("安全输入中：暂停拼音，直接输入", "Secure input: pinyin paused, keys go straight in"))],
+                perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))],
                         client: client)
             }
             return false
@@ -1539,9 +1539,8 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = state.highlighted
             let key = composer.actionKey
             if let command = composer.draftCommand {
-                // Pinyin in an @ command: the action key converts it and runs the command.
-                let input: Language = composer.sentText.containsHan || !composer.engineState.isAsciiMode ? .chinese : .english
-                let action = UIText.action(command, input: input, config: config, draft: composer.draft)
+                // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
+                let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
                 model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")

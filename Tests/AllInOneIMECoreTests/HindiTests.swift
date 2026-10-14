@@ -124,6 +124,21 @@ struct HindiTests {
         #expect(c.inputLanguage == .english)  // not Chinese, which isn't one of them
     }
 
+    /// Hindi being typed in a command's text: what the action key does is said for Hindi, not Chinese.
+    @Test func theTextLanguageWhileHindiIsTyped() {
+        let c = hindi()
+        var config = Config.default
+        config.inputLanguages = [.english, .hindi]
+        _ = c.handleKeyDown(at)
+        _ = type("tr", c)
+        _ = c.handleKeyDown(tab)
+        _ = type("aap", c)
+        #expect(c.engineState.isComposing)
+        #expect(c.textLanguage(config: config) == .hindi)
+        _ = c.handleKeyDown(spaceKey)
+        #expect(c.textLanguage(config: config) == .hindi)  // आप
+    }
+
     /// `@open` from Hindi types English letters, and Hindi comes back after it.
     @Test func aCommandsLettersAreEnglishInHindi() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)

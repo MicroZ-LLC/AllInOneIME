@@ -1462,22 +1462,22 @@ struct SettingsView: View {
         Command.builtins.contains { $0.name == command.name.lowercased() }
     }
 
-    /// The commands, at the top: what this input method does beyond pinyin.
+    /// The commands, at the top: what this input method does beyond typing the user's input languages.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        return tr("平时就是普通拼音输入法。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
+        let languages = model.config.inputLanguages.map(AllInOneIMEInputController.inputName).joined(separator: tr("、", ", "))
+        return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
-                  (model.config.inputLanguages.contains(.chinese) ? "A regular pinyin input method. " : "")
+                  "A regular input method: \(languages). "
                       + "Type @ first for commands: @improve polishes and rewrites, @translate "
                       + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }
 
-    /// What @improve does for Chinese and for English input.
+    /// What @improve does for each input language: "@improve: Chinese → polish / rewrite; Korean → …".
     private var inputSummary: String {
-        let chinese = UIText.action(input: .chinese, config: model.config)
-        let english = UIText.action(input: .english, config: model.config)
-        return tr("@improve：打中文 → \(chinese)；打英文 → \(english)。", "@improve: Chinese → \(chinese); English → \(english).")
+        let each = model.config.inputLanguages.map { "\(UIText.name($0)) → \(UIText.action(input: $0, config: model.config))" }
+        return tr("@improve：打", "@improve: ") + each.joined(separator: tr("；打", "; ")) + tr("。", ".")
     }
 
     /// Adds an input language; one whose pack isn't installed is added once the pack has downloaded
