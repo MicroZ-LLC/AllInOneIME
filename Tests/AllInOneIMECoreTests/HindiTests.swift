@@ -6,31 +6,32 @@ struct HindiTests {
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
 
     @Test func transliteratesByRule() {
-        #expect(HindiTransliteration.transliterate("namaste", clusters: true) == "नमस्ते")
-        #expect(HindiTransliteration.transliterate("bhaarat", clusters: true) == "भारत")
-        #expect(HindiTransliteration.candidates("bharat").first == "भारत")  // from the word list
-        #expect(HindiTransliteration.transliterate("kamra", clusters: false) == "कमरा")
-        #expect(HindiTransliteration.transliterate("pyaar", clusters: true) == "प्यार")
-        #expect(HindiTransliteration.transliterate("aam", clusters: true) == "आम")
-        #expect(HindiTransliteration.transliterate("ghar", clusters: true) == "घर")
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("namaste", clusters: true) == "नमस्ते")
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("bhaarat", clusters: true) == "भारत")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("bharat").first == "भारत")  // from the word list
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("kamra", clusters: false) == "कमरा")
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("pyaar", clusters: true) == "प्यार")
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("aam", clusters: true) == "आम")
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("ghar", clusters: true) == "घर")
         // Capitals inside a word are the retroflex letters.
-        #expect(HindiTransliteration.transliterate("TamaaTar", clusters: true) == "टमाटर")
+        #expect(HindiTransliteration(tables: PackData.hindi).transliterate("TamaaTar", clusters: true) == "टमाटर")
     }
 
     @Test func commonWordsComeFirstSpelledAsHindiWritesThem() {
-        #expect(HindiTransliteration.candidates("karna").first == "करना")
-        #expect(HindiTransliteration.candidates("nahi").first == "नहीं")
-        #expect(HindiTransliteration.candidates("main").first == "मैं")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("karna").first == "करना")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("nahi").first == "नहीं")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("main").first == "मैं")
         // A capital starting a sentence is the word, not a retroflex letter.
-        #expect(HindiTransliteration.candidates("Main").first == "मैं")
-        #expect(HindiTransliteration.candidates("Kamal").first == "कमल")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("Main").first == "मैं")
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("Kamal").first == "कमल")
         // Words with a cluster offer both spellings.
-        #expect(HindiTransliteration.candidates("kamra").contains("कमरा"))
-        #expect(HindiTransliteration.candidates("kamra").contains("कम्रा"))
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("kamra").contains("कमरा"))
+        #expect(HindiTransliteration(tables: PackData.hindi).candidates("kamra").contains("कम्रा"))
     }
 
     func hindi() -> Composer {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hindiTables = PackData.hindi
         c.inputLanguages = [.english, .hindi]
         c.setInputMode(.hindi)
         return c
@@ -77,6 +78,17 @@ struct HindiTests {
         #expect(c.sentText == "आप कैसे हो")
     }
 
+    @Test func withoutThePackHindiIsNoInputMode() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.hindi)
+        #expect(c.inputLanguage == .chinese)
+        c.hindiTables = PackData.hindi
+        c.setInputMode(.hindi)
+        #expect(c.inputLanguage == .hindi)
+        c.hindiTables = nil  // the pack deleted
+        #expect(c.inputLanguage == .chinese)
+    }
+
     @Test func shiftLeavesHindiWithTheWordTyped() {
         let c = hindi()
         _ = type("namaste", c)
@@ -93,6 +105,7 @@ struct HindiTests {
     @Test func chineseAndHindiTakeTurnsWithLibrime() {
         let engine = FakeEngine()
         let c = Composer(engine: engine, actionKey: .enter)
+        c.hindiTables = PackData.hindi
         c.inputLanguages = [.chinese, .hindi, .english]
         c.setInputMode(.chinese)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)

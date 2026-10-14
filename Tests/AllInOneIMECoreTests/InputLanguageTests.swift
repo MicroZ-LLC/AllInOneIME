@@ -24,6 +24,7 @@ struct InputLanguageTests {
 
     func korean() -> Composer {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hangulTables = PackData.hangul
         c.inputLanguages = [.english, .korean]
         c.setInputMode(.korean)
         return c
@@ -86,6 +87,7 @@ struct InputLanguageTests {
 
     @Test func shiftGoesThroughTheLanguagesInOrder() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hangulTables = PackData.hangul
         c.inputLanguages = [.english, .french, .korean, .chinese]
         c.setInputMode(.english)
         #expect(c.inputLanguage == .english)
@@ -98,6 +100,12 @@ struct InputLanguageTests {
         #expect(c.inputLanguage == .chinese)
         _ = shiftTap(c, at: 13)
         #expect(c.inputLanguage == .english)
+    }
+
+    @Test func withoutThePackKeysAreLetters() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.korean)
+        #expect(c.handleKeyDown(key("g")) == .passThrough)
     }
 
     @Test func switchingFinishesTheSyllable() {

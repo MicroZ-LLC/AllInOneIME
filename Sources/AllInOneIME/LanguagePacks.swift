@@ -29,6 +29,27 @@ final class LanguagePackManager: ObservableObject {
         return store.installed(pack).map(State.installed) ?? .notInstalled
     }
 
+    /// The Korean and Hindi packs' tables, read once per installed version (nil without the pack).
+    func hangulTables() -> HangulTables? { tables(.koreanHangul, cache: &hangulCache, load: HangulTables.load) }
+    func hindiTables() -> HindiTables? { tables(.hindiPhonetic, cache: &hindiCache, load: HindiTables.load) }
+
+    private var hangulCache: (record: LanguagePackRecord, tables: HangulTables)?
+    private var hindiCache: (record: LanguagePackRecord, tables: HindiTables)?
+
+    private func tables<T>(_ pack: LanguagePack, cache: inout (record: LanguagePackRecord, tables: T)?,
+                           load: (URL) throws -> T) -> T? {
+        guard case let .installed(record) = state(pack) else { return nil }
+        if let cache, cache.record == record { return cache.tables }
+        do {
+            let tables = try load(store.folder(pack))
+            cache = (record, tables)
+            return tables
+        } catch {
+            log.error("\(pack.id, privacy: .public) unreadable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     func isInstalled(_ pack: LanguagePack) -> Bool {
         // The self-test's own data (`--rime-data`) stands in for the Chinese pack.
         if pack == .chinesePinyin, RimeDirectories.override != nil { return true }

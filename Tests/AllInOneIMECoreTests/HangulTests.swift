@@ -4,7 +4,7 @@ import Testing
 struct HangulTests {
     /// Types `jamo` one by one: what came out, then what is still being typed.
     private func type(_ jamo: String) -> (committed: String, preedit: String) {
-        var hangul = HangulComposer()
+        var hangul = HangulComposer(tables: PackData.hangul)
         var out = ""
         for j in jamo { out += hangul.feed(j) }
         return (out, hangul.preedit)
@@ -40,7 +40,7 @@ struct HangulTests {
     private func back(_ hangul: inout HangulComposer) -> Bool { hangul.backspace() }
 
     @Test func backspaceTakesBackOneKey() {
-        var hangul = HangulComposer()
+        var hangul = HangulComposer(tables: PackData.hangul)
         for j in "ㄷㅏㄹㄱ" { _ = hangul.feed(j) }
         #expect(hangul.preedit == "닭")
         #expect(back(&hangul))
@@ -55,7 +55,7 @@ struct HangulTests {
     }
 
     @Test func flushFinishesWhatIsTyped() {
-        var hangul = HangulComposer()
+        var hangul = HangulComposer(tables: PackData.hangul)
         for j in "ㅎㅏㄴ" { _ = hangul.feed(j) }
         #expect(hangul.flush() == "한")
         #expect(hangul.isEmpty)
@@ -63,11 +63,11 @@ struct HangulTests {
 
     @Test func keysOfThe2SetLayout() {
         // g k s → ㅎ ㅏ ㄴ; Shift for the tense consonants and ㅒ ㅖ; other keys are no jamo.
-        #expect(HangulComposer.jamo(keyCode: 5, shift: false) == "ㅎ")
-        #expect(HangulComposer.jamo(keyCode: 40, shift: false) == "ㅏ")
-        #expect(HangulComposer.jamo(keyCode: 15, shift: true) == "ㄲ")
-        #expect(HangulComposer.jamo(keyCode: 35, shift: true) == "ㅖ")
-        #expect(HangulComposer.jamo(keyCode: 40, shift: true) == "ㅏ")
-        #expect(HangulComposer.jamo(keyCode: 18, shift: false) == nil)  // 1
+        #expect(PackData.hangul.jamo(keyCode: 5, shift: false) == "ㅎ")
+        #expect(PackData.hangul.jamo(keyCode: 40, shift: false) == "ㅏ")
+        #expect(PackData.hangul.jamo(keyCode: 15, shift: true) == "ㄲ")
+        #expect(PackData.hangul.jamo(keyCode: 35, shift: true) == "ㅖ")
+        #expect(PackData.hangul.jamo(keyCode: 40, shift: true) == "ㅏ")
+        #expect(PackData.hangul.jamo(keyCode: 18, shift: false) == nil)  // 1
     }
 }

@@ -414,6 +414,9 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
+        // The Korean and Hindi packs' data, for their input (nil without the pack).
+        composer.hangulTables = LanguagePackManager.shared.hangulTables()
+        composer.hindiTables = LanguagePackManager.shared.hindiTables()
         let languages = LanguagePackManager.shared.usable(config.inputLanguages)
         let defaultInput = languages.contains(config.defaultInput) ? config.defaultInput : languages[0]
         composer.inputLanguages = languages

@@ -339,14 +339,23 @@ public final class Composer {
     /// Level one: librime (or `LatinEngine` without the Chinese pack), as the controller sets it; in Hindi,
     /// `HindiEngine` in its place.
     public var engine: PinyinEngine? {
-        get { hindiActive && primaryEngine != nil ? hindiEngine : primaryEngine }
+        get { hindiActive && primaryEngine != nil ? hindiEngine ?? primaryEngine : primaryEngine }
         set {
             primaryEngine = newValue
             engineState = engine?.snapshot() ?? .empty
         }
     }
     private var primaryEngine: PinyinEngine?
-    private let hindiEngine = HindiEngine()
+    /// Hindi's engine, on the Hindi pack's tables (`hindiTables`, set by the controller once the pack is installed).
+    private var hindiEngine: HindiEngine?
+    public var hindiTables: HindiTables? {
+        didSet {
+            guard hindiTables != oldValue else { return }
+            hindiEngine = hindiTables.map(HindiEngine.init(tables:))
+            if hindiEngine == nil { hindiActive = false }
+            engineState = engine?.snapshot() ?? .empty
+        }
+    }
     /// Hindi is the input language (its engine in place of librime).
     private var hindiActive = false
 
@@ -371,7 +380,11 @@ public final class Composer {
     /// The accent of a dead key (⌥E: "´"), shown at the cursor until the next key composes it (`KeyEvent.composed`).
     public private(set) var pendingAccent: String?
     /// Korean being typed: the syllable shown at the cursor until it's done (`HangulComposer`).
-    public private(set) var hangul = HangulComposer()
+    public private(set) var hangul = HangulComposer(tables: .none)
+    /// The Korean pack's tables (set by the controller once the pack is installed).
+    public var hangulTables: HangulTables? {
+        didSet { if hangulTables != oldValue { hangul = HangulComposer(tables: hangulTables ?? .none) } }
+    }
     /// The language typed while the engine is in its ASCII mode: English, French or Korean (Chinese is pinyin).
     public private(set) var asciiLanguage: Language = .english
 
@@ -845,7 +858,7 @@ public final class Composer {
         guard typesHangul else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
         let back = event.keyCode == VirtualKey.delete && modifiers.isEmpty && !hangul.isEmpty
-        let jamo = modifiers.isSubset(of: .shift) ? HangulComposer.jamo(keyCode: event.keyCode, shift: modifiers.contains(.shift)) : nil
+        let jamo = modifiers.isSubset(of: .shift) ? hangul.tables.jamo(keyCode: event.keyCode, shift: modifiers.contains(.shift)) : nil
         guard back || jamo != nil else { return nil }
         shiftPressedAt = nil
         optionPressed = nil
@@ -1113,7 +1126,7 @@ public final class Composer {
 
     /// Puts level one in `language`: Hindi's engine or librime's, in or out of its ASCII mode.
     private func enter(_ language: Language) {
-        hindiActive = language == .hindi
+        hindiActive = language == .hindi && hindiEngine != nil
         guard let engine else { return }
         let ascii = language != .chinese && language != .hindi
         if ascii { asciiLanguage = language }
@@ -2086,7 +2099,7 @@ public final class Composer {
         engineState = engine?.snapshot() ?? .empty
         draft = ""
         pendingAccent = nil
-        hangul = HangulComposer()
+        _ = hangul.flush()
         messageRecipient = nil
         clearRecipientResults()
         draftEndsWithVoice = false

@@ -1172,15 +1172,17 @@ struct SettingsView: View {
     /// The settings of the input language picked above: pinyin's fuzzy sounds; none for English yet.
     @ViewBuilder private var inputLanguageSection: some View {
         Section {
-            switch shownInput {
-            case .chinese:
-                if !packs.isInstalled(.chinesePinyin) {
-                    // An upgrade whose pack is still on its way (its progress is shown above).
-                    Label(tr("语言包下载完以后才能打中文。", "Chinese can be typed once its language pack has downloaded."),
+            // The language's pack: still on its way (its progress is shown above), or what's installed.
+            if let pack = LanguagePack.for(shownInput) {
+                if !packs.isInstalled(pack) {
+                    Label(tr("语言包下载完以后才能打\(pack.name.text(chinese: true))。", "\(pack.name.en) can be typed once its language pack has downloaded."),
                           systemImage: "arrow.down.circle")
                         .foregroundStyle(.secondary)
                 }
-                packInfo(.chinesePinyin)
+                packInfo(pack)
+            }
+            switch shownInput {
+            case .chinese:
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(tr("模糊音", "Fuzzy pinyin"),

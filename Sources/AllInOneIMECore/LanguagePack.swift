@@ -18,8 +18,18 @@ public struct LanguagePack: Sendable, Equatable, Hashable, Identifiable {
         requiredFiles: ["pack.json", "default.yaml", "rime_ice.schema.yaml", "build/rime_ice.table.bin"],
         name: LocalizedText(en: "Chinese (pinyin)", zh: "中文（拼音）"))
 
-    /// Every pack this app knows how to use. Japanese, Korean, … come here as new engines are added.
-    public static let catalog = [chinesePinyin]
+    /// Korean: the 2-set layout's keys and how jamo make syllables (`HangulTables`).
+    public static let koreanHangul = LanguagePack(
+        id: "ko-hangul", language: .korean, requiredFiles: ["pack.json", HangulTables.fileName],
+        name: LocalizedText(en: "Korean", zh: "韩语"))
+
+    /// Hindi: Latin letters as they sound in Devanagari, and common words (`HindiTables`).
+    public static let hindiPhonetic = LanguagePack(
+        id: "hi-phonetic", language: .hindi, requiredFiles: ["pack.json", HindiTables.fileName],
+        name: LocalizedText(en: "Hindi", zh: "印地语"))
+
+    /// Every pack this app knows how to use. Japanese, … come here as new engines are added.
+    public static let catalog = [chinesePinyin, koreanHangul, hindiPhonetic]
 
     /// The pack `language` needs; nil when it needs none (English).
     public static func `for`(_ language: Language) -> LanguagePack? {
