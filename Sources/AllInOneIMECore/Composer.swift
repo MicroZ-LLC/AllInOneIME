@@ -848,10 +848,11 @@ public final class Composer {
         return finished.isEmpty ? response : Response(effects: finished + response.effects, handled: response.handled)
     }
 
-    /// Whether letter keys type Hangul now: in Korean, outside a command's name, code and `@open`'s letters.
+    /// Whether letter keys type Hangul now: in Korean, outside a command's name, code and `@open`'s letters (also
+    /// code inside the text, until its argument is typed: `nestedLatinFrom`).
     private var typesHangul: Bool {
         inputLanguage == .korean && !isLevelTwo && voice == .off && engine != nil && palette == nil
-            && draftCommand?.typesLatin != true && !(draft.hasPrefix("@") && draftCommand == nil)
+            && draftCommand?.typesLatin != true && nestedLatinFrom == nil && !(draft.hasPrefix("@") && draftCommand == nil)
     }
 
     /// A letter key in Korean: its jamo joins the syllable being typed, and a finished one goes in. ⌫ takes
@@ -1531,10 +1532,10 @@ public final class Composer {
         // File names, paths and code are typed as letters; the input mode comes back when the command is
         // done (inside a text: once its argument is typed and a space follows).
         if command.typesLatin || command.kind == .message && !nested, let engine, !engine.snapshot().isAsciiMode {
-            engine.setAsciiMode(true)
-            restoreChineseAfterOpen = true
-            engineState = engine.snapshot()
+            typeLetters(engine)
             nestedLatinFrom = nested ? draft.count : nil
+        } else if nested, command.typesLatin, inputLanguage == .korean {
+            nestedLatinFrom = draft.count  // letters, not Hangul, until its argument is typed (`typesHangul`)
         }
         setLevelOnePhase()
         return [.updateMarkedText, .showPanel]
@@ -1613,11 +1614,7 @@ public final class Composer {
             // Right after a picked recipient: back to picking one.
             if messageRecipient != nil, let command = draftCommand, draft == "@\(command.name) " {
                 messageRecipient = nil
-                if let engine, !engine.snapshot().isAsciiMode {  // names, pinyin, numbers: typed as letters
-                    engine.setAsciiMode(true)
-                    restoreChineseAfterOpen = true
-                    engineState = engine.snapshot()
-                }
+                if let engine, !engine.snapshot().isAsciiMode { typeLetters(engine) }  // names, pinyin, numbers: typed as letters
                 return .consumed([.updateMarkedText, .showPanel])
             }
             deleteBeforeCursor()
@@ -1672,6 +1669,16 @@ public final class Composer {
         restoreInputModeAfterOpen()
     }
 
+    /// A command typed in letters (`@open`, code, a recipient) from Chinese or Hindi: the engine in its ASCII mode, as
+    /// English (not the Latin language last typed: Korean would be Hangul), until the command is done
+    /// (`restoreInputModeAfterOpen`).
+    private func typeLetters(_ engine: PinyinEngine) {
+        engine.setAsciiMode(true)
+        asciiLanguage = .english
+        restoreChineseAfterOpen = true
+        engineState = engine.snapshot()
+    }
+
     /// Back to Chinese once the draft is no longer a command typed in letters (`@open`, code).
     private func restoreInputModeAfterOpen() {
         if draft.isEmpty { nestedLatinFrom = nil }
@@ -1687,6 +1694,11 @@ public final class Composer {
     private func switchInputLanguage() -> [Effect] {
         guard engine != nil, !isLevelTwo else { return [] }
         let current = inputLanguage
+        // Out of the letters for code inside Korean text (`@translate 안녕 @py …`): back to Hangul.
+        if nestedLatinFrom != nil, !restoreChineseAfterOpen, current == .korean {
+            nestedLatinFrom = nil
+            return [.updateMarkedText, .notice(messages.mode(current))]
+        }
         let next: Language
         if restoreChineseAfterOpen || nestedLatinFrom != nil || inputLanguages.count < 2 {
             next = current == nativeLanguage ? asciiLanguage : nativeLanguage

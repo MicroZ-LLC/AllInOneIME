@@ -158,6 +158,64 @@ struct InputLanguageTests {
         #expect(d.draft == "@translate 안녕 hello")
     }
 
+    /// Chinese, then Korean, then Chinese again: a command typed in letters is English, not the Korean typed before.
+    @Test func aCommandsLettersAreEnglishAfterKorean() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hangulTables = PackData.hangul
+        c.inputLanguages = [.chinese, .korean]
+        c.setInputMode(.chinese)
+        _ = shiftTap(c, at: 1)
+        #expect(c.inputLanguage == .korean)
+        _ = shiftTap(c, at: 2)
+        #expect(c.inputLanguage == .chinese)
+        _ = c.handleKeyDown(at)
+        _ = type("imes", c)
+        _ = c.handleKeyDown(tab)
+        #expect(c.draft == "@imessage ")
+        #expect(c.inputLanguage == .english)
+        _ = type("wang", c)
+        #expect(c.draft == "@imessage wang")
+        #expect(c.markedText == "imessage › wang")
+        #expect(holdToTalk(c, at: 3).contains(.startVoice(id: 1, language: .english)))
+        _ = c.handleKeyDown(escKey)  // the recording
+        _ = c.handleKeyDown(escKey)  // the draft
+        #expect(c.draft.isEmpty)
+        #expect(c.inputLanguage == .chinese)  // back to what it was
+    }
+
+    @Test func codeInsideKoreanTextIsTypedInLetters() {
+        let c = korean()
+        _ = c.handleKeyDown(at)
+        _ = type("tr", c)
+        _ = c.handleKeyDown(tab)
+        _ = type("dkssud", c)
+        _ = c.handleKeyDown(spaceKey)
+        _ = c.handleKeyDown(at)
+        _ = type("py", c)
+        _ = c.handleKeyDown(tab)
+        _ = type("print", c)
+        #expect(c.draft == "@translate 안녕 @py print")
+        // A space after its argument: Hangul again.
+        _ = c.handleKeyDown(spaceKey)
+        _ = type("gk", c)
+        #expect(c.draft == "@translate 안녕 @py print ")
+        #expect(c.markedText.hasSuffix(" 하"))
+        // Shift leaves the letters early, staying in Korean.
+        let d = korean()
+        _ = d.handleKeyDown(at)
+        _ = type("tr", d)
+        _ = d.handleKeyDown(tab)
+        _ = type("dkssud", d)
+        _ = d.handleKeyDown(spaceKey)
+        _ = d.handleKeyDown(at)
+        _ = type("py", d)
+        _ = d.handleKeyDown(tab)
+        _ = shiftTap(d, at: 1)
+        #expect(d.inputLanguage == .korean)
+        _ = type("gk", d)
+        #expect(d.markedText.hasSuffix("py › 하"))
+    }
+
     /// A syllable being typed, with nothing else, is a composition: the controller commits it when a password field
     /// takes over and doesn't switch the language under it.
     @Test func aSyllableBeingTypedIsAComposition() {

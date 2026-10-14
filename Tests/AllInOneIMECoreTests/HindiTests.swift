@@ -115,6 +115,24 @@ struct HindiTests {
         #expect(c.markedText == "नमस्ते")
     }
 
+    /// `@open` from Hindi types English letters, and Hindi comes back after it.
+    @Test func aCommandsLettersAreEnglishInHindi() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hangulTables = PackData.hangul
+        c.hindiTables = PackData.hindi
+        c.inputLanguages = [.english, .korean, .hindi]
+        c.setInputMode(.korean)  // the Latin language typed last
+        c.setInputMode(.hindi)
+        _ = c.handleKeyDown(at)
+        _ = type("ope", c)
+        _ = c.handleKeyDown(tab)
+        #expect(c.inputLanguage == .english)
+        _ = type("doc", c)
+        #expect(c.draft == "@open doc")
+        _ = c.handleKeyDown(escKey)
+        #expect(c.inputLanguage == .hindi)
+    }
+
     @Test func shiftLeavesHindiWithTheWordTyped() {
         let c = hindi()
         _ = type("namaste", c)
