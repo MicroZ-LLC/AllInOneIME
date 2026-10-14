@@ -110,7 +110,7 @@ struct ExtensionRobustnessTests {
     @Test func aStoppedScriptsChildrenGoToo() async throws {
         let folder = ScriptFolder()
         let pids = folder.url.appendingPathComponent("pids")
-        folder.add("stubborn.sh", script(["input none", "timeout 0.3"], "trap '' TERM; sleep 30 & echo $! > \(pids.path); wait"))
+        folder.add("stubborn.sh", script(["input none", "timeout 1"], "trap '' TERM; sleep 30 & echo $! > \(pids.path); wait"))
         let command = try #require(folder.load().commands.first)
         let started = Date()
         var failure: CommandRunner.RunError?
@@ -119,7 +119,7 @@ struct ExtensionRobustnessTests {
         } catch {
             failure = error as? CommandRunner.RunError
         }
-        #expect(failure == .timedOut(0.3) && Date().timeIntervalSince(started) < 2)
+        #expect(failure == .timedOut(1) && Date().timeIntervalSince(started) < 3)  // 1 s, then 0.5 s to SIGKILL
         let child = try #require(pid_t(String(decoding: try Data(contentsOf: pids), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
         try await Task.sleep(for: .milliseconds(100))
         #expect(kill(child, 0) != 0, "the script's child \(child) is still running")
@@ -196,7 +196,7 @@ struct ExtensionRobustnessTests {
 
     @Test func whatOpenOpens() throws {
         let folder = ScriptFolder()
-        let file = folder.add("report.txt", "x")
+        let file = folder.add("report.txt", "x", executable: false)
         let runnable = folder.add("evil.command", "#!/bin/bash\n")
         func url(_ arg: String) -> URL? { ScriptItem(title: "x", arg: arg, action: .open).openURL }
         #expect(url("https://example.com/a?b=c") == URL(string: "https://example.com/a?b=c"))
@@ -210,7 +210,7 @@ struct ExtensionRobustnessTests {
 
     @Test func theComposerOpensOnlyThat() async throws {
         let folder = ScriptFolder()
-        let file = folder.add("report.txt", "x")
+        let file = folder.add("report.txt", "x", executable: false)
         folder.add("rows.sh", script(["output list", "input optional"], """
             printf '{"items": [{"title": "Share", "arg": "smb://server/share", "action": "open"}, {"title": "Report", "arg": "file://\(file.path)"}]}'
             """))
@@ -240,5 +240,88 @@ struct ExtensionRobustnessTests {
         let items = [ScriptItem(title: "a"), ScriptItem(title: "info", valid: false), ScriptItem(title: "b")]
         #expect(Composer.itemChoicesForPanel(items).map(\.label) == ["", "", ""])
         #expect(Composer.itemChoices(items).map(\.label) == ["1", "", "2"])  // in level two, where digits pick
+    }
+
+    // MARK: - How a file is started
+
+    /// A compiled program in a bundle runs as itself, as a shell would run it. (Compiled here: macOS kills a copy
+    /// of one of its own programs, like /bin/echo, run from elsewhere.)
+    @Test func aCompiledProgramRunsAsItself() async throws {
+        let folder = ScriptFolder()
+        folder.add("tools/extension.json", #"{"schemaVersion": 1, "name": "tools", "commands": [{"script": "bin/hello", "name": "hello"}]}"#)
+        let binary = folder.url.appendingPathComponent("tools/bin/hello")
+        try FileManager.default.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let source = folder.add("hello.c", "#include <stdio.h>\nint main(int c, char **v) { printf(\"%s\\n\", c > 1 ? v[1] : \"\"); return 0; }\n",
+                                executable: false)
+        let cc = Process()
+        cc.executableURL = URL(fileURLWithPath: "/usr/bin/cc")
+        cc.arguments = [source.path, "-o", binary.path]
+        try cc.run()
+        cc.waitUntilExit()
+        try #require(cc.terminationStatus == 0)
+        let hello = try #require(folder.load().commands.first)
+        #expect(hello.launch == [binary.path])
+        var text = ""
+        for try await update in CommandRunner.run(hello, arguments: ["from echo"], environment: ["PATH": "/usr/bin:/bin"]) where update.isFinal {
+            text = update.text
+        }
+        #expect(text == "from echo")
+    }
+
+    /// A text script: without "#!", /bin/sh runs it (as a shell does when the system can't); with a byte order mark
+    /// before its "#!" (which the system then doesn't read), the program on that line does.
+    @Test func textScriptsWithoutAReadableShebangLine() async throws {
+        let folder = ScriptFolder()
+        let plain = folder.add("plain.sh", "# @allinoneime.schemaVersion 1\n# @allinoneime.input none\necho plain\n")
+        let bom = folder.add("bom.sh", "\u{FEFF}#!/bin/bash\n# @allinoneime.schemaVersion 1\n# @allinoneime.input none\n[[ 1 == 1 ]] && echo bash\n")
+        let commands = folder.load().commands
+        let (p, b) = (try #require(commands.first { $0.name == "plain" }), try #require(commands.first { $0.name == "bom" }))
+        #expect(p.launch == ["/bin/sh", plain.path] && b.launch == ["/bin/bash", bom.path])
+        var outputs: [String] = []
+        for command in [p, b] {
+            for try await update in CommandRunner.run(command, arguments: [], environment: ["PATH": "/usr/bin:/bin"]) where update.isFinal {
+                outputs.append(update.text)
+            }
+        }
+        #expect(outputs == ["plain", "bash"])
+        // Neither executable nor with a "#!" line: nothing to run it with.
+        #expect(ScriptCommand.launch(for: plain, firstLine: "echo", executable: false) == nil)
+        #expect(ScriptCommand.launch(for: plain, firstLine: "", executable: true, binary: true) == [plain.path])
+    }
+
+    /// Quick programs are never left among the running ones, whichever ends first: the program or its start.
+    @Test func quickProgramsArentLeftRunning() async throws {
+        let folder = ScriptFolder()
+        folder.add("quick.sh", script(["input none"], "echo $$"))
+        let command = try #require(folder.load().commands.first)
+        let groups = try await withThrowingTaskGroup(of: String.self) { tasks in
+            for _ in 0..<30 {
+                tasks.addTask {
+                    var text = ""
+                    for try await update in CommandRunner.run(command, arguments: [], environment: ["PATH": "/usr/bin:/bin"]) where update.isFinal {
+                        text = update.text
+                    }
+                    return text
+                }
+            }
+            return try await tasks.reduce(into: [pid_t]()) { $0.append(pid_t($1) ?? 0) }
+        }
+        #expect(groups.count == 30 && !groups.contains(0))
+        #expect(CommandRunner.runningGroups.isDisjoint(with: groups))
+    }
+
+    /// What `open` refuses: anything opening would run.
+    @Test func openDoesntRunAnything() throws {
+        let folder = ScriptFolder()
+        func url(_ path: String) -> URL? { ScriptItem(title: "x", arg: path, action: .open).openURL }
+        let script = folder.add("tool.sh", "echo\n", executable: false)
+        let python = folder.add("tool.py", "print()\n", executable: false)
+        let runme = folder.add("runme", "echo\n")  // executable, no extension
+        let notes = folder.add("notes.txt", "x", executable: false)
+        let app = folder.url.appendingPathComponent("Tool.app"), workflow = folder.url.appendingPathComponent("Do.workflow")
+        for bundle in [app, workflow] { try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true) }
+        #expect(url(script.path) == nil && url(python.path) == nil && url(runme.path) == nil && url("/usr/bin/say") == nil)
+        #expect(url(workflow.path) == nil)
+        #expect(url(notes.path) == notes && url(app.path)?.path == app.path && url(folder.url.path)?.path == folder.url.path)
     }
 }

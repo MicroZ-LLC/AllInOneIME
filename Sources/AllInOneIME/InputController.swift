@@ -166,6 +166,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
     private var checkedCommands: [Command] = []
     private var missingCommands: Set<String> = []
+    /// A check ended while a command was being written: its result applies once that's done.
+    private var missingCheckWaiting = false
     /// The latest check (an older one that finishes later is ignored).
     private var programCheck = 0
     /// Background `@claude` tasks: starting one, the list, opening one (the self-test supplies its own).
@@ -502,8 +504,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 guard let self, self.programCheck == check else { return }
                 if !missing.isEmpty { log.notice("commands hidden, their program isn't installed: \(missing.count)") }
                 self.missingCommands = missing
-                // Not while a command is being written: the draft keeps the commands it started with.
-                if !self.composer.isComposing { self.composer.commands = commands.filter { !missing.contains($0.name) } }
+                // Not while a command is being written: the draft keeps the commands it started with, and they're
+                // filtered once it's done (`missingCheckWaiting`).
+                if self.composer.isComposing {
+                    self.missingCheckWaiting = true
+                } else {
+                    self.composer.commands = commands.filter { !missing.contains($0.name) }
+                }
             }
         }
     }
@@ -563,7 +570,13 @@ final class AllInOneIMEInputController: IMKInputController {
             let config = loadSettings()
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
                                                       index: loadExtensions(config, false), disabled: config.disabledExtensions)
-            if changed { setCommands(commands) }
+            if changed {
+                setCommands(commands)
+            } else if missingCheckWaiting {
+                // A check of the programs that ended while a command was being written.
+                composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
+            }
+            missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
         }
@@ -807,21 +820,31 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func scriptEnvironment(_ command: ScriptCommand, query: String, status: Bool = false,
                                    action: Bool = false) async -> Result<[String: String], DescribedError> {
+        await environmentMaker(command, query: query, status: status, action: action)()
+    }
+
+    /// What builds `command`'s environment (`scriptEnvironment`), with what it needs of this text field taken now:
+    /// it needs nothing of the field afterwards, which may be gone by the time it runs.
+    @MainActor
+    private func environmentMaker(_ command: ScriptCommand, query: String, status: Bool = false,
+                                  action: Bool = false) -> @Sendable () async -> Result<[String: String], DescribedError> {
         let config = loadSettings()
         let bundle = loadExtensions(config, false).bundle(of: command)
         let context = scriptContext(query: query)
         let preferences = extensionPreferences
-        let read = await Task.detached(priority: .userInitiated) { () -> (env: [String: String], missing: ExtensionBundle.Preference?) in
-            let values = bundle.map { preferences($0, config) } ?? [:]
-            let missing = bundle?.preferences.first { $0.required && (values[$0.name] ?? "").isEmpty }
-            return (context.environment(for: command, base: ShellEnvironment.current, preferences: values, status: status, action: action),
-                    missing)
-        }.value
-        if let missing = read.missing, let bundle {
-            return .failure(DescribedError(message: tr("先在设置里填好「\(missing.title)」（\(bundle.title)）",
-                                                       "Set “\(missing.title)” for \(bundle.title) in the settings first")))
+        let missingMessage = { (missing: ExtensionBundle.Preference, bundle: ExtensionBundle) in
+            tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
         }
-        return .success(read.env)
+        return {
+            await Task.detached(priority: .userInitiated) { () -> Result<[String: String], DescribedError> in
+                let values = bundle.map { preferences($0, config) } ?? [:]
+                if let bundle, let missing = bundle.preferences.first(where: { $0.required && (values[$0.name] ?? "").isEmpty }) {
+                    return .failure(DescribedError(message: missingMessage(missing, bundle)))
+                }
+                return .success(context.environment(for: command, base: ShellEnvironment.current, preferences: values,
+                                                    status: status, action: action))
+            }.value
+        }
     }
 
     /// Runs a script extension for this field's request: what it prints goes to the composer as it comes. It
@@ -874,16 +897,10 @@ final class AllInOneIMEInputController: IMKInputController {
                           "Secure input is on (a password field or the lock screen): the command was not run"), client: client)
             return
         }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            switch await self.scriptEnvironment(script, query: query) {
-            case let .failure(error): self.showNotice(error.message, client: nil)
-            case let .success(environment):
-                if self.scriptTasks.start(script, arguments: arguments, environment: environment, detached: true, handler: nil) == nil {
-                    self.showNotice(tr("\(script.title) 已经在后台运行了（或后台命令太多）",
-                                       "\(script.title) is already running in the background (or too many are)"), client: nil)
-                }
-            }
+        // Held by ScriptTasks while the environment is made, not by this field: it starts even if the field is gone
+        // by then. What went wrong is said here, or in the field being typed in then.
+        scriptTasks.startInBackground(script, arguments: arguments, prepare: environmentMaker(script, query: query)) { [weak self] message in
+            (self ?? Self.activeController)?.showNotice(message, client: nil)
         }
     }
 

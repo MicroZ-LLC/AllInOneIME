@@ -773,15 +773,22 @@ public final class Composer {
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
     /// and inside `@translate` `@improve` (or the other way round): written together, one request does both.
+    /// The draft's command and the words of the draft are read once, and the commands that run inside a text
+    /// are kept while the commands stay (`innerCommands`): with many extensions, a key inside a text mustn't go
+    /// through all of them again.
     private var paletteCommands: [Command] {
         guard palette?.nested == true else { return commands }
-        return commands.filter { CommandPlan.canBeInner($0) || pairsWithDraft($0) }
+        if innerCommands.generation != commandsGeneration {
+            innerCommands = (commandsGeneration, commands.filter(CommandPlan.canBeInner))
+        }
+        guard let draftCommand, draftCommand.kind == .convert else { return innerCommands.commands }
+        // The writing commands (built in, first in the catalog) that pair with the draft's and aren't written yet.
+        let written = Set(draft.split(separator: " ").map(String.init))
+        let pairs = commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }
+            .filter { $0.kind == .convert && $0 != draftCommand && !written.contains("@" + $0.name) }
+        return pairs + innerCommands.commands
     }
-
-    private func pairsWithDraft(_ command: Command) -> Bool {
-        guard let draftCommand, draftCommand.kind == .convert, command.kind == .convert, command != draftCommand else { return false }
-        return !draft.components(separatedBy: " ").contains("@" + command.name)
-    }
+    private var innerCommands: (generation: Int, commands: [Command]) = (-1, [])
 
     /// Commands offered for `paletteQuery`, and the highlighted one.
     /// All of them, the most used first, or what matches the letters (`Command.palette`); the list shows

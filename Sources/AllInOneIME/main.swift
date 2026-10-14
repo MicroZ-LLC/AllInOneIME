@@ -95,13 +95,16 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
-/// started, are stopped first (`CommandRunner.stopAll`), then the input method quits.
+/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), then the input method ends, as
+/// the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main
+/// thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
-    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
     source.setEventHandler {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
         CommandRunner.stopAll()
-        exit(0)
+        _exit(0)
     }
     return source
 }()

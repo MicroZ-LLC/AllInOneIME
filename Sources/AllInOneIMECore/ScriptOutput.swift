@@ -142,8 +142,10 @@ public struct ScriptItem: Hashable, Sendable {
     /// What `copy` and ⌘C take: `text.copy`, its `arg`, or its title.
     public var copyText: String { copy ?? arg ?? title }
 
-    /// What `open` may open: an http(s) address; a `file://` address, an absolute path or a "~/" one that's there.
-    /// Not a file Terminal would run (`.command`, `.tool`, `.terminal`), nor any other scheme or a relative path.
+    /// What `open` may open: an http(s) address; a folder (an app too); a file given by a `file://` address, an
+    /// absolute path or a "~/" one, that's there and that opening wouldn't run: not an executable file (the
+    /// system's programs, a `runme` with no extension) nor a kind of script (`runnableExtensions`). Nothing else:
+    /// no other scheme, no relative path.
     public var openURL: URL? {
         guard let target = openTarget else { return nil }
         let lower = target.lowercased()
@@ -151,10 +153,19 @@ public struct ScriptItem: Hashable, Sendable {
             guard let url = URL(string: target), url.host != nil else { return nil }
             return url
         }
-        guard target.hasPrefix("/"), FileManager.default.fileExists(atPath: target),
-              !["command", "tool", "terminal"].contains((target as NSString).pathExtension.lowercased()) else { return nil }
+        var folder: ObjCBool = false
+        guard target.hasPrefix("/"), FileManager.default.fileExists(atPath: target, isDirectory: &folder) else { return nil }
+        // A folder has the executable bit to be listed; a bundle like a .workflow is a folder too.
+        if Self.runnableExtensions.contains((target as NSString).pathExtension.lowercased()) { return nil }
+        if !folder.boolValue, access(target, X_OK) == 0 { return nil }
         return URL(fileURLWithPath: target)
     }
+
+    /// The kinds of file that opening runs: scripts and programs Terminal or an interpreter would run.
+    public static let runnableExtensions: Set<String> = [
+        "sh", "bash", "zsh", "csh", "tcsh", "ksh", "fish", "command", "tool", "terminal",
+        "py", "pyw", "rb", "pl", "php", "lua", "tcl", "js", "jar", "applescript", "scpt", "workflow", "action",
+    ]
 
     /// What `open` opens: a web address as it is, a path with "~" expanded.
     public var openTarget: String? {

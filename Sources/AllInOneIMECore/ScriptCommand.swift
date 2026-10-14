@@ -374,13 +374,18 @@ extension ScriptCommand {
         String(text.prefix { $0 != "\n" && $0 != "\r" })
     }
 
-    /// How `file` is started: itself when it is executable and has a "#!" line; else the program on that line
-    /// with it ("#!/usr/bin/env python3" → /usr/bin/env python3 file); an executable without one by /bin/sh, as
-    /// a shell runs it; nil when it's neither executable nor has a "#!" line.
-    static func launch(for file: URL, firstLine: String, executable: Bool) -> [String]? {
-        guard firstLine.hasPrefix("#!") else { return executable ? ["/bin/sh", file.path] : nil }
-        if executable { return [file.path] }
-        let words = firstLine.dropFirst(2).split(whereSeparator: \.isWhitespace).map(String.init)
+    /// How `file` is started, as a shell would: an executable runs as itself (a compiled program, `binary`, or a
+    /// script with a "#!" line the system reads); a script that isn't executable, or whose "#!" line follows a
+    /// byte order mark (the system doesn't read it then), runs through the program on that line ("#!/usr/bin/env
+    /// python3" → /usr/bin/env python3 file); an executable text file without one runs with /bin/sh, as a shell
+    /// does when the system can't run it (ENOEXEC). Nil when it's neither executable nor has a "#!" line.
+    static func launch(for file: URL, firstLine: String, executable: Bool, binary: Bool = false) -> [String]? {
+        if executable, binary { return [file.path] }
+        let bom = firstLine.hasPrefix("\u{FEFF}")
+        let line = bom ? String(firstLine.dropFirst()) : firstLine
+        guard line.hasPrefix("#!") else { return executable ? ["/bin/sh", file.path] : nil }
+        if executable, !bom { return [file.path] }
+        let words = line.dropFirst(2).split(whereSeparator: \.isWhitespace).map(String.init)
         return words.isEmpty ? nil : words + [file.path]
     }
 

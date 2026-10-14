@@ -229,8 +229,12 @@ public enum CommandRunner {
             do {
                 try process.run()
                 // Foundation starts it in a process group of its own (its id): stopping it reaches what it started.
+                // Kept while it runs: under `lock`, as `finish` drops it, so one that's over already (a quick
+                // program) is never kept.
                 let group = process.processIdentifier
-                CommandRunner.groups.withLock { _ = $0.insert(group) }
+                lock.lock()
+                if !finished { CommandRunner.groups.withLock { _ = $0.insert(group) } }
+                lock.unlock()
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil

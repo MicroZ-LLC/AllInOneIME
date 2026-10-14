@@ -291,7 +291,8 @@ public enum ExtensionStore {
             }
             let file = folder.appendingPathComponent(script)
             guard let found = read(file),
-                  let launch = ScriptCommand.launch(for: file, firstLine: found.firstLine, executable: found.executable) else {
+                  let launch = ScriptCommand.launch(for: file, firstLine: found.firstLine, executable: found.executable,
+                                                    binary: found.binary) else {
                 skipped.append(Skipped(file: file, problem: .notRunnable))
                 continue
             }
@@ -391,6 +392,8 @@ public final class ExtensionCache: @unchecked Sendable {
         /// An `extension.json`'s bytes.
         public var json: Data?
         public var executable: Bool
+        /// A compiled program (or any file with a NUL byte): run as it is.
+        public var binary: Bool
     }
 
     private var files: [String: File] = [:]
@@ -416,7 +419,7 @@ public final class ExtensionCache: @unchecked Sendable {
         let file = File(date: date, size: size, mode: mode, metadata: binary ? nil : ScriptCommand.metadata(in: text),
                         firstLine: ScriptCommand.firstLine(of: text),
                         json: url.lastPathComponent == ExtensionBundle.manifestName ? data : nil,
-                        executable: access(url.path, X_OK) == 0)
+                        executable: access(url.path, X_OK) == 0, binary: binary)
         lock.withLock { files[url.path] = file }
         return file
     }

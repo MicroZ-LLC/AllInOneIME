@@ -58,6 +58,30 @@ struct ExtensionPerformanceTests {
         return Double(spent.components.attoseconds) / 1e15 / Double(pressed) + Double(spent.components.seconds) * 1000 / Double(pressed)
     }
 
+    /// Milliseconds a key takes inside another command's text: "@question hello " then "@", letters and ⌫.
+    static func perKeyInside(_ count: Int) -> Double {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.commands = commands(count)
+        let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
+        for key in [at] + "question".map({ k(String($0)) }) + [spaceKey] + "hello ".map({ $0 == " " ? spaceKey : k(String($0)) }) {
+            _ = c.handleKeyDown(key)
+        }
+        var spent: Duration = .zero
+        var pressed = 0
+        let clock = ContinuousClock()
+        for word in ["calc", "py", "js", "zz", "ca", "pyj", "jsx", "cal"] {
+            for key in [at] + word.map({ k(String($0)) }) + Array(repeating: backspaceKey, count: word.count + 1) {
+                spent += clock.measure {
+                    _ = c.handleKeyDown(key)
+                    panelReads(c)
+                }
+                pressed += 1
+            }
+        }
+        return (Double(spent.components.seconds) * 1000 + Double(spent.components.attoseconds) / 1e15) / Double(pressed)
+    }
+
     /// Milliseconds the controller spends on the command list for a key typed outside a command: building the
     /// catalog and comparing it with the one before (as it did), and asking the `CatalogCache` (as it does).
     static func catalogPerKey(_ count: Int) -> (rebuilt: Double, cached: Double) {
@@ -85,6 +109,9 @@ struct ExtensionPerformanceTests {
         let small = Self.perKey(300), large = Self.perKey(1000)
         print(String(format: "command list per key: 300 extensions %.3f ms, 1000 extensions %.3f ms", small, large))
         #expect(large < 5, "per key at 1000 extensions: \(large) ms")  // a debug build on a slow machine has room
+        let (insideSmall, insideLarge) = (Self.perKeyInside(300), Self.perKeyInside(1000))
+        print(String(format: "command list inside a text per key: 300 extensions %.3f ms, 1000 extensions %.3f ms", insideSmall, insideLarge))
+        #expect(insideLarge < 5)
         for count in [300, 1000] {
             let (rebuilt, cached) = Self.catalogPerKey(count)
             print(String(format: "catalog per key outside a command, %d extensions: rebuilt and compared %.3f ms, cached %.4f ms",

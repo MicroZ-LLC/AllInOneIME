@@ -59,13 +59,15 @@ enum CommandIcons {
 
     static let scripts = CandidateView.Icon(symbol: "terminal.fill", color: .systemTeal)
 
-    /// An extension's image file, read once (the list is drawn on each key: it isn't read again then).
-    private static var images: [String: NSImage?] = [:]
+    /// An extension's image file, read again only when its modification date changes (the list is drawn on each
+    /// key: a stat then, not a read).
+    private static var images: [String: (date: Date?, image: NSImage?)] = [:]
 
     static func image(_ path: String) -> NSImage? {
-        if let known = images[path] { return known }
-        let image = NSImage(contentsOfFile: path)
-        images[path] = image
+        let date = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+        if let known = images[path], known.date == date { return known.image }
+        let image = date == nil ? nil : NSImage(contentsOfFile: path)
+        images[path] = (date, image)
         return image
     }
 

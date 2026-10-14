@@ -1664,6 +1664,20 @@ enum SelfTest {
         let python = CommandRunner.isInstalled("python3", path: ShellEnvironment.current["PATH"])
         check(pump(timeout: 10) { controller.composer.commands.contains(.py) == python },
               "@py is offered only with python3 installed (python3: \(python))")
+        // A check of the programs that ends while a command is being written applies once that's done.
+        controller.programInstalled = { $0 != Command.py.program }
+        press(controller, client, "@", code: 0x13, flags: .shift)  // composing: the list is up
+        controller.setCommands(Command.catalog([]), recheck: true)
+        _ = pump(timeout: 1) { false }  // the check runs in the background meanwhile
+        let keptWhileComposing = controller.composer.commands.contains(.py) == python
+        _ = escape(controller, client)
+        press(controller, client, "@", code: 0x13, flags: .shift)  // the next key outside a command applies it
+        check(keptWhileComposing && !controller.composer.commands.contains(.py),
+              "a program check that ended while a command was written hides @py once it's done")
+        _ = escape(controller, client)
+        controller.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
+        controller.setCommands(Command.catalog([]), recheck: true)
+        _ = pump(timeout: 10) { controller.composer.commands.contains(.py) == python }
 
         // Symbols with their US-layout keys (`type` sends key code 0 for anything not in `keyCodes`).
         let symbols: [Character: (UInt16, NSEvent.ModifierFlags)] = [
@@ -1912,6 +1926,17 @@ enum SelfTest {
             _ = pump(timeout: 5) { !notified.isEmpty }
             check(notified.first?.hasSuffix("| waited\n0.3 s") == true && controller.scriptTasks.background.first?.outcome == .done,
                   "…it notifies with its summary and detail when done, and the menu bar panel lists it (\(notified))")
+            controller.scriptTasks.background.forEach { controller.scriptTasks.remove($0.id) }
+            // Started from no text field at all (as when the field's controller is gone while the environment is
+            // made): ScriptTasks holds it, and it runs.
+            notified = []
+            let wait = index.commands.first { $0.name == "stwait" }!
+            controller.scriptTasks.startInBackground(wait, arguments: [], prepare: {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                return .success(ShellEnvironment.current)
+            }, say: { notified.append($0) })
+            _ = pump(timeout: 5) { !notified.isEmpty }
+            check(notified.first?.hasSuffix("| waited\n0.3 s") == true, "…and one started without its text field still runs (\(notified))")
             controller.scriptTasks.background.forEach { controller.scriptTasks.remove($0.id) }
         }
         clear()

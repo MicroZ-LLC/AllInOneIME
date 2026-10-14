@@ -95,6 +95,30 @@ final class ScriptTasks {
         return id
     }
 
+    /// Background commands whose environment is being made (`startInBackground`).
+    private var preparing: [UUID: Task<Void, Never>] = [:]
+
+    /// Starts a background command once its environment is ready (`prepare`, off the main thread). Held here, not
+    /// by the text field it came from: it starts even if that field is gone by then. `say` tells why it didn't.
+    func startInBackground(_ command: ScriptCommand, arguments: [String],
+                           prepare: @escaping @Sendable () async -> Result<[String: String], DescribedError>,
+                           say: @escaping (String) -> Void) {
+        let token = UUID()
+        preparing[token] = Task { @MainActor [weak self] in
+            let prepared = await prepare()
+            guard let self else { return }
+            self.preparing[token] = nil
+            switch prepared {
+            case let .failure(error): say(error.message)
+            case let .success(environment):
+                if self.start(command, arguments: arguments, environment: environment, detached: true, handler: nil) == nil {
+                    say(tr("\(command.title) 已经在后台运行了（或后台命令太多）",
+                           "\(command.title) is already running in the background (or too many are)"))
+                }
+            }
+        }
+    }
+
     /// Stops a run (Esc, a newer query, removed from the panel).
     func cancel(_ id: Int) {
         tasks[id]?.cancel()
