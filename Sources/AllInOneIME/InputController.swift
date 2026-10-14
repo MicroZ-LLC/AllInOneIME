@@ -160,6 +160,14 @@ final class AllInOneIMEInputController: IMKInputController {
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
     /// A custom `run` command: runs its program in the background (the self-test supplies its own).
     var runProgram: (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { CommandRunner.run($0, input: $1) }
+    /// A Raycast script: runs in the background with its arguments (the self-test supplies its own).
+    var runScript: (RaycastScript, [String]) -> AsyncThrowingStream<ConversionUpdate, Error> = { CommandRunner.run($0, arguments: $1) }
+    /// The Raycast scripts the command list offers for these settings (`rescan`: a text field became active,
+    /// and Spotlight may look for script folders again). The self-test supplies its own: never the user's.
+    var loadScripts: (Config, _ rescan: Bool) -> [RaycastScript] = { config, rescan in
+        if rescan { LiveScripts.discoverIfDue(config) }
+        return LiveScripts.current(config, rescan: rescan)
+    }
     /// A script plugin: runs in this program's own child process (`--run-plugin`).
     var runPlugin: (InstalledPlugin, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { PluginRunner.run($0, input: $1) }
     /// `@search`'s key: the keychain's, else the login shell's (the self-test supplies its own: it never reads
@@ -409,10 +417,12 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
         (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
-        setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true)), recheck: true)
+        setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true),
+                                    scripts: loadScripts(config, true)), recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
+        composer.messages.actionKeyName = UIText.name(config.actionKey)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
         // The Korean and Hindi packs' data, for their input (nil without the pack).
         composer.hangulTables = LanguagePackManager.shared.hangulTables()
@@ -524,7 +534,8 @@ final class AllInOneIMEInputController: IMKInputController {
         ensureEngine()
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
         if !composer.isComposing {
-            setCommands(Command.catalog(loadSettings().customCommands, plugins: LivePlugins.current()))
+            let config = loadSettings()
+            setCommands(Command.catalog(config.customCommands, plugins: LivePlugins.current(), scripts: loadScripts(config, false)))
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
         }
@@ -613,6 +624,9 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .startRun(command, input, id):
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
                 startConversion(input, id: id, command: command)
+            case let .startScript(command, arguments, id):
+                if refusedForSecureInput(id: id, client: target, running: true) { break }
+                startConversion("", id: id, command: command, arguments: arguments)
             case let .search(query, id):
                 conversionTask?.cancel()
                 conversionTask = Task { @MainActor [weak self] in
@@ -1129,12 +1143,15 @@ final class AllInOneIMEInputController: IMKInputController {
     var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
 
     @MainActor
-    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil) {
+    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil,
+                                 arguments: [String] = []) {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
-        // Plugin names are public (from the library); custom command names are the user's own.
-        func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
+        // Plugin names are public (from the library); custom command and script names are the user's own.
+        func logged(_ command: Command) -> String {
+            command.script != nil ? "script" : command.custom == nil || command.plugin != nil ? command.name : "custom"
+        }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
         // @translate with no language to translate into but the sentence's own (a new user whose system has no
@@ -1154,6 +1171,7 @@ final class AllInOneIMEInputController: IMKInputController {
             return
         }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
+        let runScript = self.runScript
         let improveTranslates = loadSettings().improveTranslates
         // A terminal runs each line it is given: there @search's list, and any command's output, goes in
         // as one line.
@@ -1170,6 +1188,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
             if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input) }
+            if let script = command?.script { return runScript(script, arguments) }
             if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
             // @improve, @translate, or both written together: one request (`WritingMode`).
             if command == nil || command?.kind == .convert {
@@ -1477,12 +1496,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 let polishing = config.language(of: composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
-                    : command?.kind == .run ? tr("运行中…", "Running…")
+                    : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
+                    ?? (command?.kind == .run ? tr("运行中…", "Running…")
                     : command?.kind == .link ? tr("运行句中的命令，然后在浏览器打开…", "Running the commands inside, then opening the browser…")
                     : command == .open ? tr("搜索中…", "Searching…")
                     : command == .tasks ? tr("读取后台任务…", "Reading the background tasks…")
                     : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
-                    : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…")
+                    : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…"))
                 model.status = choices.count <= 1 ? .loading(loading) : .none
                 model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
@@ -1559,7 +1579,11 @@ final class AllInOneIMEInputController: IMKInputController {
             }
             model.highlighted = composer.paletteHighlighted - first
             if total > Composer.paletteRows { model.detail = "\(first + 1)–\(first + model.rows.count) / \(total)" }
-            model.footer = tr("⏎ / Tab / 空格 选择 · Esc 取消", "⏎ / Tab / Space choose · Esc cancel")
+            // A Raycast script without arguments runs as it is picked.
+            let matches = composer.paletteMatches
+            model.footer = matches.indices.contains(composer.paletteHighlighted) && matches[composer.paletteHighlighted].script?.runsWhenPicked == true
+                ? tr("⏎ / Tab / 空格 运行 · Esc 取消", "⏎ / Tab / Space run · Esc cancel")
+                : tr("⏎ / Tab / 空格 选择 · Esc 取消", "⏎ / Tab / Space choose · Esc cancel")
         } else if !composer.currentLiveResults.isEmpty {
             // "@open …" as you type: what matches now.
             model.rows = composer.currentLiveResults.map { result in

@@ -2,12 +2,13 @@ import AllInOneIMECore
 import AppKit
 
 /// The icons of the command list, like the colored squares of iOS Settings: one for each built-in
-/// command, one for each kind of custom command, a plugin's own (or a puzzle piece). A custom command
-/// or a plugin may name its own SF Symbol and color.
+/// command, one for each kind of custom command, a plugin's own (or a puzzle piece), a Raycast script's
+/// emoji (or a scroll). A custom command or a plugin may name its own SF Symbol and color.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon {
         if let plugin = command.plugin { return icon(for: plugin) }
         if let custom = command.custom { return icon(for: custom) }
+        if let script = command.script { return icon(for: script) }
         switch command {
         case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
         case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
@@ -33,6 +34,13 @@ enum CommandIcons {
         CandidateView.Icon(symbol: plugin.manifest.icon ?? (plugin.manifest.type == .link ? "link" : "puzzlepiece.extension.fill"),
                            color: color(plugin.manifest.color) ?? .systemPink)
     }
+
+    /// A Raycast script's emoji (`RaycastScript.emoji`), else a scroll in Raycast's red.
+    static func icon(for script: RaycastScript) -> CandidateView.Icon {
+        CandidateView.Icon(symbol: "scroll.fill", color: .systemRed, emoji: script.emoji)
+    }
+
+    static let scripts = CandidateView.Icon(symbol: "scroll.fill", color: .systemRed)
 
     /// A custom command's own icon, or one for its type.
     static func icon(for custom: CustomCommand) -> CandidateView.Icon {

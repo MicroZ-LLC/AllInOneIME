@@ -84,6 +84,8 @@ public final class Composer {
         case addReminder(ReminderDraft, input: String)
         /// Run a custom `run` command's program on `input`; what it prints arrives via `receive`.
         case startRun(Command, input: String, id: Int)
+        /// Run a Raycast script with its `arguments` ($1 $2 $3); what it prints arrives via `receive`.
+        case startScript(Command, arguments: [String], id: Int)
         /// Send `text` to `recipient` with a send command (`@imessage`): the user confirmed it in the panel.
         case sendMessage(Recipient, text: String, command: Command)
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
@@ -206,6 +208,21 @@ public final class Composer {
         public var frenchMode = "法"
         public var koreanMode = "韩"
         public var hindiMode = "印"
+        /// A Raycast script's required arguments left empty: their placeholders follow.
+        public var scriptNeeds = "还要写："
+        /// A script's dropdown value that isn't one of its choices: their titles follow.
+        public var scriptChoices = "只能是这几个之一："
+        /// A script that asks first (`needsConfirmation`), with "{title}" and "{key}" (`actionKeyName`).
+        public var confirmScript = "运行「{title}」？{key} 确认"
+        /// A script that printed nothing (or a silent one): its title follows.
+        public var scriptRan = "已运行："
+        /// The action key's name in the interface language (the controller sets it).
+        public var actionKeyName = "⏎"
+
+        /// Asks before running a script (`needsConfirmation`).
+        public func confirm(_ script: RaycastScript) -> String {
+            confirmScript.replacingOccurrences(of: "{title}", with: script.title).replacingOccurrences(of: "{key}", with: actionKeyName)
+        }
 
         /// The notice of a switch of input language.
         public func mode(_ language: Language) -> String {
@@ -253,7 +270,8 @@ public final class Composer {
             noteNotSaved: "The note wasn't saved; its text is on the clipboard",
             pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)",
             codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text",
-            frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi")
+            frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi",
+            scriptNeeds: "Needs: ", scriptChoices: "Pick one of: ", confirmScript: "Run {title}? {key} again", scriptRan: "Ran ")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
@@ -316,10 +334,15 @@ public final class Composer {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
         // highlight starts at the first again (`opensLiveResult`).
         didSet {
-            if draft != oldValue { resetLiveHighlight() }
+            if draft != oldValue {
+                resetLiveHighlight()
+                confirmedScript = nil
+            }
             if draft.isEmpty { draftHasOutsideText = false }
         }
     }
+    /// The draft a Raycast script asked about (`needsConfirmation`): the action key on it again runs it.
+    private var confirmedScript: String?
     /// Text the user didn't type is in the draft (pasted, dictated, a draft given back): a command in it that
     /// runs code (`Command.runsCode`) stays text. Something copied from a web page may hide "@py …".
     private var draftHasOutsideText = false
@@ -595,9 +618,12 @@ public final class Composer {
         case .reminder?:
             return pendingReminder.map { [Choice(label: "1", kind: .reminder($0), text: $0.title, isComplete: true)] } ?? []
         case .generate?, .run?, .link?:
-            var out = [Choice(label: "0", kind: .original, text: sentText, isComplete: true)]
-            if let line = result.versions.first {
-                out.append(Choice(label: "1", kind: .answer, text: line.text, isComplete: line.isComplete))
+            // A Raycast script's text may be nothing (no arguments): then no row for it.
+            let script = activeCommand?.script != nil
+            var out = script && sentText.isEmpty ? [] : [Choice(label: "0", kind: .original, text: sentText, isComplete: true)]
+            // A script's full output: all of it, then each line (`RaycastScript.result(for:)`).
+            for (index, line) in result.versions.prefix(script ? 9 : 1).enumerated() {
+                out.append(Choice(label: String(index + 1), kind: .answer, text: line.text, isComplete: line.isComplete))
             }
             return out
         case .message?:
@@ -680,13 +706,14 @@ public final class Composer {
         return (String(query), true, at)
     }
 
-    /// The draft is a note, a reminder, a search, code (`@py`, `@js`) or a terminal command (`@claude`, a custom
-    /// one): no command inside its text runs first (`startAction`; Terminal and Claude Code get the text as typed),
-    /// so an "@" in it is just text (no list to pick a command from, none shown as picked).
+    /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@claude`, a custom
+    /// one) or a Raycast script: no command inside its text runs first (`startAction`; Terminal, Claude Code and
+    /// the script get the text as typed), so an "@" in it is just text (no list to pick a command from, none
+    /// shown as picked).
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.isCode
+            || command.isCode || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -1186,6 +1213,11 @@ public final class Composer {
                 return [.showPanel]
             }
         }
+        if isFinal, let script = activeCommand?.script, script.mode == .silent || result.versions.isEmpty {
+            // Nothing to insert: what it said last, or that it ran, near the caret.
+            let said = result.versions.first?.text ?? ""
+            return finish(committing: "") + [.notice(said.isEmpty ? messages.scriptRan + script.title : said)]
+        }
         if isFinal {
             // Versions that only repeat the original are hidden, but the answer still counts.
             let answered = !result.versions.isEmpty || choices.contains { $0.kind != .original && !$0.text.isEmpty }
@@ -1567,6 +1599,14 @@ public final class Composer {
         if command.kind == .settings, palette?.nested != true {
             return finish(committing: "") + [.openSettings, used(command)]
         }
+        // A Raycast script without arguments runs at once (or asks first).
+        if command.script?.runsWhenPicked == true, palette?.nested != true {
+            draft = "@\(command.name) "
+            paletteHighlight = 0
+            setLevelOnePhase()
+            let run = startAction().effects
+            return isLevelTwo ? run : [.updateMarkedText, .showPanel] + run
+        }
         let nested = palette?.nested == true
         draft = (palette.map { String(draft[..<$0.at]) } ?? "") + "@\(command.name) "
         paletteHighlight = 0
@@ -1899,6 +1939,7 @@ public final class Composer {
             activeCommand = parsed?.command
             return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(parsed!.command)])
         }
+        if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if let command = parsed?.command, command.kind == .terminal {
@@ -1958,6 +1999,32 @@ public final class Composer {
         }
         let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
         return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+    }
+
+    /// A Raycast script: the text as its arguments (`RaycastScript.arguments(from:)`), or a notice of what is
+    /// missing; one that asks first (`needsConfirmation`) says what will run, and the action key again runs it.
+    private func startScript(_ command: Command, _ script: RaycastScript, input: String) -> Response {
+        let arguments: [String]
+        switch script.arguments(from: input) {
+        case let .success(values): arguments = values
+        case let .failure(.missing(placeholders)):
+            return .consumed([.notice(messages.scriptNeeds + placeholders.joined(separator: ", "))])
+        case let .failure(.notAChoice(_, titles)):
+            return .consumed([.notice(messages.scriptChoices + titles.joined(separator: ", "))])
+        }
+        if script.needsConfirmation, confirmedScript != draft {
+            confirmedScript = draft
+            return .consumed([.notice(messages.confirm(script))])
+        }
+        requestCounter += 1
+        phase = .translating(id: requestCounter)
+        result = .empty
+        searchResults = []
+        pendingReminder = nil
+        highlightOverride = nil
+        activeCommand = command
+        return .consumed([.startScript(command, arguments: arguments, id: requestCounter), .updateMarkedText, .showPanel,
+                          used(command)])
     }
 
     /// Opens a `link` command's address with `text` in it: the composition ends with nothing inserted,

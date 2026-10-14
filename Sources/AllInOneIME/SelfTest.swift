@@ -1785,6 +1785,8 @@ enum SelfTest {
             }
         }
 
+        testRaycastScripts(controller, client, start: start, waitForEnd: waitForEnd, clear: clear)
+
         // Without a key nothing is sent: the error says where to add one. (No live search here.) @search is
         // off for now (`Command.webSearchOffered`): then it isn't in the list at all.
         if !Command.webSearchOffered {
@@ -1803,6 +1805,59 @@ enum SelfTest {
         }
         clear()
         check(!controller.composer.isComposing && client.marked.isEmpty, "nothing left composing")
+    }
+
+    /// Raycast scripts, made in a temporary folder (never the user's own): one without arguments runs as it is
+    /// picked and its last line goes in; a silent one inserts nothing; one missing its argument doesn't run.
+    static func testRaycastScripts(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
+                                   start: (String) -> Bool, waitForEnd: () -> Void, clear: () -> Void) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-selftest-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let loadScripts = controller.loadScripts
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            controller.loadScripts = loadScripts
+        }
+        func add(_ name: String, _ metadata: [String], _ body: String) {
+            let text = (["#!/bin/bash", "# @raycast.schemaVersion 1"] + metadata.map { "# @raycast." + $0 } + [body]).joined(separator: "\n")
+            let file = folder.appendingPathComponent(name)
+            try? Data(text.utf8).write(to: file)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        }
+        add("selftest-hello.sh", ["title Self-test Hello", "mode compact"], #"echo working; echo "hello from $(basename "$PWD")""#)
+        add("selftest-quiet.sh", ["title Self-test Quiet", "mode silent"], "echo quiet")
+        add("selftest-needs.sh", ["title Self-test Needs", "mode compact", #"argument1 {"type": "text", "placeholder": "city"}"#], #"echo "$1""#)
+        let scripts = RaycastScriptStore.load([.init(path: folder.path, found: false)]).scripts
+        check(scripts.map(\.name) == ["selftesthello", "selftestneeds", "selftestquiet"], "Raycast scripts read from a folder (\(scripts.map(\.name)))")
+        controller.loadScripts = { _, _ in scripts }
+
+        let before = client.inserted.count
+        if start("selftesthello") {
+            waitForEnd()
+            let answer = controller.composer.choices.last
+            _ = enter(controller, client)
+            let expected = "hello from " + folder.lastPathComponent
+            check(answer?.text == expected && client.inserted.last == expected && !controller.composer.isComposing,
+                  "a Raycast script without arguments runs as it is picked; its last line goes in (\(client.inserted.last ?? ""))")
+        } else {
+            check(false, "@selftesthello is picked from the list ('\(client.marked)')")
+        }
+        clear()
+        let count = client.inserted.count
+        if start("selftestquiet") {
+            waitForEnd()
+            _ = pump(timeout: 3) { !controller.composer.isComposing }
+            check(client.inserted.count == count && client.marked.isEmpty && !controller.composer.isComposing,
+                  "a silent script inserts nothing")
+        }
+        clear()
+        if start("selftestneeds") {
+            _ = act(controller, client)
+            check(!controller.composer.isLevelTwo && client.marked == "selftestneeds › ",
+                  "a script missing its argument doesn't run (\(client.marked))")
+        }
+        clear()
+        check(client.inserted.count == before + 1, "only the script's line went in")
     }
 
     /// The composer's notices (`Composer.Messages`): Chinese wording → English wording.
@@ -1875,6 +1930,7 @@ enum SelfTest {
         controller.pasteInTerminal = { _ in }
         controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
+        controller.loadScripts = { _, _ in [] }  // never the user's own Raycast scripts (the script check makes its own)
         controller.saveCommandUsage = { _ in }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions), whatever the user added.
