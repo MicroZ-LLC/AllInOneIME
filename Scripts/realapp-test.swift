@@ -369,6 +369,12 @@ final class Harness: NSObject, NSApplicationDelegate {
         if context.selectedKeyboardInputSource != imeID { selectInputSource(imeID); pump(0.5) }
         check(context.selectedKeyboardInputSource == imeID,
               "AllInOneIME selected (context: \(context.selectedKeyboardInputSource ?? "nil"), system: \(currentInputSourceID() ?? "nil"))")
+        // The input method takes the settings when a text field becomes active: this one again, now that they're the
+        // test's (an input method already running would keep the user's, typing results out letter by letter).
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
 
         // Warm-up: the first keys start the input method process (and wait for its dictionaries), until "a" is
         // pinyin. The test's config starts it in Chinese; should a field still be in another input language, Shift
