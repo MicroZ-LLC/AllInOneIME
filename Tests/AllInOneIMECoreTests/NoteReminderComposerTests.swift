@@ -63,34 +63,27 @@ extension ComposerTests {
         #expect(s.handleKeyDown(enterKey).effects.contains(.saveNote(text: "你好")))
         // Typed as a sentence with commands in it: saved as typed, nothing runs first.
         let p = command("n")
-        _ = p.handleKeyDown(enterKey)
-        _ = p.pasted("看 @read https://example.com", id: 1)
+        _ = paste("看 @read https://example.com", into: p)
         #expect(p.handleKeyDown(enterKey).effects.contains(.saveNote(text: "看 @read https://example.com")))
     }
 
-    @Test func noteWithNothingAfterItTakesTheClipboard() {
-        // As for every command (0.3.0): the clipboard's text is shown in the draft, the action key again saves it.
+    @Test func noteWithNothingAfterItOnlyHints() {
+        // As for every command: a hint, nothing saved, the clipboard not read; ⌘V brings its text in.
         let c = command("n")
-        #expect(c.handleKeyDown(enterKey).effects == [.readClipboard(id: 1)] && !c.isLevelTwo && c.draft == "@note ")
-        #expect(c.pasted("买牛奶", id: 1) == [.updateMarkedText, .showPanel] && c.draft == "@note 买牛奶")
+        #expect(c.handleKeyDown(enterKey).effects == [.notice("在命令后面写上内容")] && c.draft == "@note ")
+        #expect(paste("买牛奶", into: c) == [.updateMarkedText, .showPanel] && c.draft == "@note 买牛奶")
         #expect(c.handleKeyDown(enterKey).effects.contains(.saveNote(text: "买牛奶")))
-        // Without any: a hint, nothing saved.
-        let d = command("n")
-        _ = d.handleKeyDown(enterKey)
-        #expect(d.pasted(nil, id: 1) == [.notice("在命令后面写上内容")] && d.draft == "@note ")
     }
 
     @Test func aNoteKeepsItsLines() {
         // Pasted on three lines: saved on three lines, shown on one with 「 ↵ 」 between them.
         let c = command("n")
-        _ = c.handleKeyDown(enterKey)
-        #expect(c.pasted("牛奶\n鸡蛋\r\n面包\n", id: 1) == [.updateMarkedText, .showPanel])
+        #expect(paste("牛奶\n鸡蛋\r\n面包\n", into: c) == [.updateMarkedText, .showPanel])
         #expect(c.draft == "@note 牛奶\n鸡蛋\r\n面包" && c.markedText == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" && c.markedCursor == c.markedText.count)
         #expect(c.handleKeyDown(enterKey).effects.contains(.saveNote(text: "牛奶\n鸡蛋\r\n面包")))
         // Its spaces and tabs stay; other control characters go.
         let t = command("n")
-        _ = t.handleKeyDown(enterKey)
-        _ = t.pasted("  a\tb  c\u{1B}[0m\u{0}\n\n d  ", id: 1)
+        _ = paste("  a\tb  c\u{1B}[0m\u{0}\n\n d  ", into: t)
         #expect(t.draft == "@note a\tb  c[0m\n\n d")
         // Typing after the pasted lines continues the last one.
         type("nihao", t)
@@ -98,15 +91,12 @@ extension ComposerTests {
         #expect(t.markedText == "note › a\tb  c[0m ↵  ↵  d你好")
         // Up to 20000 characters (other commands: 2000, on one line).
         let long = command("n")
-        _ = long.handleKeyDown(enterKey)
-        #expect(long.pasted(String(repeating: "字", count: Composer.maxNoteLength + 1), id: 1) == [.notice(long.messages.noteTooLong)])
-        _ = long.handleKeyDown(enterKey)
-        #expect(long.pasted(String(repeating: "字", count: Composer.maxNoteLength), id: 2) == [.updateMarkedText, .showPanel])
+        #expect(paste(String(repeating: "字", count: Composer.maxNoteLength + 1), into: long) == [.notice(long.messages.noteTooLong)])
+        #expect(paste(String(repeating: "字", count: Composer.maxNoteLength), into: long) == [.updateMarkedText, .showPanel])
         #expect(long.sentText.count == Composer.maxNoteLength && Composer.maxNoteLength == 20_000)
         #expect(Composer.Messages.chinese.noteTooLong == "剪贴板里的文字太长：最多 20000 字")
         let question = command("q")
-        _ = question.handleKeyDown(enterKey)
-        _ = question.pasted("牛奶\n鸡蛋", id: 1)
+        _ = paste("牛奶\n鸡蛋", into: question)
         #expect(question.draft == "@question 牛奶鸡蛋")
     }
 
@@ -130,12 +120,10 @@ extension ComposerTests {
         #expect(choosing.restoreDraft(.reminder, text: "明天下午3点给张三打电话") == nil && choosing.phase == .choosing)
     }
 
-    /// An @note draft holding `lines`, taken from the clipboard by ⏎ on the empty command (by default the
-    /// reviewer's commands).
+    /// An @note draft holding `lines`, pasted with ⌘V (by default the reviewer's commands).
     func noteWithLines(_ lines: String = "cd ~/project\nrm -rf build\nmake install") -> Composer {
         let c = command("n")
-        _ = c.handleKeyDown(enterKey)
-        _ = c.pasted(lines, id: 1)
+        _ = paste(lines, into: c)
         return c
     }
 
@@ -200,8 +188,7 @@ extension ComposerTests {
         // @read, and picked, the note got "@read …" as its text.
         for (letters, name) in [("n", "note"), ("rem", "reminder")] {
             let c = command(letters)
-            _ = c.handleKeyDown(enterKey)
-            _ = c.pasted("看", id: 1)
+            _ = paste("看", into: c)
             #expect(c.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && c.draft == "@\(name) 看@")
             #expect(c.paletteQuery == nil && c.paletteMatches.isEmpty, "\(name)")
             type("r", c)  // pinyin, as anywhere else in the text
@@ -211,16 +198,14 @@ extension ComposerTests {
                     "\(name): \(sent)")
         }
         let open = command("o")
-        _ = open.handleKeyDown(enterKey)
-        _ = open.pasted("报告", id: 1)
+        _ = paste("报告", into: open)
         _ = open.handleKeyDown(at)
         type("r", open)  // letters, as @open types them
         #expect(open.draft == "@open 报告@r" && open.paletteQuery == nil && open.markedText == "open › 报告＠r")
         #expect(open.handleKeyDown(enterKey).effects.first == .search(query: "报告@r", id: 1))
         // A command written in their text isn't shown as one either; where commands do run inside, the list is there.
         let pasted = command("n")
-        _ = pasted.handleKeyDown(enterKey)
-        _ = pasted.pasted("看 @read https://example.com", id: 1)
+        _ = paste("看 @read https://example.com", into: pasted)
         #expect(pasted.markedText == "note › 看 ＠read https://example.com")
         let question = command("q")
         type("nihao", question)
@@ -260,8 +245,7 @@ extension ComposerTests {
         #expect(shell.handleKeyDown(enterKey).effects.contains(.launchInTerminal(argv: ["zsh", "-c", "ls @read"])))
         // A command written in the text isn't shown as one either.
         let pasted = start("cl")
-        _ = pasted.handleKeyDown(enterKey)
-        _ = pasted.pasted("你好@read https://example.com", id: 1)
+        _ = paste("你好@read https://example.com", into: pasted)
         #expect(pasted.markedText == "claude › 你好＠read https://example.com")
     }
 
@@ -314,8 +298,8 @@ extension ComposerTests {
         // Secure input elsewhere doesn't hold it back, and commands in its text don't run first (no plan).
         let c = command("rem")
         c.secureInputActive = { true }
-        #expect(c.handleKeyDown(enterKey).effects == [.readClipboard(id: 1)])  // nothing after it: the clipboard
-        _ = c.pasted("明天看 @read https://example.com", id: 1)
+        #expect(c.handleKeyDown(enterKey).effects == [.notice("在命令后面写上内容")])  // nothing after it: a hint
+        _ = paste("明天看 @read https://example.com", into: c)
         #expect(c.handleKeyDown(enterKey).effects.first == .previewReminder(input: "明天看 @read https://example.com", id: 1))
     }
 

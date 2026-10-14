@@ -1323,9 +1323,9 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
-        // A command with nothing after it: the action key takes the clipboard's text.
+        // A command with nothing after it yet: what to do (the action key alone only hints).
         if composer.sentText.isEmpty {
-            return "\(how) → " + tr("用剪贴板里的文字", "use the clipboard text")
+            return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
         return "\(how) → " + UIText.action(command, input: Language.of(composer.sentText), config: config, draft: composer.draft)
     }

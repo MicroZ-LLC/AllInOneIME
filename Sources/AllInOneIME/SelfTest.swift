@@ -989,12 +989,11 @@ enum SelfTest {
         _ = enter(controller, client)  // converts the pinyin and saves
         check(pump(timeout: 2) { notes.count == 2 } && notes.last == "你好", "…also while secure input is on (\(notes))")
         controller.secureInputActive = saved.3
-        // Nothing after it: ⏎ takes the clipboard's text (as for every command), its lines too, shown with 「 ↵ 」;
-        // ⏎ again saves it as it was.
+        // ⌃V takes the clipboard's text, its lines too, shown with 「 ↵ 」; ⏎ saves it as it was.
         controller.readClipboard = { "牛奶\n鸡蛋\n面包" }
         note("", in: controller, client)
-        check(enter(controller, client) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
-              "⏎ on an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
+        check(press(controller, client, "v", code: 0x09, flags: .control) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
+              "⌃V in an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
         controller.readClipboard = saved.4
         _ = enter(controller, client)
         check(pump(timeout: 2) { notes.count == 3 } && notes.last == "牛奶\n鸡蛋\n面包",
@@ -1194,7 +1193,7 @@ enum SelfTest {
             field.ensureEngine()
             field.applySettings()
             note("", in: field, otherClient)
-            _ = enter(field, otherClient)
+            _ = press(field, otherClient, "v", code: 0x09, flags: .control)  // ⌃V: the clipboard's text in
             _ = pump(timeout: 1) { otherClient.marked == "note › 买牛奶" }
             _ = enter(field, otherClient)
             field.inputControllerWillClose()
@@ -1222,10 +1221,10 @@ enum SelfTest {
             terminal.saveNote = controller.saveNote
             terminal.addReminder = controller.addReminder
             terminal.activateServer(terminalClient)
-            /// ⏎ on an empty @note: the clipboard's lines in the draft.
+            /// ⌃V in an empty @note: the clipboard's lines in the draft.
             func pending() -> Bool {
                 note("", in: terminal, terminalClient)
-                _ = enter(terminal, terminalClient)
+                _ = press(terminal, terminalClient, "v", code: 0x09, flags: .control)
                 return pump(timeout: 1) { terminalClient.marked == "note › cd ~/project ↵ rm -rf build ↵ make install" }
             }
             let unsaved = "笔记还没存，原文已复制到剪贴板"
@@ -1962,27 +1961,23 @@ enum SelfTest {
         controller.readClipboard = { nil }
         check(!press(controller, client, "v", code: 0x09, flags: .command), "⌘V with nothing pending is the app's")
         controller.commitComposition(client)
-        // In a terminal (it pastes on ⌘V itself) ⌘V stays the terminal's; ⏎ on the empty command takes
-        // the clipboard instead, shown first, ⏎ again runs it.
+        // In a terminal (it pastes on ⌘V itself) ⌘V stays the terminal's. ⏎ on the empty command only hints:
+        // the clipboard isn't read (⌃V brings its text in).
         client.bundleIDOverride = "com.mitchellh.ghostty"
         controller.activateServer(client)
-        controller.readClipboard = { clipboard }
+        var clipboardReads = 0
+        controller.readClipboard = { clipboardReads += 1; return clipboard }
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
+        _ = enter(controller, client)  // picks @improve
+        check(controller.panelModel().status == .hint("写点内容，或按 ⌃V 粘贴"), "the hint says to write or paste (\(controller.panelModel().status))")
         _ = enter(controller, client)
-        check(controller.panelModel().status == .hint("⏎ → 用剪贴板里的文字"), "the hint names the clipboard (\(controller.panelModel().status))")
+        _ = pump(timeout: 0.5) { false }
+        check(clipboardReads == 0 && client.marked == "improve › " && !controller.composer.isLevelTwo
+              && controller.panelModel().detail == "在命令后面写上内容",
+              "⏎ on the empty command only hints; the clipboard isn't read (\(client.marked))")
         check(!press(controller, client, "v", code: 0x09, flags: .command) && client.inserted.last == "@improve ",
               "in a terminal ⌘V reaches the terminal (no second copy in the command)")
-        press(controller, client, "@", code: 0x13, flags: .shift)
-        type("i", controller, client)
-        _ = enter(controller, client)
-        check(enter(controller, client) && pump(timeout: 1) { client.marked != "improve › " }
-              && client.marked == "improve › 这个项目的进度太慢了我们需要尽快想办法" && !controller.composer.isLevelTwo,
-              "⏎ on the empty command shows the clipboard's text in it (\(client.marked))")
-        _ = enter(controller, client)
-        _ = pump(timeout: 3) { controller.composer.phase == .choosing }
-        check(controller.composer.phase == .choosing && controller.composer.choices.first?.text == "这个项目的进度太慢了我们需要尽快想办法",
-              "⏎ again improves it")
         controller.commitComposition(client)
         // ⌃V works in a terminal too (it doesn't paste on ⌃V itself), also after text already typed.
         press(controller, client, "@", code: 0x13, flags: .shift)

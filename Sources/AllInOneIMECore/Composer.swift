@@ -284,11 +284,9 @@ public final class Composer {
     /// The ⌘V whose clipboard text the draft is waiting for (`pasted`), and the last one's id.
     private var pendingPaste: Int?
     private var pasteCounter = 0
-    /// The clipboard was asked for by the action key on a command with nothing after it.
-    private var pasteForEmptyCommand = false
     /// Whether ⌘V in a draft takes the clipboard into it. False in apps that paste on ⌘V themselves
-    /// whatever the input method does (terminals): the text would be pasted twice. There ⌃V, and the
-    /// action key on a command with nothing after it, take the clipboard instead.
+    /// whatever the input method does (terminals): the text would be pasted twice. There ⌃V takes the
+    /// clipboard instead.
     public var pastesIntoDraft = true
     /// Whether secure input is on anywhere (set by the input controller). Nothing is sent to a model
     /// then: a terminal command doesn't start Claude Code, and its text stays in the draft. (The other
@@ -1155,14 +1153,13 @@ public final class Composer {
         if paletteQuery != nil { _ = complete(paletteMatches) }  // the draft is now "@name "
         if let engine, engine.snapshot().isComposing { effects += convertComposition(engine) }
         setLevelOnePhase()
-        return .consumed(effects + [.updateMarkedText, .showPanel, requestClipboard(forEmptyCommand: false)])
+        return .consumed(effects + [.updateMarkedText, .showPanel, requestClipboard()])
     }
 
     /// Asks for the clipboard's text (`pasted`); only the latest request counts.
-    private func requestClipboard(forEmptyCommand: Bool) -> Effect {
+    private func requestClipboard() -> Effect {
         pasteCounter += 1
         pendingPaste = pasteCounter
-        pasteForEmptyCommand = forEmptyCommand
         return .readClipboard(id: pasteCounter)
     }
 
@@ -1179,7 +1176,7 @@ public final class Composer {
         // Far too much is refused before it is looked at (this runs on the main thread).
         if let clipboard, clipboard.utf16.count > limit * 8 { return [.notice(tooLong)] }
         let text = clipboard.map(note ? Self.noteText : Self.oneLine) ?? ""
-        guard !text.isEmpty else { return [.notice(pasteForEmptyCommand ? messages.typeAfterCommand : messages.nothingToPaste)] }
+        guard !text.isEmpty else { return [.notice(messages.nothingToPaste)] }
         guard text.count <= limit else { return [.notice(tooLong)] }
         draft += text
         draftHasOutsideText = true
@@ -1567,9 +1564,7 @@ public final class Composer {
             activeCommand = parsed?.command
             return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(parsed!.command)])
         }
-        // A command with nothing after it takes the clipboard's text (shown in the draft first; the
-        // action key again runs it). This works where ⌘V can't (terminals paste on their own).
-        if input.isEmpty, !isLevelTwo { return .consumed([requestClipboard(forEmptyCommand: true)]) }
+        // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if let command = parsed?.command, command.kind == .terminal {
             guard !secureInputActive() else {
@@ -1652,7 +1647,6 @@ public final class Composer {
             if !isLevelTwo, !currentRecipients.isEmpty { return .consumed(pickRecipient(at: recipientHighlight)) }
             return .consumed([.updateMarkedText, .showPanel, .notice(messages.pickRecipient)])
         }
-        if input.isEmpty, !isLevelTwo { return .consumed([requestClipboard(forEmptyCommand: true)]) }
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
         requestCounter += 1

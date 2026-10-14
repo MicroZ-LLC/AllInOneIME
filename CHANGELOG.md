@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Changed
+
+- ⏎ on a command with nothing after it no longer takes the clipboard's text: it only says to write something. Paste into a command with ⌃V (or ⌘V outside terminals), as before. A stray ⏎ no longer puts whatever was copied into the command.
+
 ## 0.6.1 (2026-10-12)
 
 ### Added
