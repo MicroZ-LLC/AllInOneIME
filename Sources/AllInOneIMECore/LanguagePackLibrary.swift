@@ -40,13 +40,19 @@ public struct LanguagePackIndex: Decodable, Equatable, Sendable {
     }
 }
 
-/// Downloads and installs language packs. Same trust as the plugin library: the index's signature is
-/// checked with the key built into the app before it is read, and an archive is unpacked only once its
+/// Downloads and installs language packs, from their own library (https://languages.allinoneime.com/: the
+/// MicroZ-LLC/AllInOneIME-languages repository, its archives release assets there), signed with their own
+/// key (`publicKey`; the private half is in the maintainer's login keychain, service
+/// `allinoneime-languages-signing`), apart from the plugins'. Same trust as the plugin library: the index's
+/// signature is checked with the key built into the app before it is read, and an archive is unpacked only once its
 /// sha256 matches the index. Unpacked with the system's tar (which refuses ".." and absolute paths),
 /// then checked to be data only (`LanguagePackStore.validate`) and swapped into place in one step.
 /// Network only when the user asks (or once, on upgrade, for a user who had Chinese).
 public struct LanguagePackLibrary: Sendable {
     public static let indexName = "packs.json"
+    public static let defaultBaseURL = URL(string: "https://languages.allinoneime.com/")!
+    /// The public half of the language packs' Ed25519 signing key.
+    public static let publicKey = Data(base64Encoded: "MYnQfpeOxhKUAowyQUmJU0RgCZe5/tA8oFc2YszlGQ8=")!
     public static let schema = 1
     public static let maxIndexBytes = 1 << 20
     /// Unpacked size cap, whatever the index says: a pack is dictionaries, not a disk filler.
@@ -60,7 +66,7 @@ public struct LanguagePackLibrary: Sendable {
     /// Plain http to this Mac (a test server): only for the developer commands and tests.
     public var allowsLocalHTTP: Bool
 
-    public init(baseURL: URL = PluginLibrary.defaultBaseURL, publicKey: Data = PluginLibrary.publicKey,
+    public init(baseURL: URL = LanguagePackLibrary.defaultBaseURL, publicKey: Data = LanguagePackLibrary.publicKey,
                 configuration: URLSessionConfiguration? = nil, appVersion: String = AppVersion.string,
                 store: LanguagePackStore = LanguagePackStore(), allowsLocalHTTP: Bool = false) {
         self.baseURL = baseURL.absoluteString.hasSuffix("/") ? baseURL : URL(string: baseURL.absoluteString + "/")!

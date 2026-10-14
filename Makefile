@@ -29,12 +29,13 @@ RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
 
 # The Chinese language pack (Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
 # its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
-# Its archive is a release asset of the plugin library repository, listed in its signed packs.json.
+# Its archive is a release asset of the language library repository (MicroZ-LLC/AllInOneIME-languages), listed in
+# its signed packs.json.
 PACK_ID      := zh-pinyin
 PACK_VERSION := 1.0.0
 PACK_NAME    := $(PACK_ID)-$(PACK_VERSION)
 PACK         := $(BUILD_DIR)/packs/$(PACK_NAME).tar.xz
-PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-plugins/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
+PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
 
 .PHONY: all deps pack install-pack build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 

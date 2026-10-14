@@ -5,9 +5,13 @@
 // plugins.allinoneime.com: the plugin library (PluginLibrary.defaultBaseURL), the files of the
 // AllInOneIME-plugins repository as they are on its main branch; a push there is live within minutes.
 // The index is signed and the app checks every file against it, so this host is trusted with nothing.
+// languages.allinoneime.com: the language pack library (LanguagePackLibrary.defaultBaseURL), the same way
+// from the AllInOneIME-languages repository: packs.json and its signature (the archives are its release assets).
 
 const PLUGINS = "https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-plugins/main";
 const PLUGINS_REPO = "https://github.com/MicroZ-LLC/AllInOneIME-plugins";
+const LANGUAGES = "https://raw.githubusercontent.com/MicroZ-LLC/AllInOneIME-languages/main";
+const LANGUAGES_REPO = "https://github.com/MicroZ-LLC/AllInOneIME-languages";
 const REPO = "https://github.com/MicroZ-LLC/AllInOneIME";
 
 const TYPES = { json: "application/json", js: "text/javascript", md: "text/markdown; charset=utf-8", txt: "text/plain; charset=utf-8" };
@@ -15,7 +19,8 @@ const TYPES = { json: "application/json", js: "text/javascript", md: "text/markd
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.hostname === "plugins.allinoneime.com") return plugins(request, url);
+    if (url.hostname === "plugins.allinoneime.com") return library(request, url, PLUGINS, PLUGINS_REPO);
+    if (url.hostname === "languages.allinoneime.com") return library(request, url, LANGUAGES, LANGUAGES_REPO);
     if (url.hostname === "www.allinoneime.com") return Response.redirect(`https://allinoneime.com${url.pathname}${url.search}`, 301);
     if (url.pathname === "/docs" || url.pathname.startsWith("/docs/")) return Response.redirect(`${REPO}/wiki`, 302);
     if (url.pathname === "/download") return download();
@@ -37,10 +42,11 @@ async function download() {
   return Response.redirect(`${REPO}/releases/latest`, 302);
 }
 
-async function plugins(request, url) {
+/// A library's files as they are on its repository's main branch (`raw`); its root, the repository.
+async function library(request, url, raw, repo) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method Not Allowed", { status: 405 });
-  if (url.pathname === "/") return Response.redirect(PLUGINS_REPO, 302);
-  const upstream = await fetch(PLUGINS + url.pathname, { method: request.method, cf: { cacheTtl: 300, cacheEverything: true } });
+  if (url.pathname === "/") return Response.redirect(repo, 302);
+  const upstream = await fetch(raw + url.pathname, { method: request.method, cf: { cacheTtl: 300, cacheEverything: true } });
   const headers = new Headers({ "cache-control": "public, max-age=300", "x-content-type-options": "nosniff" });
   const extension = url.pathname.split(".").pop().toLowerCase();
   headers.set("content-type", upstream.ok ? (TYPES[extension] ?? "application/octet-stream") : "text/plain; charset=utf-8");

@@ -365,11 +365,13 @@ Code layout:
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" on the disk image: installs, updates and uninstalls
 
-Language packs: `make pack` builds the archive; it's published as a release asset of the plugin library
-repository (MicroZ-LLC/AllInOneIME-plugins, release `zh-pinyin-<version>`), and `swift Scripts/build-packs-index.swift
-<plugins repo> build/packs/*.tar.xz.json` writes `packs.json` there and signs it into `packs.json.sig` with the plugin
-library's key from the keychain. The app reads https://plugins.allinoneime.com/packs.json, checks the signature, then
-the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and
+Language packs have their own library, apart from the plugins: the repository
+[MicroZ-LLC/AllInOneIME-languages](https://github.com/MicroZ-LLC/AllInOneIME-languages), served at
+https://languages.allinoneime.com/, signed with their own key. `make pack` builds the archive; it's published as a
+release asset there (release `zh-pinyin-<version>`), and `swift Scripts/build-packs-index.swift <languages repo>
+build/packs/*.tar.xz.json` writes `packs.json` there and signs it into `packs.json.sig` with the language packs' key
+from the keychain (`allinoneime-languages-signing`). The app reads https://languages.allinoneime.com/packs.json, checks
+the signature, then the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and
 `AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`.
 
 The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to remember the added input source and the microphone permission, so changing it would mean adding the input method and granting the permission again.

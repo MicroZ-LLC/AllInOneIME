@@ -1,10 +1,10 @@
 #!/usr/bin/env swift
-// Writes and signs packs.json, the language pack library's index (LanguagePackLibrary), for the plugin
-// library repository, where it is served next to index.json (https://plugins.allinoneime.com/packs.json).
+// Writes and signs packs.json, the language pack library's index (LanguagePackLibrary), for the language
+// library repository MicroZ-LLC/AllInOneIME-languages (served at https://languages.allinoneime.com/packs.json).
 //
 //   swift Scripts/build-packs-index.swift OUT_DIR ENTRY.json...
 //        the entries `make pack` wrote (build/packs/*.tar.xz.json), every version on offer; signed with the
-//        plugin library's key from the login keychain, like the plugins repo's scripts/build-index
+//        language packs' own key from the login keychain (not the plugins')
 //   swift Scripts/build-packs-index.swift --test-key KEYFILE OUT_DIR ENTRY.json...
 //        signed with a test key instead (KEYFILE: a raw Ed25519 private key, base64; made if missing, and
 //        its public half printed for `AllInOneIME --install-pack … --key`), for a local test server
@@ -16,8 +16,8 @@
 import CryptoKit
 import Foundation
 
-let publicKeyBase64 = "UPEZUcV35+GKMGKuBUm+EG2M8jro4F23vyskaCLcBIE="
-let keychainService = "allinoneime-plugins-signing"
+let publicKeyBase64 = "MYnQfpeOxhKUAowyQUmJU0RgCZe5/tA8oFc2YszlGQ8="
+let keychainService = "allinoneime-languages-signing"
 let keychainAccount = "weijianz-opc"
 
 var arguments = Array(CommandLine.arguments.dropFirst())
