@@ -582,6 +582,28 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("dkssud")
         check(waitUntil(2) { self.marked.hasSuffix(" 안녕") }, "Hangul in a command's text (\(marked))")
         reset()
+        // @translate from Korean into the test's output languages, English and Chinese: a line in each, 1 the English
+        // and 2 the Chinese (live model output: only which script each is in is checked).
+        for (digit, english) in [("1", true), ("2", false)] {
+            textView.string = ""
+            command("tr")
+            for (index, word) in ["dhsmf", "ahadl", "wha", "dks", "whgdkdy"].enumerated() {  // 오늘 몸이 좀 안 좋아요
+                if index > 0 { space() }
+                type(word)
+            }
+            check(waitUntil(2) { self.afterCommand == "오늘 몸이 좀 안 좋아요" }, "Korean sentence after @translate (\(marked))")
+            if actionKey == "space" { space() }  // Space after a word is a space; the second runs it
+            act()
+            let inserted = waitUntil(20) {
+                if self.committed.isEmpty { self.key(digit, keyCodes[Character(digit)]!); self.pump(0.3) }
+                return !self.committed.isEmpty
+            }
+            let line = committed
+            check(inserted && marked.isEmpty
+                  && (english ? Self.looksEnglish(line) : Self.hasHan(line) && !Self.hasLatinLetter(line) && !line.contains("요")),
+                  "@translate from Korean: \(digit) inserts the \(english ? "English" : "Chinese") line: '\(line)'")
+            reset()
+        }
         tapShift()
         textView.string = ""
         type("namaste")
