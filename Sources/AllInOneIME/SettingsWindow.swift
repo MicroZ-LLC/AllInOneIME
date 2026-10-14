@@ -1,6 +1,7 @@
 import AllInOneIMECore
 import AppKit
 import AuthenticationServices
+import Carbon
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -579,7 +580,13 @@ final class SettingsModel: ObservableObject {
         testTask = Task { [weak self] in
             let converter = Converter(loadConfig: { snapshot })
             // In the first input language: an English-only user sees an English test.
-            let sample = snapshot.inputLanguages.first == .english ? "i dont feel so good today" : "我今天有点不舒服"
+            let sample = switch snapshot.inputLanguages.first ?? .english {
+            case .chinese: "我今天有点不舒服"
+            case .english: "i dont feel so good today"
+            case .french: "je me sens pas tres bien aujourdhui"
+            case .korean: "오늘 몸이 좀 안 좋아요"
+            case .hindi: "आज मेरी तबीयत ठीक नहीं है"
+            }
             do {
                 var final = ConversionResult.empty
                 var elapsed: TimeInterval = 0
@@ -1197,6 +1204,24 @@ struct SettingsView: View {
                 }
             case .english:
                 Text(tr("英文模式直接打字母，暂时没有要设置的。", "In English, letters are typed as they are: nothing to set yet."))
+                    .foregroundStyle(.secondary)
+            case .french:
+                // The layout French types with (AZERTY unless picked); Shift to French switches to it.
+                Picker(selection: Binding(get: { model.config.keyboardLayout(for: .french) ?? "" },
+                                          set: { model.config.keyboardLayouts[Language.french.rawValue] = $0 })) {
+                    ForEach(KeyboardLayouts.latin, id: \.id) { layout in Text(layout.name).tag(layout.id) }
+                } label: {
+                    titled(tr("键盘布局", "Keyboard layout"),
+                           tr("切到法语时按这个布局打字；死键（^、¨、´）也按它组合", "French types with this layout, its dead keys (^, ¨, ´) too"))
+                }
+                .pickerStyle(.menu)
+            case .korean:
+                Text(tr("두벌식（两套式）：按键位打字母，自动组成音节，比如 g k s → 한。Shift 打紧音（ㄲ ㄸ ㅃ ㅆ ㅉ）和 ㅒ ㅖ。",
+                        "Dubeolsik (2-set): keys give jamo, composed into syllables as you type, e.g. g k s → 한. Shift for ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ."))
+                    .foregroundStyle(.secondary)
+            case .hindi:
+                Text(tr("用拉丁字母按发音打，出天城文：namaste → नमस्ते。常用词按词表拼写，其他词可以从几种写法里选：空格上屏第一个，数字选别的，⏎ 上屏原样的字母，. 打出 ।",
+                        "Type it as it sounds in Latin letters, get Devanagari: namaste → नमस्ते. Common words are spelled from a list; for others pick a spelling: Space inserts the first, a digit another, ⏎ the letters as typed, . the danda (।)."))
                     .foregroundStyle(.secondary)
             }
             // Its place among the input languages: the default, or not added at all.
@@ -2385,4 +2410,22 @@ enum SettingsImage {
         out.size = NSSize(width: rep.size.width, height: CGFloat(height) / scale)
         return out
     }
+}
+
+/// The keyboard layouts installed on this Mac that type Latin letters (U.S., ABC, French, French – PC, Swiss
+/// French …), by name, for picking the one an input language types with.
+enum KeyboardLayouts {
+    struct Layout: Hashable { let id: String; let name: String }
+
+    static let latin: [Layout] = {
+        let filter = [kTISPropertyInputSourceType as String: kTISTypeKeyboardLayout as String,
+                      kTISPropertyInputSourceIsASCIICapable as String: true] as CFDictionary
+        let sources = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource] ?? []
+        let layouts = sources.compactMap { source -> Layout? in
+            guard let id = InputSourceRegistrar.string(source, kTISPropertyInputSourceID),
+                  let name = InputSourceRegistrar.string(source, kTISPropertyLocalizedName) else { return nil }
+            return Layout(id: id, name: name)
+        }
+        return Array(Set(layouts)).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }()
 }

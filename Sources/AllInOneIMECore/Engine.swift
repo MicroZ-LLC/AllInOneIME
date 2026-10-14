@@ -62,6 +62,12 @@ public protocol PinyinEngine: AnyObject {
     var rawInput: String { get }
     func clearComposition()
     func setAsciiMode(_ on: Bool)
+    /// The language it types when not in its ASCII mode: Chinese (librime), Hindi (`HindiEngine`).
+    var language: Language { get }
+}
+
+extension PinyinEngine {
+    public var language: Language { .chinese }
 }
 
 extension String {

@@ -13,7 +13,13 @@ enum VoiceInput {
     }
 
     static func locale(for language: Language) -> Locale {
-        Locale(identifier: language == .chinese ? "zh_CN" : "en_US")
+        switch language {
+        case .chinese: return Locale(identifier: "zh_CN")
+        case .english: return Locale(identifier: "en_US")
+        case .french: return Locale(identifier: "fr_FR")
+        case .korean: return Locale(identifier: "ko_KR")
+        case .hindi: return Locale(identifier: "hi_IN")
+        }
     }
 
     enum MicrophoneAccess { case granted, notDetermined, denied }

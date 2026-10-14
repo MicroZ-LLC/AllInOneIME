@@ -204,6 +204,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var liveSearchTask: Task<Void, Never>?
     /// The default input mode last applied to this session (re-applied when the setting changes).
     private var appliedDefaultInput: Language?
+    /// The keyboard layout this text field was last told to type with (`applyKeyboardLayout`).
+    private var appliedLayout: String?
     /// The recording in progress (a `DictationSession`, which needs macOS 26).
     private var voiceSession: AnyObject?
     /// Identifies the latest press of the voice key (older hold timers are ignored).
@@ -251,6 +253,7 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
+            appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
             ensureEngine()
@@ -420,6 +423,25 @@ final class AllInOneIMEInputController: IMKInputController {
             composer.setInputMode(defaultInput)
             appliedDefaultInput = defaultInput
         }
+        applyKeyboardLayout(config: config)
+    }
+
+    /// Types with the keyboard layout of the input language in effect: French with its own (AZERTY by
+    /// default, `Config.keyboardLayouts`), the others with the one the user picked in the system (or for
+    /// English). macOS translates the keys with it for this text field, typing and shortcuts alike.
+    @MainActor
+    private func applyKeyboardLayout(config: Config? = nil, client: IMKTextInput? = nil) {
+        let config = config ?? loadSettings()
+        let language = composer.inputLanguage
+        let id = config.keyboardLayout(for: language.isLatin ? language : .english) ?? Self.systemLayoutID
+        guard let id, id != appliedLayout, let target = client ?? clientOverride ?? self.client() else { return }
+        target.overrideKeyboard(withKeyboardNamed: id)
+        appliedLayout = id
+    }
+
+    /// The layout the user types Latin letters with in the system's input sources (U.S., ABC, AZERTY …).
+    private static var systemLayoutID: String? {
+        TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
     /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@claude`
@@ -508,7 +530,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = deadKeys.compose(KeyEvent(
             keyCode: event.keyCode, characters: event.characters ?? "",
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat), in: KeyboardLayout.current())
+            modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
+            in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
         let response = composer.handleKeyDown(key)
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
@@ -567,6 +590,8 @@ final class AllInOneIMEInputController: IMKInputController {
             switch effect {
             case .updateMarkedText:
                 updateMarkedText(target)
+            case .inputLanguageChanged:
+                applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
             case let .typeOut(text):
@@ -1502,7 +1527,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     ? tr("识别完就发送 · Esc 取消", "Sends once recognized · Esc cancel")
                     : tr("识别中… · Esc 取消", "Recognizing… · Esc cancel")
             }
-            model.detail = composer.engineState.isAsciiMode ? composer.messages.englishMode : composer.messages.chineseMode
+            model.detail = composer.messages.mode(composer.inputLanguage)
         } else if composer.engineState.isComposing {
             let state = composer.engineState
             model.rows = state.candidates.map {

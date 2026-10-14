@@ -102,6 +102,8 @@ public final class Composer {
         case hidePanel
         /// Briefly show a status message near the caret.
         case notice(String)
+        /// The input language changed (Shift): the controller types with its keyboard layout.
+        case inputLanguageChanged(Language)
         /// The right Option key went down on its own: call `voiceHoldElapsed` after `delay` seconds.
         case armVoice(delay: Double)
         /// Start recording and recognizing speech in `language`.
@@ -200,6 +202,21 @@ public final class Composer {
         public var pickRecipient = "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）"
         /// `@py` (or another command that runs code) in pasted or dictated text: left as text.
         public var codeNotRun = "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字"
+        /// The notices of a switch to French or Korean (Shift).
+        public var frenchMode = "法"
+        public var koreanMode = "韩"
+        public var hindiMode = "印"
+
+        /// The notice of a switch of input language.
+        public func mode(_ language: Language) -> String {
+            switch language {
+            case .chinese: return chineseMode
+            case .english: return englishMode
+            case .french: return frenchMode
+            case .korean: return koreanMode
+            case .hindi: return hindiMode
+            }
+        }
 
         public static let chinese = Messages(
             notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
@@ -235,7 +252,8 @@ public final class Composer {
             noOutput: "The code printed nothing: end it with an expression, or print the result",
             noteNotSaved: "The note wasn't saved; its text is on the clipboard",
             pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)",
-            codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text")
+            codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text",
+            frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi")
     }
     /// The command of the request in level two (nil otherwise).
     public private(set) var activeCommand: Command?
@@ -310,7 +328,7 @@ public final class Composer {
     public private(set) var result = ConversionResult.empty
     public private(set) var voice = Voice.off
     /// The input languages on (`Config.inputLanguages`): with one, a tap of Shift doesn't switch.
-    public var inputLanguages: [Language] = Language.allCases
+    public var inputLanguages: [Language] = [.chinese, .english]
     /// Holding the right Option key records speech.
     public var voiceEnabled: Bool
     /// The key that runs the @ command at the start of the draft.
@@ -318,9 +336,19 @@ public final class Composer {
     /// The action key was pressed during dictation: the sentence goes once the transcript is final.
     public private(set) var actsAfterVoice = false
     /// Level one. Nil while the dictionaries are being prepared; keys then go to the application.
+    /// Level one: librime (or `LatinEngine` without the Chinese pack), as the controller sets it; in Hindi,
+    /// `HindiEngine` in its place.
     public var engine: PinyinEngine? {
-        didSet { engineState = engine?.snapshot() ?? .empty }
+        get { hindiActive && primaryEngine != nil ? hindiEngine : primaryEngine }
+        set {
+            primaryEngine = newValue
+            engineState = engine?.snapshot() ?? .empty
+        }
     }
+    private var primaryEngine: PinyinEngine?
+    private let hindiEngine = HindiEngine()
+    /// Hindi is the input language (its engine in place of librime).
+    private var hindiActive = false
 
     private var highlightOverride: Int?
     private var requestCounter = 0
@@ -342,9 +370,19 @@ public final class Composer {
 
     /// The accent of a dead key (⌥E: "´"), shown at the cursor until the next key composes it (`KeyEvent.composed`).
     public private(set) var pendingAccent: String?
+    /// Korean being typed: the syllable shown at the cursor until it's done (`HangulComposer`).
+    public private(set) var hangul = HangulComposer()
+    /// The language typed while the engine is in its ASCII mode: English, French or Korean (Chinese is pinyin).
+    public private(set) var asciiLanguage: Language = .english
+
+    /// The input language in effect.
+    public var inputLanguage: Language { engineState.isAsciiMode ? asciiLanguage : nativeLanguage }
+
+    /// The language of the engine in place when it isn't in its ASCII mode.
+    private var nativeLanguage: Language { hindiActive ? .hindi : .chinese }
 
     public init(engine: PinyinEngine? = nil, voiceEnabled: Bool = true, actionKey: ActionKey = .enter) {
-        self.engine = engine
+        primaryEngine = engine
         self.voiceEnabled = voiceEnabled
         self.actionKey = actionKey
         engineState = engine?.snapshot() ?? .empty
@@ -378,13 +416,13 @@ public final class Composer {
         if isLevelTwo { return shownDraft }
         // What is being typed or said goes in at the cursor; what follows it (`tail`, shown the same) after.
         let shown = shownDraft, after = tail.count
-        return String(shown.dropLast(after)) + (engineState.isComposing ? engineState.preedit : "") + (pendingAccent ?? "")
+        return String(shown.dropLast(after)) + (engineState.isComposing ? engineState.preedit : "") + (pendingAccent ?? "") + hangul.preedit
             + appendix(voice.text) + String(shown.suffix(after))
     }
 
     /// Caret position in `markedText`, in Characters.
     public var markedCursor: Int {
-        let before = shownDraft.count - tail.count + (pendingAccent?.count ?? 0)
+        let before = shownDraft.count - tail.count + (pendingAccent?.count ?? 0) + hangul.preedit.count
         if voice != .off { return before + appendix(voice.text).count }
         guard !isLevelTwo, engineState.isComposing else { return before }
         return before + min(max(engineState.cursor, 0), engineState.preedit.count)
@@ -788,6 +826,56 @@ public final class Composer {
     // MARK: - Keys
 
     public func handleKeyDown(_ event: KeyEvent) -> Response {
+        if let response = handleHangulKey(event) { return response }
+        // Any other key finishes the syllable being typed first, then does what it does.
+        let finished = finishHangul()
+        let response = handleOtherKeyDown(event)
+        return finished.isEmpty ? response : Response(effects: finished + response.effects, handled: response.handled)
+    }
+
+    /// Whether letter keys type Hangul now: in Korean, outside a command's name, code and `@open`'s letters.
+    private var typesHangul: Bool {
+        inputLanguage == .korean && !isLevelTwo && voice == .off && engine != nil && palette == nil
+            && draftCommand?.typesLatin != true && !(draft.hasPrefix("@") && draftCommand == nil)
+    }
+
+    /// A letter key in Korean: its jamo joins the syllable being typed, and a finished one goes in. ⌫ takes
+    /// back a key of the syllable. Nil for every other key.
+    private func handleHangulKey(_ event: KeyEvent) -> Response? {
+        guard typesHangul else { return nil }
+        let modifiers = event.modifiers.subtracting(.capsLock)
+        let back = event.keyCode == VirtualKey.delete && modifiers.isEmpty && !hangul.isEmpty
+        let jamo = modifiers.isSubset(of: .shift) ? HangulComposer.jamo(keyCode: event.keyCode, shift: modifiers.contains(.shift)) : nil
+        guard back || jamo != nil else { return nil }
+        shiftPressedAt = nil
+        optionPressed = nil
+        voiceArmed = false
+        var effects: [Effect] = []
+        if back {
+            _ = hangul.backspace()
+        } else if let jamo {
+            let done = hangul.feed(jamo)
+            if !done.isEmpty { effects += typeFinished(done) }
+        }
+        return .consumed(effects + [.updateMarkedText] + (draft.isEmpty ? [] : [.showPanel]))
+    }
+
+    /// Finishes the syllable being typed (another key, a switch of language, the field lost).
+    private func finishHangul() -> [Effect] {
+        guard !hangul.isEmpty else { return [] }
+        let text = hangul.flush()
+        return typeFinished(text) + [.updateMarkedText]
+    }
+
+    /// Finished Hangul: into the command's text, or into the document.
+    private func typeFinished(_ text: String) -> [Effect] {
+        guard !draft.isEmpty else { return [.commit(text)] }
+        appendTyped(text)
+        setLevelOnePhase()
+        return []
+    }
+
+    private func handleOtherKeyDown(_ event: KeyEvent) -> Response {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
@@ -928,7 +1016,7 @@ public final class Composer {
         // With one input language Shift stays put, except to leave the letters a command switched to
         // (Chinese inside `@python print("…")`).
         let switches = inputLanguages.count > 1 || restoreChineseAfterOpen || nestedLatinFrom != nil
-        return toggle && voice == .off && switches ? toggleLatin() : []
+        return toggle && voice == .off && switches ? switchInputLanguage() : []
     }
 
     static let shiftTapWindow: TimeInterval = 0.5
@@ -1019,10 +1107,17 @@ public final class Composer {
     /// Switches level one to Chinese (pinyin) or English input, e.g. to the configured default.
     /// Ignored while something is being composed.
     public func setInputMode(_ language: Language) {
-        guard let engine, !isComposing else { return }
-        let latin = language == .english
-        guard engine.snapshot().isAsciiMode != latin else { return }
-        engine.setAsciiMode(latin)
+        guard engine != nil, !isComposing, hangul.isEmpty else { return }
+        enter(language)
+    }
+
+    /// Puts level one in `language`: Hindi's engine or librime's, in or out of its ASCII mode.
+    private func enter(_ language: Language) {
+        hindiActive = language == .hindi
+        guard let engine else { return }
+        let ascii = language != .chinese && language != .hindi
+        if ascii { asciiLanguage = language }
+        if engine.snapshot().isAsciiMode != ascii { engine.setAsciiMode(ascii) }
         engineState = engine.snapshot()
     }
 
@@ -1170,6 +1265,7 @@ public final class Composer {
 
     /// A dead key's accent with nothing after it goes in as is (the field lost, everything committed), as macOS does.
     private func typePendingAccent() {
+        if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
         guard let accent = pendingAccent else { return }
         pendingAccent = nil
         insertIntoDraft(accent)
@@ -1568,6 +1664,33 @@ public final class Composer {
         engineState = engine.snapshot()
     }
 
+    /// A tap of Shift: the next input language, in the order they were added (`inputLanguages`). Out of the
+    /// letters a command switched to (`@open` typed in Chinese), back to Chinese.
+    private func switchInputLanguage() -> [Effect] {
+        guard engine != nil, !isLevelTwo else { return [] }
+        let current = inputLanguage
+        let next: Language
+        if restoreChineseAfterOpen || nestedLatinFrom != nil || inputLanguages.count < 2 {
+            next = current == nativeLanguage ? asciiLanguage : nativeLanguage
+        } else {
+            let index = inputLanguages.firstIndex(of: current).map { $0 + 1 } ?? 0
+            next = inputLanguages[index % inputLanguages.count]
+        }
+        guard next != current else { return [] }
+        var effects = finishHangul()
+        if current == .chinese {
+            // Pinyin being typed goes in as librime's Shift does it (`toggleLatin`).
+            effects += toggleLatin()
+        } else if let engine, engine.snapshot().isComposing, let word = engine.commitComposition() {
+            effects += accept(word)  // a Hindi word being typed: its first spelling
+        }
+        if restoreChineseAfterOpen || nestedLatinFrom != nil {
+            restoreChineseAfterOpen = false  // left by hand
+        }
+        enter(next)
+        return effects + [.updateMarkedText, .inputLanguageChanged(next), .notice(messages.mode(next))]
+    }
+
     private func toggleLatin() -> [Effect] {
         guard let engine, !isLevelTwo else { return [] }
         let before = engine.snapshot()
@@ -1590,8 +1713,7 @@ public final class Composer {
             }
             engine.setAsciiMode(!latin)
         }
-        effects = afterEngineChange(engine, effects: effects)
-        return effects + [.notice(latin ? messages.chineseMode : messages.englishMode)]
+        return afterEngineChange(engine, effects: effects)
     }
 
     // MARK: - Voice
@@ -1611,7 +1733,7 @@ public final class Composer {
         optionPressed = nil  // the hold became dictation: its release is not a tap
         actsAfterVoice = false
         setLevelOnePhase()
-        let language: Language = engineState.isAsciiMode ? .english : .chinese
+        let language = inputLanguage
         // Start last: if it fails at once, its notice must not be hidden by these updates.
         return effects + [.updateMarkedText, .showPanel, .startVoice(id: voiceCounter, language: language)]
     }
@@ -1964,6 +2086,7 @@ public final class Composer {
         engineState = engine?.snapshot() ?? .empty
         draft = ""
         pendingAccent = nil
+        hangul = HangulComposer()
         messageRecipient = nil
         clearRecipientResults()
         draftEndsWithVoice = false

@@ -37,6 +37,7 @@ func screenIsLocked() -> Bool {
 let outputDirectory = URL(fileURLWithPath:
     CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") } ?? "/tmp/allinoneime-realtest")
 let originalSourceFile = outputDirectory.appendingPathComponent("original-source.txt")
+let configBackupFile = outputDirectory.appendingPathComponent("config.backup.json")
 
 func imeIsRunning() -> Bool {
     !NSRunningApplication.runningApplications(withBundleIdentifier: imeID).isEmpty
@@ -289,6 +290,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     func finish() -> Never {
         reset()
+        restoreConfig()
         if let originalSource {
             selectInputSource(originalSource)
             pump(0.3)
@@ -518,7 +520,83 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        frenchAndKorean()
         finish()
+    }
+
+    /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
+    ///    through the input languages in order. The config gets them for the test and is restored after.
+    func frenchAndKorean() {
+        print("— French (AZERTY), Korean, Hindi")
+        guard addTestLanguages() else {
+            check(false, "config file readable, to add French and Korean for the test")
+            return
+        }
+        // The text field again, so the input method reads the languages and starts in French (the default).
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("q")
+        check(waitUntil(2) { self.committed == "a" }, "in French the A key of AZERTY types 'a' ('\(committed)')")
+        key("", 0x21)  // AZERTY's ^ dead key, where [ is on a US keyboard
+        type("e")
+        check(waitUntil(2) { self.committed == "aê" && self.marked.isEmpty }, "^ then e types ê ('\(committed)')")
+        tapShift()
+        textView.string = ""
+        type("gksrmf")
+        check(waitUntil(2) { self.committed == "한" && self.marked == "글" }, "after Shift, Korean: g k s r m f → 한 and 글 being typed ('\(committed)' + '\(marked)')")
+        space()
+        check(waitUntil(2) { self.committed == "한글 " && self.marked.isEmpty }, "Space finishes 글 and types a space ('\(committed)')")
+        command("tr")
+        type("dkssud")
+        check(waitUntil(2) { self.marked.hasSuffix(" 안녕") }, "Hangul in a command's text (\(marked))")
+        reset()
+        tapShift()
+        textView.string = ""
+        type("namaste")
+        check(waitUntil(2) { self.marked == "नमस्ते" }, "Shift again: Hindi, namaste shows नमस्ते (marked: \(marked))")
+        space()
+        check(waitUntil(2) { self.committed == "नमस्ते " && self.marked.isEmpty }, "Space inserts नमस्ते and a space ('\(committed)')")
+        type("hai")
+        key(".", keyCodes["."]!)
+        check(waitUntil(2) { self.committed == "नमस्ते है।" }, "hai then . types है। ('\(committed)')")
+        reset()
+        tapShift()
+        textView.string = ""
+        type("ni")
+        check(waitUntil(2) { !self.marked.isEmpty }, "Shift again: pinyin (marked: \(marked))")
+        reset()
+        tapShift()
+        textView.string = ""
+        type("q")
+        check(waitUntil(2) { self.committed == "q" }, "Shift again: English, the system's layout ('\(committed)')")
+        restoreConfig()
+    }
+
+    /// The user's config, kept while the test adds French and Korean (`restoreConfig`; a backup file too).
+    var savedConfig: Data?
+    static let configURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/allinoneime/config.json")
+
+    func addTestLanguages() -> Bool {
+        guard let data = try? Data(contentsOf: Self.configURL),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        savedConfig = data
+        try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        try? data.write(to: configBackupFile)
+        json["inputLanguages"] = ["fr", "ko", "hi", "zh", "en"]
+        json["defaultInput"] = "fr"
+        json["keyboardLayouts"] = [String: String]()
+        guard let out = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        return (try? out.write(to: Self.configURL, options: .atomic)) != nil
+    }
+
+    func restoreConfig() {
+        guard let savedConfig else { return }
+        try? savedConfig.write(to: Self.configURL, options: .atomic)
+        try? FileManager.default.removeItem(at: configBackupFile)
+        self.savedConfig = nil
     }
 
     /// A value from the input method's config file (nil if unset or the file is missing).
@@ -536,6 +614,12 @@ case "--is-locked":
     print(screenIsLocked() ? "true" : "false")
     exit(0)
 case "--restore-input-source":
+    // And the config, if the test was stopped while French and Korean were added to it.
+    if let backup = try? Data(contentsOf: configBackupFile) {
+        try? backup.write(to: Harness.configURL, options: .atomic)
+        try? FileManager.default.removeItem(at: configBackupFile)
+        print("config restored")
+    }
     // Backup for when the test couldn't restore it itself (watchdog timeout or crash).
     if let original = try? String(contentsOf: originalSourceFile, encoding: .utf8)
         .trimmingCharacters(in: .whitespacesAndNewlines), !original.isEmpty, currentInputSourceID() != original {

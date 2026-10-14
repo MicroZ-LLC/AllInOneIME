@@ -63,7 +63,7 @@ enum UIText {
     }
 
     static func name(_ language: Language) -> String {
-        chinese ? language.displayName : language == .chinese ? "Chinese" : "English"
+        chinese ? language.displayName : language.englishName
     }
 
     /// An output language in the interface language: "日语" / "Japanese".

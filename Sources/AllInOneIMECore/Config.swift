@@ -35,6 +35,11 @@ public struct Config: Codable, Equatable, Sendable {
     /// The input languages added, in the user's order: pinyin (Chinese), English letters, or both
     /// (Shift switches). The first is the default. A new user has English only; with one, Shift doesn't switch.
     public var inputLanguages: [Language]
+    /// The keyboard layout `language` types with: the one picked for it, else its default (nil: the system's).
+    public func keyboardLayout(for language: Language) -> String? {
+        keyboardLayouts[language.rawValue] ?? language.defaultKeyboardLayout
+    }
+
     /// At least one input language, at most this many.
     public static let maxInputLanguages = 5
     /// Mode a new text field starts in: pinyin (Chinese) or English letters. Always the first of `inputLanguages`.
@@ -59,6 +64,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
     public var fuzzyPinyin: [String]
+    /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
+    /// where it isn't the language's default (`Language.defaultKeyboardLayout`).
+    public var keyboardLayouts: [String: String]
     /// A command's result is typed into the document character by character, like a person typing
     /// (pinyin picks still go in at once), at `typeOutRate` characters a second (1/6: 6 s a character),
     /// in bursts of changing pace when `typeOutVaries`.
@@ -125,6 +133,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.claudeInBackground = true
         self.menuBarIcon = true
         self.fuzzyPinyin = []
+        self.keyboardLayouts = [:]
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
         self.typeOutVaries = false
@@ -145,7 +154,7 @@ public struct Config: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts
         case provider, anthropic, gemini, openai
     }
 
@@ -164,22 +173,25 @@ public struct Config: Codable, Equatable, Sendable {
         rewriteStyles = try c.decodeIfPresent([String].self, forKey: .rewriteStyles) ?? d.rewriteStyles
         // A file from before languages could be added had both, in the menu and on Shift: it keeps them.
         outputLanguages = try c.decodeIfPresent([OutputLanguage].self, forKey: .outputLanguages) ?? [.english, .chinese]
-        inputLanguages = try c.decodeIfPresent([Language].self, forKey: .inputLanguages) ?? [.chinese, .english]
+        // Codes this version doesn't know (a language a later one added) are left out, not an error.
+        inputLanguages = try c.decodeIfPresent([String].self, forKey: .inputLanguages).map { $0.compactMap(Language.init(rawValue:)) }
+            ?? [.chinese, .english]
         // Without the chosen one named, it's the first of the list.
         outputLanguage = try c.decodeIfPresent(OutputLanguage.self, forKey: .outputLanguage)
             ?? (c.contains(.outputLanguages) ? outputLanguages.first : nil) ?? d.outputLanguage
         // A file from before input languages started in Chinese; a new user starts in English (`Config.default`).
-        defaultInput = try c.decodeIfPresent(Language.self, forKey: .defaultInput)
+        defaultInput = (try? c.decodeIfPresent(Language.self, forKey: .defaultInput)).flatMap { $0 }
             ?? (c.contains(.inputLanguages) ? inputLanguages.first : .chinese) ?? d.defaultInput
         improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
-        uiLanguage = try c.decodeIfPresent(Language.self, forKey: .uiLanguage)
+        uiLanguage = (try? c.decodeIfPresent(Language.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isInterfaceLanguage ? $0 : nil }
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
+        keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
         typeOut = try c.decodeIfPresent(Bool.self, forKey: .typeOut) ?? d.typeOut
         // A file from before the slider: "slow", "normal", "fast" or "random" (normal, varying).
         let older = try? c.decodeIfPresent(String.self, forKey: .typeOutSpeed)
@@ -249,6 +261,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
+        try c.encode(keyboardLayouts, forKey: .keyboardLayouts)
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
