@@ -402,6 +402,61 @@ final class SettingsModel: ObservableObject {
         NSWorkspace.shared.open(PluginStore.directory)
     }
 
+    // MARK: Raycast scripts
+
+    /// The folders looked in, the scripts that are commands, and the files skipped (with the names another
+    /// command has: `Command.hiddenScripts`).
+    @Published private(set) var scriptFolders: [RaycastScriptStore.Folder] = []
+    @Published private(set) var scripts: [RaycastScript] = []
+    @Published private(set) var skippedScripts: [RaycastScriptStore.Skipped] = []
+
+    /// Reads the folders again; `discover`: Spotlight looks for script folders first, in the background (not
+    /// for a preview), and the list follows when it's done.
+    func refreshScripts(discover: Bool = false) {
+        scriptFolders = RaycastScriptStore.folders(config, found: LiveScripts.found)
+        let (found, skipped) = LiveScripts.load(config, rescan: true)
+        let hidden = Command.hiddenScripts(found, custom: config.customCommands, plugins: plugins)
+        scripts = found.filter { script in !hidden.contains { $0.script == script } }
+        skippedScripts = skipped + hidden.map { RaycastScriptStore.Skipped(file: $0.script.file, problem: .nameTaken(by: $0.owner)) }
+        if discover, persists { LiveScripts.discoverIfDue(config, force: true) { [weak self] in self?.refreshScripts() } }
+    }
+
+    /// Adds a folder of scripts (asked with an open panel); one Spotlight found and was hidden is shown again.
+    func addScriptFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = tr("添加", "Add")
+        panel.message = tr("选择放 Raycast 脚本的文件夹", "Choose a folder of Raycast scripts")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let path = RaycastScriptStore.abbreviated(url.path)
+        if !config.scriptFolders.contains(path) { config.scriptFolders.append(path) }
+        config.hiddenScriptFolders.removeAll { $0 == path }
+        save()
+        refreshScripts()
+    }
+
+    /// An added folder is removed from the list; a found one is hidden (or shown again).
+    func removeScriptFolder(_ folder: RaycastScriptStore.Folder) {
+        if folder.found {
+            if folder.hidden { config.hiddenScriptFolders.removeAll { $0 == folder.path } } else { config.hiddenScriptFolders.append(folder.path) }
+        } else {
+            config.scriptFolders.removeAll { $0 == folder.path }
+        }
+        save()
+        refreshScripts()
+    }
+
+    /// Shows a folder in Finder (the suggested one is made first).
+    func revealScriptFolder(_ folder: RaycastScriptStore.Folder) {
+        if folder.path == RaycastScriptStore.defaultFolder, persists {
+            try? FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
+        }
+        NSWorkspace.shared.open(folder.url)
+    }
+
     // MARK: Plugin library
 
     private let library = PluginLibrary()
@@ -884,6 +939,64 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
+    /// Raycast Script Commands: where they're looked for, the commands they made, and the files left out.
+    @ViewBuilder private var scriptsSection: some View {
+        Section {
+            Toggle(isOn: $model.config.findRaycastScripts) {
+                titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
+                       tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
+                          "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
+            }
+            ForEach(model.scriptFolders, id: \.path) { folder in
+                HStack {
+                    Image(systemName: folder.found ? "sparkle.magnifyingglass" : "folder").foregroundStyle(.secondary)
+                        .frame(width: 20)
+                    Text(folder.path).font(.body.monospaced()).lineLimit(1).truncationMode(.middle)
+                        .foregroundStyle(folder.hidden ? .secondary : .primary)
+                    Text(folder.hidden ? tr("自动找到 · 已隐藏", "found · hidden") : folder.found ? tr("自动找到", "found") : tr("添加的", "added"))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(tr("在访达中显示", "Show in Finder")) { model.revealScriptFolder(folder) }
+                    Button(folder.found ? (folder.hidden ? tr("显示", "Show") : tr("隐藏", "Hide")) : tr("移除", "Remove")) {
+                        model.removeScriptFolder(folder)
+                    }
+                }
+            }
+            Button(tr("添加文件夹…", "Add Folder…")) { model.addScriptFolder() }
+            ForEach(model.scripts, id: \.file) { script in
+                HStack {
+                    IconTile(icon: CommandIcons.icon(for: script))
+                    Text("@" + script.name).font(.body.monospaced())
+                    Text(script.title).lineLimit(1)
+                    Spacer()
+                    Text(UIText.name(script.mode) + " · " + (script.arguments.isEmpty ? tr("无参数", "no arguments")
+                                                               : tr("\(script.arguments.count) 个参数", script.arguments.count == 1 ? "1 argument" : "\(script.arguments.count) arguments")))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .help(RaycastScriptStore.abbreviated(script.file.path))
+            }
+            ForEach(model.skippedScripts, id: \.file) { skipped in
+                Label(tr("没有加载 \(skipped.file.lastPathComponent)：", "Not loaded, \(skipped.file.lastPathComponent): ")
+                          + UIText.describe(skipped.problem, file: skipped.file),
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            if model.scripts.isEmpty, model.skippedScripts.isEmpty {
+                Text(tr("还没有脚本。把 Raycast 的脚本命令（github.com/raycast/script-commands）放进上面的文件夹就行。",
+                        "No scripts yet. Put Raycast Script Commands (github.com/raycast/script-commands) in a folder above."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        } header: {
+            SectionTitle(tr("Raycast 脚本命令", "Raycast Script Commands"), icon: CommandIcons.scripts)
+        } footer: {
+            Text(tr("每个脚本是一个 @ 命令，名字取自文件名里的字母（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。compact、inline 上屏最后一行，fullOutput 可以上屏全部或其中一行，silent 只显示最后一行。",
+                    "Each script is an @ command named after the letters of its file name (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. compact and inline insert the last line, fullOutput all of it or any line, silent only shows the last line."))
+                .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
+        }
+        .disabled(!model.canSave)
+    }
+
     @ViewBuilder private var pluginsSection: some View {
         Section {
             ForEach(model.plugins, id: \.name) { plugin in
@@ -1351,7 +1464,9 @@ struct SettingsView: View {
                     translateSection
                     rewriteSection
                     jargonSection
-                case .commands: commandsSection
+                case .commands:
+                    commandsSection
+                    scriptsSection
                 case .plugins:
                     pluginsSection
                     webSearchSection
@@ -1430,8 +1545,15 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
+        .onChange(of: model.config.findRaycastScripts) {
+            model.save()
+            model.refreshScripts(discover: model.config.findRaycastScripts)
+        }
+        .onChange(of: page) { if page == .commands { model.refreshScripts(discover: true) } }
+        .onChange(of: model.config.customCommands) { model.refreshScripts() }  // a name a script had may be taken now
         .onAppear {
             model.refreshPlugins()
+            model.refreshScripts(discover: page == .commands)
             model.refreshKeys()
             model.refreshSearchKey()
             model.refreshAccount()
@@ -2264,9 +2386,17 @@ struct IconTile: View {
     var size: CGFloat = 20
 
     var body: some View {
+        if let emoji = icon.emoji {
+            Text(emoji).font(.system(size: size * 0.8)).frame(width: size, height: size).accessibilityHidden(true)
+        } else {
+            tile
+        }
+    }
+
+    private var tile: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
         // Fitted into the same box whatever its shape: a wide symbol (translate) stays inside the tile.
-        Image(systemName: icon.symbol)
+        return Image(systemName: icon.symbol)
             .resizable()
             .symbolRenderingMode(.monochrome)
             .fontWeight(.semibold)
@@ -2348,7 +2478,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .general: return "action key return 执行键 回车 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
-        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页"
+        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts 脚本 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
