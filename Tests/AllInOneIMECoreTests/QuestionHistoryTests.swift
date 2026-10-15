@@ -297,6 +297,51 @@ extension ComposerTests {
         #expect(remembered(s.receive(answer("A summary."), isFinal: true, id: 1)).isEmpty && s.questionHistory == savedQuestions)
     }
 
+    /// A row picked in one draft isn't picked in the next, even with the same text.
+    @Test func aPickIsForgottenWithItsDraft() {
+        let c = questionDraft()
+        type("rust", c)
+        _ = c.handleKeyDown(downKey)
+        _ = c.handleKeyDown(enterKey)
+        #expect(c.showsSavedAnswer)
+        #expect(commits(c.handleKeyDown(enterKey)) == ["A language."])  // inserted: the draft is done
+        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", c)
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        type("rust", c)
+        #expect(c.questionHighlight == nil)
+        #expect(requests(c.handleKeyDown(enterKey).effects) == [.startCommand(.question, input: "rust", id: 1)])
+        // Esc twice (the answer, then the draft): the same.
+        let d = questionDraft()
+        type("rust", d)
+        _ = d.handleKeyDown(downKey)
+        _ = d.handleKeyDown(enterKey)
+        _ = d.handleKeyDown(escKey)
+        #expect(d.questionHighlight == 0)  // back in the same draft: still on it
+        _ = d.handleKeyDown(escKey)
+        #expect(d.draft.isEmpty)
+        _ = d.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", d)
+        _ = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        type("rust", d)
+        #expect(d.questionHighlight == nil && !requests(d.handleKeyDown(enterKey).effects).isEmpty && !d.showsSavedAnswer)
+        // ↑ on a new list starts from the last row, not one picked before; so after the app took the text.
+        let e = questionDraft()
+        _ = e.handleKeyDown(downKey)
+        _ = e.handleKeyDown(escKey)
+        _ = e.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", e)
+        _ = e.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        #expect(e.questionHighlight == nil)
+        _ = e.handleKeyDown(upKey)
+        #expect(e.questionHighlight == 2)
+        _ = e.appTookMarkedText()
+        _ = e.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", e)
+        _ = e.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        #expect(e.questionHighlight == nil)
+    }
+
     @Test func clearedTheListIsGone() {
         let c = questionDraft()
         #expect(!c.questionMatches.isEmpty)
