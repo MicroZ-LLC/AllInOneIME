@@ -329,7 +329,11 @@ two-way door：可以随时撤回的决定
 
 Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再运行一次安装程序，它会把 AllInOneIME 加回输入法列表。
 
-更新：用新版的 DMG 再装一次，不用先卸载，设置、黑话库和学到的词都保留。升级前看一下 [更新日志](CHANGELOG.zh-CN.md)，里面有每个版本的变化和升级须知。
+更新：设置 →「关于」→「检查更新」。有新版本时，「关于」里会写出来（菜单栏面板里也有一行），附上更新内容；点「更新到 <版本>」
+就下载、用 AllInOneIME 的发布密钥签名的更新信息核对、安装，再重启输入法。设置、语言包、学到的词和扩展都保留，
+中途出错就换回原来的版本。AllInOneIME 每天在后台自己看一次（在「关于」里关掉「自动检查更新」就不看）；不点就不会安装。
+0.6.3 起才有这个功能；更旧的版本，或者你更喜欢的话，用新版的 DMG 直接装在上面，不用先卸载。
+升级前看一下 [更新日志](CHANGELOG.zh-CN.md)，里面有每个版本的变化和升级须知。
 
 以前装过 AI 拼音（AIPinyin）的话，直接安装就行：旧的 AIPinyin.app 和「AI 拼音设置」会被删掉，
 输入法列表里那一项会换成新名字，不用重新添加。设置、黑话库和学到的词第一次启动时搬到新目录
@@ -410,6 +414,7 @@ make install
 - `@open` 只在本机搜索。它记得你用它打开过什么（最近 200 个），存在输入法自己的偏好设置里（不在 config.json 里），用来排序。
 - 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。
 - `@py`、`@js` 只在你按执行键时运行，运行的只是你自己打的或明确粘贴进来的代码：AI 的回答和其他命令的输出从来不会被当成代码执行。`@py` 用你本机的 `python3`，和在终端里运行一样能读写文件、联网；`@js` 在单独的进程里运行，读不到文件，也不能联网或运行别的程序。安全输入时它们都不运行。
+- 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update.json 和它的签名；请求里没有任何标识，也没有你打的字。只有点了「更新」，才会从 GitHub release 下载新版本。
 - 日志不记录输入内容。macOS 对所有第三方输入法都会提示"开发者能获取你输入的内容"，这是系统的通用提示。
 
 ## 开发
@@ -423,7 +428,8 @@ make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已�
 make screenshots  # 重新生成 docs/ 里的截图
 make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # 在终端里试翻译和改写
 make icon         # 从 Resources/AppIcon.png 重新生成 App 图标和菜单栏图标
-make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；有 Developer ID 证书时签名，可以顺便公证）
+make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；有 Developer ID 证书时签名，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
+make update-test  # 应用内更新的端到端测试：临时的安装目录、127.0.0.1 上的测试服务器、测试密钥（不碰装好的 App）
 ```
 
 代码结构：
@@ -433,6 +439,22 @@ make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通�
 - `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器
 - `Sources/AllInOneIMEInstaller`：DMG 里的「安装 AllInOneIME」：安装、更新和卸载
+
+发布新版本（应用内更新读 https://allinoneime.com/update.json，用发布专用的密钥签名）：
+
+1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致）和更新日志。
+2. `make dmg`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
+3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
+4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update.json`
+   （版本、build 号和最低 macOS 从 App 里读，下载地址、大小、SHA-256、更新说明的地址和摘要），再用登录钥匙串里的密钥
+   （`allinoneime-releases-signing`，macOS 可能会问是否允许）签名成 `update.json.sig`。两个文件都提交。
+5. 等 release 的文件能下载了，再部署网站（`cd site && npx wrangler@4 deploy`）：App 每天看一次，`AllInOneIME --check-update` 能看到它们看到的。
+
+App 先用内置的公钥核对签名再读 update.json，不会装不比现在新的版本，只通过 https 从 allinoneime.com 或本仓库的 GitHub release 下载；
+压缩包的大小和 SHA-256 都对上、两个 App 的 bundle ID、版本和代码签名都没问题、新输入法能启动，才会安装。之后输入法把活交给
+自己的可执行文件（`--apply-update`）：它等输入法退出，像安装程序一样换 App（旧的先挪开，出错就放回去），再注册新的。
+在本机试：`make update-test`，或者用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再
+`AllInOneIME --install-update --manifest-url http://127.0.0.1:<端口>/update.json --key <测试公钥> --target-dir <目录>`。
 
 Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添加的输入法和麦克风权限，改了就要重新添加和授权。
 
