@@ -113,7 +113,7 @@ struct RedactionTests {
                                               "Email me at bob@acme.com or call 13800138000.", "Reach me at 13800138000."])
         #expect(back.translations.first?.line.text == "メールはbob@acme.comです")
         #expect(back.rewrites.first?.line.text == "邮箱 bob@acme.com，电话 13800138000")
-        #expect(!([back.versions.map(\.text), [back.rewrites[0].line.text]].joined().contains(where: Redaction.isAltered)))
+        #expect(!([back.versions.map(\.text), [back.rewrites[0].line.text]].joined().contains(where: { Redaction.isAltered($0) })))
     }
 
     @Test func toleratesWhatTheModelDoesToPlaceholders() throws {
@@ -144,10 +144,133 @@ struct RedactionTests {
             let back = r.restore("write to \(altered)")
             #expect(back == "write to \(altered)" && Redaction.isAltered(back), "\(altered)")
         }
-        // A kind in a language not known here, unique by its number: put back.
-        #expect(r.restore("[DATO_1]") == "bob@acme.com")
-        _ = r.hide("555-123-4567")
-        #expect(r.restore("[DATO_1]") == "[DATO_1]")  // EMAIL_1 or PHONE_1: can't tell
+        // A kind not ours (a language not known here) is never put back, even with the only number issued.
+        #expect(r.restore("[DATO_1]") == "[DATO_1]" && Redaction.isAltered("[DATO_1]"))
+    }
+
+    // MARK: Fixes from the acceptance tests
+
+    @Test func awsSecretsAndBase64Tokens() {
+        for key in ["wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEY", "\u{6A}e7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY",
+                    "dGhpcyBpcyBhIHNlY3JldCB0b2tlbg+/aGVsbG8=", "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2Rl=="] {
+            #expect(found("aws_secret_access_key = \(key)") == ["KEY \(key)"], "\(key)")
+        }
+        // Paths and links are not keys.
+        for text in ["open /Users/imac/workspace/AllInOneIME-custom-commands/Sources/AllInOneIMECore",
+                     "see github.com/MicroZ-LLC/AllInOneIME/issues/new", "getUserAccountSettingsForCurrentSessionHandler",
+                     "a/very/long/path/to/some/deeply/nested/folder"] {
+            #expect(found(text) == [], "\(text)")
+        }
+    }
+
+    @Test func fullWidthFormsAreFoundAndPutBackAsTyped() throws {
+        var settings = on
+        settings.customWords = ["Phoenix", "Café"]
+        #expect(found("邮箱 zhang＠example.com，手机１３８００１３８０００", settings)
+                == ["EMAIL zhang＠example.com", "PHONE １３８００１３８０００"])
+        #expect(found("卡 ４１１１ １１１１ １１１１ １１１１，ＩＰ １９２．１６８．１．２０", settings)
+                == ["CARD ４１１１ １１１１ １１１１ １１１１", "IP １９２．１６８．１．２０"])
+        #expect(found("ｓｋ－ｐｒｏｊ－４ｆ９Ｑｘ２ＬｍＮ８ｐＲ７ｔＶ１ｗＺ３ｙＢ６ about Ｐｈｏｅｎｉｘ", settings)
+                == ["KEY ｓｋ－ｐｒｏｊ－４ｆ９Ｑｘ２ＬｍＮ８ｐＲ７ｔＶ１ｗＺ３ｙＢ６", "ITEM Ｐｈｏｅｎｉｘ"])
+        // Decomposed accents and any case.
+        #expect(found("at the CAFE\u{301} and cafe\u{301}", settings) == ["ITEM CAFE\u{301}", "ITEM cafe\u{301}"])
+        var r = try #require(Redaction(settings))
+        let sent = r.hide("mail zhang＠example.com about Ｐｈｏｅｎｉｘ")
+        #expect(sent == "mail [EMAIL_1] about [ITEM_1]")
+        #expect(r.restore("Write to [EMAIL_1] re [ITEM_1].") == "Write to zhang＠example.com re Ｐｈｏｅｎｉｘ.")
+    }
+
+    @Test func commandPromptValuesAreAlwaysReplaced() throws {
+        var r = try #require(Redaction(on))
+        let prompt = "call 555-123-4567x89 or mail help@corp-secret.com_ops."
+        let hidden = r.hide(["fix this", prompt])
+        #expect(hidden[1] == "call [PHONE_1]x89 or mail [EMAIL_1]_ops.")
+        let request = r.protect(Prompt.commandRequest(Command(name: "c", kind: .generate,
+                                                              custom: CustomCommand(name: "c", type: .prompt, prompt: prompt)),
+                                                      input: "fix this", config: .default), sent: hidden[0])
+        let json = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
+        #expect(!json.contains("555-123") && !json.contains("corp-secret") && json.contains("[PHONE_1]x89"))
+        // Whatever `find` finds, `scrub` replaces.
+        let text = "ring 555-123-4567x89, write help@corp-secret.com_ops"
+        #expect(Redaction.find(text, settings: on).count == 2 && !r.scrub(text).contains("555") && !r.scrub(text).contains("corp-secret"))
+    }
+
+    @Test func internationalPhonesWithShortGroups() {
+        for phone in ["+81 3-1234-5678", "+33 1 23 45 67 89", "+33 6 12 34 56 78", "+49 30 123456", "+1 (555) 123-4567"] {
+            #expect(found("tel \(phone) ok") == ["PHONE \(phone)"], "\(phone)")
+        }
+        for text in ["on 2024-10-14 at 10:30", "v1.2.3", "costs +5 USD", "+1 2 3", "order 12 3 45 6", "score +3 1 2 4"] {
+            #expect(found(text) == [], "\(text)")
+        }
+    }
+
+    @Test func valuesBrokenByALineBreak() {
+        var settings = on
+        settings.customWords = ["Project Atlas"]
+        #expect(found("card 4111 1111\n1111 1111 ok", settings) == ["CARD 4111 1111\n1111 1111"])
+        #expect(found("手机 138 0013\n8000", settings) == ["PHONE 138 0013\n8000"])
+        #expect(found("call 555-123\n  4567", settings) == ["PHONE 555-123\n  4567"])
+        #expect(found("about Project\nAtlas and project   atlas", settings) == ["ITEM Project\nAtlas", "ITEM project   atlas"])
+        // Not across two line breaks.
+        #expect(found("4111\n1111\n1111 1111") == [])
+    }
+
+    @Test func theUsersOwnPlaceholderShapedWordsAreNeverReplaced() throws {
+        var r = try #require(Redaction(on))
+        let input = "Why does ip_1 = '10.0.0.1' and ip_2 = '10.0.0.2' fail?"
+        let sent = r.hide(input)
+        // ip_1 and ip_2 are the user's: the addresses get other numbers.
+        #expect(sent == "Why does ip_1 = '[IP_3]' and ip_2 = '[IP_4]' fail?")
+        #expect(r.restore("Because ip_1 is [IP_3] and ip_2 is [IP_4].") == "Because ip_1 is 10.0.0.1 and ip_2 is 10.0.0.2.")
+        #expect(r.restore("IP_1 and [IP_2]") == "IP_1 and [IP_2]")
+        #expect(!Redaction.isAltered("Because ip_1 is 10.0.0.1", original: input))
+
+        var settings = on
+        settings.customWords = ["Phoenix"]
+        var w = try #require(Redaction(settings))
+        #expect(w.hide("See [Item 1] about Phoenix") == "See [Item 1] about [ITEM_2]")
+        #expect(w.restore("See [Item 1] about [ITEM_2]") == "See [Item 1] about Phoenix")
+        // A label not ours, or a number not issued, is never put back.
+        #expect(w.restore("[DATO_2], [ITEM_1], ITEM_3") == "[DATO_2], [ITEM_1], ITEM_3")
+        // The literal placeholder the user typed: the email gets another.
+        var e = try #require(Redaction(on))
+        #expect(e.hide("replace [EMAIL_1] with bob@acme.com") == "replace [EMAIL_1] with [EMAIL_2]")
+        #expect(e.restore("Replace [EMAIL_1] with [EMAIL_2].") == "Replace [EMAIL_1] with bob@acme.com.")
+    }
+
+    @Test func streamingHoldsBackPartialPlaceholders() throws {
+        var r = try #require(Redaction(on))
+        _ = r.hide("a@acme.com b@acme.com c@acme.com d@acme.com e@acme.com f@acme.com g@acme.com h@acme.com i@acme.com j@acme.com")
+        let final = "Mail [EMAIL_10] and EMAIL_1 (EMAIL_2) now."
+        var shown: [String] = []
+        for end in 1...final.count {
+            let partial = String(final.prefix(end))
+            shown.append(r.restore(partial, complete: end == final.count))
+        }
+        #expect(shown.last == "Mail j@acme.com and a@acme.com b@acme.com now.")  // "(EMAIL_2)": brackets changed
+        for text in shown.dropLast() {
+            #expect(!text.contains("[") && !text.contains("(E") && !text.uppercased().contains("EMAI"), "\(text)")
+            // Never the value of [EMAIL_1] while [EMAIL_10] comes in.
+            #expect(!(text.hasPrefix("Mail a@acme.com")), "\(text)")
+        }
+        #expect(r.restore("Write to [EMAIL_1", complete: false) == "Write to ")
+        #expect(r.restore("Write to (EMAIL_", complete: false) == "Write to ")
+        #expect(r.restore("Write to EMAI", complete: false) == "Write to ")
+        #expect(r.restore("Write to [", complete: false) == "Write to ")
+        #expect(r.restore("Write to [EMAIL_1", complete: true) == "Write to [EMAIL_1")  // the final text is as written
+    }
+
+    @Test func numberedInOrderOfAppearance() throws {
+        var r = try #require(Redaction(on))
+        #expect(r.hide("first a@acme.com, then b@acme.com, then c@acme.com, a@acme.com")
+                == "first [EMAIL_1], then [EMAIL_2], then [EMAIL_3], [EMAIL_1]")
+        #expect(r.hidden.map(\.value) == ["a@acme.com", "b@acme.com", "c@acme.com"])
+    }
+
+    @Test func gitRemotesAndURLUsersAreNotEmails() {
+        #expect(found("git clone git@github.com:org/repo.git") == [])
+        #expect(found("open https://user@example.com/path") == [])
+        #expect(found("mail bob@acme.com: thanks") == ["EMAIL bob@acme.com"])
     }
 
     @Test func streamingLinesHideAHalfPlaceholder() throws {
@@ -299,7 +422,7 @@ struct RedactionTests {
         #expect(final.result.versions.map(\.text) == ["Please email bob@acme.com or call +1 (555) 123-4567.",
                                                       "Reach bob@acme.com at +1 (555) 123-4567.", "Contact me at [EMAIL_2]."])
         #expect(final.result.rewrites.first?.line.text == "Ping bob@acme.com re Phoenix.")
-        #expect(final.result.versions.map(\.text).map(Redaction.isAltered) == [false, false, true])
+        #expect(final.result.versions.map(\.text).map { Redaction.isAltered($0) } == [false, false, true])
         // No update while streaming shows a placeholder or a part of one.
         for update in updates {
             for line in update.result.versions where !line.isComplete { #expect(!line.text.contains("[")) }
@@ -322,6 +445,19 @@ struct RedactionTests {
         #expect(body.contains("[IP_1]") && body.contains("sign as [EMAIL_1]") && body.contains(Redaction.note.prefix(40)))
         #expect(final?.hidden == 3)
         #expect(final?.result.versions.first?.text == "Hi Carol, your server 10.0.0.12 is fine. — sent from ops@acme.com")
+    }
+
+    @Test func converterQuestionKeepsTheUsersOwnIdentifiers() async throws {
+        let host = "redact-question.test"
+        StubURLProtocol.register(host: host, .init(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [
+            Self.claudeAnswer("ip_1 holds [IP_3] and ip_2 holds [IP_4]; IP_1 is just a name.")]))
+        let converter = converter(host: host, redaction: on)
+        var final: ConversionUpdate?
+        let input = "Why does ip_1 = '10.0.0.1' and ip_2 = '10.0.0.2' fail?"
+        for try await update in converter.generate(.question, input: input) where update.isFinal { final = update }
+        let body = Self.body(StubURLProtocol.lastRequest(host: host))
+        #expect(!body.contains("10.0.0.") && body.contains("ip_1 = '[IP_3]'"))
+        #expect(final?.result.versions.first?.text == "ip_1 holds 10.0.0.1 and ip_2 holds 10.0.0.2; IP_1 is just a name.")
     }
 
     @Test func converterWithoutHiddenValuesSendsTheSameBytes() async throws {

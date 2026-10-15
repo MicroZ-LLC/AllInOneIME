@@ -147,8 +147,7 @@ public final class Converter: Sendable {
         let config = try loadConfig()
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does.
         var redaction = Redaction(config.redaction)
-        let sent = redaction?.hide(input) ?? input
-        if let prompt = command.custom?.prompt { _ = redaction?.hide(prompt) }
+        let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
         let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
