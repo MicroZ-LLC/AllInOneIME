@@ -124,9 +124,12 @@ final class AllInOneIMEInputController: IMKInputController {
     var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
     /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
     private var keyClient: IMKTextInput?
-    /// Whether the selection may be read with Accessibility when the field doesn't say, and selected again with it once
-    /// put back (`SelectedText`). False in the self-test: it would reach the user's own frontmost app.
+    /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
+    /// self-test: it would reach the user's own frontmost app.
     var selectionByAccessibility = true
+    /// What the field said was selected when a command started on its selection (`selectedRange()`, as it reported it):
+    /// a key finding it changed (a click, the app's own keys) gives the command up (`Composer.selectionMoved`).
+    private var selectionReported: NSRange?
     /// Whether secure event input is on anywhere; no text is sent to the model then.
     /// (The self-test replaces this to exercise both states.)
     var secureInputActive: () -> Bool = { SecureInput.isOn }
@@ -353,35 +356,31 @@ final class AllInOneIMEInputController: IMKInputController {
     /// never during secure input, nor in a terminal (its selection is no text being edited: what goes back would be typed
     /// at the prompt). Only how it was read and how long it is are logged.
     @MainActor
-    private func readSelection() -> String? {
+    private func readSelection() -> Composer.Selection? {
         let target = keyClient ?? clientOverride ?? client()
         guard loadSettings().useSelection, !secureInputActive(), !Self.isTerminal(target),
-              let (text, source) = SelectedText.read(from: target, accessibility: selectionByAccessibility) else { return nil }
-        log.notice("selection read (\(source.rawValue, privacy: .public), \(text.count) characters)")
-        return text
+              let read = SelectedText.read(from: target, accessibility: selectionByAccessibility) else { return nil }
+        log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
+        selectionReported = target?.selectedRange()
+        return Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
     }
 
-    /// Puts the text that was selected back in place of the marked text (`Composer.Effect.restoreSelection`); a moment
-    /// later checks it reads back as it was there and, where Accessibility may be used, selects it again.
+    /// Whether the field's selection is no longer what it was when the command started on it (`selectionReported`).
     @MainActor
-    private func restoreSelection(_ text: String, into client: IMKTextInput?) {
+    private func selectionChanged(in client: IMKTextInput?) -> Bool {
+        guard composer.draftInPanel, let reported = selectionReported, let client else { return false }
+        return client.selectedRange() != reported
+    }
+
+    /// A result in place of the selection the command worked on (`Composer.Effect.replaceSelection`): by its range, which
+    /// the text input protocol has fields honor; one that ignores it still has the text selected, and an insert replaces
+    /// what is selected.
+    @MainActor
+    private func replaceSelection(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput?) {
         guard let client else { return }
-        let marked = client.markedRange()
-        let at = marked.location == NSNotFound ? nil : marked.location
-        client.insertText(text, replacementRange: Self.notFound)
-        hasMarkedText = false
-        let length = (text as NSString).length
-        let reselects = selectionByAccessibility
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            guard let at else {
-                log.notice("selection put back (\(length) UTF-16 units; the field told no marked range to check)")
-                return
-            }
-            let back = client.attributedSubstring(from: NSRange(location: at, length: length))?.string
-            let check = back == nil ? "unverifiable" : back == text ? "verified" : "MISMATCH"
-            let selected = reselects && back != nil && back == text && SelectedText.reselect(text, at: at)
-            log.notice("selection put back (\(length) UTF-16 units, read back: \(check, privacy: .public), selected again: \(selected))")
-        }
+        let range = selection.range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound
+        client.insertText(text, replacementRange: range)
+        log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
     }
 
     /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
@@ -469,7 +468,7 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     override func composedString(_ sender: Any!) -> Any! {
-        composer.markedText
+        composer.draftInPanel ? "" : composer.markedText  // a command on the selection is in the panel, not the field
     }
 
     override func inputControllerWillClose() {
@@ -649,7 +648,8 @@ final class AllInOneIMEInputController: IMKInputController {
         secureNoticeShown = false
         // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than
         // show the draft again, doubled. This key is dropped, so ⏎ doesn't send half a sentence.
-        if composer.isComposing, let target,
+        // (A command on the selection marks nothing in the field: there's nothing for the app to take.)
+        if composer.isComposing, !composer.draftInPanel, let target,
            markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target)) {
             log.notice("the app took the marked text: starting over")
             perform(composer.appTookMarkedText(), client: client)
@@ -679,6 +679,12 @@ final class AllInOneIMEInputController: IMKInputController {
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
             in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
+        // The selection a command is written on changed (a click, the app's own keys): the command is given up, and
+        // the key acts as it would.
+        if selectionChanged(in: target) {
+            log.notice("the selection changed while a command was written on it: given up")
+            perform(composer.selectionMoved(), client: client)
+        }
         keyClient = client
         let response = composer.handleKeyDown(key)
         keyClient = nil
@@ -743,8 +749,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
-            case let .restoreSelection(text):
-                restoreSelection(text, into: target)
+            case let .replaceSelection(text, selection):
+                replaceSelection(text, selection, in: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
             case let .startConversion(input, id):
@@ -1384,7 +1390,8 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     private func updateMarkedText(_ client: IMKTextInput?) {
-        guard let client else { return }
+        // A command on the selection is written in the panel: the field keeps its selection, nothing marked over it.
+        guard let client, !composer.draftInPanel else { return }
         let text = composer.markedText
         guard !text.isEmpty else {
             // Nothing of ours is marked: leave the document (and any selection in it) alone.
@@ -1621,6 +1628,11 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     private func anchor(_ client: IMKTextInput) -> NSRect {
+        // A command on the selection: under the selection's last line (nothing is marked to go by).
+        if let range = composer.selection?.range, !range.isEmpty {
+            let rect = client.firstRect(forCharacterRange: NSRange(location: range.upperBound - 1, length: 1), actualRange: nil)
+            if rect != .zero { return rect }
+        }
         var lineRect = NSRect.zero
         _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
         return lineRect
@@ -1726,21 +1738,32 @@ final class AllInOneIMEInputController: IMKInputController {
         return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
     }
 
-    /// The panel's first line while text selected in the field is set aside (`Composer.selection`): what the command
-    /// works on, with its start and length; or that the command doesn't use it, or that it's too long (it goes back).
+    /// The line under the command being written on the selection (`Composer.selection`): what it works on, with its
+    /// start and length; or that the command doesn't use it, or that it's too long (either way it's left as it is).
     @MainActor
     func selectionHeader() -> String? {
-        guard let selection = composer.selection else { return nil }
+        guard let selection = composer.selection?.text else { return nil }
         let count = selection.count
         if composer.selectionTooLong {
-            return tr("选中的文字太长（\(count) 字，最多 \(Composer.maxSelectionLength) 字），命令不用它；Esc 放回",
-                      "The selection is too long (\(count) characters, \(Composer.maxSelectionLength) at most): not used; Esc puts it back")
+            return tr("选中的文字太长（\(count) 字，最多 \(Composer.maxSelectionLength) 字），命令不用它",
+                      "The selection is too long (\(count) characters, \(Composer.maxSelectionLength) at most): not used")
         }
         if let command = composer.draftCommand, !Composer.usesSelection(command) {
-            return tr("@\(command.name) 不用选中的文字，完成后放回原处", "@\(command.name) doesn't use the selection; it goes back when done")
+            return tr("@\(command.name) 不用选中的文字，它保持原样", "@\(command.name) doesn't use the selection; it stays as it is")
         }
         return tr("对选中的文字：“\(Self.selectionPreview(selection))”（\(count) 字）",
                   "On the selection: “\(Self.selectionPreview(selection))” (\(count) characters)")
+    }
+
+    /// The command being written on the selection, for the panel's input line: as it would be marked, with its caret
+    /// (`Composer.markedCursor`) while it's written.
+    @MainActor
+    func panelInput() -> String? {
+        guard composer.draftInPanel else { return nil }
+        let text = composer.markedText
+        guard !composer.isLevelTwo else { return text }
+        let at = min(max(composer.markedCursor, 0), text.count)
+        return String(text.prefix(at)) + "▏" + String(text.dropFirst(at))
     }
 
     /// The start of a selection on one line, for the panel: its first `limit` characters, line breaks shown as "↵".
@@ -2007,9 +2030,10 @@ final class AllInOneIMEInputController: IMKInputController {
             // An @ command with what follows it (a command being typed is the palette, above).
             model.status = .hint(draftHint(config: config))
             model.footer = composer.selection != nil
-                ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 放回选中的文字", "⌃V paste · ⌫ delete · Esc puts the selection back")
+                ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
                 : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
+        model.input = panelInput()
         model.header = selectionHeader()
         if let notice { model.detail = notice }
         return model

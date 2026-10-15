@@ -147,7 +147,10 @@ final class CandidateView: NSView {
         var rows: [Row] = []
         var highlighted: Int?
         var status: Status = .none
-        /// A line above everything else: what the panel works on (the text selected in the field).
+        /// The command being written, as a line of input with its caret (▏), first: it isn't marked in the field (a
+        /// command on the selected text).
+        var input: String?
+        /// A line above the rows: what the panel works on (the text selected in the field).
         var header: String?
         var footer = ""
         var detail: String?
@@ -231,6 +234,7 @@ final class CandidateView: NSView {
     private var rowLayouts: [RowLayout] = []
     private var statusFrame: NSRect?
     private var headerFrame: NSRect?
+    private var inputFrame: NSRect?
     private var footerY: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
@@ -251,6 +255,13 @@ final class CandidateView: NSView {
         var widest: CGFloat = 0
         rowLayouts = []
         let horizontal = model.horizontal && !model.rows.isEmpty
+        inputFrame = nil
+        if let input = inputString() {
+            let size = Self.measure(input, minHeight: 0)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
+            y += size.height + 2 * Metrics.rowInsetY
+        }
         headerFrame = nil
         if let header = headerString() {
             let size = Self.measure(header, minHeight: 0)
@@ -400,6 +411,10 @@ final class CandidateView: NSView {
         return (label, text)
     }
 
+    private func inputString() -> NSAttributedString? {
+        model.input.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+    }
+
     private func headerString() -> NSAttributedString? {
         model.header.map {
             NSAttributedString(string: $0, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
@@ -445,6 +460,13 @@ final class CandidateView: NSView {
             shape.stroke()
         }
 
+        if let inputFrame, let input = inputString() {
+            input.draw(with: inputFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            // Under it, a line as under a text being typed.
+            NSColor.separatorColor.setFill()
+            let inset = Metrics.padding + Metrics.rowInsetX
+            NSRect(x: inset, y: inputFrame.maxY + Metrics.rowInsetY - 1, width: bounds.width - 2 * inset, height: 1).fill()
+        }
         if let headerFrame, let header = headerString() {
             header.draw(with: headerFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
