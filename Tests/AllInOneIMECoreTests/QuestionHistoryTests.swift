@@ -64,10 +64,18 @@ struct QuestionHistoryTests {
         #expect(history.entries.map(\.question) == ["what   IS\nrust", "why"] && history.entries[0].answer == "new")
         #expect(QuestionHistory.key(" What  is\trust\n") == "what is rust")
         #expect(QuestionHistory.key("whatis rust") != QuestionHistory.key("what is rust"))  // a space missing is another question
-        // A hand-edited file with them: one, the newest, first.
-        let edited = QuestionHistory(entries: [entry("why", minute: 2), entry("What is Rust", "older", minute: 1),
-                                               entry("what is rust ", "newest", minute: 5), entry("WHAT IS RUST", "oldest", minute: 0)])
-        #expect(edited.entries.map(\.answer) == ["newest", "answer"] && edited.entries[0].question == "what is rust ")
+        // A hand-edited file with them: the first of each (the file is newest first), in the file's order.
+        let edited = QuestionHistory(entries: [entry("why", minute: 2), entry("What is Rust", "newer", minute: 1),
+                                               entry("what is rust ", "older", minute: 5), entry("WHAT IS RUST", "oldest", minute: 0)])
+        #expect(edited.entries.map(\.question) == ["why", "What is Rust"] && edited.entries.map(\.answer) == ["answer", "newer"])
+        // The order isn't by time: after a clock set back, the last question asked (with the earlier time) stays first.
+        var stepped = QuestionHistory()
+        stepped.record(entry("before the sync", minute: 10))
+        stepped.record(entry("after the sync", minute: 3))
+        #expect(stepped.entries.map(\.question) == ["after the sync", "before the sync"])
+        #expect(QuestionHistory(entries: stepped.entries).entries == stepped.entries)
+        #expect(QuestionHistory(entries: (1...8).map { entry("q\($0)", minute: Double($0)) }).entries.map(\.question)
+                == ["q1", "q2", "q3", "q4", "q5"])  // capped after
     }
 
     @Test func aFileReadableByOthersIsReplacedNeverWidened() throws {
