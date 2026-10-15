@@ -113,6 +113,17 @@ the message; without the Messages app it isn't offered.
 are radians, `round(x, 2)` keeps two decimals) and the constants `pi` (`π`) and `e`. Full-width digits and signs work too. Arithmetic is exact in decimal, so `0.1+0.2` is `0.3`; results have at most 15 significant digits, and
 whole numbers of up to 38 digits are written out in full (`2^100` → `1267650600228229401496703205376`).
 
+### On the selected text (new)
+
+Select some text in any app (a sentence in Notes, a paragraph in Mail), type `@improve`, `@translate`, `@question`
+or another command that takes text, and press ⏎: the command works on the selection (the panel's first line says
+"On the selection: “…” (N characters)"), and the result you pick replaces it. Esc, ⇧⏎ or clicking elsewhere puts the
+selection back exactly as it was. Text typed after the command is an instruction for `@improve` and `@translate`
+(`@translate ja`, `@improve more formal`) and the question for `@question` (`@question what does this mean`), about the
+selection. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`, `@imessage` and script extensions don't use it; it goes
+back when they're done. Up to 5000 characters; never read during secure input or in a terminal. Turn it off under
+Settings → General → "Use the selected text" if it misbehaves in an app.
+
 ### Notes and reminders
 
 `@note` makes a new note; its first line is the title. After copying some text, ⌃V after `@note ` (or ⌘V, outside terminals) saves it with its line breaks, shown as ↵ in the command.
