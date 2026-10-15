@@ -10,6 +10,8 @@ public struct ConversionUpdate: Equatable, Sendable {
     /// Seconds until the first text delta arrived (nil until then, and for cache hits).
     public var firstTokenLatency: TimeInterval?
     public var fromCache: Bool
+    /// How many values were hidden from the AI in the request (`Redaction`); 0 when none or hiding is off.
+    public var hidden: Int = 0
 }
 
 /// Turns typed input into streamed `ConversionUpdate`s using the configured provider (`ChatClient`).
@@ -64,19 +66,25 @@ public final class Converter: Sendable {
         }
 
         let config = try loadConfig()
+        // Sensitive values hidden from the model (`Redaction`), put back in what it writes.
+        var redaction = Redaction(config.redaction)
+        let sent = redaction?.hide(input) ?? input
+        let hidden = redaction?.count ?? 0
         let plan = WritingPlan.make(mode, text: input, config: config)
         let output = plan.versions
-        let jargon = plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : []
+        let jargon = (plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : [])
+            .filter { redaction?.allows($0) ?? true }
         let jargonKey = jargon.isEmpty ? "" : "j\(JargonLibrary.fingerprint(jargon))|"
         let key = "\(config.activeModel)|\(Prompt.version)|\(plan.key)|\(jargonKey)\(input)"
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(),
-                firstTokenLatency: nil, fromCache: true))
+                firstTokenLatency: nil, fromCache: true, hidden: hidden))
             return
         }
 
-        let stream = client.stream(Prompt.request(for: input, mode: mode, config: config, jargon: jargon), config: config,
+        let request = Prompt.request(for: input, mode: mode, config: config, jargon: jargon)
+        let stream = client.stream(redaction?.protect(request, sent: sent) ?? request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
 
         var text = ""
@@ -93,23 +101,25 @@ public final class Converter: Sendable {
                 stopReason = "max_tokens"
                 break
             }
-            let result = CandidateParser.parse(text, isFinal: false, output: output, translations: plan.translations)
+            let parsed = CandidateParser.parse(text, isFinal: false, output: output, translations: plan.translations)
+            let result = redaction?.restore(parsed) ?? parsed
             // Most deltas only extend a line; skip updates that don't change what is shown.
             guard result != lastResult else { continue }
             lastResult = result
             continuation.yield(ConversionUpdate(
                 result: result, rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
         }
         try Task.checkCancellation()
 
-        let final = Self.finalResult(text, stopReason: stopReason, output: output, translations: plan.translations)
+        let parsed = Self.finalResult(text, stopReason: stopReason, output: output, translations: plan.translations)
+        let final = redaction?.restore(parsed) ?? parsed
         if !final.isEmpty, stopReason != "max_tokens" {
             cache.withLock { $0.set(key, final) }
         }
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(),
-            firstTokenLatency: firstToken, fromCache: false))
+            firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
     }
 
     /// Runs a `.generate` command: the answer streams in as the single version of the result.
@@ -135,17 +145,24 @@ public final class Converter: Sendable {
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
         let config = try loadConfig()
+        // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does.
+        var redaction = Redaction(config.redaction)
+        let sent = redaction?.hide(input) ?? input
+        if let prompt = command.custom?.prompt { _ = redaction?.hide(prompt) }
+        let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
-                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true))
+                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden))
             return
         }
-        let stream = client.stream(Prompt.commandRequest(command, input: input, config: config), config: config,
+        let request = Prompt.commandRequest(command, input: input, config: config)
+        let stream = client.stream(redaction?.protect(request, sent: sent) ?? request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
-            ConversionResult(versions: [CandidateLine(Self.lines(text), isComplete: complete)])
+            let lines = Self.lines(text)
+            return ConversionResult(versions: [CandidateLine(redaction?.restore(lines, complete: complete) ?? lines, isComplete: complete)])
         }
         var text = ""
         var firstToken: TimeInterval?
@@ -158,14 +175,15 @@ public final class Converter: Sendable {
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
         }
         try Task.checkCancellation()
         // Cut off at the token limit, the text still reads as an answer: keep it, but don't cache it.
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
         if !final.isEmpty, stopReason != "max_tokens" { cache.withLock { $0.set(key, final) } }
         continuation.yield(ConversionUpdate(
-            result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false))
+            result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
+            hidden: hidden))
     }
 
     /// Model text as one line that is safe to insert anywhere, including a terminal: controls and

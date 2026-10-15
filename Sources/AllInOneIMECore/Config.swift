@@ -101,6 +101,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
     /// the setting): off for an app where it misbehaves.
     public var useSelection: Bool
+    /// Emails, numbers, keys and the user's own words hidden from the AI before a request is sent (`Redaction`). Off by default.
+    public var redaction: RedactionSettings
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -174,6 +176,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.candidateLayout = .horizontal
         self.checkForUpdates = true
         self.useSelection = true
+        self.redaction = RedactionSettings()
         normalizeLanguages()
     }
 
@@ -194,6 +197,7 @@ public struct Config: Codable, Equatable, Sendable {
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case checkForUpdates, useSelection
+        case redaction
         case provider, anthropic, gemini, openai
     }
 
@@ -248,6 +252,7 @@ public struct Config: Codable, Equatable, Sendable {
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
+        redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -324,6 +329,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         try c.encode(useSelection, forKey: .useSelection)
+        try c.encode(redaction, forKey: .redaction)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)
