@@ -155,23 +155,26 @@ public struct IssueReport: Equatable, Sendable {
         return String(line.prefix(maxTitleLength))
     }
 
-    /// A model's id as it may go in a report, nil when it isn't a public model's (it's then "custom"). Allow-listed, not
-    /// filtered: a known family's name ("claude-haiku-5-5", "gpt-5.4-mini", "gemini-3.8-flash", "llama3.2"), with at most
-    /// a known vendor before it ("anthropic/", "us.anthropic.", "meta-llama/") and a short tag after it (":0",
-    /// ":latest", ":free"). A fine-tuned model ("ft:…:acmecorp:…"), an ARN (an account, a profile's id), a private
-    /// organization's name or a deployment's own name is "custom".
+    /// A model's id as it may go in a report, nil when it isn't a public model's (it's then "custom"). Allow-listed as a
+    /// whole, not filtered: every part of the name must be known.
+    /// - At most a known vendor before it: "anthropic/", "meta-llama/" (OpenRouter, Hugging Face), Bedrock's
+    ///   "[region.]vendor." ("us.anthropic.").
+    /// - The name: a known family ("claude", "gpt", "llama3.1": a family and its version run together), then parts
+    ///   between "-" or "_", each a version, size or date ("4o", "3.8", "v1", "70b", "128k", "20251001", "k2"), a single
+    ///   letter, or a known word ("mini", "flash", "haiku", "instruct", "latest" …: `modelWords`).
+    /// - At most one tag after a colon: a number (Bedrock's ":0"), a size (":8b"), ":latest" or ":free".
+    ///
+    /// A fine-tuned model ("ft:…:acmecorp:…"), an ARN (an account, a profile's id), or any name with a part of its own
+    /// ("gpt-4o-acmecorp-prod", "claude-acme-support", "o3-contoso-eastus") is "custom".
     public static func publicModel(_ value: String) -> String? {
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty, value.count <= 80 else { return nil }
+        guard !value.isEmpty, value.count <= 80, value.allSatisfy({ $0.isASCII }) else { return nil }
         var rest = Substring(value.lowercased())
-        // A short tag after one colon: Bedrock's version (":0"), Ollama's (":latest", ":7b"), OpenRouter's (":free").
         if let colon = rest.firstIndex(of: ":") {
-            let tag = rest[rest.index(after: colon)...]
-            guard !tag.isEmpty, tag.count <= 12, tag.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") })
-            else { return nil }
+            let tag = String(rest[rest.index(after: colon)...])
+            guard tag == "latest" || tag == "free" || tag.allSatisfy(\.isNumber) && !tag.isEmpty || isSize(tag) else { return nil }
             rest = rest[..<colon]
         }
-        // A known vendor: "vendor/" (OpenRouter, Hugging Face), or Bedrock's "[region.]vendor.".
         if let slash = rest.firstIndex(of: "/") {
             guard knownVendors.contains(String(rest[..<slash])) else { return nil }
             rest = rest[rest.index(after: slash)...]
@@ -179,19 +182,37 @@ public struct IssueReport: Equatable, Sendable {
             let parts = rest.split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
             if parts.count == 3, bedrockRegions.contains(String(parts[0])), knownVendors.contains(String(parts[1])) {
                 rest = parts[2]
-            } else if parts.count >= 2, knownVendors.contains(String(parts[0])), !knownFamilies.contains(where: { rest.hasPrefix($0) }) {
+            } else if parts.count >= 2, knownVendors.contains(String(parts[0])) {
                 rest = rest[rest.index(rest.startIndex, offsetBy: parts[0].count + 1)...]
             }
         }
-        // The rest: a known family, then version characters only.
-        guard rest.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_") }),
-              let family = knownFamilies.first(where: { rest.hasPrefix($0) }) else { return nil }
-        let after = rest.dropFirst(family.count).first
-        guard after == nil || after!.isNumber || "-._".contains(after!) else { return nil }
-        let runs = rest.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        guard !runs.contains(where: { $0.count >= 24 || $0.count >= 12 && $0.allSatisfy(\.isNumber) }) else { return nil }
+        let tokens = rest.split(separator: "-", omittingEmptySubsequences: false).flatMap { $0.split(separator: "_", omittingEmptySubsequences: false) }
+        guard let first = tokens.first, !tokens.contains(where: \.isEmpty),
+              let family = knownFamilies.filter({ first.hasPrefix($0) }).max(by: { $0.count < $1.count }) else { return nil }
+        let version = first.dropFirst(family.count)
+        guard version.isEmpty || isVersion(String(version)) else { return nil }
+        guard tokens.dropFirst().allSatisfy({ isVersion(String($0)) || $0.count == 1 && $0.first!.isLetter || modelWords.contains(String($0)) })
+        else { return nil }
         return value
     }
+
+    /// A version, size or date: "4o", "3.8", "2.5", "v1", "k2", "r1", "70b", "0.5b", "128k", "a3b", "20251001", "2407", "8x7b".
+    static func isVersion(_ token: String) -> Bool {
+        token.range(of: #"^[a-z]?[0-9]+(\.[0-9]+)*[a-z]?$"#, options: .regularExpression) != nil
+            || token.range(of: #"^[0-9]+x[0-9]+b$"#, options: .regularExpression) != nil
+    }
+
+    /// A model's size as a tag: "8b", "0.5b", "70b".
+    static func isSize(_ tag: String) -> Bool { tag.range(of: #"^[0-9]+(\.[0-9]+)?[bm]$"#, options: .regularExpression) != nil }
+
+    /// The words public models' names are made of, after their family.
+    static let modelWords: Set<String> = [
+        "mini", "nano", "micro", "tiny", "small", "medium", "large", "pro", "plus", "max", "ultra", "lite", "light", "flash",
+        "turbo", "instruct", "chat", "latest", "preview", "exp", "experimental", "haiku", "sonnet", "opus", "coder", "code",
+        "codex", "reasoner", "reasoning", "vision", "thinking", "base", "it", "omni", "audio", "realtime", "search", "long",
+        "air", "oss", "luna", "embed", "embedding", "nemo", "saba", "versatile", "instant", "fast", "high", "low", "distill",
+        "online", "image", "tts", "transcribe", "hf", "moe", "vl", "math", "next", "premier", "edge", "maverick", "scout",
+    ]
 
     /// Public model vendors, as they prefix an id ("anthropic/claude-…", "us.anthropic.claude-…").
     static let knownVendors: Set<String> = [

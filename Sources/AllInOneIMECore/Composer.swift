@@ -328,8 +328,9 @@ public final class Composer {
     public var claudeInBackground = false
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
     public var typesResults = false
-    /// The engine's candidates are shown in a row (`Config.candidateLayout`): ← → move along it and ↑↓ turn the
-    /// page (`horizontalKey`), as in macOS's own panel.
+    /// The engine's candidates are shown in a row (`Config.candidateLayout`, horizontal by default; the controller
+    /// sets it): ← → move along it and ↑↓ turn the page (`horizontalKey`), as in macOS's own panel. False here: a
+    /// composer on its own keeps the keys of a column.
     public var horizontalCandidates = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
@@ -2536,6 +2537,19 @@ public final class Composer {
         highlightOverride = nil
         setLevelOnePhase()
         return effects + [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
+    }
+
+    /// Whether picking `choice` (a digit, ⏎, a click) does something: not while it's still coming in, nor a line a
+    /// `show` script printed, a list's row of information or an empty row (but the issue to open, whose title may be
+    /// empty). The panel highlights only these under the pointer.
+    public static func picks(_ choice: Choice) -> Bool {
+        guard choice.isComplete else { return false }
+        switch choice.kind {
+        case .issue: return true
+        case .shown: return false
+        case let .item(item): return item.valid
+        default: return !choice.text.isEmpty
+        }
     }
 
     private func commitChoice(at index: Int) -> [Effect] {

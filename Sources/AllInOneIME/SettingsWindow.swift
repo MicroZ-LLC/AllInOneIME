@@ -879,13 +879,14 @@ struct SettingsView: View {
                     Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
                 }
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
+                .disabled(!model.canSave)
             } label: {
                 titled(tr("候选排列", "Candidate layout"),
                        model.config.candidateLayout == .horizontal
-                       ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
-                            "For picking words (pinyin, Hindi): side by side, like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
-                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。",
-                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical."))
+                       ? tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
+                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field."))
             }
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
         } header: {
@@ -1682,6 +1683,7 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
         .onChange(of: model.config.typeOutMistakes) { model.save() }
+        .onChange(of: model.config.candidateLayout) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)

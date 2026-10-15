@@ -305,6 +305,31 @@ enum SelfTest {
         }
     }
 
+    /// The candidate layout's picker (Input page) saves as soon as it changes, like the other settings: the input
+    /// method reads it from the file when a text field becomes active. On a copy of the config, in `directory`.
+    static func testCandidateLayoutSaves(in directory: URL) {
+        let url = directory.appendingPathComponent("layout-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var config = (try? Config.load()) ?? .default
+        config.candidateLayout = .vertical
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.alphaValue = 0
+        window.contentView = host
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        _ = pump(timeout: 0.5) { false }
+        model.config.candidateLayout = .horizontal  // as the segmented control sets it
+        let saved = pump(timeout: 2) { (try? Config.load(from: url))?.candidateLayout == .horizontal }
+        check(saved, "the candidate layout is saved as soon as it changes (\((try? Config.load(from: url))?.candidateLayout.rawValue ?? "-"))")
+        model.config.candidateLayout = .vertical
+        let back = pump(timeout: 2) { (try? Config.load(from: url))?.candidateLayout == .vertical }
+        check(back, "and back")
+    }
+
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
         // The translate languages are dragged into order (the input languages are a segmented bar now).
@@ -448,6 +473,7 @@ enum SelfTest {
         UIText.choice = pickedBefore
         testLanguageDrag()
         testLanguageSwitchRedraws(in: snapshotDirectory)
+        testCandidateLayoutSaves(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.
@@ -2267,7 +2293,9 @@ enum SelfTest {
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
-        settings.candidateLayout = .vertical  // the README's look; `testHorizontalCandidates` tries the row
+        // In a column (horizontal is the default): the checks and README images below read the candidates one under
+        // the other; `testHorizontalCandidates` tries the row.
+        settings.candidateLayout = .vertical
         controller.loadSettings = { SelfTest.settings }
         controller.converter = liveConverter
         // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.

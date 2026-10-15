@@ -87,20 +87,23 @@ struct IssueReportTests {
     @Test func onlyPublicModelsAreNamed() {
         // Public models' ids, as they are.
         for model in ["us.anthropic.claude-haiku-4-5-20251001-v1:0", "anthropic.claude-3-haiku-20240307-v1:0", "claude-haiku-5-5",
-                      "gpt-5.4-mini", "gpt-4o", "o3-mini", "anthropic/claude-sonnet-5.5", "meta-llama/llama-3.1-8b-instruct:free",
-                      "llama3.2:latest", "qwen2.5:7b", "gemini-3.8-flash", "deepseek-chat", "glm-4.6", "kimi-k2", "mistral.mistral-large-2407-v1:0",
-                      "us.meta.llama3-1-70b-instruct-v1:0"] {
+                      "gpt-6-luna", "gemini-3.8-flash", "deepseek-chat", "qwen-max", "llama3.1:8b", "gpt-5.4-mini", "gpt-4o",
+                      "gpt-4o-mini-2024-07-18", "o3-mini", "anthropic/claude-sonnet-5.5", "meta-llama/llama-3.1-8b-instruct:free",
+                      "llama3.2:latest", "qwen2.5:7b", "glm-4.6", "kimi-k2-instruct", "mistral.mistral-large-2407-v1:0",
+                      "us.meta.llama3-1-70b-instruct-v1:0", "claude-3-7-sonnet-latest", "gemini-2.5-flash-preview-05-20",
+                      "amazon.nova-pro-v1:0", "command-r-plus", "mixtral-8x7b-instruct", "qwen3-30b-a3b", "openrouter/auto"] {
             #expect(IssueReport.publicModel(model) == model, "\(model)")
         }
-        // Anything else: a fine-tuned model (its organization's name), an ARN (an account, a profile's id), a private
-        // organization or deployment, a path, an address, a key.
+        // Anything else: a fine-tuned model (its organization's name), an ARN (an account, a profile's id), a public
+        // family with a part of its own (a company, a person, a region, a deployment), a path, an address, a key.
         for value in ["ft:gpt-4o-mini-2024-07-18:acmecorp:support-bot:9AbCdEf1", "ft:gpt-4o:acme::abc123",
                       "arn:aws:bedrock:us-west-2:123456789012:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0",
                       "arn:aws:bedrock:us-west-2:123456789012:application-inference-profile/a1b2c3d4e5f6",
-                      "acmecorp/support-model", "acme-support-bot", "acme-bot:latest", "my-gpt", "gpt-4o:acmecorp:x",
-                      "yiacme", "claude-haiku-5-5:a-very-long-private-tag", "/Users/jane/models/llama.gguf", "~/models/x",
-                      "https://host/v1", "jane@example.com", "sk-proj-abc123", "AK\u{49}AIOSFODNN7EXAMPLE",
-                      "gpt-a1b2c3d4e5f6a7b8c9d0e1f2a3b4", "llama-123456789012", String(repeating: "x", count: 200), ""] {
+                      "gpt-4o-acmecorp-prod", "claude-acme-support", "phi-jane-doe-laptop", "o3-contoso-eastus",
+                      "anthropic.claude-mycorp", "openai/gpt-4o-mycompany:free", "acmecorp/support-model", "acme-support-bot",
+                      "acme-bot:latest", "my-gpt", "gpt-4o:acmecorp", "gpt-4o:8b-instruct-q4", "yiacme", "claudeacme",
+                      "llama3.1-jane", "/Users/jane/models/llama.gguf", "~/models/x", "https://host/v1", "jane@example.com",
+                      "sk-proj-abc123", "AK\u{49}AIOSFODNN7EXAMPLE", "gpt--4o", "claude-haiku-5-5:", String(repeating: "x", count: 200), ""] {
             #expect(IssueReport.publicModel(value) == nil, "\(value)")
         }
         // In a report: the provider's kind always, the model by its id or as "custom".
