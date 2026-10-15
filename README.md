@@ -60,7 +60,8 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
 | ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
-| Esc, ⌫ | Back to the sentence to keep editing; typing just continues it |
+| Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
+| Letters, once AI results are up | A follow-up instruction, such as `shorter`: ⏎ refines the results (see [Refining the results](#refining-the-results-new)) |
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 | Hold right ⌥ | Talk, release to stop. In the language you're typing (English, Chinese, French, Korean or Hindi). In a command, the text goes after it; otherwise it's inserted directly |
@@ -124,6 +125,22 @@ instruction for `@improve` and `@translate` (`@translate ja`, `@improve more for
 (`@question what does this mean`), about the selection. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`,
 `@imessage` and script extensions don't use it. Up to 5000 characters; never read during secure input or in a
 terminal. Turn it off under Settings → General → "Use the selected text" if it misbehaves in an app.
+
+### Refining the results (new)
+
+While the results of `@improve`, `@translate`, `@question` or a prompt command are up, type what to change, such as
+`shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese` or `用更口语的说法` (pinyin works, and a tap of Shift
+switches languages), and press ⏎: the results go to the AI again with your instruction, and the new ones replace them in
+the same panel. Refine again as often as you like; the panel's top line lists the steps ("Refined: shorter · more
+formal"), and you can pick a row at any time as usual. A letter starts the instruction (shown as "refine › …" at the top
+of the panel); while it's empty, digits, Space and ⏎ pick as before. Refining starts once the results are complete:
+typing while the first results still stream in continues the sentence, as before. While a refine runs you can already
+type the next instruction; the refine goes on, and ⏎ runs the next one once its results are in. Esc clears the
+instruction, then goes back one step to the results before the last refine (during a refine: stops it), then back to the
+sentence; ⌫ on an empty line steps back the same way. On selected text, the result you pick still replaces
+exactly the selection, which stays untouched until then. A refine that fails (or is refused during secure input) leaves
+the results as they were, its instruction ready for ⏎ to try again. The same refine of the same results is answered from
+the cache.
 
 ### Notes and reminders
 

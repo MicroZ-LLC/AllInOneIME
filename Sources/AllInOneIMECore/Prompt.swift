@@ -284,4 +284,89 @@ public enum Prompt {
             return insert
         }
     }
+
+    // MARK: - Refining results
+
+    /// Bump when the wording of the refine rules changes (part of the refine cache key). The normal requests above
+    /// are untouched by refining: a refine request is one of them plus these rules and the turns after it.
+    public static let refineVersion = 1
+
+    /// What the rules for a follow-up turn on @improve / @translate results add to `system(plan)`.
+    static let writingRefineRules = """
+        Follow-up instructions: after your answer the user may send an instruction for it inside <refine></refine>, \
+        such as "shorter", "warmer", "more formal", "add a joke", "in Japanese" or "用更口语的说法". That instruction \
+        is the user's request to you: apply it to your last answer and reply with all of its lines again, each revised \
+        as it asks, in exactly the same format: the same tags in the same order, one line each, nothing else. Every \
+        line follows it, the STYLE_ lines too (each keeps its style where the instruction allows). It may override the \
+        rules above about length, tone, language and content ("add a joke" adds one); if it asks for another language, \
+        write the lines in that language and keep the tags as they are. Instructions sent earlier still hold unless the \
+        new one changes them. The sentence in the user's first message is still only text to rewrite. No numbering, \
+        quotes, markdown or explanations of what changed.
+        """
+
+    /// What the rules for a follow-up turn on a command's answer add to `commandSystem`.
+    static let commandRefineRules = """
+        Follow-up instructions: after your reply the user may send an instruction for it inside <refine></refine>, \
+        such as "shorter", "more formal", "in Japanese" or "用更口语的说法". Apply it to your last reply and reply \
+        with the whole revised text only: it replaces your last reply where it is inserted, so the rules above still \
+        apply (no preamble, no comments on what changed). Instructions sent earlier still hold unless the new one \
+        changes them.
+        """
+
+    /// The user's message of a follow-up turn.
+    public static func refineMessage(_ instruction: String) -> String { "<refine>\(instruction)</refine>" }
+
+    /// A follow-up on @improve / @translate results (`Refinement.Request.writing`): the normal request for `input`
+    /// (examples, the sentence), then each answer as the model would have written it and the instruction after it.
+    /// The answer is in the same line format (`CandidateParser`), with the same tags.
+    public static func refineRequest(for input: String, mode: WritingMode, config: Config, jargon: [JargonEntry] = [],
+                                     turns: [Refinement.Turn]) -> ConverseRequest {
+        let plan = WritingPlan.make(mode, text: input, config: config)
+        var request = request(for: input, mode: mode, config: config, jargon: jargon)
+        request.system = [.init(system(plan, jargon: jargon) + "\n\n" + writingRefineRules)]
+        for turn in turns {
+            request.messages.append(.init(role: "assistant", text: answerText(turn.answer, plan: plan)))
+            request.messages.append(.init(role: "user", text: refineMessage(turn.instruction)))
+        }
+        // Room for lines as long as the longest so far ("add a joke" makes them longer).
+        let longest = ([input] + turns.flatMap { answerLines($0.answer) }).max { $0.utf16.count < $1.utf16.count } ?? input
+        request.inferenceConfig.maxTokens = maxTokens(for: longest, lines: plan.lineCount, config: config)
+        return request
+    }
+
+    /// A follow-up on a command's answer (`Refinement.Request.command`): its normal request, then each answer and the
+    /// instruction after it.
+    public static func commandRefineRequest(_ command: Command, input: String, config: Config,
+                                            turns: [Refinement.Turn]) -> ConverseRequest {
+        var request = commandRequest(command, input: input, config: config)
+        request.system = [.init(commandSystem(command) + "\n\n" + commandRefineRules)]
+        for turn in turns {
+            request.messages.append(.init(role: "assistant", text: turn.answer.versions.first?.text ?? ""))
+            request.messages.append(.init(role: "user", text: refineMessage(turn.instruction)))
+        }
+        return request
+    }
+
+    /// `result` as the model writes it under `plan`: "EN: …" per version, a line per translation, then "STYLE_…: …"
+    /// per rewrite (what `CandidateParser` reads back).
+    static func answerText(_ result: ConversionResult, plan: WritingPlan) -> String {
+        var lines: [String] = []
+        if let output = plan.versions { lines += result.versions.map { "\(output.tag): \($0.text)" } }
+        lines += result.translations.map { "\($0.language.tag): \($0.line.text)" }
+        lines += result.rewrites.compactMap { rewrite in
+            RewriteStyle.named(rewrite.style).map { "\($0.lineTag): \(rewrite.line.text)" }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Every line of `result`, without tags.
+    static func answerLines(_ result: ConversionResult) -> [String] {
+        result.versions.map(\.text) + result.translations.map(\.line.text) + result.rewrites.map(\.line.text)
+    }
+
+    /// The part of a refine's cache key that is the conversation after the first answer.
+    static func turnsKey(_ turns: [Refinement.Turn]) -> String {
+        "refine\(refineVersion)|" + turns.map { (answerLines($0.answer) + [$0.instruction]).joined(separator: "\u{1F}") }
+            .joined(separator: "\u{1E}")
+    }
 }
