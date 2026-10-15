@@ -267,6 +267,55 @@ struct RedactionTests {
         #expect(r.hidden.map(\.value) == ["a@acme.com", "b@acme.com", "c@acme.com"])
     }
 
+    // MARK: Round 2
+
+    @Test func emailsAfterASlash() {
+        #expect(found("cc: support@corp.com/sales@corp.com") == ["EMAIL support@corp.com", "EMAIL sales@corp.com"])
+        #expect(found("Email/zhang@example.com") == ["EMAIL zhang@example.com"])
+        #expect(found("13800138000/zhang@example.com") == ["PHONE 13800138000", "EMAIL zhang@example.com"])
+        #expect(found("电话／zhang@example.com") == ["EMAIL zhang@example.com"])
+        #expect(found("see https://a.example.com/team/bob@corp.com") == ["EMAIL bob@corp.com"])
+        // Still skipped: a URL's user right after the scheme, a git remote.
+        #expect(found("https://user@example.com/x and git@github.com:org/repo.git") == [])
+    }
+
+    @Test func unclosedPlaceholdersInTheFinalText() throws {
+        var r = try #require(Redaction(on))
+        _ = r.hide("bob@acme.com")
+        for text in ["mail [EMAIL_1", "mail [EMAIL_1 today", "mail (EMAIL_1", "mail [EMAIL_1, thanks", "mail [ email_1."] {
+            let back = r.restore(text)
+            #expect(back.contains("bob@acme.com") && !back.contains("[") && !back.contains("(") && !Redaction.isAltered(back), "\(text) → \(back)")
+        }
+        // Not ours, not issued, or its digits the start of another number: left, and marked.
+        var many = try #require(Redaction(on))
+        _ = many.hide((1...10).map { "u\($0)@acme.com" }.joined(separator: " "))
+        for text in ["mail [EMAIL_1", "mail [EMAIL_12 today", "mail [PHONE_1", "mail [DATO_1 ok"] {
+            let back = many.restore(text)
+            #expect(back == text && Redaction.isAltered(back), "\(text) → \(back)")
+        }
+        #expect(many.restore("mail [EMAIL_10") == "mail u10@acme.com")
+        // The user's own text holding it as written: neither put back nor marked.
+        #expect(!Redaction.isAltered("see (item 1", original: "see (item 1"))
+        // While streaming, the end is still held back.
+        #expect(r.restore("mail [EMAIL_1", complete: false) == "mail ")
+    }
+
+    @Test func ordinaryTextIsNotAKey() {
+        for text in ["convertUTF8ToUTF16AndBack42", "getHTTP2ResponseForURLv3Id", "C++/CLI/WinRT/Win32/x64/Release",
+                     "wo3xiang3ming2tian1qu4kai1hui4", "ni3hao3ma5wo3hen3hao3xie4xie5ni3", "zhong1guo2ren2min2yin2hang2"] {
+            #expect(found("see \(text) here") == [], "\(text)")
+        }
+    }
+
+    @Test func keysStillCaught() {
+        let keys = ["wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEY", "je7MtGbClwBF/2Zp9Utk/h3yCo8nvb+EXAMPLEKEY",
+                    "\u{6B}J3x9Qm/Zp2Lw8Rt+Vb5Nc7Yh4Gd1Fs6Ae0Pu3Io", "sk-\u{70}roj-4f9Qx2LmN8pR7tV1wZ3yB6", "sk-\u{61}nt-api03-AbC9xYz_12345678abcdEFGH",
+                    "gh\u{70}_1234567890abcdefghijABCDEFGHIJ123456", "xo\u{78}b-1234567890-abcdefghij", "AK\u{49}AIOSFODNN7EXAMPLE",
+                    "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2Rl", "dGhpcyBpcyBhIHNlY3JldCB0b2tlbg+/aGVsbG8=",
+                    "3f2a9c8b7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a", "9e107d9d372bb6826bd81d3542a419d6", "QWxhZGRpbjpvcGVuIHNlc2FtZQ9xYz7KpL2mN4"]
+        for key in keys { #expect(found("key \(key) ok") == ["KEY \(key)"], "\(key)") }
+    }
+
     @Test func gitRemotesAndURLUsersAreNotEmails() {
         #expect(found("git clone git@github.com:org/repo.git") == [])
         #expect(found("open https://user@example.com/path") == [])

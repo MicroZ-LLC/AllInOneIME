@@ -187,15 +187,24 @@ public struct Redaction: Sendable {
     public func restore(_ text: String, complete: Bool = true) -> String {
         guard !hidden.isEmpty else { return text }
         var out = complete ? text : Self.holdingBack(text)
-        for regex in [Self.bracketed, Self.bare] {
+        for regex in [Self.bracketed, Self.unclosed, Self.bare] {
             let ns = out as NSString
             let replaced = NSMutableString(string: out)
             for match in regex.matches(in: out, range: NSRange(location: 0, length: ns.length)).reversed() {
+                if regex == Self.unclosed, !unambiguous(match, in: ns) { continue }
                 if let value = resolve(match, in: ns) { replaced.replaceCharacters(in: match.range, with: value) }
             }
             out = replaced as String
         }
         return out
+    }
+
+    /// Whether a placeholder whose closing bracket is missing ("[EMAIL_1 today") can only be the one its number
+    /// says: no other number issued for its kind starts with its digits ("[EMAIL_1" with EMAIL_10 issued can't tell).
+    private func unambiguous(_ match: NSTextCheckingResult, in text: NSString) -> Bool {
+        guard let kind = Self.kind(named: text.substring(with: match.range(at: 1))) else { return false }
+        let digits = text.substring(with: match.range(at: 3))
+        return !hidden.contains { $0.kind == kind && String($0.number) != digits && String($0.number).hasPrefix(digits) }
     }
 
     /// Every line of `result` restored (`restore`).
@@ -235,7 +244,8 @@ public struct Redaction: Sendable {
         let all = NSRange(location: 0, length: ns.length)
         func own(_ match: NSTextCheckingResult) -> Bool { !original.isEmpty && original.contains(ns.substring(with: match.range)) }
         if bare.matches(in: text, range: all).contains(where: { !own($0) }) { return true }
-        return bracketed.matches(in: text, range: all).contains { match in
+        // Closed or with its closing bracket missing ("[EMAIL_1 today"), left as it is.
+        return (bracketed.matches(in: text, range: all) + unclosed.matches(in: text, range: all)).contains { match in
             guard !own(match) else { return false }
             let square = "[【［".contains(ns.substring(with: NSRange(location: match.range.location, length: 1)))
             let underscore = ns.substring(with: match.range(at: 2)) == "_"
@@ -261,6 +271,10 @@ public struct Redaction: Sendable {
     /// "【邮箱_1】", "(PHONE_2)". Groups: the kind's word, the separator, the number.
     static let bracketed = try! NSRegularExpression(
         pattern: #"[\[【［(（]\s*(\p{L}[\p{L}\p{M}\-]{0,23}?)\s*([_\-\s]?)\s*(\d{1,3})\s*[\]】］)）]"#)
+    /// A placeholder whose closing bracket the model left out, before the end, a space or punctuation ("[EMAIL_1",
+    /// "(EMAIL_1 today"). Groups as `bracketed`.
+    static let unclosed = try! NSRegularExpression(
+        pattern: #"[\[【［(（]\s*(\p{L}[\p{L}\p{M}\-]{0,23}?)\s*([_\-\s]?)\s*(\d{1,3})(?=$|\s|[.,;:!?。，；：！？、"'”’…])"#)
     /// Without brackets, the kind as sent and "_": "EMAIL_1", "phone_2". Groups: the kind, the number.
     static let bare = try! NSRegularExpression(
         pattern: #"(?<![\p{L}\p{N}_\[【［(（])(EMAIL|PHONE|CARD|KEY|IP|ITEM|WORD)_(\d{1,3})(?![\p{N}_])"#, options: .caseInsensitive)
@@ -373,9 +387,10 @@ public struct Redaction: Sendable {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
-    /// Not an address in a git remote ("git@github.com:org/repo") or a URL's user ("https://user@host").
+    /// Not an address in a git remote ("git@github.com:org/repo") or a URL's user right after its scheme
+    /// ("https://user@host"); after any other "/" it is one ("support@corp.com/sales@corp.com").
     static let email = try! NSRegularExpression(pattern:
-        #"(?<![A-Za-z0-9._%+\-/])[A-Za-z0-9](?:[A-Za-z0-9._%+\-]*[A-Za-z0-9_%+\-])?@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?"#
+        #"(?<![A-Za-z0-9._%+\-])(?<!://)[A-Za-z0-9](?:[A-Za-z0-9._%+\-]*[A-Za-z0-9_%+\-])?@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?"#
         + #"(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,24}(?![A-Za-z0-9\-]|\.[A-Za-z0-9]|:[A-Za-z0-9~/])"#)
 
     /// Keys with a known prefix: Claude, OpenAI (DeepSeek …), Stripe, AWS access keys, GitHub, Slack, Google,
@@ -399,6 +414,11 @@ public struct Redaction: Sendable {
         guard s.count >= 24 else { return false }
         let parts = s.split(whereSeparator: { "-_/+".contains($0) })
         if parts.count >= 2, parts.allSatisfy({ $0.allSatisfy(\.isLetter) || $0.allSatisfy(\.isNumber) }) { return false }
+        // Short pieces joined by "/" are a path ("C++/CLI/WinRT/Win32/x64/Release"); a base64 key's "/" leaves long ones.
+        if s.contains("/"), (s.split(separator: "/").map(\.count).max() ?? 0) < 12 { return false }
+        // Pinyin with tone numbers ("wo3xiang3ming2tian1"), and words joined with digits ("convertUTF8ToUTF16AndBack42"):
+        // most of the letters are in word-like runs.
+        if s.wholeMatch(of: Self.tonedPinyin) != nil || wordShare(s) >= 0.5 { return false }
         let digits = s.filter(\.isNumber).count, upper = s.filter(\.isUppercase).count, lower = s.filter(\.isLowercase).count
         guard entropy(s) >= 3.3 else { return false }
         func kind(_ c: Character) -> Int { c.isNumber ? 0 : c.isUppercase ? 1 : c.isLowercase ? 2 : 3 }
@@ -413,6 +433,18 @@ public struct Redaction: Sendable {
             return average <= 3.5 && (digits >= 1 || s.count >= 30)
         }
         return digits >= 3 && upper + lower >= 4
+    }
+
+    nonisolated(unsafe) static let tonedPinyin = /(?:[a-zü]{0,3}[aeiouü][a-zü]{0,3}[1-5])+[a-zü]*/
+
+    /// The share of `s`'s letters in word-like runs: a small letter run of two or more with a vowel, maybe after a
+    /// capital, three letters at least ("convert", "And", "Response"). Random strings have few.
+    static func wordShare(_ s: String) -> Double {
+        let letters = s.filter(\.isLetter).count
+        guard letters > 0 else { return 0 }
+        let words = s.matches(of: /[A-Z]?[a-z]{2,}/).map { String(s[$0.range]) }
+            .filter { $0.count >= 3 && $0.lowercased().contains(where: { "aeiou".contains($0) }) }
+        return Double(words.map(\.count).reduce(0, +)) / Double(letters)
     }
 
     /// Shannon entropy in bits per character.
