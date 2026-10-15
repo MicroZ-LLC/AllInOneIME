@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+### Fixed
+
+- Settings → Custom Commands no longer fills with orange "the name is taken" and "Another bundle with this name is loaded" warnings when several copies of a folder are on the Mac (git worktrees, a copied repository): from a folder Spotlight found, only its Raycast Script Commands are loaded now (not its `@allinoneime` scripts or bundles; add the folder to use all of it), byte-identical copies of a script or bundle are skipped with one grey line ("Skipped N identical copies"), and found folders since removed drop out of the list.
+
 ### Changed
 
 - Pinyin and Hindi candidates are side by side by default now (Horizontal), like the system's own input methods: ← → choose, ↑↓ (or - =) turn the page. This also applies after updating, unless you choose otherwise: for the column as before, choose Vertical under Settings → Input → "Candidate layout" (`"candidateLayout": "vertical"` in the config).

@@ -30,6 +30,16 @@ Extensions are read from folders:
 - folders added under Settings → Custom Commands → Script Extensions → Add Folder…,
 - folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden).
 
+A folder you add (and the first one) is read whole, as below. From a folder Spotlight found, only its Raycast Script
+Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
+anything that holds a Raycast script (a second checkout of a repository, a backup). To use all of such a folder, add
+it. Each search replaces the folders found before, so one removed, or no longer holding a Raycast script, drops out of
+the list.
+
+A script, or a bundle, that is byte for byte the same as one read before it under the same name (its `extension.json`
+and the scripts it lists, for a bundle) is a copy: it's left out quietly, and Settings says only "Skipped N identical
+copies". A different script or bundle under a name already taken is listed as left out, and why (§7).
+
 In each folder:
 
 - **A single script** is a file in the folder with metadata (§2). Files whose name contains `.template.`, and hidden
@@ -40,7 +50,7 @@ In each folder:
 
 The index of what the folders hold is kept in memory and rebuilt in the background when a text field becomes active
 or the settings change; a file is read again only when its size, modification date or permissions changed, and only
-its metadata and first line are kept. Nothing is scanned, read from the keychain or run while a key is being handled,
+its metadata, first line and SHA-256 (to tell copies apart) are kept. Nothing is scanned, read from the keychain or run while a key is being handled,
 and the command list stays fast with a thousand extensions.
 
 ## 2. Metadata
