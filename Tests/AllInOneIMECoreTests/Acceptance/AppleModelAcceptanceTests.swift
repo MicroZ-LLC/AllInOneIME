@@ -467,9 +467,23 @@ struct AppleModelAcceptanceTests {
         #expect(groups.count == Self.golden063.count)
         for (name, text) in groups {
             let golden = try #require(Self.golden063[name], "no golden for \(name)")
-            #expect(AcceptanceGolden.sha256(text) == golden, "\(name) differs from 55d496e")
+            var compared = text
+            if let added = Self.addedSince063[name] {
+                // A setting added after 55d496e, written with its default: it must be there exactly once, and the rest
+                // must still be 0.6.3's byte for byte.
+                #expect(text.components(separatedBy: added).count == 2, "\(name) lacks \(added)")
+                compared = text.replacingOccurrences(of: added, with: "")
+            }
+            #expect(AcceptanceGolden.sha256(compared) == golden, "\(name) differs from 55d496e")
         }
     }
+
+    /// What later features add on purpose to a group's output, which 55d496e didn't write. `config/old` re-encodes an
+    /// old config: the question history (0.6.3/question-history) adds `rememberQuestions`, on by default, so a file
+    /// without it is written back with `true`. (With it: 5c8a9f3a32f8bcd34a89eb65e8cd6493de999dbd6a26d804c8f38149625b9fa2.)
+    static let addedSince063: [String: String] = [
+        "config/old": #","rememberQuestions":true"#,
+    ]
 
     // MARK: S5 Small context
 
