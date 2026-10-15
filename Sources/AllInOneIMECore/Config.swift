@@ -107,6 +107,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// Settings for single apps, by bundle id (`AppProfile`): the input language a field starts in, the rewrite
     /// styles, typing out, no AI. Empty by default.
     public var appProfiles: [String: AppProfile]
+    /// Emails, numbers, keys and the user's own words hidden from the AI before a request is sent (`Redaction`). Off by default.
+    public var redaction: RedactionSettings
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -183,6 +185,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.checkForUpdates = true
         self.useSelection = true
         self.appProfiles = [:]
+        self.redaction = RedactionSettings()
         normalizeLanguages()
     }
 
@@ -204,6 +207,7 @@ public struct Config: Codable, Equatable, Sendable {
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions
+        case redaction
         case provider, anthropic, gemini, openai
     }
 
@@ -260,6 +264,7 @@ public struct Config: Codable, Equatable, Sendable {
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
+        redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -340,6 +345,7 @@ public struct Config: Codable, Equatable, Sendable {
         // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
         let profiles = appProfiles.filter { !$0.value.isEmpty }
         if !profiles.isEmpty { try c.encode(profiles, forKey: .appProfiles) }
+        try c.encode(redaction, forKey: .redaction)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

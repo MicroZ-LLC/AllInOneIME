@@ -44,10 +44,12 @@ public struct IssueReport: Equatable, Sendable {
         public var extensions: Int
         /// How many apps have settings of their own (`Config.appProfiles`): the number only, never which apps.
         public var appProfiles = 0
+        /// Whether sensitive values are hidden from the AI (`Config.redaction`): on or off, nothing of what it hides.
+        public var redaction: Bool
 
         public init(appVersion: String, macOS: String, architecture: String, interfaceLanguage: String,
                     inputLanguages: [String], languagePacks: [String], provider: String, model: String?, actionKey: String,
-                    customCommands: Int, plugins: Int, extensions: Int) {
+                    customCommands: Int, plugins: Int, extensions: Int, redaction: Bool = false) {
             self.appVersion = appVersion
             self.macOS = macOS
             self.architecture = architecture
@@ -60,6 +62,7 @@ public struct IssueReport: Equatable, Sendable {
             self.customCommands = customCommands
             self.plugins = plugins
             self.extensions = extensions
+            self.redaction = redaction
         }
 
         /// From the settings and what the app knows of itself: only the kinds and counts above. The custom commands
@@ -77,7 +80,8 @@ public struct IssueReport: Equatable, Sendable {
                       inputLanguages: config.inputLanguages.map(\.rawValue), languagePacks: languagePacks,
                       provider: config.provider.rawValue,
                       model: config.provider == .hosted || config.provider == .apple ? nil : config.settings(for: config.provider).model.map { IssueReport.publicModel($0) ?? "custom" },
-                      actionKey: actionKey, customCommands: config.customCommands.count, plugins: plugins, extensions: extensions)
+                      actionKey: actionKey, customCommands: config.customCommands.count, plugins: plugins, extensions: extensions,
+                      redaction: config.redaction.enabled)
             appProfiles = config.appProfiles.values.filter { !$0.isEmpty }.count
         }
     }
@@ -101,6 +105,7 @@ public struct IssueReport: Equatable, Sendable {
             "Input languages: " + (d.inputLanguages.isEmpty ? "-" : d.inputLanguages.joined(separator: ", ")),
             "Language packs: " + (d.languagePacks.isEmpty ? "none" : d.languagePacks.joined(separator: ", ")),
             "AI provider: \(d.provider)" + (d.model.map { " (\($0))" } ?? ""),
+            "Hide sensitive info: " + (d.redaction ? "on" : "off"),
             "Action key: \(d.actionKey)",
             "Custom commands: \(d.customCommands), plugins: \(d.plugins), extensions: \(d.extensions)",
         ]

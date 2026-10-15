@@ -1609,6 +1609,7 @@ enum SelfTest {
         check(shown.contains("AllInOneIME: \(AppVersion.string)") && shown.contains("macOS: ") && shown.contains("Input languages: ")
               && shown.contains("Custom commands: "), "the panel lists what goes with it (\(shown.split(separator: "\n").count) lines)")
         check(!shown.contains(NSHomeDirectory()) && (NSUserName().count < 4 || !shown.contains(NSUserName())), "no home folder or user name in it")
+        check(shown.contains("Hide sensitive info: on") || shown.contains("Hide sensitive info: off"), "it says whether sensitive info is hidden, nothing more")
         snapshot("report-issue", in: snapshotDirectory)
         _ = escape(controller, client)
         check(client.marked == "reportissue › panel stuck" && opened.isEmpty, "Esc goes back to the title (\(client.marked))")
@@ -2953,6 +2954,7 @@ enum SelfTest {
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
+        testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

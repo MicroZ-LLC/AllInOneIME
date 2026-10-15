@@ -112,6 +112,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var conversionTask: Task<Void, Never>?
     private var lastElapsed: TimeInterval?
     private var lastFromCache = false
+    /// How many values the last request hid from the AI (`Redaction`): the panel says so.
+    var lastHidden = 0
     private var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
@@ -986,6 +988,7 @@ final class AllInOneIMEInputController: IMKInputController {
         scriptRun = nil
         lastElapsed = nil
         lastFromCache = false
+        lastHidden = 0
         log.notice("conversion \(id) started (an extension, \(arguments.count) arguments)")
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1501,6 +1504,7 @@ final class AllInOneIMEInputController: IMKInputController {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
+        lastHidden = 0
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1601,6 +1605,7 @@ final class AllInOneIMEInputController: IMKInputController {
             do {
                 for try await update in inserted {
                     guard let self, !Task.isCancelled else { return }
+                    self.lastHidden = update.hidden
                     if update.isFinal {
                         self.lastElapsed = update.elapsed
                         self.lastFromCache = update.fromCache
@@ -2045,6 +2050,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .idle, .drafting:
                 break
             }
+            RedactionPanel.annotate(&model, choices: choices, hidden: lastHidden, phase: composer.phase)
         } else if composer.voice != .off {
             let heard = composer.voice.text
             if case .listening = composer.voice {

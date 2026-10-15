@@ -572,6 +572,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         recentQuestions()
         extensions()
         perAppSettings()
+        redaction()
         frenchAndKorean()
         finish()
     }
@@ -852,6 +853,43 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.5)
         window.makeFirstResponder(textView)
         pump(0.8)
+    }
+
+    /// 7a. Hiding sensitive information (`redaction` on in the test's config): `@improve` on a selected sentence with
+    ///     an email and a phone number (live). The version picked replaces it with the real values in it, no
+    ///     placeholder left ("[EMAIL_1]" is what the model saw).
+    func redaction() {
+        print("— hiding sensitive information from the AI (live)")
+        let before = configValue("redaction")
+        guard setConfig({ $0["redaction"] = ["enabled": true] }) else {
+            check(false, "config file readable, to turn on hiding sensitive information")
+            return
+        }
+        defer { _ = setConfig { $0["redaction"] = before } }
+        // The text field again: the input method reads the settings when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        let email = "rt.tester@example.com", phone = "555-123-4567"
+        let text = "pls tell \(email) the meeting moved, or call \(phone) tomorow"
+        reset()
+        textView.string = text
+        textView.setSelectedRange(NSRange(location: 0, length: (text as NSString).length))
+        pump(0.2)
+        command("i")
+        let started = Date()
+        act()
+        let picked = waitUntil(25) {
+            if self.textView.string == text { self.space() }  // ignored until the first version is complete
+            return self.textView.string != text
+        }
+        let result = textView.string
+        check(picked && result.contains(email) && result.contains(phone) && !result.contains("[EMAIL") && !result.contains("[PHONE")
+              && !result.contains("improve") && !textView.hasMarkedText(),
+              String(format: "the version picked has the real email and number back, after %.1fs: '%@'", Date().timeIntervalSince(started), result))
+        reset()
+        textView.string = ""
     }
 
     /// The script extensions made for the test (in a temporary folder), removed when it ends.

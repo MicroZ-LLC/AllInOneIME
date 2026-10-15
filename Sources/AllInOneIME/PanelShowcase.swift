@@ -136,6 +136,8 @@ enum SettingsPageImages {
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
         // Settings → Apps with a few apps on it (the user's own when there are some).
         if model.config.appProfiles.isEmpty { model.config.appProfiles = AppProfileSamples.profiles }
+        // Hiding sensitive information shown on, with its switches and a word of the user's own.
+        if !model.config.redaction.enabled { model.config.redaction = RedactionSettings(enabled: true, customWords: ["Phoenix", "Atlas"]) }
         // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
         // the first as added, any others as if Spotlight had found them).
         if let extensions {

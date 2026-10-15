@@ -460,11 +460,13 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `candidateLayout` | 拼音和印地语的候选词：`"vertical"`（竖排）或 `"horizontal"`（横排；← → 选词，↑↓ 翻页） | `"horizontal"` |
 | `fuzzyPinyin` | 模糊音：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
+| `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
 ## 隐私
 
 - 打拼音和 `@calculate` 计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。
+- 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；@claude、@search 和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
 - 只有在命令里按 ⌃V 或 ⌘V 时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
 - 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字、也不能录音，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
