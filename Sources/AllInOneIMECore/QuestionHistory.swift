@@ -26,17 +26,29 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
     /// How many are kept: the oldest goes when another comes (the digits 1–5 pick them).
     public static let limit = 5
 
+    /// `entries` newest first (by date; a hand-edited file may have them in any order), the same question once (its
+    /// newest wording and answer), at most `limit`.
     public init(entries: [Entry] = []) {
-        self.entries = Array(entries.prefix(Self.limit))
+        let newestFirst = entries.enumerated().sorted { ($0.element.date, -$0.offset) > ($1.element.date, -$1.offset) }.map(\.element)
+        var seen = Set<String>()
+        self.entries = Array(newestFirst.filter { seen.insert(Self.key($0.question)).inserted }.prefix(Self.limit))
     }
 
-    /// `entry` was answered just now: it goes first, in place of the same question asked before.
+    /// `entry` was answered just now: it goes first, in place of the same question asked before (`key`), whose wording
+    /// and answer go.
     public mutating func record(_ entry: Entry) {
         let question = entry.question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, !entry.answer.isEmpty else { return }
         var entry = entry
         entry.question = question
-        entries = Array(([entry] + entries.filter { $0.question != question }).prefix(Self.limit))
+        let key = Self.key(question)
+        entries = Array(([entry] + entries.filter { Self.key($0.question) != key }).prefix(Self.limit))
+    }
+
+    /// What makes two questions the same one: they differ only in case or in spaces and line breaks (at the ends, or
+    /// how many between words).
+    static func key(_ question: String) -> String {
+        question.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
     }
 
     /// The questions with all of `query` in them, newest first; all of them for an empty query.
@@ -78,9 +90,32 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
             if files.fileExists(atPath: url.path) { try files.removeItem(at: url) }
             return
         }
-        try files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Self.encoder.encode(self).write(to: url, options: [.atomic])
-        try files.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        let folder = url.deletingLastPathComponent()
+        try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Self.replace(url, with: Self.encoder.encode(self))
+    }
+
+    /// Writes `data` to a new file in `url`'s folder that is the user's only from the start (0600), then renames it over
+    /// `url` in one step: the questions are never in a file others can read, not even for a moment, and a file that was
+    /// readable by others before is replaced, not reused.
+    static func replace(_ url: URL, with data: Data) throws {
+        let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+        let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: temporary.path]) }
+        var written = fchmod(fd, 0o600) == 0  // whatever the umask
+        data.withUnsafeBytes { bytes in
+            var offset = 0
+            while written, offset < bytes.count {
+                let n = Foundation.write(fd, bytes.baseAddress! + offset, bytes.count - offset)
+                if n <= 0 { written = false } else { offset += n }
+            }
+        }
+        written = fsync(fd) == 0 && written
+        close(fd)
+        guard written, rename(temporary.path, url.path) == 0 else {
+            unlink(temporary.path)
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
     }
 
     private static var encoder: JSONEncoder {

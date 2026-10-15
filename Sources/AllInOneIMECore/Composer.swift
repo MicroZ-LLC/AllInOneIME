@@ -443,7 +443,12 @@ public final class Composer {
                 resetLiveHighlight()
                 confirmedScript = nil
             }
-            if draft.isEmpty { draftHasOutsideText = false }
+            if draft.isEmpty {
+                draftHasOutsideText = false
+                // The draft is done (Esc, inserted, given up, the app took it): a recent question picked in it isn't
+                // picked in the next one, even with the same text.
+                questionPick = nil
+            }
         }
     }
     /// The draft a script extension asked about (`confirm`): the action key on it again runs it.

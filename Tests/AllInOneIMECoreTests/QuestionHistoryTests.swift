@@ -56,6 +56,39 @@ struct QuestionHistoryTests {
         #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["q1", "q2", "q3", "q4", "q5"])
     }
 
+    @Test func theSameQuestionInAnotherCaseOrSpacingIsOneEntryTheNewestWording() {
+        var history = QuestionHistory()
+        history.record(entry("What is Rust", "old", minute: 1))
+        history.record(entry("why", minute: 2))
+        history.record(entry("  what   IS\nrust ", "new", minute: 3))
+        #expect(history.entries.map(\.question) == ["what   IS\nrust", "why"] && history.entries[0].answer == "new")
+        #expect(QuestionHistory.key(" What  is\trust\n") == "what is rust")
+        #expect(QuestionHistory.key("whatis rust") != QuestionHistory.key("what is rust"))  // a space missing is another question
+        // A hand-edited file with them: one, the newest, first.
+        let edited = QuestionHistory(entries: [entry("why", minute: 2), entry("What is Rust", "older", minute: 1),
+                                               entry("what is rust ", "newest", minute: 5), entry("WHAT IS RUST", "oldest", minute: 0)])
+        #expect(edited.entries.map(\.answer) == ["newest", "answer"] && edited.entries[0].question == "what is rust ")
+    }
+
+    @Test func aFileReadableByOthersIsReplacedNeverWidened() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("recent-questions.json")
+        try Data("{}".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        let before = try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? Int
+        try QuestionHistory(entries: [entry("secret question")]).write(to: url)
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect(attributes[.posixPermissions] as? Int == 0o600)
+        #expect(attributes[.systemFileNumber] as? Int != before)  // a new file renamed into place, not the old one rewritten
+        #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["secret question"])
+        // Written again: still 0600, and no temporary file left beside it.
+        try QuestionHistory(entries: [entry("another")]).write(to: url)
+        #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int == 0o600)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["recent-questions.json"])
+    }
+
     @Test func theSettingIsOnByDefaultAndKept() throws {
         #expect(Config.default.rememberQuestions)
         let old = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
@@ -295,6 +328,51 @@ extension ComposerTests {
         type("summarize", s)
         _ = s.handleKeyDown(enterKey)
         #expect(remembered(s.receive(answer("A summary."), isFinal: true, id: 1)).isEmpty && s.questionHistory == savedQuestions)
+    }
+
+    /// A row picked in one draft isn't picked in the next, even with the same text.
+    @Test func aPickIsForgottenWithItsDraft() {
+        let c = questionDraft()
+        type("rust", c)
+        _ = c.handleKeyDown(downKey)
+        _ = c.handleKeyDown(enterKey)
+        #expect(c.showsSavedAnswer)
+        #expect(commits(c.handleKeyDown(enterKey)) == ["A language."])  // inserted: the draft is done
+        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", c)
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        type("rust", c)
+        #expect(c.questionHighlight == nil)
+        #expect(requests(c.handleKeyDown(enterKey).effects) == [.startCommand(.question, input: "rust", id: 1)])
+        // Esc twice (the answer, then the draft): the same.
+        let d = questionDraft()
+        type("rust", d)
+        _ = d.handleKeyDown(downKey)
+        _ = d.handleKeyDown(enterKey)
+        _ = d.handleKeyDown(escKey)
+        #expect(d.questionHighlight == 0)  // back in the same draft: still on it
+        _ = d.handleKeyDown(escKey)
+        #expect(d.draft.isEmpty)
+        _ = d.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", d)
+        _ = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        type("rust", d)
+        #expect(d.questionHighlight == nil && !requests(d.handleKeyDown(enterKey).effects).isEmpty && !d.showsSavedAnswer)
+        // ↑ on a new list starts from the last row, not one picked before; so after the app took the text.
+        let e = questionDraft()
+        _ = e.handleKeyDown(downKey)
+        _ = e.handleKeyDown(escKey)
+        _ = e.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", e)
+        _ = e.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        #expect(e.questionHighlight == nil)
+        _ = e.handleKeyDown(upKey)
+        #expect(e.questionHighlight == 2)
+        _ = e.appTookMarkedText()
+        _ = e.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        type("q", e)
+        _ = e.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        #expect(e.questionHighlight == nil)
     }
 
     @Test func clearedTheListIsGone() {
