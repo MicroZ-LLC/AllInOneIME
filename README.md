@@ -142,6 +142,18 @@ exactly the selection, which stays untouched until then. A refine that fails (or
 the results as they were, its instruction ready for ⏎ to try again. The same refine of the same results is answered from
 the cache.
 
+### Recent questions (new)
+
+`@question` with nothing typed after it lists your last 5 questions, newest first, with when they were asked ("3 hours
+ago"). Typing narrows them down: every word anywhere in the question, in any case (Chinese without spaces too). A digit,
+↑↓ then ⏎, or a click shows a question's saved answer at once, without going online: Space or ⏎ inserts it, ⌘C copies
+it, 0 shows the question, R asks it again for a fresh answer, Esc goes back to the list. With no match, or nothing
+picked, ⏎ asks what you typed. A new answer to the same question, asked again or refined, replaces the saved one.
+
+- They're kept only on this Mac (see Privacy): not while secure input is on, and never for questions on selected text.
+- Settings → General → "Remember recent questions" turns it off and deletes them (`rememberQuestions` in the config);
+  "Clear (N)" deletes them.
+
 ### Notes and reminders
 
 `@note` makes a new note; its first line is the title. After copying some text, ⌃V after `@note ` (or ⌘V, outside terminals) saves it with its line breaks, shown as ↵ in the command.
@@ -478,11 +490,34 @@ You don't need AWS: pick one under "AI Provider" in the settings, paste an API k
 
 ### Apple Intelligence on this Mac (macOS 26)
 
-On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple Intelligence (on this Mac)" under "AI Provider": no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same prompts as the other providers.
+On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple Intelligence (on this Mac)" under "AI Provider": no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
 
 - It's a small model: its context is about 4K tokens (8K on macOS 27), so a long paragraph may be too long for it, and it speaks fewer languages (English, Chinese, Japanese, Korean, French, German, Spanish and a few more; not Hindi). Either one says so. Its results are below the cloud models', and its `@question` answers on facts and code are often wrong.
 - Where it can't be used, it's listed greyed out with the reason (not supported on this Mac, turned off, model not ready), and the settings link to System Settings → Apple Intelligence & Siri. Before macOS 26 it isn't listed.
 - "Output tokens", temperature and the timeout under "Model Settings" apply to it. In the config file: `"provider": "apple"`.
+
+### Hiding sensitive information (new)
+
+Settings → AI Provider → Privacy → "Hide sensitive information before sending" (off by default): before a request goes
+to the AI, what it finds in your text is replaced on the Mac with placeholders such as `[EMAIL_1]` (the same value, the
+same placeholder), and the results get the real values back before they're shown or inserted. The panel says "2 items
+hidden from the AI". Each kind can be turned off:
+
+| Kind | For example | In the config |
+| --- | --- | --- |
+| Email addresses | `bob@example.com` | `emails` |
+| Phone numbers | `+1 (555) 123-4567`, `138 0013 8000` | `phones` |
+| Payment card numbers (Luhn-checked) | `4111 1111 1111 1111` | `cards` |
+| API keys and tokens | known prefixes such as `sk-` or `ghp_`, long random strings | `keys` |
+| IP addresses | `203.0.113.42`, `2001:db8::1` | `ips` |
+| Your own words, in any case | a codename such as `Project Atlas`, a name | `customWords` |
+
+- It applies to `@improve`, `@translate`, `@question`, your prompt commands and plugins, and refining their results
+  (the same placeholders), with every provider, including AllInOneIME Cloud and Apple Intelligence. Jargon list entries
+  holding a value to hide aren't sent.
+- It recognizes formatted values; it can't recognize names or addresses, so add those as your own words. `@claude`,
+  `@search` and script extensions send text as typed. More under Privacy.
+- In the config: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
 
 All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. The newer keys:
 
@@ -500,12 +535,13 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 | `candidateLayout` | Pinyin and Hindi candidates: `"vertical"` (one under the other) or `"horizontal"` (side by side; ← → choose, ↑↓ turn the page) | `"horizontal"` |
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
+| `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 
 ## Privacy
 
-- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it.
+- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⏎) sends the same request again with the results shown and your instruction.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; @claude, @search and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.

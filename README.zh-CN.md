@@ -122,6 +122,16 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 再按退回上一版（最后一次修改之前的结果；修改进行中按就是停下），再按回到这句话；要求是空的时候按 ⌫ 也一样退回。对选中的文字用时，选好的结果照样正好替换选中的文字，在那之前文字不动。修改失败（或系统安全输入时被拒绝）时，
 结果保持原样，要求还在，按 ⏎ 再试。同样的结果按同样的要求再改一次，直接用缓存。
 
+### 最近的问题（新）
+
+`@question` 后面不打字时，列出最近 5 个问题（最新的在前），右边是提问时间（「3 小时前」）。接着打字就筛选：每个词出现在问题里任何位置都算，
+不分大小写（中文不用空格也行）。按数字、↑↓ 再按 ⏎，或者点一下，马上显示当时保存的答案，不联网：空格或 ⏎ 上屏，⌘C 复制，0 显示问题，
+R 重新问一遍拿新的答案，Esc 回到列表。没有匹配的、或者没选时，⏎ 照常问你打的问题。同一个问题有了新的答案（重新问或修改结果），
+就替换保存的那个。
+
+- 只存在这台 Mac 上（见「隐私」）：系统安全输入时不存，对选中文字的提问一律不存。
+- 设置 →「通用」→「记住最近的问题」可以关掉，关掉时会删掉已存的（配置里的 `rememberQuestions`）；「清除（N）」删掉已存的。
+
 ### 备忘录和提醒事项
 
 `@note` 存成一条新的备忘录，第一行是标题。复制一段话后在 `@note ` 后面按 ⌃V（终端以外也可以按 ⌘V），换行照原样保留，在命令里显示成 ↵。
@@ -437,11 +447,30 @@ make install
 
 ### 本机的 Apple Intelligence（macOS 26）
 
-Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系统设置 → Apple 智能与 Siri 里打开了）时，在「AI 服务」里选「Apple Intelligence（本机）」：不用 key，不花钱，打的字不离开这台 Mac。用的是 macOS 自带的模型（Foundation Models 框架），提示词和其他服务一样。
+Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系统设置 → Apple 智能与 Siri 里打开了）时，在「AI 服务」里选「Apple Intelligence（本机）」：不用 key，不花钱，打的字不离开这台 Mac。用的是 macOS 自带的模型（Foundation Models 框架），指令和回答格式和其他服务一样，但只带和这句话同一种语言的示例（小模型容易照着示例的语言回答）。
 
 - 模型较小：上下文约 4K tokens（macOS 27 上 8K），太长的段落可能放不下；支持的语言也少一些（英文、中文、日文、韩文、法文、德文、西班牙文等，不支持印地语）。遇到这两种情况会直接说明。效果不如云端模型，`@question` 回答事实和代码问题常常出错。
 - 用不了时，它在列表里是灰的，后面写着原因（这台 Mac 不支持、未打开、模型还没准备好），设置里有按钮打开 系统设置 → Apple 智能与 Siri。macOS 26 以前不显示。
 - 「模型参数」里的输出 tokens、temperature、超时都对它有效。配置文件里是 `"provider": "apple"`。
+
+### 隐藏敏感信息（新）
+
+设置 → AI 服务 → 隐私 →「发送前隐藏敏感信息」（默认关）：请求发给 AI 之前，在你的文字里找到的内容先在本机换成 `[EMAIL_1]` 这样的占位符
+（同一个值用同一个占位符），结果在显示和上屏前换回真实内容。候选框里说一句「已对 AI 隐藏 2 项」。每一类都能单独关掉：
+
+| 类别 | 比如 | 配置里 |
+| --- | --- | --- |
+| 邮箱地址 | `bob@example.com` | `emails` |
+| 电话号码 | `+1 (555) 123-4567`、`138 0013 8000` | `phones` |
+| 银行卡号（做 Luhn 校验） | `4111 1111 1111 1111` | `cards` |
+| API 密钥和令牌 | `sk-`、`ghp_` 这类已知前缀，长串随机字符 | `keys` |
+| IP 地址 | `203.0.113.42`、`2001:db8::1` | `ips` |
+| 你自己加的词，不分大小写 | 项目代号（比如 `Project Atlas`）、名字 | `customWords` |
+
+- 用于 `@improve`、`@translate`、`@question`、你的 prompt 命令和插件，以及修改它们的结果（用同样的占位符），所有 AI 服务都一样，
+  包括 AllInOneIME 云和 Apple Intelligence。黑话库里含要隐藏内容的词条不发。
+- 它能认出有固定格式的内容；认不出人名和地址，这些请加到自己的词里。`@claude`、`@search` 和脚本扩展照原样发送文字。详见「隐私」。
+- 配置文件里是 `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`。
 
 所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。新加的几项：
 
@@ -459,12 +488,13 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
 | `candidateLayout` | 拼音和印地语的候选词：`"vertical"`（竖排）或 `"horizontal"`（横排；← → 选词，↑↓ 翻页） | `"horizontal"` |
 | `fuzzyPinyin` | 模糊音：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
+| `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
 ## 隐私
 
-- 打拼音和 `@calculate` 计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。
+- 打拼音和 `@calculate` 计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。修改结果（结果出来后打要求再按 ⏎）时，同样的请求连同显示的结果和你的要求再发一次。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。
 - 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；@claude、@search 和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
