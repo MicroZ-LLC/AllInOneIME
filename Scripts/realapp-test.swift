@@ -283,7 +283,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // Safety net if something hangs. TIS may only be used on the main thread, so the input
         // source is restored afterwards by `RealTest --restore-input-source` (run by make).
-        DispatchQueue.global().asyncAfter(deadline: .now() + 240) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 300) {
             print("✗ watchdog: test took too long")
             print("REALTEST FAILED (timeout)")
             fflush(stdout)
@@ -561,10 +561,70 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        selectionCommands()
         horizontalAndReport()
         extensions()
         frenchAndKorean()
         finish()
+    }
+
+    /// 6a. Commands on the selected text: part of the text in the text view selected, "@improve" takes its place while
+    ///     it's typed; Esc (in the draft, and after level two) and ⇧Return put it back exactly; the action key works on
+    ///     it, and the first version picked replaces it, the rest of the text unchanged (live Bedrock).
+    func selectionCommands() {
+        print("— commands on the selected text (live Bedrock)")
+        let text = "Dear team, this sentance have a error. Thanks!"
+        let part = "this sentance have a error."
+        let range = (text as NSString).range(of: part)
+        let without = "Dear team,  Thanks!"
+        func select() {
+            reset()
+            textView.string = text
+            textView.setSelectedRange(range)
+            pump(0.2)
+        }
+        select()
+        command("i")
+        check(waitUntil(2) { self.marked == "improve › " && self.committed == without },
+              "@improve with part of the text selected: the command takes its place while typed ('\(committed)' + '\(marked)')")
+        escape()
+        check(waitUntil(2) { self.marked.isEmpty && self.textView.string == text }, "Esc puts the selection back exactly ('\(textView.string)')")
+        pump(0.3)
+        note("selected again after Esc: \(textView.selectedRange() == range ? "yes" : "no (the input method has no Accessibility permission)")")
+
+        select()
+        command("i")
+        _ = waitUntil(2) { self.marked == "improve › " }
+        asTyped()
+        check(waitUntil(2) { self.marked.isEmpty && self.textView.string == text },
+              "⇧Return puts it back, no @improve left ('\(textView.string)')")
+
+        select()
+        command("i")
+        _ = waitUntil(2) { self.marked == "improve › " }
+        act()
+        pump(0.5)
+        escape()
+        check(waitUntil(2) { self.marked == "improve › " && self.committed == without }, "Esc in level two goes back to the command (\(marked))")
+        escape()
+        check(waitUntil(2) { self.marked.isEmpty && self.textView.string == text }, "Esc again puts it back exactly ('\(textView.string)')")
+
+        select()
+        command("i")
+        _ = waitUntil(2) { self.marked == "improve › " }
+        let started = Date()
+        act()
+        let picked = waitUntil(25) {
+            if !self.marked.isEmpty { self.space() }  // ignored until the first version is complete
+            return self.marked.isEmpty
+        }
+        let result = textView.string
+        let middle = result.hasPrefix("Dear team, ") && result.hasSuffix(" Thanks!") ? String(result.dropFirst(11).dropLast(8)) : ""
+        check(picked && !middle.isEmpty && middle != part && Self.looksEnglish(middle) && !result.contains("improve"),
+              String(format: "the first version replaces the selection, the rest unchanged, after %.1fs: '%@'",
+                     Date().timeIntervalSince(started), result))
+        reset()
+        textView.string = ""
     }
 
     /// 6b. Candidates in a row (`candidateLayout`): the panel is one line (shorter than the same candidates in a column,
