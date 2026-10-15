@@ -49,7 +49,7 @@ enum LiveExtensions {
             built.generation = same ? before.generation : before.generation &+ 1
             DispatchQueue.main.async {
                 if !same, !built.commands.isEmpty || !built.skipped.isEmpty {
-                    log.notice("extensions: \(built.commands.count) commands, \(built.bundles.count) bundles, \(built.skipped.count) skipped")
+                    log.notice("extensions: \(built.commands.count) commands, \(built.bundles.count) bundles, \(built.skipped.count) skipped, \(built.identical.count) identical copies left out")
                 }
                 // Unless the settings read the folders meanwhile (`load`): theirs is as new.
                 if index.generation == before.generation { index = built }
@@ -69,11 +69,15 @@ enum LiveExtensions {
 
     private static let foundKey = "raycastScriptFolders"
 
-    /// The folders Spotlight found holding Raycast scripts, last time it was asked.
+    /// The folders Spotlight found holding Raycast scripts, last time it was asked: each search replaces the
+    /// list, so a folder since removed (or no longer holding one) is dropped.
     static var found: [String] {
-        get { UserDefaults.standard.stringArray(forKey: foundKey) ?? [] }
+        get { shownFound ?? UserDefaults.standard.stringArray(forKey: foundKey) ?? [] }
         set { UserDefaults.standard.set(newValue, forKey: foundKey) }
     }
+
+    /// Folders shown as found instead of the saved ones (`--settings-image … extensions=`), never saved.
+    static var shownFound: [String]?
 
     private static var lastDiscovery: Date?
     private static var discovering = false

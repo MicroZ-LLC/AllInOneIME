@@ -327,14 +327,15 @@ struct ExtensionTests {
         #expect(problem(#"{"schemaVersion": 3, "name": "b", "commands": []}"#) == .newerProtocol(3))
         #expect(problem(#"{"schemaVersion": 1, "name": "b c", "commands": [{"script": "x.sh"}]}"#) == .badBundle(.badName))
         #expect(problem(#"{"schemaVersion": 1, "name": "b", "commands": []}"#) == .badBundle(.noCommands))
-        // Two bundles with one name: the first is kept.
+        // Two bundles with one name (their scripts differ): the first is kept.
         let folder = ScriptFolder()
         for name in ["a", "b"] {
             folder.add("\(name)/extension.json", #"{"schemaVersion": 1, "name": "same", "commands": [{"script": "x.sh"}]}"#)
-            folder.add("\(name)/x.sh", "#!/bin/bash\n")
+            folder.add("\(name)/x.sh", "#!/bin/bash\necho \(name)\n")
         }
         let index = folder.load()
         #expect(index.bundles.map(\.folder.lastPathComponent) == ["a"] && index.skipped.map(\.problem) == [.bundleTaken])
+        #expect(index.identical.isEmpty)
     }
 
     // MARK: - Environment
@@ -375,6 +376,101 @@ struct ExtensionTests {
         hidden.hidden = true
         #expect(ExtensionStore.load([hidden]).commands.isEmpty)
         #expect(ExtensionStore.load([.init(path: "/no/such/folder", found: false)]).commands.isEmpty)
+    }
+
+    // MARK: - Found folders and copies
+
+    /// A folder of everything: a native script, a Raycast script, a bundle, a broken link.
+    static func mixed(_ folder: ScriptFolder, raycastTitle: String = "Word Count") {
+        folder.add("uuid.sh", script(["title New UUID", "input none"]))
+        folder.add("word-count.sh", raycast(title: raycastTitle))
+        folder.add("units/extension.json", #"{"schemaVersion": 1, "name": "units", "commands": [{"script": "convert.sh"}]}"#)
+        folder.add("units/convert.sh", "#!/bin/bash\necho converted\n")
+        try? FileManager.default.createSymbolicLink(atPath: folder.url.appendingPathComponent("gone.sh").path,
+                                                    withDestinationPath: "/no/such/file.sh")
+    }
+
+    @Test func aFoundFolderGivesOnlyItsRaycastScripts() {
+        let folder = ScriptFolder()
+        Self.mixed(folder)
+        folder.add("bad-raycast.sh", raycast(mode: "table"))  // a Raycast script that can't load: still said
+        let found = ExtensionStore.load([.init(path: folder.url.path, found: true)])
+        #expect(found.commands.map(\.name) == ["wordcount"] && found.commands.allSatisfy { $0.source == .raycast })
+        #expect(found.bundles.isEmpty && found.identical.isEmpty)
+        #expect(found.skipped == [.init(file: folder.url.appendingPathComponent("bad-raycast.sh"), problem: .badValue(key: "mode", value: "table"))])
+        // The same folder added: all of it.
+        let added = ExtensionStore.load([.init(path: folder.url.path, found: false)])
+        #expect(added.commands.map(\.name) == ["convert", "uuid", "wordcount"] && added.bundles.map(\.name) == ["units"])
+        #expect(Set(added.skipped.map(\.problem)) == [.brokenLink, .badValue(key: "mode", value: "table")])
+        // Spotlight only makes a folder of Raycast scripts found: a native script that mentions Raycast's keys doesn't.
+        let native = folder.add("both.sh", script(["title Both"], "# @raycast.schemaVersion 1\n# @raycast.title B\n# @raycast.mode compact"))
+        #expect(!ExtensionStore.isScript(native) && ExtensionStore.isScript(folder.url.appendingPathComponent("word-count.sh")))
+    }
+
+    @Test func identicalCopiesAreLeftOutQuietly() {
+        // An added folder, and two checkouts of a repository found by Spotlight; then one more added copy.
+        let mine = ScriptFolder(), first = ScriptFolder(), second = ScriptFolder(), copy = ScriptFolder()
+        Self.mixed(mine)
+        Self.mixed(first)
+        Self.mixed(second)
+        Self.mixed(copy)
+        let folders: [ExtensionStore.Folder] = [.init(path: mine.url.path, found: false), .init(path: copy.url.path, found: false),
+                                                .init(path: first.url.path, found: true), .init(path: second.url.path, found: true)]
+        let index = ExtensionStore.load(folders)
+        // One of each, from the first folder; the copies are noted, not warned about (the broken links are the added
+        // folders' own).
+        #expect(index.commands.map(\.name) == ["convert", "uuid", "wordcount"] && index.bundles.map(\.folder) == [mine.url.appendingPathComponent("units")])
+        #expect(index.commands.allSatisfy { $0.file.path.hasPrefix(mine.url.path) })
+        #expect(index.skipped.map(\.problem) == [.brokenLink, .brokenLink])
+        #expect(index.identical.map(\.lastPathComponent) == ["extension.json", "uuid.sh", "word-count.sh", "word-count.sh", "word-count.sh"])
+        #expect(Command.hiddenScripts(index.commands, custom: []).isEmpty)
+        // Turned the other way round, the found folders' first copy is the one kept.
+        let reversed = ExtensionStore.load(Array(folders.reversed()))
+        #expect(reversed.commands.map(\.file) == [copy.url.appendingPathComponent("units/convert.sh"), copy.url.appendingPathComponent("uuid.sh"),
+                                                   second.url.appendingPathComponent("word-count.sh")])
+    }
+
+    @Test func copiesThatDifferStillClash() {
+        let mine = ScriptFolder(), other = ScriptFolder()
+        Self.mixed(mine)
+        Self.mixed(other, raycastTitle: "Words")  // word-count.sh changed
+        other.add("units/convert.sh", "#!/bin/bash\necho changed\n")  // a bundle's script changed: another bundle
+        let index = ExtensionStore.load([.init(path: mine.url.path, found: false), .init(path: other.url.path, found: false)])
+        #expect(index.identical.map(\.lastPathComponent) == ["uuid.sh"])
+        #expect(index.skipped.map(\.problem) == [.brokenLink, .brokenLink, .bundleTaken])
+        let hidden = Command.hiddenScripts(index.commands, custom: [])
+        #expect(hidden.map(\.script.file) == [other.url.appendingPathComponent("word-count.sh")])
+        #expect(hidden.first?.owner == .command(ExtensionStore.abbreviated(mine.url.appendingPathComponent("word-count.sh").path)))
+        // The same content under another file name is another command, not a copy.
+        other.add("wc.sh", raycast())
+        mine.add("wc2.sh", raycast())
+        #expect(ExtensionStore.load([.init(path: mine.url.path, found: false), .init(path: other.url.path, found: true)])
+            .commands.map(\.name).sorted() == ["convert", "uuid", "wc", "wc2", "wordcount", "wordcount"])
+        // All of a file counts, past the 64 KB read for its metadata.
+        let padding = "# " + String(repeating: "x", count: ExtensionCache.maxBytes) + "\n"
+        mine.add("big.sh", script(["title Big"], padding + "echo one"))
+        other.add("big.sh", script(["title Big"], padding + "echo two"))
+        let big = ExtensionStore.load([.init(path: mine.url.path, found: false), .init(path: other.url.path, found: false)])
+        #expect(big.commands.filter { $0.name == "big" }.count == 2 && !big.identical.contains { $0.lastPathComponent == "big.sh" })
+        // Two copies of a script that can't load are said once.
+        mine.add("bad.sh", script(["output table"]))
+        other.add("bad.sh", script(["output table"]))
+        let bad = ExtensionStore.load([.init(path: mine.url.path, found: false), .init(path: other.url.path, found: false)])
+        #expect(bad.skipped.filter { $0.file.lastPathComponent == "bad.sh" }.count == 1 && bad.identical.contains(other.url.appendingPathComponent("bad.sh")))
+    }
+
+    @Test func aFolderRemovedIsNoLongerFound() throws {
+        let kept = ScriptFolder(), removed = ScriptFolder()
+        let file = kept.add("up.sh", raycast())
+        let gone = removed.add("up.sh", raycast())
+        // Spotlight's index may still list a removed folder's files for a while: they're read, so it's dropped.
+        let output = file.path + "\n" + gone.path
+        #expect(ExtensionStore.folders(fromSpotlight: output, home: "/nowhere") == [kept.url.path, removed.url.path].sorted())
+        try FileManager.default.removeItem(at: removed.url)
+        #expect(ExtensionStore.folders(fromSpotlight: output, home: "/nowhere") == [kept.url.path])
+        // What's loaded from a found folder that's gone: nothing, and nothing reported.
+        let index = ExtensionStore.load([.init(path: removed.url.path, found: true)])
+        #expect(index.commands.isEmpty && index.skipped.isEmpty)
     }
 
     @Test func orderAndCollisions() throws {
