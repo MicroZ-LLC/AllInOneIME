@@ -1898,10 +1898,6 @@ final class AllInOneIMEInputController: IMKInputController {
         let settings = NSMenuItem(title: tr("设置…", "Settings…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
-        // GitHub's page for a new issue, with the versions and settings that help (`IssueReport`).
-        let report = NSMenuItem(title: tr("报告问题…", "Report an Issue…"), action: #selector(reportIssue(_:)), keyEquivalent: "")
-        report.target = self
-        menu.addItem(report)
         menu.addItem(.separator())
         let model = config.map { tr("模型：", "Model: ") + ($0.settings(for: $0.provider).model ?? "") } ?? tr("配置文件有误", "The config file has an error")
         let info = NSMenuItem(title: model, action: nil, keyEquivalent: "")
@@ -1991,6 +1987,11 @@ final class AllInOneIMEInputController: IMKInputController {
         let deploy = NSMenuItem(title: tr("重新部署词库", "Redeploy Dictionaries"), action: #selector(redeploy(_:)), keyEquivalent: "")
         deploy.target = self
         menu.addItem(deploy)
+        menu.addItem(.separator())
+        // GitHub's page for a new issue, with the versions and settings that help (`IssueReport`).
+        let report = NSMenuItem(title: tr("报告问题…", "Report an Issue…"), action: #selector(reportIssue(_:)), keyEquivalent: "")
+        report.target = self
+        menu.addItem(report)
         return menu
     }
 

@@ -1327,6 +1327,7 @@ enum SelfTest {
     /// to the title, ⏎ ⏎ opens GitHub's new-issue page with it (recorded here, never opened); nothing is inserted.
     static func testReportIssue(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         print("— @reportissue (nothing opened)")
+        _ = pump(timeout: 8) { controller.panelModel().detail == nil }  // a notice from before: not in the image
         var opened: [String] = []
         let saved = controller.openItem
         controller.openItem = { opened.append($0) }
@@ -2581,6 +2582,7 @@ enum SelfTest {
         let menu = controller.menu()
         let menuTitles = menu?.items.map(\.title) ?? []
         check(menuTitles.count > 2 && menuTitles[2].hasPrefix("模型："), "menu shows the model right after 设置… (\(menuTitles.prefix(3)))")
+        check(menuTitles.last == "报告问题…", "the menu ends with 报告问题… (\(menuTitles.suffix(2)))")
         // The styles sit in a submenu, whose title names the ones that are on.
         let stylesItem = menu?.items.first { $0.title.hasPrefix("改写风格：") }
         let styleItems = stylesItem?.submenu?.items.filter { $0.action == #selector(AllInOneIMEInputController.toggleStyle(_:)) } ?? []
