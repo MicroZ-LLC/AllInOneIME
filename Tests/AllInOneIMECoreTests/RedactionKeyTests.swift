@@ -96,6 +96,18 @@ struct RedactionKeyTests {
         }
     }
 
+    @Test func secretsInPathsAndLinksStillGo() {
+        var rng = Seeded(state: 2024)
+        let alnum = Self.lower + Self.upper + Self.digits
+        for _ in 0..<200 {
+            // A base64 secret cut by "/" into short pieces, after path words.
+            let cuts = [8, 11, 9, 12].map { rng.string($0, from: alnum + "+") }.joined(separator: "/")
+            for text in ["https://example.com/api/v1/\(cuts)", "/usr/local/etc/\(cuts)", "token=\(cuts)", "key: \(cuts)/download"] {
+                #expect(hidden(cuts, in: text), "\(text.prefix(30))…")
+            }
+        }
+    }
+
     @Test func ordinaryTextIsNotHidden() {
         let texts = [
             "convertUTF8ToUTF16AndBack42", "getHTTP2ResponseForURLv3Id", "C++/CLI/WinRT/Win32/x64/Release",
@@ -111,6 +123,12 @@ struct RedactionKeyTests {
             "AWS_SECRET_ACCESS_KEY_ID_2024", "release-0.6.3/redact-sensitive", "feature/add-privacy-settings-page",
             "on 2024-10-14 at 12:30:45", "version 1.2.3 and v2.0.1", "it costs $1,299.99", "order #12345678",
             "build 20241014.1", "xoxo-hugs-and-kisses",
+            // Paths, links, branches and platforms that @question about code keeps.
+            "/usr/local/lib/python3.12/site-packages/requests/adapters.py",
+            "https://github.com/MicroZ-LLC/AllInOneIME/blob/release-0.6.3/Sources/AllInOneIMECore/Redaction.swift",
+            "feature/AIO-1234-hide-sensitive-info", "1920x1080/2560x1440/3840x2160",
+            "arm64-apple-macosx26.0", "x86_64-apple-darwin25.0.0", "/opt/homebrew/Cellar/python@3.12/3.12.7/bin",
+            "~/workspace/aio-redact/Tests/AllInOneIMECoreTests/RedactionKeyTests.swift",
         ]
         for text in texts { #expect(Redaction.find("see \(text) here", settings: on).isEmpty, "\(text)") }
     }

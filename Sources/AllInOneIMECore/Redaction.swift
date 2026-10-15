@@ -418,29 +418,83 @@ public struct Redaction: Sendable {
     /// A run of 20 or more key characters (base64's "+", "/" and "=" too); `keys(inRun:)` tells which parts are keys.
     static let run = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9+/=_\-])[A-Za-z0-9+/=_\-]{20,}(?![A-Za-z0-9+/=_\-])"#)
 
-    /// The keys in `run` (ranges within it): split at "/", the pieces that aren't words, joined again where they
-    /// follow each other ("…/services/<key>/<key>/<key>" is one key after two words), 16 characters or more, each a
-    /// key when it isn't ordinary text (`isKey`). A run without "/" is one candidate.
+    /// The keys in `run` (ranges within it). A path ("/usr/local/lib/python3", "feature/AIO-1234-hide-info",
+    /// "x86_64-apple-darwin25"), split at "/" (or "-" and "_" without one), with ordinary pieces (`isPathWord`) for at
+    /// least half its characters: the pieces that aren't, with the short pieces next to them (a key's piece may look
+    /// like a word: "…/Joy/…"), each part a key when 16 characters or more and not ordinary text (`isKey`). Anything
+    /// else, a key cut into short random pieces among them: split at words of six letters or more only
+    /// ("…/services/<key>/<key>"), each part judged whole.
     static func keys(inRun run: String) -> [NSRange] {
         let ns = run as NSString
-        guard run.contains("/") else { return isKey(run) ? [NSRange(location: 0, length: ns.length)] : [] }
-        var spans: [NSRange] = [], start: Int?, at = 0
-        for segment in run.split(separator: "/", omittingEmptySubsequences: false) {
-            let length = (String(segment) as NSString).length
-            // Words of six letters or more, nothing else ("services", "download"); a shorter piece, or one with
-            // digits, may be part of a key ("…/due8", "…/GALE/…"), and is hidden with it.
-            let word = segment.count >= 6 && segment.allSatisfy({ $0.isLetter || $0 == "-" || $0 == "_" })
-                && coverage(String(segment), strict: true) >= 0.8
-            if word {
-                if let s = start { spans.append(NSRange(location: s, length: at - 1 - s)) }
-                start = nil
-            } else if start == nil {
-                start = at
-            }
+        let separators: Set<Character> = run.contains("/") ? ["/"] : ["-", "_"]
+        let segments = run.split(omittingEmptySubsequences: false, whereSeparator: { separators.contains($0) }).map(String.init)
+        let ordinary = segments.map(isPathWord)
+        let mass = zip(segments, ordinary).filter { $0.1 }.map(\.0.count).reduce(0, +)
+        let path = ordinary.filter { $0 }.count >= 2 && mass * 2 >= segments.map(\.count).reduce(0, +)
+        guard path || run.contains("/") else { return isKey(run) ? [NSRange(location: 0, length: ns.length)] : [] }
+        var ranges: [NSRange] = [], at = 0
+        for segment in segments {
+            let length = (segment as NSString).length
+            ranges.append(NSRange(location: at, length: length))
             at += length + 1
         }
-        if let s = start { spans.append(NSRange(location: s, length: ns.length - s)) }
+        var marked = [Bool](repeating: false, count: segments.count)
+        if path {
+            // The pieces that aren't ordinary, eight characters or more together, with what is next to them up to an
+            // ordinary piece of six characters or more.
+            var i = 0
+            while i < segments.count {
+                guard !ordinary[i] else { i += 1; continue }
+                var end = i
+                while end + 1 < segments.count, !ordinary[end + 1] { end += 1 }
+                if NSMaxRange(ranges[end]) - ranges[i].location >= 8 {
+                    var (a, b) = (i, end)
+                    while a > 0, !ordinary[a - 1] || segments[a - 1].count < 6 { a -= 1 }
+                    while b + 1 < segments.count, !ordinary[b + 1] || segments[b + 1].count < 6 { b += 1 }
+                    for k in a...b { marked[k] = true }
+                }
+                i = end + 1
+            }
+        } else {
+            // Words of six letters or more only, in small letters or capitalized ("services", "Download"); a shorter
+            // piece, or one with digits or capitals inside, may be part of a key ("…/due8", "…/GALE/…", "…/HkDORMSpiv/…"),
+            // and is hidden with it.
+            for (k, segment) in segments.enumerated() {
+                let shape = segment.wholeMatch(of: /[A-Z]?[a-z]+(?:[-_][a-z]+)*/) != nil
+                marked[k] = !(segment.count >= 6 && shape && coverage(segment, strict: true) >= 0.8)
+            }
+        }
+        var spans: [NSRange] = [], k = 0
+        while k < segments.count {
+            guard marked[k] else { k += 1; continue }
+            var end = k
+            while end + 1 < segments.count, marked[end + 1] { end += 1 }
+            spans.append(NSRange(location: ranges[k].location, length: NSMaxRange(ranges[end]) - ranges[k].location))
+            k = end + 1
+        }
         return spans.filter { $0.length >= 16 && isKey(ns.substring(with: $0)) }
+    }
+
+    /// A piece of a path that is ordinary (`isOrdinaryPiece`), or words without digits, half their letters in known
+    /// words, in one case or camel case ("aio-redact", "AllInOneIME").
+    static func isPathWord(_ piece: String) -> Bool {
+        if isOrdinaryPiece(piece) { return true }
+        guard !piece.contains(where: \.isNumber), piece.filter(\.isLetter).count >= 3, coverage(piece) >= 0.5 else { return false }
+        return !(piece.contains(where: \.isUppercase) && piece.contains(where: \.isLowercase)) || isCamelCase(piece)
+    }
+
+    /// A piece of a path that is ordinary: a number or version ("3.12", "1920x1080", "0"), mostly known words
+    /// ("python3", "macosx26", "local"), or pieces joined by "-" or "_", two or more of them such, with half the
+    /// characters ("AIO-1234-hide-info").
+    static func isOrdinaryPiece(_ piece: String) -> Bool {
+        guard !piece.isEmpty else { return false }
+        if piece.wholeMatch(of: /[vV]?[0-9]+(?:[.x_\-][0-9]+)*/) != nil { return true }
+        if piece.filter(\.isLetter).count >= 3, coverage(piece) >= 0.8 { return true }
+        let parts = piece.split(whereSeparator: { $0 == "-" || $0 == "_" || $0 == "." }).map(String.init)
+        guard parts.count >= 2 else { return false }
+        let known = parts.filter { $0.wholeMatch(of: /[0-9]+/) != nil || ($0.filter(\.isLetter).count >= 3 && coverage($0) >= 0.8) }
+        // Two at least, and half the characters.
+        return known.count >= 2 && known.map(\.count).reduce(0, +) * 2 >= parts.map(\.count).reduce(0, +)
     }
 
     /// A key: not ordinary text (`isOrdinary`), and random enough: a digit, both cases, or 32 characters or more.
