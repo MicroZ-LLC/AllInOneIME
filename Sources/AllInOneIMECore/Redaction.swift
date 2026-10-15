@@ -137,7 +137,9 @@ public struct Redaction: Sendable {
 
     /// `request` as it may be sent: its last message (the user's text) is `sent` (`hide`), the texts hidden appear
     /// hidden wherever they are (a custom command's prompt in the instructions), and no other part of it holds a
-    /// hidden value. With anything hidden, the system prompt ends with `note`; with nothing, the request is the same.
+    /// hidden value. With anything hidden, the system prompt ends with `note`; with nothing, `protect` changes nothing.
+    /// The request may still differ from one with hiding off: jargon entries holding a value to hide are left out of
+    /// it (`allows`) even when the sentence hides nothing.
     public func protect(_ request: ConverseRequest, sent: String) -> ConverseRequest {
         guard !hidden.isEmpty else { return request }
         var out = request

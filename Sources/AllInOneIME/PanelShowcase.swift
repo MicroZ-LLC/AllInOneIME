@@ -121,7 +121,7 @@ enum PanelShowcase {
 }
 
 /// `AllInOneIME --settings-image OUT-DIR [zh] [dark]`: every page of the settings window drawn offscreen,
-/// `settings-<page>.png`, from the config file as it is (nothing is saved).
+/// `settings-<page>.png`, from the config file as it is (nothing is saved), with sample apps and hidden words.
 @MainActor
 enum SettingsPageImages {
     static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil) -> Never {
@@ -134,10 +134,10 @@ enum SettingsPageImages {
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
-        // Settings → Apps with a few apps on it (the user's own when there are some).
-        if model.config.appProfiles.isEmpty { model.config.appProfiles = AppProfileSamples.profiles }
-        // Hiding sensitive information shown on, with its switches and a word of the user's own.
-        if !model.config.redaction.enabled { model.config.redaction = RedactionSettings(enabled: true, customWords: ["Phoenix", "Atlas"]) }
+        // Settings → Apps with sample apps, never the user's own (the images go into docs and release notes).
+        model.config.appProfiles = AppProfileSamples.profiles
+        // Hiding sensitive information shown on, with its switches and sample words, never the user's own.
+        model.config.redaction = RedactionSettings(enabled: true, customWords: ["Project Atlas", "Phoenix"])
         // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
         // the first as added, any others as if Spotlight had found them).
         if let extensions {

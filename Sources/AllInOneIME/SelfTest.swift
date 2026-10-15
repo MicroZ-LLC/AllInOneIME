@@ -2922,7 +2922,7 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         let english = controller.panelModel()
         let styleNames = english.rows.dropFirst().map { $0.comment.components(separatedBy: " · ")[0] }
-        check(english.footer == "Space / ⏎ insert · digits pick · type to refine · ⌘C copy · Esc back"
+        check(english.footer == "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back"
               && english.rows.first?.comment == "original" && !styleNames.joined().containsHan,
               "English results panel: \(english.footer) | \(english.rows.map(\.comment))")
         snapshot("9-english-ui", in: snapshotDirectory)

@@ -256,3 +256,38 @@ extension FeatureInteractionTests {
         #expect(fresh.result.versions.map(\.text) == ["bob@example.com is at example.com."])
     }
 }
+
+/// Refining × the recent @questions: a refined answer replaces the one saved for its question (the decided behaviour),
+/// as asking the same question again does; the other questions stay.
+extension RefineTests {
+    @Test func aRefinedQuestionsAnswerReplacesItsSavedAnswer() {
+        let older = QuestionHistory.Entry(question: "why is the sky blue", answer: "Rayleigh scattering.",
+                                          date: Date(timeIntervalSince1970: 1))
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.questionHistory = QuestionHistory(entries: [older])
+        c.now = { Date(timeIntervalSince1970: 7) }
+        _ = c.handleKeyDown(at)
+        _ = type("question", c)
+        _ = c.handleKeyDown(tab)
+        _ = type("what is rust", c)
+        #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.question, input: "what is rust", id: 1))
+        let answer = ConversionResult(versions: [CandidateLine("Rust is a systems programming language.")])
+        let saved = QuestionHistory.Entry(question: "what is rust", answer: "Rust is a systems programming language.",
+                                          date: Date(timeIntervalSince1970: 7))
+        #expect(c.receive(answer, isFinal: true, id: 1).contains(.rememberQuestion(saved)))
+        #expect(c.questionHistory.entries == [saved, older])
+
+        c.now = { Date(timeIntervalSince1970: 9) }
+        _ = type("shorter", c)
+        #expect(started(c.handleKeyDown(enterKey).effects)?.1 == 2)
+        // Nothing is kept while the refined answer streams in; once it's complete, it takes the saved one's place.
+        let partial = ConversionResult(versions: [CandidateLine("A systems", isComplete: false)])
+        #expect(!c.receive(partial, isFinal: false, id: 2).contains { if case .rememberQuestion = $0 { true } else { false } })
+        let refined = QuestionHistory.Entry(question: "what is rust", answer: "A systems language.",
+                                            date: Date(timeIntervalSince1970: 9))
+        let effects = c.receive(ConversionResult(versions: [CandidateLine("A systems language.")]), isFinal: true, id: 2)
+        #expect(effects.contains(.rememberQuestion(refined)))
+        #expect(c.questionHistory.entries == [refined, older])
+    }
+}

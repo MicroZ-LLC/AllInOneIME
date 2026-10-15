@@ -2026,12 +2026,12 @@ final class AllInOneIMEInputController: IMKInputController {
                     : composer.refineLine != nil
                     ? tr("⏎ 按这句修改结果 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⏎ refine · ⌫ delete · Esc clear · ↑↓ choose")
                     : composer.canRefine
-                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`).
+                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`); 0 still picks the original.
                     ? (composer.refineHistory.isEmpty
-                        ? tr("空格 / ⏎ 上屏 · 数字选择 · 打字修改结果 · ⌘C 复制 · Esc 返回",
-                             "Space / ⏎ insert · digits pick · type to refine · ⌘C copy · Esc back")
-                        : tr("空格 / ⏎ 上屏 · 数字选择 · 打字再改 · Esc 上一版",
-                             "Space / ⏎ insert · digits pick · type to refine · Esc previous"))
+                        ? tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字修改结果 · ⌘C 复制 · Esc 返回",
+                             "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back")
+                        : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字再改 · Esc 上一版",
+                             "Space / ⏎ insert · digits pick · 0 original · type to refine · Esc previous"))
                     : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
                          "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
                 // A refine that failed: the results before it stay, its instruction back in the line.
