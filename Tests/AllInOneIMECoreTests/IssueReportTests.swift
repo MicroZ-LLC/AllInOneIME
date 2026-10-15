@@ -151,10 +151,54 @@ struct IssueReportTests {
         #expect(c.phase == .choosing && c.pendingIssue?.title == "" && query(c.pendingIssue!.url)["title"] == "")
         _ = c.handleKeyDown(escKey)
         #expect(c.phase == .drafting && c.draft == "@reportissue " && c.pendingIssue == nil)
-        // A click on the row opens it too.
+        // ⏎ on the preview without a title opens the page all the same.
+        _ = c.handleKeyDown(enterKey)
+        let url = c.pendingIssue?.url
+        let opened = c.handleKeyDown(enterKey).effects
+        #expect(url != nil && opened.contains(.openLink(url!)) && c.phase == .idle && commits(opened).isEmpty)
+    }
+
+    /// Whether `effects` open the page.
+    func opens(_ effects: [Composer.Effect]) -> Bool {
+        effects.contains { if case .openLink = $0 { return true } else { return false } }
+    }
+
+    /// The action key, pressed: ⏎, a tap of left ⌥, or Space.
+    func act(_ c: Composer) -> [Composer.Effect] {
+        switch c.actionKey {
+        case .optionTap:
+            _ = c.handleFlagsChanged(keyCode: VirtualKey.leftOption, modifiers: [.option, .leftOption], timestamp: 10)
+            return c.handleFlagsChanged(keyCode: VirtualKey.leftOption, modifiers: [], timestamp: 10.1)
+        case .space: return c.handleKeyDown(spaceKey).effects
+        default: return c.handleKeyDown(enterKey).effects
+        }
+    }
+
+    @Test(arguments: [ActionKey.enter, .optionTap, .space])
+    func withoutATitleEveryActionKeyOpensIt(_ key: ActionKey) {
+        let c = composer(key)
+        type("@reporti", c)
+        _ = c.handleKeyDown(tab)
+        #expect(c.draft == "@reportissue ")
+        let shown = act(c)
+        #expect(!opens(shown) && c.phase == .choosing && c.pendingIssue?.title == "", "\(key)")
+        let opened = act(c)
+        #expect(opens(opened) && opened.contains(.commandUsed("reportissue")) && c.phase == .idle && commits(opened).isEmpty, "\(key)")
+    }
+
+    @Test func withoutATitleAClickOpensIt() {
+        let c = composer()
+        type("@reporti", c)
+        _ = c.handleKeyDown(tab)
+        _ = c.handleKeyDown(enterKey)
+        let url = c.pendingIssue?.url
+        #expect(url != nil && c.choose(index: 0).contains(.openLink(url!)) && c.phase == .idle)
+        // With a title too.
+        type("@reporti", c)
+        _ = c.handleKeyDown(tab)
         type("Typo", c)
         _ = c.handleKeyDown(enterKey)
-        #expect(c.choose(index: 0).contains { if case .openLink = $0 { return true } else { return false } })
+        #expect(opens(c.choose(index: 0)))
     }
 
     @Test func notDuringSecureInput() {

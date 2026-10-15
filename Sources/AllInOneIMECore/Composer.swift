@@ -2540,7 +2540,13 @@ public final class Composer {
 
     private func commitChoice(at index: Int) -> [Effect] {
         let all = choices
-        guard all.indices.contains(index), all[index].isComplete, !all[index].text.isEmpty else { return [] }
+        guard all.indices.contains(index), all[index].isComplete else { return [] }
+        if case let .issue(url) = all[index].kind, let command = activeCommand {
+            // Opened in the browser, where the user submits it (or not); nothing is inserted. Its text is the title,
+            // which may be empty: written on GitHub then.
+            return finish(committing: "") + [.openLink(url), used(command)]
+        }
+        guard !all[index].text.isEmpty else { return [] }
         if case let .file(path) = all[index].kind { return finish(committing: "") + [.open(path: path)] }
         // What a `show` script printed isn't inserted: picking it closes the panel.
         if all[index].kind == .shown { return finish(committing: "") }
@@ -2548,10 +2554,6 @@ public final class Composer {
         if case let .reminder(reminder) = all[index].kind {
             let input = sentText  // before the draft is cleared: it comes back if the reminder can't be added
             return finish(committing: "") + [.addReminder(reminder, input: input)]
-        }
-        if case let .issue(url) = all[index].kind, let command = activeCommand {
-            // Opened in the browser, where the user submits it (or not); nothing is inserted.
-            return finish(committing: "") + [.openLink(url), used(command)]
         }
         if case .send = all[index].kind, let recipient = messageRecipient, let command = activeCommand {
             // Sent, not inserted: the draft goes.
