@@ -565,12 +565,24 @@ final class Harness: NSObject, NSApplicationDelegate {
         finish()
     }
 
-    /// 6b. Candidates in a row (`candidateLayout`): the panel is wider than tall, and → moves the highlight, so Space
-    ///     inserts the second candidate. On today's date ("rq", rime-ice's Lua), so no word is learned in the user's
+    /// 6b. Candidates in a row (`candidateLayout`): the panel is one line (shorter than the same candidates in a column,
+    ///     under 120 pt, wider than tall), and → moves the highlight, so Space inserts the second candidate. On today's date ("rq", rime-ice's Lua), so no word is learned in the user's
     ///     dictionary. Then `@reportissue`: the action key shows what the page would hold, and Esc goes back; the page
     ///     is never opened (⏎ isn't pressed on it).
     func horizontalAndReport() {
         print("— candidates in a row, @reportissue's preview")
+        // The same candidates in a column first (the test's config leaves the layout as the user has it: set it).
+        _ = setConfig { $0["candidateLayout"] = "vertical" }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("rq")
+        _ = waitUntil(2) { !imePanelFrames().isEmpty }
+        let column = imePanelFrames().first
+        reset()
+        textView.string = ""
         guard setConfig({ $0["candidateLayout"] = "horizontal" }) else {
             check(false, "config file readable, to lay the candidates out in a row")
             return
@@ -584,7 +596,10 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("rq")
         _ = waitUntil(2) { !imePanelFrames().isEmpty }
         if let panel = imePanelFrames().first {
-            check(panel.width > panel.height, "the candidates are in a row (panel \(panel.integral))")
+            // A line of cells and the footer: shorter than two rows of a column (under 120 pt), wider than tall, and
+            // shorter than the same candidates in a column.
+            check(panel.width > panel.height && panel.height < 120 && column.map { panel.height < $0.height } != false,
+                  "the candidates are in a row (panel \(panel.integral); in a column \(column.map { "\($0.integral)" } ?? "-"))")
         } else {
             note("candidate panel not on screen (expected while the screen is locked)")
         }
