@@ -28,6 +28,8 @@ public struct ConverseRequest: Encodable, Equatable, Sendable {
 
 public enum BedrockStreamEvent: Equatable, Sendable {
     case textDelta(String)
+    /// The whole answer so far, in place of the text before it: Apple's on-device model revised what it had sent.
+    case textReplaced(String)
     case messageStop(reason: String?)
     case metadata(latencyMs: Int?, inputTokens: Int?, outputTokens: Int?)
 }

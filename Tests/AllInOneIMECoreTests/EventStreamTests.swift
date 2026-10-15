@@ -73,6 +73,7 @@ struct EventStreamTests {
         for message in messages {
             switch try BedrockClient.event(from: message) {
             case let .textDelta(t)?: text += t
+            case let .textReplaced(t)?: text = t
             case let .messageStop(reason)?: stop = reason
             case let .metadata(ms, _, output)?:
                 latency = ms

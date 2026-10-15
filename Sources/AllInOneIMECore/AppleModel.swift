@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 import os
 #if canImport(FoundationModels)
 import FoundationModels
@@ -35,7 +36,8 @@ public enum AppleModel {
     /// `body` as the on-device model takes it. The system prompt is the instructions, the user and assistant turns
     /// before the last user message the examples, that message the prompt. When they don't all fit in the context
     /// with room for the answer, examples are left out from the first (the rules and the format are in the
-    /// instructions); the answer's limit is what is left, at least `minimumAnswer`.
+    /// instructions). The answer's limit is the user's `maxTokens`, lowered to what the context has left (but not
+    /// below `minimumAnswer`, unless the user's is lower still): never raised.
     public static func request(from body: ConverseRequest, maxTokens: Int, contextSize: Int) -> AppleModelRequest {
         let instructions = body.system.map(\.text).joined(separator: "\n\n")
         var examples: [AppleModelRequest.Turn] = []
@@ -56,9 +58,28 @@ public enum AppleModel {
         }
         let room = min(maxTokens, answerRoom, contextSize / 3)
         while !examples.isEmpty, size() + room > contextSize { examples.removeFirst() }
-        let answer = max(minimumAnswer, min(maxTokens, contextSize - size()))
+        let answer = min(maxTokens, max(minimumAnswer, contextSize - size()))
         return AppleModelRequest(instructions: instructions, examples: examples, prompt: prompt,
                                  temperature: body.inferenceConfig.temperature, maximumResponseTokens: answer)
+    }
+
+    /// Without the count of tokens generated (macOS 26 doesn't say), an answer whose estimated size is 90% of its limit
+    /// or more may have been cut off there: it's reported as "max_tokens" (an unfinished last line is dropped, nothing
+    /// is cached).
+    static func possiblyCut(_ text: String, limit: Int) -> Bool {
+        Double(estimatedTokens(text)) >= 0.9 * Double(limit)
+    }
+
+    /// Text in a language the model doesn't speak (`AppleModelBackend.supportedLanguages`, by language code), told
+    /// with confidence: its code, else nil. Short (under 10 letters) or mixed text isn't judged; it goes to the model.
+    static func unsupportedLanguage(of text: String, supported: Set<String>) -> String? {
+        guard !supported.isEmpty, text.filter(\.isLetter).count >= 10 else { return nil }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let language = recognizer.dominantLanguage,
+              let confidence = recognizer.languageHypotheses(withMaximum: 1)[language], confidence >= 0.8 else { return nil }
+        let code = String(language.rawValue.prefix { $0 != "-" && $0 != "_" })
+        return supported.contains(code) ? nil : code
     }
 
     /// Streams `body` from `backend` as the events of the other providers: text deltas, then the stop reason
@@ -71,23 +92,34 @@ public enum AppleModel {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unavailable(availability)) }
         }
         let request = request(from: body, maxTokens: maxTokens, contextSize: backend.contextSize)
+        if unsupportedLanguage(of: request.prompt, supported: backend.supportedLanguages) != nil {
+            return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unsupportedLanguage) }
+        }
         return AsyncThrowingStream { continuation in
             let lastActivity = OSAllocatedUnfairLock(initialState: ContinuousClock.now)
             let task = Task {
                 do {
+                    var sent = String.UnicodeScalarView()
                     var text = ""
                     var outputTokens: Int?
                     for try await snapshot in backend.respond(to: request) {
                         lastActivity.withLock { $0 = .now }
-                        // Each snapshot is the whole answer so far.
-                        let delta = snapshot.text.hasPrefix(text)
-                            ? String(snapshot.text.dropFirst(text.count))
-                            : String(snapshot.text.dropFirst(snapshot.text.commonPrefix(with: text).count))
                         text = snapshot.text
                         outputTokens = snapshot.outputTokens ?? outputTokens
-                        if !delta.isEmpty { continuation.yield(.textDelta(delta)) }
+                        // Each snapshot is the whole answer so far. Compared by Unicode scalars, not Characters: a
+                        // snapshot can end inside a character (👍, then 👍🏽), and the deltas add up to it exactly.
+                        let scalars = snapshot.text.unicodeScalars
+                        if scalars.count >= sent.count, scalars.starts(with: sent) {
+                            let delta = String.UnicodeScalarView(scalars.dropFirst(sent.count))
+                            if !delta.isEmpty { continuation.yield(.textDelta(String(delta))) }
+                        } else {
+                            // Not a continuation of what went out (the model revised it): the whole answer, in its place.
+                            continuation.yield(.textReplaced(snapshot.text))
+                        }
+                        sent = scalars
                     }
-                    let cut = outputTokens.map { $0 >= request.maximumResponseTokens } ?? false
+                    let cut = outputTokens.map { $0 >= request.maximumResponseTokens }
+                        ?? possiblyCut(text, limit: request.maximumResponseTokens)
                     continuation.yield(.messageStop(reason: cut ? "max_tokens" : "end_turn"))
                     continuation.finish()
                 } catch {
@@ -167,6 +199,8 @@ public protocol AppleModelBackend: Sendable {
     var availability: AppleModelAvailability { get }
     /// The context in tokens: the request and the answer together.
     var contextSize: Int { get }
+    /// The languages the model speaks, by language code ("en", "zh", …).
+    var supportedLanguages: Set<String> { get }
     /// Snapshots of the answer as it grows; errors are `AppleModelError`, or `ProviderError.refused(.apple)`.
     func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error>
 }
@@ -208,6 +242,7 @@ public enum AppleModelError: Error, LocalizedError, Equatable {
 struct UnsupportedBackend: AppleModelBackend {
     var availability: AppleModelAvailability { .unsupportedSystem }
     var contextSize: Int { 4096 }
+    var supportedLanguages: Set<String> { [] }
     func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
         AsyncThrowingStream { $0.finish(throwing: AppleModelError.unavailable(.unsupportedSystem)) }
     }
@@ -227,6 +262,10 @@ struct FoundationModelsBackend: AppleModelBackend {
     }
 
     var contextSize: Int { SystemLanguageModel.default.contextSize }
+
+    var supportedLanguages: Set<String> {
+        Set(SystemLanguageModel.default.supportedLanguages.compactMap { $0.languageCode?.identifier })
+    }
 
     func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
         AsyncThrowingStream { continuation in

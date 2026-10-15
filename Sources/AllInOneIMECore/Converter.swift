@@ -86,9 +86,14 @@ public final class Converter: Sendable {
         var lastResult = ConversionResult.empty
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            guard case let .textDelta(delta) = event else { continue }
+            if case let .textDelta(delta) = event {
+                text += delta
+            } else if case let .textReplaced(whole) = event {
+                text = whole
+            } else {
+                continue
+            }
             if firstToken == nil { firstToken = elapsed() }
-            text += delta
             // Far more than 3 sentences plus the rewrites; treat the rest as truncated.
             if text.utf8.count > Self.maxOutputBytes {
                 stopReason = "max_tokens"
@@ -153,9 +158,14 @@ public final class Converter: Sendable {
         var stopReason: String?
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            guard case let .textDelta(delta) = event else { continue }
+            if case let .textDelta(delta) = event {
+                text += delta
+            } else if case let .textReplaced(whole) = event {
+                text = whole
+            } else {
+                continue
+            }
             if firstToken == nil { firstToken = elapsed() }
-            text += delta
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
