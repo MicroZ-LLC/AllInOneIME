@@ -32,9 +32,10 @@ public final class Converter: Sendable {
         loadConfig: @escaping ConfigLoader = { try Config.load() },
         loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
-        loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) }
+        loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
+        appleModel: any AppleModelBackend = AppleModel.system
     ) {
-        self.client = ChatClient(bedrock: client)
+        self.client = ChatClient(bedrock: client, apple: appleModel)
         self.loadConfig = loadConfig
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey
@@ -91,9 +92,14 @@ public final class Converter: Sendable {
         var lastResult = ConversionResult.empty
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            guard case let .textDelta(delta) = event else { continue }
+            if case let .textDelta(delta) = event {
+                text += delta
+            } else if case let .textReplaced(whole) = event {
+                text = whole
+            } else {
+                continue
+            }
             if firstToken == nil { firstToken = elapsed() }
-            text += delta
             // Far more than 3 sentences plus the rewrites; treat the rest as truncated.
             if text.utf8.count > Self.maxOutputBytes {
                 stopReason = "max_tokens"
@@ -166,9 +172,14 @@ public final class Converter: Sendable {
         var stopReason: String?
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            guard case let .textDelta(delta) = event else { continue }
+            if case let .textDelta(delta) = event {
+                text += delta
+            } else if case let .textReplaced(whole) = event {
+                text = whole
+            } else {
+                continue
+            }
             if firstToken == nil { firstToken = elapsed() }
-            text += delta
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),

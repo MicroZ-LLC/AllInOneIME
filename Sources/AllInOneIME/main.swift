@@ -279,7 +279,9 @@ func printStatus() -> Int32 {
         print("config:      \(Config.defaultURL.path)")
         print("provider:    \(config.provider.displayName)")
         print("model:       \(config.settings(for: config.provider).model ?? "-")")
-        if config.provider != .bedrock {
+        if config.provider == .apple {
+            print("apple model: \(AppleModel.system.availability.rawValue)")
+        } else if config.provider != .bedrock {
             print("api key:     \(APIKeys.load(config.provider) == nil ? "✗ none" : "found")")
         } else { do {
             let resolved = try AWSSharedConfig.load(profile: config.awsProfile)

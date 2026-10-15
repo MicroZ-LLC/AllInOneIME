@@ -58,7 +58,19 @@ enum UIText {
         switch provider {
         case .openai: return tr("兼容 OpenAI 的服务", "OpenAI-compatible API")
         case .hosted: return tr("AllInOneIME 云（登录即用）", "AllInOneIME Cloud (sign in)")
+        case .apple: return tr("Apple Intelligence（本机）", "Apple Intelligence (on this Mac)")
         default: return provider.displayName
+        }
+    }
+
+    /// Why Apple Intelligence can't be used here, in a few words (the provider picker).
+    static func reason(_ availability: AppleModelAvailability) -> String {
+        switch availability {
+        case .available: return ""
+        case .unsupportedSystem: return tr("需要 macOS 26", "needs macOS 26")
+        case .deviceNotEligible: return tr("这台 Mac 不支持", "not supported on this Mac")
+        case .appleIntelligenceNotEnabled: return tr("未打开", "turned off")
+        case .modelNotReady: return tr("模型还没准备好", "model not ready")
         }
     }
 
@@ -356,6 +368,7 @@ enum UIText {
                           "The \(name(p)) API key was saved for \(saved), not this base URL: save the key again for it")
             case let .http(p, status, type, message): return "\(name(p)) \(type ?? "HTTP \(status)")" + tr("：", ": ") + message
             case let .stream(p, type, message): return "\(name(p)) \(type)" + tr("：", ": ") + message
+            case .refused(.apple): return tr("Apple Intelligence 拒绝了这个请求", "Apple Intelligence declined this request")
             case let .refused(p): return tr("\(name(p)) 拒绝了这个请求", "The \(name(p)) declined this request")
             case let .invalidResponse(p, detail):
                 return tr("\(name(p)) 的响应无法解析：\(detail)", "Couldn't read the \(name(p)) response: \(detail)")
@@ -365,6 +378,7 @@ enum UIText {
                           "No requests left today: subscribe, or add your own API key in the settings")
             }
         }
+        if let error = error as? AppleModelError { return describe(error) }
         if chinese, let error = error as? PluginLibraryError {
             switch error {
             case let .unreachable(host): return "连不上 \(host)"
@@ -412,6 +426,26 @@ enum UIText {
             }
         default:
             return (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
+
+    /// An error of Apple Intelligence on this Mac: what to do about it.
+    static func describe(_ error: AppleModelError) -> String {
+        guard chinese else { return error.errorDescription ?? "\(error)" }
+        switch error {
+        case let .unavailable(reason):
+            switch reason {
+            case .available: return ""
+            case .unsupportedSystem: return "本机的 Apple Intelligence 需要 macOS 26 或更新的系统"
+            case .deviceNotEligible: return "这台 Mac 不能运行 Apple Intelligence：请在设置里换一个 AI 服务"
+            case .appleIntelligenceNotEnabled: return "Apple Intelligence 没有打开：在 系统设置 → Apple 智能与 Siri 里打开"
+            case .modelNotReady: return "Apple Intelligence 还没准备好（模型可能还在下载）：稍后再试"
+            }
+        case .contextExceeded: return "内容太长，本机的 Apple Intelligence 处理不了（它的上下文很小）：缩短一些，或换一个 AI 服务"
+        case .unsupportedLanguage: return "本机的 Apple Intelligence 不支持这种语言：这种语言请换一个 AI 服务"
+        case .busy: return "Apple Intelligence 正忙：稍后再试"
+        case let .timedOut(seconds): return "Apple Intelligence \(Int(seconds)) 秒内没有回应"
+        case let .failed(detail): return "Apple Intelligence：\(detail)"
         }
     }
 

@@ -2952,6 +2952,7 @@ enum SelfTest {
         testCommandsOnSelection(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

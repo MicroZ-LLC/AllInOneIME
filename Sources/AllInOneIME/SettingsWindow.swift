@@ -24,8 +24,8 @@ struct SuggestedModel: Identifiable, Hashable {
             ]
         case .gemini:
             return [SuggestedModel(id: "gemini-3.8-flash", title: "Gemini 3.8 Flash", note: tr("默认", "Default"))]
-        case .hosted:
-            return []  // the service picks the model
+        case .hosted, .apple:
+            return []  // the service (the system) picks the model
         case .openai:
             // OpenAI's own; for another service (DeepSeek, Qwen, Ollama, …), "Custom…" and its base URL.
             return [
@@ -239,7 +239,7 @@ final class SettingsModel: ObservableObject {
         case .anthropic: return config.anthropic
         case .gemini: return config.gemini
         case .openai: return config.openai
-        case .bedrock, .hosted: return ProviderSettings()
+        case .bedrock, .hosted, .apple: return ProviderSettings()
         }
     }
 
@@ -248,7 +248,7 @@ final class SettingsModel: ObservableObject {
         case .anthropic: config.anthropic = settings
         case .gemini: config.gemini = settings
         case .openai: config.openai = settings
-        case .bedrock, .hosted: return
+        case .bedrock, .hosted, .apple: return
         }
         save()
     }
@@ -1265,13 +1265,15 @@ struct SettingsView: View {
         Section {
             Picker(tr("服务", "Provider"), selection: $model.config.provider) {
                 ForEach(Provider.offered, id: \.self) { provider in
-                    Text(UIText.name(provider)).tag(provider)
+                    providerItem(provider)
                 }
             }
             if model.config.provider == .bedrock {
                 bedrockSettings
             } else if model.config.provider == .hosted {
                 hostedSettings
+            } else if model.config.provider == .apple {
+                appleSettings
             } else {
                 apiKeySettings(model.config.provider)
             }
@@ -1339,7 +1341,7 @@ struct SettingsView: View {
             Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
                 Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
             }
-            if model.config.provider == .bedrock {
+            if model.config.provider == .bedrock || model.config.provider == .apple {
                 Toggle(tr("发送 temperature（有的模型不支持，报错时关掉）",
                           "Send temperature (some models don't support it; turn it off if requests fail)"),
                        isOn: temperatureOn)
@@ -2040,6 +2042,37 @@ struct SettingsView: View {
         if let error = model.accountError { Text(error).foregroundStyle(.red) }
     }
 
+    /// A provider in the picker: Apple Intelligence greyed out, with the reason, on a Mac where it can't be used.
+    @ViewBuilder
+    private func providerItem(_ provider: Provider) -> some View {
+        let apple = provider == .apple ? AppleModel.system.availability : .available
+        Text(UIText.name(provider) + (apple == .available ? "" : tr("（", " (") + UIText.reason(apple) + tr("）", ")")))
+            .tag(provider)
+            .disabled(apple != .available)
+    }
+
+    /// Apple Intelligence on this Mac: whether it can be used, and where to turn it on.
+    @ViewBuilder
+    private var appleSettings: some View {
+        let availability = AppleModel.system.availability
+        if availability == .available {
+            Text(tr("✓ 这台 Mac 上可以使用", "✓ Ready on this Mac")).foregroundStyle(.green)
+        } else {
+            Text(UIText.describe(AppleModelError.unavailable(availability))).foregroundStyle(.orange)
+            if availability != .deviceNotEligible, availability != .unsupportedSystem {
+                Button(tr("打开「Apple 智能与 Siri」设置…", "Open Apple Intelligence & Siri Settings…")) {
+                    NSWorkspace.shared.open(AppleModel.settingsURL)
+                }
+            }
+        }
+        let context = "\(AppleModel.system.contextSize / 1024)K"
+        Text(tr("用这台 Mac 自带的模型（macOS 26 起）：不用 API key，不花钱，文字不离开这台 Mac。模型较小：上下文约 \(context) tokens，"
+                    + "支持的语言少一些，效果不如云端的模型。",
+                "Uses the model built into this Mac (macOS 26 and later): no API key, no cost, and nothing leaves the Mac. "
+                    + "It is a small model: about \(context) tokens of context, fewer languages, and results below the cloud models'."))
+            .font(.caption).foregroundStyle(.secondary)
+    }
+
     /// An API-key provider: the model, the key (kept in the keychain), the base URL and the effort.
     @ViewBuilder
     private func apiKeySettings(_ provider: Provider) -> some View {
@@ -2122,7 +2155,7 @@ struct SettingsView: View {
         case .anthropic: return "claude-sonnet-5-5"
         case .gemini: return "gemini-3.8-flash"
         case .openai: return "deepseek-chat"
-        case .hosted: return ""
+        case .hosted, .apple: return ""
         case .bedrock: return "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         }
     }
@@ -2697,7 +2730,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
         case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉"

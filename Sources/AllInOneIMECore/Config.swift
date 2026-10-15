@@ -116,6 +116,7 @@ public struct Config: Codable, Equatable, Sendable {
         case .gemini: return gemini.resolved(for: .gemini)
         case .openai: return openai.resolved(for: .openai)
         case .hosted: return ProviderSettings().resolved(for: .hosted)
+        case .apple: return ProviderSettings().resolved(for: .apple)
         }
     }
 
