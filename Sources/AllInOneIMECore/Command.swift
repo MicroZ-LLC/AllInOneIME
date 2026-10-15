@@ -103,6 +103,12 @@ public struct Command: Hashable, Sendable {
     /// help (`IssueReport`); the user submits it there.
     public static let reportIssue = Command(name: "reportissue", kind: .report)
 
+    /// The text selected in the field, rewritten as an instruction says: `@improve` or `@translate` on a selection with
+    /// something typed after them ("@translate ja", "@improve more formal"), or on a selection of several lines (the
+    /// writing commands' answer has a line per version). One answer, which replaces the selection (`Prompt.editSystem`).
+    /// Never offered in the list: the composer starts it (`Composer.selection`).
+    public static let edit = Command(name: "edit", kind: .generate)
+
     public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
                                              .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
 

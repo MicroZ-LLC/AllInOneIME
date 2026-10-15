@@ -54,6 +54,9 @@ public final class Composer {
         case updateMarkedText
         /// Insert text into the document, replacing the marked text.
         case commit(String)
+        /// Put the text that was selected when the draft started (`selection`) back in place of the marked text, as it
+        /// was: nothing replaced it (Esc, as typed, the field left, a command that inserts nothing).
+        case restoreSelection(String)
         /// Type a result into the document character by character (`typesResults`); the marked text is gone.
         case typeOut(String)
         case startConversion(input: String, id: Int)
@@ -385,6 +388,24 @@ public final class Composer {
     /// commands are refused by the controller, which sends their requests; `@note` and `@reminder`
     /// stay on this Mac and go ahead.)
     public var secureInputActive: () -> Bool = { false }
+    /// The text selected in the field when the draft started (the first "@" with a selection: `readSelection`). The
+    /// marked text took its place in the field, so a command that takes text works on it (`selectionInUse`), and what is
+    /// inserted replaces it; whenever nothing does (Esc, ⇧⏎, the field left, secure input, a command that inserts nothing)
+    /// it goes back where it was, as it was (`Effect.restoreSelection`). Typing on past a lone "@" (a mention) replaces
+    /// it, as typing over a selection does. Nil without one.
+    public private(set) var selection: String?
+    /// The field's selected text, asked for when "@" starts a draft (nil: none, or not to be used: the setting, secure
+    /// input). Set by the controller; a composer on its own has none.
+    public var readSelection: () -> String? = { nil }
+    /// The most of a selection a command takes as its text, in Characters (a few paragraphs). A longer one isn't sent
+    /// anywhere: it is only put back.
+    public static let maxSelectionLength = 5000
+    /// The output languages (`Config.outputLanguages`, set by the controller): what `@translate` on a selection of
+    /// several lines translates into (`Command.edit`).
+    public var outputLanguages: [OutputLanguage] = [.english, .chinese]
+    /// The selection is no longer than `maxSelectionLength` (worked out once, when it is read).
+    private var selectionFits = false
+
     /// Confirmed text waiting for level two: an @ command and the sentence after it.
     public private(set) var draft = "" {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
@@ -683,7 +704,7 @@ public final class Composer {
         case .run? where activeCommand?.script != nil:
             return scriptChoices
         case .generate?, .run?, .link?:
-            var out = [Choice(label: "0", kind: .original, text: sentText, isComplete: true)]
+            var out = [Choice(label: "0", kind: .original, text: originalText, isComplete: true)]
             if let line = result.versions.first {
                 out.append(Choice(label: "1", kind: .answer, text: line.text, isComplete: line.isComplete))
             }
@@ -696,7 +717,7 @@ public final class Composer {
         case .convert?, .terminal?, .settings?, .note?, nil:
             break
         }
-        let original = sentText
+        let original = originalText
         var out = [Choice(label: "0", kind: .original, text: original, isComplete: true)]
         var shownWordings: Set<String> = [original.wordingKey]
         var label = 1
@@ -749,6 +770,33 @@ public final class Composer {
     public var sentText: String {
         parse(draft).map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) } ?? draft
     }
+
+    /// What row "0" keeps as it was: the text selected when the draft started, else the text after the command.
+    public var originalText: String { selection ?? sentText }
+
+    /// Whether `command` works on the selection (`selection`): the writing commands, the AI's (`@question`, a prompt
+    /// command), programs that print something to insert (`@calculate`, `@py`, a custom or plugin `run` command), a link
+    /// (it goes in the address) and `@note` (it's saved). The others leave it alone, and it goes back once they're
+    /// done: `@open`, `@tasks` and `@settings` have nothing to do with it; `@claude` and terminal commands would hand
+    /// text the user didn't write to an agent or a shell; `@reminder`, `@imessage`, `@reportissue` and script
+    /// extensions (their arguments) take what is typed.
+    public static func usesSelection(_ command: Command) -> Bool {
+        guard command.script == nil else { return false }
+        switch command.kind {
+        case .convert, .generate, .run, .link, .note: return true
+        case .terminal, .search, .agents, .settings, .reminder, .message, .report: return false
+        }
+    }
+
+    /// The selection the draft's command works on: there is one, no longer than `maxSelectionLength`, and the
+    /// command takes it (`usesSelection`).
+    public var selectionInUse: String? {
+        guard let selection, selectionFits, let command = draftCommand, Self.usesSelection(command) else { return nil }
+        return selection
+    }
+
+    /// Whether the selection is too long for a command (`maxSelectionLength`): it is only put back.
+    public var selectionTooLong: Bool { selection != nil && !selectionFits }
 
     /// The language of the text after the command, for what the action key will do with it ("translate to …"): the
     /// one it's written in (`Config.language(of:)`), or while it's only letters so far (pinyin or Hindi being
@@ -1493,11 +1541,12 @@ public final class Composer {
     /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
     /// says it wasn't saved. A one-line note goes in like any other draft.
     private func finishAsTyped(_ text: String) -> [Effect] {
+        // A selection goes back instead of the draft: no "@improve …" is left where it was.
         guard draftIsNoteWithLines, let content = parse(text)?.content else {
-            return finish(committing: text, leaving: true)
+            return finish(committing: text, leaving: true, selection: .restored)
         }
         let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        return finish(committing: "", leaving: true) + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
+        return finish(committing: "", leaving: true, selection: .restored) + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
     }
 
     /// Re-reads the engine (e.g. after it became available).
@@ -1526,6 +1575,9 @@ public final class Composer {
             if draft.isEmpty {
                 // "@" first: the command palette ("@question …").
                 if event.printableText == "@" {
+                    // Text selected in the field: the command works on it. Read now, before the marked "@" takes its place.
+                    selection = readSelection().flatMap { $0.isEmpty ? nil : $0 }
+                    selectionFits = (selection?.count ?? 0) <= Self.maxSelectionLength
                     draft = "@"
                     paletteHighlight = 0
                     setLevelOnePhase()
@@ -1706,15 +1758,19 @@ public final class Composer {
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
             // Picks, like Tab; "@" alone goes in as typed (inside a text, Return runs the command as usual).
             // As the action key, it also runs a command that takes no input.
-            if query.isEmpty || matches.isEmpty { return nested ? nil : .consumed(finish(committing: draft)) }
+            // With a selection it goes back instead, as with ⇧⏎: no "@" left in its place.
+            if query.isEmpty || matches.isEmpty { return nested ? nil : .consumed(finish(committing: draft, selection: .restored)) }
             return .consumed(complete(matches, run: actionKey == .enter))
         case VirtualKey.escape:
-            // Removes the "@…" (inside a text, only that).
+            // Removes the "@…" (inside a text, only that); a selection goes back.
+            if !nested, selection != nil { return .consumed(finish(committing: "", selection: .restored)) }
             draft = nested ? String(draft[..<at]) : ""
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
         case VirtualKey.delete where plain:
             draft.removeLast()
+            // The "@" taken back: the selection goes back too.
+            if draft.isEmpty, selection != nil { return .consumed(finish(committing: "", selection: .restored)) }
             paletteHighlight = 0
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
@@ -1869,9 +1925,12 @@ public final class Composer {
                 return .consumed([.updateMarkedText, .showPanel])
             }
             deleteBeforeCursor()
+            if draft.isEmpty, selection != nil { return .consumed(finish(committing: "", selection: .restored)) }
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
         case VirtualKey.escape:
+            // The draft goes; a selection comes back as it was.
+            if selection != nil { return .consumed(finish(committing: "", selection: .restored)) }
             draft = ""
             setLevelOnePhase()
             return .consumed([.updateMarkedText, .hidePanel])
@@ -1915,6 +1974,8 @@ public final class Composer {
 
     private func setLevelOnePhase() {
         phase = draft.isEmpty && !engineState.isComposing && hangul.isEmpty && pendingAccent == nil && voice == .off ? .idle : .drafting
+        // Nothing pending (the app took the text, say): no selection is kept to put back later.
+        if phase == .idle { selection = nil }
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
         if !pickingRecipient, recipientResultsQuery != nil { clearRecipientResults() }
         restoreInputModeAfterOpen()
@@ -2062,7 +2123,8 @@ public final class Composer {
             if case .failed = phase {
                 // A message is never inserted: ⏎ tries again.
                 if activeCommand?.kind == .message { return .consumed(startAction().effects) }
-                return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: sentText))
+                // With a selection, it stays as it was.
+                return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: selection == nil ? sentText : ""))
             }
             return .consumed(commitChoice(at: highlighted))
         case VirtualKey.escape, VirtualKey.delete:
@@ -2096,7 +2158,17 @@ public final class Composer {
         let parsed = parse(draft)
         // Only an @ command is ever sent: without one the input method just types.
         guard parsed != nil else { return .consumed() }
-        let input = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
+        // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
+        // `@translate`, below, an instruction for the selection).
+        let selected = selectionInUse
+        let input: String
+        if let selected, !typed.isEmpty {
+            input = parsed?.command.kind == .generate ? Prompt.question(typed, about: selected) : typed
+        } else {
+            input = selected ?? typed
+        }
         if let command = parsed?.command, command.kind == .message { return startMessage(command, input: input) }
         if parsed?.command.kind == .settings, !isLevelTwo {
             return .consumed(finish(committing: "") + [.openSettings, used(parsed!.command)])
@@ -2143,7 +2215,8 @@ public final class Composer {
         // so no command's output (a web page, a program's) is executed. With text the user didn't type in the
         // draft, commands that run code stay text (`draftHasOutsideText`).
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
-        let inner = local || parsed?.command.runsCode == true ? nil : innerPlan(input)
+        // Never inside a selection, text the user didn't write here (nor, with one, inside what is typed: one request).
+        let inner = local || parsed?.command.runsCode == true || selected != nil ? nil : innerPlan(input)
         let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
@@ -2164,6 +2237,8 @@ public final class Composer {
         switch parsed?.command {
         case _ where plan?.isEmpty == false:
             start = .startPlan(outer: parsed?.command, plan: plan!, id: requestCounter)
+        case let command? where command.kind == .convert && selected != nil:
+            start = writing(command, typed: typed, selection: selected!, id: requestCounter)
         case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: requestCounter)
         case let command? where command.kind == .run: start = .startRun(command, input: input, id: requestCounter)
         case .open?: start = .search(query: input, id: requestCounter)
@@ -2173,6 +2248,28 @@ public final class Composer {
         }
         let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
         return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+    }
+
+    /// `@improve` / `@translate` on the selection: its versions and rewrites as for a typed sentence when nothing else is
+    /// typed and it is one line (the answer has a line per version); otherwise one rewrite of it, its lines kept, as the
+    /// text typed after the command asks ("ja", "more formal": `Command.edit`).
+    private func writing(_ command: Command, typed: String, selection: String, id: Int) -> Effect {
+        let (mode, rest) = WritingMode.parse(command, typed)
+        if rest.isEmpty, !selection.contains(where: \.isNewline) {
+            // The other writing command typed after it ("@translate @improve") goes along, as for a typed sentence.
+            return .startConversion(input: typed.isEmpty ? selection : typed + " " + selection, id: id)
+        }
+        let names = outputLanguages.map(\.promptName)
+        let into = names.count > 1 ? "translate into \(names[0]) (if it is already in \(names[0]): into \(names[1]))"
+            : names.first.map { "translate into \($0)" } ?? "translate"
+        var instruction: String
+        switch mode {
+        case .improve: instruction = "improve"
+        case .translate: instruction = rest.isEmpty ? into : "translate"
+        case .both: instruction = (rest.isEmpty ? into : "translate") + ", and improve it"
+        }
+        if !rest.isEmpty { instruction += ": " + rest }
+        return .startCommand(.edit, input: Prompt.editRequest(instruction: instruction, text: selection), id: id)
     }
 
     /// A script extension: the text as its arguments (`ScriptCommand.arguments(from:)`), or a notice of what is
@@ -2341,7 +2438,7 @@ public final class Composer {
         let usage = used(command)
         switch item.action {
         case .insert:
-            return (typesResults ? finish(committing: "") + [.typeOut(item.insertText)] : finish(committing: item.insertText)) + [usage]
+            return (typesResults ? finish(committing: "", selection: .replaced) + [.typeOut(item.insertText)] : finish(committing: item.insertText)) + [usage]
         case .open:
             // Only a web address, or a file or folder that's there; anything else is said, not tried.
             guard let url = item.openURL else { return [.notice(messages.cantOpen + (item.arg ?? item.title))] }
@@ -2573,7 +2670,7 @@ public final class Composer {
             // Sent, not inserted: the draft goes.
             return finish(committing: "") + [.sendMessage(recipient, text: all[index].text, command: command), used(command)]
         }
-        if typesResults { return finish(committing: "") + [.typeOut(all[index].text)] }
+        if typesResults { return finish(committing: "", selection: .replaced) + [.typeOut(all[index].text)] }
         return finish(committing: all[index].text)
     }
 
@@ -2585,9 +2682,20 @@ public final class Composer {
         return [.showPanel]
     }
 
+    /// How the selection set aside (`selection`) ends with the composition (`finish`).
+    private enum SelectionEnd {
+        /// What is inserted takes its place (nothing inserted: it's gone, as before a result typed out).
+        case replaced
+        /// It goes back as it was, and nothing else goes in.
+        case restored
+    }
+
     /// Ends the composition, inserting `text`, and clears the engine. `leaving`: the field is left (or everything
-    /// committed): a `show` script still running keeps going in the background (`detachScript`).
-    private func finish(committing text: String, leaving: Bool = false) -> [Effect] {
+    /// committed): a `show` script still running keeps going in the background (`detachScript`). A selection set aside
+    /// is replaced by `text`, or (`end`; by default when `text` is empty) put back as it was.
+    private func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil) -> [Effect] {
+        let restored = selection.flatMap { (end ?? (text.isEmpty ? .restored : .replaced)) == .restored ? $0 : nil }
+        selection = nil
         var effects: [Effect] = []
         if case let .translating(id) = phase {
             effects.append(leaving && activeCommand?.script?.output == .show ? .detachScript(id: id) : .cancelConversion)
@@ -2619,7 +2727,7 @@ public final class Composer {
         phase = .idle
         restoreInputModeAfterOpen()
         effects.append(.hidePanel)
-        effects.append(text.isEmpty ? .updateMarkedText : .commit(text))
+        effects.append(restored.map(Effect.restoreSelection) ?? (text.isEmpty ? .updateMarkedText : .commit(text)))
         return effects
     }
 }
