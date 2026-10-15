@@ -119,14 +119,16 @@ public final class Converter: Sendable {
     }
 
     /// Runs a `.generate` command: the answer streams in as the single version of the result (`app` as for `convert`).
-    /// With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again, revised as the last
-    /// instruction asks.
-    public func generate(_ command: Command, input: String, app: String? = nil,
+    /// `fresh`: asked again even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new
+    /// one is kept instead. With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again,
+    /// revised as the last instruction asks.
+    public func generate(_ command: Command, input: String, app: String? = nil, fresh: Bool = false,
                          turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runCommand(command, input: input, app: app, turns: turns, continuation: continuation)
+                    try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
+                                              continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -136,7 +138,7 @@ public final class Converter: Sendable {
         }
     }
 
-    private func runCommand(_ command: Command, input: String, app: String?, turns: [Refinement.Turn],
+    private func runCommand(_ command: Command, input: String, app: String?, fresh: Bool = false, turns: [Refinement.Turn],
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
@@ -147,7 +149,7 @@ public final class Converter: Sendable {
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
             + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
-        if let hit = cache.withLock({ $0.get(key) }) {
+        if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true))
             return

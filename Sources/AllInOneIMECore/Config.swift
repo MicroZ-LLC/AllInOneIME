@@ -75,6 +75,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
+    /// `@question` keeps the last few questions and answers on this Mac (`QuestionHistory`) and lists them when nothing
+    /// is typed after it. On by default.
+    public var rememberQuestions: Bool
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
@@ -167,6 +170,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.disabledExtensions = []
         self.extensionPreferences = [:]
         self.claudeInBackground = true
+        self.rememberQuestions = true
         self.menuBarIcon = true
         self.fuzzyPinyin = []
         self.keyboardLayouts = [:]
@@ -198,6 +202,7 @@ public struct Config: Codable, Equatable, Sendable {
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case checkForUpdates, useSelection, appProfiles
+        case rememberQuestions
         case provider, anthropic, gemini, openai
     }
 
@@ -238,6 +243,7 @@ public struct Config: Codable, Equatable, Sendable {
         extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
             ?? d.extensionPreferences
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
+        rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
@@ -319,6 +325,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(disabledExtensions, forKey: .disabledExtensions)
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
+        try c.encode(rememberQuestions, forKey: .rememberQuestions)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         try c.encode(keyboardLayouts, forKey: .keyboardLayouts)

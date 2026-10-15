@@ -123,6 +123,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The command usage as kept, and keeping it (the self-test leaves the user's alone).
     var loadCommandUsage: () -> CommandUsage = { CommandUsageStore.usage }
     var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
+    /// The recent `@question`s as kept, and keeping one (the self-test leaves the user's alone).
+    var loadQuestionHistory: () -> QuestionHistory = { QuestionHistoryStore.history }
+    var recordQuestion: (QuestionHistory.Entry) -> Void = { QuestionHistoryStore.record($0) }
     /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
     private var keyClient: IMKTextInput?
     /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
@@ -683,6 +686,8 @@ final class AllInOneIMEInputController: IMKInputController {
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
+            composer.remembersQuestions = loadSettings().rememberQuestions
+            composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
         }
         // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
         if composer.pendingAccent == nil { deadKeys.reset() }
@@ -776,6 +781,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 // Sent to the model like the request it refines: refused during secure input the same way.
                 if refusedForSecureInput(id: id, client: target) { break }
                 startRefine(refinement, id: id)
+            case let .reask(command, input, id):
+                if refusedForSecureInput(id: id, client: target) { break }
+                startConversion(input, id: id, command: command, fresh: true)
             case let .startPlan(outer, plan, id):
                 // Inner commands run programs or reach the network: refused during secure input like any.
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
@@ -858,6 +866,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .commandUsed:
                 saveCommandUsage(composer.commandUsage)
+            case let .rememberQuestion(entry):
+                // Kept only on this Mac, never while secure input is on (the composer checks too).
+                guard loadSettings().rememberQuestions, !secureInputActive() else { break }
+                recordQuestion(entry)
             case let .launchInTerminal(argv):
                 do {
                     try launchInTerminal(argv)
@@ -1485,7 +1497,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
 
     @MainActor
-    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil) {
+    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false) {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
@@ -1534,7 +1546,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
                 return converter.convert(text, mode: mode, app: app)
             }
-            return command.map { converter.generate($0, input: input, app: app) } ?? converter.convert(input, app: app)
+            return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan, !plan.isEmpty {
@@ -1988,6 +2000,11 @@ final class AllInOneIMEInputController: IMKInputController {
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
+            case .choosing where composer.showsSavedAnswer:
+                // A recent question's answer as it was saved (nothing was asked): R asks again for a fresh one.
+                model.footer = tr("空格 / ⏎ 上屏 · R 重新问 · 0 问题 · ⌘C 复制 · Esc 返回",
+                                  "Space / ⏎ insert · R re-ask · 0 question · ⌘C copy · Esc back")
+                model.detail = composer.savedAnswerDate.map { tr("保存于", "saved ") + UIText.ago($0) }
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
                 model.footer = command?.script?.output == .show && !picks
@@ -2117,6 +2134,22 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = found.isEmpty ? nil : composer.recipientHighlight
             if let note = composer.recipientNote { model.status = .hint(note) }
             model.footer = tr("⏎ / Tab 选择收件人 · ↑↓ · Esc 取消", "⏎ / Tab pick the recipient · ↑↓ · Esc cancel")
+        } else if !composer.questionMatches.isEmpty {
+            // "@question " and nothing (or a few words) after it: the recent questions with them, newest first; one picked
+            // shows its saved answer.
+            let digits = composer.questionDigitsPick, key = UIText.name(composer.actionKey)
+            model.rows = composer.questionMatches.enumerated().map { index, entry in
+                CandidateView.Row(label: digits ? String(index + 1) : "", text: Self.preview(entry.question.replacingOccurrences(of: "\n", with: " ")),
+                                  comment: UIText.ago(entry.date), style: .candidate)
+            }
+            model.highlighted = composer.questionHighlight
+            model.status = .hint(composer.sentText.isEmpty
+                                 ? tr("最近问过的：选一个看当时的答案，或者写新问题", "Recently asked: pick one to see its answer again, or write a new question")
+                                 : draftHint(config: config.applying(app: activeApp)))
+            model.footer = composer.questionHighlight != nil
+                ? tr("\(key) 看保存的答案 · ↑↓ 选择 · Esc 清除", "\(key) show the saved answer · ↑↓ choose · Esc clear")
+                : digits ? tr("数字 / ↑↓ 选一个看答案 · ⌃V 粘贴 · Esc 清除", "Digits / ↑↓ pick one to see its answer · ⌃V paste · Esc clear")
+                : tr("\(key) 问这个新问题 · ↑↓ 选一个看答案 · Esc 清除", "\(key) ask it · ↑↓ pick one to see its answer · Esc clear")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
             model.status = .hint(draftHint(config: config.applying(app: activeApp)))

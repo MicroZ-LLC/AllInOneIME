@@ -103,6 +103,11 @@ public final class Composer {
         case sendMessage(Recipient, text: String, command: Command)
         /// A command was run (`commandUsage` has it): keep the usage for the order of the command list.
         case commandUsed(String)
+        /// Keep an `@question` and its answer on this Mac (`questionHistory` has it already): the recent questions.
+        case rememberQuestion(QuestionHistory.Entry)
+        /// `@question` on `input` again, past any answer kept from before (the re-ask key on a saved answer): a fresh one
+        /// arrives via `receive`.
+        case reask(Command, input: String, id: Int)
         /// A text with commands inside it (`CommandPlan`): run the inner ones, then `outer` (nil: improve)
         /// on the result; it arrives via `receive`.
         case startPlan(outer: Command?, plan: CommandPlan, id: Int)
@@ -372,6 +377,16 @@ public final class Composer {
     /// How much each command is used: the list shows the most used first (set by the controller,
     /// shared by its text fields).
     public var commandUsage = CommandUsage()
+    /// The recent `@question`s and their answers (set by the controller, shared by its text fields): "@question " lists
+    /// them (`questionMatches`). Whether it does, and keeps them (`Config.rememberQuestions`).
+    public var questionHistory = QuestionHistory()
+    public var remembersQuestions = true
+    /// The clock an answer is kept by (tests set their own).
+    public var now: () -> Date = Date.init
+    /// The recent question highlighted with ↑↓, for the draft it was picked in (once the draft changes: none).
+    private var questionPick: (index: Int, draft: String)?
+    /// The saved answer shown in level two (`showsSavedAnswer`), and the draft it was picked in (Esc goes back to it).
+    private var recalled: (entry: QuestionHistory.Entry, draftBefore: String)?
     /// `@claude` starts a background session instead of a Terminal window.
     public var claudeInBackground = false
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
@@ -478,7 +493,12 @@ public final class Composer {
                 resetLiveHighlight()
                 confirmedScript = nil
             }
-            if draft.isEmpty { draftHasOutsideText = false }
+            if draft.isEmpty {
+                draftHasOutsideText = false
+                // The draft is done (Esc, inserted, given up, the app took it): a recent question picked in it isn't
+                // picked in the next one, even with the same text.
+                questionPick = nil
+            }
         }
     }
     /// The draft a script extension asked about (`confirm`): the action key on it again runs it.
@@ -1453,6 +1473,7 @@ public final class Composer {
             return finish(committing: "") + [.open(path: path)]
         }
         if recipientQuery != nil { return pickRecipient(at: index) }
+        if !questionMatches.isEmpty { return showSavedAnswer(at: index) }
         return []
     }
 
@@ -1496,6 +1517,7 @@ public final class Composer {
             if !answered, id == refineID { return refineFailed(messages.noResult) }
             if id == refineID { refineID = nil }
             phase = answered ? .choosing : .failed(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
+            return [.showPanel] + rememberAnswer()
         }
         return [.showPanel]
     }
@@ -1996,6 +2018,7 @@ public final class Composer {
     private func handleDraftKey(_ event: KeyEvent, afterVoice: Bool) -> Response? {
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
         if let response = handleRecipientKey(event) { return response }
+        if let response = handleQuestionKey(event) { return response }
         // A script's list as you type: ↑↓ move among the rows to pick, Tab completes the highlighted row's text.
         if let items = currentList?.items, !items.isEmpty, plain {
             switch event.keyCode {
@@ -2269,6 +2292,10 @@ public final class Composer {
             break
         }
         guard let text = event.printableText else { return .consumed() }
+        // A saved answer: R asks its question again, for a fresh answer.
+        if showsSavedAnswer, text.lowercased() == "r", event.modifiers.subtracting([.shift, .capsLock]).isEmpty {
+            return .consumed(reaskQuestion())
+        }
         if text.count == 1, let c = text.first, c.isASCII, c.isNumber {
             if let index = choices.firstIndex(where: { $0.label == text }) { return .consumed(commitChoice(at: index)) }
             // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
@@ -2795,6 +2822,7 @@ public final class Composer {
         actsAfterVoice = false
         pendingPaste = nil
         highlightOverride = nil
+        recalled = nil
         paletteHighlight = 0
         setLevelOnePhase()
         return (wasRequesting ? [.cancelConversion] : []) + (recording.map { [.cancelVoice(id: $0)] } ?? []) + [.hidePanel]
@@ -2837,6 +2865,8 @@ public final class Composer {
         if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches, run: true) }
         guard draftCommand != nil else { return nil }
         if voice != .off { return actAfterVoice() }
+        // A recent question picked with ↑↓: its saved answer.
+        if let index = questionHighlight { return showSavedAnswer(at: index) }
         // @open with results as you type: open the highlighted one right away (only content matches: listed
         // to choose from, below).
         if opensLiveResult {
@@ -2900,6 +2930,9 @@ public final class Composer {
         pendingIssue = nil
         activeCommand = nil
         highlightOverride = nil
+        // From a saved answer: back to the list it was picked from.
+        if let recalled { draft = recalled.draftBefore }
+        recalled = nil
         setLevelOnePhase()
         return effects + [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
     }
@@ -2989,6 +3022,7 @@ public final class Composer {
         pendingReminder = nil
         pendingIssue = nil
         activeCommand = nil
+        recalled = nil
         paletteHighlight = 0
         pendingPaste = nil  // a paste still on its way is dropped
         liveResults = []
@@ -3005,5 +3039,112 @@ public final class Composer {
             effects.append(text.isEmpty ? .updateMarkedText : .commit(text))
         }
         return effects
+    }
+}
+
+// MARK: - Recent questions
+
+extension Composer {
+    /// The text after "@question" while it's written (nil otherwise, or with the setting off): what the recent questions
+    /// are listed for. Not on selected text: a question there is about it.
+    public var questionQuery: String? {
+        guard remembersQuestions, !isLevelTwo, voice == .off, !engineState.isComposing, selection == nil,
+              draftCommand == .question else { return nil }
+        return sentText
+    }
+
+    /// The recent questions with the text typed in them (`QuestionHistory.matching`), newest first: all of them with
+    /// nothing typed. None: ⏎ asks as usual.
+    public var questionMatches: [QuestionHistory.Entry] {
+        guard let query = questionQuery, !questionHistory.entries.isEmpty else { return [] }
+        return questionHistory.matching(query)
+    }
+
+    /// The recent question highlighted with ↑↓ (nil: none yet, and ⏎ asks the text typed).
+    public var questionHighlight: Int? {
+        guard let pick = questionPick, pick.draft == draft, pick.index < questionMatches.count else { return nil }
+        return pick.index
+    }
+
+    /// Nothing is typed after "@question": the digits 1–5 pick from the list (with text, they're part of the question).
+    public var questionDigitsPick: Bool { parse(draft)?.content.isEmpty == true && !questionMatches.isEmpty }
+
+    /// Level two shows a saved answer (picked from the recent questions), not one just asked for; R asks again.
+    public var showsSavedAnswer: Bool { phase == .choosing && recalled != nil }
+
+    /// When the saved answer shown was given.
+    public var savedAnswerDate: Date? { showsSavedAnswer ? recalled?.entry.date : nil }
+
+    /// Keys while the recent questions are listed: ↑↓ highlight one (from none), a digit with nothing typed shows one's
+    /// answer, so does Space as the action key on one highlighted. Nil: the key acts as usual.
+    func handleQuestionKey(_ event: KeyEvent) -> Response? {
+        let found = questionMatches
+        guard !found.isEmpty, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
+        switch event.keyCode {
+        case VirtualKey.up, VirtualKey.down:
+            let up = event.keyCode == VirtualKey.up
+            let next = questionHighlight.map { ($0 + (up ? -1 : 1) + found.count) % found.count } ?? (up ? found.count - 1 : 0)
+            questionPick = (next, draft)
+            return .consumed([.showPanel])
+        case VirtualKey.space where actionKey == .space:
+            guard let index = questionHighlight else { return nil }
+            return .consumed(showSavedAnswer(at: index))
+        default:
+            break
+        }
+        if questionDigitsPick, let text = event.printableText, text.count == 1, let c = text.first, c.isASCII,
+           let n = c.wholeNumberValue, n >= 1, found.indices.contains(n - 1) {
+            return .consumed(showSavedAnswer(at: n - 1))
+        }
+        return nil
+    }
+
+    /// Shows the answer kept for a recent question in level two, as if it had just arrived: nothing is asked. Row 0 is
+    /// the question; Esc goes back to the list.
+    func showSavedAnswer(at index: Int) -> [Effect] {
+        let found = questionMatches
+        guard found.indices.contains(index), let command = draftCommand else { return [] }
+        let entry = found[index]
+        recalled = (entry, draft)
+        questionPick = (index, draft)  // highlighted again when Esc comes back to the list
+        cursorTail = ""
+        draft = "@\(command.name) " + entry.question
+        result = ConversionResult(versions: [CandidateLine(entry.answer, isComplete: true)])
+        searchResults = []
+        pendingReminder = nil
+        highlightOverride = nil
+        activeCommand = command
+        phase = .choosing
+        return [.updateMarkedText, .showPanel]
+    }
+
+    /// R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
+    /// takes the old one's place in the list.
+    func reaskQuestion() -> [Effect] {
+        guard recalled != nil else { return [] }
+        recalled = nil
+        questionPick = nil
+        result = .empty
+        activeCommand = nil
+        // Read from a file, not typed now: a command in it that runs code stays text.
+        draftHasOutsideText = true
+        setLevelOnePhase()
+        return startAction().effects.map {
+            if case let .startCommand(command, input, id) = $0, command == .question { return .reask(command, input: input, id: id) }
+            return $0
+        }
+    }
+
+    /// An `@question` answered (`receive`, final): kept with its question, newest first (`questionHistory`), unless the
+    /// setting is off, secure input is on, it was asked on selected text or it's a saved answer shown again.
+    func rememberAnswer() -> [Effect] {
+        guard remembersQuestions, phase == .choosing, recalled == nil, activeCommand == .question, selection == nil,
+              !secureInputActive(), let answer = result.versions.first, answer.isComplete,
+              !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        let question = sentText
+        guard !question.isEmpty else { return [] }
+        let entry = QuestionHistory.Entry(question: question, answer: answer.text, date: now())
+        questionHistory.record(entry)
+        return [.rememberQuestion(entry)]
     }
 }
