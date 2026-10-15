@@ -305,6 +305,30 @@ struct AppleModelTests {
         #expect(AppleModel.mostlyLatin("Hôm nay tôi cảm thấy") && !AppleModel.mostlyLatin("आज मेरी तबीयत ठीक") && !AppleModel.mostlyLatin("我今天 ok"))
     }
 
+    @Test func aSelectionIsJudgedWithoutTheAppsWrapping() async throws {
+        let hindi = "आज मेरी तबीयत ठीक नहीं है"  // short: the wrapping's Latin letters used to outweigh it
+        for input in [Prompt.editRequest(instruction: "improve", text: hindi), Prompt.editRequest(instruction: "translate: en", text: hindi)] {
+            #expect(AppleModel.usersText(input).trimmingCharacters(in: .whitespacesAndNewlines) == hindi)
+            let stub = StubAppleModel(answer: ["ok"])
+            await #expect(throws: AppleModelError.unsupportedLanguage) {
+                _ = try await final(converter(stub).generate(.edit, input: input))
+            }
+            #expect(stub.requests.isEmpty)
+        }
+        // A question about a selection: both, without the tags. An English question about Chinese text goes through.
+        let question = Prompt.question("what does this mean", about: "这个方案我觉得还可以但是预算有点超了")
+        #expect(!AppleModel.usersText(question).contains("selected_text"))
+        let stub = StubAppleModel(answer: ["ok"])
+        #expect(try await final(converter(stub).generate(.question, input: question))?.rawText == "ok")
+        await #expect(throws: AppleModelError.unsupportedLanguage) {
+            _ = try await final(converter(StubAppleModel(answer: ["ok"])).generate(.question, input: Prompt.question("?", about: hindi)))
+        }
+        // A selection in a supported language, with an English instruction, goes through.
+        let supported = StubAppleModel(answer: ["ok"])
+        let edit = Prompt.editRequest(instruction: "translate: hi", text: "I don't feel well today, I'm going home")
+        #expect(try await final(converter(supported).generate(.edit, input: edit))?.rawText == "ok")
+    }
+
     @Test func outputTokensEstimate() {
         #expect(AppleModel.estimatedOutputTokens(String(repeating: "abcd", count: 25)) == 25)  // 100 ASCII characters
         #expect(AppleModel.estimatedOutputTokens("我今天有点不舒服") == 8)
