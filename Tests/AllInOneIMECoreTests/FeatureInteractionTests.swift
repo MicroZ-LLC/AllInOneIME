@@ -146,3 +146,113 @@ extension ComposerTests {
         #expect(requests(asked).isEmpty && asked.contains(.notice("No AI in this app")))
     }
 }
+
+/// Hiding sensitive values (`Redaction`) with the other 0.6.3 features: refining, revised answers from the on-device
+/// model, its language check, the recent @questions.
+extension FeatureInteractionTests {
+    var hiding: Config {
+        var config = config
+        config.redaction = RedactionSettings(enabled: true)
+        return config
+    }
+
+    func hidingConverter(_ stub: StubAppleModel) -> Converter {
+        let config = hiding
+        return Converter(loadConfig: { config }, loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                         loadKey: { _, _ in nil }, loadJargon: { _ in [] }, appleModel: stub)
+    }
+
+    /// Everything a request to the on-device model holds.
+    func body(_ request: AppleModelRequest) -> String {
+        ([request.instructions, request.prompt] + request.examples.flatMap { [$0.prompt, $0.response] }).joined(separator: "\n")
+    }
+
+    @Test func aRefineIsHiddenWithTheMappingOfItsRequest() async throws {
+        let input = "please email bob@example.com and call me"
+        let first = StubAppleModel(answer: ["EN: Please email [EMAIL_1] and call me."])
+        let shown = try #require(try await updates(hidingConverter(first).convert(input, mode: .improve)).last)
+        #expect(shown.result.versions.map(\.text) == ["Please email bob@example.com and call me."])
+        #expect(first.requests.first?.prompt == "please email [EMAIL_1] and call me")
+
+        // The answer shown, and an instruction with a value of its own: the first keeps [EMAIL_1], the new one is next.
+        let turns = [Refinement.Turn(answer: shown.result, instruction: "also cc alice@corp.example")]
+        let refine = StubAppleModel(answer: ["EN: Please email [EMAIL_1], cc [EMAIL_2]."])
+        let refined = try #require(try await updates(hidingConverter(refine).convert(input, mode: .improve, turns: turns)).last)
+        let request = try #require(refine.requests.first)
+        let sent = body(request)
+        #expect(!sent.contains("bob@example.com") && !sent.contains("alice@corp.example"))
+        #expect(request.prompt == Prompt.refineMessage("also cc [EMAIL_2]"))
+        let conversation = Array(request.examples.suffix(1))
+        #expect(conversation.map(\.prompt) == ["please email [EMAIL_1] and call me"])
+        #expect(conversation.map(\.response) == ["EN: Please email [EMAIL_1] and call me."])
+        #expect(refined.result.versions.map(\.text) == ["Please email bob@example.com, cc alice@corp.example."])
+        #expect(refined.hidden == 2)
+
+        // A command's answer the same way.
+        let answer = ConversionResult(versions: [CandidateLine("Write to bob@example.com.")])
+        let command = StubAppleModel(answer: ["Write to [EMAIL_1] today."])
+        let again = try #require(try await updates(hidingConverter(command).generate(
+            .question, input: "how do I reach bob@example.com", turns: [Refinement.Turn(answer: answer, instruction: "add today")])).last)
+        let commandRequest = try #require(command.requests.first)
+        #expect(!body(commandRequest).contains("bob@example.com") && commandRequest.prompt == Prompt.refineMessage("add today"))
+        #expect(commandRequest.examples.map(\.response) == ["Write to [EMAIL_1]."])
+        #expect(again.result.versions.map(\.text) == ["Write to bob@example.com today."])
+    }
+
+    @Test func aRevisedAnswerIsRestoredAndHeldBackLikeAnyOther() async throws {
+        let snapshots = ["EN: Mail [EMAIL_1] now", "EN: Write to [EM", "EN: Write to [EMAIL_1", "EN: Write to [EMAIL_1]."]
+        let stub = StubAppleModel(answer: snapshots)
+        let all = try await updates(hidingConverter(stub).convert("write to bob@example.com", mode: .improve))
+        let shown = all.flatMap { $0.result.versions.map(\.text) }
+        #expect(!shown.isEmpty && shown.allSatisfy { !$0.contains("[") && !$0.uppercased().contains("EMAIL") }, "\(shown)")
+        #expect(shown.contains("Mail bob@example.com now"))
+        #expect(all.last?.result.versions.map(\.text) == ["Write to bob@example.com."])
+        let answer = StubAppleModel(answer: ["Mail [EMAIL_1] now", "Write [EMAIL", "Write [EMAIL_1] today."])
+        let lines = try await updates(hidingConverter(answer).generate(.question, input: "how to reach bob@example.com"))
+            .flatMap { $0.result.versions.map(\.text) }
+        #expect(lines.allSatisfy { !$0.contains("[") }, "\(lines)")
+        #expect(lines.last == "Write bob@example.com today.")
+    }
+
+    @Test func theOnDeviceModelGetsHiddenTextJudgedWithoutPlaceholders() async throws {
+        let stub = StubAppleModel(answer: ["EN: ok"])
+        _ = try await updates(hidingConverter(stub).convert("mail bob@example.com and alice@corp.example", mode: .improve))
+        #expect(stub.requests.first?.prompt == "mail [EMAIL_1] and [EMAIL_2]")
+        #expect(AppleModel.usersText("नमस्ते [EMAIL_1] [PHONE_12]") == "नमस्ते  ")
+        #expect(AppleModel.usersText(Prompt.refineMessage("cc [EMAIL_2]")) == "cc ")
+        // Text in a script the model doesn't speak is told up front, however many placeholders it holds.
+        let hindi = "आज मेरी तबीयत ठीक नहीं है a@b.example c@d.example e@f.example g@h.example"
+        let refused = StubAppleModel(answer: ["ok"])
+        await #expect(throws: AppleModelError.unsupportedLanguage) {
+            _ = try await updates(hidingConverter(refused).generate(.question, input: hindi))
+        }
+        #expect(refused.requests.isEmpty)
+    }
+
+    @Test func aRecentQuestionKeepsTheRealTextAndIsAskedAgainHidden() async throws {
+        let question = "what is the domain of bob@example.com"
+        let stub = StubAppleModel(answer: ["The domain of [EMAIL_1] is example.com."])
+        let answered = try #require(try await updates(hidingConverter(stub).generate(.question, input: question)).last)
+        #expect(stub.requests.first?.prompt == "what is the domain of [EMAIL_1]")
+        // What the composer keeps is what it was given: the answer restored, the question as typed.
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.questionHistory = QuestionHistory()
+        c.now = { Date(timeIntervalSince1970: 7) }
+        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        for ch in "q" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        for ch in question { _ = c.handleKeyDown(k(String(ch))) }
+        #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.question, input: question, id: 1))
+        let kept = c.receive(answered.result, isFinal: true, id: 1).compactMap {
+            if case let .rememberQuestion(entry) = $0 { return entry } else { return nil }
+        }
+        #expect(kept == [QuestionHistory.Entry(question: question, answer: "The domain of bob@example.com is example.com.",
+                                               date: Date(timeIntervalSince1970: 7))])
+        // R: asked again past the cache, hidden as the first time.
+        let again = StubAppleModel(answer: ["[EMAIL_1] is at example.com."])
+        let fresh = try #require(try await updates(hidingConverter(again).generate(.question, input: question, fresh: true)).last)
+        #expect(again.requests.first?.prompt == "what is the domain of [EMAIL_1]" && !body(again.requests[0]).contains("bob@"))
+        #expect(fresh.result.versions.map(\.text) == ["bob@example.com is at example.com."])
+    }
+}

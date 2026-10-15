@@ -2050,7 +2050,8 @@ final class AllInOneIMEInputController: IMKInputController {
             case .idle, .drafting:
                 break
             }
-            RedactionPanel.annotate(&model, choices: choices, hidden: lastHidden, phase: composer.phase)
+            // A saved @question answer was sent nowhere now: what the last request hid isn't about it.
+            RedactionPanel.annotate(&model, choices: choices, hidden: composer.showsSavedAnswer ? 0 : lastHidden, phase: composer.phase)
         } else if composer.voice != .off {
             let heard = composer.voice.text
             if case .listening = composer.voice {

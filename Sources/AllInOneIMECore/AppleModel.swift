@@ -99,8 +99,20 @@ public enum AppleModel {
 
     /// What the user wrote in `prompt`, without the app's own wrapping: a selection's text without the instruction
     /// (`Prompt.editRequest`), a question and its selection without the tags (`Prompt.question`), a refine's
-    /// instruction without its tags, else all of it.
+    /// instruction without its tags, else all of it; never the placeholders of values hidden from the model
+    /// (`Redaction`), whose Latin letters would make text in another script look like English.
     static func usersText(_ prompt: String) -> String {
+        let text = wrappedText(prompt)
+        return placeholder.stringByReplacingMatches(in: text, range: NSRange(location: 0, length: (text as NSString).length),
+                                                    withTemplate: "")
+    }
+
+    /// A placeholder `Redaction` puts in place of a value: "[EMAIL_1]".
+    static let placeholder = try! NSRegularExpression(
+        pattern: #"\[(?:"# + Redaction.Kind.allCases.map(\.rawValue).joined(separator: "|") + #")_\d{1,3}\]"#)
+
+    /// `usersText` before the placeholders go.
+    private static func wrappedText(_ prompt: String) -> String {
         if let open = prompt.range(of: "<instruction>"), let start = prompt.range(of: "<text>", range: open.upperBound..<prompt.endIndex),
            let end = prompt.range(of: "</text>", options: .backwards), start.upperBound <= end.lowerBound {
             return String(prompt[start.upperBound..<end.lowerBound])
