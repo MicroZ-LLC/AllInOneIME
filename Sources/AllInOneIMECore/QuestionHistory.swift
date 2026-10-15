@@ -90,9 +90,32 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
             if files.fileExists(atPath: url.path) { try files.removeItem(at: url) }
             return
         }
-        try files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Self.encoder.encode(self).write(to: url, options: [.atomic])
-        try files.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        let folder = url.deletingLastPathComponent()
+        try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Self.replace(url, with: Self.encoder.encode(self))
+    }
+
+    /// Writes `data` to a new file in `url`'s folder that is the user's only from the start (0600), then renames it over
+    /// `url` in one step: the questions are never in a file others can read, not even for a moment, and a file that was
+    /// readable by others before is replaced, not reused.
+    static func replace(_ url: URL, with data: Data) throws {
+        let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+        let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: temporary.path]) }
+        var written = fchmod(fd, 0o600) == 0  // whatever the umask
+        data.withUnsafeBytes { bytes in
+            var offset = 0
+            while written, offset < bytes.count {
+                let n = Foundation.write(fd, bytes.baseAddress! + offset, bytes.count - offset)
+                if n <= 0 { written = false } else { offset += n }
+            }
+        }
+        written = fsync(fd) == 0 && written
+        close(fd)
+        guard written, rename(temporary.path, url.path) == 0 else {
+            unlink(temporary.path)
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
     }
 
     private static var encoder: JSONEncoder {

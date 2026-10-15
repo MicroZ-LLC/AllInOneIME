@@ -70,6 +70,25 @@ struct QuestionHistoryTests {
         #expect(edited.entries.map(\.answer) == ["newest", "answer"] && edited.entries[0].question == "what is rust ")
     }
 
+    @Test func aFileReadableByOthersIsReplacedNeverWidened() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("recent-questions.json")
+        try Data("{}".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        let before = try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? Int
+        try QuestionHistory(entries: [entry("secret question")]).write(to: url)
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect(attributes[.posixPermissions] as? Int == 0o600)
+        #expect(attributes[.systemFileNumber] as? Int != before)  // a new file renamed into place, not the old one rewritten
+        #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["secret question"])
+        // Written again: still 0600, and no temporary file left beside it.
+        try QuestionHistory(entries: [entry("another")]).write(to: url)
+        #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int == 0o600)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["recent-questions.json"])
+    }
+
     @Test func theSettingIsOnByDefaultAndKept() throws {
         #expect(Config.default.rememberQuestions)
         let old = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
