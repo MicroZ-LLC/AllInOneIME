@@ -41,7 +41,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg update-zip update-manifest update-test test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -205,6 +205,41 @@ NOTARY_PROFILE ?=
 dmg:
 	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)"
 	Scripts/make-dmg.sh "$(INSTALLER_APP)" "$(DMG)" "$(APP_NAME) $(VERSION)" "$(DIST_IDENTITY)" "$(NOTARY_PROFILE)"
+	$(MAKE) update-zip
+
+# The in-app update (Settings → About → Update): build/AllInOneIME-<version>-update.zip, the same two apps as the
+# disk image's installer (its Payload.zip), compressed for the download. A release asset next to the disk image;
+# `make update-manifest` signs its manifest. Unpacked for a moment to compress it, then removed: build/ keeps no
+# second AllInOneIME.app.
+UPDATE_ZIP := $(BUILD_DIR)/$(APP_NAME)-$(VERSION)-update.zip
+
+update-zip:
+	@test -f "$(INSTALLER_APP)/Contents/Resources/Payload.zip" || { echo "error: no $(INSTALLER_APP); run make dmg"; exit 1; }
+	rm -rf "$(PAYLOAD_DIR)" "$(UPDATE_ZIP)" && mkdir -p "$(PAYLOAD_DIR)"
+	ditto -x -k "$(INSTALLER_APP)/Contents/Resources/Payload.zip" "$(PAYLOAD_DIR)"
+	ditto -c -k --norsrc --noextattr --noacl "$(PAYLOAD_DIR)" "$(UPDATE_ZIP)"
+	rm -rf "$(PAYLOAD_DIR)"
+	@echo "Built $(UPDATE_ZIP) ($$(du -h "$(UPDATE_ZIP)" | cut -f1 | tr -d ' '))"
+
+# site/public/update.json and update.json.sig: the update manifest (Scripts/build-update-manifest.swift), signed with
+# the releases' key from the login keychain, for the update archive as uploaded to the v<version> release on GitHub.
+# Its summary, in a sentence or two each: make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"
+# Deploy the site afterwards (site/: npx wrangler@4 deploy); the apps check it once a day.
+RELEASE_DOWNLOADS := https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v$(VERSION)
+UPDATE_SUMMARY_EN ?=
+UPDATE_SUMMARY_ZH ?=
+
+# The updater end to end against a temporary install and a test server on 127.0.0.1 (Scripts/test-update.sh):
+# never the installed app, nothing registered.
+update-test: app settings-app
+	Scripts/test-update.sh "$(BUILD_DIR)"
+
+update-manifest:
+	@test -f "$(UPDATE_ZIP)" || { echo "error: no $(UPDATE_ZIP); run make dmg"; exit 1; }
+	swift Scripts/build-update-manifest.swift --out site/public --zip "$(UPDATE_ZIP)" \
+		--url "$(RELEASE_DOWNLOADS)/$(notdir $(UPDATE_ZIP))" \
+		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
+		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
 test: deps
 	swift test
