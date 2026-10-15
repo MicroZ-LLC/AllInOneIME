@@ -101,6 +101,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
     /// the setting): off for an app where it misbehaves.
     public var useSelection: Bool
+    /// Settings for single apps, by bundle id (`AppProfile`): the input language a field starts in, the rewrite
+    /// styles, typing out, no AI. Empty by default.
+    public var appProfiles: [String: AppProfile]
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -174,6 +177,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.candidateLayout = .horizontal
         self.checkForUpdates = true
         self.useSelection = true
+        self.appProfiles = [:]
         normalizeLanguages()
     }
 
@@ -193,7 +197,7 @@ public struct Config: Codable, Equatable, Sendable {
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
-        case checkForUpdates, useSelection
+        case checkForUpdates, useSelection, appProfiles
         case provider, anthropic, gemini, openai
     }
 
@@ -248,6 +252,7 @@ public struct Config: Codable, Equatable, Sendable {
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
+        appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -324,6 +329,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         try c.encode(useSelection, forKey: .useSelection)
+        try c.encode(appProfiles, forKey: .appProfiles)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

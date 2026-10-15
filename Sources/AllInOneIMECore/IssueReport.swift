@@ -42,6 +42,8 @@ public struct IssueReport: Equatable, Sendable {
         public var customCommands: Int
         public var plugins: Int
         public var extensions: Int
+        /// How many apps have settings of their own (`Config.appProfiles`): the number only, never which apps.
+        public var appProfiles = 0
 
         public init(appVersion: String, macOS: String, architecture: String, interfaceLanguage: String,
                     inputLanguages: [String], languagePacks: [String], provider: String, model: String?, actionKey: String,
@@ -76,6 +78,7 @@ public struct IssueReport: Equatable, Sendable {
                       provider: config.provider.rawValue,
                       model: config.provider == .hosted ? nil : config.settings(for: config.provider).model.map { IssueReport.publicModel($0) ?? "custom" },
                       actionKey: actionKey, customCommands: config.customCommands.count, plugins: plugins, extensions: extensions)
+            appProfiles = config.appProfiles.count
         }
     }
 
@@ -91,7 +94,7 @@ public struct IssueReport: Equatable, Sendable {
     /// The diagnostics as the body lists them, and as the panel shows them first.
     public var lines: [String] {
         let d = diagnostics
-        return [
+        let lines: [String] = [
             "AllInOneIME: \(d.appVersion)",
             "macOS: \(d.macOS) (\(d.architecture))",
             "Interface language: \(d.interfaceLanguage)",
@@ -101,6 +104,7 @@ public struct IssueReport: Equatable, Sendable {
             "Action key: \(d.actionKey)",
             "Custom commands: \(d.customCommands), plugins: \(d.plugins), extensions: \(d.extensions)",
         ]
+        return d.appProfiles > 0 ? lines + ["Apps with their own settings: \(d.appProfiles)"] : lines
     }
 
     /// The issue's text: what happened and what was expected (for the user to write), then `lines`, or as many of

@@ -388,6 +388,11 @@ public final class Composer {
     /// commands are refused by the controller, which sends their requests; `@note` and `@reminder`
     /// stay on this Mac and go ahead.)
     public var secureInputActive: () -> Bool = { false }
+    /// Why AI commands don't run here (the app's profile says no AI, `AppProfile.noAI`), as the notice says it; nil:
+    /// they do. Asked when a command starts (set by the input controller, for the app being typed in): a command
+    /// that sends its text to a model (`Command.usesAI`) is refused, before any command inside its text runs, and its
+    /// draft stays.
+    public var aiRefusal: () -> String? = { nil }
     /// Text selected in the field, and where.
     public struct Selection: Equatable, Sendable {
         public var text: String
@@ -2248,6 +2253,7 @@ public final class Composer {
         if let command = parsed?.command, command.kind == .report { return startReport(command, title: input) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
+        if parsed?.command.usesAI == true, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
         if let command = parsed?.command, command.kind == .terminal {
             guard !secureInputActive() else {
                 return .consumed([.updateMarkedText, .notice(command.custom == nil ? messages.secureInputTerminal : messages.secureInputCommand)])
