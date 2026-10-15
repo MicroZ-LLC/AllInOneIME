@@ -93,6 +93,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// How the candidates of a word being typed (pinyin, Hindi) are laid out: in a column (the default) or in a
     /// row, like macOS's own panel. The other lists (commands, results) are always a column.
     public var candidateLayout: CandidateArrangement
+    /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
+    /// installed when the user clicks Update. On by default.
+    public var checkForUpdates: Bool
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -164,6 +167,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOutVaries = false
         self.typeOutMistakes = false
         self.candidateLayout = .vertical
+        self.checkForUpdates = true
         normalizeLanguages()
     }
 
@@ -183,6 +187,7 @@ public struct Config: Codable, Equatable, Sendable {
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
+        case checkForUpdates
         case provider, anthropic, gemini, openai
     }
 
@@ -235,6 +240,7 @@ public struct Config: Codable, Equatable, Sendable {
         typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
         // A value a later version added reads as the default.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
+        checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -309,6 +315,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
         try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
         try c.encode(candidateLayout, forKey: .candidateLayout)
+        try c.encode(checkForUpdates, forKey: .checkForUpdates)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)
