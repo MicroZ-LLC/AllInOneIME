@@ -781,22 +781,6 @@ struct SettingsView: View {
                 titled(tr("执行键", "Action key"), Self.actionKeyNote(model.config.actionKey))
             }
             .disabled(!model.canSave)
-            // The candidates of a word being typed (pinyin, Hindi) in a column, or in a row like macOS's own panel.
-            LabeledContent {
-                Picker("", selection: $model.config.candidateLayout) {
-                    Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
-                    Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
-            } label: {
-                titled(tr("候选排列", "Candidate layout"),
-                       model.config.candidateLayout == .horizontal
-                       ? tr("拼音和印地语的候选词并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。命令列表和结果还是竖排。在下一个输入框生效。",
-                            "Pinyin and Hindi candidates side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page. The command list and results stay vertical. From the next text field.")
-                       : tr("拼音和印地语的候选词一个一个往下排：↑↓ 选词，- = 翻页。",
-                            "Pinyin and Hindi candidates one under the other: ↑↓ choose, - = turn the page."))
-            }
-            .disabled(!model.canSave)
             // Results typed in character by character, like a person typing.
             Toggle(isOn: $model.config.typeOut) {
                 titled(tr("逐字上屏", "Type results out"),
@@ -881,6 +865,21 @@ struct SettingsView: View {
                        model.config.inputLanguages.count > 1
                        ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
                        : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
+            }
+            // The candidates of a word being typed (pinyin, Hindi) in a column, or in a row like macOS's own panel.
+            LabeledContent {
+                Picker("", selection: $model.config.candidateLayout) {
+                    Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
+                    Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+            } label: {
+                titled(tr("候选排列", "Candidate layout"),
+                       model.config.candidateLayout == .horizontal
+                       ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): side by side, like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
+                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。",
+                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical."))
             }
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
         } header: {
@@ -2608,8 +2607,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 candidate layout horizontal vertical 候选 排列 横排 竖排 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
-        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
+        case .general: return "action key return 执行键 回车 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
+        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
