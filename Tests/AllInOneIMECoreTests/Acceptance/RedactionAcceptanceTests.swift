@@ -1213,5 +1213,75 @@ struct RedactionAcceptanceTests {
         let line = "see \(text) here"
         #expect(r.hide(line) == line, "over-matched: \(r.hide(line))")
     }
+    // MARK: Leak hunting, third round (the loosened key rule)
+
+    /// Deterministic random strings (SplitMix64), so a failure always reproduces.
+    struct SplitMix: RandomNumberGenerator {
+        var state: UInt64
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return z ^ (z >> 31)
+        }
+    }
+
+    static let alphabets: [(name: String, chars: String, length: Int)] = [
+        ("base64 (AWS secret key)", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", 40),
+        ("base64url", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_", 43),
+        ("letters and digits", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", 32),
+        ("small letters and digits", "abcdefghijklmnopqrstuvwxyz0123456789", 32),
+        ("hex", "0123456789abcdef", 40),
+    ]
+
+    /// Random secrets of the common shapes, 500 each: every one must be hidden (a miss is a leak).
+    @Test(arguments: alphabets.indices) func randomSecretsAreAllHidden(_ index: Int) throws {
+        let (name, chars, length) = Self.alphabets[index]
+        let pool = Array(chars)
+        var rng = SplitMix(state: UInt64(1000 + index))
+        var missed: [String] = []
+        for _ in 0..<500 {
+            let secret = String((0..<length).map { _ in pool[Int(rng.next() % UInt64(pool.count))] })
+            var r = try #require(Redaction(Secret.settings))
+            if r.hide("secret = \(secret)").contains(secret) { missed.append(secret) }
+        }
+        print("RANDOM \(name): \(missed.count) of 500 sent, e.g. \(missed.prefix(3))")
+        #expect(missed.isEmpty, "\(name): \(missed.count) of 500 sent as typed, e.g. \(missed.prefix(5))")
+    }
+
+    /// Real-looking secrets the word and path rules might now let through.
+    static let secretShapes = [
+        "wJalrXUtnF/EMIK7MDEN/GbPxRfiCYE/XAMPLEKEY12",  // a 40-character AWS secret with its "/" pieces under 12
+        "\u{77}JalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "sk_\u{6C}ive_AbCdEfGhIjKlMnOpQrStUvWx",  // a Stripe key that happens to have no digit
+        "rk_\u{6C}ive_51HxYzAbCdEfGhIjKlMnOpQrSt",
+        "ey\u{4A}hbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.ey\u{4A}zdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIn0.c2lnbmF0dXJlLXZhbHVlLWhlcmU",
+        "AI\u{7A}aSyD4f8G2h6J9kL1mN3pQ5rS7tU9vW0xY2zA", "xo\u{78}b-1234567890-0987654321-AbCdEfGhIjKlMnOpQrStUvWx",
+        "T0123ABCD/B0456EFGH/8Fz3kQpL0vX2mN7rT4wY9bHc",  // a Slack webhook's path
+        "dGhpcyBpcyBhIHZlcnkgc2VjcmV0IHBhc3N3b3JkIGZvciB0aGUgYWRtaW4=",  // base64 of a sentence
+
+    ]
+
+    @Test(arguments: secretShapes) func secretShapesAreHidden(_ secret: String) throws {
+        var r = try #require(Redaction(Secret.settings))
+        for context in ["key: \(secret)", "https://hooks.slack.com/services/\(secret)", "\"\(secret)\""] {
+            let out = r.hide(context)
+            #expect(!out.contains(secret), "sent as typed: \(out)")
+        }
+    }
+
+    /// A private key pasted in a PEM block: no line of it goes out as typed.
+    @Test func privateKeyPEMBlock() throws {
+        var rng = SplitMix(state: 42)
+        let bytes = (0..<1190).map { _ in UInt8(truncatingIfNeeded: rng.next()) }
+        let body = Data(bytes).base64EncodedString(options: [.lineLength64Characters, .endLineWithLineFeed])
+        let pem = "-----B\u{45}GIN PRIVATE KEY-----\n\(body)\n-----END PRIVATE KEY-----"
+        var r = try #require(Redaction(Secret.settings))
+        let out = r.hide("@question is this key valid?\n\(pem)")
+        let lines = body.split(separator: "\n").map(String.init)
+        let sent = lines.filter { out.contains($0) }
+        #expect(sent.isEmpty, "\(sent.count) of \(lines.count) key lines sent as typed: \(sent.map { $0.count })")
+    }
 }
 
