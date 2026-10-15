@@ -1109,4 +1109,43 @@ struct PerAppAcceptanceTests {
         let file = try decode(#"{"appProfiles": {"com.apple.Mail": {"noAI": true}, "com.apple.mail": {"noAI": true}, "x.y": {}}}"#)
         #expect(report(file).diagnostics.appProfiles == 1)
     }
+
+    /// Point 6 ("never losing the rest of the config"): a spelling of the id that sets nothing must not shadow one that
+    /// sets something, or the setting would be gone on load and from the file on the next save.
+    @Test func aCaseDuplicateThatSetsNothingNeverHidesOneThatDoes() throws {
+        let empties = ["{}", #"{"noAI": false}"#, #"{"noAI": false, "colour": "red", "inputLanguage": "xx"}"#, #"{"typeOut": "yes"}"#]
+        let spellings = ["COM.APPLE.MAIL", "com.apple.Mail", "Com.Apple.Mail"]  // all sort before "com.apple.mail"
+        for empty in empties {
+            for spelling in spellings {
+                for setFirst in [true, false] {
+                    let entries = [(spelling, empty), ("com.apple.mail", #"{"noAI": true}"#)]
+                    let ordered = setFirst ? entries.reversed() : entries
+                    let text = "{\"appProfiles\": {" + ordered.map { "\"\($0.0)\": \($0.1)" }.joined(separator: ", ") + "}}"
+                    let config = try decode(text)
+                    let label = "\(spelling): \(empty)"
+                    #expect(config.appProfiles.keys.filter { $0.lowercased() == "com.apple.mail" } == ["com.apple.mail"], "\(label)")
+                    for app in ["com.apple.mail", spelling, "COM.apple.MAIL"] {
+                        #expect(!config.allowsAI(in: app), "\(label), asked as \(app)")
+                    }
+                    // Saved and loaded: still there.
+                    let again = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
+                    #expect(!again.allowsAI(in: "com.apple.mail") && again.appProfiles.count == 1, "\(label)")
+                }
+            }
+        }
+        // Two that set something and one that doesn't: one of the two, always the same, whatever the order in the file.
+        var winners: Set<String> = []
+        for order in [[0, 1, 2], [2, 1, 0], [1, 2, 0]] {
+            let entries = [("COM.APPLE.MAIL", "{}"), ("com.apple.Mail", #"{"typeOut": true}"#), ("com.apple.mail", #"{"noAI": true}"#)]
+            let text = "{\"appProfiles\": {" + order.map { "\"\(entries[$0].0)\": \(entries[$0].1)" }.joined(separator: ", ") + "}}"
+            let config = try decode(text)
+            let kept = config.appProfiles.filter { $0.key.lowercased() == "com.apple.mail" }
+            #expect(kept.count == 1 && kept.values.first?.isEmpty == false, "\(kept)")
+            winners.formUnion(kept.keys)
+        }
+        #expect(winners.count == 1, "\(winners)")
+        // A different app's empty profile is not touched by this (it's simply dropped on save).
+        let other = try decode(#"{"appProfiles": {"com.example.empty": {}, "com.apple.mail": {"noAI": true}}}"#)
+        #expect(other.appProfiles.count == 2 && !other.allowsAI(in: "COM.APPLE.MAIL"))
+    }
 }
