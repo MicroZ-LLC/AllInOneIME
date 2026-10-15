@@ -6,9 +6,9 @@ import Foundation
 /// method itself.
 ///
 /// The body asks what happened and what was expected, and carries a few diagnostics (`Diagnostics`): versions, the
-/// languages, which kind of AI provider and the action key, and how many commands of each kind there are. Nothing
-/// personal: no file paths, no text typed but the title, no keys, profile names or addresses, no names of the
-/// user's commands, plugins or extensions. `lines` is what the panel shows before the page is opened.
+/// languages, which kind of AI provider (and a public model by its id, `publicModel`, else "custom") and the action
+/// key, and how many commands of each kind there are. Nothing personal: no file paths, no text typed but the title,
+/// no keys, profile names or addresses, no names of the user's commands, plugins or extensions. `lines` is what the panel shows before the page is opened.
 public struct IssueReport: Equatable, Sendable {
     /// Where new issues are written.
     public static let newIssueAddress = "https://github.com/MicroZ-LLC/AllInOneIME/issues/new"
@@ -33,7 +33,8 @@ public struct IssueReport: Equatable, Sendable {
         public var inputLanguages: [String]
         /// The installed language packs with their versions: ["zh-pinyin 1.0.0"].
         public var languagePacks: [String]
-        /// The provider's kind ("bedrock", "anthropic", …) and its model, if one may be shown (`safe`).
+        /// The provider's kind ("bedrock", "anthropic", …), always, and its model: a public model's id as it is
+        /// (`publicModel`), else "custom"; nil when none is set.
         public var provider: String
         public var model: String?
         /// "enter", "optionTap", … or the name of a recorded key ("⌃⏎").
@@ -60,19 +61,20 @@ public struct IssueReport: Equatable, Sendable {
         }
 
         /// From the settings and what the app knows of itself: only the kinds and counts above. The custom commands
-        /// are counted, never named; the profile, region, base addresses and folders are left out; a model only as
-        /// `safe` lets it be.
+        /// are counted, never named; the profile, region, base addresses and folders are left out; a model by its id
+        /// only when it's a public model's (`publicModel`), else "custom".
         public init(config: Config, appVersion: String = AppVersion.string, macOS: String, architecture: String,
                     interfaceLanguage: String, languagePacks: [String], plugins: Int, extensions: Int) {
             let actionKey: String
             switch config.actionKey {
-            case let .shortcut(key): actionKey = IssueReport.safe(key.name) ?? "shortcut"
+            // A recorded key's name is the app's own ("⌃⏎", "F5"), from the keys pressed.
+            case let .shortcut(key): actionKey = key.name.count <= 16 ? key.name : "shortcut"
             default: actionKey = config.actionKey.rawName ?? "-"
             }
             self.init(appVersion: appVersion, macOS: macOS, architecture: architecture, interfaceLanguage: interfaceLanguage,
                       inputLanguages: config.inputLanguages.map(\.rawValue), languagePacks: languagePacks,
                       provider: config.provider.rawValue,
-                      model: config.provider == .hosted ? nil : config.settings(for: config.provider).model.flatMap(IssueReport.safe),
+                      model: config.provider == .hosted ? nil : config.settings(for: config.provider).model.map { IssueReport.publicModel($0) ?? "custom" },
                       actionKey: actionKey, customCommands: config.customCommands.count, plugins: plugins, extensions: extensions)
         }
     }
@@ -153,28 +155,57 @@ public struct IssueReport: Equatable, Sendable {
         return String(line.prefix(maxTitleLength))
     }
 
-    /// A value from the settings as it may go in a report (a model's name, a key's): nil when it may say something
-    /// about the user. A path ("/Users/…", "~/…", "file:"), an address or an email (with "@" or "://"), what looks
-    /// like a key ("sk-…", "AKIA…", a long run of letters and digits) or anything long is left out; an AWS ARN keeps
-    /// its model and region, its account number cut ("arn:aws:bedrock:us-west-2:…:inference-profile/us.anthropic.…").
-    public static func safe(_ value: String) -> String? {
-        var value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty, value.count <= 120 else { return nil }
-        if value.hasPrefix("arn:") {
-            var parts = value.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
-            if parts.count > 4 { parts[4] = "…" }
-            value = parts.joined(separator: ":")
+    /// A model's id as it may go in a report, nil when it isn't a public model's (it's then "custom"). Allow-listed, not
+    /// filtered: a known family's name ("claude-haiku-5-5", "gpt-5.4-mini", "gemini-3.8-flash", "llama3.2"), with at most
+    /// a known vendor before it ("anthropic/", "us.anthropic.", "meta-llama/") and a short tag after it (":0",
+    /// ":latest", ":free"). A fine-tuned model ("ft:…:acmecorp:…"), an ARN (an account, a profile's id), a private
+    /// organization's name or a deployment's own name is "custom".
+    public static func publicModel(_ value: String) -> String? {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value.count <= 80 else { return nil }
+        var rest = Substring(value.lowercased())
+        // A short tag after one colon: Bedrock's version (":0"), Ollama's (":latest", ":7b"), OpenRouter's (":free").
+        if let colon = rest.firstIndex(of: ":") {
+            let tag = rest[rest.index(after: colon)...]
+            guard !tag.isEmpty, tag.count <= 12, tag.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") })
+            else { return nil }
+            rest = rest[..<colon]
         }
-        if value.hasPrefix("/") || value.hasPrefix("~") || value.lowercased().hasPrefix("file:") || value.contains("://")
-            || value.contains("@") || value.contains("\\") { return nil }
-        let lower = value.lowercased()
-        if lower.hasPrefix("sk-") || lower.hasPrefix("sk_") || value.hasPrefix("AKIA") || value.hasPrefix("ASIA")
-            || value.hasPrefix("AIza") || lower.hasPrefix("ghp_") || lower.hasPrefix("xox") { return nil }
-        // A long run without separators is more likely a token than a model's name.
-        let runs = value.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        if runs.contains(where: { $0.count >= 24 }) { return nil }
-        // Twelve digits in a row: an AWS account number.
-        if runs.contains(where: { $0.count >= 12 && $0.allSatisfy(\.isNumber) }) { return nil }
+        // A known vendor: "vendor/" (OpenRouter, Hugging Face), or Bedrock's "[region.]vendor.".
+        if let slash = rest.firstIndex(of: "/") {
+            guard knownVendors.contains(String(rest[..<slash])) else { return nil }
+            rest = rest[rest.index(after: slash)...]
+        } else {
+            let parts = rest.split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
+            if parts.count == 3, bedrockRegions.contains(String(parts[0])), knownVendors.contains(String(parts[1])) {
+                rest = parts[2]
+            } else if parts.count >= 2, knownVendors.contains(String(parts[0])), !knownFamilies.contains(where: { rest.hasPrefix($0) }) {
+                rest = rest[rest.index(rest.startIndex, offsetBy: parts[0].count + 1)...]
+            }
+        }
+        // The rest: a known family, then version characters only.
+        guard rest.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_") }),
+              let family = knownFamilies.first(where: { rest.hasPrefix($0) }) else { return nil }
+        let after = rest.dropFirst(family.count).first
+        guard after == nil || after!.isNumber || "-._".contains(after!) else { return nil }
+        let runs = rest.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        guard !runs.contains(where: { $0.count >= 24 || $0.count >= 12 && $0.allSatisfy(\.isNumber) }) else { return nil }
         return value
     }
+
+    /// Public model vendors, as they prefix an id ("anthropic/claude-…", "us.anthropic.claude-…").
+    static let knownVendors: Set<String> = [
+        "anthropic", "openai", "google", "meta", "meta-llama", "mistral", "mistralai", "deepseek", "deepseek-ai", "qwen", "x-ai",
+        "xai", "moonshotai", "z-ai", "zhipuai", "thudm", "cohere", "microsoft", "nvidia", "amazon", "ai21", "perplexity", "writer",
+        "minimax", "baidu", "bytedance", "tencent", "01-ai", "nousresearch", "openrouter",
+    ]
+    /// Bedrock's cross-region prefixes ("us.anthropic.claude-…").
+    static let bedrockRegions: Set<String> = ["us", "eu", "apac", "global", "jp", "au", "ca", "us-gov"]
+    /// Public model families, as an id starts.
+    static let knownFamilies: [String] = [
+        "claude", "gpt", "chatgpt", "o1", "o3", "o4", "gemini", "gemma", "llama", "codellama", "mistral", "mixtral", "codestral",
+        "ministral", "magistral", "devstral", "pixtral", "deepseek", "qwen", "qwq", "kimi", "moonshot", "glm", "chatglm", "grok",
+        "command", "phi", "nova", "titan", "jamba", "palmyra", "sonar", "yi", "ernie", "doubao", "hunyuan", "minimax", "abab",
+        "baichuan", "step", "hermes", "auto",
+    ]
 }
