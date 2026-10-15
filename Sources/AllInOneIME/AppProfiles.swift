@@ -92,12 +92,12 @@ extension SettingsModel {
     /// Changes the profile of `app` (added if it has none, under the key it has in another case if so) and saves. One
     /// that sets nothing stays in the list while the window is open, and isn't saved.
     func changeProfile(_ app: String, _ change: (inout AppProfile) -> Void) {
-        change(&config.appProfiles[config.profileKey(for: app) ?? app, default: AppProfile()])
+        config.changeProfile(for: app, change)
         save()
     }
 
     func removeProfile(_ app: String) {
-        config.appProfiles[app] = nil
+        config.removeProfile(for: app)
         save()
     }
 }
@@ -275,10 +275,8 @@ extension AllInOneIMEInputController {
         }
         do {
             var config = try Config.load()
-            let key = config.profileKey(for: app) ?? app  // a key written by hand in another case
-            var profile = config.appProfiles[key] ?? AppProfile()
-            change(&profile, config, info["value"] ?? "")
-            config.appProfiles[key] = profile.isEmpty ? nil : profile
+            let before = config  // what the change reads (typing out everywhere)
+            config.changeProfile(for: app, dropsEmpty: true) { change(&$0, before, info["value"] ?? "") }
             try config.write()
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             log.notice("app profile changed: \(what, privacy: .public) (\(config.appProfiles.count) apps with their own settings)")

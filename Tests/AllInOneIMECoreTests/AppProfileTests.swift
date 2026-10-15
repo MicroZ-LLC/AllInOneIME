@@ -101,11 +101,41 @@ struct AppProfileTests {
         #expect(Array(config.appProfiles.keys) == ["com.apple.Mail"])
         #expect(!config.allowsAI(in: mail) && !config.allowsAI(in: "COM.APPLE.MAIL") && config.allowsAI(in: "com.apple.mailx"))
         #expect(config.profileKey(for: mail) == "com.apple.Mail" && config.profileKey(for: slack) == nil)
-        // The id as given comes first.
+        // Two spellings in memory (set by hand here): the same one counts whatever the spelling asked for, as when a
+        // file is read: one that sets something, else the first in sorted order.
         var both = Config.default
+        both.appProfiles = ["com.apple.Mail": AppProfile(), mail: AppProfile(noAI: true)]
+        for spelling in [mail, "com.apple.Mail", "COM.apple.mail"] {
+            #expect(both.profileKey(for: spelling) == mail && !both.allowsAI(in: spelling))
+        }
         both.appProfiles = ["com.apple.Mail": AppProfile(typeOut: true), mail: AppProfile(typeOut: false)]
-        #expect(both.profile(for: mail)?.typeOut == false && both.profile(for: "com.apple.Mail")?.typeOut == true)
-        #expect(both.profile(for: "COM.apple.mail")?.typeOut == true)  // else the first in sorted order
+        #expect([mail, "com.apple.Mail", "COM.apple.mail"].allSatisfy { both.profileKey(for: $0) == "com.apple.Mail" })
+    }
+
+    @Test func addingOrEditingNeverMakesASecondKey() {
+        // Settings → Apps adds Mail spelled another way while it has a profile: that one changes.
+        var config = Config.default
+        config.appProfiles = [mail: AppProfile(noAI: true)]
+        config.changeProfile(for: "com.apple.Mail") { _ in }
+        #expect(config.appProfiles == [mail: AppProfile(noAI: true)])
+        config.changeProfile(for: "COM.APPLE.MAIL") { $0.typeOut = true }
+        #expect(config.appProfiles == [mail: AppProfile(typeOut: true, noAI: true)])
+        // A new app gets its id as given.
+        config.changeProfile(for: "com.Example.New") { $0.inputLanguage = .english }
+        #expect(config.appProfiles["com.Example.New"] == AppProfile(inputLanguage: .english) && config.appProfiles.count == 2)
+        // Two spellings already there: the one that counts is changed, the other goes.
+        config.appProfiles["com.apple.Mail"] = AppProfile()
+        config.changeProfile(for: "com.apple.Mail") { $0.noAI = nil }
+        #expect(config.appProfiles[mail] == AppProfile(typeOut: true) && config.appProfiles["com.apple.Mail"] == nil)
+        // Left setting nothing: kept (Settings → Apps), or dropped (the input menu).
+        config.changeProfile(for: mail) { $0.typeOut = nil }
+        #expect(config.appProfiles[mail] == AppProfile())
+        config.changeProfile(for: mail, dropsEmpty: true) { _ in }
+        #expect(config.appProfiles[mail] == nil)
+        // Removing takes every spelling.
+        config.appProfiles = [mail: AppProfile(noAI: true), "com.apple.Mail": AppProfile()]
+        config.removeProfile(for: "COM.apple.MAIL")
+        #expect(config.profile(for: mail) == nil && config.appProfiles.count == 0)
     }
 
     @Test func keysThatDifferOnlyInCaseKeepTheFirstEveryTime() throws {
