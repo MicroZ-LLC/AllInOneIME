@@ -9,6 +9,9 @@
 // Run with: make realtest
 import AppKit
 import Carbon
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 let imeID = "com.aipinyin.inputmethod.AIPinyin"
 
@@ -561,6 +564,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        appleModel()
         selectionCommands()
         horizontalAndReport()
         extensions()
@@ -647,6 +651,74 @@ final class Harness: NSObject, NSApplicationDelegate {
               "a selection moved meanwhile gives the command up; the next key types as usual ('\(committed)' + '\(marked)')")
         reset()
         textView.string = ""
+    }
+
+    /// 5b. Apple Intelligence on this Mac (`provider: "apple"`), where its model is available: @improve on English and on
+    ///     pinyin with the on-device model, through the installed input method; then the user's provider again.
+    func appleModel() {
+        var available = false
+        #if canImport(FoundationModels)
+        if #available(macOS 26, *) { available = SystemLanguageModel.default.isAvailable }
+        #endif
+        print("— Apple Intelligence on this Mac (on-device model)")
+        guard available else {
+            note("skipped: Apple Intelligence isn't available on this Mac")
+            return
+        }
+        let provider = configValue("provider")
+        guard setConfig({ $0["provider"] = "apple" }) else {
+            check(false, "config file readable, to choose Apple Intelligence")
+            return
+        }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+
+        textView.string = ""
+        tapShift()
+        command("i")
+        let words = ["i", "think", "we", "should", "moved", "the", "meeting", "to", "next", "week"]
+        for word in words {
+            type(word)
+            space()
+        }
+        check(waitUntil(2) { self.marked == "improve › " + words.joined(separator: " ") + " " }, "sentence drafted (\(marked))")
+        var started = Date()
+        act()
+        let polished = waitUntil(20) {
+            if self.committed.isEmpty { self.space() }  // ignored until the first version is complete
+            return !self.committed.isEmpty
+        }
+        check(polished && Self.looksEnglish(committed) && committed != words.joined(separator: " ") && marked.isEmpty,
+              String(format: "on-device @improve: Space inserts a polished English version after %.1fs: '%@'",
+                     Date().timeIntervalSince(started), committed))
+        reset()
+        textView.string = ""
+        tapShift()
+
+        command("i")
+        type("mingtiankaihuiwokenengyaochidao")
+        _ = waitUntil(3) { self.marked != "improve › " }
+        confirmAll()
+        check(waitUntil(3) { Self.hasHan(self.afterCommand) && !Self.hasLatinLetter(self.afterCommand) },
+              "sentence confirmed (marked: \(marked))")
+        started = Date()
+        act()
+        let chinese = waitUntil(20) {
+            if self.committed.isEmpty { self.space() }
+            return !self.committed.isEmpty
+        }
+        check(chinese && Self.hasHan(committed) && marked.isEmpty,
+              String(format: "on-device @improve on pinyin: a Chinese version after %.1fs: '%@'",
+                     Date().timeIntervalSince(started), committed))
+        reset()
+        textView.string = ""
+        _ = setConfig { $0["provider"] = provider }  // none: removed again
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
     }
 
     /// 6b. Candidates in a row (`candidateLayout`): the panel is one line (shorter than the same candidates in a column,
