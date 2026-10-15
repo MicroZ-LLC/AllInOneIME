@@ -49,10 +49,12 @@ public enum TypeOut {
 // MARK: - Typos, fixed on the way
 
 extension TypeOut {
-    /// What a key does: types one character (a `Character`, as a string), or ⌫ deletes the last one typed.
+    /// What a key does: types one character (a `Character`, as a string), ⌫ deletes the last one typed, or
+    /// `correct`: the last one typed is replaced with the right one in one go (⌫ and the key at once).
     public enum Stroke: Equatable, Sendable {
         case type(String)
         case delete
+        case correct(String)
     }
 
     /// A key and the pause before it, in seconds.
@@ -139,10 +141,10 @@ extension TypeOut {
             let character = characters[i]
             switch pick(weighted) {
             case .neighbor where places.kinds[i] == .code:
-                // In code: the wrong one, ⌫ at once, the right one.
+                // In code: the wrong one, then corrected at once (⌫ and the right one in one go).
                 let wrong = pick(places.wrong(for: character, keyboard: keyboard))
-                return (run(i..<(i + 1), [Step(.type(String(wrong)), after: plain[i].delay), Step(.delete, after: notice())]
-                            + retyped(i..<(i + 1))), 1)
+                return (run(i..<(i + 1), [Step(.type(String(wrong)), after: plain[i].delay),
+                                          Step(.correct(String(character)), after: notice())]), 1)
             case .neighbor:
                 let wrong = pick(keyboard.neighbors(of: character))
                 // 0–3 more letters of the word before it's noticed: fixed before the word ends, as an app's
@@ -385,12 +387,11 @@ extension TypeOut {
             return near.compactMap { String($0).uppercased().count == 1 ? String($0).uppercased().first : nil }
         }
     }
-
     /// Typing out a plan step by step, and what's in the document meanwhile: `stop` leaves it right
     /// whenever typing stops. Places are UTF-16 offsets (as text fields count) from where typing started.
     public struct Typing: Sendable {
         /// What a step does to the document: types at the end, or replaces the `length` UTF-16 units at
-        /// `location`, which hold `replacing`, with `with`.
+        /// `location`, which hold `replacing`, with `with` (never empty: see `erase`).
         public enum Edit: Equatable, Sendable {
             case type(String)
             case replace(location: Int, length: Int, with: String, replacing: String)
@@ -416,6 +417,21 @@ extension TypeOut {
         public var inSlip: Bool { !isDone && step > 0 && !plainly && runs[run].isSlip }
         /// The coming slip's text typed without it.
         public mutating func skipSlip() { if startsSlip { plainly = true } }
+
+        /// Makes the coming slip the plainest one, to see whether the field takes a typo back: its wrong character,
+        /// then corrected in one go, the rest of its text plainly. False when it has no wrong character (a letter
+        /// or space typed twice, a word typed again): then it's typed plainly.
+        public mutating func probe() -> Bool {
+            guard startsSlip, case let .type(wrong)? = runs[run].steps.first?.stroke,
+                  let right = runs[run].text.first.map(String.init), wrong != right else {
+                skipSlip()
+                return false
+            }
+            let current = runs[run]
+            let notice = current.steps.count > 1 ? current.steps[1].delay : current.plain[0].delay
+            runs[run].steps = [current.steps[0], Step(.correct(right), after: notice)] + current.plain.dropFirst()
+            return true
+        }
 
         /// The pause before the next step (nil: done).
         public var nextDelay: Double? {
@@ -459,43 +475,66 @@ extension TypeOut {
                 edit = .type(character)
             case .delete:
                 edit = erase(1, putting: "")
+            case let .correct(character):
+                edit = erase(1, putting: character)
+                typed.append(character)
+                length += character.utf16.count
             }
             step += 1
             if step == steps.count { (run, step, plainly, runStart) = (run + 1, 0, false, typed.count) }
             return (edit, current.delay)
         }
 
-        /// When typing stops: what leaves the document right. A typo not fixed yet is taken out; then with
-        /// `insertingRest` the rest of the text goes in at once, else the document holds the start of the text.
-        /// nil: nothing to do.
+        /// When typing stops: what leaves the document right. A typo not fixed yet is taken out (`dropTypo`); then
+        /// with `insertingRest` the rest of the text goes in, else the document holds the start of the text. nil:
+        /// nothing to do.
         public func stop(insertingRest: Bool) -> Edit? {
-            guard !isDone else { return nil }
-            let wrong = typed.count - runStart - rightSoFar
-            let rest = insertingRest ? rest : ""
-            if wrong == 0 { return rest.isEmpty ? nil : .type(rest) }
             var copy = self
-            return copy.erase(wrong, putting: rest)
+            let edit = copy.dropTypo()
+            let rest = insertingRest ? copy.rest : ""
+            guard case let .replace(location, length, with, replacing)? = edit else { return rest.isEmpty ? nil : .type(rest) }
+            return .replace(location: location, length: length, with: with + rest, replacing: replacing)
         }
 
-        /// Gives up the slip under way: the edit that takes its typo out (nil: none in the document); the rest
-        /// of its text is typed plainly.
+        /// Gives up the slip under way: the edit that takes its typo out (nil: none in the document), and the
+        /// rest of its text is typed plainly. A single wrong character is replaced with the rest of the run's text
+        /// in one go: were the field to put that at the caret instead, the typo would be the one thing off.
         public mutating func dropTypo() -> Edit? {
             guard inSlip else { return nil }
             let right = rightSoFar
             let wrong = typed.count - runStart - right
-            let edit = wrong > 0 ? erase(wrong, putting: "") : nil
+            let remainder = Array(runs[run].text.map(String.init)[right...])
             runs[run].steps = runs[run].plain
+            guard wrong > 0 else {
+                goOn(at: right)
+                return nil
+            }
+            if wrong == 1, !remainder.isEmpty {
+                let edit = erase(1, putting: remainder.joined())
+                typed += remainder
+                length += remainder.joined().utf16.count
+                goOn(at: runs[run].plain.count)
+                return edit
+            }
+            let edit = erase(wrong, putting: "")
             goOn(at: right)
             return edit
         }
 
-        /// Keeps what the slip under way typed, its typo too (the field didn't take it back, or changed): the
-        /// run's text becomes that, and the rest of its characters are typed plainly after it.
-        public mutating func keepTyped() {
-            guard inSlip else { return }
+        /// Keeps what the slip under way typed, its typo too (the field didn't take it back), and `adding`, what a
+        /// fix put at the caret instead: the run's text becomes that, and the rest of its characters are typed
+        /// plainly after it.
+        public mutating func keepTyped(adding extra: String = "") {
+            guard !isDone, typed.count > runStart || !extra.isEmpty else { return }
             let current = runs[run]
+            let right = rightSoFar
+            let added = extra.map(String.init)
+            // What was added carries on the run's text (a correction, its rest): the characters after it follow.
+            let carriesOn = !added.isEmpty && Array(current.text.map(String.init).dropFirst(right).prefix(added.count)) == added
+            typed += added
+            length += extra.utf16.count
             let kept = Array(typed[runStart...])
-            let rest = Array(current.plain.dropFirst(min(kept.count, current.plain.count)))
+            let rest = Array(current.plain.dropFirst(min(carriesOn ? right + added.count : kept.count, current.plain.count)))
             let steps = kept.map { Step(.type($0), after: 0) } + rest
             let text = kept.joined() + rest.compactMap { if case let .type(c) = $0.stroke { c } else { nil } }.joined()
             runs[run] = Run(text: text, steps: steps, plain: steps)
@@ -508,12 +547,17 @@ extension TypeOut {
             if step >= runs[run].steps.count { (run, self.step, runStart) = (run + 1, 0, typed.count) }
         }
 
-        /// Takes the last `count` characters out, putting `text` in their place: only them, so a line break
-        /// before a typo is never rewritten.
+        /// Takes the last `count` characters out, putting `text` in their place. Never with an empty string: an
+        /// input method's empty insert never reaches the app (NSTextView gets nothing), so with nothing to put
+        /// there the character before them is taken too and put back; it's never a line break (no slip starts a line).
         private mutating func erase(_ count: Int, putting text: String) -> Edit {
             let gone = typed.suffix(count).joined()
             typed.removeLast(count)
             length -= gone.utf16.count
+            if text.isEmpty, let before = typed.last, !before.contains(where: \.isNewline) {
+                let width = before.utf16.count
+                return .replace(location: length - width, length: width + gone.utf16.count, with: before, replacing: before + gone)
+            }
             return .replace(location: length, length: gone.utf16.count, with: text, replacing: gone)
         }
     }
@@ -532,21 +576,24 @@ extension TypeOut {
         func replace(_ range: NSRange, with text: String)
     }
 
-    /// Types a plan into a field, and keeps the field right while a typo is in it. Before every step of a
-    /// slip, and after each fix, the field must hold exactly what was typed with its caret right after it;
-    /// a field that lags (Chromium tells the caret late) is given `patience` checks (`step` says `waiting`).
-    /// Then, when it still doesn't:
-    /// - it shows what was there before the last fix: the field didn't take the typo back (it ignores
-    ///   replacement ranges, so nothing sent can take anything out): the typo stays, the rest goes on after it,
-    ///   and `fieldFailed` (the app gets no more typos);
-    /// - it holds what was typed, no more and no less, but the caret is elsewhere (a click, the app moved it): the typo is taken out
-    ///   where it was typed, if the text there is still exactly that, and the rest is typed plainly;
-    /// - anything else (an editor added text): the typed span, up to the caret, is replaced with the text it
-    ///   should be, if it's about that long, else left alone; and `fieldFailed`.
+    /// Types a plan into a field, and keeps the field right while a typo is in it.
+    ///
+    /// Until a fix is seen taken in this field (`proven`), a typo is only a probe: a wrong character corrected in
+    /// one go (`Typing.probe`), so a field that ignores replacement ranges ends up one character off at most. Before
+    /// every step of a slip, after each fix, and when typing stops, the field must hold exactly what was typed, be
+    /// as long as that, and have its caret right after it; a field that lags (Chromium tells the caret late) is
+    /// given `patience` checks (`step` says `waiting`; `stop` waits in between). Then, when it still doesn't:
+    /// - it shows what was there before the last fix, or that with the fix's text at the caret: the field didn't
+    ///   take it (it ignores replacement ranges). What's there is kept, the rest goes on after it, and `fieldFailed`
+    ///   (the app gets no more typos);
+    /// - it holds what was typed, no more and no less, but the caret is elsewhere (a click, the app moved it):
+    ///   the typo is taken out where it was typed, if the text there is still exactly that, and the rest typed plainly;
+    /// - anything else (an editor changed or added text): the typed span, up to the caret, is replaced with what
+    ///   it should be, if it's about that long, else left alone. Not the field's failing: it isn't remembered.
     /// After any of these, no more typos in this run.
     public struct Typist {
         public enum Progress: Equatable, Sendable { case typed, waiting, done }
-        enum Look: Equatable { case asTyped, notFixed, moved, changed }
+        enum Look: Equatable { case asTyped, notFixed, inserted, moved, changed }
 
         public private(set) var typing: Typing
         /// Where typing started in the field, and the field's length then (nil: it doesn't say).
@@ -554,32 +601,36 @@ extension TypeOut {
         let lengthBefore: Int?
         /// Whether typos are still made in this run.
         public private(set) var mistakes: Bool
-        /// The field didn't keep a typo's fix as asked: its app should get no more typos.
+        /// Whether a fix was seen taken in this field: until then a typo is a probe.
+        public private(set) var proven: Bool
+        /// The field didn't take a typo's fix: its app should get no more typos.
         public private(set) var fieldFailed = false
-        /// What changed when it didn't (for the log).
+        /// What happened when it didn't (for the log).
         public private(set) var failure: String?
         /// The field read back as typed up to here.
         private var checked = 0
-        /// What was typed before the last fix, until the field is seen to have taken it.
-        private var beforeFix: Typing?
+        /// The last fix until it's seen taken: what was typed before it, and what it put in.
+        private var lastFix: (before: Typing, with: String)?
         private var waits = 0
         /// Checks before a field that doesn't hold what was typed is taken as changed (50 ms apart in the app).
         public static let patience = 6
 
-        public init(_ runs: [Run], start: Int, length: Int? = nil) {
+        public init(_ runs: [Run], start: Int, length: Int? = nil, proven: Bool = false) {
             typing = Typing(runs)
             self.start = start
             lengthBefore = length
             mistakes = runs.contains { $0.isSlip }
+            self.proven = proven
         }
 
         public var nextDelay: Double? { typing.nextDelay }
-        public var isDone: Bool { typing.isDone && beforeFix == nil }
+        public var isDone: Bool { typing.isDone && lastFix == nil }
         public var rest: String { typing.rest }
+        private var pending: Bool { lastFix != nil || typing.inSlip }
 
         /// The next step into `field`; `waiting`: check again a little later, without the step's pause.
         public mutating func step(in field: Field) -> Progress {
-            if beforeFix != nil || typing.inSlip {
+            if pending {
                 let look = look(field)
                 if look != .asTyped {
                     if waits < Self.patience {
@@ -587,13 +638,15 @@ extension TypeOut {
                         return .waiting
                     }
                     settle(look, in: field)
+                } else if lastFix != nil {
+                    proven = true
                 }
-                (waits, beforeFix) = (0, nil)
+                (waits, lastFix) = (0, nil)
             }
             guard !typing.isDone else { return .done }
             if typing.startsSlip {
-                // A typo only where the field holds what was typed, the caret after it.
-                if mistakes, look(field) == .asTyped { checked = typing.length } else { typing.skipSlip() }
+                // A typo only where the field holds what was typed, the caret after it; a probe until one was taken.
+                if mistakes, look(field) == .asTyped, proven || typing.probe() { checked = typing.length } else { typing.skipSlip() }
             }
             let before = typing
             guard let (edit, _) = typing.next() else { return .done }
@@ -602,34 +655,49 @@ extension TypeOut {
                 field.type(character)
             case let .replace(location, length, with, _):
                 field.replace(NSRange(location: start + location, length: length), with: with)
-                beforeFix = before
+                lastFix = (before, with)
             }
             return .typed
         }
 
         /// Stops: a typo still in the field is taken out where it was typed, if the text there is still exactly
-        /// that. Returns what to type then at the caret: the rest with `insertingRest`, else nothing.
-        public mutating func stop(insertingRest: Bool, in field: Field) -> String {
-            if beforeFix != nil, look(field) == .notFixed, let before = beforeFix {
-                typing = before
-                typing.keepTyped()
-                fieldFailed = true
-                failure = "a typo not taken back when typing stopped"
+        /// that, and checked like any fix (`wait` between checks). Returns what to type then at the caret: the rest
+        /// with `insertingRest`, else nothing.
+        public mutating func stop(insertingRest: Bool, in field: Field, wait: () -> Void = {}) -> String {
+            if pending {
+                let look = settled(field, wait: wait)
+                if look != .asTyped { settle(look, in: field) } else if lastFix != nil { proven = true }
+                lastFix = nil
             }
-            beforeFix = nil
-            var dropped = typing
-            if case let .replace(location, length, with, replacing)? = dropped.dropTypo() {
-                let range = NSRange(location: start + location, length: length)
-                if read(field, range) == replacing {
-                    field.replace(range, with: with)
-                    typing = dropped
+            if typing.inSlip {
+                let before = typing
+                var dropped = typing
+                if case let .replace(location, length, with, replacing)? = dropped.dropTypo() {
+                    let range = NSRange(location: start + location, length: length)
+                    if read(field, range) == replacing {
+                        field.replace(range, with: with)
+                        (typing, lastFix) = (dropped, (before, with))
+                        let look = settled(field, wait: wait)
+                        if look == .notFixed || look == .inserted { settle(look, in: field) }
+                        lastFix = nil
+                    } else {
+                        typing.keepTyped()
+                    }
                 } else {
-                    typing.keepTyped()
+                    typing = dropped
                 }
-            } else {
-                typing = dropped
             }
             return insertingRest ? typing.rest : ""
+        }
+
+        /// The field's look, checked up to `patience` more times (`wait` in between) while it isn't as typed.
+        private func settled(_ field: Field, wait: () -> Void) -> Look {
+            var look = look(field)
+            for _ in 0..<Self.patience where look != .asTyped {
+                wait()
+                look = self.look(field)
+            }
+            return look
         }
 
         /// How the field compares with what was typed since the last check.
@@ -637,14 +705,25 @@ extension TypeOut {
             let from = min(checked, typing.length)
             let caret = field.caret
             let length = field.length
-            /// Whether the field is as long as with `typed` typed (unknown: yes).
-            func long(_ typed: Typing) -> Bool { lengthBefore.map { length == nil || length == $0 + typed.length } ?? true }
+            /// Whether the field is as long as with `typed` and `extra` more (unknown: yes).
+            func long(_ typed: Typing, _ extra: Int = 0) -> Bool {
+                lengthBefore.map { length == nil || length == $0 + typed.length + extra } ?? true
+            }
             let asTyped = read(field, NSRange(location: start + from, length: typing.length - from)) == typing.text(from: from)
                 && long(typing)
             if asTyped && caret == start + typing.length { return .asTyped }
-            if let before = beforeFix, caret == start + before.length, long(before),
-               read(field, NSRange(location: start + from, length: before.length - from)) == before.text(from: from) {
-                return .notFixed
+            if let (before, with) = lastFix, before.length >= from {
+                let shown = before.text(from: from)
+                let span = before.length - from
+                if caret == start + before.length, long(before),
+                   read(field, NSRange(location: start + from, length: span)) == shown {
+                    return .notFixed
+                }
+                let width = with.utf16.count
+                if width > 0, caret == start + before.length + width, long(before, width),
+                   read(field, NSRange(location: start + from, length: span + width)) == shown + with {
+                    return .inserted
+                }
             }
             return asTyped ? .moved : .changed
         }
@@ -660,36 +739,46 @@ extension TypeOut {
             switch look {
             case .asTyped:
                 break
-            case .notFixed:
-                guard let before = beforeFix else { break }
+            case .notFixed, .inserted:
+                guard let (before, with) = lastFix else { break }
                 typing = before
-                typing.keepTyped()
+                typing.keepTyped(adding: look == .inserted ? with : "")
                 fieldFailed = true
-                failure = "a typo not taken back (replacement range ignored)"
+                failure = look == .inserted ? "a typo's fix went in at the caret: replacement range ignored"
+                    : "a typo's fix wasn't taken"
             case .moved:
                 var dropped = typing
                 if case let .replace(location, length, with, replacing)? = dropped.dropTypo() {
                     let range = NSRange(location: start + location, length: length)
-                    guard read(field, range) == replacing else { typing.keepTyped(); break }
+                    guard read(field, range) == replacing else {
+                        typing.keepTyped()
+                        break
+                    }
                     field.replace(range, with: with)
                 }
                 typing = dropped
             case .changed:
-                fieldFailed = true
-                failure = "the text changed while a typo was in it"
                 // The typed span, up to the caret, replaced with what it should be, if it's about that long.
                 let from = min(checked, typing.length)
                 var dropped = typing
                 _ = dropped.dropTypo()
                 let should = dropped.text(from: from)
-                if let caret = field.caret, caret >= start + from,
-                   caret - (start + from) <= should.utf16.count + 16,
-                   read(field, NSRange(location: start + from, length: caret - start - from)) != nil {
-                    field.replace(NSRange(location: start + from, length: caret - start - from), with: should)
-                    typing = dropped
-                } else {
+                guard let caret = field.caret, caret >= start + from, caret - (start + from) <= should.utf16.count + 16,
+                      !should.isEmpty || caret > start + from,
+                      read(field, NSRange(location: start + from, length: caret - start - from)) != nil else {
                     typing.keepTyped()
+                    break
                 }
+                if should.isEmpty {
+                    // Nothing to put there: the character before goes too, and back (never an empty insert).
+                    let before = dropped.text(from: 0).suffix(1).description
+                    let width = before.utf16.count
+                    guard width > 0, !before.contains(where: \.isNewline) else { typing.keepTyped(); break }
+                    field.replace(NSRange(location: start + from - width, length: caret - start - from + width), with: before)
+                } else {
+                    field.replace(NSRange(location: start + from, length: caret - start - from), with: should)
+                }
+                typing = dropped
             }
         }
     }

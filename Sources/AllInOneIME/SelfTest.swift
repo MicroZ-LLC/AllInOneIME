@@ -21,6 +21,9 @@ final class FakeTextClient: NSObject, IMKTextInput {
     var knowsRanges = true
     /// True: like a field that reads back but ignores `replacementRange`, everything goes in at the end.
     var ignoresRanges = false
+    /// Empty text with a replacement range never arrives, as through the input method connection (an NSTextView
+    /// in the real-app test got none of them).
+    var dropsEmptyReplacements = true
 
     private func replaceSelection() {
         guard marked.isEmpty, let range = selection else { return }
@@ -37,6 +40,7 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = Self.plain(string)
+        if s.isEmpty, replacementRange.location != NSNotFound, dropsEmptyReplacements { return }
         if knowsRanges, !ignoresRanges, marked.isEmpty, replacementRange.location != NSNotFound,
            NSMaxRange(replacementRange) <= (document as NSString).length {
             document = (document as NSString).replacingCharacters(in: replacementRange, with: s)
@@ -1607,7 +1611,7 @@ enum SelfTest {
             controller.composer.setInputMode(settings.defaultInput)
         }
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([Language.english])
         settings.setOrder([OutputLanguage.english])
         settings.uiLanguage = .english
@@ -1645,7 +1649,7 @@ enum SelfTest {
         }
         let languages = ["es", "fr", "de"].map(OutputLanguage.init)
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([Language.english])
         settings.setOrder(languages)
         settings.uiLanguage = .english
@@ -1751,16 +1755,16 @@ enum SelfTest {
         settings.typeOutMistakes = true
         controller.applySettings()
         // The apps remembered for not keeping a fix: the self-test's own (the user's stay as they are).
-        let memoryBefore = AllInOneIMEInputController.typoMemory
+        let memoryBefore = TypoMemory.defaults
         let suite = "com.aipinyin.selftest.typos"
         UserDefaults.standard.removePersistentDomain(forName: suite)
-        AllInOneIMEInputController.typoMemory = UserDefaults(suiteName: suite) ?? .standard
+        TypoMemory.defaults = UserDefaults(suiteName: suite) ?? .standard
         defer {
             settings.typeOutMistakes = mistakesBefore
             controller.applySettings()
             (controller.typeOutSleep, controller.typeOutRandom) = (sleepBefore, nil)
             (client.document, client.selection, client.bundleIDOverride, client.knowsRanges, client.ignoresRanges) = (documentBefore, nil, nil, true, false)
-            AllInOneIMEInputController.typoMemory = memoryBefore
+            TypoMemory.defaults = memoryBefore
             UserDefaults.standard.removePersistentDomain(forName: suite)
         }
         let text = "Thanks for the quick reply, I will look into it tomorrow morning and get back to you. "
@@ -1825,11 +1829,13 @@ enum SelfTest {
         controller.typeOutRandom = seeded(1)
         _ = typeOut(text)
         let firstRun = client.document
-        let remembered = AllInOneIMEInputController.noTypos(in: "com.example.ignores-ranges")
-        check(oneEditApart(firstRun, intended) && remembered,
+        let remembered = TypoMemory.contains( "com.example.ignores-ranges")
+        check(oneEditApart(firstRun, intended) && remembered && !TypoMemory.remember(""),
               "a field ignoring replacement ranges: one typo stays at most, its app remembered (\(remembered)): '\(firstRun)'")
         _ = typeOut(text)
         check(client.document == intended, "…the next time, no typos there: the text exact")
+        TypoMemory.forget()
+        check(TypoMemory.apps.isEmpty, "…until forgotten (Settings → General); never an app without a bundle identifier")
         (client.bundleIDOverride, client.ignoresRanges) = (nil, false)
 
         // No typos where they couldn't be taken back.
@@ -1981,8 +1987,8 @@ enum SelfTest {
 
         // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
         // another key types the rest at once. Short pauses here.
-        let (typedBefore, sleepBefore) = (settings.typeOut, controller.typeOutSleep)
-        settings.typeOut = true
+        let (typedBefore, mistakesBefore, sleepBefore) = (settings.typeOut, settings.typeOutMistakes, controller.typeOutSleep)
+        (settings.typeOut, settings.typeOutMistakes) = (true, false)  // one character at a time, no typos (`testTypos` has those)
         controller.applySettings()
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 40_000_000) }
         func typedOut(_ text: String) -> Bool {
@@ -2021,7 +2027,7 @@ enum SelfTest {
             clear()
         }
         testTypos(controller, client, clear: clear)
-        settings.typeOut = typedBefore
+        (settings.typeOut, settings.typeOutMistakes) = (typedBefore, mistakesBefore)
         controller.applySettings()
         controller.typeOutSleep = sleepBefore
 
@@ -2278,7 +2284,7 @@ enum SelfTest {
         // English only), and the user's back afterwards.
         let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
         settings.setOrder([Language.chinese, .english])  // pinyin, whatever the user's own default input is
         settings.uiLanguage = .chinese
@@ -2327,7 +2333,7 @@ enum SelfTest {
         // The real config (model, styles, credentials) with the new options pinned to known values;
         // sections below change `settings` and the controller follows (nothing is written to disk).
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])  // Shift switches
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background

@@ -59,6 +59,13 @@ final class SettingsModel: ObservableObject {
     /// Where the API key of each provider comes from (refreshed when one is saved).
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
     @Published private(set) var keyError: String?
+    /// The apps that get no typos (`TypoMemory`), as when the window opened or they were forgotten.
+    @Published private(set) var typoApps: [String] = TypoMemory.apps
+
+    func forgetTypoApps() {
+        TypoMemory.forget()
+        typoApps = TypoMemory.apps
+    }
 
     enum TestStatus: Equatable {
         case idle
@@ -805,6 +812,17 @@ struct SettingsView: View {
                     titled(tr("偶尔打错再改", "Make occasional typos and fix them"),
                            tr("偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，打完的文字一字不差。代码、网址和数字里打错马上就改；终端里不打错。",
                               "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed on the way: typed to the end, the text is exactly the result. In code, addresses and numbers fixed at once; never in a terminal."))
+                }
+                // Apps whose fields didn't take a typo back get none again; forgotten, they're tried once more.
+                HStack {
+                    Text(model.typoApps.isEmpty ? tr("每个 App 都能打错再改。", "Every app can make typos and fix them.")
+                         : tr("这些 App 里不再打错：", "No typos in: ") + model.typoApps.joined(separator: ", "))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Spacer()
+                    Button(tr("忘掉改不回来的 App（\(model.typoApps.count)）", "Forget apps where typos couldn't be fixed (\(model.typoApps.count))")) {
+                        model.forgetTypoApps()
+                    }
+                    .disabled(model.typoApps.isEmpty)
                 }
             }
             Toggle(isOn: $model.config.claudeInBackground) {
@@ -2622,7 +2640,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes 逐字上屏 打字速度 打错 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
