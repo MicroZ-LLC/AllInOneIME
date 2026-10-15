@@ -88,6 +88,7 @@ struct TypeOutMistakesTests {
                             switch step.stroke {
                             case let .type(character): typed.append(character)
                             case .delete: typed.removeLast()
+                            case let .correct(character): typed[typed.count - 1] = character
                             }
                         }
                         #expect(typed.joined() == run.text, "seed \(seed): \(run)")
@@ -188,13 +189,13 @@ struct TypeOutMistakesTests {
             for seed in UInt64(0)..<200 {
                 for run in Self.plan(text, seed: seed) where run.isSlip {
                     slips += 1
-                    // One wrong letter or digit, ⌫ next, the right one: never a bracket, quote, operator or space.
-                    guard run.text.count == 1, run.steps.count == 3, case let .type(typo) = run.steps[0].stroke,
+                    // One wrong letter or digit, corrected next in one go: never a bracket, quote, operator or space.
+                    guard run.text.count == 1, run.steps.count == 2, case let .type(typo) = run.steps[0].stroke,
                           let wrong = typo.first, let right = run.text.first else {
                         Issue.record("not an immediate fix: \(run)")
                         continue
                     }
-                    #expect(run.steps[1].stroke == .delete && run.steps[2].stroke == .type(run.text))
+                    #expect(run.steps[1].stroke == .correct(run.text))
                     #expect(wrong != right && wrong.isASCII && right.isASCII
                             && (wrong.isLetter || wrong.isNumber) && (right.isLetter || right.isNumber), "\(run)")
                     if let digit = right.wholeNumberValue { #expect(abs((wrong.wholeNumberValue ?? 99) - digit) == 1) }
@@ -213,7 +214,7 @@ struct TypeOutMistakesTests {
             for (run, start) in zip(runs, Self.offsets(runs)) where run.isSlip {
                 if protected.contains(where: { $0.contains(start) }) {
                     inAddress += 1
-                    #expect(run.steps.count == 3 && run.steps[1].stroke == .delete)
+                    #expect(run.steps.count == 2 && run.steps[1].stroke == .correct(run.text))
                 } else {
                     inProse += 1
                     // A prose slip stays clear of the address (and the space before it).

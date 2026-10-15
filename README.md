@@ -259,13 +259,17 @@ once (never a wrong bracket, quote or space, which editors pair or indent on). T
 keyboard layout (QWERTY, AZERTY, QWERTZ…). Chinese, Japanese and Korean only hesitate (two characters typed, deleted
 and typed again), never with a wrong character.
 
-Typed to the end, or with another key pressed to type the rest at once, the text is exactly the result. Esc (or
-leaving the field) in the middle of a typo takes the typo out first, so the field holds an exact start of the result.
-If the cursor moves while a typo shows (a click), the typo is taken out where it was and the rest typed without typos.
-Typos are only made where the input method can take them back: never in terminals, nor in apps that don't tell it
-where the cursor is. While a typo is in the field, the input method checks before every key that the field holds what
-it typed; an app that doesn't take a typo back as asked (it ignores where to replace) keeps that one typo, and gets no
-typos again (remembered).
+In a field that takes typos back (Apple's text views such as TextEdit and Notes, browsers, most editors): typed to
+the end, or with another key pressed to type the rest at once, the text is exactly the result; Esc (or leaving the
+field) in the middle of a typo takes the typo out first, so the field holds an exact start of the result. If the
+cursor moves while a typo shows (a click), the typo is taken out where it was and the rest is typed without typos.
+
+Typos are never made in terminals, nor in apps that don't tell the input method where the cursor is. Each time, the
+first typo is a plain one (a wrong letter, corrected in one go), until the field has shown it takes a typo back; while a
+typo shows, the input method checks before every key that the field holds what it typed. A field that ignores where
+to replace text can't take a typo back: there that first typo stays, so the text ends up one character off (also
+after Esc or another key), and the app gets no typos again. Settings → General lists those apps under the typos
+switch; "Forget apps where typos couldn't be fixed" lets them try again.
 
 ## Menu bar panel
 

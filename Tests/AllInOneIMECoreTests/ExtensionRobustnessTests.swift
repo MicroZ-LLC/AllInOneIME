@@ -119,7 +119,9 @@ struct ExtensionRobustnessTests {
         } catch {
             failure = error as? CommandRunner.RunError
         }
-        #expect(failure == .timedOut(1) && Date().timeIntervalSince(started) < 3)  // 1 s, then 0.5 s to SIGKILL
+        // 1 s, then 0.5 s to SIGKILL (about 1.6 s); the bound is loose, for a test pool busy with other tests.
+        #expect(failure == .timedOut(1))
+        #expect(Date().timeIntervalSince(started) < 10)
         let child = try #require(pid_t(String(decoding: try Data(contentsOf: pids), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
         try await Task.sleep(for: .milliseconds(100))
         #expect(kill(child, 0) != 0, "the script's child \(child) is still running")

@@ -328,9 +328,6 @@ final class AllInOneIMEInputController: IMKInputController {
     private var typist = TypeOut.Typist([], start: 0)
     private var typingField: TypingField?
     private var typingClient: IMKTextInput? { typingField?.client }
-    /// Where the apps that didn't take a typo back as asked are remembered (no typos there again); the self-test's own.
-    static var typoMemory = UserDefaults.standard
-    static let noTyposKey = "typeOutNoTyposApps"
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
 
@@ -395,7 +392,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// says where its caret is, right where the text typed so far ends, and reads that text back as typed
     /// (`attributedSubstring`); while a typo is in the field, and after each fix, that's checked before every step
     /// (`TypeOut.Typist`). Never in a terminal (keys go to a shell). An app that doesn't keep a fix as asked is
-    /// remembered (`noTyposKey`) and gets no typos again. (A ⌫ posted as a key would need the Accessibility
+    /// remembered (`TypoMemory`) and gets no typos again. (A ⌫ posted as a key would need the Accessibility
     /// permission and could reach the app after the next character: never here.)
     @MainActor
     private func typeOut(_ text: String, into client: IMKTextInput) {
@@ -405,7 +402,7 @@ final class AllInOneIMEInputController: IMKInputController {
         typingPastes = field.pastesLineBreaks
         let caret = field.caret
         let app = client.bundleIdentifier() ?? ""
-        let mistakes = typeOutMistakes && !Self.isTerminal(client) && !Self.noTypos(in: app) && caret != nil
+        let mistakes = typeOutMistakes && !Self.isTerminal(client) && !TypoMemory.contains(app) && caret != nil
         // Wrong letters from the keys next to the right one on the keyboard the keys come from (AZERTY, QWERTZ …).
         let layout = appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current()
         let keyboard = layout.map(TypeOut.Keyboard.init(layout:)) ?? .qwerty
@@ -435,17 +432,11 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Whether `app` didn't keep a typo's fix before (`noTyposKey`).
-    static func noTypos(in app: String) -> Bool {
-        (typoMemory.stringArray(forKey: noTyposKey) ?? []).contains(app)
-    }
-
-    /// Remembers `app` when the field didn't keep a typo's fix as asked: no typos there again.
+    /// Remembers `app` when its field didn't take a typo's fix (`TypoMemory`): no typos there again.
     @MainActor
     private func rememberFailure(_ app: String) {
-        guard typist.fieldFailed, !Self.noTypos(in: app) else { return }
-        Self.typoMemory.set((Self.typoMemory.stringArray(forKey: Self.noTyposKey) ?? []) + [app], forKey: Self.noTyposKey)
-        log.error("typing out: \(app, privacy: .public) didn't keep a typo's fix (\(self.typist.failure ?? "", privacy: .public)); no typos there again")
+        guard typist.fieldFailed, TypoMemory.remember(app) else { return }
+        log.error("typing out: \(app, privacy: .public) didn't take a typo's fix (\(self.typist.failure ?? "", privacy: .public)); no typos there again")
     }
 
     /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed. Either way a typo still
@@ -455,7 +446,8 @@ final class AllInOneIMEInputController: IMKInputController {
         guard let task = typingTask else { return }
         task.cancel()
         if let field = typingField {
-            let rest = typist.stop(insertingRest: insertingRest, in: field)
+            // Checked like any fix, waiting a little in between for a field that tells its text late.
+            let rest = typist.stop(insertingRest: insertingRest, in: field, wait: { usleep(20_000) })
             rememberFailure(field.client.bundleIdentifier() ?? "")
             if !rest.isEmpty { insert(rest, into: field.client) }
         }

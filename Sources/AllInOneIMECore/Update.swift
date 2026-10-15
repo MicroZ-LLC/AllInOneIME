@@ -100,6 +100,12 @@ public enum UpdateURLPolicy {
         }
     }
 
+    /// A redirect on the way to the manifest or its signature: only to the same host, or to allinoneime.com.
+    public static func allowsManifestRedirect(to url: URL, from origin: URL, allowsLocalHTTP: Bool) -> Bool {
+        if allowsLocalHTTP, isLocal(url), isLocal(origin) { return true }
+        return isPlainHTTPS(url) && (host(url) == host(origin) || host(url) == site)
+    }
+
     /// A redirect on the way to the archive: only to where a release download is, or GitHub's release servers.
     public static func allowsRedirect(to url: URL, allowsLocalHTTP: Bool) -> Bool {
         if allowsDownload(url, allowsLocalHTTP: allowsLocalHTTP) { return true }
@@ -354,21 +360,48 @@ public struct Updater: Sendable {
 
     // MARK: Network
 
+    /// A small file (the manifest, its signature) of at most `limit` bytes: refused as soon as it's longer, as it
+    /// comes, never read whole first. Redirects only to the same host or allinoneime.com (`ManifestRedirects`).
     private func fetch(_ url: URL, limit: Int) async throws -> Data {
         let session = URLSession(configuration: configuration)
         defer { session.finishTasksAndInvalidate() }
-        let data: Data, response: URLResponse
+        var data = Data()
         do {
-            (data, response) = try await session.data(from: url)
+            let (bytes, response) = try await session.bytes(from: url, delegate: ManifestRedirects(from: url, allowsLocalHTTP: allowsLocalHTTP))
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else { throw UpdateError.http(status: status, file: url.lastPathComponent) }
+            guard response.expectedContentLength <= Int64(limit) else { throw UpdateError.tooLarge(url.lastPathComponent) }
+            for try await byte in bytes {
+                guard data.count < limit else { throw UpdateError.tooLarge(url.lastPathComponent) }
+                data.append(byte)
+            }
+        } catch let error as UpdateError {
+            throw error
         } catch is CancellationError {
             throw UpdateError.cancelled
         } catch {
             throw UpdateError.unreachable(url.host ?? url.absoluteString)
         }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw UpdateError.http(status: status, file: url.lastPathComponent) }
-        guard data.count <= limit else { throw UpdateError.tooLarge(url.lastPathComponent) }
         return data
+    }
+}
+
+/// The redirects the manifest and its signature may take (`UpdateURLPolicy.allowsManifestRedirect`); any other is
+/// refused, and the redirect's own answer is then what comes back (not 200: refused too).
+final class ManifestRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    let origin: URL
+    let allowsLocalHTTP: Bool
+
+    init(from origin: URL, allowsLocalHTTP: Bool) {
+        self.origin = origin
+        self.allowsLocalHTTP = allowsLocalHTTP
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        guard let url = request.url, UpdateURLPolicy.allowsManifestRedirect(to: url, from: origin, allowsLocalHTTP: allowsLocalHTTP)
+        else { return nil }
+        return request
     }
 }
 
