@@ -67,13 +67,34 @@ public enum AppleModel {
     /// or more may have been cut off there: it's reported as "max_tokens" (an unfinished last line is dropped, nothing
     /// is cached).
     static func possiblyCut(_ text: String, limit: Int) -> Bool {
-        Double(estimatedTokens(text)) >= 0.9 * Double(limit)
+        Double(estimatedOutputTokens(text)) >= 0.9 * Double(limit)
+    }
+
+    /// The tokens in an answer, as near as can be told without the model: about four ASCII characters a token, and
+    /// a token for each other scalar (CJK, Hangul, Devanagari, …).
+    static func estimatedOutputTokens(_ text: String) -> Int {
+        let ascii = text.unicodeScalars.filter(\.isASCII).count
+        return (ascii + 3) / 4 + text.unicodeScalars.count - ascii
+    }
+
+    /// Whether most of the letters in `text` are Latin (with accents, Vietnamese's too).
+    static func mostlyLatin(_ text: String) -> Bool {
+        let letters = text.unicodeScalars.filter(\.properties.isAlphabetic)
+        let latin = letters.filter { scalar in
+            switch scalar.value {
+            case 0x41...0x5A, 0x61...0x7A, 0xC0...0x24F, 0x1E00...0x1EFF, 0x2C60...0x2C7F, 0xA720...0xA7FF,
+                 0xFF21...0xFF3A, 0xFF41...0xFF5A: return true
+            default: return false
+            }
+        }
+        return latin.count * 2 > letters.count
     }
 
     /// Text in a language the model doesn't speak (`AppleModelBackend.supportedLanguages`, by language code), told
-    /// with confidence: its code, else nil. Short (under 10 letters) or mixed text isn't judged; it goes to the model.
+    /// with confidence: its code, else nil. Short (under 10 letters) or mixed text isn't judged, nor is text mostly in
+    /// Latin letters (pinyin reads as Indonesian or Vietnamese): it goes to the model.
     static func unsupportedLanguage(of text: String, supported: Set<String>) -> String? {
-        guard !supported.isEmpty, text.filter(\.isLetter).count >= 10 else { return nil }
+        guard !supported.isEmpty, text.filter(\.isLetter).count >= 10, !mostlyLatin(text) else { return nil }
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
         guard let language = recognizer.dominantLanguage,
