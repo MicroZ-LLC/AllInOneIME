@@ -116,13 +116,14 @@ whole numbers of up to 38 digits are written out in full (`2^100` → `126765060
 ### On the selected text (new)
 
 Select some text in any app (a sentence in Notes, a paragraph in Mail), type `@improve`, `@translate`, `@question`
-or another command that takes text, and press ⏎: the command works on the selection (the panel's first line says
-"On the selection: “…” (N characters)"), and the result you pick replaces it. Esc, ⇧⏎ or clicking elsewhere puts the
-selection back exactly as it was. Text typed after the command is an instruction for `@improve` and `@translate`
-(`@translate ja`, `@improve more formal`) and the question for `@question` (`@question what does this mean`), about the
-selection. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`, `@imessage` and script extensions don't use it; it goes
-back when they're done. Up to 5000 characters; never read during secure input or in a terminal. Turn it off under
-Settings → General → "Use the selected text" if it misbehaves in an app.
+or another command that takes text, and press ⏎: the command works on the selection, and the result you pick replaces
+it. The selection stays as it is, selected, while you type: the command is written in the candidate panel, whose first
+line is what you type and the next "On the selection: “…” (N characters)". Esc, ⇧⏎ or clicking elsewhere leave the text
+as it was; so does a selection you change meanwhile, which cancels the command. Text typed after the command is an
+instruction for `@improve` and `@translate` (`@translate ja`, `@improve more formal`) and the question for `@question`
+(`@question what does this mean`), about the selection. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`,
+`@imessage` and script extensions don't use it. Up to 5000 characters; never read during secure input or in a
+terminal. Turn it off under Settings → General → "Use the selected text" if it misbehaves in an app.
 
 ### Notes and reminders
 
