@@ -59,16 +59,23 @@ public struct AppProfile: Codable, Equatable, Sendable {
             guard let profile = entry.profile, isBundleID(app) else { continue }
             profiles[app] = profile
         }
-        let ids = Set(profiles.keys.map { $0.lowercased() })
-        let kept = Set(ids.compactMap { preferredKey(for: $0, in: profiles) })
+        // The spellings of each id together, in one pass; one kept of each (a file of thousands reads at once).
+        let spellings = Dictionary(grouping: profiles.keys, by: { $0.lowercased() })
+        let kept = Set(spellings.values.compactMap { winner(of: $0, in: profiles) })
         return profiles.filter { kept.contains($0.key) }
     }
 
-    /// Of the keys of `profiles` that are `app` ignoring case, the one that counts: one that sets something before one
-    /// that doesn't, and among those the first in sorted order (always the same one, whatever the spelling asked for).
+    /// Of the keys of `profiles` that are `app` ignoring case, the one that counts (`winner`), whatever the spelling
+    /// asked for. Only those keys are sorted.
     static func preferredKey(for app: String, in profiles: [String: AppProfile]) -> String? {
-        let matching = profiles.keys.filter { $0.caseInsensitiveCompare(app) == .orderedSame }.sorted()
-        return matching.first { profiles[$0]?.isEmpty == false } ?? matching.first
+        winner(of: profiles.keys.filter { $0.caseInsensitiveCompare(app) == .orderedSame }, in: profiles)
+    }
+
+    /// Of `keys`, spellings of one id: one that sets something before one that doesn't, and among those the first in
+    /// sorted order (always the same one).
+    private static func winner(of keys: [String], in profiles: [String: AppProfile]) -> String? {
+        let sorted = keys.sorted()
+        return sorted.first { profiles[$0]?.isEmpty == false } ?? sorted.first
     }
 
     /// Whether `id` can be an app's bundle id ("com.apple.mail"): not empty, no spaces or line breaks.
