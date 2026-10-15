@@ -38,8 +38,13 @@ struct ScriptedAppleModel: AppleModelBackend {
 
     var availability: AppleModelAvailability = .available
     var contextSize = 4096
+    /// What `SystemLanguageModel.supportedLanguages` says on macOS 27.2 (24 locales; no Hindi).
+    var supportedLanguages: Set<String> = ScriptedAppleModel.macOS27Languages
     var behavior: Behavior
     let log = AppleStubLog()
+
+    static let macOS27Languages: Set<String> = ["da", "de", "en", "es", "fr", "it", "ja", "ko", "nb", "nl", "pt", "sv", "tr",
+                                                "vi", "zh"]
 
     init(_ behavior: Behavior, availability: AppleModelAvailability = .available, contextSize: Int = 4096) {
         self.behavior = behavior
@@ -219,11 +224,14 @@ enum AppleAcceptance {
         }
     }
 
+    /// The text the events add up to: deltas appended, a replacement in place of what came before.
     static func text(_ events: [BedrockStreamEvent]) -> String {
-        events.map { event -> String in
-            if case let .textDelta(delta) = event { return delta }
-            return ""
-        }.joined()
+        var text = ""
+        for event in events {
+            if case let .textDelta(delta) = event { text += delta }
+            if case let .textReplaced(whole) = event { text = whole }
+        }
+        return text
     }
 
     /// The tags of the lines the system prompt asks for ("EN", "EN", "EN", "STYLE_POLISH" …), read from its
@@ -528,16 +536,71 @@ struct AppleModelAcceptanceTests {
         (AppleModelError.contextExceeded, "too long"),
     ])
     func s5_modelErrorsGiveAClearMessage(_ thrown: any Error, _ words: String) async throws {
-        // Some of the answer may have streamed before it.
+        // Some of the answer may have streamed before it. (Text in languages the model speaks: Hindi is now turned
+        // away before the model is asked, s5_unsupportedLanguageIsToldUpFront.)
         let model = ScriptedAppleModel(.fail([AppleModelSnapshot(text: "EN: Part")], thrown))
-        for stream in [A.converter(A.apple(A.bilingual), model).convert("आज मेरी तबीयत ठीक नहीं है"),
-                       A.converter(A.apple(A.bilingual), model).generate(.question, input: "क्या हाल है?")] {
+        for stream in [A.converter(A.apple(A.bilingual), model).convert("我今天有点不舒服，明天的会能不能改到下午"),
+                       A.converter(A.apple(A.bilingual), model).generate(.question, input: "How are you doing today?")] {
             let outcome = await A.outcome(stream)
             let error = try #require(outcome.error, "\(outcome)")
             #expect(error.localizedDescription == thrown.localizedDescription)
             let message = try #require((error as? LocalizedError)?.errorDescription)
             #expect(message.lowercased().contains(words), "\(message)")
         }
+    }
+
+    /// Text in a language the model doesn't speak is turned away with a clear message before the model is asked.
+    @Test func s5_unsupportedLanguageIsToldUpFront() async throws {
+        let hindi = ["आज मेरी तबीयत ठीक नहीं है", "कल की मीटिंग में मैं नहीं आ पाऊँगा, माफ़ कीजिए",
+                     "@question के लिए: भारत की राजधानी क्या है?"]
+        let secrets = AppleSecretsLog()
+        for text in hindi {
+            for (name, stream) in [("@improve", { (c: Converter) in c.convert(text, mode: .improve) }),
+                                   ("@translate", { (c: Converter) in c.convert(text, mode: .translate) }),
+                                   ("@question", { (c: Converter) in c.generate(.question, input: text) })] {
+                let model = ScriptedAppleModel.answering("EN: never")
+                let outcome = await A.outcome(stream(A.converter(A.apple(A.bilingual), model, secrets: secrets)))
+                let error = try #require(outcome.error, "\(name) \(text): \(outcome)")
+                #expect(error as? AppleModelError == .unsupportedLanguage, "\(name) \(text)")
+                #expect(error.localizedDescription.contains("doesn't support this language"))
+                #expect(model.log.requests.isEmpty, "\(name) \(text): the model was asked")
+            }
+        }
+        #expect(secrets.count == 0)
+    }
+
+    /// What the model does speak, and text too short or too mixed to tell, still goes to it.
+    @Test(arguments: [
+        "我今天有点不舒服",  // Chinese
+        "明天的会我可能去不了因为家里有点事情不好意思",
+        "i dont feel so good today",  // English, unpunctuated
+        "lgtm, ship it",
+        "this bug is blocker, your team need fix it asap",
+        "这个PR我review一下明天给你反馈",  // mixed
+        "帮我check一下这个deadline是不是Friday",
+        "wo jin tian you dian bu shu fu",  // pinyin, as typed in English mode
+        "ming tian de hui wo ke neng qu bu liao",
+        "nihao shijie",
+        "zhe ge gong neng tai nan yong le",
+        "mingtian dehui wo kenengqu buliao",
+        "je me sens pas tres bien aujourdhui",  // French without accents
+        "오늘 몸이 좀 안 좋아요",  // Korean
+        "今日はちょっと体調が悪いです",  // Japanese
+        "ok",  // short
+        "नमस्ते",  // Hindi, but too short to judge
+        "ok नमस्ते thanks",  // mixed
+        "https://github.com/MicroZ-LLC/AllInOneIME/issues/42",
+    ])
+    func s5_supportedShortAndMixedTextGoesToTheModel(_ text: String) async throws {
+        for (name, mode) in [("@improve", WritingMode.improve), ("@translate", .translate)] {
+            let model = ScriptedAppleModel.answering("EN: fine")
+            let outcome = await A.outcome(A.converter(A.apple(A.bilingual), model).convert(text, mode: mode))
+            #expect(outcome.error == nil, "\(name) \(text): \(String(describing: outcome.error))")
+            #expect(model.log.requests.count == 1, "\(name) \(text)")
+        }
+        let model = ScriptedAppleModel.answering("Fine.")
+        let question = await A.outcome(A.converter(A.apple(A.bilingual), model).generate(.question, input: text))
+        #expect(question.error == nil, "@question \(text): \(String(describing: question.error))")
     }
 
     #if canImport(FoundationModels)
@@ -631,6 +694,74 @@ struct AppleModelAcceptanceTests {
         let final = try #require(outcome.final)
         #expect(final.rawText == text)
         #expect(final.result.versions.first?.text == Converter.lines(text))
+    }
+
+    /// A snapshot that doesn't extend the one before (the model revised its answer): the text ends as the model's.
+    @Test func s6_revisedSnapshotsEndAsTheModelsText() async throws {
+        let scripts: [[String]] = [
+            ["EN: Hello wor", "EN: Hi world", "EN: Hi world\nEN: Hey 👋🏽"],  // revised, then grows again
+            ["ZH: 我今天有点", "ZH: 我今天身体", "ZH: 我今天身体不太好。"],  // CJK revised
+            ["EN: 👍", "EN: 👍🏽", "EN: 👎🏽", "EN: 👎🏽 no"],  // inside a character, then revised
+            ["EN: Long answer that the model", "EN: Short"],  // shrinks
+            ["EN: same", "EN: same", "EN: same!"],  // an unchanged snapshot
+        ]
+        for script in scripts {
+            let snapshots = script.map { AppleModelSnapshot(text: $0) }
+            let model = ScriptedAppleModel(.answer(snapshots))
+            let (events, error) = await A.events(AppleModel.stream(Prompt.request(for: "hi", config: A.apple()), backend: model,
+                                                                   maxTokens: 1000, timeout: 5))
+            #expect(error == nil)
+            #expect(A.text(events) == script.last, "\(script)")
+            // A revision is a replacement, not a delta appended to the old text.
+            let revised = zip(script, script.dropFirst()).contains { !$1.unicodeScalars.starts(with: $0.unicodeScalars) }
+            #expect(events.contains { if case .textReplaced = $0 { return true } else { return false } } == revised, "\(script)")
+            // Through the converter, for a command and for the writing commands.
+            let command = await A.outcome(A.converter(A.apple(), ScriptedAppleModel(.answer(snapshots)))
+                .generate(.question, input: "hi"))
+            #expect(command.final?.rawText == script.last, "\(script)")
+            #expect(command.final?.result.versions.first?.text == Converter.lines(script.last!))
+            let writing = await A.outcome(A.converter(A.apple(), ScriptedAppleModel(.answer(snapshots)))
+                .convert("i dont feel so good today", mode: .improve))
+            #expect(writing.final?.rawText == script.last, "\(script)")
+            // Every update shows text the model wrote at that point, never old and new run together.
+            if case let .finished(updates) = writing {
+                #expect(updates.allSatisfy { script.contains($0.rawText) }, "\(updates.map(\.rawText))")
+            }
+        }
+    }
+
+    /// macOS 26 doesn't count the tokens generated: an answer about as long as its limit may have been cut, and isn't
+    /// kept in the cache (or offered with an unfinished last line); a short one is.
+    @Test func s6_macOS26AnswerNearItsLimitIsNotCached() async throws {
+        var config = A.apple(A.bilingual)
+        config.maxTokens = 300
+        // Snapshots without a token count, as on macOS 26.
+        let long = "ZH: " + String(repeating: "今天开会讨论了下个季度的计划。", count: 20) + "\nZH: 今天开会讨论"  // ~300 CJK characters
+        let short = "ZH: 我今天身体不太好。\nZH: 今天有点不舒服。\nZH: 我今天不太舒服。"
+        let input = "我今天有点不舒服"
+        do {
+            let model = ScriptedAppleModel(.answer(A.snapshots(long, characters: 7)))
+            let converter = A.converter(config, model)
+            let (events, _) = await A.events(AppleModel.stream(Prompt.request(for: input, mode: .improve, config: config),
+                                                               backend: model, maxTokens: 300, timeout: 5))
+            #expect(events.last == .messageStop(reason: "max_tokens"))
+            let first = try #require(await A.outcome(converter.convert(input, mode: .improve)).final)
+            #expect(!first.result.versions.contains { $0.text == "今天开会讨论" })  // the unfinished line is left out
+            let again = try #require(await A.outcome(converter.convert(input, mode: .improve)).final)
+            #expect(again.fromCache == false)
+            // A command's answer is kept, but not cached either.
+            _ = await A.outcome(converter.generate(.question, input: "总结一下"))
+            let question = try #require(await A.outcome(converter.generate(.question, input: "总结一下")).final)
+            #expect(question.fromCache == false)
+        }
+        do {
+            let model = ScriptedAppleModel(.answer(A.snapshots(short, characters: 3)))
+            let converter = A.converter(config, model)
+            _ = await A.outcome(converter.convert(input, mode: .improve))
+            let again = try #require(await A.outcome(converter.convert(input, mode: .improve)).final)
+            #expect(again.fromCache == true)
+            #expect(model.log.requests.count == 1)
+        }
     }
 
     @Test func s6_noNewTextWithinTheTimeoutStops() async throws {
