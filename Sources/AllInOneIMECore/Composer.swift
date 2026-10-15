@@ -322,6 +322,10 @@ public final class Composer {
     /// Whether the results shown can be refined now: they are an AI request's, and all in.
     public var canRefine: Bool { phase == .choosing && refineRequest != nil }
 
+    /// Whether keys go into the refine line: while results can be refined, and while a refine runs (what is typed
+    /// then is the next step, run with ⏎ once its results are in; the running one goes on).
+    public var typesRefine: Bool { canRefine || isRefining }
+
     /// A refine is running (`refinements.last` is its instruction).
     public var isRefining: Bool {
         if case let .translating(id) = phase, id == refineID { return true }
@@ -329,11 +333,11 @@ public final class Composer {
     }
 
     /// Pinyin of a refine instruction is being typed: the panel shows the engine's candidates.
-    public var refineIsComposing: Bool { canRefine && engineState.isComposing }
+    public var refineIsComposing: Bool { typesRefine && engineState.isComposing }
 
     /// The refine line as the panel shows it: the instruction so far and the pinyin being typed (nil: none started).
     public var refineLine: String? {
-        guard canRefine, !refineText.isEmpty || engineState.isComposing else { return nil }
+        guard typesRefine, !refineText.isEmpty || engineState.isComposing else { return nil }
         return refineText + (engineState.isComposing ? engineState.preedit : "")
     }
 
@@ -2076,7 +2080,7 @@ public final class Composer {
     /// Engine output continues a draft (an @ command); otherwise it is inserted, as in any input method.
     private func accept(_ text: String) -> [Effect] {
         // Pinyin of a refine instruction (level two): into the refine line, not the draft.
-        if canRefine {
+        if typesRefine {
             appendRefine(text)
             return []
         }
@@ -2120,7 +2124,7 @@ public final class Composer {
     /// letters a command switched to (`@open` typed in Chinese), back to Chinese.
     private func switchInputLanguage() -> [Effect] {
         // In level two only while a refine instruction can be typed (Chinese or English for it).
-        guard engine != nil, !isLevelTwo || canRefine else { return [] }
+        guard engine != nil, !isLevelTwo || typesRefine else { return [] }
         let current = inputLanguage
         // Out of the letters for code inside Korean text (`@translate 안녕 @py …`): back to Hangul.
         if nestedLatinFrom != nil, !restoreChineseAfterOpen, current == .korean {
@@ -2150,7 +2154,7 @@ public final class Composer {
     }
 
     private func toggleLatin() -> [Effect] {
-        guard let engine, !isLevelTwo || canRefine else { return [] }
+        guard let engine, !isLevelTwo || typesRefine else { return [] }
         let before = engine.snapshot()
         let latin = before.isAsciiMode
         // librime's own Shift handling (rime-ice: `Shift_L: commit_code`) keeps the words already
@@ -2265,7 +2269,7 @@ public final class Composer {
             // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
             guard activeCommand?.kind == .reminder else { return .consumed() }
         }
-        // While a refine runs, typing waits for its results (Esc goes back to the ones before).
+        // While a refine runs, a key that doesn't start the next step's line does nothing (Esc goes back, above).
         if isRefining { return .consumed() }
         // Typing more: back to the draft and continue the sentence with this key.
         let back = backToDraft()
@@ -2276,12 +2280,15 @@ public final class Composer {
     /// Keys while AI results can be refined (`canRefine`). A letter starts the refine line (pinyin through the engine,
     /// its candidates shown, Space and digits picking them); once there is one, Space, digits and punctuation are part
     /// of it, ⌫ deletes, ⏎ (or the action key) runs it, Esc clears it. With the line empty every key does what it did:
-    /// digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back. Nil: the key acts as usual.
+    /// digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back. While a refine runs the same keys write the
+    /// next step's line (the running request goes on), except that ⏎ only converts pinyin (it runs once the results
+    /// are in) and Esc goes back to the results before the running refine, as always. Nil: the key acts as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
-        guard canRefine else { return nil }
+        guard typesRefine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
         guard modifiers.isSubset(of: .shift) else { return nil }
         let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
+        if isRefining, event.keyCode == VirtualKey.escape { return nil }
         if let engine, engine.snapshot().isComposing {
             if isReturn { return .consumed(runRefine()) }
             if event.keyCode == VirtualKey.escape {
@@ -2298,7 +2305,7 @@ public final class Composer {
         }
         switch event.keyCode {
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
-            return .consumed(runRefine())
+            return .consumed(runRefine())  // while one runs: nothing yet (the line waits for its results)
         case VirtualKey.escape:
             refineText = ""
             return .consumed([.showPanel])
@@ -2333,7 +2340,10 @@ public final class Composer {
     /// ⏎ on the refine line: pinyin still being typed is converted, then the results shown go to the model again with
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
     private func runRefine() -> [Effect] {
-        if let engine, engine.snapshot().isComposing { _ = convertComposition(engine) }
+        if let engine, engine.snapshot().isComposing {
+            _ = convertComposition(engine)
+            engineState = engine.snapshot()
+        }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
         refinements.append(Refinement.Turn(answer: result, instruction: instruction))
@@ -2352,6 +2362,10 @@ public final class Composer {
         guard let last = refinements.popLast() else { return backToDraft() }
         var effects: [Effect] = []
         if case .translating = phase { effects.append(.cancelConversion) }
+        if let engine, engine.snapshot().isComposing {  // the next step's pinyin goes with its line
+            engine.clearComposition()
+            engineState = engine.snapshot()
+        }
         result = last.answer
         refineID = nil
         refineError = nil
@@ -2367,7 +2381,8 @@ public final class Composer {
         guard let last = refinements.popLast() else { return [.showPanel] }
         result = last.answer
         refineID = nil
-        refineText = last.instruction
+        // Its instruction back in the line, unless the next one was typed meanwhile (that one stays).
+        if refineText.isEmpty, !engineState.isComposing { refineText = last.instruction }
         refineError = message
         highlightOverride = nil
         phase = .choosing
@@ -2863,7 +2878,7 @@ public final class Composer {
     /// its text, like Esc).
     private func acceptInLevelTwo() -> [Effect] {
         // A refine instruction typed: the action key runs it (on an empty line it inserts, as before).
-        if canRefine, !refineText.isEmpty || engineState.isComposing { return runRefine() }
+        if typesRefine, !refineText.isEmpty || engineState.isComposing { return runRefine() }
         if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
         return commitChoice(at: highlighted)
     }

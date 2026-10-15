@@ -1950,7 +1950,8 @@ final class AllInOneIMEInputController: IMKInputController {
                     : command?.script?.output == .show
                     ? tr("运行中… · ⌘C 复制 · Esc 停止 · 离开输入框后在后台继续", "Running… · ⌘C copy · Esc stop · goes on in the background if you leave")
                     : command?.script != nil ? tr("运行中… · Esc 停止", "Running… · Esc stop")
-                    : composer.isRefining ? tr("修改中… · Esc 回到上一版", "Refining… · Esc previous results")
+                    : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
+                                               "Refining… · type the next step meanwhile · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
