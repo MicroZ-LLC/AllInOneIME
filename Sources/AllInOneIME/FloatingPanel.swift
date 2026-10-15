@@ -934,6 +934,8 @@ private struct ListHeightKey: PreferenceKey {
 /// reminders and the Claude tasks. Follows light and dark mode and the interface language (`tr`).
 struct FloatingPanelView: View {
     @ObservedObject var panel: FloatingPanel
+    /// A new version, as one quiet line at the top (`UpdateController`).
+    @ObservedObject var updates: UpdateController = .shared
     @Environment(\.colorScheme) private var scheme
 
     private static let cornerRadius: CGFloat = 14
@@ -1025,6 +1027,7 @@ struct FloatingPanelView: View {
             if let message = panel.message {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
+            if let update = updates.available { updateNotice(update) }
             section(tr("备忘录", "Notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
             section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .claude)) { tasks }
@@ -1297,6 +1300,21 @@ struct FloatingPanelView: View {
         .background(card.fill(Color.white.opacity(dark ? 0.06 : 0.42)))
         .overlay(card.strokeBorder(Color.white.opacity(dark ? 0.08 : 0.6), lineWidth: 0.5))
         .shadow(color: .black.opacity(dark ? 0.2 : 0.05), radius: 3, y: 1)
+    }
+
+    /// "AllInOneIME 0.7.0 is available": a click opens Settings → About, where Update is.
+    private func updateNotice(_ update: UpdateManifest) -> some View {
+        Button { panel.click { SettingsWindow.shared.show(page: .about) } } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
+                Text(UpdateText.available(update.version)).font(.system(size: 12)).lineLimit(1)
+                Spacer(minLength: 4)
+                Text(tr("更新…", "Update…")).font(.system(size: 12)).foregroundStyle(Color.accentColor)
+            }
+            .rowHover()
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(tr("打开设置里的「关于」", "Opens Settings → About"))
     }
 
     private func line(_ text: String) -> some View {

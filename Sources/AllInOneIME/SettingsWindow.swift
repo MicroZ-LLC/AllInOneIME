@@ -1515,8 +1515,8 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// The version, who makes it, where to read more.
-    private var aboutSection: some View {
+    /// The version, its updates, who makes it, where to read more.
+    @ViewBuilder private var aboutSection: some View {
         Section {
             VStack(spacing: 10) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
@@ -1530,6 +1530,9 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
+        }
+        UpdateSection(updates: .shared, model: model)
+        Section {
             LabeledContent(tr("网站", "Website")) { Link("allinoneime.com", destination: URL(string: "https://allinoneime.com")!) }
             LabeledContent(tr("使用说明", "Documentation")) { Link("Wiki", destination: URL(string: "https://allinoneime.com/docs")!) }
             LabeledContent(tr("更新日志", "What's new")) {
@@ -2228,6 +2231,9 @@ final class SettingsWindow {
 
     /// After the window's language changed.
     func updateTitle() { window?.title = Self.title }
+
+    /// Whether the window is open (an update opens it again once the input method restarts).
+    var isVisible: Bool { window?.isVisible == true }
 
     /// Shows the window on `page` (already open: it turns to it).
     func show(page: SettingsPage) {
