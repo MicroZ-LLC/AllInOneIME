@@ -760,6 +760,10 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .startCommand(command, input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 startConversion(input, id: id, command: command)
+            case let .startRefine(refinement, id):
+                // Sent to the model like the request it refines: refused during secure input the same way.
+                if refusedForSecureInput(id: id, client: target) { break }
+                startRefine(refinement, id: id)
             case let .startPlan(outer, plan, id):
                 // Inner commands run programs or reach the network: refused during secure input like any.
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
@@ -1527,7 +1531,37 @@ final class AllInOneIMEInputController: IMKInputController {
         // A terminal runs each line it is given: a program's output goes in as one line there, and so does
         // an answer with line breaks (code) unless they can go in as a paste (`insert`, `TerminalPaste`).
         let oneLine = terminal && (command?.kind == .run || (command?.kind == .generate && !canPasteInTerminal()))
-        let inserted = oneLine ? Self.oneLine(stream) : stream
+        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
+    }
+
+    /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"): the same
+    /// request as before (`WritingMode` from the command, as `startConversion` works it out), with the conversation
+    /// after it. The new results replace the shown ones as they stream in (`Composer.receive`).
+    @MainActor
+    private func startRefine(_ refinement: Refinement, id: Int) {
+        conversionTask?.cancel()
+        lastElapsed = nil
+        lastFromCache = false
+        log.notice("conversion \(id) started (refine, step \(refinement.turns.count))")
+        let stream: AsyncThrowingStream<ConversionUpdate, Error>
+        var generates = false
+        switch refinement.request {
+        case let .writing(command, input):
+            let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
+                                                 improveTranslates: loadSettings().improveTranslates)
+            stream = converter.convert(text, mode: mode, turns: refinement.turns)
+        case let .command(command, input):
+            stream = converter.generate(command, input: input, turns: refinement.turns)
+            generates = true
+        }
+        // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
+        let oneLine = generates && Self.isTerminal(clientOverride ?? client()) && !canPasteInTerminal()
+        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
+    }
+
+    /// Hands `stream`'s updates for request `id` to the composer, and its error if it fails.
+    @MainActor
+    private func consume(_ inserted: AsyncThrowingStream<ConversionUpdate, Error>, id: Int) {
         conversionTask = Task { @MainActor [weak self] in
             do {
                 for try await update in inserted {
@@ -1738,6 +1772,16 @@ final class AllInOneIMEInputController: IMKInputController {
         return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
     }
 
+    /// The instructions the results shown were refined with, oldest first ("Refined: shorter · more formal"); Esc goes
+    /// back one. Nil before any.
+    @MainActor
+    func refineHeader() -> String? {
+        let history = composer.refineHistory
+        guard composer.isLevelTwo, !history.isEmpty else { return nil }
+        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
+        return tr("已修改：", "Refined: ") + steps
+    }
+
     /// The line under the command being written on the selection (`Composer.selection`): what it works on, with its
     /// start and length; or that the command doesn't use it, or that it's too long (either way it's left as it is).
     @MainActor
@@ -1800,7 +1844,16 @@ final class AllInOneIMEInputController: IMKInputController {
     func panelModel() -> CandidateView.Model {
         var model = CandidateView.Model()
         let config = loadSettings()
-        if composer.isLevelTwo {
+        if composer.refineIsComposing {
+            // Pinyin of a refine instruction: its candidates, as when typing (the results come back once it's picked).
+            let state = composer.engineState
+            model.rows = state.candidates.map {
+                CandidateView.Row(label: $0.label, text: $0.text, comment: $0.comment, style: .candidate)
+            }
+            model.highlighted = state.highlighted
+            model.horizontal = composer.horizontalCandidates
+            model.footer = tr("空格 选词 · ⏎ 按这句修改结果 · Esc 清除拼音", "Space picks · ⏎ refine · Esc clear the pinyin")
+        } else if composer.isLevelTwo {
             let choices = composer.choices
             model.rows = choices.map { choice in
                 // Long rows (a pasted paragraph and its versions) are shortened here; the full text goes in.
@@ -1888,12 +1941,16 @@ final class AllInOneIMEInputController: IMKInputController {
                     : command == .tasks ? tr("读取后台任务…", "Reading the background tasks…")
                     : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
                     : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…"))
-                model.status = choices.count <= 1 ? .loading(loading) : .none
+                let refining = composer.refineHistory.last.map {
+                    tr("按「\(Self.preview($0, limit: 40))」修改中…", "Refining: \(Self.preview($0, limit: 40))…")
+                }
+                model.status = choices.count <= 1 ? .loading(composer.isRefining ? refining ?? loading : loading) : .none
                 model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
                     : command?.script?.output == .show
                     ? tr("运行中… · ⌘C 复制 · Esc 停止 · 离开输入框后在后台继续", "Running… · ⌘C copy · Esc stop · goes on in the background if you leave")
                     : command?.script != nil ? tr("运行中… · Esc 停止", "Running… · Esc stop")
+                    : composer.isRefining ? tr("修改中… · Esc 回到上一版", "Refining… · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
@@ -1920,8 +1977,19 @@ final class AllInOneIMEInputController: IMKInputController {
                     ? tr("空格 / ⏎ 打开 · 数字选择 · ⌘C 复制路径 · Esc 返回", "Space / ⏎ open · digits pick · ⌘C copy path · Esc back")
                     : command == .reminder
                     ? tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy")
+                    : composer.refineLine != nil
+                    ? tr("⏎ 按这句修改结果 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⏎ refine · ⌫ delete · Esc clear · ↑↓ choose")
+                    : composer.canRefine
+                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`).
+                    ? (composer.refineHistory.isEmpty
+                        ? tr("空格 / ⏎ 上屏 · 数字选择 · 打字修改结果 · ⌘C 复制 · Esc 返回",
+                             "Space / ⏎ insert · digits pick · type to refine · ⌘C copy · Esc back")
+                        : tr("空格 / ⏎ 上屏 · 数字选择 · 打字再改 · Esc 上一版",
+                             "Space / ⏎ insert · digits pick · type to refine · Esc previous"))
                     : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
                          "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+                // A refine that failed: the results before it stay, its instruction back in the line.
+                if let error = composer.refineError { model.status = .error(error) }
                 if command != .open && command != .reminder {
                     model.detail = lastFromCache ? tr("缓存", "cached") : lastElapsed.map { String(format: "%.1fs", $0) }
                 }
@@ -2033,8 +2101,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
                 : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
-        model.input = panelInput()
-        model.header = selectionHeader()
+        // The refine instruction being typed, as a line of input with its caret, in place of the command's.
+        model.input = composer.refineLine.map { tr("修改 › ", "refine › ") + $0 + "▏" } ?? panelInput()
+        let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
+        model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
         return model
     }
