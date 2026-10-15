@@ -66,6 +66,25 @@ struct ClickPickTests {
         #expect(commits(c.choose(index: 2)) == ["Hello."] && c.phase == .idle)
     }
 
+    @Test func onlyRowsThatCanBePickedLightUp() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        type("@imp", c)
+        _ = c.handleKeyDown(tab)
+        type("nihao", c)
+        _ = c.handleKeyDown(spaceKey)
+        _ = c.handleKeyDown(enterKey)
+        // Still coming in: the row isn't picked by a click, nor highlighted under the pointer.
+        _ = c.receive(ConversionResult(versions: [CandidateLine("Hi", isComplete: false)]), isFinal: false, id: 1)
+        #expect(c.choices.map(Composer.picks) == [true, false] && c.choose(index: 1).isEmpty && c.isLevelTwo)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("Hi.")]), isFinal: true, id: 1)
+        #expect(c.choices.map(Composer.picks) == [true, true])
+        // A row of information, a line a script printed: never; the issue to open: also without a title.
+        let info = Composer.Choice(label: "", kind: .item(ScriptItem(title: "People", valid: false)), text: "People", isComplete: true)
+        let shown = Composer.Choice(label: "", kind: .shown, text: "50%", isComplete: true)
+        let issue = Composer.Choice(label: "⏎", kind: .issue(URL(string: IssueReport.newIssueAddress)!), text: "", isComplete: true)
+        #expect(!Composer.picks(info) && !Composer.picks(shown) && Composer.picks(issue))
+    }
+
     @Test func aFileFoundByOpen() {
         let report = SearchResult(name: "report.pdf", path: "/Users/me/report.pdf")
         let notes = SearchResult(name: "notes.md", path: "/Users/me/notes.md")

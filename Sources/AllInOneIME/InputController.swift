@@ -1802,6 +1802,10 @@ final class AllInOneIMEInputController: IMKInputController {
                                              icon: composer.activeCommand.map(CommandIcons.icon(for:)))
                 }
             }
+            // Only rows a click picks light up under the pointer (not one still coming in).
+            for (index, choice) in choices.enumerated() where model.rows.indices.contains(index) {
+                model.rows[index].pickable = Composer.picks(choice)
+            }
             model.highlighted = composer.highlighted
             let command = composer.activeCommand
             switch composer.phase {

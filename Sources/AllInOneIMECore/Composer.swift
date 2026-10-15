@@ -2538,6 +2538,19 @@ public final class Composer {
         return effects + [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
     }
 
+    /// Whether picking `choice` (a digit, ⏎, a click) does something: not while it's still coming in, nor a line a
+    /// `show` script printed, a list's row of information or an empty row (but the issue to open, whose title may be
+    /// empty). The panel highlights only these under the pointer.
+    public static func picks(_ choice: Choice) -> Bool {
+        guard choice.isComplete else { return false }
+        switch choice.kind {
+        case .issue: return true
+        case .shown: return false
+        case let .item(item): return item.valid
+        default: return !choice.text.isEmpty
+        }
+    }
+
     private func commitChoice(at index: Int) -> [Effect] {
         let all = choices
         guard all.indices.contains(index), all[index].isComplete else { return [] }
