@@ -112,12 +112,13 @@ public final class Converter: Sendable {
             firstTokenLatency: firstToken, fromCache: false))
     }
 
-    /// Runs a `.generate` command: the answer streams in as the single version of the result.
-    public func generate(_ command: Command, input: String) -> AsyncThrowingStream<ConversionUpdate, Error> {
+    /// Runs a `.generate` command: the answer streams in as the single version of the result. `fresh`: asked again
+    /// even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new one is kept instead.
+    public func generate(_ command: Command, input: String, fresh: Bool = false) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runCommand(command, input: input, continuation: continuation)
+                    try await self.runCommand(command, input: input, fresh: fresh, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -127,7 +128,7 @@ public final class Converter: Sendable {
         }
     }
 
-    private func runCommand(_ command: Command, input: String,
+    private func runCommand(_ command: Command, input: String, fresh: Bool = false,
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
@@ -137,7 +138,7 @@ public final class Converter: Sendable {
         let config = try loadConfig()
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
-        if let hit = cache.withLock({ $0.get(key) }) {
+        if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true))
             return
