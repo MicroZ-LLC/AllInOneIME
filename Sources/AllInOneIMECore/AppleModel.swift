@@ -36,7 +36,8 @@ public enum AppleModel {
     /// `body` as the on-device model takes it. The system prompt is the instructions, the user and assistant turns
     /// before the last user message the examples, that message the prompt. When they don't all fit in the context
     /// with room for the answer, examples are left out from the first (the rules and the format are in the
-    /// instructions). The answer's limit is the user's `maxTokens`, lowered to what the context has left (but not
+    /// instructions); a refine's conversation (the user's text, each answer and the instructions after it,
+    /// `Prompt.refineMessage`) is never left out, only the few-shot examples before it. The answer's limit is the user's `maxTokens`, lowered to what the context has left (but not
     /// below `minimumAnswer`, unless the user's is lower still): never raised.
     public static func request(from body: ConverseRequest, maxTokens: Int, contextSize: Int) -> AppleModelRequest {
         let instructions = body.system.map(\.text).joined(separator: "\n\n")
@@ -56,8 +57,11 @@ public enum AppleModel {
             estimatedTokens(instructions) + estimatedTokens(prompt)
                 + examples.reduce(0) { $0 + estimatedTokens($1.prompt) + estimatedTokens($1.response) }
         }
+        // A refine: the turns from the user's text on are the conversation the last instruction is about.
+        let isRefine: (String) -> Bool = { $0.hasPrefix(refineTag) }
+        let conversation = isRefine(prompt) ? examples.reversed().prefix { isRefine($0.prompt) }.count + 1 : 0
         let room = min(maxTokens, answerRoom, contextSize / 3)
-        while !examples.isEmpty, size() + room > contextSize { examples.removeFirst() }
+        while examples.count > conversation, size() + room > contextSize { examples.removeFirst() }
         let answer = min(maxTokens, max(minimumAnswer, contextSize - size()))
         return AppleModelRequest(instructions: instructions, examples: examples, prompt: prompt,
                                  temperature: body.inferenceConfig.temperature, maximumResponseTokens: answer)
@@ -90,12 +94,19 @@ public enum AppleModel {
         return latin.count * 2 > letters.count
     }
 
+    /// The start of a refine's instruction (`Prompt.refineMessage`).
+    static let refineTag = Prompt.refineMessage("").replacingOccurrences(of: "</refine>", with: "")
+
     /// What the user wrote in `prompt`, without the app's own wrapping: a selection's text without the instruction
-    /// (`Prompt.editRequest`), a question and its selection without the tags (`Prompt.question`), else all of it.
+    /// (`Prompt.editRequest`), a question and its selection without the tags (`Prompt.question`), a refine's
+    /// instruction without its tags, else all of it.
     static func usersText(_ prompt: String) -> String {
         if let open = prompt.range(of: "<instruction>"), let start = prompt.range(of: "<text>", range: open.upperBound..<prompt.endIndex),
            let end = prompt.range(of: "</text>", options: .backwards), start.upperBound <= end.lowerBound {
             return String(prompt[start.upperBound..<end.lowerBound])
+        }
+        if prompt.hasPrefix(refineTag), prompt.hasSuffix("</refine>") {
+            return String(prompt.dropFirst(refineTag.count).dropLast("</refine>".count))
         }
         return prompt.replacingOccurrences(of: "<selected_text>", with: "").replacingOccurrences(of: "</selected_text>", with: "")
     }

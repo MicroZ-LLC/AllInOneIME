@@ -2378,6 +2378,12 @@ public final class Composer {
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
+        // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
+        // turned on while they were up. They stay, the instruction too.
+        if let refusal = aiRefusal() {
+            refineError = refusal
+            return [.showPanel]
+        }
         refinements.append(Refinement.Turn(answer: result, instruction: instruction))
         refineText = ""
         refineError = nil
@@ -3122,6 +3128,9 @@ extension Composer {
     /// takes the old one's place in the list.
     func reaskQuestion() -> [Effect] {
         guard recalled != nil else { return [] }
+        // In an app with no AI the saved answers may still be shown (nothing is sent), but not asked again: the answer
+        // stays up, with the notice.
+        if let refusal = aiRefusal() { return [.notice(refusal), .showPanel] }
         recalled = nil
         questionPick = nil
         result = .empty

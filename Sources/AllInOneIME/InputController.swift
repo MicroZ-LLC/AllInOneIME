@@ -1570,7 +1570,8 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"): the same
     /// request as before (`WritingMode` from the command, as `startConversion` works it out), with the conversation
-    /// after it. The new results replace the shown ones as they stream in (`Composer.receive`).
+    /// after it. The new results replace the shown ones as they stream in (`Composer.receive`). In the app's settings
+    /// (`AppProfile`): its rewrite styles, and nothing sent where it has no AI.
     @MainActor
     private func startRefine(_ refinement: Refinement, id: Int) {
         conversionTask?.cancel()
@@ -1583,9 +1584,9 @@ final class AllInOneIMEInputController: IMKInputController {
         case let .writing(command, input):
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
                                                  improveTranslates: loadSettings().improveTranslates)
-            stream = converter.convert(text, mode: mode, turns: refinement.turns)
+            stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
         case let .command(command, input):
-            stream = converter.generate(command, input: input, turns: refinement.turns)
+            stream = converter.generate(command, input: input, app: appID, turns: refinement.turns)
             generates = true
         }
         // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
