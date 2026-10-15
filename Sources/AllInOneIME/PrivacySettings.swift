@@ -33,7 +33,9 @@ struct PrivacySection: View {
             SectionTitle(tr("隐私", "Privacy"), icon: CommandIcons.provider)
         } footer: {
             Text(tr("能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址，要隐藏的名字请加到上面的词里。",
-                    "Recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses, so add the names to hide as your own words."))
+                    "Recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses, so add the names to hide as your own words.")
+                 + "\n" + tr("只用于发给你的 AI 服务的请求；@claude、@search 和脚本扩展照原样发送文字。",
+                             "Applies to requests to your AI service; @claude, @search and script extensions send text as typed."))
                 .font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
@@ -72,8 +74,9 @@ enum RedactionPanel {
         case .translating, .choosing: break
         default: return
         }
+        let original = choices.first { $0.kind == .original }?.text ?? ""
         for (index, choice) in choices.enumerated() where model.rows.indices.contains(index) && choice.kind != .original
-            && choice.isComplete && Redaction.isAltered(choice.text) {
+            && choice.isComplete && Redaction.isAltered(choice.text, original: original) {
             model.rows[index].comment = model.rows[index].comment.isEmpty ? changed : model.rows[index].comment + " · " + changed
         }
         model.detail = [hiddenLine(hidden), model.detail].compactMap { $0 }.joined(separator: " · ")
