@@ -351,8 +351,14 @@ public struct Redaction: Sendable {
         }
         for word in settings.customWords { add(.item, wordRegex(word)) }
         if settings.keys {
-            add(.key, keyPrefixes) { $0.contains(where: \.isNumber) }
-            add(.key, token, looksRandom)
+            add(.key, keyPrefixes)
+            add(.key, privateKey)
+            add(.key, hex, isHexKey)
+            for match in run.matches(in: folded.text, range: all) {
+                for key in keys(inRun: ns.substring(with: match.range)) {
+                    found.append(Found(kind: .key, range: NSRange(location: match.range.location + key.location, length: key.length)))
+                }
+            }
         }
         if settings.emails { add(.email, email) }
         if settings.cards { add(.card, card) { isCardNumber($0) && oneBreak($0) } }
@@ -393,66 +399,108 @@ public struct Redaction: Sendable {
         #"(?<![A-Za-z0-9._%+\-])(?<!://)[A-Za-z0-9](?:[A-Za-z0-9._%+\-]*[A-Za-z0-9_%+\-])?@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?"#
         + #"(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,24}(?![A-Za-z0-9\-]|\.[A-Za-z0-9]|:[A-Za-z0-9~/])"#)
 
-    /// Keys with a known prefix: Claude, OpenAI (DeepSeek …), Stripe, AWS access keys, GitHub, Slack, Google,
-    /// GitLab, Hugging Face, and JSON web tokens.
+    /// Keys with a known prefix, whatever the body holds once it is as long as theirs: Claude, OpenAI (DeepSeek …),
+    /// Stripe, AWS access keys, GitHub, Slack, Google, GitLab, Hugging Face, JSON web tokens. ("sk-" then a word, as in
+    /// "sk-learn", isn't one: a key's first part is long.)
     static let keyPrefixes = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9_\-])(?:"#
-        + #"sk-ant-[A-Za-z0-9_\-]{16,}|sk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_\-]{16,}|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{16,}"#
-        + #"|(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA|ANVA|AIPA)[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}"#
-        + #"|xox[abposr]-[A-Za-z0-9\-]{10,}|AIza[0-9A-Za-z_\-]{35}|glpat-[A-Za-z0-9_\-]{20,}|hf_[A-Za-z0-9]{30,}"#
+        + #"sk-ant-[A-Za-z0-9_\-]{20,}|sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9]{20,}[A-Za-z0-9_\-]*"#
+        + #"|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA|ANVA|AIPA)[0-9A-Z]{16}"#
+        + #"|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|xox[abposr]-[0-9]+-[A-Za-z0-9\-]{8,}"#
+        + #"|AIza[0-9A-Za-z_\-]{35}|glpat-[A-Za-z0-9_\-]{20,}|hf_[A-Za-z0-9]{30,}"#
         + #"|eyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,})(?![A-Za-z0-9_\-])"#)
+    /// A private key in PEM form, from its BEGIN line to its END line.
+    static let privateKey = try! NSRegularExpression(
+        pattern: #"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----"#)
+    /// 32 or more hex digits, with a digit and a letter among them: always a key (a hash, a token).
+    static let hex = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9])[0-9A-Fa-f]{32,}(?![A-Za-z0-9])"#)
+    static func isHexKey(_ text: String) -> Bool { text.contains(where: \.isNumber) && text.contains(where: \.isLetter) }
 
-    /// A long run of key characters, base64's "/", "+" and "=" padding too (`looksRandom` tells a key from a word or
-    /// a path).
-    static let token = try! NSRegularExpression(
-        pattern: #"(?<![A-Za-z0-9_\-+/=])[A-Za-z0-9_\-+/]{24,}={0,2}(?![A-Za-z0-9_\-+/=])"#)
+    /// A run of 20 or more key characters (base64's "+", "/" and "=" too); `keys(inRun:)` tells which parts are keys.
+    static let run = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9+/=_\-])[A-Za-z0-9+/=_\-]{20,}(?![A-Za-z0-9+/=_\-])"#)
 
-    /// A long string that looks random: the kind of character (a digit, a capital, a small letter) often changes
-    /// through it, not words joined ("my-feature-branch-2024", "QuarterlyReview2024Q3", "/Users/me/workspace").
-    /// An AWS secret key ("wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEY") is, with few digits.
-    static func looksRandom(_ token: String) -> Bool {
-        let s = token.trimmingCharacters(in: CharacterSet(charactersIn: "="))
-        guard s.count >= 24 else { return false }
-        let parts = s.split(whereSeparator: { "-_/+".contains($0) })
-        if parts.count >= 2, parts.allSatisfy({ $0.allSatisfy(\.isLetter) || $0.allSatisfy(\.isNumber) }) { return false }
-        // Short pieces joined by "/" are a path ("C++/CLI/WinRT/Win32/x64/Release"); a base64 key's "/" leaves long ones.
-        if s.contains("/"), (s.split(separator: "/").map(\.count).max() ?? 0) < 12 { return false }
-        // Pinyin with tone numbers ("wo3xiang3ming2tian1"), and words joined with digits ("convertUTF8ToUTF16AndBack42"):
-        // most of the letters are in word-like runs.
-        if s.wholeMatch(of: Self.tonedPinyin) != nil || wordShare(s) >= 0.5 { return false }
-        let digits = s.filter(\.isNumber).count, upper = s.filter(\.isUppercase).count, lower = s.filter(\.isLowercase).count
-        guard entropy(s) >= 3.3 else { return false }
-        func kind(_ c: Character) -> Int { c.isNumber ? 0 : c.isUppercase ? 1 : c.isLowercase ? 2 : 3 }
-        let kinds = s.map(kind).filter { $0 != 3 }
-        let switches = zip(kinds, kinds.dropFirst()).filter { $0 != $1 }.count
-        guard Double(switches) / Double(max(kinds.count - 1, 1)) >= 0.3 else { return false }
-        if upper > 0, lower > 0 {
-            // Both cases: small letters come in short runs (words joined have long ones), and a digit or the
-            // length of a key.
-            let runs = s.split(whereSeparator: { !$0.isLowercase })
-            let average = Double(runs.map(\.count).reduce(0, +)) / Double(max(runs.count, 1))
-            return average <= 3.5 && (digits >= 1 || s.count >= 30)
+    /// The keys in `run` (ranges within it): split at "/", the pieces that aren't words, joined again where they
+    /// follow each other ("…/services/<key>/<key>/<key>" is one key after two words), 16 characters or more, each a
+    /// key when it isn't ordinary text (`isKey`). A run without "/" is one candidate.
+    static func keys(inRun run: String) -> [NSRange] {
+        let ns = run as NSString
+        guard run.contains("/") else { return isKey(run) ? [NSRange(location: 0, length: ns.length)] : [] }
+        var spans: [NSRange] = [], start: Int?, at = 0
+        for segment in run.split(separator: "/", omittingEmptySubsequences: false) {
+            let length = (String(segment) as NSString).length
+            // Words of six letters or more, nothing else ("services", "download"); a shorter piece, or one with
+            // digits, may be part of a key ("…/due8", "…/GALE/…"), and is hidden with it.
+            let word = segment.count >= 6 && segment.allSatisfy({ $0.isLetter || $0 == "-" || $0 == "_" })
+                && coverage(String(segment), strict: true) >= 0.8
+            if word {
+                if let s = start { spans.append(NSRange(location: s, length: at - 1 - s)) }
+                start = nil
+            } else if start == nil {
+                start = at
+            }
+            at += length + 1
         }
-        return digits >= 3 && upper + lower >= 4
+        if let s = start { spans.append(NSRange(location: s, length: ns.length - s)) }
+        return spans.filter { $0.length >= 16 && isKey(ns.substring(with: $0)) }
     }
 
-    nonisolated(unsafe) static let tonedPinyin = /(?:[a-zü]{0,3}[aeiouü][a-zü]{0,3}[1-5])+[a-zü]*/
-
-    /// The share of `s`'s letters in word-like runs: a small letter run of two or more with a vowel, maybe after a
-    /// capital, three letters at least ("convert", "And", "Response"). Random strings have few.
-    static func wordShare(_ s: String) -> Double {
-        let letters = s.filter(\.isLetter).count
-        guard letters > 0 else { return 0 }
-        let words = s.matches(of: /[A-Z]?[a-z]{2,}/).map { String(s[$0.range]) }
-            .filter { $0.count >= 3 && $0.lowercased().contains(where: { "aeiou".contains($0) }) }
-        return Double(words.map(\.count).reduce(0, +)) / Double(letters)
+    /// A key: not ordinary text (`isOrdinary`), and random enough: a digit, both cases, or 32 characters or more.
+    static func isKey(_ s: String) -> Bool {
+        guard !isOrdinary(s) else { return false }
+        return s.contains(where: \.isNumber) || (s.contains(where: \.isUppercase) && s.contains(where: \.isLowercase)) || s.count >= 32
     }
 
-    /// Shannon entropy in bits per character.
-    static func entropy(_ s: String) -> Double {
-        var counts: [Character: Int] = [:]
-        for c in s { counts[c, default: 0] += 1 }
-        let n = Double(s.count)
-        return counts.values.reduce(0) { $0 - Double($1) / n * log2(Double($1) / n) }
+    /// Ordinary text rather than a key: 80% or more of its letters in known words (`coverage`); or, without a digit,
+    /// words joined in camel case, two in five of their letters in known words ("AbstractSingletonProxyFactoryBean"), or one case only in fewer than 32 characters or with
+    /// the vowels of English ("internationalization_and_localization").
+    static func isOrdinary(_ s: String) -> Bool {
+        let letters = s.filter { $0.isASCII && $0.isLetter }
+        guard !letters.isEmpty, coverage(s) < 0.8 else { return true }
+        guard !s.contains(where: \.isNumber) else { return false }
+        let mixed = letters.contains(where: \.isUppercase) && letters.contains(where: \.isLowercase)
+        if mixed { return isCamelCase(s) && coverage(s) >= 0.4 }
+        let vowels = Double(letters.filter { "aeiouAEIOU".contains($0) }.count) / Double(letters.count)
+        return s.count < 32 || (0.3...0.6).contains(vowels)
+    }
+
+    /// The pieces of a string: capitals in a row (an acronym), a word with or without its capital, a capital
+    /// alone, digits.
+    nonisolated(unsafe) static let piece = /[A-Z]{2,}(?![a-z])|[A-Z]?[a-z]+|[A-Z]|[0-9]+/
+
+    /// The share of `s`'s letters in known pieces: an English word of three letters or more (`RedactionWords`), a
+    /// computing word with the digits after it ("UTF8", "Win32", "v3", "x64"), and in a string without capitals a
+    /// pinyin syllable followed by its tone (1–5) or ending it ("wo3xiang3").
+    /// `strict`: computing words of three letters or more and English words of four or more only ("ok", "io" or
+    /// "tog" can be part of a key's piece).
+    static func coverage(_ s: String, strict: Bool = false) -> Double {
+        let pieces = s.matches(of: piece).map { String(s[$0.range]) }
+        let pinyin = !s.contains(where: \.isUppercase)
+        var letters = 0, covered = 0, joined = false
+        for (i, piece) in pieces.enumerated() where piece.first?.isLetter == true {
+            letters += piece.count
+            let word = piece.lowercased()
+            let after = i + 1 < pieces.count ? pieces[i + 1] : nil
+            let next = after?.first?.isNumber == true ? after : nil
+            let tone = next.map { $0.count == 1 && "12345".contains($0) } ?? (i == pieces.count - 1)
+            // A computing word written in two pieces ("WinRT"): both are covered.
+            let pair = after.map { $0.first?.isLetter == true && word.count + $0.count >= 4
+                && RedactionWords.tech.contains(word + $0.lowercased()) } ?? false
+            let tech = RedactionWords.tech.contains(word) && (!strict || word.count >= 3)
+            if joined || pair || tech || next.map({ RedactionWords.tech.contains(word + $0) }) == true
+                || (word.count >= (strict ? 4 : 3) && RedactionWords.isWordOrPair(word))
+                || (pinyin && tone && RedactionWords.pinyin.contains(word)) {
+                covered += piece.count
+            }
+            joined = pair
+        }
+        return letters == 0 ? 0 : Double(covered) / Double(letters)
+    }
+
+    /// Words joined in camel or snake case without digits: each word with a vowel, acronyms of five capitals at most,
+    /// a letter alone ("kAXSecureTextFieldSubrole").
+    static func isCamelCase(_ s: String) -> Bool {
+        s.matches(of: piece).map { String(s[$0.range]) }.allSatisfy { piece in
+            piece.count == 1 || (piece.allSatisfy(\.isUppercase) ? piece.count <= 5 : piece.lowercased().contains(where: { "aeiouy".contains($0) }))
+        }
     }
 
     /// Between the groups of a card or phone number: a space or dash, or a line break with spaces around it (at most
