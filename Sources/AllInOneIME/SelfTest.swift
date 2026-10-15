@@ -8,7 +8,7 @@ import SwiftUI
 
 /// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
 /// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
-/// which deletes it).
+/// which deletes it), and goes where the selection was (`insertionPoint`).
 final class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
@@ -22,9 +22,15 @@ final class FakeTextClient: NSObject, IMKTextInput {
     /// True: like a field that reads back but ignores `replacementRange`, everything goes in at the end.
     var ignoresRanges = false
 
+    /// Where marked and inserted text goes once selected text was typed over: where it was (nil: at the end).
+    var insertionPoint: Int?
+    /// `insertionPoint`, or the end of the document.
+    private var point: Int { min(insertionPoint ?? .max, (document as NSString).length) }
+
     private func replaceSelection() {
         guard marked.isEmpty, let range = selection else { return }
         document = (document as NSString).replacingCharacters(in: range, with: "")
+        if range.length > 0 { insertionPoint = range.location }
         selection = nil
     }
     /// Screen rect of the caret line, used to position the candidate panel.
@@ -47,7 +53,13 @@ final class FakeTextClient: NSObject, IMKTextInput {
         }
         replaceSelection()
         inserted.append(s)
-        document += s
+        if insertionPoint != nil {
+            let at = point
+            document = (document as NSString).replacingCharacters(in: NSRange(location: at, length: 0), with: s)
+            insertionPoint = at + (s as NSString).length
+        } else {
+            document += s
+        }
         marked = ""
     }
 
@@ -59,13 +71,13 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func selectedRange() -> NSRange {
         guard knowsRanges else { return NSRange(location: NSNotFound, length: NSNotFound) }
-        return selection ?? NSRange(location: (document as NSString).length, length: 0)
+        return selection ?? NSRange(location: point, length: 0)
     }
 
     func markedRange() -> NSRange {
         marked.isEmpty
             ? NSRange(location: NSNotFound, length: 0)
-            : NSRange(location: (document as NSString).length, length: (marked as NSString).length)
+            : NSRange(location: point, length: (marked as NSString).length)
     }
 
     func attributedSubstring(from range: NSRange) -> NSAttributedString! {
@@ -240,7 +252,7 @@ enum SelfTest {
     static func testSelectionKept(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         print("— Selected text left alone")
         let (document, inserted) = (client.document, client.inserted)
-        defer { (client.document, client.inserted, client.selection) = (document, inserted, nil) }
+        defer { (client.document, client.inserted, client.selection, client.insertionPoint) = (document, inserted, nil, nil) }
         let latin = controller.composer.engineState.isAsciiMode
         client.document = "hello world"
         client.selection = NSRange(location: 6, length: 5)
@@ -261,6 +273,95 @@ enum SelfTest {
         check(!client.document.contains("world") && client.selection == nil,
               "typing replaces the selection (\(client.document)|\(client.marked))")
         _ = escape(controller, client)
+    }
+
+    /// Commands on the selected text (`Composer.selection`). The fake field models a selection as NSTextView does
+    /// (marked text takes its place, where it was). "@" reads it through the text input protocol and the panel says so;
+    /// Esc, ⇧⏎, the field left and secure input put it back exactly; the setting off, or secure input on, it isn't
+    /// read; a picked @improve version replaces it and the rest of the text stays (live Bedrock).
+    static func testCommandsOnSelection(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— commands on the selected text")
+        let (document, inserted, secureBefore) = (client.document, client.inserted, controller.secureInputActive)
+        defer {
+            (client.document, client.inserted, client.selection, client.insertionPoint) = (document, inserted, nil, nil)
+            controller.secureInputActive = secureBefore
+        }
+        let text = "Dear team, this sentance have a error. Thanks!"
+        let part = "this sentance have a error."
+        let range = (text as NSString).range(of: part)
+        func select() {
+            controller.commitComposition(client)
+            (client.document, client.selection, client.insertionPoint, client.marked) = (text, range, nil, "")
+        }
+        // The fake field itself: marked text where the selection was, then the text inserted there.
+        select()
+        client.setMarkedText("x", selectionRange: NSRange(location: 1, length: 0), replacementRange: AllInOneIMEInputController.notFound)
+        let markedAt = client.markedRange().location
+        client.insertText("y", replacementRange: AllInOneIMEInputController.notFound)
+        check(markedAt == range.location && client.document == "Dear team, y Thanks!",
+              "the fake field models a selection: marked text takes its place, the text goes in there ('\(client.document)')")
+
+        select()
+        improve(controller, client)
+        check(controller.composer.selection == part && client.document == "Dear team,  Thanks!" && client.marked == "improve › ",
+              "\"@\" reads the selection; the marked text takes its place ('\(client.document)' + '\(client.marked)')")
+        let header = controller.panelModel().header ?? ""
+        check(header.contains("this sentance have a error.") && header.contains("27"), "the panel says it works on the selection (\(header))")
+        _ = escape(controller, client)
+        check(client.document == text && client.marked.isEmpty && controller.composer.phase == .idle,
+              "Esc puts it back exactly ('\(client.document)')")
+
+        select()
+        improve(controller, client)
+        let insertedBefore = client.inserted.count
+        _ = shiftEnter(controller, client)
+        check(client.document == text && client.inserted.dropFirst(insertedBefore) == [part],
+              "⇧⏎ puts it back, no @improve left ('\(client.document)', inserted \(Array(client.inserted.dropFirst(insertedBefore))))")
+
+        select()
+        improve(controller, client)
+        controller.commitComposition(client)
+        check(client.document == text && client.marked.isEmpty, "the field left: it goes back ('\(client.document)')")
+
+        // Secure input turning on mid-draft (the app holding it ends everything as typed): back too.
+        select()
+        improve(controller, client)
+        controller.perform(controller.composer.commitAsTyped(), client: client)
+        check(client.document == text, "secure input turning on: it goes back ('\(client.document)')")
+
+        // Never read during secure input, nor with the setting off: "@" then takes its place as before.
+        select()
+        controller.secureInputActive = { true }
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil, "not read while secure input is on")
+        controller.secureInputActive = secureBefore
+        select()
+        settings.useSelection = false
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil, "not read with \"Use the selected text\" off")
+        settings.useSelection = true
+        controller.commitComposition(client)
+
+        // @improve on it: a version picked replaces it, and only it.
+        select()
+        improve(controller, client)
+        _ = enter(controller, client)
+        if finishConversion(controller, "@improve on the selection") {
+            check(controller.composer.choices.first?.text == part, "row 0 is the selection as it was")
+            let picked = controller.composer.choices[controller.composer.highlighted].text
+            _ = enter(controller, client)
+            check(client.document == "Dear team, " + picked + " Thanks!" && picked != part && !client.document.contains("improve"),
+                  "the version picked replaces the selection, the rest unchanged ('\(client.document)')")
+        }
+        // Esc in level two goes back to the command, Esc again puts the selection back.
+        select()
+        improve(controller, client)
+        _ = enter(controller, client)
+        _ = escape(controller, client)
+        check(client.marked == "improve › ", "Esc in level two goes back to the command (\(client.marked))")
+        _ = escape(controller, client)
+        check(client.document == text && client.marked.isEmpty, "Esc again puts it back exactly ('\(client.document)')")
+        controller.commitComposition(client)
     }
 
     /// Shift pressed and released on its own.
@@ -1981,8 +2082,9 @@ enum SelfTest {
 
         // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
         // another key types the rest at once. Short pauses here.
-        let (typedBefore, sleepBefore) = (settings.typeOut, controller.typeOutSleep)
+        let (typedBefore, mistakesBefore, sleepBefore) = (settings.typeOut, settings.typeOutMistakes, controller.typeOutSleep)
         settings.typeOut = true
+        settings.typeOutMistakes = false  // plain typing here, whatever the user's config has (the typos have a section of their own)
         controller.applySettings()
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 40_000_000) }
         func typedOut(_ text: String) -> Bool {
@@ -2022,6 +2124,7 @@ enum SelfTest {
         }
         testTypos(controller, client, clear: clear)
         settings.typeOut = typedBefore
+        settings.typeOutMistakes = mistakesBefore
         controller.applySettings()
         controller.typeOutSleep = sleepBefore
 
@@ -2269,6 +2372,7 @@ enum SelfTest {
         controller.canPasteInTerminal = { false }
         controller.pasteInTerminal = { _ in }
         controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
+        controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
@@ -2722,6 +2826,7 @@ enum SelfTest {
         testIMessage(controller, client)
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
+        testCommandsOnSelection(controller, client)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

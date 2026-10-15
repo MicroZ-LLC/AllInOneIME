@@ -102,6 +102,7 @@ final class AllInOneIMEInputController: IMKInputController {
     lazy var composer: Composer = {
         let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
+        composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
         return composer
     }()
     private var session: RimeSession?
@@ -121,6 +122,11 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The command usage as kept, and keeping it (the self-test leaves the user's alone).
     var loadCommandUsage: () -> CommandUsage = { CommandUsageStore.usage }
     var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
+    /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
+    private var keyClient: IMKTextInput?
+    /// Whether the selection may be read with Accessibility when the field doesn't say, and selected again with it once
+    /// put back (`SelectedText`). False in the self-test: it would reach the user's own frontmost app.
+    var selectionByAccessibility = true
     /// Whether secure event input is on anywhere; no text is sent to the model then.
     /// (The self-test replaces this to exercise both states.)
     var secureInputActive: () -> Bool = { SecureInput.isOn }
@@ -346,6 +352,41 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
+    /// The selected text of the field a draft starts in (`Composer.readSelection`): with the setting on (`useSelection`),
+    /// never during secure input, nor in a terminal (its selection is no text being edited: what goes back would be typed
+    /// at the prompt). Only how it was read and how long it is are logged.
+    @MainActor
+    private func readSelection() -> String? {
+        let target = keyClient ?? clientOverride ?? client()
+        guard loadSettings().useSelection, !secureInputActive(), !Self.isTerminal(target),
+              let (text, source) = SelectedText.read(from: target, accessibility: selectionByAccessibility) else { return nil }
+        log.notice("selection read (\(source.rawValue, privacy: .public), \(text.count) characters)")
+        return text
+    }
+
+    /// Puts the text that was selected back in place of the marked text (`Composer.Effect.restoreSelection`); a moment
+    /// later checks it reads back as it was there and, where Accessibility may be used, selects it again.
+    @MainActor
+    private func restoreSelection(_ text: String, into client: IMKTextInput?) {
+        guard let client else { return }
+        let marked = client.markedRange()
+        let at = marked.location == NSNotFound ? nil : marked.location
+        client.insertText(text, replacementRange: Self.notFound)
+        hasMarkedText = false
+        let length = (text as NSString).length
+        let reselects = selectionByAccessibility
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            guard let at else {
+                log.notice("selection put back (\(length) UTF-16 units; the field told no marked range to check)")
+                return
+            }
+            let back = client.attributedSubstring(from: NSRange(location: at, length: length))?.string
+            let check = back == nil ? "unverifiable" : back == text ? "verified" : "MISMATCH"
+            let selected = reselects && back != nil && back == text && SelectedText.reselect(text, at: at)
+            log.notice("selection put back (\(length) UTF-16 units, read back: \(check, privacy: .public), selected again: \(selected))")
+        }
+    }
+
     /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
     /// occasional typo fixed on the way (`typeOutMistakes`) where the field can take one back.
     ///
@@ -494,6 +535,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
+        composer.outputLanguages = config.outputLanguages
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         composer.issueDiagnostics = { [weak self] in
             guard let self else { return IssueReporting.current(config: LiveConfig.current) }
@@ -645,7 +687,9 @@ final class AllInOneIMEInputController: IMKInputController {
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
             in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
+        keyClient = client
         let response = composer.handleKeyDown(key)
+        keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
         return response.handled
@@ -707,6 +751,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
+            case let .restoreSelection(text):
+                restoreSelection(text, into: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
             case let .startConversion(input, id):
@@ -1673,11 +1719,43 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
+        // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
+        if let selected = composer.selectionInUse {
+            if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
+                return "\(how) → " + tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
+            }
+            let text = composer.sentText.isEmpty ? selected : composer.sentText
+            return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
+        }
         // A command with nothing after it yet: what to do (the action key alone only hints).
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
         return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
+    }
+
+    /// The panel's first line while text selected in the field is set aside (`Composer.selection`): what the command
+    /// works on, with its start and length; or that the command doesn't use it, or that it's too long (it goes back).
+    @MainActor
+    func selectionHeader() -> String? {
+        guard let selection = composer.selection else { return nil }
+        let count = selection.count
+        if composer.selectionTooLong {
+            return tr("选中的文字太长（\(count) 字，最多 \(Composer.maxSelectionLength) 字），命令不用它；Esc 放回",
+                      "The selection is too long (\(count) characters, \(Composer.maxSelectionLength) at most): not used; Esc puts it back")
+        }
+        if let command = composer.draftCommand, !Composer.usesSelection(command) {
+            return tr("@\(command.name) 不用选中的文字，完成后放回原处", "@\(command.name) doesn't use the selection; it goes back when done")
+        }
+        return tr("对选中的文字：“\(Self.selectionPreview(selection))”（\(count) 字）",
+                  "On the selection: “\(Self.selectionPreview(selection))” (\(count) characters)")
+    }
+
+    /// The start of a selection on one line, for the panel: its first `limit` characters, line breaks shown as "↵".
+    static func selectionPreview(_ text: String, limit: Int = 60) -> String {
+        let line = text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline).joined(separator: " ↵ ")
+            .trimmingCharacters(in: .whitespaces)
+        return line.count > limit ? String(line.prefix(limit)) + "…" : line
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -1785,7 +1863,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = config.language(of: composer.sentText).matches(config.outputLanguage)
+                let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
@@ -1936,8 +2014,11 @@ final class AllInOneIMEInputController: IMKInputController {
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
             model.status = .hint(draftHint(config: config))
-            model.footer = tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
+            model.footer = composer.selection != nil
+                ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 放回选中的文字", "⌃V paste · ⌫ delete · Esc puts the selection back")
+                : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
+        model.header = selectionHeader()
         if let notice { model.detail = notice }
         return model
     }

@@ -147,6 +147,8 @@ final class CandidateView: NSView {
         var rows: [Row] = []
         var highlighted: Int?
         var status: Status = .none
+        /// A line above everything else: what the panel works on (the text selected in the field).
+        var header: String?
         var footer = ""
         var detail: String?
         /// The rows side by side, as macOS's own panel (`Config.candidateLayout`): the engine's candidates only.
@@ -228,6 +230,7 @@ final class CandidateView: NSView {
     private(set) var textInset = Metrics.textInsetX
     private var rowLayouts: [RowLayout] = []
     private var statusFrame: NSRect?
+    private var headerFrame: NSRect?
     private var footerY: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
@@ -248,6 +251,13 @@ final class CandidateView: NSView {
         var widest: CGFloat = 0
         rowLayouts = []
         let horizontal = model.horizontal && !model.rows.isEmpty
+        headerFrame = nil
+        if let header = headerString() {
+            let size = Self.measure(header, minHeight: 0)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            headerFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
+            y += size.height + 2 * Metrics.rowInsetY
+        }
         var cellsWidth: CGFloat = 0
         if horizontal { (y, cellsWidth) = layoutCells(top: y) }
         textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : Metrics.textInsetX
@@ -390,6 +400,12 @@ final class CandidateView: NSView {
         return (label, text)
     }
 
+    private func headerString() -> NSAttributedString? {
+        model.header.map {
+            NSAttributedString(string: $0, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
+        }
+    }
+
     private func statusString() -> NSAttributedString? {
         switch model.status {
         case .none:
@@ -427,6 +443,10 @@ final class CandidateView: NSView {
             NSColor.separatorColor.setStroke()
             shape.lineWidth = 1
             shape.stroke()
+        }
+
+        if let headerFrame, let header = headerString() {
+            header.draw(with: headerFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
 
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
