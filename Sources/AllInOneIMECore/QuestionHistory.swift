@@ -26,17 +26,29 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
     /// How many are kept: the oldest goes when another comes (the digits 1–5 pick them).
     public static let limit = 5
 
+    /// `entries` newest first (by date; a hand-edited file may have them in any order), the same question once (its
+    /// newest wording and answer), at most `limit`.
     public init(entries: [Entry] = []) {
-        self.entries = Array(entries.prefix(Self.limit))
+        let newestFirst = entries.enumerated().sorted { ($0.element.date, -$0.offset) > ($1.element.date, -$1.offset) }.map(\.element)
+        var seen = Set<String>()
+        self.entries = Array(newestFirst.filter { seen.insert(Self.key($0.question)).inserted }.prefix(Self.limit))
     }
 
-    /// `entry` was answered just now: it goes first, in place of the same question asked before.
+    /// `entry` was answered just now: it goes first, in place of the same question asked before (`key`), whose wording
+    /// and answer go.
     public mutating func record(_ entry: Entry) {
         let question = entry.question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, !entry.answer.isEmpty else { return }
         var entry = entry
         entry.question = question
-        entries = Array(([entry] + entries.filter { $0.question != question }).prefix(Self.limit))
+        let key = Self.key(question)
+        entries = Array(([entry] + entries.filter { Self.key($0.question) != key }).prefix(Self.limit))
+    }
+
+    /// What makes two questions the same one: they differ only in case or in spaces and line breaks (at the ends, or
+    /// how many between words).
+    static func key(_ question: String) -> String {
+        question.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
     }
 
     /// The questions with all of `query` in them, newest first; all of them for an empty query.

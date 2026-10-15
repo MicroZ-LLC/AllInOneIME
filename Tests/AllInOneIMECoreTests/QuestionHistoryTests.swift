@@ -56,6 +56,20 @@ struct QuestionHistoryTests {
         #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["q1", "q2", "q3", "q4", "q5"])
     }
 
+    @Test func theSameQuestionInAnotherCaseOrSpacingIsOneEntryTheNewestWording() {
+        var history = QuestionHistory()
+        history.record(entry("What is Rust", "old", minute: 1))
+        history.record(entry("why", minute: 2))
+        history.record(entry("  what   IS\nrust ", "new", minute: 3))
+        #expect(history.entries.map(\.question) == ["what   IS\nrust", "why"] && history.entries[0].answer == "new")
+        #expect(QuestionHistory.key(" What  is\trust\n") == "what is rust")
+        #expect(QuestionHistory.key("whatis rust") != QuestionHistory.key("what is rust"))  // a space missing is another question
+        // A hand-edited file with them: one, the newest, first.
+        let edited = QuestionHistory(entries: [entry("why", minute: 2), entry("What is Rust", "older", minute: 1),
+                                               entry("what is rust ", "newest", minute: 5), entry("WHAT IS RUST", "oldest", minute: 0)])
+        #expect(edited.entries.map(\.answer) == ["newest", "answer"] && edited.entries[0].question == "what is rust ")
+    }
+
     @Test func theSettingIsOnByDefaultAndKept() throws {
         #expect(Config.default.rememberQuestions)
         let old = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
