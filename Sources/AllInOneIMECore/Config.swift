@@ -329,7 +329,9 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         try c.encode(useSelection, forKey: .useSelection)
-        try c.encode(appProfiles, forKey: .appProfiles)
+        // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
+        let profiles = appProfiles.filter { !$0.value.isEmpty }
+        if !profiles.isEmpty { try c.encode(profiles, forKey: .appProfiles) }
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

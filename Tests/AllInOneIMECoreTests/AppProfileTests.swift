@@ -72,6 +72,51 @@ struct AppProfileTests {
         #expect(AppProfile().isEmpty && AppProfile(noAI: false).isEmpty && !AppProfile(typeOut: false).isEmpty)
     }
 
+    @Test func noKeyWithoutAProfileAndEmptyOnesDropped() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("appprofiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        func keys() throws -> [String: Any] {
+            try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        }
+        // A file from before per-app settings, saved again: no "appProfiles" in it.
+        try Data(#"{"rewriteStyles": ["润色"]}"#.utf8).write(to: url)
+        try Config.load(from: url).write(to: url)
+        #expect(try keys()["appProfiles"] == nil)
+        // Only empty profiles (an app added that sets nothing, "noAI": false): still none.
+        var config = Config.default
+        config.appProfiles = [slack: AppProfile(), mail: AppProfile(noAI: false)]
+        try config.write(to: url)
+        #expect(try keys()["appProfiles"] == nil)
+        // With one that sets something, only that one is written.
+        config.appProfiles["com.example.quiet"] = AppProfile(noAI: true)
+        try config.write(to: url)
+        let written = try #require(try keys()["appProfiles"] as? [String: Any])
+        #expect(Array(written.keys) == ["com.example.quiet"])
+        #expect(try Config.load(from: url).appProfiles == ["com.example.quiet": AppProfile(noAI: true)])
+    }
+
+    @Test func bundleIDsMatchIgnoringCase() throws {
+        // Written by hand with Mail's name capitalized: still Mail's, kept under the key as written.
+        let config = try decode(#"{"appProfiles": {"com.apple.Mail": {"noAI": true}}}"#)
+        #expect(Array(config.appProfiles.keys) == ["com.apple.Mail"])
+        #expect(!config.allowsAI(in: mail) && !config.allowsAI(in: "COM.APPLE.MAIL") && config.allowsAI(in: "com.apple.mailx"))
+        #expect(config.profileKey(for: mail) == "com.apple.Mail" && config.profileKey(for: slack) == nil)
+        // The id as given comes first.
+        var both = Config.default
+        both.appProfiles = ["com.apple.Mail": AppProfile(typeOut: true), mail: AppProfile(typeOut: false)]
+        #expect(both.profile(for: mail)?.typeOut == false && both.profile(for: "com.apple.Mail")?.typeOut == true)
+        #expect(both.profile(for: "COM.apple.mail")?.typeOut == true)  // else the first in sorted order
+    }
+
+    @Test func keysThatDifferOnlyInCaseKeepTheFirstEveryTime() throws {
+        let json = #"{"appProfiles": {"com.apple.mail": {"typeOut": false}, "com.apple.Mail": {"typeOut": true}, "COM.APPLE.MAIL": {"noAI": true}}}"#
+        for _ in 0..<20 {
+            let config = try decode(json)
+            #expect(config.appProfiles == ["COM.APPLE.MAIL": AppProfile(noAI: true)])  // first in sorted order
+            #expect(!config.allowsAI(in: mail))
+        }
+    }
+
     // MARK: - Resolution
 
     var configured: Config {
@@ -231,9 +276,12 @@ struct AppProfileTests {
                                                                         interfaceLanguage: "en", languagePacks: [], plugins: 0, extensions: 0)).lines
         }
         #expect(!lines(config).contains { $0.hasPrefix("Apps with") })
-        config.appProfiles = [slack: AppProfile(noAI: true), mail: AppProfile(typeOut: true)]
+        config.appProfiles = ["com.example.added": AppProfile()]
+        #expect(!lines(config).contains { $0.hasPrefix("Apps with") })
+        config.appProfiles = [slack: AppProfile(noAI: true), mail: AppProfile(typeOut: true),
+                              "com.example.added": AppProfile(), "com.example.off": AppProfile(noAI: false)]
         let shown = lines(config)
-        #expect(shown.last == "Apps with their own settings: 2")
+        #expect(shown.last == "Apps with their own settings: 2")  // the two that set nothing aren't counted
         #expect(!shown.joined().contains("slack") && !shown.joined().contains("com.apple"))
     }
 }

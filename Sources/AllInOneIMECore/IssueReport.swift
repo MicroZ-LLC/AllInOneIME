@@ -78,7 +78,7 @@ public struct IssueReport: Equatable, Sendable {
                       provider: config.provider.rawValue,
                       model: config.provider == .hosted ? nil : config.settings(for: config.provider).model.map { IssueReport.publicModel($0) ?? "custom" },
                       actionKey: actionKey, customCommands: config.customCommands.count, plugins: plugins, extensions: extensions)
-            appProfiles = config.appProfiles.count
+            appProfiles = config.appProfiles.values.filter { !$0.isEmpty }.count
         }
     }
 
