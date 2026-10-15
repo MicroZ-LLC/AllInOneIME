@@ -1646,6 +1646,7 @@ struct SettingsView: View {
                 case .provider:
                     providerSection
                     requestSection
+                    PrivacySection(model: model)
                 case .advanced: filesSection
                 case .about: aboutSection
                 }
@@ -2600,7 +2601,7 @@ struct IconTile: View {
 }
 
 /// A section heading with its icon.
-private struct SectionTitle: View {
+struct SectionTitle: View {
     let title: String
     let icon: CandidateView.Icon
 
@@ -2661,7 +2662,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
         }
