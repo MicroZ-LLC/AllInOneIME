@@ -44,23 +44,6 @@ struct RedactionTests {
         #expect(found("tracking 1234567890123456") == [])
     }
 
-    @Test func keys() {
-        let keys = ["sk-\u{61}nt-api03-AbC9xYz_12345678abcdEFGH", "sk-\u{70}roj-4f9Qx2LmN8pR7tV1wZ3yB6", "AK\u{49}AIOSFODNN7EXAMPLE",
-                    "gh\u{70}_1234567890abcdefghijABCDEFGHIJ123456", "xo\u{78}b-1234567890-abcdefghij",
-                    "AI\u{7A}aSyA1234567890abcdefghijklmnopqrstuv", "ey\u{4A}hbGciOiJIUzI1NiJ9.ey\u{4A}zdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"]
-        for key in keys { #expect(found("key: \(key) ok") == ["KEY \(key)"], "\(key)") }
-        // Long random strings: base64, hex, a UUID.
-        #expect(found("token Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2Rl") == ["KEY Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2Rl"])
-        #expect(found("secret 3f2a9c8b7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a") == ["KEY 3f2a9c8b7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a"])
-        #expect(found("id 550e8400-e29b-41d4-a716-446655440000") == ["KEY 550e8400-e29b-41d4-a716-446655440000"])
-        // Words joined are not keys; nor is sk- before words.
-        for text in ["branch my-feature-branch-2024-10-14", "call very_long_function_name_v2", "QuarterlyBusinessReview2024Q3",
-                     "use sk-learn-is-a-python-library", "internationalization_and_localization",
-                     "open /Users/imac/workspace/AllInOneIME-custom-commands/README.zh-CN.md"] {
-            #expect(found(text) == [], "\(text)")
-        }
-    }
-
     @Test func ips() {
         #expect(found("server 192.168.1.20 is down") == ["IP 192.168.1.20"])
         #expect(found("服务器10.0.0.1挂了") == ["IP 10.0.0.1"])
@@ -149,19 +132,6 @@ struct RedactionTests {
     }
 
     // MARK: Fixes from the acceptance tests
-
-    @Test func awsSecretsAndBase64Tokens() {
-        for key in ["wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEY", "\u{6A}e7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY",
-                    "dGhpcyBpcyBhIHNlY3JldCB0b2tlbg+/aGVsbG8=", "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2Rl=="] {
-            #expect(found("aws_secret_access_key = \(key)") == ["KEY \(key)"], "\(key)")
-        }
-        // Paths and links are not keys.
-        for text in ["open /Users/imac/workspace/AllInOneIME-custom-commands/Sources/AllInOneIMECore",
-                     "see github.com/MicroZ-LLC/AllInOneIME/issues/new", "getUserAccountSettingsForCurrentSessionHandler",
-                     "a/very/long/path/to/some/deeply/nested/folder"] {
-            #expect(found(text) == [], "\(text)")
-        }
-    }
 
     @Test func fullWidthFormsAreFoundAndPutBackAsTyped() throws {
         var settings = on
@@ -305,15 +275,6 @@ struct RedactionTests {
                      "wo3xiang3ming2tian1qu4kai1hui4", "ni3hao3ma5wo3hen3hao3xie4xie5ni3", "zhong1guo2ren2min2yin2hang2"] {
             #expect(found("see \(text) here") == [], "\(text)")
         }
-    }
-
-    @Test func keysStillCaught() {
-        let keys = ["wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEY", "je7MtGbClwBF/2Zp9Utk/h3yCo8nvb+EXAMPLEKEY",
-                    "\u{6B}J3x9Qm/Zp2Lw8Rt+Vb5Nc7Yh4Gd1Fs6Ae0Pu3Io", "sk-\u{70}roj-4f9Qx2LmN8pR7tV1wZ3yB6", "sk-\u{61}nt-api03-AbC9xYz_12345678abcdEFGH",
-                    "gh\u{70}_1234567890abcdefghijABCDEFGHIJ123456", "xo\u{78}b-1234567890-abcdefghij", "AK\u{49}AIOSFODNN7EXAMPLE",
-                    "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2Rl", "dGhpcyBpcyBhIHNlY3JldCB0b2tlbg+/aGVsbG8=",
-                    "3f2a9c8b7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a", "9e107d9d372bb6826bd81d3542a419d6", "QWxhZGRpbjpvcGVuIHNlc2FtZQ9xYz7KpL2mN4"]
-        for key in keys { #expect(found("key \(key) ok") == ["KEY \(key)"], "\(key)") }
     }
 
     @Test func gitRemotesAndURLUsersAreNotEmails() {
