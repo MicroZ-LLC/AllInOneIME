@@ -603,6 +603,43 @@ struct AppleModelAcceptanceTests {
         #expect(question.error == nil, "@question \(text): \(String(describing: question.error))")
     }
 
+    /// Latin-script languages always go to the model (pinyin reads as one of them); a non-Latin script whose
+    /// language the model doesn't speak is told up front, for every AI command, the selection ones too.
+    @Test func s5_latinScriptGoesToTheModelOtherUnsupportedScriptsAreToldUpFront() async throws {
+        let latin = ["Saya tidak enak badan hari ini, mungkin besok saya tidak masuk kerja",  // Indonesian
+                     "Hôm nay tôi cảm thấy không được khỏe lắm, mai tôi xin nghỉ nhé",  // Vietnamese (supported anyway)
+                     "Saya tak sihat hari ini dan tidak dapat datang ke mesyuarat",  // Malay
+                     "Dziś nie czuję się najlepiej, jutro chyba nie przyjdę",  // Polish
+                     "Hoy no me siento muy bien, mañana no podré ir"]  // Spanish
+        for text in latin {
+            let model = ScriptedAppleModel.answering("EN: fine")
+            let outcome = await A.outcome(A.converter(A.apple(A.bilingual), model).convert(text, mode: .improve))
+            #expect(outcome.error == nil, "\(text): \(String(describing: outcome.error))")
+            #expect(model.log.requests.count == 1, "\(text)")
+        }
+        let blocked = ["Сегодня я плохо себя чувствую, завтра не приду на встречу",  // Russian
+                       "أنا لا أشعر بخير اليوم ولن أتمكن من حضور الاجتماع غدا",  // Arabic
+                       "วันนี้ฉันรู้สึกไม่ค่อยสบาย พรุ่งนี้อาจจะไม่ได้ไปประชุม",  // Thai
+                       "कल की मीटिंग में मैं नहीं आ पाऊँगा, माफ़ कीजिए"]  // Hindi
+        for text in blocked {
+            let runs: [(String, (Converter) -> AsyncThrowingStream<ConversionUpdate, Error>)] = [
+                ("@improve", { $0.convert(text, mode: .improve) }),
+                ("@translate", { $0.convert(text, mode: .translate) }),
+                ("@question", { $0.generate(.question, input: text) }),
+                ("@question on a selection", { $0.generate(.question, input: Prompt.question("总结一下", about: text)) }),
+                ("@improve on a selection", { $0.generate(.edit, input: Prompt.editRequest(instruction: "improve", text: text)) }),
+                ("@translate on a selection",
+                 { $0.generate(.edit, input: Prompt.editRequest(instruction: "translate: en", text: text)) }),
+            ]
+            for (name, run) in runs {
+                let model = ScriptedAppleModel.answering("never")
+                let outcome = await A.outcome(run(A.converter(A.apple(A.bilingual), model)))
+                #expect(outcome.error as? AppleModelError == .unsupportedLanguage, "\(name): \(text)")
+                #expect(model.log.requests.isEmpty, "\(name): \(text): the model was asked")
+            }
+        }
+    }
+
     #if canImport(FoundationModels)
     /// The framework's own errors become the ones above (the backend that runs on a real Mac).
     @Test func s5_frameworkErrorsMapToTheClearErrors() {
