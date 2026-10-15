@@ -74,7 +74,7 @@ public struct IssueReport: Equatable, Sendable {
             self.init(appVersion: appVersion, macOS: macOS, architecture: architecture, interfaceLanguage: interfaceLanguage,
                       inputLanguages: config.inputLanguages.map(\.rawValue), languagePacks: languagePacks,
                       provider: config.provider.rawValue,
-                      model: config.provider == .hosted ? nil : config.settings(for: config.provider).model.map { IssueReport.publicModel($0) ?? "custom" },
+                      model: config.provider == .hosted || config.provider == .apple ? nil : config.settings(for: config.provider).model.map { IssueReport.publicModel($0) ?? "custom" },
                       actionKey: actionKey, customCommands: config.customCommands.count, plugins: plugins, extensions: extensions)
         }
     }

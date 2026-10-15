@@ -32,9 +32,10 @@ public final class Converter: Sendable {
         loadConfig: @escaping ConfigLoader = { try Config.load() },
         loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
-        loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) }
+        loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
+        appleModel: any AppleModelBackend = AppleModel.system
     ) {
-        self.client = ChatClient(bedrock: client)
+        self.client = ChatClient(bedrock: client, apple: appleModel)
         self.loadConfig = loadConfig
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey

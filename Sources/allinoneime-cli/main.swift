@@ -10,7 +10,7 @@ let usage = """
     Settings come from ~/.config/allinoneime/config.json; flags override them.
 
     options:
-      --provider NAME  bedrock, anthropic, gemini or openai (API keys: the keychain, else ANTHROPIC_API_KEY, …)
+      --provider NAME  bedrock, anthropic, gemini, openai, hosted or apple (API keys: the keychain, else ANTHROPIC_API_KEY, …)
       --profile NAME   AWS profile
       --region REGION  Bedrock region
       --model ID       model (for Bedrock: model / inference profile ID)
@@ -190,6 +190,7 @@ if let m = options.model {
     case .gemini: config.gemini.model = m
     case .openai: config.openai.model = m
     case .hosted: fail("the hosted service picks its own model")
+    case .apple: fail("Apple Intelligence uses the system's model")
     }
 }
 if let o = options.output { config.setOrder(o) }

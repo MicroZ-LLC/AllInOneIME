@@ -204,10 +204,13 @@ public enum Prompt {
         // the format and the rules are in the system prompt. A sentence in neither Chinese nor English (Korean,
         // Hindi, French) gets only examples answered with its own lines: the Chinese and English ones would teach
         // others (three EN lines where it asks for an EN and a ZH line, and the model leaves ZH out).
-        let mixed = plan.input == .chinese || plan.input == .english
+        // Apple's on-device model (`Provider.apple`) is small: examples in another language, or answered with other
+        // lines, lead it to answer as they do (polishing where it should translate, rewriting in the wrong language).
+        let apple = config.provider == .apple
+        let mixed = (plan.input == .chinese || plan.input == .english) && !apple
         for index in examples.indices {
             let examplePlan = WritingPlan.make(mode, text: examples[index].input, config: config)
-            guard mixed || examplePlan.lineTags == plan.lineTags,
+            guard mixed || examplePlan.lineTags == plan.lineTags && (!apple || examplePlan.input == plan.input),
                   let answer = exampleAnswer(index, plan: examplePlan) else { continue }
             messages.append(.init(role: "user", text: examples[index].input))
             messages.append(.init(role: "assistant", text: answer))
