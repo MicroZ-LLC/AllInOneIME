@@ -112,6 +112,20 @@ struct AppProfileTests {
         #expect([mail, "com.apple.Mail", "COM.apple.mail"].allSatisfy { both.profileKey(for: $0) == "com.apple.Mail" })
     }
 
+    @Test func thousandsOfProfilesLoadAtOnce() throws {
+        // Read before every AI request: 5,000 apps (with a spelling of each 100th twice, an empty one among them) in
+        // well under a third of a second, as the rule for spellings would have it.
+        var entries = (0..<5000).map { #""com.example.app\#($0)": {"typeOut": true}"# }
+        entries += stride(from: 0, to: 5000, by: 100).map { #""COM.EXAMPLE.APP\#($0)": {}"# }
+        let data = Data(#"{"appProfiles": {\#(entries.joined(separator: ", "))}}"#.utf8)
+        let started = Date()
+        let config = try JSONDecoder().decode(Config.self, from: data)
+        let seconds = Date().timeIntervalSince(started)
+        #expect(seconds < 0.3, "\(seconds) s")
+        #expect(config.appProfiles.count == 5000 && config.appProfiles["COM.EXAMPLE.APP100"] == nil)
+        #expect(config.profile(for: "Com.Example.App4900")?.typeOut == true)
+    }
+
     @Test func addingOrEditingNeverMakesASecondKey() {
         // Settings → Apps adds Mail spelled another way while it has a profile: that one changes.
         var config = Config.default
