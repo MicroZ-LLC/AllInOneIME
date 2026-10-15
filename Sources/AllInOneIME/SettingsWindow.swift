@@ -879,6 +879,7 @@ struct SettingsView: View {
                     Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
                 }
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
+                .disabled(!model.canSave)
             } label: {
                 titled(tr("候选排列", "Candidate layout"),
                        model.config.candidateLayout == .horizontal
@@ -1682,6 +1683,7 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
         .onChange(of: model.config.typeOutMistakes) { model.save() }
+        .onChange(of: model.config.candidateLayout) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)
