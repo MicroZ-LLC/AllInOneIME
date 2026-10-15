@@ -317,7 +317,8 @@ final class CandidateView: NSView {
         for row in model.rows {
             let (label, text) = strings(for: row, highlighted: false)
             labelWidths.append(row.label.isEmpty ? 0 : max(ceil(label.size().width), Metrics.labelWidth) + Metrics.cellLabelGap)
-            textWidths.append(min(ceil(text.size().width), Metrics.maxCellTextWidth))
+            // A long one cut to fit, its cell as wide as what's left of it (no gap after the "…").
+            textWidths.append(ceil(Self.fitted(text, width: Metrics.maxCellTextWidth).size().width) + 1)
         }
         let sizes = zip(labelWidths, textWidths).map {
             CGSize(width: Metrics.rowInsetX * 2 + $0 + $1, height: lineHeight + 2 * Metrics.rowInsetY)
@@ -332,6 +333,32 @@ final class CandidateView: NSView {
             rowLayouts.append(RowLayout(frame: frame, textFrame: textFrame, labelOrigin: labelOrigin, iconFrame: nil))
         }
         return (top + (frames.map(\.maxY).max() ?? 0), (frames.map(\.maxX).max() ?? 0) + 2 * p)
+    }
+
+    /// `text` on one line no wider than `width`: as it is, or its longest start that fits with "…" after it (whole
+    /// characters, so an emoji or a Hangul syllable isn't split).
+    static func fitted(_ text: NSAttributedString, width: CGFloat) -> NSAttributedString {
+        guard text.length > 0, ceil(text.size().width) > width else { return text }
+        let string = text.string as NSString
+        var ends: [Int] = [0]  // where each character ends, in UTF-16
+        string.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: .byComposedCharacterSequences) {
+            _, range, _, _ in ends.append(range.upperBound)
+        }
+        func cut(_ end: Int) -> NSAttributedString {
+            // Not "word …": the space before the "…" goes.
+            var end = end
+            while end > 0, let scalar = Unicode.Scalar(string.character(at: end - 1)), CharacterSet.whitespaces.contains(scalar) { end -= 1 }
+            let out = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: 0, length: end)))
+            out.append(NSAttributedString(string: "…", attributes: text.attributes(at: max(end - 1, 0), effectiveRange: nil)))
+            return out
+        }
+        // The most characters that fit with the "…" (none at least).
+        var low = 0, high = ends.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if ceil(cut(ends[mid]).size().width) <= width { low = mid } else { high = mid - 1 }
+        }
+        return cut(ends[low])
     }
 
     private static func measure(_ text: NSAttributedString, minHeight: CGFloat) -> NSSize {
@@ -417,10 +444,12 @@ final class CandidateView: NSView {
             let (label, text) = strings(for: model.rows[index], highlighted: highlighted)
             label.draw(at: layout.labelOrigin)
             if let icon = model.rows[index].icon, let frame = layout.iconFrame { Self.draw(icon, in: frame) }
-            // A candidate in a row keeps to its one line, cut short with "…".
-            text.draw(with: layout.textFrame,
-                      options: model.horizontal ? [.usesLineFragmentOrigin, .usesFontLeading, .truncatesLastVisibleLine]
-                                                : [.usesLineFragmentOrigin, .usesFontLeading])
+            // A candidate in a row keeps to its one line, cut short with "…" (as measured: `layoutCells`).
+            if model.horizontal {
+                Self.fitted(text, width: Metrics.maxCellTextWidth).draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            } else {
+                text.draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            }
         }
 
         if let statusFrame, let status = statusString() {
