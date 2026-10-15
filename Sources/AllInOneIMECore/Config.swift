@@ -97,9 +97,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
     /// installed when the user clicks Update. On by default.
     public var checkForUpdates: Bool
-    /// An @ command started with text selected in the field works on that text, and the result picked replaces it
-    /// (`Composer.selection`); Esc puts it back. On by default (also for a file from before the setting): off for an
-    /// app where it misbehaves.
+    /// An @ command started with text selected in the field works on that text, which stays selected and as it is
+    /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
+    /// the setting): off for an app where it misbehaves.
     public var useSelection: Bool
 
     /// The settings of an API-key provider, with its defaults filled in.
