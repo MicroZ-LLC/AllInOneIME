@@ -2238,6 +2238,13 @@ enum SelfTest {
         snapshot("1-pinyin", in: snapshotDirectory)
         check(escape(controller, client) && client.marked.isEmpty && !controller.composer.isComposing, "Esc cancels the pinyin")
 
+        // A click on a row (the panel's own handler, as its mouseDown calls it) picks it, as its digit would. On
+        // today's date ("rq", rime-ice's Lua): a word picked would be learned, and move up in the checks below.
+        type("rq", controller, client)
+        let clicked = controller.composer.engineState.candidates.dropFirst().first?.text ?? "-"
+        panel.onSelect?(1)
+        check(client.inserted.last == clicked && client.marked.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
+
         type("rq", controller, client)
         let year = String(Calendar(identifier: .gregorian).component(.year, from: Date()))
         let dates = controller.composer.engineState.candidates.map(\.text)

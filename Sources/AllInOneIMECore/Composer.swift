@@ -1256,17 +1256,37 @@ public final class Composer {
         return stillHeld ? startVoice() : []
     }
 
-    /// A candidate clicked in the panel.
+    /// A row clicked in the panel (`index` among the rows it shows): picked as its digit would pick it, or as the
+    /// action key would pick it highlighted where digits are text (a list's rows, `@open`'s results as you type).
+    /// The rows are those of the panel's model, in its order: level two, the engine's candidates, the command
+    /// list, a script's list, `@open`'s results, the recipients.
     public func choose(index: Int) -> [Effect] {
         if isLevelTwo { return commitChoice(at: index) }
-        if recipientQuery != nil { return pickRecipient(at: index) }
+        guard voice == .off else { return [] }  // the panel shows what is heard, no rows
+        if engineState.isComposing {
+            guard let engine, engine.selectCandidate(onPage: index) else { return [] }
+            return afterEngineChange(engine, effects: [])
+        }
         // A command in the list (`index` among the rows shown).
         if paletteQuery != nil {
             let matches = paletteMatches
             return matches.indices.contains(paletteFirstVisible + index) ? complete(matches, at: paletteFirstVisible + index) : []
         }
-        guard let engine, engineState.isComposing, engine.selectCandidate(onPage: index) else { return [] }
-        return afterEngineChange(engine, effects: [])
+        // A script's list as you type: the row's action (a row of information does nothing).
+        if let items = currentList?.items {
+            guard items.indices.contains(index), items[index].valid, let command = draftCommand else { return [] }
+            listHighlight = index
+            return perform(items[index], of: command)
+        }
+        // `@open` as you type: opens the result, as the action key opens the highlighted one.
+        let live = currentLiveResults
+        if !live.isEmpty {
+            guard live.indices.contains(index) else { return [] }
+            let path = live[index].path  // before `finish` clears them
+            return finish(committing: "") + [.open(path: path)]
+        }
+        if recipientQuery != nil { return pickRecipient(at: index) }
+        return []
     }
 
     /// Switches level one to Chinese (pinyin) or English input, e.g. to the configured default.

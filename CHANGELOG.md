@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Added
+
+- Click a row of the candidate panel to pick it, as its digit would: a pinyin or Hindi word, a command in the @ list, a result, a file `@open` found (as you type too), a recipient, a row an extension listed. The row under the pointer is highlighted, and the text field keeps the focus.
+
 ## 0.6.2 (2026-10-14)
 
 ### Fixed

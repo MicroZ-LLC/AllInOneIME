@@ -1639,6 +1639,12 @@ final class AllInOneIMEInputController: IMKInputController {
                 result.matchedContent ? tr("内容", "content") + " · " + place : place)
     }
 
+    /// Whether a list row can be picked (a click, the pointer over it): not a row of information.
+    private static func picks(_ choice: Composer.Choice) -> Bool {
+        if case let .item(item) = choice.kind { return item.valid }
+        return true
+    }
+
     @MainActor
     func panelModel() -> CandidateView.Model {
         var model = CandidateView.Model()
@@ -1674,12 +1680,12 @@ final class AllInOneIMEInputController: IMKInputController {
                                              comment: choice.detail.map { Self.preview($0) } ?? UIText.answerLabel(composer.activeCommand),
                                              style: .translation, isComplete: choice.isComplete)
                 case .shown:
-                    // What a `show` script printed: shown as it comes, never inserted.
+                    // What a `show` script printed: shown as it comes, never inserted (nor clicked).
                     return CandidateView.Row(label: "", text: Self.preview(choice.text), comment: choice.detail.map { Self.preview($0) } ?? "",
-                                             style: .candidate)
-                case .item:
+                                             style: .candidate, pickable: false)
+                case let .item(item):
                     return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate)
+                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate, pickable: item.valid)
                 case let .file(path) where path.hasPrefix(SearchResult.agentPrefix):
                     // A background task: its last reply, shortened.
                     let reply = composer.searchResults.first { $0.path == path }?.detail ?? ""
@@ -1818,7 +1824,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let choices = Composer.itemChoicesForPanel(list.items)
             model.rows = choices.map {
                 CandidateView.Row(label: $0.label, text: Self.preview($0.text), comment: $0.detail.map { Self.preview($0) } ?? "",
-                                  style: $0.label.isEmpty ? .original : .candidate)
+                                  style: $0.label.isEmpty ? .original : .candidate, pickable: Self.picks($0))
             }
             model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
             if list.items.isEmpty { model.status = .hint(tr("没有结果", "No results")) }
