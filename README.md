@@ -54,7 +54,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
-| `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (names starting with them first, then names containing them). ⏎, Tab, Space or a digit chooses |
+| `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (a name typed in full first, then names starting with them, then names containing them). ⏎, Tab, Space or a digit chooses |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |

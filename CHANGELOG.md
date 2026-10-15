@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+### Changed
+
+- In the @ command list, a command whose name is exactly what you typed comes first: `@rep` lists your own `@rep` before `@reportissue` and `@reply`, however often those are used.
+
 ### Added
 
 - `@reportissue`: report a problem without leaving the keyboard. It opens GitHub's page for a new issue in your browser, what you typed after it as the title, with "What happened / What you expected" to fill in and the details that help: the app and macOS versions, the Mac's architecture, the interface and input languages, the language packs installed, the kind of AI provider (and the model, if it's a public one), the action key, and how many custom commands, plugins and extensions you have (never their names, your text, paths or keys). ⏎ shows all of it in the candidate panel first, ⏎ again opens the page, Esc goes back; you submit it on GitHub. Also "Report an Issue…" in the input menu and in Settings → About.
