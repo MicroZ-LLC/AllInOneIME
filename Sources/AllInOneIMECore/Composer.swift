@@ -328,8 +328,9 @@ public final class Composer {
     public var claudeInBackground = false
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
     public var typesResults = false
-    /// The engine's candidates are shown in a row (`Config.candidateLayout`): ← → move along it and ↑↓ turn the
-    /// page (`horizontalKey`), as in macOS's own panel.
+    /// The engine's candidates are shown in a row (`Config.candidateLayout`, horizontal by default; the controller
+    /// sets it): ← → move along it and ↑↓ turn the page (`horizontalKey`), as in macOS's own panel. False here: a
+    /// composer on its own keeps the keys of a column.
     public var horizontalCandidates = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?

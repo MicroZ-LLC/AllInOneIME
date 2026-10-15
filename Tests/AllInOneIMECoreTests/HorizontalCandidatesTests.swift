@@ -69,11 +69,16 @@ struct HorizontalCandidatesTests {
     }
 
     @Test func theSetting() throws {
-        #expect(Config.default.candidateLayout == .vertical)
+        // In a row by default: a new install, a file from before the setting (an update), a value a later version added.
+        #expect(Config.default.candidateLayout == .horizontal && Config.fresh.candidateLayout == .horizontal)
         let missing = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
-        #expect(missing.candidateLayout == .vertical)
+        #expect(missing.candidateLayout == .horizontal)
         let unknown = try JSONDecoder().decode(Config.self, from: Data(#"{"candidateLayout": "diagonal"}"#.utf8))
-        #expect(unknown.candidateLayout == .vertical)
+        #expect(unknown.candidateLayout == .horizontal)
+        // Chosen: kept.
+        let column = try JSONDecoder().decode(Config.self, from: Data(#"{"candidateLayout": "vertical"}"#.utf8))
+        #expect(column.candidateLayout == .vertical)
+        #expect(String(decoding: try JSONEncoder().encode(column), as: UTF8.self).contains(#""candidateLayout":"vertical""#))
         var config = Config.default
         config.candidateLayout = .horizontal
         let json = String(decoding: try JSONEncoder().encode(config), as: UTF8.self)

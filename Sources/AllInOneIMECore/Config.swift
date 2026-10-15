@@ -90,8 +90,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var typeOutRate: Double
     public var typeOutVaries: Bool
     public var typeOutMistakes: Bool
-    /// How the candidates of a word being typed (pinyin, Hindi) are laid out: in a column (the default) or in a
-    /// row, like macOS's own panel. The other lists (commands, results) are always a column.
+    /// How the candidates of a word being typed (pinyin, Hindi) are laid out: in a row like macOS's own panel (the
+    /// default, also for a file from before the setting), or in a column. The other lists (commands, results) are
+    /// always a column.
     public var candidateLayout: CandidateArrangement
 
     /// The settings of an API-key provider, with its defaults filled in.
@@ -163,7 +164,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOutRate = TypeOut.defaultRate
         self.typeOutVaries = false
         self.typeOutMistakes = false
-        self.candidateLayout = .vertical
+        self.candidateLayout = .horizontal
         normalizeLanguages()
     }
 
@@ -233,7 +234,7 @@ public struct Config: Codable, Equatable, Sendable {
         typeOutRate = try c.decodeIfPresent(Double.self, forKey: .typeOutRate) ?? olderRate ?? d.typeOutRate
         typeOutVaries = try c.decodeIfPresent(Bool.self, forKey: .typeOutVaries) ?? (older == "random")
         typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
-        // A value a later version added reads as the default.
+        // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
@@ -361,9 +362,9 @@ public struct Config: Codable, Equatable, Sendable {
 
 /// The candidate panel's layout for a word being typed (`Config.candidateLayout`).
 public enum CandidateArrangement: String, Codable, CaseIterable, Sendable {
-    /// One under the other, numbered on the left (↑↓ move, -/= turn the page).
+    /// One under the other, numbered on the left (↑↓ move, -/= turn the page): what 0.6.2 and earlier showed.
     case vertical
-    /// Side by side, as macOS's own panel (← → move, ↑↓ or -/= turn the page).
+    /// Side by side, as macOS's own panel (← → move, ↑↓ or -/= turn the page): the default.
     case horizontal
 }
 

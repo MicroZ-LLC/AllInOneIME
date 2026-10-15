@@ -2293,7 +2293,9 @@ enum SelfTest {
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
-        settings.candidateLayout = .vertical  // the README's look; `testHorizontalCandidates` tries the row
+        // In a column (horizontal is the default): the checks and README images below read the candidates one under
+        // the other; `testHorizontalCandidates` tries the row.
+        settings.candidateLayout = .vertical
         controller.loadSettings = { SelfTest.settings }
         controller.converter = liveConverter
         // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.

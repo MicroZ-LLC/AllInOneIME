@@ -361,6 +361,8 @@ final class Harness: NSObject, NSApplicationDelegate {
             $0["outputLanguage"] = "en"
             $0["extensionFolders"] = [String]()
             $0["findRaycastScripts"] = false
+            // In a column (horizontal is the default): the panel checks below expect it; `horizontalAndReport` tries the row.
+            $0["candidateLayout"] = "vertical"
         }, "config file readable, to set the test's languages")
 
         guard let context = textView.inputContext else {
