@@ -118,11 +118,58 @@ struct RefineTests {
         let (c, _) = results()
         _ = type("shorter", c)
         _ = c.handleKeyDown(enterKey)
-        // Typing waits while it runs.
-        #expect(c.handleKeyDown(k("x")).effects.isEmpty && c.isRefining)
+        // A line typed meanwhile doesn't change what Esc does: it stops the refine (the line goes with it).
+        _ = type("warmer", c)
+        #expect(c.isRefining && c.refineText == "warmer")
         let esc = c.handleKeyDown(escKey).effects
         #expect(esc == [.cancelConversion, .showPanel] && c.phase == .choosing && c.result == first && c.refineHistory.isEmpty)
+        #expect(c.refineText.isEmpty)
         #expect(c.receive(shorter, isFinal: true, id: 2).isEmpty && c.result == first)
+    }
+
+    @Test func keysTypedWhileARefineRunsWriteTheNextStep() {
+        let (c, _) = results()
+        _ = type("shorter", c)
+        _ = c.handleKeyDown(enterKey)
+        // Typed while it streams: the next step's line; nothing is cancelled, the request goes on.
+        var effects = type("more formal", c)
+        effects += c.handleKeyDown(backspaceKey).effects + type("l", c)
+        #expect(!effects.contains(.cancelConversion) && effects.allSatisfy { $0 == .showPanel })
+        #expect(c.isRefining && c.refineText == "more formal" && c.refineLine == "more formal" && c.refineHistory == ["shorter"])
+        // ⏎ while it runs starts nothing (the line waits); a digit with a line is text, Space too.
+        #expect(started(c.handleKeyDown(enterKey).effects) == nil && c.isRefining && c.refineText == "more formal")
+        _ = c.receive(ConversionResult(versions: [CandidateLine("Hi!", isComplete: false)]), isFinal: false, id: 2)
+        #expect(c.refineText == "more formal")
+        _ = c.receive(shorter, isFinal: true, id: 2)
+        #expect(c.phase == .choosing && c.result == shorter && c.refineText == "more formal")
+        // Once the results are in, ⏎ runs it on them.
+        let run = started(c.handleKeyDown(enterKey).effects)
+        #expect(run?.1 == 3 && run?.0.turns == [Refinement.Turn(answer: first, instruction: "shorter"),
+                                                 Refinement.Turn(answer: shorter, instruction: "more formal")])
+    }
+
+    @Test func pinyinTypedWhileARefineRunsAndAFailureKeepIt() {
+        let (c, engine) = results(english: false)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
+        _ = type("shorter", c)
+        _ = c.handleKeyDown(enterKey)
+        // Shift back to Chinese while it runs, and pinyin for the next step: its candidates show.
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 2)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 2.1)
+        _ = type("nihao", c)
+        #expect(c.isRefining && c.refineIsComposing && c.refineLine == "nihao")
+        _ = c.handleKeyDown(spaceKey)
+        #expect(c.refineText == "你好" && c.isRefining)
+        // A failure keeps the line typed meanwhile rather than putting the old instruction back.
+        _ = c.fail("timeout", id: 2)
+        #expect(c.phase == .choosing && c.result == first && c.refineText == "你好" && c.refineError == "timeout")
+        // Esc on pinyin typed during a refine: back to the results before it, the pinyin gone with the line.
+        _ = type("nihao", c)
+        _ = c.handleKeyDown(enterKey)  // runs "你好你好"
+        _ = type("wo", c)
+        _ = c.handleKeyDown(escKey)
+        #expect(c.phase == .choosing && c.result == first && c.refineText.isEmpty && !engine.snapshot().isComposing)
     }
 
     @Test func aFailedRefineLeavesTheResultsAndItsInstruction() {
