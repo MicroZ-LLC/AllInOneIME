@@ -286,6 +286,12 @@ install: app settings-app
 	"$(LSREGISTER)" -f "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app"
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --register
 	@pkill -x $(LEGACY_APP_NAME) || true
+	# Started again here, not left to macOS: it starts an input method when a text field connects to it, and the
+	# fields already connected to the one stopped above may not until the focus or the input source changes (keys
+	# go nowhere meanwhile). In the background (-g); it is the installed copy (the build was moved there).
+	@pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null || open -g "$(INSTALLED_APP)"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null && break; sleep 0.5; done; \
+		pid=$$(pgrep -x -U "$$(id -u)" $(APP_NAME)) && echo "running:     pid $$pid" || echo "warning: $(APP_NAME) isn't running; switch to it once (Ctrl+Space)"
 
 uninstall:
 	-"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --disable

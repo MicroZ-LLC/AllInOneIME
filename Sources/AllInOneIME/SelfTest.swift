@@ -8,7 +8,7 @@ import SwiftUI
 
 /// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
 /// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
-/// which deletes it).
+/// which deletes it), and goes where the selection was (`insertionPoint`).
 final class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
@@ -25,9 +25,15 @@ final class FakeTextClient: NSObject, IMKTextInput {
     /// in the real-app test got none of them).
     var dropsEmptyReplacements = true
 
+    /// Where marked and inserted text goes once selected text was typed over: where it was (nil: at the end).
+    var insertionPoint: Int?
+    /// `insertionPoint`, or the end of the document.
+    private var point: Int { min(insertionPoint ?? .max, (document as NSString).length) }
+
     private func replaceSelection() {
         guard marked.isEmpty, let range = selection else { return }
         document = (document as NSString).replacingCharacters(in: range, with: "")
+        if range.length > 0 { insertionPoint = range.location }
         selection = nil
     }
     /// Screen rect of the caret line, used to position the candidate panel.
@@ -51,7 +57,13 @@ final class FakeTextClient: NSObject, IMKTextInput {
         }
         replaceSelection()
         inserted.append(s)
-        document += s
+        if insertionPoint != nil {
+            let at = point
+            document = (document as NSString).replacingCharacters(in: NSRange(location: at, length: 0), with: s)
+            insertionPoint = at + (s as NSString).length
+        } else {
+            document += s
+        }
         marked = ""
     }
 
@@ -63,13 +75,13 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func selectedRange() -> NSRange {
         guard knowsRanges else { return NSRange(location: NSNotFound, length: NSNotFound) }
-        return selection ?? NSRange(location: (document as NSString).length, length: 0)
+        return selection ?? NSRange(location: point, length: 0)
     }
 
     func markedRange() -> NSRange {
         marked.isEmpty
             ? NSRange(location: NSNotFound, length: 0)
-            : NSRange(location: (document as NSString).length, length: (marked as NSString).length)
+            : NSRange(location: point, length: (marked as NSString).length)
     }
 
     func attributedSubstring(from range: NSRange) -> NSAttributedString! {
@@ -244,7 +256,7 @@ enum SelfTest {
     static func testSelectionKept(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         print("— Selected text left alone")
         let (document, inserted) = (client.document, client.inserted)
-        defer { (client.document, client.inserted, client.selection) = (document, inserted, nil) }
+        defer { (client.document, client.inserted, client.selection, client.insertionPoint) = (document, inserted, nil, nil) }
         let latin = controller.composer.engineState.isAsciiMode
         client.document = "hello world"
         client.selection = NSRange(location: 6, length: 5)
@@ -265,6 +277,139 @@ enum SelfTest {
         check(!client.document.contains("world") && client.selection == nil,
               "typing replaces the selection (\(client.document)|\(client.marked))")
         _ = escape(controller, client)
+    }
+
+    /// Commands on the selected text (`Composer.selection`). The fake field models a selection as NSTextView does
+    /// (marked text would take its place). "@" reads it, and the command is written in the panel: nothing is marked in
+    /// the field, which keeps its text and its selection through pinyin, Esc, ⇧⏎, the field left and secure input; a
+    /// selection moved meanwhile gives the command up; the setting off, or secure input on, it isn't read (marked as
+    /// before). A result picked replaces exactly the selection, by its range, and where the field ignores ranges, as
+    /// the selected text (`@calculate` here; `@improve` live on Bedrock).
+    static func testCommandsOnSelection(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— commands on the selected text")
+        let (document, inserted, secureBefore) = (client.document, client.inserted, controller.secureInputActive)
+        defer {
+            (client.document, client.inserted, client.selection, client.insertionPoint, client.ignoresRanges) = (document, inserted, nil, nil, false)
+            controller.secureInputActive = secureBefore
+        }
+        let text = "Dear team, this sentance have a error. Thanks!"
+        let part = "this sentance have a error."
+        let range = (text as NSString).range(of: part)
+        func select(_ document: String = text, _ selected: NSRange? = nil) {
+            controller.commitComposition(client)
+            (client.document, client.selection, client.insertionPoint, client.marked) = (document, selected ?? range, nil, "")
+        }
+        /// The field as it was, its selection still selected, nothing marked.
+        func untouched(_ document: String = text, _ selected: NSRange? = nil) -> Bool {
+            client.document == document && client.selection == (selected ?? range) && client.marked.isEmpty
+        }
+        func command(_ letters: String) {
+            press(controller, client, "@", code: 0x13, flags: .shift)
+            type(letters, controller, client)
+            press(controller, client, "\t", code: VirtualKey.tab)
+        }
+        // The fake field itself: marked text where the selection was, then the text inserted there.
+        select()
+        client.setMarkedText("x", selectionRange: NSRange(location: 1, length: 0), replacementRange: AllInOneIMEInputController.notFound)
+        let markedAt = client.markedRange().location
+        client.insertText("y", replacementRange: AllInOneIMEInputController.notFound)
+        check(markedAt == range.location && client.document == "Dear team, y Thanks!",
+              "the fake field models a selection: marked text takes its place, the text goes in there ('\(client.document)')")
+
+        select()
+        command("i")
+        let model = controller.panelModel()
+        check(controller.composer.draft == "@improve " && controller.composer.draftInPanel && untouched(),
+              "\"@improve\" on the selection: nothing marked, the text and its selection untouched ('\(client.document)', marked '\(client.marked)')")
+        check(model.input == "improve › ▏" && (model.header ?? "").contains(part) && (model.header ?? "").contains("27"),
+              "the panel shows the command as typed, then the selection (\(model.input ?? "-") / \(model.header ?? "-"))")
+        // Pinyin in the command's text: in the panel's input line, its candidates below; Space picks.
+        type("nihao", controller, client)
+        let pinyin = controller.panelModel()
+        check(untouched() && pinyin.input?.hasPrefix("improve › ") == true && pinyin.input?.contains("ni") == true
+              && pinyin.rows.contains { $0.text == "你好" },
+              "pinyin is shown in the panel's input line with its candidates, not in the field (\(pinyin.input ?? "-"))")
+        _ = space(controller, client)
+        check(controller.composer.draft == "@improve 你好" && untouched(), "Space picks 你好 into the command (\(controller.composer.draft))")
+        _ = escape(controller, client)
+        check(untouched() && controller.composer.phase == .idle && !controller.composer.draftInPanel,
+              "Esc gives it up: the field and its selection as they were ('\(client.document)')")
+
+        select()
+        command("i")
+        let insertedBefore = client.inserted.count
+        _ = shiftEnter(controller, client)
+        check(untouched() && client.inserted.count == insertedBefore, "⇧⏎ inserts nothing: no @improve over the selection")
+
+        select()
+        command("i")
+        controller.commitComposition(client)
+        check(untouched() && client.inserted.count == insertedBefore, "the field left: nothing goes in")
+        select()
+        command("i")
+        controller.perform(controller.composer.commitAsTyped(), client: client)
+        check(untouched() && client.inserted.count == insertedBefore, "secure input turning on: nothing goes in")
+
+        // The selection moved meanwhile (a click): the command is given up, and the key acts as usual (pinyin).
+        select()
+        command("i")
+        client.selection = NSRange(location: 0, length: 4)
+        type("a", controller, client)
+        check(!controller.composer.draftInPanel && controller.composer.draft.isEmpty && client.marked == "a",
+              "a selection moved meanwhile gives the command up; the key then types as usual (marked '\(client.marked)')")
+        _ = escape(controller, client)
+
+        // Never read during secure input, nor with the setting off: "@" is marked over it as before.
+        select()
+        controller.secureInputActive = { true }
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil && client.marked == "@", "not read while secure input is on (marked '\(client.marked)')")
+        controller.secureInputActive = secureBefore
+        _ = escape(controller, client)
+        select()
+        settings.useSelection = false
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil && client.marked == "@", "not read with \"Use the selected text\" off")
+        settings.useSelection = true
+        _ = escape(controller, client)
+
+        // A result replaces exactly the selection: by its range, and where the field ignores ranges, as the selected text.
+        for ignores in [false, true] {
+            let sum = "Total: 6*7 apples"
+            select(sum, (sum as NSString).range(of: "6*7"))
+            client.ignoresRanges = ignores
+            let replacementsBefore = client.replacements
+            command("calcu")
+            _ = enter(controller, client)
+            _ = pump(timeout: 5) { controller.composer.phase == .choosing }
+            _ = enter(controller, client)
+            check(client.document == "Total: 42 apples" && client.marked.isEmpty
+                  && (client.replacements > replacementsBefore) == !ignores,
+                  "@calculate on \"6*7\" selected: 42 replaces it \(ignores ? "where the field ignores ranges" : "by its range") ('\(client.document)')")
+            client.ignoresRanges = false
+        }
+
+        // @improve on it (live Bedrock): row 0 is the selection; the version picked replaces only it.
+        select()
+        command("i")
+        _ = enter(controller, client)
+        if finishConversion(controller, "@improve on the selection") {
+            check(controller.composer.choices.first?.text == part && untouched(), "row 0 is the selection; the field still untouched")
+            let picked = controller.composer.choices[controller.composer.highlighted].text
+            _ = enter(controller, client)
+            check(client.document == "Dear team, " + picked + " Thanks!" && picked != part && client.marked.isEmpty,
+                  "the version picked replaces the selection, the rest unchanged ('\(client.document)')")
+        }
+        // Esc in level two goes back to the command, Esc again gives it up: the field as it was.
+        select()
+        command("i")
+        _ = enter(controller, client)
+        _ = escape(controller, client)
+        check(controller.composer.draft == "@improve " && !controller.composer.isLevelTwo && untouched(),
+              "Esc in level two goes back to the command (\(controller.composer.draft))")
+        _ = escape(controller, client)
+        check(untouched() && controller.composer.phase == .idle, "Esc again: the field and its selection as they were")
+        controller.commitComposition(client)
     }
 
     /// Shift pressed and released on its own.
@@ -2275,6 +2420,7 @@ enum SelfTest {
         controller.canPasteInTerminal = { false }
         controller.pasteInTerminal = { _ in }
         controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
+        controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
@@ -2728,6 +2874,7 @@ enum SelfTest {
         testIMessage(controller, client)
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
+        testCommandsOnSelection(controller, client)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

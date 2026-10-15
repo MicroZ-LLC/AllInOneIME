@@ -829,6 +829,12 @@ struct SettingsView: View {
                 titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
                        tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk."))
             }
+            // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
+            Toggle(isOn: $model.config.useSelection) {
+                titled(tr("使用选中的文字", "Use the selected text"),
+                       tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
+                          "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."))
+            }
         }
     }
 
@@ -1700,6 +1706,7 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
+        .onChange(of: model.config.useSelection) { model.save() }
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
