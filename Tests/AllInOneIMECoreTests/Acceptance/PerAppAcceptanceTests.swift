@@ -755,16 +755,21 @@ struct PerAppAcceptanceTests {
         ])
         let object = try encodeObject(config)
         let profiles = try #require(object["appProfiles"] as? [String: [String: Any]])
-        #expect(Set(profiles.keys) == [Self.bank, Self.slack, Self.mail, "com.example.styles", "com.example.allowed"])
+        // "noAI": false sets nothing (the global setting has no "no AI"): dropped on save. No rewrite styles is a setting.
+        #expect(Set(profiles.keys) == [Self.bank, Self.slack, Self.mail, "com.example.styles"])
         #expect(Set(profiles[Self.bank]!.keys) == ["noAI"])
         #expect(Set(profiles[Self.slack]!.keys) == ["inputLanguage", "rewriteStyles"])
         #expect(profiles[Self.slack]!["inputLanguage"] as? String == "en")
         #expect(Set(profiles[Self.mail]!.keys) == ["typeOut"])
         #expect(Set(profiles["com.example.styles"]!.keys) == ["rewriteStyles"])
         #expect((profiles["com.example.styles"]!["rewriteStyles"] as? [Any])?.isEmpty == true)
-        #expect(Set(profiles["com.example.allowed"]!.keys) == ["noAI"])
+        #expect(profiles["com.example.allowed"] == nil)
         let again = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
-        #expect(again == config)
+        var expected = config
+        expected.appProfiles["com.example.allowed"] = nil
+        #expect(again == expected)
+        // And once more: stable.
+        #expect(try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(again)) == expected)
         // From a file's text, through decoding and encoding, the profiles come back as they were written.
         let written = #"{"appProfiles": {"com.example.bank": {"noAI": true}, "com.example.x": {"typeOut": true, "unknown": 1}}}"#
         let loaded = try decode(written)
@@ -936,5 +941,172 @@ struct PerAppAcceptanceTests {
         let run = PerAppAccGolden.Run.convert("hello", .improve)
         #expect(await send(run, config: config, app: Self.bank).bodies.isEmpty)
         #expect(await send(run, config: config, app: Self.mail).bodies.count == 1)
+    }
+
+    // MARK: Spec update (14:20): saving only what is set, bundle ids ignoring case, the report's count
+
+    @Test func appProfilesIsWrittenOnlyWhenSomeAppSetsSomething() throws {
+        // No profiles, and a file from before per-app settings: no key is added.
+        #expect(try encodeObject(base())["appProfiles"] == nil)
+        let old = try decode(#"{"typeOut": true, "rewriteStyles": ["简洁"]}"#)
+        #expect(try encodeObject(old)["appProfiles"] == nil)
+        // Only profiles that set nothing ({} and "noAI": false, which equals unset): no key either.
+        let nothing = base(["com.example.empty": AppProfile(), "com.example.allowed": AppProfile(noAI: false)])
+        #expect(try encodeObject(nothing)["appProfiles"] == nil)
+        let reloaded = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(nothing))
+        #expect(reloaded.appProfiles.isEmpty)
+        // From a file: those dropped on save, the others kept, "rewriteStyles": [] among them (no rewrite styles).
+        let file = try decode("""
+        {"typeOut": false, "appProfiles": {
+          "com.example.empty": {},
+          "com.example.allowed": {"noAI": false},
+          "com.example.unknownonly": {"noAI": false, "colour": "red", "inputLanguage": "xx"},
+          "com.example.nostyles": {"rewriteStyles": []},
+          "com.example.typer": {"noAI": false, "typeOut": true}
+        }}
+        """)
+        // Before saving, a profile that sets nothing behaves exactly like none.
+        for app in ["com.example.empty", "com.example.allowed", "com.example.unknownonly"] {
+            #expect(file.allowsAI(in: app) && file.applying(app: app) == file, "\(app)")
+            #expect(file.startingInput(in: app, among: [.chinese, .english]) == file.startingInput(in: nil, among: [.chinese, .english]))
+        }
+        let saved = try #require(try encodeObject(file)["appProfiles"] as? [String: [String: Any]])
+        #expect(Set(saved.keys) == ["com.example.nostyles", "com.example.typer"])
+        #expect((saved["com.example.nostyles"]?["rewriteStyles"] as? [Any])?.isEmpty == true)
+        #expect(saved["com.example.typer"]?["typeOut"] as? Bool == true)
+        // After saving and loading: the same behavior in every app, nothing set lost.
+        let again = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(file))
+        for app in ["com.example.empty", "com.example.allowed", "com.example.unknownonly", "com.example.nostyles", "com.example.typer",
+                    Self.mail] {
+            #expect(again.allowsAI(in: app) == file.allowsAI(in: app), "\(app)")
+            #expect(again.applying(app: app).typeOut == file.applying(app: app).typeOut, "\(app)")
+            #expect(again.applying(app: app).rewriteStyles == file.applying(app: app).rewriteStyles, "\(app)")
+        }
+        #expect(again.applying(app: "com.example.nostyles").rewriteStyles == [])
+        #expect(again.applying(app: "com.example.typer").typeOut && !again.applying(app: Self.mail).typeOut)
+    }
+
+    @Test func noRewriteStylesSurvivesASaveAndAsksForNone() async throws {
+        let golden = PerAppAccGolden.configs.first { $0.0 == "default" }!.1
+        var config = golden
+        config.appProfiles = [Self.slack: AppProfile(rewriteStyles: [])]
+        let loaded = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
+        #expect(loaded.appProfiles[Self.slack] == AppProfile(rewriteStyles: []))
+        // What @improve sends there is the golden "no styles" request; elsewhere the default one.
+        for (runName, run) in PerAppAccGolden.runs where runName.hasPrefix("improve") || runName.hasPrefix("both") {
+            let slack = try #require(await send(run, config: loaded, app: Self.slack).bodies.first)
+            let mail = try #require(await send(run, config: loaded, app: Self.mail).bodies.first)
+            #expect(PerAppAccGolden.sha256(slack) == perAppAccGoldens["noStyles/" + runName]!.anthropic.sha, "\(runName)")
+            #expect(PerAppAccGolden.sha256(mail) == perAppAccGoldens["default/" + runName]!.anthropic.sha, "\(runName)")
+        }
+    }
+
+    @Test func bundleIDsMatchIgnoringCase() async throws {
+        // Written by hand with capitals; the app reports lowercase (and the other way round, and all capitals).
+        var config = base([
+            "com.apple.Mail": AppProfile(inputLanguage: .english, rewriteStyles: ["口语"], typeOut: true),
+            "com.example.Bank": AppProfile(noAI: true),
+            "com.tinyspeck.slackmacgap": AppProfile(rewriteStyles: []),
+        ])
+        config.typeOut = false
+        for app in ["com.apple.mail", "COM.APPLE.MAIL", "com.apple.Mail", "Com.Apple.Mail"] {
+            #expect(config.profile(for: app) == AppProfile(inputLanguage: .english, rewriteStyles: ["口语"], typeOut: true), "\(app)")
+            #expect(config.startingInput(in: app, among: [.chinese, .english]) == .english, "\(app)")
+            #expect(config.applying(app: app).typeOut && config.applying(app: app).rewriteStyles == ["口语"], "\(app)")
+        }
+        for app in ["com.example.bank", "COM.EXAMPLE.BANK", "com.example.Bank"] {
+            #expect(!config.allowsAI(in: app), "\(app)")
+        }
+        #expect(config.applying(app: "COM.TINYSPECK.SLACKMACGAP").rewriteStyles == [])
+        // Only case: another id is another app.
+        for app in ["com.apple.mail2", "com.apple", "com.apple.mail.compose", " com.apple.mail", "com.example.bank "] {
+            #expect(config.profile(for: app) == nil && config.allowsAI(in: app), "\(app)")
+        }
+        // From a config file too.
+        let file = try decode(#"{"appProfiles": {"COM.Example.Bank": {"noAI": true}}}"#)
+        #expect(!file.allowsAI(in: "com.example.bank") && file.allowsAI(in: "com.example.bank2"))
+        // In a field, and through the converter: refused, nothing sent.
+        let (c, _) = field("com.example.bank", config)
+        c.setInputMode(.english)
+        typeKeys("@improve hello", c)
+        let effects = c.handleKeyDown(enterKey).effects
+        #expect(!sendsToAI(effects) && notices(effects).contains(Self.refusalNotice))
+        let run = PerAppAccGolden.Run.convert("hello", .improve)
+        #expect(await send(run, config: config, app: "COM.EXAMPLE.BANK").bodies.isEmpty)
+        // The styles of the hand-written id are the ones sent.
+        var styled = PerAppAccGolden.configs.first { $0.0 == "default" }!.1
+        styled.appProfiles = ["COM.TINYSPECK.SlackMacGap": AppProfile(rewriteStyles: PerAppAccGolden.configs.first { $0.0 == "styles" }!.1.rewriteStyles)]
+        let zh = PerAppAccGolden.Run.convert("今天天气很好，我们出去玩吧", .improve)
+        let body = try #require(await send(zh, config: styled, app: Self.slack).bodies.first)
+        #expect(PerAppAccGolden.sha256(body) == perAppAccGoldens["styles/improve-zh"]!.anthropic.sha)
+    }
+
+    @Test func duplicateIDsDifferingOnlyInCaseResolveDeterministically() throws {
+        let variants = ["com.apple.Mail": #"{"noAI": true}"#, "com.apple.mail": #"{"typeOut": true}"#,
+                        "COM.APPLE.MAIL": #"{"inputLanguage": "en"}"#]
+        // The same file written in each order of its keys: always the same single entry wins.
+        let orders = [["com.apple.Mail", "com.apple.mail", "COM.APPLE.MAIL"], ["COM.APPLE.MAIL", "com.apple.mail", "com.apple.Mail"],
+                      ["com.apple.mail", "COM.APPLE.MAIL", "com.apple.Mail"]]
+        var winners: Set<String> = [], profiles: [AppProfile] = []
+        for _ in 0..<5 {
+            for order in orders {
+                let entries = order.map { "\"\($0)\": \(variants[$0]!)" } + [#""com.other.app": {"noAI": true}"#]
+                let config = try decode("{\"appProfiles\": {\(entries.joined(separator: ", "))}}")
+                let mailKeys = config.appProfiles.keys.filter { $0.lowercased() == "com.apple.mail" }
+                #expect(mailKeys.count == 1, "\(order): \(mailKeys)")
+                #expect(config.appProfiles["com.other.app"] == AppProfile(noAI: true))
+                winners.formUnion(mailKeys)
+                let profile = try #require(config.profile(for: "com.apple.mail"))
+                profiles.append(profile)
+                // Every spelling gets that one profile, and every setting comes from it (not a mix).
+                for app in ["com.apple.mail", "COM.APPLE.MAIL", "com.apple.Mail", "Com.apple.mail"] {
+                    #expect(config.profile(for: app) == profile, "\(app)")
+                    #expect(config.allowsAI(in: app) == (profile.noAI != true))
+                    #expect(config.applying(app: app).typeOut == (profile.typeOut ?? config.typeOut))
+                }
+                // Saved and loaded: still one.
+                let again = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
+                #expect(again.appProfiles.keys.filter { $0.lowercased() == "com.apple.mail" }.count == 1)
+                #expect(again.profile(for: "com.apple.mail") == profile)
+            }
+        }
+        #expect(winners.count == 1, "\(winners)")
+        #expect(Set(profiles.map { "\($0)" }).count == 1)
+        // Set in code with several spellings: asking with a spelling that isn't a key gives the same answer every time,
+        // however the dictionary was built.
+        var answers: Set<String> = []
+        for order in orders {
+            var config = base()
+            for key in order { config.appProfiles[key] = try JSONDecoder().decode(AppProfile.self, from: Data(variants[key]!.utf8)) }
+            for _ in 0..<20 { answers.insert("\(String(describing: config.profile(for: "Com.Apple.Mail")))") }
+        }
+        #expect(answers.count == 1, "\(answers)")
+    }
+
+    @Test func theReportCountsOnlyProfilesThatSetSomething() throws {
+        func report(_ config: Config) -> IssueReport {
+            IssueReport(title: "x", diagnostics: IssueReport.Diagnostics(config: config, appVersion: "0.6.3", macOS: "26.1",
+                                                                          architecture: "arm64", interfaceLanguage: "en",
+                                                                          languagePacks: [], plugins: 0, extensions: 0))
+        }
+        let config = base([
+            "com.secret.one": AppProfile(noAI: true),
+            "com.secret.two": AppProfile(rewriteStyles: []),  // no rewrite styles: a setting
+            "com.secret.three": AppProfile(typeOut: false),
+            "com.secret.empty": AppProfile(),
+            "com.secret.allowed": AppProfile(noAI: false),
+        ])
+        let three = report(config)
+        #expect(three.diagnostics.appProfiles == 3)
+        // The one line that counts apps (other lines, a model id among them, may hold digits of their own).
+        let appLines = three.lines.filter { $0.lowercased().contains("app") && !$0.hasPrefix("AllInOneIME:") }
+        #expect(appLines.count == 1 && appLines[0].hasSuffix("3") && !appLines[0].contains("5"), "\(three.lines)")
+        #expect(!three.url.absoluteString.lowercased().contains("secret"))
+        // Only profiles that set nothing: as with none at all.
+        let none = report(base(["com.secret.empty": AppProfile(), "com.secret.allowed": AppProfile(noAI: false)]))
+        #expect(none.diagnostics.appProfiles == 0 && none.lines == report(base()).lines)
+        // From a file with spellings of one id: one app.
+        let file = try decode(#"{"appProfiles": {"com.apple.Mail": {"noAI": true}, "com.apple.mail": {"noAI": true}, "x.y": {}}}"#)
+        #expect(report(file).diagnostics.appProfiles == 1)
     }
 }
