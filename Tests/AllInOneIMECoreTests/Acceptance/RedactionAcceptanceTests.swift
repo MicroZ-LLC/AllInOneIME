@@ -1283,5 +1283,105 @@ struct RedactionAcceptanceTests {
         let sent = lines.filter { out.contains($0) }
         #expect(sent.isEmpty, "\(sent.count) of \(lines.count) key lines sent as typed: \(sent.map { $0.count })")
     }
+    // MARK: Final probe (the redesigned key check). Secret-like values are made at run time from a seeded generator.
+
+    /// A random string of `length` from `chars`, with at least one character of each of `musts` when given.
+    static func randomString(_ chars: String, _ length: Int, _ rng: inout SplitMix, musts: [String] = []) -> String {
+        let pool = Array(chars)
+        var out = (0..<length).map { _ in pool[Int(rng.next() % UInt64(pool.count))] }
+        for (i, must) in musts.enumerated() where !out.contains(where: { must.contains($0) }) {
+            let m = Array(must)
+            out[(Int(rng.next() % UInt64(length)) + i) % length] = m[Int(rng.next() % UInt64(m.count))]
+        }
+        return String(out)
+    }
+
+    static let upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", lower = "abcdefghijklmnopqrstuvwxyz", digitChars = "0123456789"
+
+    /// The shapes of secrets: a generic body, or a known prefix with a random body.
+    static let shapes: [(name: String, make: @Sendable (inout SplitMix) -> String)] = [
+        ("base64 40", { randomString(upper + lower + digitChars + "+/", 40, &$0) }),
+        ("base64url 43", { randomString(upper + lower + digitChars + "-_", 43, &$0) }),
+        ("letters and digits 32", { randomString(upper + lower + digitChars, 32, &$0) }),
+        ("small letters and digits 32", { randomString(lower + digitChars, 32, &$0) }),
+        ("small letters and digits 24", { randomString(lower + digitChars, 24, &$0, musts: [digitChars]) }),
+        ("hex 32", { randomString("0123456789abcdef", 32, &$0) }),
+        ("hex 64", { randomString("0123456789abcdef", 64, &$0) }),
+        ("capitals and digits 20", { randomString(upper + digitChars, 20, &$0, musts: [digitChars]) }),
+        ("prefix sk-", { "s" + "k-" + randomString(upper + lower + digitChars, 48, &$0) }),
+        ("prefix sk_live_", { "sk" + "_live_" + randomString(upper + lower + digitChars, 24, &$0) }),
+        ("prefix ghp_", { "gh" + "p_" + randomString(upper + lower + digitChars, 36, &$0) }),
+        ("prefix AIza", { "AI" + "za" + randomString(upper + lower + digitChars + "-_", 35, &$0) }),
+        ("prefix xoxb-", { "xo" + "xb-" + randomString(digitChars, 12, &$0) + "-" + randomString(upper + lower + digitChars, 24, &$0) }),
+    ]
+
+    static let seeds: [UInt64] = [7, 2026, 90_210]
+
+    /// 500 secrets of each shape for each seed, on their own: every one hidden.
+    @Test(arguments: shapes.indices, seeds) func seededSecretsAreAllHidden(_ shape: Int, _ seed: UInt64) throws {
+        var rng = SplitMix(state: seed &+ UInt64(shape) &* 7919)
+        var missed: [String] = []
+        for _ in 0..<500 {
+            let secret = Self.shapes[shape].make(&rng)
+            var r = try #require(Redaction(Secret.settings))
+            if r.hide("secret = \(secret)").contains(secret) { missed.append(secret) }
+        }
+        print("SEEDED \(Self.shapes[shape].name) seed \(seed): \(missed.count) of 500 sent")
+        #expect(missed.isEmpty, "\(Self.shapes[shape].name), seed \(seed): \(missed.count) of 500 sent as typed")
+    }
+
+    /// Where a secret is pasted: a URL's query, JSON, an env line, a shell export, next to Chinese.
+    static let placements: [String] = [
+        "https://api.example.com/v1/items?token=SECRET&format=json", "https://example.com/cb?state=ok&key=SECRET",
+        "https://example.com/download/files/SECRET/report.pdf", #"{"api_key": "SECRET", "region": "us-west-2"}"#,
+        #"{"auth":{"token":"SECRET"}}"#, "OPENAI_API_KEY=SECRET", "export ANTHROPIC_API_KEY='SECRET'", "Authorization: Bearer SECRET",
+        "密钥SECRET请保管好", "这是令牌：SECRET。", "SECRET是测试环境的密钥", "「SECRET」", "token=SECRET;path=/",
+        "curl -u admin:SECRET https://example.com", "password: SECRET\nuser: admin",
+    ]
+
+    @Test(arguments: placements) func secretsInPlaceAreHidden(_ placement: String) throws {
+        var rng = SplitMix(state: UInt64(placement.utf8.count) &* 31 &+ 5)
+        var missed: [String] = []
+        for shape in Self.shapes.indices {
+            for _ in 0..<40 {
+                let secret = Self.shapes[shape].make(&rng)
+                var r = try #require(Redaction(Secret.settings))
+                let text = placement.replacingOccurrences(of: "SECRET", with: secret)
+                let out = r.hide(text)
+                if out.contains(secret) { missed.append(Self.shapes[shape].name) }
+                // Nothing around it eaten: what is put back is the text as typed.
+                #expect(r.restore(out) == text)
+            }
+        }
+        let summary = Dictionary(grouping: missed, by: { $0 }).mapValues(\.count)
+        print("PLACED \(placement.prefix(30)): \(summary)")
+        #expect(missed.isEmpty, "\(placement): sent as typed \(summary)")
+    }
+
+    /// Ordinary prose, code and Chinese with pinyin: nothing hidden.
+    static let plainTexts: [String] = [
+        "The quarterly report is attached; please review the internationalization and localization sections before Friday.",
+        "Notwithstanding the aforementioned considerations, the counterrevolutionaries' uncharacteristically straightforward proposal passed.",
+        "In 2026 we shipped 3 releases, fixed 142 bugs and closed issue #4821 after 17 reviews.",
+        "func testRedactionHidesEmailsInCustomPrompts() throws { XCTAssertEqualWithAccuracy(value, 0.5, accuracy: 0.01) }",
+        "let options = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly; let d = UIViewControllerTransitioningDelegate.self",
+        "NSPersistentCloudKitContainerOptions and AVCaptureMultiCamSession and kCGImagePropertyExifDictionary",
+        "def calculate_monthly_revenue_2026(dataframe): return dataframe.groupby('customer_segment_name').sum()",
+        "GL_COLOR_ATTACHMENT0 VK_KHR_SWAPCHAIN_EXTENSION_NAME CONFIG_DEBUG_INFO_BTF_MODULES kAudioUnitSubType_HRTFPanner",
+        "docker pull nginx:1.25.3-alpine3.18 && brew install python@3.12 && npm i @babel/preset-env@7.24.0",
+        "build/Release-iphoneos/AllInOneIME.app/Contents/MacOS and Sources/AllInOneIMECore/RedactionWords.swift",
+        "MTLPixelFormatBGRA8Unorm_sRGB AbstractSingletonProxyFactoryBean getHTTP2ResponseForURLv3Id convertUTF8ToUTF16AndBack42",
+        "我想明天去开会 woxiangmingtianqukaihui，wo3xiang3ming2tian1qu4kai1hui4，nihaowoshizhangsanhengaoxingrenshini",
+        "北京大学 Beijing Daxue, zhongguorenminyinhang 中国人民银行, Shanghai Jiaotong University",
+        "https://en.wikipedia.org/wiki/Internationalization_and_localization#Software_development",
+        "https://github.com/MicroZ-LLC/AllInOneIME/blob/release-0.6.3/Sources/AllInOneIMECore/Redaction.swift#L421",
+        "C++/CLI/WinRT/Win32/x64/Release and /usr/local/lib/python3.12/site-packages/numpy/core/multiarray.py",
+    ]
+
+    @Test(arguments: plainTexts) func plainTextIsNotHidden(_ text: String) throws {
+        var r = try #require(Redaction(Secret.settings))
+        let out = r.hide(text)
+        #expect(out == text, "over-matched: \(out)")
+    }
 }
 
