@@ -620,9 +620,18 @@ final class Harness: NSObject, NSApplicationDelegate {
     /// The script extensions made for the test (in a temporary folder), removed when it ends.
     var extensionFolder: URL?
 
+    /// What `@rttypo` prints, typed out with typos (`typeOutMistakes`): long enough for a few.
+    static let typoSentence = "Thanks for the quick reply, I will look into the report tomorrow morning and write back "
+        + "before lunch. The team has been busy with the release this week, but this one matters, so we will make "
+        + "time for it and keep you posted on what we find."
+
+    /// Whether the text view held other than the start of `typoSentence` while it was typed out (a typo).
+    var typoSeen = false
+
     /// 7. Script extensions from a temporary folder the test's config points at (no network, no model): a list shows
     ///    its rows as the command is picked and the action key inserts the one highlighted; a command that takes no
-    ///    input is only completed by Tab and runs on the action key; what it prints is inserted.
+    ///    input is only completed by Tab and runs on the action key; what it prints is inserted, or typed out with
+    ///    typos fixed on the way.
     func extensions() {
         print("— script extensions (a temporary folder)")
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-realtest-\(UUID().uuidString)")
@@ -631,6 +640,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             "rtlist.sh": "# @allinoneime.output list\n# @allinoneime.input optional\n"
                 + #"printf '{"items": [{"title": "Row one", "arg": "rt-row-one"}, {"title": "Row two", "arg": "rt-row-two"}]}\n'"#,
             "rtecho.sh": "# @allinoneime.input none\necho rt-insert-ok",
+            "rttypo.sh": "# @allinoneime.input none\necho '\(Self.typoSentence)'",
         ]
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -677,6 +687,46 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(inserted && marked.isEmpty, "the action key runs it, and what it printed is inserted ('\(committed)')")
         reset()
         textView.string = ""
+        typedOutWithTypos()
+    }
+
+    /// 7b. Typed out with typos fixed on the way (`typeOutMistakes`), at the fastest pace: the input method takes each
+    ///     typo back by its range in this NSTextView, and the text ends up exactly what the script printed.
+    func typedOutWithTypos() {
+        guard setConfig({ $0["typeOut"] = true; $0["typeOutRate"] = 40; $0["typeOutMistakes"] = true }) else {
+            check(false, "config file readable, to type results out with typos")
+            return
+        }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        typoSeen = false
+        let observer = NotificationCenter.default.addObserver(forName: NSText.didChangeNotification, object: textView,
+                                                              queue: nil) { [weak self] _ in
+            guard let self, !Self.typoSentence.hasPrefix(self.committed) else { return }
+            self.typoSeen = true
+        }
+        command("rttypo")
+        pump(0.5)
+        act()
+        let typed = waitUntil(40) {
+            if self.committed.isEmpty, !self.marked.isEmpty { self.space() }  // ignored until its output is in
+            return self.committed == Self.typoSentence
+        }
+        pump(0.3)
+        NotificationCenter.default.removeObserver(observer)
+        check(typed && committed == Self.typoSentence && marked.isEmpty,
+              "typed out with typos on, the text is exactly what it printed ('\(committed)')")
+        check(typoSeen, "…with typos in the text view on the way, each taken back")
+        reset()
+        textView.string = ""
+        _ = setConfig { $0["typeOut"] = false; $0["typeOutMistakes"] = false }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
     }
 
     /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
