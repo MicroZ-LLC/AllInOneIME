@@ -1074,6 +1074,14 @@ struct SettingsView: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
+            // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
+            if !model.extensionIndex.identical.isEmpty {
+                let identical = model.extensionIndex.identical
+                Label(tr("跳过了 \(identical.count) 个完全相同的副本", identical.count == 1 ? "Skipped 1 identical copy" : "Skipped \(identical.count) identical copies"),
+                      systemImage: "doc.on.doc")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
+            }
             if model.extensionIndex.commands.isEmpty, model.skippedExtensions.isEmpty {
                 Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
                         "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above."))

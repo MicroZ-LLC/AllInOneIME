@@ -444,7 +444,8 @@ case "--showcase":
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
     MainActor.assumeIsolated {
-        // `extensions=<folder>`: the Custom Commands page shows that folder's extensions instead of the user's.
+        // `extensions=<folder>[,<found folder>…]`: the Custom Commands page shows those folders' extensions instead of
+        // the user's (the first as added, the others as found by Spotlight).
         let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
         // `update=available|current|downloading|failed`: the About page's Updates card in that state.
         let update = arguments.first { $0.hasPrefix("update=") }.map { String($0.dropFirst("update=".count)) }

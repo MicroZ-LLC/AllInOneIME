@@ -134,10 +134,14 @@ enum SettingsPageImages {
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
-        // Public examples rather than the user's own folders, when given (`extensions=<folder>`).
+        // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
+        // the first as added, any others as if Spotlight had found them).
         if let extensions {
-            model.config.extensionFolders = [ExtensionStore.abbreviated((extensions as NSString).expandingTildeInPath)]
-            model.config.findRaycastScripts = false
+            let paths = extensions.split(separator: ",").map { ExtensionStore.abbreviated((String($0) as NSString).expandingTildeInPath) }
+            model.config.extensionFolders = Array(paths.prefix(1))
+            model.config.findRaycastScripts = paths.count > 1
+            model.config.hiddenExtensionFolders = []
+            LiveExtensions.shownFound = Array(paths.dropFirst())
         }
         // The Updates card in a state of its own (nothing is checked or downloaded).
         if let update {
