@@ -564,6 +564,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         selectionCommands()
         horizontalAndReport()
         extensions()
+        perAppSettings()
         frenchAndKorean()
         finish()
     }
@@ -834,6 +835,44 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.5)
         window.makeFirstResponder(textView)
         pump(0.8)
+    }
+
+    /// 7c. Settings for this app (`appProfiles`, by this harness's bundle id): its text field starts in English though
+    ///     Chinese is the default, and @improve sends nothing (no AI), its draft kept; without them, pinyin again.
+    func perAppSettings() {
+        print("— per-app settings (this app: English, no AI)")
+        let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
+        guard setConfig({ $0["appProfiles"] = [me: ["inputLanguage": "en", "noAI": true]] }) else {
+            check(false, "config file readable, to give this app its own settings")
+            return
+        }
+        // The text field again: the input method applies the app's starting language when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("hi")
+        check(waitUntil(2) { self.committed == "hi" && self.marked.isEmpty }, "this app's field starts in English ('\(committed)')")
+        textView.string = ""
+        command("i")
+        type("hello")
+        check(waitUntil(2) { self.afterCommand == "hello" }, "@improve with its text (\(marked))")
+        act()
+        pump(2)
+        check(marked == "improve › hello" && committed.isEmpty,
+              "the action key sends nothing to the AI here: the draft stays, nothing inserted (\(marked))")
+        reset()
+        textView.string = ""
+        guard setConfig({ $0["appProfiles"] = [String: Any]() }) else { return }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        type("a")
+        check(waitUntil(2) { self.marked == "a" }, "without them, the field starts in pinyin again (marked: \(marked))")
+        reset()
+        textView.string = ""
     }
 
     /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
