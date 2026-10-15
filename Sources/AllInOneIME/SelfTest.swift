@@ -15,6 +15,10 @@ final class FakeTextClient: NSObject, IMKTextInput {
     var inserted: [String] = []
     var document = ""
     var selection: NSRange?
+    /// Inserts that replaced a range of the document (`replacementRange`), as a typo is taken back.
+    var replacements = 0
+    /// False: like a field that knows no ranges, it tells no caret and reads nothing back.
+    var knowsRanges = true
 
     private func replaceSelection() {
         guard marked.isEmpty, let range = selection else { return }
@@ -31,6 +35,14 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = Self.plain(string)
+        if knowsRanges, marked.isEmpty, replacementRange.location != NSNotFound,
+           NSMaxRange(replacementRange) <= (document as NSString).length {
+            document = (document as NSString).replacingCharacters(in: replacementRange, with: s)
+            inserted.append(s)
+            replacements += 1
+            selection = nil
+            return
+        }
         replaceSelection()
         inserted.append(s)
         document += s
@@ -43,7 +55,10 @@ final class FakeTextClient: NSObject, IMKTextInput {
         markedSelection = selectionRange
     }
 
-    func selectedRange() -> NSRange { selection ?? NSRange(location: (document as NSString).length, length: 0) }
+    func selectedRange() -> NSRange {
+        guard knowsRanges else { return NSRange(location: NSNotFound, length: NSNotFound) }
+        return selection ?? NSRange(location: (document as NSString).length, length: 0)
+    }
 
     func markedRange() -> NSRange {
         marked.isEmpty
@@ -51,7 +66,10 @@ final class FakeTextClient: NSObject, IMKTextInput {
             : NSRange(location: (document as NSString).length, length: (marked as NSString).length)
     }
 
-    func attributedSubstring(from range: NSRange) -> NSAttributedString! { nil }
+    func attributedSubstring(from range: NSRange) -> NSAttributedString! {
+        guard knowsRanges, range.location != NSNotFound, NSMaxRange(range) <= (document as NSString).length else { return nil }
+        return NSAttributedString(string: (document as NSString).substring(with: range))
+    }
     func length() -> Int { (document as NSString).length }
 
     func characterIndex(
@@ -1681,6 +1699,74 @@ enum SelfTest {
     /// candidates (@py and @js from their child processes), output with several lines goes in as printed
     /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
     /// search key is a stand-in: the user's keychain is never read here.
+    /// Typed out with typos fixed on the way (`Config.typeOutMistakes`): the field ends up with exactly the text,
+    /// each typo taken back by its range. Esc or another key while a typo is in the field leaves none behind. No
+    /// typos in a terminal, nor in a field that tells no caret. Seeded "random" numbers, short pauses.
+    static func testTypos(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, clear: () -> Void) {
+        let (mistakesBefore, sleepBefore, documentBefore) = (settings.typeOutMistakes, controller.typeOutSleep, client.document)
+        settings.typeOutMistakes = true
+        controller.applySettings()
+        defer {
+            settings.typeOutMistakes = mistakesBefore
+            controller.applySettings()
+            (controller.typeOutSleep, controller.typeOutRandom) = (sleepBefore, nil)
+            (client.document, client.selection, client.bundleIDOverride, client.knowsRanges) = (documentBefore, nil, nil, true)
+        }
+        let text = "Thanks for the quick reply, I will look into it tomorrow morning and get back to you. "
+            + "See https://example.com/docs or write to ops@example.com, order 1042. 好的，明天下午三点见！"
+        func seeded(_ seed: UInt64) -> () -> Double {
+            var state = seed &* 0x9E37_79B9_7F4A_7C15
+            return {
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                return Double(state >> 11) / Double(UInt64(1) << 53)
+            }
+        }
+        /// Types `text` out after "Re: " in the field; how many typos were taken back.
+        func typeOut(_ text: String, until stop: (() -> Bool)? = nil) -> Int {
+            (client.document, client.selection, client.replacements) = ("Re: ", nil, 0)
+            controller.perform([.typeOut(text)], client: client)
+            _ = pump(timeout: 20) { !controller.isTypingOut || stop?() == true }
+            return client.replacements
+        }
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 2_000_000) }
+        var fixed: [Int] = []
+        var exact = true
+        for seed in UInt64(1)...4 {
+            controller.typeOutRandom = seeded(seed)
+            fixed.append(typeOut(text))
+            exact = exact && client.document == "Re: " + text
+        }
+        check(exact && fixed.reduce(0, +) > 0, "typed out with typos fixed on the way: the text exact (\(fixed) taken back)")
+
+        // A typo in the field when typing stops: taken out first. "Random" 0: one wherever one may be.
+        controller.typeOutRandom = { 0.001 }
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 30_000_000) }
+        let intended = "Re: " + text
+        let typo = { !intended.hasPrefix(client.document) }
+        let caught = typeOut(text, until: typo) == 0 && typo()
+        _ = escape(controller, client)
+        check(caught && !controller.isTypingOut && intended.hasPrefix(client.document) && client.document.count > 4,
+              "Esc while a typo is in the field takes it out and stops there ('\(client.document)')")
+        if typeOut(text, until: typo) == 0, typo() {
+            press(controller, client, "a", code: keyCodes["a"] ?? 0)  // the typo out, the rest at once, then the key
+            check(!controller.isTypingOut && client.document.hasPrefix(intended),
+                  "another key while a typo is in the field: it's taken out and the rest typed (\(client.document.count - intended.count) more)")
+            clear()
+        } else {
+            check(false, "a typo to stop at")
+        }
+
+        // No typos where they couldn't be taken back.
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 1_000_000) }
+        client.bundleIDOverride = "com.mitchellh.ghostty"
+        let inTerminal = typeOut(text)
+        check(inTerminal == 0 && client.document == intended, "no typos in a terminal (\(inTerminal) taken back)")
+        client.bundleIDOverride = nil
+        client.knowsRanges = false
+        let noRanges = typeOut(text)
+        check(noRanges == 0 && client.document == intended, "no typos in a field that tells no caret (\(noRanges) taken back)")
+    }
+
     /// An answer with line breaks (code) in a terminal: they go in as a paste, which the shell or Claude Code
     /// takes as text, not as Return; typed out, the characters are typed and each line break pasted. Without
     /// that (no Accessibility permission) on one line. A live @question; the paste is recorded here.
@@ -1850,6 +1936,7 @@ enum SelfTest {
             check(!controller.isTypingOut && typed.hasPrefix("1099511627776"), "another key types the rest at once (\(typed))")
             clear()
         }
+        testTypos(controller, client, clear: clear)
         settings.typeOut = typedBefore
         controller.applySettings()
         controller.typeOutSleep = sleepBefore

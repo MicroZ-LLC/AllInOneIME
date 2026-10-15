@@ -308,13 +308,23 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Typing a result out
 
-    /// `Config.typeOutRate`, `typeOutVaries`: how fast (the self-test waits less).
+    /// `Config.typeOutRate`, `typeOutVaries`, `typeOutMistakes`: how fast, and with typos fixed on the way
+    /// (the self-test waits less, and picks the slips).
     var typeOutRate = TypeOut.defaultRate
     var typeOutVaries = false
+    var typeOutMistakes = false
     var typeOutSleep: @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
+    var typeOutRandom: (() -> Double)?
     private var typingTask: Task<Void, Never>?
-    private var typingRest: [Character] = []
+    /// The plan being typed, and what of it is in the field (`TypeOut.Typing`: a typo too, until it's fixed).
+    private var typing = TypeOut.Typing([])
     private var typingClient: IMKTextInput?
+    /// Where in the field typing started (UTF-16, as the field counts): a typo is taken back by its range from there.
+    private var typingStart = 0
+    /// Where the field's text was last read back as typed: from there it's read again before the next typo.
+    private var typingChecked = 0
+    /// Apps where a typo wasn't taken back as it should have been: no more typos there while the input method runs.
+    private static var cannotFix: Set<String> = []
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
 
@@ -336,40 +346,105 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Types `text` into `client` character by character, like a person typing (`TypeOut.delays`).
+    /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
+    /// occasional typo fixed on the way (`typeOutMistakes`) where the field can take one back.
+    ///
+    /// A typo is taken back by replacing its range: `insertText` with a `replacementRange`, which the text input
+    /// protocol has every text field honor (NSTextView, WebKit, Chromium and Electron do). It's only tried in a field
+    /// that shows it keeps track: it says where its caret is (`selectedRange`), right where the text typed so far
+    /// ends, and reads that text back (`attributedSubstring`) as typed; checked again before each typo. Never in
+    /// a terminal (keys go to a shell). Should a field ever read back other than typed after a typo, its app gets
+    /// no more. (A ⌫ posted as a key would need the Accessibility permission and could reach the app after the
+    /// next character: never here.)
     @MainActor
     private func typeOut(_ text: String, into client: IMKTextInput) {
         stopTyping(insertingRest: true)
-        typingRest = Array(text)
         typingClient = client
         typingPastes = text.contains("\n") && Self.isTerminal(client) && canPasteInTerminal()
-        let delays = TypeOut.delays(for: text, rate: typeOutRate, varies: typeOutVaries)
+        let caret = client.selectedRange()
+        let app = client.bundleIdentifier() ?? ""
+        let mistakes = typeOutMistakes && !Self.isTerminal(client) && !Self.cannotFix.contains(app)
+            && caret.location != NSNotFound && caret.length != NSNotFound
+        typingStart = mistakes ? caret.location : 0
+        typingChecked = 0
+        // Wrong letters from the keys next to the right one on the keyboard the keys come from (AZERTY, QWERTZ …).
+        let layout = appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current()
+        let keyboard = layout.map(TypeOut.Keyboard.init(layout:)) ?? .qwerty
+        let random = typeOutRandom ?? { Double.random(in: 0..<1) }
+        typing = TypeOut.Typing(TypeOut.plan(for: text, rate: typeOutRate, varies: typeOutVaries, mistakes: mistakes,
+                                             keyboard: keyboard, random: random))
         let sleep = typeOutSleep
-        log.notice("typing out \(text.count) characters")
+        log.notice("typing out \(text.count) characters (\(self.typing.runs.filter(\.isSlip).count) typos to fix)")
         typingTask = Task { @MainActor [weak self] in
-            for delay in delays {
+            while let delay = self?.typing.nextDelay {
                 await sleep(delay)
-                guard let self, !Task.isCancelled, let client = self.typingClient, !self.typingRest.isEmpty else { return }
-                let character = self.typingRest.removeFirst()
-                if character == "\n", self.typingPastes {
+                guard let self, !Task.isCancelled, let client = self.typingClient else { return }
+                if self.typing.startsSlip, !self.canFixTypo(in: client) { self.typing.skipSlip() }
+                guard let (edit, _) = self.typing.next() else { break }
+                switch edit {
+                case .type("\n") where self.typingPastes:
                     await self.pasteInTerminal("\n")
-                } else {
-                    client.insertText(String(character), replacementRange: Self.notFound)
+                case let .type(character):
+                    client.insertText(character, replacementRange: Self.notFound)
+                case let .replace(location, length, text):
+                    client.insertText(text, replacementRange: NSRange(location: self.typingStart + location, length: length))
                 }
             }
-            self?.typingTask = nil
-            self?.typingClient = nil
+            guard let self, !Task.isCancelled else { return }
+            // The last typo checked too (only once the field's caret says it's up to date).
+            if let client = self.typingClient, self.typing.runs.contains(where: \.isSlip) { _ = self.canFixTypo(in: client) }
+            self.typingTask = nil
+            self.typingClient = nil
         }
     }
 
-    /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed.
+    /// Whether a typo can be made here: the field's caret is where the text typed so far ends, and it reads that
+    /// text back as typed (since the last check). A field that tells its caret late (Chromium's) fails the first
+    /// part until it's caught up, and is never read back meanwhile.
+    @MainActor
+    private func canFixTypo(in client: IMKTextInput) -> Bool {
+        let caret = client.selectedRange()
+        guard caret.location == typingStart + typing.length, caret.length == 0, typing.length > 0 else { return false }
+        return readsBack(client)
+    }
+
+    /// Whether the field holds what was typed since the last check. Text other than typed right after a typo was
+    /// fixed means the field didn't take it back as asked: no more typos in its app.
+    @MainActor
+    private func readsBack(_ client: IMKTextInput) -> Bool {
+        let from = min(typingChecked, typing.length)
+        let expected = typing.text(from: from)
+        let range = NSRange(location: typingStart + from, length: typing.length - from)
+        guard !expected.isEmpty, let read = client.attributedSubstring(from: range)?.string else { return false }
+        if read == expected {
+            typingChecked = typing.length
+            return true
+        }
+        if typing.fixedTypo(after: from) {
+            let app = client.bundleIdentifier() ?? ""
+            Self.cannotFix.insert(app)
+            log.error("typing out: \(app, privacy: .public) didn't take a typo back as asked; no more typos there")
+        }
+        return false
+    }
+
+    /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed. Either way a typo still
+    /// in the field is taken out first, so it holds the text, or its start.
     @MainActor
     func stopTyping(insertingRest: Bool) {
         guard let task = typingTask else { return }
         task.cancel()
-        if insertingRest, !typingRest.isEmpty { insert(String(typingRest), into: typingClient) }
+        switch typing.stop(insertingRest: insertingRest) {
+        case nil:
+            break
+        case let .type(rest):
+            insert(rest, into: typingClient)
+        case let .replace(location, length, text):
+            typingClient?.insertText(text, replacementRange: NSRange(location: typingStart + location, length: length))
+            hasMarkedText = false
+        }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
-        (typingTask, typingRest, typingClient, typingPastes) = (nil, [], nil, false)
+        (typingTask, typing, typingClient, typingPastes) = (nil, TypeOut.Typing([]), nil, false)
     }
 
     /// Whether a result is being typed out now (the self-test).
@@ -451,7 +526,7 @@ final class AllInOneIMEInputController: IMKInputController {
             return IssueReporting.diagnostics(config: config, plugins: LivePlugins.current().count,
                                               extensions: self.loadExtensions(config, false).commands.count)
         }
-        (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
+        (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
         setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
@@ -536,7 +611,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 return true
             }
             // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
-            let pastesRest = typingPastes && typingRest.contains("\n")
+            let pastesRest = typingPastes && typing.rest.contains("\n")
             stopTyping(insertingRest: true)
             if pastesRest { return true }
         }

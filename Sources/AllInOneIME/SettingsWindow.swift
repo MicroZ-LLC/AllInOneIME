@@ -816,6 +816,12 @@ struct SettingsView: View {
                     }
                 }
                 Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
+                // Typos fixed at once (`TypeOut.plan`): the text still ends up exactly the result.
+                Toggle(isOn: $model.config.typeOutMistakes) {
+                    titled(tr("偶尔打错再改", "Make occasional typos and fix them"),
+                           tr("偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，最后的文字一字不差。网址、数字、代码里不会打错，终端里也不会。",
+                              "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed at once: the text ends up exactly the result. Never in addresses, numbers, code or a terminal."))
+                }
             }
             Toggle(isOn: $model.config.claudeInBackground) {
                 titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
@@ -1676,6 +1682,7 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
+        .onChange(of: model.config.typeOutMistakes) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)
@@ -2608,7 +2615,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 candidate layout horizontal vertical 候选 排列 横排 竖排 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
+        case .general: return "action key return 执行键 回车 candidate layout horizontal vertical 候选 排列 横排 竖排 type out typing speed typos mistakes 逐字上屏 打字速度 打错 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
