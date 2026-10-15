@@ -1212,3 +1212,76 @@ let goldenJSON = #"""
  }
 ]
 """#
+
+/// Watches a folder from another thread: every regular file seen in it whose mode lets the group or others read it.
+final class QHModeWatcher: @unchecked Sendable {
+    let folder: String
+    private let lock = OSAllocatedUnfairLock(initialState: (running: false, exposed: [String](), looks: 0))
+    private let done = DispatchSemaphore(value: 0)
+
+    init(folder: URL) { self.folder = folder.path }
+
+    func start() {
+        lock.withLock { $0.running = true }
+        Thread.detachNewThread { [self] in
+            while lock.withLock({ $0.running }) {
+                if let dir = opendir(folder) {
+                    while let entry = readdir(dir) {
+                        let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
+                        if name == "." || name == ".." { continue }
+                        var info = stat()
+                        guard lstat(folder + "/" + name, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { continue }
+                        if info.st_mode & 0o077 != 0 {
+                            let mode = String(info.st_mode & 0o777, radix: 8)
+                            lock.withLock { $0.exposed.append("\(name) \(mode)") }
+                        }
+                    }
+                    closedir(dir)
+                }
+                lock.withLock { $0.looks += 1 }
+            }
+            done.signal()
+        }
+    }
+
+    /// Stops; what was seen readable by others, and how many times the folder was looked at.
+    func stop() -> (exposed: [String], looks: Int) {
+        lock.withLock { $0.running = false }
+        done.wait()
+        return lock.withLock { ($0.exposed, $0.looks) }
+    }
+}
+
+extension QuestionHistoryAcceptanceTests {
+    /// Spec 5: readable only by the user from the start: while it is written, no file in its folder (the file, or one it
+    /// is written to first) can be read by others, not even for a moment. Watched from another thread over many writes;
+    /// the same watcher does see the write-then-chmod way (the control), so seeing nothing means something.
+    @Test func theFileIsNeverReadableByOthersWhileWritten() throws {
+        func watch(_ write: (URL, Int) throws -> Void) throws -> (exposed: [String], looks: Int) {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("qh-acceptance-mode-\(UUID().uuidString)")
+            let folder = root.appendingPathComponent("AllInOneIME")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let url = folder.appendingPathComponent("recent-questions.json")
+            let watcher = QHModeWatcher(folder: folder)
+            watcher.start()
+            for i in 0..<300 { try write(url, i) }
+            return watcher.stop()
+        }
+        // The control: written, then made 0600.
+        let control = try watch { url, i in
+            try Data("{\"i\":\(i)}".utf8).write(to: url, options: [.atomic])
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            if i % 2 == 0 { try FileManager.default.removeItem(at: url) }
+        }
+        #expect(!control.exposed.isEmpty, "the watcher saw nothing even for write-then-chmod (\(control.looks) looks)")
+        // QuestionHistory's own writes: a new file every other time (cleared in between), replaced the others.
+        let real = try watch { url, i in
+            let history = QHHarness.history(["question \(i)", "AI 芯片的未来", "What is Rust?"])
+            try history.write(to: url)
+            if i % 2 == 0 { try QuestionHistory().write(to: url) }
+        }
+        #expect(real.looks > 100)
+        #expect(real.exposed.isEmpty, "readable by others while written: \(Set(real.exposed).sorted())")
+    }
+}
