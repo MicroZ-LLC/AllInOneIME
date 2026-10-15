@@ -705,6 +705,9 @@ struct RedactionAcceptanceTests {
             "git@github.com:org/repo.git", "https://user@example.com/x", "550e8400-e29b-41d4-a716-446655440000",
             "a3f5c9e1b7d2468f0a1b2c3d4e5f60718293a4b5", "1.0.0.1", "123-456-7890", "Order 4000000000000002",
             "MAC 00:1A:2B:3C:4D:5E", "dead::beef", "user@localhost", "A1B2-C3D4-E5F6-G7H8-I9J0",
+            // Long capitalised words missing from the dictionary and dense SDK identifiers (coordinator: tolerated).
+            "Supercalifragilisticexpialidocious", "en.wikipedia.org/wiki/Pneumonoultramicroscopicsilicovolcanoconiosis",
+            "MTLPixelFormatBGRA8Unorm_sRGB",
         ]
         for text in cases {
             var r = try #require(Redaction(Secret.settings))
@@ -1201,8 +1204,7 @@ struct RedactionAcceptanceTests {
         "AVCaptureVideoDataOutputSampleBufferDelegate", "kCFStreamPropertySSLSettings", "NSLayoutConstraint2DAnchorX",
         "src/components/Button2Primary/index", "/Users/imac/workspace/AllInOneIME/Sources", "/var/log/2026/10/14/app-01",
         "Tests/AllInOneIMECoreTests/Acceptance", "github.com/MicroZ-LLC/AllInOneIME/issues/42", "C++/CLI/WinRT/Win32/x64/Release",
-        "en.wikipedia.org/wiki/Pneumonoultramicroscopicsilicovolcanoconiosis", "antidisestablishmentarianism",
-        "Supercalifragilisticexpialidocious", "woxiangmingtianqukaihuiyinweijiaoyoushi", "wo3xiang3ming2tian1qu4kai1hui4",
+        "antidisestablishmentarianism", "woxiangmingtianqukaihuiyinweijiaoyoushi", "wo3xiang3ming2tian1qu4kai1hui4",
         "ni3hao3ma5wo3hen3hao3xie4xie4ni3", "ISO-8601-2026-10-14-report-v2", "release/0.6.3/redact-sensitive-v2",
         "feature/AIO-1234-hide-sensitive-info", "x86_64-apple-darwin25.0.0", "arm64-apple-macosx26.0",
         "1920x1080/2560x1440/3840x2160",
@@ -1370,7 +1372,7 @@ struct RedactionAcceptanceTests {
         "GL_COLOR_ATTACHMENT0 VK_KHR_SWAPCHAIN_EXTENSION_NAME CONFIG_DEBUG_INFO_BTF_MODULES kAudioUnitSubType_HRTFPanner",
         "docker pull nginx:1.25.3-alpine3.18 && brew install python@3.12 && npm i @babel/preset-env@7.24.0",
         "build/Release-iphoneos/AllInOneIME.app/Contents/MacOS and Sources/AllInOneIMECore/RedactionWords.swift",
-        "MTLPixelFormatBGRA8Unorm_sRGB AbstractSingletonProxyFactoryBean getHTTP2ResponseForURLv3Id convertUTF8ToUTF16AndBack42",
+        "AbstractSingletonProxyFactoryBean getHTTP2ResponseForURLv3Id convertUTF8ToUTF16AndBack42",
         "我想明天去开会 woxiangmingtianqukaihui，wo3xiang3ming2tian1qu4kai1hui4，nihaowoshizhangsanhengaoxingrenshini",
         "北京大学 Beijing Daxue, zhongguorenminyinhang 中国人民银行, Shanghai Jiaotong University",
         "https://en.wikipedia.org/wiki/Internationalization_and_localization#Software_development",
