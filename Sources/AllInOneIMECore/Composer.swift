@@ -326,6 +326,9 @@ public final class Composer {
     public var claudeInBackground = false
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
     public var typesResults = false
+    /// The engine's candidates are shown in a row (`Config.candidateLayout`): ← → move along it and ↑↓ turn the
+    /// page (`horizontalKey`), as in macOS's own panel.
+    public var horizontalCandidates = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
     /// Files and apps found for `@open`.
@@ -1528,6 +1531,13 @@ public final class Composer {
         if composing { rimeEvent.modifiers.remove(.capsLock) }
         // ⇧Return is "as typed" (the action key may be Return): librime gets a plain Return.
         if event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter { rimeEvent.modifiers.remove(.shift) }
+        if composing, horizontalCandidates, !engineState.candidates.isEmpty, modifiers.isEmpty {
+            switch horizontalKey(event.keyCode, engine) {
+            case let .send(keyCode)?: rimeEvent.keyCode = keyCode
+            case .nothing?: return .consumed()
+            case nil: break
+            }
+        }
         guard let key = RimeKey.map(rimeEvent) else {
             // Characters librime has no key for (é, ß, other scripts) belong to the sentence too.
             if !composing, !draft.isEmpty, let text = event.printableText {
@@ -1556,6 +1566,26 @@ public final class Composer {
         if !consumed && !committedDirectly { return .passThrough }
         effects += [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel]
         return Response(effects: effects, handled: consumed)
+    }
+
+    private enum HorizontalKey {
+        /// The engine gets this key instead.
+        case send(UInt16)
+        /// Nothing to do (no other page).
+        case nothing
+    }
+
+    /// An arrow key on candidates in a row: ← → are the previous and next candidate (the engine's ↑↓ in a column,
+    /// on to the next page from the last), ↑↓ the previous and next page (its Page Up and Down). Hindi's spellings are
+    /// one page: ↑↓ do nothing there. Nil for the other keys, which act as in a column (-/= turn the page there too).
+    private func horizontalKey(_ keyCode: UInt16, _ engine: PinyinEngine) -> HorizontalKey? {
+        switch keyCode {
+        case VirtualKey.left: return .send(VirtualKey.up)
+        case VirtualKey.right: return .send(VirtualKey.down)
+        case VirtualKey.up: return engine.language == .hindi ? .nothing : .send(VirtualKey.pageUp)
+        case VirtualKey.down: return engine.language == .hindi ? .nothing : .send(VirtualKey.pageDown)
+        default: return nil
+        }
     }
 
     // MARK: - Paste

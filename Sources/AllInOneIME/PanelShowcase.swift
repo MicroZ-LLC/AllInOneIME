@@ -5,7 +5,8 @@ import SwiftUI
 /// `AllInOneIME --showcase OUT-DIR [dark] [zh]`: the menu bar panel as it looks on screen, for the release
 /// notes and the wiki. The real panel with the self-test's sample data (English; `zh`: Chinese) drops down over a
 /// colorful window, so its frosted glass has something to blur, and is captured with `screencapture`:
-/// `panel.png` as it opens, `panel-swipe.png` with a task swiped open to its Remove button. An
+/// `panel.png` as it opens, `panel-swipe.png` with a task swiped open to its Remove button, and the candidate
+/// panel under a line being typed: `candidates.png` in a column, `candidates-horizontal.png` in a row. An
 /// offscreen render can't show the glass (nothing is behind it). Needs the screen unlocked; the windows
 /// are up for about four seconds. Nothing real is read: Notes, Reminders and Claude Code are stand-ins.
 @MainActor
@@ -60,11 +61,25 @@ enum PanelShowcase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
             MainActor.assumeIsolated {
                 capture("candidates.png")
+                // The same in a row (`candidateLayout`), the second highlighted as → would.
+                let rows = (chinese ? ["我们", "我门", "握们", "沃们", "卧"] : ["we", "well", "were", "went", "west"]).enumerated().map {
+                    CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+                }
+                let line = NSRect(x: backdrop.minX + 60, y: backdrop.maxY - 150, width: 2, height: 20)
+                CandidatePanel.shared.show(CandidateView.Model(rows: rows, highlighted: 1,
+                                                               footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands",
+                                                               detail: chinese ? "第 1 页" : "page 1", horizontal: true),
+                                           anchor: line)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.6) {
+            MainActor.assumeIsolated {
+                capture("candidates-horizontal.png")
                 CandidatePanel.shared.hide()
                 panel.show(below: anchor)
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.2) {
             MainActor.assumeIsolated {
                 if case let .list(rows) = panel.tasks, let row = rows.first { panel.showSwiped(.task(row.id)) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {

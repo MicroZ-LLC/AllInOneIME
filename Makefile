@@ -273,8 +273,8 @@ screenshots: selftest
 	swift Scripts/make-readme-images.swift "$(OUT)" docs/en en
 
 # The menu bar panel on screen, frosted glass over a colorful window (an offscreen render can't blur):
-# docs/panel-glass.png, docs/panel-swipe.png (a row swiped open) and docs/candidates-glass.png (the
-# candidate panel), and docs/en/ in English. Shows
+# docs/panel-glass.png, docs/panel-swipe.png (a row swiped open), docs/candidates-glass.png (the
+# candidate panel) and docs/candidates-horizontal.png (in a row), and docs/en/ in English. Shows
 # windows for a few seconds; needs the screen unlocked.
 panel-images: app
 	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs/en

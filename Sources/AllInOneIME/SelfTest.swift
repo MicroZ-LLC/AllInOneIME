@@ -1425,6 +1425,50 @@ enum SelfTest {
         check(client.inserted == insertedBefore, "nothing went into the text field")
     }
 
+    /// The candidates in a row (`candidateLayout`): the panel is a line of cells under the caret, ← → move the
+    /// highlight and ↑↓ turn the page; in a column, → stays librime's (the cursor in the pinyin). Nothing is picked,
+    /// so nothing is learned.
+    static func testHorizontalCandidates(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        print("— candidates in a row")
+        let panel = CandidatePanel.shared
+        func arrow(_ code: UInt16) { press(controller, client, "", code: code) }
+        type("nihao", controller, client)
+        arrow(VirtualKey.right)
+        check(controller.composer.engineState.highlighted == 0 && !controller.panelModel().horizontal,
+              "in a column, → doesn't move the highlight (highlighted \(controller.composer.engineState.highlighted))")
+        let columnSize = panel.view.contentSize
+        _ = escape(controller, client)
+        settings.candidateLayout = .horizontal
+        controller.applySettings()
+        defer {
+            _ = escape(controller, client)
+            settings.candidateLayout = .vertical
+            controller.applySettings()
+        }
+        type("nihao", controller, client)
+        let size = panel.view.contentSize
+        check(controller.panelModel().horizontal && size.width > size.height && size.height < columnSize.height,
+              "the candidates are in a row (\(Int(size.width))×\(Int(size.height)); a column: \(Int(columnSize.width))×\(Int(columnSize.height)))")
+        let caretX = client.caretRect.minX, textX = panel.frame.minX + panel.view.textInset
+        check(panel.isVisible && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
+              "under the caret, the first candidate's text at the caret (\(Int(textX)) / \(Int(caretX)))")
+        snapshot("1b-pinyin-horizontal", in: snapshotDirectory)
+        snapshot("1b-pinyin-horizontal-dark", in: snapshotDirectory, appearance: .darkAqua)
+        arrow(VirtualKey.right)
+        arrow(VirtualKey.right)
+        check(controller.composer.engineState.highlighted == 2, "→ → highlight the third (\(controller.composer.engineState.highlighted))")
+        arrow(VirtualKey.left)
+        check(controller.composer.engineState.highlighted == 1, "← back to the second (\(controller.composer.engineState.highlighted))")
+        let first = controller.composer.engineState.candidates.first?.text
+        arrow(VirtualKey.down)
+        check(controller.composer.engineState.pageNumber == 1 && controller.composer.engineState.candidates.first?.text != first,
+              "↓ turns the page (page \(controller.composer.engineState.pageNumber + 1))")
+        arrow(VirtualKey.up)
+        check(controller.composer.engineState.pageNumber == 0, "↑ turns it back (page \(controller.composer.engineState.pageNumber + 1))")
+        check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao" && client.inserted.last != first,
+              "nothing was picked on the way (\(client.marked))")
+    }
+
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).
     static func scrolledHeight(_ view: NSView) -> CGFloat? {
         if let scroll = view as? NSScrollView, let document = scroll.documentView { return document.frame.height }
@@ -2078,6 +2122,7 @@ enum SelfTest {
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
+        settings.candidateLayout = .vertical  // the README's look; `testHorizontalCandidates` tries the row
         controller.loadSettings = { SelfTest.settings }
         controller.converter = liveConverter
         // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.
@@ -2244,6 +2289,7 @@ enum SelfTest {
         let clicked = controller.composer.engineState.candidates.dropFirst().first?.text ?? "-"
         panel.onSelect?(1)
         check(client.inserted.last == clicked && client.marked.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
+        testHorizontalCandidates(controller, client, snapshotDirectory: snapshotDirectory)
 
         type("rq", controller, client)
         let year = String(Calendar(identifier: .gregorian).component(.year, from: Date()))
