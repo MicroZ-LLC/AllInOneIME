@@ -720,6 +720,11 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.8)
         textView.string = ""
         typoSeen = false
+        // This app forgotten among those that couldn't take a typo back (a failed run before would keep typos off).
+        let ime = UserDefaults(suiteName: imeID)
+        let noTypos = "typeOutNoTyposApps"
+        let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
+        ime?.set((ime?.stringArray(forKey: noTypos) ?? []).filter { $0 != me }, forKey: noTypos)
         let observer = NotificationCenter.default.addObserver(forName: NSText.didChangeNotification, object: textView,
                                                               queue: nil) { [weak self] _ in
             guard let self, !Self.typoSentence.hasPrefix(self.committed) else { return }
@@ -737,6 +742,9 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(typed && committed == Self.typoSentence && marked.isEmpty,
               "typed out with typos on, the text is exactly what it printed ('\(committed)')")
         check(typoSeen, "…with typos in the text view on the way, each taken back")
+        ime?.synchronize()
+        check(!(UserDefaults(suiteName: imeID)?.stringArray(forKey: noTypos) ?? []).contains(me),
+              "…and the NSTextView isn't remembered as a field that can't take typos back")
         reset()
         textView.string = ""
         _ = setConfig { $0["typeOut"] = false; $0["typeOutMistakes"] = false }

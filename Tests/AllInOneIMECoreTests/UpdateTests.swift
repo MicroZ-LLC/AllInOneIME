@@ -232,6 +232,29 @@ struct UpdateTests {
         #expect(manifest("http://127.0.0.1:8123/update.json", local: true))
     }
 
+    @Test func theManifestRedirectsOnlyToItsHostOrTheSite() {
+        let origin = URL(string: "https://allinoneime.com/update.json")!
+        func redirect(_ url: String) -> Bool {
+            UpdateURLPolicy.allowsManifestRedirect(to: URL(string: url)!, from: origin, allowsLocalHTTP: false)
+        }
+        #expect(redirect("https://allinoneime.com/v2/update.json") && redirect("https://ALLINONEIME.com/update.json"))
+        #expect(!redirect("https://evil.example/update.json") && !redirect("http://allinoneime.com/update.json"))
+        #expect(!redirect("https://allinoneime.com.evil.example/update.json") && !redirect("https://user@allinoneime.com/x"))
+        #expect(!redirect("https://objects.githubusercontent.com/update.json"))
+        let mirror = URL(string: "https://updates.example.org/update.json")!
+        #expect(UpdateURLPolicy.allowsManifestRedirect(to: URL(string: "https://updates.example.org/b.json")!, from: mirror, allowsLocalHTTP: false))
+        #expect(UpdateURLPolicy.allowsManifestRedirect(to: origin, from: mirror, allowsLocalHTTP: false))
+    }
+
+    @Test func aManifestLargerThanAllowedIsRefusedAsItComes() async throws {
+        let server = TestUpdateServer()
+        LibraryStubProtocol.serve(server.base + "update.json", Data(repeating: 0x20, count: Updater.maxManifestBytes + 1))
+        await #expect(throws: UpdateError.tooLarge("update.json")) { try await server.updater().check() }
+        // Exactly the limit is read (and then refused for its signature, not its size).
+        LibraryStubProtocol.serve(server.base + "update.json", Data(repeating: 0x20, count: Updater.maxManifestBytes))
+        await #expect(throws: UpdateError.missingSignature) { try await server.updater().check() }
+    }
+
     @Test func aManifestFromElsewhereIsntAskedFor() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LibraryStubProtocol.self]
