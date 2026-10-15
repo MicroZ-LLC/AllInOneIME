@@ -2277,6 +2277,15 @@ enum SelfTest {
         index.generation = 1_000_000  // another than the empty one's: the command list is built again for it
         check(index.commands.map(\.name) == ["stgreet", "sthello", "stlist", "stneeds", "stwait", "stquiet"] && index.skipped.isEmpty,
               "extensions read from a folder: the bundle's first, Raycast's last (\(index.commands.map(\.name)), \(index.skipped.count) skipped)")
+        // A copy of the folder found by Spotlight (another checkout): only its Raycast script is read, and that is
+        // a copy of one loaded, left out without a warning.
+        let copy = folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + "-copy")
+        try? FileManager.default.copyItem(at: folder, to: copy)
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let withCopy = ExtensionStore.load([.init(path: folder.path, found: false), .init(path: copy.path, found: true)])
+        check(withCopy.commands == index.commands && withCopy.bundles == index.bundles && withCopy.skipped.isEmpty
+              && withCopy.identical.map(\.path) == [copy.appendingPathComponent("stquiet.sh").path],
+              "a found copy of the folder adds nothing and warns of nothing (\(withCopy.identical.map(\.lastPathComponent)), \(withCopy.skipped.count) skipped)")
         controller.loadExtensions = { _, _ in index }
         controller.composer.setInputMode(.english)  // the texts below are typed as letters
 
