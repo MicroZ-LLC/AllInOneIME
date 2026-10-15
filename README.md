@@ -233,6 +233,22 @@ are picked; twice in English mode).
 Whatever the action key, @ commands also run on ⏎. If ⌥Space is already a shortcut for Alfred, Raycast or the like,
 they get it first.
 
+### Typing results out
+
+Turn on "Type results out" under Settings → General (`typeOut` in the config) and a command's result is typed into the
+app character by character, like a person typing, instead of going in at once; pinyin picks still go in at once. The
+slider sets the pace, from 6 seconds a character to 40 a second (`typeOutRate`), and "Speed up and slow down" types in
+bursts of changing pace (`typeOutVaries`). Esc stops it where it is; any other key types the rest at once.
+
+"Make occasional typos and fix them" (`typeOutMistakes`) makes it look even more like a person: now and then the key
+next to the right one, noticed up to three letters later, deleted and typed again; a letter or a space typed twice and
+deleted; or a short word typed, deleted and typed again. A few in 100 characters, never two close together, and never
+in a web address, an email address, a number or code. The wrong letters are neighbors on your keyboard layout (QWERTY,
+AZERTY, QWERTZ…). Chinese, Japanese and Korean only hesitate (two characters typed, deleted and typed again), never
+with a wrong character. Whatever happens, the text ends up exactly the result, also when Esc or another key stops it in
+the middle of a typo. Typos are only made where the input method can take them back: not in terminals, nor in apps
+that don't tell it where the cursor is.
+
 ## Menu bar panel
 
 <img src="docs/en/panel-swipe.png" width="520" alt="The menu bar panel: frosted glass, with notes, reminders and Claude tasks on cards; a row swiped left shows its Remove button">
