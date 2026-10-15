@@ -243,11 +243,18 @@ bursts of changing pace (`typeOutVaries`). Esc stops it where it is; any other k
 "Make occasional typos and fix them" (`typeOutMistakes`) makes it look even more like a person: now and then the key
 next to the right one, noticed up to three letters later, deleted and typed again; a letter or a space typed twice and
 deleted; or a short word typed, deleted and typed again. A few in 100 characters, never two close together, and never
-in a web address, an email address, a number or code. The wrong letters are neighbors on your keyboard layout (QWERTY,
-AZERTY, QWERTZ…). Chinese, Japanese and Korean only hesitate (two characters typed, deleted and typed again), never
-with a wrong character. Whatever happens, the text ends up exactly the result, also when Esc or another key stops it in
-the middle of a typo. Typos are only made where the input method can take them back: not in terminals, nor in apps
-that don't tell it where the cursor is.
+at the start of a line. In code, web and email addresses and numbers, a typo is only a wrong letter or digit, fixed at
+once (never a wrong bracket, quote or space, which editors pair or indent on). The wrong letters are neighbors on your
+keyboard layout (QWERTY, AZERTY, QWERTZ…). Chinese, Japanese and Korean only hesitate (two characters typed, deleted
+and typed again), never with a wrong character.
+
+Typed to the end, or with another key pressed to type the rest at once, the text is exactly the result. Esc (or
+leaving the field) in the middle of a typo takes the typo out first, so the field holds an exact start of the result.
+If the cursor moves while a typo shows (a click), the typo is taken out where it was and the rest typed without typos.
+Typos are only made where the input method can take them back: never in terminals, nor in apps that don't tell it
+where the cursor is. While a typo is in the field, the input method checks before every key that the field holds what
+it typed; an app that doesn't take a typo back as asked (it ignores where to replace) keeps that one typo, and gets no
+typos again (remembered).
 
 ## Menu bar panel
 

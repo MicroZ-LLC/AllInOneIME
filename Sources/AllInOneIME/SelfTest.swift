@@ -19,6 +19,8 @@ final class FakeTextClient: NSObject, IMKTextInput {
     var replacements = 0
     /// False: like a field that knows no ranges, it tells no caret and reads nothing back.
     var knowsRanges = true
+    /// True: like a field that reads back but ignores `replacementRange`, everything goes in at the end.
+    var ignoresRanges = false
 
     private func replaceSelection() {
         guard marked.isEmpty, let range = selection else { return }
@@ -35,7 +37,7 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = Self.plain(string)
-        if knowsRanges, marked.isEmpty, replacementRange.location != NSNotFound,
+        if knowsRanges, !ignoresRanges, marked.isEmpty, replacementRange.location != NSNotFound,
            NSMaxRange(replacementRange) <= (document as NSString).length {
             document = (document as NSString).replacingCharacters(in: replacementRange, with: s)
             inserted.append(s)
@@ -1748,11 +1750,18 @@ enum SelfTest {
         let (mistakesBefore, sleepBefore, documentBefore) = (settings.typeOutMistakes, controller.typeOutSleep, client.document)
         settings.typeOutMistakes = true
         controller.applySettings()
+        // The apps remembered for not keeping a fix: the self-test's own (the user's stay as they are).
+        let memoryBefore = AllInOneIMEInputController.typoMemory
+        let suite = "com.aipinyin.selftest.typos"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        AllInOneIMEInputController.typoMemory = UserDefaults(suiteName: suite) ?? .standard
         defer {
             settings.typeOutMistakes = mistakesBefore
             controller.applySettings()
             (controller.typeOutSleep, controller.typeOutRandom) = (sleepBefore, nil)
-            (client.document, client.selection, client.bundleIDOverride, client.knowsRanges) = (documentBefore, nil, nil, true)
+            (client.document, client.selection, client.bundleIDOverride, client.knowsRanges, client.ignoresRanges) = (documentBefore, nil, nil, true, false)
+            AllInOneIMEInputController.typoMemory = memoryBefore
+            UserDefaults.standard.removePersistentDomain(forName: suite)
         }
         let text = "Thanks for the quick reply, I will look into it tomorrow morning and get back to you. "
             + "See https://example.com/docs or write to ops@example.com, order 1042. 好的，明天下午三点见！"
@@ -1798,8 +1807,32 @@ enum SelfTest {
             check(false, "a typo to stop at")
         }
 
-        // No typos where they couldn't be taken back.
+        // The caret moved while a typo is in the field (a click): the typo is taken out where it was typed, the
+        // rest typed plainly; every character there once.
+        if typeOut(text, until: typo) == 0, typo() {
+            client.selection = NSRange(location: 4, length: 0)
+            _ = pump(timeout: 20) { !controller.isTypingOut }
+            check(client.document.sorted() == intended.sorted() && client.replacements > 0,
+                  "the caret moved while a typo is in the field: it's taken out, every character there once ('\(client.document)')")
+        } else {
+            check(false, "a typo to move the caret at")
+        }
+
+        // A field that reads back but ignores replacement ranges: the typo can't be taken back, so it stays (one
+        // character off at most, nothing more added), and its app is remembered: no typos there the next time.
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 1_000_000) }
+        (client.bundleIDOverride, client.ignoresRanges) = ("com.example.ignores-ranges", true)
+        controller.typeOutRandom = seeded(1)
+        _ = typeOut(text)
+        let firstRun = client.document
+        let remembered = AllInOneIMEInputController.noTypos(in: "com.example.ignores-ranges")
+        check(oneEditApart(firstRun, intended) && remembered,
+              "a field ignoring replacement ranges: one typo stays at most, its app remembered (\(remembered)): '\(firstRun)'")
+        _ = typeOut(text)
+        check(client.document == intended, "…the next time, no typos there: the text exact")
+        (client.bundleIDOverride, client.ignoresRanges) = (nil, false)
+
+        // No typos where they couldn't be taken back.
         client.bundleIDOverride = "com.mitchellh.ghostty"
         let inTerminal = typeOut(text)
         check(inTerminal == 0 && client.document == intended, "no typos in a terminal (\(inTerminal) taken back)")
@@ -1807,6 +1840,15 @@ enum SelfTest {
         client.knowsRanges = false
         let noRanges = typeOut(text)
         check(noRanges == 0 && client.document == intended, "no typos in a field that tells no caret (\(noRanges) taken back)")
+    }
+
+    /// Whether `a` and `b` are the same, or one character substituted, added or left out.
+    static func oneEditApart(_ a: String, _ b: String) -> Bool {
+        let (x, y) = (Array(a), Array(b))
+        if x == y { return true }
+        let prefix = zip(x, y).prefix { $0 == $1 }.count
+        let suffix = zip(x.reversed(), y.reversed()).prefix { $0 == $1 }.count
+        return max(x.count, y.count) - min(prefix + suffix, min(x.count, y.count)) <= 1
     }
 
     /// An answer with line breaks (code) in a terminal: they go in as a paste, which the shell or Claude Code

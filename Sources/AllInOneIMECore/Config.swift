@@ -85,7 +85,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// A command's result is typed into the document character by character, like a person typing
     /// (pinyin picks still go in at once), at `typeOutRate` characters a second (1/6: 6 s a character),
     /// in bursts of changing pace when `typeOutVaries`, with an occasional typo fixed on the way when
-    /// `typeOutMistakes` (`TypeOut.plan`; the text ends up exactly the result).
+    /// `typeOutMistakes` (`TypeOut.plan`; typed to the end, the text is exactly the result).
     public var typeOut: Bool
     public var typeOutRate: Double
     public var typeOutVaries: Bool
