@@ -173,12 +173,35 @@ struct CommandTests {
         usage.record("japanese", now: now - 30 * 86400)  // long ago: less than sh today
         #expect(Command.palette("", in: catalog, usage: usage, now: now).map(\.name)
             == ["python", "sh", "japanese", "improve", "translate"])
-        // Letters: names starting with them first, then names containing them; by use within each.
-        #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py"])
+        // Letters: the name typed in full first, then names starting with them, then names containing them; by use
+        // within each.
+        #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["py", "python"])
+        #expect(Command.palette("pyt", in: catalog, usage: usage, now: now).map(\.name) == ["python"])
         #expect(Command.palette("p", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py", "japanese", "improve", "open"])
         #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["japanese", "translate", "claude", "calculate", "tasks"])
         #expect(Command.palette("o", in: catalog, usage: usage, now: now).map(\.name) == ["open", "python", "improve", "question", "note"])
         #expect(Command.palette("zz", in: catalog, usage: usage, now: now).isEmpty)
+    }
+
+    @Test func theNameTypedInFullComesFirst() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let catalog = Command.catalog(["reply", "rep", "prep"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
+        var usage = CommandUsage()
+        for _ in 0..<5 { usage.record("reply", now: now) }
+        usage.record("reportissue", now: now)
+        // "rep" exactly first, though used least; then the names starting with it by use, then those containing it.
+        #expect(Command.palette("rep", in: catalog, usage: usage, now: now).map(\.name) == ["rep", "reply", "reportissue", "prep"])
+        #expect(Command.palette("REP", in: catalog, usage: usage, now: now).first?.name == "rep")
+        // Without one of that name, the groups as before.
+        #expect(Command.palette("repo", in: catalog, usage: usage, now: now).map(\.name) == ["reportissue"])
+        #expect(Command.palette("re", in: catalog, usage: usage, now: now).map(\.name).prefix(3) == ["reply", "reportissue", "reminder"])
+        // The list as typed: "@rep" Tab picks it.
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.commands = catalog
+        c.commandUsage = usage
+        for key in [KeyEvent(keyCode: 0x13, characters: "@", modifiers: .shift), k("r"), k("e"), k("p"),
+                    KeyEvent(keyCode: VirtualKey.tab, characters: "\t")] { _ = c.handleKeyDown(key) }
+        #expect(c.draft == "@rep ")
     }
 
     @Test func openWebAddresses() {

@@ -1509,6 +1509,22 @@ enum SelfTest {
         check(controller.composer.engineState.pageNumber == 0, "↑ turns it back (page \(controller.composer.engineState.pageNumber + 1))")
         check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao" && client.inserted.last != first,
               "nothing was picked on the way (\(client.marked))")
+
+        // A long candidate is cut with "…", its cell no wider than what's left of it.
+        let long = String(repeating: "这是一个很长很长的句子", count: 6)
+        let fitted = CandidateView.fitted(NSAttributedString(string: long, attributes: [.font: CandidateView.Fonts.candidate]),
+                                          width: CandidateView.Metrics.maxCellTextWidth)
+        let width = fitted.size().width
+        check(fitted.string.hasSuffix("…") && width <= CandidateView.Metrics.maxCellTextWidth
+              && width > CandidateView.Metrics.maxCellTextWidth - CandidateView.Fonts.candidate.pointSize * 2,
+              "a long candidate is cut to fit, no gap after the … (\(Int(width)) of \(Int(CandidateView.Metrics.maxCellTextWidth)) pt)")
+        panel.show(CandidateView.Model(rows: ["你好", long, "拟好"].enumerated().map {
+            CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+        }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
+        snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
+        // The setting is on the Input page (with the input languages), and the search finds it there.
+        check(SettingsPage.input.matches("candidate layout") && SettingsPage.input.matches("横排") && !SettingsPage.general.matches("横排"),
+              "searching for the candidate layout finds the Input page, not General")
     }
 
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).

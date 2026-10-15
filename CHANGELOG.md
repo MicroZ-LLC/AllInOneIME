@@ -4,10 +4,14 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+### Changed
+
+- In the @ command list, a command whose name is exactly what you typed comes first: `@rep` lists your own `@rep` before `@reportissue` and `@reply`, however often those are used.
+
 ### Added
 
-- `@reportissue`: report a problem without leaving the keyboard. It opens GitHub's page for a new issue in your browser, what you typed after it as the title, with "What happened / What you expected" to fill in and the details that help: the app and macOS versions, the Mac's architecture, the interface and input languages, the language packs installed, the kind of AI provider (and model), the action key, and how many custom commands, plugins and extensions you have (never their names, your text, paths or keys). ⏎ shows all of it in the candidate panel first, ⏎ again opens the page, Esc goes back; you submit it on GitHub. Also "Report an Issue…" in the input menu and in Settings → About.
-- Candidates side by side: under Settings → General, "Candidate layout: Vertical / Horizontal" (`candidateLayout` in the config). Horizontal puts pinyin and Hindi candidates in a row, like the system's own input methods, the highlighted one in a pill; ← → choose, ↑↓ (or - =) turn the page. The @ command list and the results stay vertical, and Vertical, the default, is as before.
+- `@reportissue`: report a problem without leaving the keyboard. It opens GitHub's page for a new issue in your browser, what you typed after it as the title, with "What happened / What you expected" to fill in and the details that help: the app and macOS versions, the Mac's architecture, the interface and input languages, the language packs installed, the kind of AI provider (and the model, if it's a public one), the action key, and how many custom commands, plugins and extensions you have (never their names, your text, paths or keys). ⏎ shows all of it in the candidate panel first, ⏎ again opens the page, Esc goes back; you submit it on GitHub. Also "Report an Issue…" in the input menu and in Settings → About.
+- Candidates side by side: on the Input page of the settings, under the input languages, "Candidate layout: Vertical / Horizontal" (`candidateLayout` in the config). Horizontal puts pinyin and Hindi candidates in a row, like the system's own input methods, the highlighted one in a pill; ← → choose, ↑↓ (or - =) turn the page. The @ command list and the results stay vertical, and Vertical, the default, is as before.
 - Click a row of the candidate panel to pick it, as its digit would: a pinyin or Hindi word, a command in the @ list, a result, a file `@open` found (as you type too), a recipient, a row an extension listed. The row under the pointer is highlighted, and the text field keeps the focus.
 
 ## 0.6.2 (2026-10-14)
