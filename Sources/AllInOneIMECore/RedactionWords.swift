@@ -67,6 +67,7 @@ enum RedactionWords {
         + "uint16 uint32 uint64 unicode uri url usb username utf8 utf16 utf32 util utils ux uuid v1 v2 v3 v4 v5 v6 v7 v8 "
         + "v9 var viewport webhook webview website wifi win32 win64 winrt workspace x64 x86 xcode xml yaml yarn amd64 "
         + "arm64 aarch64 ascii float32 float64 hotfix ec2 aws js ajax rest allinoneime bluetooth iso posix intel claude gemini gpt openai anthropic llama "
-        + "mistral qwen deepseek haiku sonnet opus bedrock"
+        + "mistral qwen deepseek haiku sonnet opus bedrock "
+        + "usr lib bin sbin etc opt var com org net www macosx darwin linux gnu musl msvc"
     ).split(separator: " ").map(String.init))
 }
