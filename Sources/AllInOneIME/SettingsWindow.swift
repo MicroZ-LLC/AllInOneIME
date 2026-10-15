@@ -1533,6 +1533,14 @@ struct SettingsView: View {
             LabeledContent(tr("源代码", "Source code")) {
                 Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
             }
+            // GitHub's page for a new issue, with the versions and settings that help; `@reportissue` does the same.
+            LabeledContent {
+                Button(tr("报告问题…", "Report an Issue…")) { IssueReporting.open(config: model.config) }
+            } label: {
+                titled(tr("反馈", "Feedback"),
+                       tr("在浏览器里打开 GitHub 的新问题页，附上版本、语言和设置的种类，不含你打的字、路径、密钥和命令名；你看过再提交。",
+                          "Opens a new GitHub issue in the browser with the versions, languages and kinds of settings, never your text, paths, keys or command names; you submit it."))
+            }
         }
     }
 
@@ -2608,7 +2616,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
-        case .about: return "about version website github license 关于 版本 网站"
+        case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
         }
     }
 

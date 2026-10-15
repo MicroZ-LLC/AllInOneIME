@@ -559,9 +559,62 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        horizontalAndReport()
         extensions()
         frenchAndKorean()
         finish()
+    }
+
+    /// 6b. Candidates in a row (`candidateLayout`): the panel is wider than tall, and → moves the highlight, so Space
+    ///     inserts the second candidate. On today's date ("rq", rime-ice's Lua), so no word is learned in the user's
+    ///     dictionary. Then `@reportissue`: the action key shows what the page would hold, and Esc goes back; the page
+    ///     is never opened (⏎ isn't pressed on it).
+    func horizontalAndReport() {
+        print("— candidates in a row, @reportissue's preview")
+        guard setConfig({ $0["candidateLayout"] = "horizontal" }) else {
+            check(false, "config file readable, to lay the candidates out in a row")
+            return
+        }
+        // The text field again: the input method reads the layout when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("rq")
+        _ = waitUntil(2) { !imePanelFrames().isEmpty }
+        if let panel = imePanelFrames().first {
+            check(panel.width > panel.height, "the candidates are in a row (panel \(panel.integral))")
+        } else {
+            note("candidate panel not on screen (expected while the screen is locked)")
+        }
+        key("", 0x7C)  // →
+        space()
+        check(waitUntil(2) { self.committed.contains("/") && self.marked.isEmpty },
+              "→ then Space inserts the second candidate, today's date with slashes ('\(committed)')")
+        reset()
+        textView.string = ""
+
+        // @reportissue: the action key shows the issue first; Esc goes back to it, a second Esc clears it.
+        command("reporti")
+        check(waitUntil(2) { self.marked == "reportissue › " }, "@reporti Tab picks @reportissue (\(marked))")
+        let before = imePanelFrames().first?.height ?? 0
+        act()
+        pump(0.6)
+        let after = imePanelFrames().first?.height ?? 0
+        check(marked == "reportissue › " && committed.isEmpty && (before == 0 || after > before),
+              "the action key shows what the issue holds, nothing opened or typed (panel \(Int(before)) → \(Int(after)) high)")
+        escape()
+        check(waitUntil(2) { self.marked == "reportissue › " }, "Esc goes back to the title (\(marked))")
+        escape()
+        check(waitUntil(2) { self.marked.isEmpty && self.committed.isEmpty }, "Esc again clears it ('\(committed)')")
+        reset()
+        textView.string = ""
+        _ = setConfig { $0["candidateLayout"] = "vertical" }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
     }
 
     /// The script extensions made for the test (in a temporary folder), removed when it ends.

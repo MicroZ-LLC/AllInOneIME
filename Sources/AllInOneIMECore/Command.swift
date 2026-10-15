@@ -39,6 +39,9 @@ public struct Command: Hashable, Sendable {
         case link
         /// Sends the text to someone picked in the panel (`@imessage`), after the user confirms it.
         case message
+        /// Opens GitHub's page for a new issue with the text as its title and a few diagnostics (`IssueReport`),
+        /// shown in the panel first; nothing is sent or inserted.
+        case report
     }
 
     init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil) {
@@ -96,8 +99,12 @@ public struct Command: Hashable, Sendable {
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
+    /// Report a problem: GitHub's page for a new issue, the text its title, with the versions and settings that
+    /// help (`IssueReport`); the user submits it there.
+    public static let reportIssue = Command(name: "reportissue", kind: .report)
+
     public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
-                                             .py, .js, .webSearch, .tasks, .settings, .imessage]
+                                             .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
     /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and
