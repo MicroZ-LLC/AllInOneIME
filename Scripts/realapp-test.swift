@@ -568,61 +568,83 @@ final class Harness: NSObject, NSApplicationDelegate {
         finish()
     }
 
-    /// 6a. Commands on the selected text: part of the text in the text view selected, "@improve" takes its place while
-    ///     it's typed; Esc (in the draft, and after level two) and ⇧Return put it back exactly; the action key works on
-    ///     it, and the first version picked replaces it, the rest of the text unchanged (live Bedrock).
+    /// 6a. Commands on the selected text: part of the text in the text view selected, "@improve" is written in the
+    ///     candidate panel while the text view stays as it was, the part still selected (pinyin too); Esc (in the draft,
+    ///     and after level two) and ⇧Return leave it so; the action key works on it, and the first version picked
+    ///     replaces exactly the selection (live Bedrock). A selection moved meanwhile gives the command up.
     func selectionCommands() {
         print("— commands on the selected text (live Bedrock)")
         let text = "Dear team, this sentance have a error. Thanks!"
         let part = "this sentance have a error."
         let range = (text as NSString).range(of: part)
-        let without = "Dear team,  Thanks!"
+        /// The candidate panel is up (one of the input method's windows, not the menu bar icon).
+        func panelShown() -> Bool {
+            let top = NSScreen.screens.first.map { $0.frame.maxY - 40 } ?? .greatestFiniteMagnitude
+            return imePanelFrames().contains { $0.maxY < top }
+        }
         func select() {
             reset()
+            // A command still written in the panel (a check failed): nothing marked for `reset` to see.
+            if panelShown() { escape(); escape() }
             textView.string = text
             textView.setSelectedRange(range)
             pump(0.2)
         }
+        /// The text view as it was, the part still selected, nothing marked.
+        func untouched() -> Bool { textView.string == text && textView.selectedRange() == range && !textView.hasMarkedText() }
         select()
         command("i")
-        check(waitUntil(2) { self.marked == "improve › " && self.committed == without },
-              "@improve with part of the text selected: the command takes its place while typed ('\(committed)' + '\(marked)')")
+        pump(0.4)
+        check(untouched() && panelShown(),
+              "@improve on part of the text: the text view unchanged, the part still selected, the command in the panel")
         escape()
-        check(waitUntil(2) { self.marked.isEmpty && self.textView.string == text }, "Esc puts the selection back exactly ('\(textView.string)')")
+        check(waitUntil(2) { untouched() }, "Esc: the text and its selection as they were ('\(textView.string)', \(textView.selectedRange()))")
+
+        select()
+        command("i")
+        type("nihao")
         pump(0.3)
-        note("selected again after Esc: \(textView.selectedRange() == range ? "yes" : "no (the input method has no Accessibility permission)")")
+        check(untouched() && panelShown(), "pinyin in the command's text: in the panel, the text view still untouched")
+        space()
+        escape()
+        check(waitUntil(2) { untouched() }, "Space picks 你好 into the command, Esc gives it up: as it was")
 
         select()
         command("i")
-        _ = waitUntil(2) { self.marked == "improve › " }
         asTyped()
-        check(waitUntil(2) { self.marked.isEmpty && self.textView.string == text },
-              "⇧Return puts it back, no @improve left ('\(textView.string)')")
+        check(waitUntil(2) { untouched() }, "⇧Return inserts nothing: no @improve over the selection ('\(textView.string)')")
 
         select()
         command("i")
-        _ = waitUntil(2) { self.marked == "improve › " }
         act()
         pump(0.5)
         escape()
-        check(waitUntil(2) { self.marked == "improve › " && self.committed == without }, "Esc in level two goes back to the command (\(marked))")
+        check(waitUntil(2) { untouched() && panelShown() }, "Esc in level two goes back to the command, the text untouched")
         escape()
-        check(waitUntil(2) { self.marked.isEmpty && self.textView.string == text }, "Esc again puts it back exactly ('\(textView.string)')")
+        check(waitUntil(2) { untouched() }, "Esc again: the text and its selection as they were")
 
         select()
         command("i")
-        _ = waitUntil(2) { self.marked == "improve › " }
         let started = Date()
         act()
         let picked = waitUntil(25) {
-            if !self.marked.isEmpty { self.space() }  // ignored until the first version is complete
-            return self.marked.isEmpty
+            if self.textView.string == text { self.space() }  // ignored until the first version is complete
+            return self.textView.string != text
         }
         let result = textView.string
         let middle = result.hasPrefix("Dear team, ") && result.hasSuffix(" Thanks!") ? String(result.dropFirst(11).dropLast(8)) : ""
-        check(picked && !middle.isEmpty && middle != part && Self.looksEnglish(middle) && !result.contains("improve"),
-              String(format: "the first version replaces the selection, the rest unchanged, after %.1fs: '%@'",
-                     Date().timeIntervalSince(started), result))
+        check(picked && !middle.isEmpty && middle != part && Self.looksEnglish(middle) && !result.contains("improve")
+              && !textView.hasMarkedText(),
+              String(format: "the first version replaces exactly the selection, after %.1fs: '%@'", Date().timeIntervalSince(started), result))
+
+        // The selection moved while the command is written (a click): it's given up, and the key types as usual.
+        select()
+        command("i")
+        textView.setSelectedRange(NSRange(location: 0, length: 4))
+        pump(0.2)
+        type("a")
+        check(waitUntil(2) { self.marked == "a" && self.committed == String(text.dropFirst(4)) },
+              "a selection moved meanwhile gives the command up; the next key types as usual ('\(committed)' + '\(marked)')")
         reset()
         textView.string = ""
     }
