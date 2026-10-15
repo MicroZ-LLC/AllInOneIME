@@ -160,6 +160,8 @@ public final class Composer {
             case shown
             /// A row of a script's list (`ScriptItem`): picking it does its action.
             case item(ScriptItem)
+            /// The issue `@reportissue` will open (`IssueReport.url`), to confirm: picking it opens the page.
+            case issue(URL)
 
             public var isRewrite: Bool {
                 if case .rewrite = self { return true }
@@ -331,6 +333,14 @@ public final class Composer {
     public var horizontalCandidates = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
+    /// The issue `@reportissue` shows before it opens the page (its title and `IssueReport.lines`).
+    public private(set) var pendingIssue: IssueReport?
+    /// What a report says about this Mac and the settings (`IssueReport.Diagnostics`), read by the controller when
+    /// `@reportissue` runs.
+    public var issueDiagnostics: () -> IssueReport.Diagnostics = {
+        IssueReport.Diagnostics(appVersion: AppVersion.string, macOS: "-", architecture: "-", interfaceLanguage: "-", inputLanguages: [],
+                                languagePacks: [], provider: "-", model: nil, actionKey: "-", customCommands: 0, plugins: 0, extensions: 0)
+    }
     /// Files and apps found for `@open`.
     public private(set) var searchResults: [SearchResult] = []
     /// Results for the `@open` text as it is typed (`liveQuery`), and the highlighted one.
@@ -680,6 +690,8 @@ public final class Composer {
         case .message?:
             guard let line = result.versions.first, !line.text.isEmpty else { return [] }
             return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
+        case .report?:
+            return pendingIssue.map { [Choice(label: "⏎", kind: .issue($0.url), text: $0.title, isComplete: true)] } ?? []
         case .convert?, .terminal?, .settings?, .note?, nil:
             break
         }
@@ -721,7 +733,7 @@ public final class Composer {
             } ?? 0
         }
         if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
-            || activeCommand?.kind == .message { return 0 }
+            || activeCommand?.kind == .message || activeCommand?.kind == .report { return 0 }
         if case .translating = phase { return 1 }
         // The first version, answer or translation (`@translate` into several languages has no versions).
         if let i = all.firstIndex(where: {
@@ -771,7 +783,7 @@ public final class Composer {
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.isCode || command.script != nil
+            || command.kind == .report || command.isCode || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -2036,8 +2048,10 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         switch event.keyCode {
         case VirtualKey.space:
-            // A message is sent by ⏎ (or the action key), never by a Space typed on the way.
-            if activeCommand?.kind == .message, actionKey != .space, phase == .choosing { return .consumed() }
+            // A message is sent by ⏎ (or the action key), never by a Space typed on the way; nor is an issue opened.
+            if activeCommand?.kind == .message || activeCommand?.kind == .report, actionKey != .space, phase == .choosing {
+                return .consumed()
+            }
             return .consumed(acceptInLevelTwo())
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
             // Like Space: the highlighted row (row 0 is the sentence as typed). After a failure
@@ -2097,6 +2111,8 @@ public final class Composer {
             return .consumed([.listAgents(id: requestCounter), .updateMarkedText, .showPanel, used(parsed!.command)])
         }
         if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
+        // A report needs no title: it can be written on GitHub.
+        if let command = parsed?.command, command.kind == .report { return startReport(command, title: input) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if let command = parsed?.command, command.kind == .terminal {
@@ -2351,6 +2367,21 @@ public final class Composer {
         case refused(String)
     }
 
+    /// `@reportissue`: the issue to open, with the text as its title, shown in the panel to confirm (⏎ opens the
+    /// page, Esc goes back to the text). The diagnostics are read now (`issueDiagnostics`). Not during secure input:
+    /// a password field's text must not end up in an address.
+    private func startReport(_ command: Command, title: String) -> Response {
+        guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
+        requestCounter += 1
+        result = .empty
+        searchResults = []
+        highlightOverride = nil
+        activeCommand = command
+        pendingIssue = IssueReport(title: title, diagnostics: issueDiagnostics())
+        phase = .choosing
+        return .consumed([.updateMarkedText, .showPanel])
+    }
+
     /// A send command: picks the highlighted recipient while there is none; then runs the commands
     /// inside the message (`@stock AAPL`) and shows the message to confirm (`Choice.Kind.send`).
     private func startMessage(_ command: Command, input: String) -> Response {
@@ -2500,6 +2531,7 @@ public final class Composer {
         scriptOutput = nil
         searchResults = []
         pendingReminder = nil
+        pendingIssue = nil
         activeCommand = nil
         highlightOverride = nil
         setLevelOnePhase()
@@ -2516,6 +2548,10 @@ public final class Composer {
         if case let .reminder(reminder) = all[index].kind {
             let input = sentText  // before the draft is cleared: it comes back if the reminder can't be added
             return finish(committing: "") + [.addReminder(reminder, input: input)]
+        }
+        if case let .issue(url) = all[index].kind, let command = activeCommand {
+            // Opened in the browser, where the user submits it (or not); nothing is inserted.
+            return finish(committing: "") + [.openLink(url), used(command)]
         }
         if case .send = all[index].kind, let recipient = messageRecipient, let command = activeCommand {
             // Sent, not inserted: the draft goes.
@@ -2556,6 +2592,7 @@ public final class Composer {
         listResultsQuery = nil
         searchResults = []
         pendingReminder = nil
+        pendingIssue = nil
         activeCommand = nil
         paletteHighlight = 0
         pendingPaste = nil  // a paste still on its way is dropped

@@ -444,6 +444,13 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
+        // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
+        composer.issueDiagnostics = { [weak self] in
+            guard let self else { return IssueReporting.current(config: LiveConfig.current) }
+            let config = self.loadSettings()
+            return IssueReporting.diagnostics(config: config, plugins: LivePlugins.current().count,
+                                              extensions: self.loadExtensions(config, false).commands.count)
+        }
         (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
         setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
@@ -1712,6 +1719,12 @@ final class AllInOneIMEInputController: IMKInputController {
                     // To confirm: what to be reminded of, and when as read from the text (「明天 15:00」).
                     return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
                                              comment: UIText.when(reminder), style: .candidate)
+                case .issue:
+                    // To confirm: the issue's title (none: written on GitHub); what goes with it is the status below.
+                    return CandidateView.Row(label: choice.label,
+                                             text: choice.text.isEmpty ? tr("（标题在 GitHub 上写）", "(write the title on GitHub)") : choice.text,
+                                             comment: tr("在 GitHub 上新建问题", "new issue on GitHub"), style: .translation,
+                                             icon: composer.activeCommand.map(CommandIcons.icon(for:)))
                 }
             }
             model.highlighted = composer.highlighted
@@ -1737,6 +1750,14 @@ final class AllInOneIMEInputController: IMKInputController {
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
+            case .choosing where command?.kind == .report:
+                // Everything the page will hold besides the title, before it opens.
+                if let issue = composer.pendingIssue {
+                    model.status = .hint(tr("会一起填进去（不含你打的其他字、路径、密钥和命令名）：",
+                                            "Also filled in (no other text you typed, no paths, keys or command names):")
+                                         + "\n" + issue.lines.map { "· " + $0 }.joined(separator: "\n"))
+                }
+                model.footer = tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
@@ -1877,6 +1898,10 @@ final class AllInOneIMEInputController: IMKInputController {
         let settings = NSMenuItem(title: tr("设置…", "Settings…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+        // GitHub's page for a new issue, with the versions and settings that help (`IssueReport`).
+        let report = NSMenuItem(title: tr("报告问题…", "Report an Issue…"), action: #selector(reportIssue(_:)), keyEquivalent: "")
+        report.target = self
+        menu.addItem(report)
         menu.addItem(.separator())
         let model = config.map { tr("模型：", "Model: ") + ($0.settings(for: $0.provider).model ?? "") } ?? tr("配置文件有误", "The config file has an error")
         let info = NSMenuItem(title: model, action: nil, keyEquivalent: "")
@@ -2075,6 +2100,16 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
             SettingsWindow.shared.show()
+        }
+    }
+
+    /// The input menu's "Report an Issue…": the new-issue page in the browser (the browser takes the focus).
+    @objc func reportIssue(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            perform(composer.commitAll(), client: nil)
+            let config = loadSettings()
+            NSWorkspace.shared.open(IssueReport(title: "", diagnostics: IssueReporting.diagnostics(
+                config: config, plugins: LivePlugins.current().count, extensions: loadExtensions(config, false).commands.count)).url)
         }
     }
 

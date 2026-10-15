@@ -1323,6 +1323,47 @@ enum SelfTest {
 
     /// `@imessage` with stand-ins for Contacts and Messages: nothing is read from the address book and
     /// nothing is sent.
+    /// `@reportissue`: ⏎ shows what the page will hold (versions, kinds, counts: nothing of the user's), Esc goes back
+    /// to the title, ⏎ ⏎ opens GitHub's new-issue page with it (recorded here, never opened); nothing is inserted.
+    static func testReportIssue(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        print("— @reportissue (nothing opened)")
+        var opened: [String] = []
+        let saved = controller.openItem
+        controller.openItem = { opened.append($0) }
+        controller.setCommands(Command.catalog([]), recheck: true)
+        controller.composer.commands = Command.catalog([])
+        controller.composer.setInputMode(.english)
+        defer {
+            controller.openItem = saved
+            controller.commitComposition(client)
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        let inserted = client.inserted.count
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        type("reporti", controller, client)
+        press(controller, client, "\t", code: VirtualKey.tab)
+        type("panel stuck", controller, client)
+        check(client.marked == "reportissue › panel stuck", "@reporti Tab picks @reportissue, the title after it (\(client.marked))")
+        _ = enter(controller, client)
+        let model = controller.panelModel()
+        var shown = ""
+        if case let .hint(text) = model.status { shown = text }
+        check(controller.composer.phase == .choosing && opened.isEmpty && model.rows.first?.text == "panel stuck",
+              "⏎ shows the issue first, nothing opened (\(model.rows.map(\.text)))")
+        check(shown.contains("AllInOneIME: \(AppVersion.string)") && shown.contains("macOS: ") && shown.contains("Input languages: ")
+              && shown.contains("Custom commands: "), "the panel lists what goes with it (\(shown.split(separator: "\n").count) lines)")
+        check(!shown.contains(NSHomeDirectory()) && (NSUserName().count < 4 || !shown.contains(NSUserName())), "no home folder or user name in it")
+        snapshot("report-issue", in: snapshotDirectory)
+        _ = escape(controller, client)
+        check(client.marked == "reportissue › panel stuck" && opened.isEmpty, "Esc goes back to the title (\(client.marked))")
+        _ = enter(controller, client)
+        _ = enter(controller, client)
+        let url = opened.first ?? ""
+        check(opened.count == 1 && url.hasPrefix(IssueReport.newIssueAddress + "?title=panel%20stuck&body=") && url.count <= IssueReport.maxURLLength,
+              "⏎ ⏎ opens GitHub's new-issue page with the title (\(url.prefix(90))…, \(url.count) characters)")
+        check(client.inserted.count == inserted && client.marked.isEmpty, "nothing is typed into the text field")
+    }
+
     static func testIMessage(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         print("— @imessage (stand-in contacts and sender)")
         let sender = StandInSender()
@@ -2505,6 +2546,7 @@ enum SelfTest {
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
         testToolCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
+        testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
 
         print("— error display")
