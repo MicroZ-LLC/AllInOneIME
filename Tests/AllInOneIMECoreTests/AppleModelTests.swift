@@ -286,9 +286,31 @@ struct AppleModelTests {
             let passes = StubAppleModel(answer: ["ok"])
             #expect(try await final(converter(passes).generate(.question, input: text))?.rawText == "ok", "\(text)")
         }
-        #expect(AppleModel.unsupportedLanguage(of: "Bună ziua, ce mai faceți astăzi?", supported: StubAppleModel.languages) == "ro")
-        #expect(AppleModel.unsupportedLanguage(of: "Je me sens pas très bien aujourd'hui", supported: StubAppleModel.languages) == nil)
-        #expect(AppleModel.unsupportedLanguage(of: "Je me sens pas très bien aujourd'hui", supported: ["en", "zh"]) == "fr")
+        #expect(AppleModel.unsupportedLanguage(of: "Сегодня я плохо себя чувствую", supported: StubAppleModel.languages) == "ru")
+        #expect(AppleModel.unsupportedLanguage(of: "Сегодня я плохо себя чувствую", supported: StubAppleModel.languages.union(["ru"])) == nil)
+        #expect(AppleModel.unsupportedLanguage(of: "我今天有点不舒服，想请假一天回家休息", supported: StubAppleModel.languages) == nil)
+    }
+
+    @Test func latinTextIsNeverTurnedAway() async throws {
+        // Pinyin reads as Indonesian (0.9 and more) or Vietnamese; those and Romanian, with their accents, are Latin too.
+        for text in ["ming tian de hui wo ke neng qu bu liao", "mingtian dehui wo kenengqu buliao", "wo jintian youdian bushufu",
+                     "Hôm nay tôi cảm thấy không được khỏe lắm", "Saya merasa kurang sehat hari ini, maaf ya",
+                     "Bună ziua, ce mai faceți astăzi?", "aap kaise ho mera naam rahul hai"] {
+            #expect(AppleModel.unsupportedLanguage(of: text, supported: ["en", "zh"]) == nil, "\(text)")
+            let passes = StubAppleModel(languages: ["en", "zh"], answer: ["ok"])
+            #expect(try await final(converter(passes).generate(.question, input: text))?.rawText == "ok", "\(text)")
+        }
+        // Hindi in its own script still is.
+        #expect(AppleModel.unsupportedLanguage(of: "आज मेरी तबीयत ठीक नहीं है, मैं घर जा रहा हूँ", supported: StubAppleModel.languages) == "hi")
+        #expect(AppleModel.mostlyLatin("Hôm nay tôi cảm thấy") && !AppleModel.mostlyLatin("आज मेरी तबीयत ठीक") && !AppleModel.mostlyLatin("我今天 ok"))
+    }
+
+    @Test func outputTokensEstimate() {
+        #expect(AppleModel.estimatedOutputTokens(String(repeating: "abcd", count: 25)) == 25)  // 100 ASCII characters
+        #expect(AppleModel.estimatedOutputTokens("我今天有点不舒服") == 8)
+        #expect(AppleModel.estimatedOutputTokens("EN: 你好") == 3)  // "EN: " a token, two CJK
+        #expect(!AppleModel.possiblyCut(String(repeating: "word ", count: 28), limit: 40))  // 35 tokens: under 36
+        #expect(AppleModel.possiblyCut(String(repeating: "word ", count: 29), limit: 40))  // 37
     }
 
     @Test func theUsersMaxTokensIsNeverRaised() {
@@ -306,7 +328,7 @@ struct AppleModelTests {
         var config = self.config
         config.maxTokens = 40
         // About 44 estimated tokens against a limit of 40: possibly cut (macOS 26, no count).
-        let long = "EN: " + String(repeating: "word ", count: 24) + "\nEN: unfinished line"
+        let long = "EN: " + String(repeating: "word ", count: 30) + "\nEN: unfinished line"
         #expect(AppleModel.possiblyCut(long, limit: 40) && !AppleModel.possiblyCut("EN: short", limit: 40))
         let estimated = StubAppleModel(answer: [long])
         #expect(try await events(estimated, maxTokens: 40).last == .messageStop(reason: "max_tokens"))
