@@ -7,6 +7,7 @@ import Testing
 final class StubAppleModel: AppleModelBackend, @unchecked Sendable {
     let availability: AppleModelAvailability
     let contextSize: Int
+    let supportedLanguages: Set<String>
     let snapshots: [AppleModelSnapshot]
     let error: Error?
     let hangs: Bool
@@ -14,10 +15,14 @@ final class StubAppleModel: AppleModelBackend, @unchecked Sendable {
     private var _requests: [AppleModelRequest] = []
     var requests: [AppleModelRequest] { lock.withLock { _requests } }
 
-    init(_ availability: AppleModelAvailability = .available, contextSize: Int = 4096, answer: [String] = [],
-         outputTokens: Int? = nil, error: Error? = nil, hangs: Bool = false) {
+    /// The languages macOS 27.2's model lists.
+    static let languages: Set<String> = ["da", "de", "en", "es", "fr", "it", "ja", "ko", "nb", "nl", "pt", "sv", "tr", "vi", "zh"]
+
+    init(_ availability: AppleModelAvailability = .available, contextSize: Int = 4096, languages: Set<String> = StubAppleModel.languages,
+         answer: [String] = [], outputTokens: Int? = nil, error: Error? = nil, hangs: Bool = false) {
         self.availability = availability
         self.contextSize = contextSize
+        supportedLanguages = languages
         snapshots = answer.map { AppleModelSnapshot(text: $0, outputTokens: outputTokens) }
         self.error = error
         self.hangs = hangs
@@ -224,5 +229,102 @@ struct AppleModelTests {
         let update = try #require(try await final(converter(stub).generate(.question, input: "capital of australia")))
         #expect(update.result.versions.map(\.text) == ["Canberra is the capital."])
         #expect(stub.requests.first?.instructions == Prompt.commandSystem(.question))
+    }
+
+    // MARK: Fixes after the acceptance tests
+
+    func events(_ stub: StubAppleModel, maxTokens: Int = 100) async throws -> [BedrockStreamEvent] {
+        var events: [BedrockStreamEvent] = []
+        for try await event in AppleModel.stream(Prompt.commandRequest(.question, input: "q", config: config), backend: stub,
+                                                 maxTokens: maxTokens, timeout: 5) {
+            events.append(event)
+        }
+        return events
+    }
+
+    func joined(_ events: [BedrockStreamEvent]) -> String {
+        events.reduce(into: "") { text, event in
+            if case let .textDelta(delta) = event { text += delta }
+            if case let .textReplaced(whole) = event { text = whole }
+        }
+    }
+
+    @Test func snapshotsEndingInsideACharacter() async throws {
+        // A skin tone added to 👍; a family emoji built up scalar by scalar.
+        let thumbs = try await events(StubAppleModel(answer: ["ok 👍", "ok 👍🏽"]))
+        #expect(thumbs == [.textDelta("ok 👍"), .textDelta("\u{1F3FD}"), .messageStop(reason: "end_turn")])
+        #expect(joined(thumbs) == "ok 👍🏽" && joined(thumbs).unicodeScalars.count == "ok 👍🏽".unicodeScalars.count)
+        let family = "EN: 👨‍👩‍👧 home"
+        let growing = family.unicodeScalars.indices.map { String(family.unicodeScalars[...$0]) }
+        let built = try await events(StubAppleModel(answer: growing))
+        #expect(joined(built) == family && joined(built).unicodeScalars.elementsEqual(family.unicodeScalars))
+        #expect(!built.contains { if case .textReplaced = $0 { return true } else { return false } })
+        // Through the converter: the final text is the model's.
+        let update = try #require(try await final(converter(StubAppleModel(answer: growing)).generate(.question, input: "x")))
+        #expect(update.rawText == family)
+    }
+
+    @Test func aRevisedAnswerReplacesWhatWentOut() async throws {
+        let revised = try await events(StubAppleModel(answer: ["EN: Hello", "EN: Hi there", "EN: Hi there."]))
+        #expect(revised == [.textDelta("EN: Hello"), .textReplaced("EN: Hi there"), .textDelta("."), .messageStop(reason: "end_turn")])
+        let update = try #require(try await final(converter(StubAppleModel(answer: ["EN: Hello", "EN: Hi there."])).convert("你好")))
+        #expect(update.rawText == "EN: Hi there." && update.result.versions.map(\.text) == ["Hi there."])
+    }
+
+    @Test func unsupportedLanguageFailsFast() async throws {
+        let hindi = "आज मेरी तबीयत ठीक नहीं है, मैं घर जा रहा हूँ"
+        let stub = StubAppleModel(answer: ["HI: …"])
+        await #expect(throws: AppleModelError.unsupportedLanguage) {
+            _ = try await final(converter(stub).generate(.question, input: hindi))
+        }
+        #expect(stub.requests.isEmpty, "nothing sent to the model")
+        // A language it speaks once it's listed; short or mixed text isn't judged; Chinese and English pass.
+        let withHindi = StubAppleModel(languages: StubAppleModel.languages.union(["hi"]), answer: ["ठीक है"])
+        #expect(try await final(converter(withHindi).generate(.question, input: hindi))?.rawText == "ठीक है")
+        for text in ["नमस्ते", "Please tell the team नमस्ते आप कैसे हैं before the meeting tomorrow",
+                     "这个方案我觉得还可以但是预算有点超了", "i think we should moved the meeting to next week", "wo jintian youdian bushufu"] {
+            let passes = StubAppleModel(answer: ["ok"])
+            #expect(try await final(converter(passes).generate(.question, input: text))?.rawText == "ok", "\(text)")
+        }
+        #expect(AppleModel.unsupportedLanguage(of: "Bună ziua, ce mai faceți astăzi?", supported: StubAppleModel.languages) == "ro")
+        #expect(AppleModel.unsupportedLanguage(of: "Je me sens pas très bien aujourd'hui", supported: StubAppleModel.languages) == nil)
+        #expect(AppleModel.unsupportedLanguage(of: "Je me sens pas très bien aujourd'hui", supported: ["en", "zh"]) == "fr")
+    }
+
+    @Test func theUsersMaxTokensIsNeverRaised() {
+        let body = Prompt.commandRequest(.question, input: "q", config: config)
+        #expect(AppleModel.request(from: body, maxTokens: 200, contextSize: 4096).maximumResponseTokens == 200)
+        #expect(AppleModel.request(from: body, maxTokens: 100, contextSize: 4096).maximumResponseTokens == 100)
+        // Lowered to what the context has left, not below the minimum unless the user's is lower.
+        let long = Prompt.commandRequest(.question, input: String(repeating: "很长的问题。", count: 800), config: config)
+        #expect(AppleModel.request(from: long, maxTokens: 1000, contextSize: 4096).maximumResponseTokens == AppleModel.minimumAnswer)
+        #expect(AppleModel.request(from: long, maxTokens: 200, contextSize: 4096).maximumResponseTokens == 200)
+        #expect(AppleModel.request(from: body, maxTokens: 3000, contextSize: 4096).maximumResponseTokens <= 3000)
+    }
+
+    @Test func withoutATokenCountANearlyFullAnswerCountsAsCut() async throws {
+        var config = self.config
+        config.maxTokens = 40
+        // About 44 estimated tokens against a limit of 40: possibly cut (macOS 26, no count).
+        let long = "EN: " + String(repeating: "word ", count: 24) + "\nEN: unfinished line"
+        #expect(AppleModel.possiblyCut(long, limit: 40) && !AppleModel.possiblyCut("EN: short", limit: 40))
+        let estimated = StubAppleModel(answer: [long])
+        #expect(try await events(estimated, maxTokens: 40).last == .messageStop(reason: "max_tokens"))
+        let c = converter(estimated, config)
+        let first = try #require(try await final(c.generate(.question, input: "q")))
+        _ = try await final(c.generate(.question, input: "q"))
+        #expect(!first.fromCache && estimated.requests.count == 3, "not cached: asked again")
+        // macOS 27 says how many: below the limit, finished, whatever the estimate.
+        let counted = StubAppleModel(answer: [long], outputTokens: 30)
+        #expect(try await events(counted, maxTokens: 40).last == .messageStop(reason: "end_turn"))
+        let d = converter(counted, config)
+        _ = try await final(d.generate(.question, input: "q"))
+        let again = try #require(try await final(d.generate(.question, input: "q")))
+        #expect(again.fromCache && counted.requests.count == 2)
+    }
+
+    @Test func refusalReadsNaturally() {
+        #expect(ProviderError.refused(.apple).errorDescription == "Apple Intelligence declined this request")
+        #expect(ProviderError.refused(.gemini).errorDescription == "The Gemini API declined this request")
     }
 }
