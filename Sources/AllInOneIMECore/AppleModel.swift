@@ -90,6 +90,16 @@ public enum AppleModel {
         return latin.count * 2 > letters.count
     }
 
+    /// What the user wrote in `prompt`, without the app's own wrapping: a selection's text without the instruction
+    /// (`Prompt.editRequest`), a question and its selection without the tags (`Prompt.question`), else all of it.
+    static func usersText(_ prompt: String) -> String {
+        if let open = prompt.range(of: "<instruction>"), let start = prompt.range(of: "<text>", range: open.upperBound..<prompt.endIndex),
+           let end = prompt.range(of: "</text>", options: .backwards), start.upperBound <= end.lowerBound {
+            return String(prompt[start.upperBound..<end.lowerBound])
+        }
+        return prompt.replacingOccurrences(of: "<selected_text>", with: "").replacingOccurrences(of: "</selected_text>", with: "")
+    }
+
     /// Text in a language the model doesn't speak (`AppleModelBackend.supportedLanguages`, by language code), told
     /// with confidence: its code, else nil. Short (under 10 letters) or mixed text isn't judged, nor is text mostly in
     /// Latin letters (pinyin reads as Indonesian or Vietnamese): it goes to the model.
@@ -113,7 +123,7 @@ public enum AppleModel {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unavailable(availability)) }
         }
         let request = request(from: body, maxTokens: maxTokens, contextSize: backend.contextSize)
-        if unsupportedLanguage(of: request.prompt, supported: backend.supportedLanguages) != nil {
+        if unsupportedLanguage(of: usersText(request.prompt), supported: backend.supportedLanguages) != nil {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unsupportedLanguage) }
         }
         return AsyncThrowingStream { continuation in
