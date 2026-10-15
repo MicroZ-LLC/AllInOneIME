@@ -75,26 +75,28 @@ extension TypeOut {
         public var isSlip: Bool { steps != plain }
     }
 
-    /// The slips a person makes and fixes (`plan`): a neighboring key, noticed 0–3 letters later; a letter
-    /// typed twice; a space typed twice; a short word typed, taken back and typed again (a hesitation).
+    /// The slips a person makes and fixes (`plan`): a neighboring key, noticed 0–3 letters later (in code, an
+    /// address or a number at once); a letter typed twice; a space typed twice; a short word typed, taken back
+    /// and typed again (a hesitation).
     public enum Slip: CaseIterable, Sendable {
         case neighbor, doubled, space, hesitation
     }
 
-    /// The chance of a slip at each character where one can happen (Latin letters and the spaces between
-    /// words; Chinese, Japanese or Korean characters), and how many characters at least after one.
+    /// The chance of a slip at each character where one can happen (Latin letters and digits, the spaces
+    /// between words; Chinese, Japanese or Korean characters), and how many characters at least after one.
     static let slipChance = 0.035
     static let cjkSlipChance = 0.02
     static let slipGap = 12
 
     /// How `text` is typed: one run per character, paced as `delays` does, and with `mistakes` an occasional
-    /// slip fixed at once, about 3 in 100 characters of prose and never two within 12 characters. None
-    /// in a web address, an email address, a number, a word that looks like code (`foo.bar`, `snake_case`,
-    /// `camelCase`) or a line that does (indented, braces, `;`, `=`), nor at the very first character.
-    /// Chinese, Japanese and Korean only hesitate (two characters typed, deleted, typed again): their
-    /// wrong characters come from picking a candidate, not a neighboring key, and a made-up one would read
-    /// as a glitch. The wrong letters are `keyboard`'s neighbors of the right one. Replayed, the runs
-    /// leave exactly `text`.
+    /// slip fixed on the way, about 3 in 100 characters and never two within 12 characters, nor at the start
+    /// of the text or of a line. In prose any slip; in a web or email address, a number, a word that looks like
+    /// code (`foo.bar`, `snake_case`, `camelCase`) or a line that does (indented, braces, `;`, `=`), only a
+    /// wrong letter or digit, taken back at once (⌫ and the right one next): never a wrong bracket, quote,
+    /// operator or space, which editors pair or indent on. Chinese, Japanese and Korean only hesitate (two
+    /// characters typed, deleted, typed again): their wrong characters come from picking a candidate, not a
+    /// neighboring key, and a made-up one would read as a glitch. The wrong letters are `keyboard`'s
+    /// neighbors of the right one, a wrong digit one next to it. Replayed, the runs leave exactly `text`.
     public static func plan(for text: String, rate: Double, varies: Bool = false, mistakes: Bool = false,
                             keyboard: Keyboard = .qwerty,
                             random: () -> Double = { Double.random(in: 0..<1) }) -> [Run] {
@@ -122,6 +124,8 @@ extension TypeOut {
 
         func slip(at i: Int) -> (run: Run, length: Int)? {
             let kinds = Slip.allCases.filter { places.allows($0, at: i, keyboard: keyboard) }
+            // Not right after a line break: an editor may indent there.
+            guard !characters[i - 1].isNewline else { return nil }
             guard !kinds.isEmpty,
                   random() < (places.kinds[i] == .cjk ? cjkSlipChance : slipChance) else { return nil }
             // A neighboring key most often; a word taken back the least.
@@ -134,6 +138,11 @@ extension TypeOut {
             }
             let character = characters[i]
             switch pick(weighted) {
+            case .neighbor where places.kinds[i] == .code:
+                // In code: the wrong one, ⌫ at once, the right one.
+                let wrong = pick(places.wrong(for: character, keyboard: keyboard))
+                return (run(i..<(i + 1), [Step(.type(String(wrong)), after: plain[i].delay), Step(.delete, after: notice())]
+                            + retyped(i..<(i + 1))), 1)
             case .neighbor:
                 let wrong = pick(keyboard.neighbors(of: character))
                 // 0–3 more letters of the word before it's noticed: fixed before the word ends, as an app's
@@ -155,7 +164,7 @@ extension TypeOut {
 
         var runs: [Run] = []
         var i = 0
-        var quietUntil = 1  // the first character is just typed: a fix always has one before it
+        var quietUntil = 1  // the first character is just typed
         while i < characters.count {
             if i >= quietUntil, let (run, length) = slip(at: i) {
                 runs.append(run)
@@ -170,9 +179,10 @@ extension TypeOut {
     }
 
     /// Where in a text a slip may happen: which characters are letters of a plain word, spaces between
-    /// such words, or Chinese, Japanese or Korean characters. Everything else is left alone.
+    /// such words, Chinese, Japanese or Korean characters, or letters and digits of code, an address or a
+    /// number (`code`: only a wrong one, taken back at once). Everything else is left alone.
     struct SlipPlaces {
-        enum Kind: Equatable { case none, letter, space, cjk }
+        enum Kind: Equatable { case none, letter, space, cjk, code }
         let characters: [Character]
         private(set) var kinds: [Kind]
 
@@ -183,7 +193,7 @@ extension TypeOut {
         init(_ characters: [Character]) {
             self.characters = characters
             kinds = Array(repeating: .none, count: characters.count)
-            // Lines, the code ones (and those in a ``` block) left out; a text mostly of code has none.
+            // Lines: the code ones (and those in a ``` block) are code; in a text mostly of code, all of them.
             var lines: [Range<Int>] = []
             var start = 0
             for (i, character) in characters.enumerated() where character.isNewline {
@@ -193,20 +203,23 @@ extension TypeOut {
             lines.append(start..<characters.count)
             var inBlock = false
             var prose: [Range<Int>] = []
-            var code = 0
+            var code: [Range<Int>] = []
             for line in lines where !line.isEmpty {
                 let text = String(characters[line])
                 if text.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
                     inBlock.toggle()
-                    code += 1
                 } else if inBlock || text.hasPrefix("  ") || text.hasPrefix("\t") || text.contains(where: Self.codeLine.contains)
                             || text.contains("()") {
-                    code += 1
+                    code.append(line)
                 } else {
                     prose.append(line)
                 }
             }
-            guard code * 3 < prose.count + code else { return }
+            if code.count * 3 >= prose.count + code.count {
+                code += prose
+                prose = []
+            }
+            for line in code { markCode(line) }
             for line in prose { mark(line) }
             // A space between two plain words (after a comma or a full stop too), alone.
             for i in characters.indices where characters[i] == " " && i > 0 && i + 1 < characters.count {
@@ -224,9 +237,11 @@ extension TypeOut {
                 var end = i
                 while end < line.upperBound, !characters[end].isWhitespace { end += 1 }
                 let token = String(characters[i..<end])
-                // A web or email address, or anything with code's characters, is left whole.
+                // A web or email address, or anything with code's characters, is code.
                 let address = token.contains("://") || token.lowercased().contains("www.") || token.contains("@")
-                if !address && !token.contains(where: Self.codeCharacters.contains) {
+                if address || token.contains(where: Self.codeCharacters.contains) {
+                    markCode(i..<end)
+                } else {
                     var j = i
                     while j < end {
                         var k = j + 1
@@ -236,12 +251,25 @@ extension TypeOut {
                             for n in j..<k { kinds[n] = .cjk }
                         } else if Self.isPlainWord(characters[j..<k]) {
                             for n in j..<k where characters[n].isASCII && characters[n].isLetter { kinds[n] = .letter }
+                        } else {
+                            markCode(j..<k)  // a number, `foo.bar`, `camelCase`
                         }
                         j = k
                     }
                 }
                 i = end
             }
+        }
+
+        /// The ASCII letters and digits of `range` as code.
+        private mutating func markCode(_ range: Range<Int>) {
+            for n in range where characters[n].isASCII && (characters[n].isLetter || characters[n].isNumber) { kinds[n] = .code }
+        }
+
+        /// The wrong characters for `character` in code: a neighboring letter on `keyboard`, or a digit next to it.
+        func wrong(for character: Character, keyboard: Keyboard) -> [Character] {
+            guard let digit = character.wholeNumberValue, character.isASCII else { return keyboard.neighbors(of: character) }
+            return [digit - 1, digit + 1].filter { (0...9).contains($0) }.map { Character(String($0)) }
         }
 
         /// Letters only (an apostrophe or hyphen between them), around them at most punctuation; no capital
@@ -285,7 +313,9 @@ extension TypeOut {
 
         func allows(_ slip: Slip, at i: Int, keyboard: Keyboard) -> Bool {
             switch slip {
-            case .neighbor: return kinds[i] == .letter && !keyboard.neighbors(of: characters[i]).isEmpty
+            case .neighbor:
+                if kinds[i] == .code { return !wrong(for: characters[i], keyboard: keyboard).isEmpty }
+                return kinds[i] == .letter && !keyboard.neighbors(of: characters[i]).isEmpty
             case .doubled: return kinds[i] == .letter
             case .space: return kinds[i] == .space
             case .hesitation:
@@ -359,13 +389,15 @@ extension TypeOut {
     /// Typing out a plan step by step, and what's in the document meanwhile: `stop` leaves it right
     /// whenever typing stops. Places are UTF-16 offsets (as text fields count) from where typing started.
     public struct Typing: Sendable {
-        /// What a step does to the document: types at the end, or replaces a range with a string.
+        /// What a step does to the document: types at the end, or replaces the `length` UTF-16 units at
+        /// `location`, which hold `replacing`, with `with`.
         public enum Edit: Equatable, Sendable {
             case type(String)
-            case replace(location: Int, length: Int, with: String)
+            case replace(location: Int, length: Int, with: String, replacing: String)
         }
 
-        public let runs: [Run]
+        /// The plan; a slip the field couldn't take back becomes plain text as it was typed (`keepTyped`).
+        public private(set) var runs: [Run]
         private var run = 0
         private var step = 0
         private var plainly = false
@@ -374,14 +406,14 @@ extension TypeOut {
         /// Its length in UTF-16, and where the current run's characters start in `typed`.
         public private(set) var length = 0
         private var runStart = 0
-        /// The length after the last typo was taken back.
-        private var lastFix: Int?
 
         public init(_ runs: [Run]) { self.runs = runs }
 
         public var isDone: Bool { run >= runs.count }
         /// Whether the next step starts a slip: before it the app checks it can fix one here, else `skipSlip`.
         public var startsSlip: Bool { !isDone && step == 0 && !plainly && runs[run].isSlip }
+        /// Whether a slip is under way: its typo may be in the document.
+        public var inSlip: Bool { !isDone && step > 0 && !plainly && runs[run].isSlip }
         /// The coming slip's text typed without it.
         public mutating func skipSlip() { if startsSlip { plainly = true } }
 
@@ -393,16 +425,13 @@ extension TypeOut {
         /// The text typed from UTF-16 offset `offset` on, as it is in the document now.
         public func text(from offset: Int) -> String {
             var at = length
-            var tail: [String] = []
-            for character in typed.reversed() where at > offset {
-                tail.append(character)
-                at -= character.utf16.count
+            var first = typed.endIndex
+            while at > offset, first > typed.startIndex {
+                first -= 1
+                at -= typed[first].utf16.count
             }
-            return tail.reversed().joined()
+            return typed[first...].joined()
         }
-
-        /// Whether a typo was taken back after `offset`.
-        public func fixedTypo(after offset: Int) -> Bool { lastFix.map { $0 >= offset } ?? false }
 
         /// The text not typed yet: what's left of the current run, after what of it is right, and the runs after it.
         public var rest: String {
@@ -430,7 +459,6 @@ extension TypeOut {
                 edit = .type(character)
             case .delete:
                 edit = erase(1, putting: "")
-                lastFix = length
             }
             step += 1
             if step == steps.count { (run, step, plainly, runStart) = (run + 1, 0, false, typed.count) }
@@ -449,15 +477,220 @@ extension TypeOut {
             return copy.erase(wrong, putting: rest)
         }
 
-        /// Takes the last `count` characters out and puts `text` in their place. The character before them is
-        /// replaced too, by itself: some apps take an empty insert as nothing to do. (A slip never starts at
-        /// the first character, so there is one.)
+        /// Gives up the slip under way: the edit that takes its typo out (nil: none in the document); the rest
+        /// of its text is typed plainly.
+        public mutating func dropTypo() -> Edit? {
+            guard inSlip else { return nil }
+            let right = rightSoFar
+            let wrong = typed.count - runStart - right
+            let edit = wrong > 0 ? erase(wrong, putting: "") : nil
+            runs[run].steps = runs[run].plain
+            goOn(at: right)
+            return edit
+        }
+
+        /// Keeps what the slip under way typed, its typo too (the field didn't take it back, or changed): the
+        /// run's text becomes that, and the rest of its characters are typed plainly after it.
+        public mutating func keepTyped() {
+            guard inSlip else { return }
+            let current = runs[run]
+            let kept = Array(typed[runStart...])
+            let rest = Array(current.plain.dropFirst(min(kept.count, current.plain.count)))
+            let steps = kept.map { Step(.type($0), after: 0) } + rest
+            let text = kept.joined() + rest.compactMap { if case let .type(c) = $0.stroke { c } else { nil } }.joined()
+            runs[run] = Run(text: text, steps: steps, plain: steps)
+            goOn(at: kept.count)
+        }
+
+        /// Goes on with the current run's plain steps from `step`.
+        private mutating func goOn(at step: Int) {
+            (self.step, plainly) = (step, false)
+            if step >= runs[run].steps.count { (run, self.step, runStart) = (run + 1, 0, typed.count) }
+        }
+
+        /// Takes the last `count` characters out, putting `text` in their place: only them, so a line break
+        /// before a typo is never rewritten.
         private mutating func erase(_ count: Int, putting text: String) -> Edit {
-            let gone = typed.suffix(count).joined().utf16.count
+            let gone = typed.suffix(count).joined()
             typed.removeLast(count)
-            length -= gone
-            let before = typed.last ?? ""
-            return .replace(location: length - before.utf16.count, length: before.utf16.count + gone, with: before + text)
+            length -= gone.utf16.count
+            return .replace(location: length, length: gone.utf16.count, with: text, replacing: gone)
+        }
+    }
+
+    /// A text field typed into (`Typist`). Places in UTF-16, as text fields count.
+    public protocol Field: AnyObject {
+        /// The caret; nil when the field doesn't say, or text is selected.
+        var caret: Int? { get }
+        /// The length of all its text; nil when the field doesn't say.
+        var length: Int? { get }
+        /// The text in `range`; nil when the field doesn't say.
+        func read(_ range: NSRange) -> String?
+        /// Types `text` at the caret.
+        func type(_ text: String)
+        /// Replaces `range` with `text` (the text input protocol's `replacementRange`).
+        func replace(_ range: NSRange, with text: String)
+    }
+
+    /// Types a plan into a field, and keeps the field right while a typo is in it. Before every step of a
+    /// slip, and after each fix, the field must hold exactly what was typed with its caret right after it;
+    /// a field that lags (Chromium tells the caret late) is given `patience` checks (`step` says `waiting`).
+    /// Then, when it still doesn't:
+    /// - it shows what was there before the last fix: the field didn't take the typo back (it ignores
+    ///   replacement ranges, so nothing sent can take anything out): the typo stays, the rest goes on after it,
+    ///   and `fieldFailed` (the app gets no more typos);
+    /// - it holds what was typed, no more and no less, but the caret is elsewhere (a click, the app moved it): the typo is taken out
+    ///   where it was typed, if the text there is still exactly that, and the rest is typed plainly;
+    /// - anything else (an editor added text): the typed span, up to the caret, is replaced with the text it
+    ///   should be, if it's about that long, else left alone; and `fieldFailed`.
+    /// After any of these, no more typos in this run.
+    public struct Typist {
+        public enum Progress: Equatable, Sendable { case typed, waiting, done }
+        enum Look: Equatable { case asTyped, notFixed, moved, changed }
+
+        public private(set) var typing: Typing
+        /// Where typing started in the field, and the field's length then (nil: it doesn't say).
+        public let start: Int
+        let lengthBefore: Int?
+        /// Whether typos are still made in this run.
+        public private(set) var mistakes: Bool
+        /// The field didn't keep a typo's fix as asked: its app should get no more typos.
+        public private(set) var fieldFailed = false
+        /// What changed when it didn't (for the log).
+        public private(set) var failure: String?
+        /// The field read back as typed up to here.
+        private var checked = 0
+        /// What was typed before the last fix, until the field is seen to have taken it.
+        private var beforeFix: Typing?
+        private var waits = 0
+        /// Checks before a field that doesn't hold what was typed is taken as changed (50 ms apart in the app).
+        public static let patience = 6
+
+        public init(_ runs: [Run], start: Int, length: Int? = nil) {
+            typing = Typing(runs)
+            self.start = start
+            lengthBefore = length
+            mistakes = runs.contains { $0.isSlip }
+        }
+
+        public var nextDelay: Double? { typing.nextDelay }
+        public var isDone: Bool { typing.isDone && beforeFix == nil }
+        public var rest: String { typing.rest }
+
+        /// The next step into `field`; `waiting`: check again a little later, without the step's pause.
+        public mutating func step(in field: Field) -> Progress {
+            if beforeFix != nil || typing.inSlip {
+                let look = look(field)
+                if look != .asTyped {
+                    if waits < Self.patience {
+                        waits += 1
+                        return .waiting
+                    }
+                    settle(look, in: field)
+                }
+                (waits, beforeFix) = (0, nil)
+            }
+            guard !typing.isDone else { return .done }
+            if typing.startsSlip {
+                // A typo only where the field holds what was typed, the caret after it.
+                if mistakes, look(field) == .asTyped { checked = typing.length } else { typing.skipSlip() }
+            }
+            let before = typing
+            guard let (edit, _) = typing.next() else { return .done }
+            switch edit {
+            case let .type(character):
+                field.type(character)
+            case let .replace(location, length, with, _):
+                field.replace(NSRange(location: start + location, length: length), with: with)
+                beforeFix = before
+            }
+            return .typed
+        }
+
+        /// Stops: a typo still in the field is taken out where it was typed, if the text there is still exactly
+        /// that. Returns what to type then at the caret: the rest with `insertingRest`, else nothing.
+        public mutating func stop(insertingRest: Bool, in field: Field) -> String {
+            if beforeFix != nil, look(field) == .notFixed, let before = beforeFix {
+                typing = before
+                typing.keepTyped()
+                fieldFailed = true
+                failure = "a typo not taken back when typing stopped"
+            }
+            beforeFix = nil
+            var dropped = typing
+            if case let .replace(location, length, with, replacing)? = dropped.dropTypo() {
+                let range = NSRange(location: start + location, length: length)
+                if read(field, range) == replacing {
+                    field.replace(range, with: with)
+                    typing = dropped
+                } else {
+                    typing.keepTyped()
+                }
+            } else {
+                typing = dropped
+            }
+            return insertingRest ? typing.rest : ""
+        }
+
+        /// How the field compares with what was typed since the last check.
+        func look(_ field: Field) -> Look {
+            let from = min(checked, typing.length)
+            let caret = field.caret
+            let length = field.length
+            /// Whether the field is as long as with `typed` typed (unknown: yes).
+            func long(_ typed: Typing) -> Bool { lengthBefore.map { length == nil || length == $0 + typed.length } ?? true }
+            let asTyped = read(field, NSRange(location: start + from, length: typing.length - from)) == typing.text(from: from)
+                && long(typing)
+            if asTyped && caret == start + typing.length { return .asTyped }
+            if let before = beforeFix, caret == start + before.length, long(before),
+               read(field, NSRange(location: start + from, length: before.length - from)) == before.text(from: from) {
+                return .notFixed
+            }
+            return asTyped ? .moved : .changed
+        }
+
+        private func read(_ field: Field, _ range: NSRange) -> String? {
+            range.length == 0 ? "" : field.read(range)
+        }
+
+        /// The field didn't hold what was typed, after waiting: no more typos in this run, and the field made right
+        /// as far as it can be.
+        private mutating func settle(_ look: Look, in field: Field) {
+            mistakes = false
+            switch look {
+            case .asTyped:
+                break
+            case .notFixed:
+                guard let before = beforeFix else { break }
+                typing = before
+                typing.keepTyped()
+                fieldFailed = true
+                failure = "a typo not taken back (replacement range ignored)"
+            case .moved:
+                var dropped = typing
+                if case let .replace(location, length, with, replacing)? = dropped.dropTypo() {
+                    let range = NSRange(location: start + location, length: length)
+                    guard read(field, range) == replacing else { typing.keepTyped(); break }
+                    field.replace(range, with: with)
+                }
+                typing = dropped
+            case .changed:
+                fieldFailed = true
+                failure = "the text changed while a typo was in it"
+                // The typed span, up to the caret, replaced with what it should be, if it's about that long.
+                let from = min(checked, typing.length)
+                var dropped = typing
+                _ = dropped.dropTypo()
+                let should = dropped.text(from: from)
+                if let caret = field.caret, caret >= start + from,
+                   caret - (start + from) <= should.utf16.count + 16,
+                   read(field, NSRange(location: start + from, length: caret - start - from)) != nil {
+                    field.replace(NSRange(location: start + from, length: caret - start - from), with: should)
+                    typing = dropped
+                } else {
+                    typing.keepTyped()
+                }
+            }
         }
     }
 }

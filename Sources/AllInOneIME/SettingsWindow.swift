@@ -803,8 +803,8 @@ struct SettingsView: View {
                 // Typos fixed at once (`TypeOut.plan`): the text still ends up exactly the result.
                 Toggle(isOn: $model.config.typeOutMistakes) {
                     titled(tr("偶尔打错再改", "Make occasional typos and fix them"),
-                           tr("偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，最后的文字一字不差。网址、数字、代码里不会打错，终端里也不会。",
-                              "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed at once: the text ends up exactly the result. Never in addresses, numbers, code or a terminal."))
+                           tr("偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，打完的文字一字不差。代码、网址和数字里打错马上就改；终端里不打错。",
+                              "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed on the way: typed to the end, the text is exactly the result. In code, addresses and numbers fixed at once; never in a terminal."))
                 }
             }
             Toggle(isOn: $model.config.claudeInBackground) {

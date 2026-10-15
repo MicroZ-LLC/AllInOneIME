@@ -27,7 +27,8 @@ struct TypeOutMistakesTests {
         mutating func apply(_ edit: TypeOut.Typing.Edit) {
             switch edit {
             case let .type(string): text.append(string)
-            case let .replace(location, length, string):
+            case let .replace(location, length, string, replacing):
+                #expect(text.substring(with: NSRange(location: (before as NSString).length + location, length: length)) == replacing)
                 let start = (before as NSString).length
                 #expect(location >= 0 && location + length == text.length - start, "a replacement ends at the caret")
                 text.replaceCharacters(in: NSRange(location: start + location, length: length), with: string)
@@ -179,30 +180,59 @@ struct TypeOutMistakesTests {
         TypeOut.plan(for: text, rate: 16, mistakes: true, random: { 0.001 })
     }
 
-    @Test func noneInAddressesNumbersOrCode() {
+    @Test func inCodeAddressesAndNumbersATypoIsALetterOrDigitFixedAtOnce() {
         for text in ["https://example.com/a/b?c=d", "www.example.org", "bob.smith@example.com", "3.14159 2026 1,299.50 #42",
                      "foo.bar snake_case camelCase iPhone e.g. a/b x=y", "for (i = 0; i < n; i++) { total += i }",
-                     "  indented code line\n  another indented line", "```\nlet some code here\n```"] {
-            #expect(!Self.eager(text).contains { $0.isSlip }, "\(text)")
-            for seed in UInt64(0)..<100 { #expect(!Self.plan(text, seed: seed).contains { $0.isSlip }) }
+                     "  indented code line\n  another indented line", "```\nlet some code here\n```", Self.texts[5]] {
+            var slips = 0
+            for seed in UInt64(0)..<200 {
+                for run in Self.plan(text, seed: seed) where run.isSlip {
+                    slips += 1
+                    // One wrong letter or digit, ⌫ next, the right one: never a bracket, quote, operator or space.
+                    guard run.text.count == 1, run.steps.count == 3, case let .type(typo) = run.steps[0].stroke,
+                          let wrong = typo.first, let right = run.text.first else {
+                        Issue.record("not an immediate fix: \(run)")
+                        continue
+                    }
+                    #expect(run.steps[1].stroke == .delete && run.steps[2].stroke == .type(run.text))
+                    #expect(wrong != right && wrong.isASCII && right.isASCII
+                            && (wrong.isLetter || wrong.isNumber) && (right.isLetter || right.isNumber), "\(run)")
+                    if let digit = right.wholeNumberValue { #expect(abs((wrong.wholeNumberValue ?? 99) - digit) == 1) }
+                }
+            }
+            #expect(slips > 0, "\(text)")
         }
-        // Around them, in the words.
+        // Prose around an address keeps its varied slips; in the address, only the immediate ones.
         let text = "Read the guide at https://example.com/getting-started before tomorrow, or write to help@example.com today"
         let url = (text as NSString).range(of: "https://example.com/getting-started")
         let mail = (text as NSString).range(of: "help@example.com")
         let protected = [url.location..<(url.location + url.length), mail.location..<(mail.location + mail.length)]
+        var inAddress = 0, inProse = 0
         for seed in UInt64(0)..<300 {
             let runs = Self.plan(text, seed: seed)
             for (run, start) in zip(runs, Self.offsets(runs)) where run.isSlip {
-                // Whatever a slip types, wrong or not, stays clear of the address (and the space before it).
-                let span = start..<(start + max(run.text.count, run.steps.count))
-                #expect(!protected.contains { $0.overlaps(span.lowerBound..<min(span.upperBound, start + run.text.count + 1)) })
-                #expect(!protected.contains { $0.contains(start) })
+                if protected.contains(where: { $0.contains(start) }) {
+                    inAddress += 1
+                    #expect(run.steps.count == 3 && run.steps[1].stroke == .delete)
+                } else {
+                    inProse += 1
+                    // A prose slip stays clear of the address (and the space before it).
+                    let span = start..<(start + run.text.count + 1)
+                    #expect(!protected.contains { $0.overlaps(span) })
+                }
             }
         }
-        #expect(Self.eager(text).contains { $0.isSlip })
-        // A text mostly of code has none, even in its prose lines.
-        #expect(!Self.eager(Self.texts[5]).contains { $0.isSlip })
+        #expect(inAddress > 0 && inProse > 0)
+    }
+
+    @Test func noTypoAtTheStartOfALine() {
+        let text = String(repeating: "Ab\nword\nquick brown fox\nx = 1\n", count: 20)
+        let characters = Array(text)
+        for runs in [Self.eager(text)] + (UInt64(0)..<200).map({ Self.plan(text, seed: $0) }) {
+            for (run, start) in zip(runs, Self.offsets(runs)) where run.isSlip {
+                #expect(start > 0 && !characters[start - 1].isNewline, "a typo at \(start)")
+            }
+        }
     }
 
     @Test func chineseOnlyHesitates() {
