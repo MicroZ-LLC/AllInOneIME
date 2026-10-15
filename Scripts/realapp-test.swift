@@ -295,6 +295,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     func finish() -> Never {
         reset()
         restoreConfig()
+        restoreQuestions()
         if let extensionFolder { try? FileManager.default.removeItem(at: extensionFolder) }
         if let originalSource {
             selectInputSource(originalSource)
@@ -563,6 +564,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         selectionCommands()
         horizontalAndReport()
+        recentQuestions()
         extensions()
         frenchAndKorean()
         finish()
@@ -907,6 +909,74 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("q")
         check(waitUntil(2) { self.committed == "q" }, "Shift again: English, the system's layout ('\(committed)')")
         restoreConfig()
+    }
+
+    /// 6c. `@question`'s recent questions (live Bedrock): a question asked is kept in the file; "@question " lists it,
+    ///     1 shows its saved answer at once (nothing is asked) and Space inserts the same text; R asks it again for a fresh
+    ///     answer, which takes its place. The user's own recent questions are put back afterwards (the input method reads
+    ///     the file again once it changed).
+    func recentQuestions() {
+        print("— @question: recent questions (live Bedrock)")
+        _ = setConfig { $0["rememberQuestions"] = true }
+        savedQuestions = (try? Data(contentsOf: Self.questionsURL)) ?? Data()  // empty: there was no file
+        try? FileManager.default.removeItem(at: Self.questionsURL)
+        defer { restoreQuestions() }
+        func kept() -> String { (try? Data(contentsOf: Self.questionsURL)).map { String(decoding: $0, as: UTF8.self) } ?? "" }
+        /// Space until the answer is in (ignored until it is complete).
+        func insertAnswer(_ timeout: TimeInterval) -> Bool {
+            waitUntil(timeout) {
+                if self.committed.isEmpty { self.space() }
+                return !self.committed.isEmpty
+            }
+        }
+        reset()
+        textView.string = ""
+        command("q")
+        type("yijiayidengyuji")  // 一加一等于几: what is one plus one
+        act()
+        let asked = insertAnswer(25)
+        let answer = committed
+        check(asked && Self.hasHan(answer) && marked.isEmpty, "@question answers, Space inserts it: '\(answer.prefix(40))'")
+        check(waitUntil(2) { kept().contains("一加一等于几") }, "the question and its answer are kept in recent-questions.json")
+
+        textView.string = ""
+        command("q")
+        pump(0.3)
+        key("1", keyCodes["1"]!)
+        let started = Date()
+        let shown = insertAnswer(3)
+        check(shown && committed == answer && marked.isEmpty,
+              String(format: "1 shows the saved answer at once (%.1fs), Space inserts the same text ('%@')",
+                     Date().timeIntervalSince(started), String(committed.prefix(40))))
+
+        textView.string = ""
+        command("q")
+        pump(0.3)
+        key("1", keyCodes["1"]!)
+        pump(0.3)
+        let before = kept()
+        key("r", keyCodes["r"]!)
+        let again = insertAnswer(25)
+        check(again && Self.hasHan(committed) && marked.isEmpty, "R asks again, Space inserts the fresh answer: '\(committed.prefix(40))'")
+        check(waitUntil(2) { kept() != before } && kept().components(separatedBy: "\"question\"").count == 2,
+              "the fresh answer takes the old one's place (one question kept)")
+        reset()
+        textView.string = ""
+    }
+
+    /// The user's recent questions while the test asks its own (`recentQuestions`): empty when there was no file.
+    var savedQuestions: Data?
+    static let questionsURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/AllInOneIME/recent-questions.json")
+
+    func restoreQuestions() {
+        guard let saved = savedQuestions else { return }
+        if saved.isEmpty {
+            try? FileManager.default.removeItem(at: Self.questionsURL)
+        } else if (try? saved.write(to: Self.questionsURL, options: .atomic)) != nil {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: Self.questionsURL.path)
+        }
+        savedQuestions = nil
     }
 
     /// The user's config, kept while the test changes it (`restoreConfig`; a backup file too).

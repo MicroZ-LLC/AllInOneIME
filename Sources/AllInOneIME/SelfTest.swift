@@ -2368,6 +2368,9 @@ enum SelfTest {
 
     static func run(snapshotDirectory: URL) -> Int32 {
         _ = NSApplication.shared
+        // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
+        QuestionHistoryStore.url = snapshotDirectory.appendingPathComponent("recent-questions.json")
+        QuestionHistoryStore.clear()  // none left from a run before
         // Voice tests play audio files; the microphone and its permission prompt are never used.
         AllInOneIMEInputController.microphoneAllowed = false
         try? FileManager.default.createDirectory(at: snapshotDirectory, withIntermediateDirectories: true)
@@ -2884,6 +2887,7 @@ enum SelfTest {
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
+        testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {
