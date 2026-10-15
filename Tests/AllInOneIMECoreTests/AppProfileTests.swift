@@ -117,6 +117,22 @@ struct AppProfileTests {
         }
     }
 
+    @Test func ofKeysDifferingInCaseOneThatSetsSomethingWins() throws {
+        // An empty one sorted first doesn't hide "no AI" (which the next save would then lose for good).
+        let json = #"{"appProfiles": {"com.apple.Mail": {}, "com.apple.mail": {"noAI": true}, "COM.APPLE.MAIL": {"noAI": false}}}"#
+        for _ in 0..<20 {
+            let config = try decode(json)
+            #expect(config.appProfiles == [mail: AppProfile(noAI: true)])
+            #expect(!config.allowsAI(in: mail) && !config.allowsAI(in: "com.apple.Mail"))
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("appprofiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try decode(json).write(to: url)
+        #expect(try Config.load(from: url).appProfiles == [mail: AppProfile(noAI: true)])
+        // All empty: the first in sorted order, as before.
+        #expect(try decode(#"{"appProfiles": {"com.apple.mail": {}, "com.apple.Mail": {}}}"#).appProfiles == ["com.apple.Mail": AppProfile()])
+    }
+
     // MARK: - Resolution
 
     var configured: Config {
