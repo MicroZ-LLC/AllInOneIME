@@ -1148,4 +1148,37 @@ struct PerAppAcceptanceTests {
         let other = try decode(#"{"appProfiles": {"com.example.empty": {}, "com.apple.mail": {"noAI": true}}}"#)
         #expect(other.appProfiles.count == 2 && !other.allowsAI(in: "COM.APPLE.MAIL"))
     }
+
+    /// Settings → Apps through `Config`: a change under another spelling of an app's id updates its one entry (never a
+    /// second), removing takes every spelling, and a lookup prefers the entry that sets something, whatever the spelling.
+    @Test func addingASecondSpellingUpdatesTheExistingEntry() {
+        func spellings(_ c: Config) -> [String] { c.appProfiles.keys.filter { $0.lowercased() == "com.apple.mail" }.sorted() }
+        var config = base(["com.apple.Mail": AppProfile(noAI: true)])
+        config.changeProfile(for: "com.apple.mail") { $0.typeOut = true }
+        #expect(spellings(config) == ["com.apple.Mail"])
+        #expect(config.appProfiles["com.apple.Mail"] == AppProfile(typeOut: true, noAI: true))
+        config.changeProfile(for: "COM.APPLE.MAIL") { $0.inputLanguage = .english }
+        #expect(spellings(config) == ["com.apple.Mail"] && config.profile(for: "com.apple.mail")?.inputLanguage == .english)
+        #expect(!config.allowsAI(in: "com.apple.mail") && config.applying(app: "COM.apple.mail").typeOut)
+        // A new app is added as given; other apps untouched.
+        config.changeProfile(for: "com.example.New") { $0.noAI = true }
+        #expect(config.appProfiles["com.example.New"] == AppProfile(noAI: true) && config.appProfiles.count == 2)
+        // Two spellings already in memory (an empty one sorting first): a lookup by any spelling, the exact one too,
+        // finds the one that sets something; a change leaves one entry, keeping what was set.
+        var two = base(["COM.APPLE.MAIL": AppProfile(), "com.apple.mail": AppProfile(noAI: true)])
+        for app in ["COM.APPLE.MAIL", "com.apple.mail", "com.apple.Mail"] {
+            #expect(two.profile(for: app) == AppProfile(noAI: true) && !two.allowsAI(in: app), "\(app)")
+        }
+        two.changeProfile(for: "COM.APPLE.MAIL") { $0.typeOut = false }
+        #expect(spellings(two).count == 1 && two.profile(for: "com.apple.mail") == AppProfile(typeOut: false, noAI: true))
+        // Removing by any spelling takes every spelling, and nothing else.
+        var many = base(["com.apple.Mail": AppProfile(noAI: true), "com.apple.mail": AppProfile(typeOut: true),
+                         "COM.APPLE.MAIL": AppProfile(), Self.slack: AppProfile(noAI: true)])
+        many.removeProfile(for: "Com.Apple.Mail")
+        #expect(spellings(many).isEmpty && many.allowsAI(in: "com.apple.mail") && many.appProfiles.keys.sorted() == [Self.slack])
+        // A change that leaves it setting nothing removes it when asked to (as the input menu does), every spelling too.
+        var off = base(["com.apple.Mail": AppProfile(noAI: true), "com.apple.mail": AppProfile()])
+        off.changeProfile(for: "com.apple.mail", dropsEmpty: true) { $0.noAI = false }
+        #expect(spellings(off).isEmpty && off.allowsAI(in: "com.apple.mail"))
+    }
 }
