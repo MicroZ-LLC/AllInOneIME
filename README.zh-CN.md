@@ -403,6 +403,14 @@ make install
 - 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
 - 配置文件里对应 `provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`），以及 `anthropic`、`gemini`、`openai` 各自的 `model`、`baseURL`、`effort`、`temperature`（不填就用默认值）。
 
+### 本机的 Apple Intelligence（macOS 26）
+
+Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系统设置 → Apple 智能与 Siri 里打开了）时，在「AI 服务」里选「Apple Intelligence（本机）」：不用 key，不花钱，打的字不离开这台 Mac。用的是 macOS 自带的模型（Foundation Models 框架），提示词和其他服务一样。
+
+- 模型较小：上下文约 4K tokens（macOS 27 上 8K），太长的段落可能放不下；支持的语言也少一些（英文、中文、日文、韩文、法文、德文、西班牙文等，不支持印地语）。遇到这两种情况会直接说明。效果不如云端模型，`@question` 回答事实和代码问题常常出错。
+- 用不了时，它在列表里是灰的，后面写着原因（这台 Mac 不支持、未打开、模型还没准备好），设置里有按钮打开 系统设置 → Apple 智能与 Siri。macOS 26 以前不显示。
+- 「模型参数」里的输出 tokens、temperature、超时都对它有效。配置文件里是 `"provider": "apple"`。
+
 所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。新加的几项：
 
 | 键 | 作用 | 默认 |
