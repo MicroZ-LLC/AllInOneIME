@@ -287,7 +287,13 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 quick switches for the app you're typing in (No AI, Type Results Out, the language it starts in). In the config they're
 under `appProfiles`, by bundle ID:
 `"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`.
-`@reportissue` counts them, never naming the apps.
+Bundle IDs match ignoring case (`com.apple.Mail` is Mail's `com.apple.mail`). `@reportissue` counts the apps that set
+something, never naming them.
+
+- The starting language works like the default input language: a text field takes it when it becomes active, and a
+  Shift switch then sticks for that app's fields until the setting changes.
+- With No AI, the AI commands stay in the @ list; running one shows the notice and keeps what you wrote. Your own
+  terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
 
 ## Menu bar panel
 

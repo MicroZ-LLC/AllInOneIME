@@ -48,12 +48,15 @@ public struct AppProfile: Codable, Equatable, Sendable {
     }
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or
-    /// with spaces), is left out; a value that isn't an object at all reads as none.
+    /// with spaces), is left out; a value that isn't an object at all reads as none. Bundle ids are matched ignoring
+    /// case (`Config.profile(for:)`): of keys that differ only in case, the first in sorted order is kept (always the
+    /// same one, "com.apple.Mail" before "com.apple.mail"), the others left out.
     static func decodeAll<Key: CodingKey>(_ c: KeyedDecodingContainer<Key>, forKey key: Key) -> [String: AppProfile] {
         guard let entries = (try? c.decodeIfPresent([String: Lenient].self, forKey: key)).flatMap({ $0 }) else { return [:] }
         var profiles: [String: AppProfile] = [:]
-        for (app, entry) in entries {
-            guard let profile = entry.profile, isBundleID(app) else { continue }
+        var seen = Set<String>()
+        for app in entries.keys.sorted() {
+            guard let profile = entries[app]?.profile, isBundleID(app), seen.insert(app.lowercased()).inserted else { continue }
             profiles[app] = profile
         }
         return profiles
@@ -79,10 +82,18 @@ public struct AppProfile: Codable, Equatable, Sendable {
 }
 
 extension Config {
-    /// The profile of `app` (a bundle id), if it has one.
+    /// The profile of `app` (a bundle id), if it has one: under its id as given, else ignoring case ("com.apple.Mail"
+    /// written by hand is Mail's "com.apple.mail").
     public func profile(for app: String?) -> AppProfile? {
+        profileKey(for: app).flatMap { appProfiles[$0] }
+    }
+
+    /// The key of `appProfiles` that holds the profile of `app`: the id as given, else the first in sorted order that
+    /// matches it ignoring case.
+    public func profileKey(for app: String?) -> String? {
         guard let app, !app.isEmpty else { return nil }
-        return appProfiles[app]
+        if appProfiles[app] != nil { return app }
+        return appProfiles.keys.sorted().first { $0.caseInsensitiveCompare(app) == .orderedSame }
     }
 
     /// These settings as they apply in `app`: its rewrite styles and typing out where its profile sets them, the

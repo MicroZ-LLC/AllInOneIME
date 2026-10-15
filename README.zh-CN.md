@@ -254,7 +254,12 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选。输入法菜单里的「这个 App：<名字>」可以直接切换正在打字的
 App 的「不用 AI」「逐字上屏」和开始的输入语言。配置里在 `appProfiles` 下，按 bundle ID 写：
 `"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["口语"], "noAI": false}}`。
-`@reportissue` 只写有几个，不写是哪些 App。
+bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `com.apple.mail`）。`@reportissue` 只写有几个 App 设了东西，
+不写是哪些 App。
+
+- 开始的输入语言和全局的默认输入语言一样：输入框激活时用它，之后按 Shift 切换的会在这个 App 的输入框里保持，直到设置改了。
+- 设了「不用 AI」，AI 命令还在 @ 列表里；执行时提示一下，打的字留着。自定义的终端命令（`"type": "terminal"`）运行的是程序，不是 AI，
+  在那里照常能用。
 
 ## 菜单栏面板
 

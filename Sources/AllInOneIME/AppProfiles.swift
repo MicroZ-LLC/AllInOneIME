@@ -89,9 +89,10 @@ extension SettingsModel {
         config.appProfiles.keys.sorted { AppNames.name(for: $0).localizedStandardCompare(AppNames.name(for: $1)) == .orderedAscending }
     }
 
-    /// Changes the profile of `app` (added if it has none) and saves.
+    /// Changes the profile of `app` (added if it has none, under the key it has in another case if so) and saves. One
+    /// that sets nothing stays in the list while the window is open, and isn't saved.
     func changeProfile(_ app: String, _ change: (inout AppProfile) -> Void) {
-        change(&config.appProfiles[app, default: AppProfile()])
+        change(&config.appProfiles[config.profileKey(for: app) ?? app, default: AppProfile()])
         save()
     }
 
@@ -124,7 +125,7 @@ struct AppProfilesSection: View {
 
     /// "Add App…": the apps typed in lately that have no settings yet, then picking one in /Applications.
     private var addMenu: some View {
-        let recent = RecentApps.apps.filter { model.config.appProfiles[$0] == nil }
+        let recent = RecentApps.apps.filter { model.config.profileKey(for: $0) == nil }
         return HStack {
             Menu(tr("添加 App…", "Add App…")) {
                 if !recent.isEmpty {
@@ -274,9 +275,10 @@ extension AllInOneIMEInputController {
         }
         do {
             var config = try Config.load()
-            var profile = config.appProfiles[app] ?? AppProfile()
+            let key = config.profileKey(for: app) ?? app  // a key written by hand in another case
+            var profile = config.appProfiles[key] ?? AppProfile()
             change(&profile, config, info["value"] ?? "")
-            config.appProfiles[app] = profile.isEmpty ? nil : profile
+            config.appProfiles[key] = profile.isEmpty ? nil : profile
             try config.write()
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             log.notice("app profile changed: \(what, privacy: .public) (\(config.appProfiles.count) apps with their own settings)")
