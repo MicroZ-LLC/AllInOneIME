@@ -41,12 +41,14 @@ public final class Converter: Sendable {
         self.loadJargon = loadJargon
     }
 
-    /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request.
-    public func convert(_ input: String, mode: WritingMode = .both) -> AsyncThrowingStream<ConversionUpdate, Error> {
+    /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request. With `turns`, a follow-up on results
+    /// already shown (`Refinement`): the same lines again, revised as the last instruction asks.
+    public func convert(_ input: String, mode: WritingMode = .both,
+                        turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.run(input, mode: mode, continuation: continuation)
+                    try await self.run(input, mode: mode, turns: turns, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -56,7 +58,7 @@ public final class Converter: Sendable {
         }
     }
 
-    private func run(_ input: String, mode: WritingMode, continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
+    private func run(_ input: String, mode: WritingMode, turns: [Refinement.Turn], continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
             let d = ContinuousClock.now - started
@@ -69,6 +71,7 @@ public final class Converter: Sendable {
         let jargon = plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : []
         let jargonKey = jargon.isEmpty ? "" : "j\(JargonLibrary.fingerprint(jargon))|"
         let key = "\(config.activeModel)|\(Prompt.version)|\(plan.key)|\(jargonKey)\(input)"
+            + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(),
@@ -76,7 +79,9 @@ public final class Converter: Sendable {
             return
         }
 
-        let stream = client.stream(Prompt.request(for: input, mode: mode, config: config, jargon: jargon), config: config,
+        let request = turns.isEmpty ? Prompt.request(for: input, mode: mode, config: config, jargon: jargon)
+            : Prompt.refineRequest(for: input, mode: mode, config: config, jargon: jargon, turns: turns)
+        let stream = client.stream(request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
 
         var text = ""
@@ -112,12 +117,14 @@ public final class Converter: Sendable {
             firstTokenLatency: firstToken, fromCache: false))
     }
 
-    /// Runs a `.generate` command: the answer streams in as the single version of the result.
-    public func generate(_ command: Command, input: String) -> AsyncThrowingStream<ConversionUpdate, Error> {
+    /// Runs a `.generate` command: the answer streams in as the single version of the result. With `turns`, a
+    /// follow-up on the answer shown (`Refinement`): the whole answer again, revised as the last instruction asks.
+    public func generate(_ command: Command, input: String,
+                         turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runCommand(command, input: input, continuation: continuation)
+                    try await self.runCommand(command, input: input, turns: turns, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -127,7 +134,7 @@ public final class Converter: Sendable {
         }
     }
 
-    private func runCommand(_ command: Command, input: String,
+    private func runCommand(_ command: Command, input: String, turns: [Refinement.Turn],
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
@@ -137,12 +144,15 @@ public final class Converter: Sendable {
         let config = try loadConfig()
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
+            + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true))
             return
         }
-        let stream = client.stream(Prompt.commandRequest(command, input: input, config: config), config: config,
+        let request = turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config)
+            : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
+        let stream = client.stream(request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
             ConversionResult(versions: [CandidateLine(Self.lines(text), isComplete: complete)])
