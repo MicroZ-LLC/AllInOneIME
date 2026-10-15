@@ -251,6 +251,27 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 留下，最后的文字差一个字（按 Esc 或别的键停下也一样），以后这个 App 不再打错。设置 →「通用」里打错开关下面列出这些 App，
 「忘掉改不回来的 App」让它们再试一次。
 
+### 按 App 设置（新）
+
+在设置 →「按 App 设置」里，可以给某个 App 单独设置，每一项都可以不设；没设的跟全局设置一样：
+
+| 设置 | 比如 | 配置里 |
+| --- | --- | --- |
+| 输入框用哪种输入语言开始 | Slack 里用英文，微信里用拼音 | `inputLanguage` |
+| `@improve` 在那里给哪些改写风格 | 邮件里正式、委婉，Slack 里口语 | `rewriteStyles` |
+| 逐字上屏开还是关 | 聊天 App 里开，邮件里关 | `typeOut` |
+| 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@claude` 在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
+
+「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选。输入法菜单里的「这个 App：<名字>」可以直接切换正在打字的
+App 的「不用 AI」「逐字上屏」和开始的输入语言。配置里在 `appProfiles` 下，按 bundle ID 写：
+`"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["口语"], "noAI": false}}`。
+bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `com.apple.mail`）。`@reportissue` 只写有几个 App 设了东西，
+不写是哪些 App。
+
+- 开始的输入语言和全局的默认输入语言一样：输入框激活时用它，之后按 Shift 切换的会在这个 App 的输入框里保持，直到设置改了。
+- 设了「不用 AI」，AI 命令还在 @ 列表里；执行时提示一下，打的字留着。自定义的终端命令（`"type": "terminal"`）运行的是程序，不是 AI，
+  在那里照常能用。
+
 ## 菜单栏面板
 
 <img src="docs/panel-swipe.png" width="520" alt="菜单栏面板：毛玻璃背景，备忘录、提醒事项、Claude 任务各在一张卡片上；一行往左滑出「移除」按钮">
@@ -430,6 +451,7 @@ make install
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
 | `candidateLayout` | 拼音和印地语的候选词：`"vertical"`（竖排）或 `"horizontal"`（横排；← → 选词，↑↓ 翻页） | `"horizontal"` |
 | `fuzzyPinyin` | 模糊音：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
+| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
 
 ## 隐私
 
@@ -441,6 +463,7 @@ make install
 - `@note`、`@reminder` 不发给 AI：AllInOneIME 只把文字交给这台 Mac 上的「备忘录」和「提醒事项」，提醒的时间也在本机读出（这两个 App 会不会把它同步到别的设备，看它们用的账户，比如 iCloud）。所以系统处于安全输入状态时，它们也照常能用。
 - `@reportissue`（和「报告问题…」）自己不发送任何东西：它在浏览器里打开 GitHub 的新问题页，带着你写的标题和上面说的版本、语言、AI 服务的种类和数量，打开前先在候选框里列出来。你不在 GitHub 上点提交，什么都不会发出去。
 - `@open` 只在本机搜索。它记得你用它打开过什么（最近 200 个），存在输入法自己的偏好设置里（不在 config.json 里），用来排序。
+- 为了「按 App 设置」里的「添加 App…」，输入法记下最近打过字的 12 个 App 的 bundle ID，存在它自己的偏好设置里，别的都不记。
 - 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。
 - `@py`、`@js` 只在你按执行键时运行，运行的只是你自己打的或明确粘贴进来的代码：AI 的回答和其他命令的输出从来不会被当成代码执行。`@py` 用你本机的 `python3`，和在终端里运行一样能读写文件、联网；`@js` 在单独的进程里运行，读不到文件，也不能联网或运行别的程序。安全输入时它们都不运行。
 - 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update.json 和它的签名；请求里没有任何标识，也没有你打的字。只有点了「更新」，才会从 GitHub release 下载新版本。

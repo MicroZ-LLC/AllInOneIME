@@ -103,6 +103,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
         composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
+        composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
         return composer
     }()
     private var session: RimeSession?
@@ -138,6 +139,12 @@ final class AllInOneIMEInputController: IMKInputController {
     var clientOverride: IMKTextInput?
     /// The settings the controller follows (the self-test supplies its own).
     var loadSettings: () -> Config = { LiveConfig.current }
+    /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
+    var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
+    /// The bundle id of the app being typed in (its `AppProfile`), as the field of the key, else the client, says it.
+    private var appID: String? { (keyClient ?? clientOverride ?? client())?.bundleIdentifier() }
+    /// The app of the text field that became active last (for what's shown on every key, without asking it again).
+    private var activeApp: String?
     /// `@open`: finds files and apps, what it opened before first (`loadOpenHistory`), and opens the one
     /// picked, which `recordOpen` keeps. The self-test opens nothing and keeps its history in memory.
     var searchFiles: @MainActor (_ query: String, _ history: OpenHistory) async -> [SearchResult] = {
@@ -300,10 +307,12 @@ final class AllInOneIMEInputController: IMKInputController {
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
-            ensureEngine()
-            applySettings()
-            // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             let app = (sender as? IMKTextInput)?.bundleIdentifier()
+            activeApp = app
+            if let app { recordApp(app) }
+            ensureEngine()
+            applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+            // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
@@ -518,13 +527,16 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Takes over the current settings: voice key, action key, and the default input mode (applied to
     /// new sessions, and again when the setting changes; a Shift toggle otherwise sticks).
+    /// `app`: the bundle id of the field's app (else the client's), whose profile may start it in another language
+    /// and type results out or not (`AppProfile`).
     @MainActor
-    func applySettings() {
+    func applySettings(app: String? = nil) {
         let config = loadSettings()
+        let app = app ?? appID
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
         composer.claudeInBackground = config.claudeInBackground
-        composer.typesResults = config.typeOut
+        composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
@@ -546,7 +558,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.hangulTables = LanguagePackManager.shared.hangulTables()
         composer.hindiTables = LanguagePackManager.shared.hindiTables()
         let languages = LanguagePackManager.shared.usable(config.inputLanguages)
-        let defaultInput = languages.contains(config.defaultInput) ? config.defaultInput : languages[0]
+        let defaultInput = config.startingInput(in: app, among: languages)
         composer.inputLanguages = languages
         // With one input language, a field is always in it (it may have been switched before it was the only one).
         let onlyOne = languages.count == 1
@@ -1461,6 +1473,14 @@ final class AllInOneIMEInputController: IMKInputController {
         return config.outputLanguages.contains { $0 != own }
     }
 
+    /// The notice of an AI command in an app with no AI (`AppProfile.noAI`), read when the command starts; nil: AI may run.
+    @MainActor
+    private func aiRefusal() -> String? {
+        guard !loadSettings().allowsAI(in: appID) else { return nil }
+        log.notice("AI command refused: no AI in this app")
+        return AppProfileText.refusal
+    }
+
     /// Opens the settings window on `page` (the self-test records it instead).
     var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
 
@@ -1491,6 +1511,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
         let improveTranslates = loadSettings().improveTranslates
+        // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
+        let app = appID
         // A terminal runs each line it is given: there @search's list, and any command's output, goes in
         // as one line.
         let terminal = Self.isTerminal(clientOverride ?? client())
@@ -1510,9 +1532,9 @@ final class AllInOneIMEInputController: IMKInputController {
             // @improve, @translate, or both written together: one request (`WritingMode`).
             if command == nil || command?.kind == .convert {
                 let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
-                return converter.convert(text, mode: mode)
+                return converter.convert(text, mode: mode, app: app)
             }
-            return command.map { converter.generate($0, input: input) } ?? converter.convert(input)
+            return command.map { converter.generate($0, input: input, app: app) } ?? converter.convert(input, app: app)
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan, !plan.isEmpty {
@@ -2097,7 +2119,7 @@ final class AllInOneIMEInputController: IMKInputController {
             model.footer = tr("⏎ / Tab 选择收件人 · ↑↓ · Esc 取消", "⏎ / Tab pick the recipient · ↑↓ · Esc cancel")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
-            model.status = .hint(draftHint(config: config))
+            model.status = .hint(draftHint(config: config.applying(app: activeApp)))
             model.footer = composer.selection != nil
                 ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
                 : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
@@ -2201,6 +2223,8 @@ final class AllInOneIMEInputController: IMKInputController {
         improveTranslates.state = current.improveTranslates ? .on : .off
         improveTranslates.isEnabled = config != nil
         menu.addItem(improveTranslates)
+        // The app being typed in: no AI, typing out, the language it starts in (`AppProfile`).
+        if let appItem = appMenuItem(config: config, app: activeApp ?? appID) { menu.addItem(appItem) }
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
                                  keyEquivalent: "")

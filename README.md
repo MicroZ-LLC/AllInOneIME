@@ -289,6 +289,29 @@ to replace text can't take a typo back: there that first typo stays, so the text
 after Esc or another key), and the app gets no typos again. Settings → General lists those apps under the typos
 switch; "Forget apps where typos couldn't be fixed" lets them try again.
 
+### Per-app settings (new)
+
+Settings → Apps gives an app settings of its own, each optional; what an app doesn't set follows the settings for every app:
+
+| Setting | For example | In the config |
+| --- | --- | --- |
+| The input language its text fields start in | Slack in English, WeChat in pinyin | `inputLanguage` |
+| The rewrite styles `@improve` offers there | Mail formal and tactful, Slack casual | `rewriteStyles` |
+| Type results out, or not | on in a chat app, off in Mail | `typeOut` |
+| No AI in this app | `@improve`, `@translate`, `@question`, `@claude` send nothing there and say so; typing and the other commands work | `noAI` |
+
+"Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
+quick switches for the app you're typing in (No AI, Type Results Out, the language it starts in). In the config they're
+under `appProfiles`, by bundle ID:
+`"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`.
+Bundle IDs match ignoring case (`com.apple.Mail` is Mail's `com.apple.mail`). `@reportissue` counts the apps that set
+something, never naming them.
+
+- The starting language works like the default input language: a text field takes it when it becomes active, and a
+  Shift switch then sticks for that app's fields until the setting changes.
+- With No AI, the AI commands stay in the @ list; running one shows the notice and keeps what you wrote. Your own
+  terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
+
 ## Menu bar panel
 
 <img src="docs/en/panel-swipe.png" width="520" alt="The menu bar panel: frosted glass, with notes, reminders and Claude tasks on cards; a row swiped left shows its Remove button">
@@ -469,6 +492,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 | `candidateLayout` | Pinyin and Hindi candidates: `"vertical"` (one under the other) or `"horizontal"` (side by side; ← → choose, ↑↓ turn the page) | `"horizontal"` |
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
+| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
 
 ## Privacy
 
@@ -480,6 +504,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well.
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
+- For "Add App…" in Settings → Apps, the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.

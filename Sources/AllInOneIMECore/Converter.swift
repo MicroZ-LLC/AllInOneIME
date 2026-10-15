@@ -41,14 +41,15 @@ public final class Converter: Sendable {
         self.loadJargon = loadJargon
     }
 
-    /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request. With `turns`, a follow-up on results
-    /// already shown (`Refinement`): the same lines again, revised as the last instruction asks.
-    public func convert(_ input: String, mode: WritingMode = .both,
+    /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request. `app`: the bundle id of the app it's
+    /// typed in, whose profile may have its own rewrite styles, or no AI (`AppProfile`). With `turns`, a follow-up on
+    /// results already shown (`Refinement`): the same lines again, revised as the last instruction asks.
+    public func convert(_ input: String, mode: WritingMode = .both, app: String? = nil,
                         turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.run(input, mode: mode, turns: turns, continuation: continuation)
+                    try await self.run(input, mode: mode, app: app, turns: turns, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -58,14 +59,14 @@ public final class Converter: Sendable {
         }
     }
 
-    private func run(_ input: String, mode: WritingMode, turns: [Refinement.Turn], continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
+    private func run(_ input: String, mode: WritingMode, app: String?, turns: [Refinement.Turn], continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
             let d = ContinuousClock.now - started
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
 
-        let config = try loadConfig()
+        let config = try Self.settings(try loadConfig(), app: app)
         let plan = WritingPlan.make(mode, text: input, config: config)
         let output = plan.versions
         let jargon = plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : []
@@ -117,14 +118,15 @@ public final class Converter: Sendable {
             firstTokenLatency: firstToken, fromCache: false))
     }
 
-    /// Runs a `.generate` command: the answer streams in as the single version of the result. With `turns`, a
-    /// follow-up on the answer shown (`Refinement`): the whole answer again, revised as the last instruction asks.
-    public func generate(_ command: Command, input: String,
+    /// Runs a `.generate` command: the answer streams in as the single version of the result (`app` as for `convert`).
+    /// With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again, revised as the last
+    /// instruction asks.
+    public func generate(_ command: Command, input: String, app: String? = nil,
                          turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runCommand(command, input: input, turns: turns, continuation: continuation)
+                    try await self.runCommand(command, input: input, app: app, turns: turns, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -134,14 +136,14 @@ public final class Converter: Sendable {
         }
     }
 
-    private func runCommand(_ command: Command, input: String, turns: [Refinement.Turn],
+    private func runCommand(_ command: Command, input: String, app: String?, turns: [Refinement.Turn],
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
             let d = ContinuousClock.now - started
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
-        let config = try loadConfig()
+        let config = try Self.settings(try loadConfig(), app: app)
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
             + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
@@ -176,6 +178,12 @@ public final class Converter: Sendable {
         if !final.isEmpty, stopReason != "max_tokens" { cache.withLock { $0.set(key, final) } }
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false))
+    }
+
+    /// `config` as it applies in `app` (`Config.applying`); nothing is sent from an app with no AI.
+    static func settings(_ config: Config, app: String?) throws -> Config {
+        guard config.allowsAI(in: app) else { throw AppProfile.Refusal.noAI }
+        return config.applying(app: app)
     }
 
     /// Model text as one line that is safe to insert anywhere, including a terminal: controls and

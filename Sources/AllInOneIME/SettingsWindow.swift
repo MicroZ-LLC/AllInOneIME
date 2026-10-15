@@ -1648,6 +1648,7 @@ struct SettingsView: View {
                     requestSection
                 case .advanced: filesSection
                 case .about: aboutSection
+                case .apps: AppProfilesSection(model: model)
                 }
             }
             .formStyle(.grouped)
@@ -2618,11 +2619,11 @@ private struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, input, writing, commands, plugins, voice, provider, advanced, about
+    case general, input, writing, commands, plugins, voice, provider, advanced, about, apps
 
     var id: String { rawValue }
 
-    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice], [.commands, .plugins, .provider], [.advanced, .about]]
+    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
@@ -2635,6 +2636,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .provider: return tr("AI 服务", "AI Provider")
         case .advanced: return tr("高级", "Advanced")
         case .about: return tr("关于", "About")
+        case .apps: return tr("按 App 设置", "Apps")
         }
     }
 
@@ -2649,6 +2651,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .provider: return CommandIcons.provider
         case .advanced: return CommandIcons.advanced
         case .about: return CandidateView.Icon(symbol: "info", color: .systemBlue)
+        case .apps: return CandidateView.Icon(symbol: "square.grid.2x2.fill", color: .systemIndigo)
         }
     }
 
@@ -2664,6 +2667,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
+        case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉"
         }
     }
 

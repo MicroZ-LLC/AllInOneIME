@@ -2493,6 +2493,7 @@ enum SelfTest {
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
+        controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions), whatever the user added.
         // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
@@ -2946,6 +2947,7 @@ enum SelfTest {
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
+        testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {
