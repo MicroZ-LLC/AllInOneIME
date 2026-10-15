@@ -227,12 +227,14 @@ extension LanguagePackStore {
 }
 
 /// One archive download into a file: hashed and counted as it arrives (never more than the index's
-/// size), with progress; follows redirects only to https (GitHub sends release assets elsewhere).
+/// size), with progress; follows redirects only to https (GitHub sends release assets elsewhere), or only
+/// where `allowsRedirect` says (the app's own updates: GitHub's release servers).
 final class Download: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private let file: FileHandle
     private let expectedSize: Int64
     private let allowsLocalHTTP: Bool
+    private let allowsRedirect: (@Sendable (URL) -> Bool)?
     private let progress: @Sendable (Double) -> Void
     private var hasher = SHA256()
     private var received: Int64 = 0
@@ -240,20 +242,24 @@ final class Download: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private var continuation: CheckedContinuation<String, Error>?
     private var lastReported = -1.0
 
-    private init(file: FileHandle, expectedSize: Int64, allowsLocalHTTP: Bool, progress: @escaping @Sendable (Double) -> Void) {
+    private init(file: FileHandle, expectedSize: Int64, allowsLocalHTTP: Bool, allowsRedirect: (@Sendable (URL) -> Bool)?,
+                 progress: @escaping @Sendable (Double) -> Void) {
         self.file = file
         self.expectedSize = expectedSize
         self.allowsLocalHTTP = allowsLocalHTTP
+        self.allowsRedirect = allowsRedirect
         self.progress = progress
     }
 
     /// Downloads `url` into `destination` and returns its sha256 (hex).
     static func run(_ url: URL, to destination: URL, expectedSize: Int64, configuration: URLSessionConfiguration,
-                    allowsLocalHTTP: Bool, progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+                    allowsLocalHTTP: Bool, allowsRedirect: (@Sendable (URL) -> Bool)? = nil,
+                    progress: @escaping @Sendable (Double) -> Void) async throws -> String {
         guard FileManager.default.createFile(atPath: destination.path, contents: nil),
               let file = try? FileHandle(forWritingTo: destination) else { throw LanguagePackError.unpack("can't write the download") }
         defer { try? file.close() }
-        let download = Download(file: file, expectedSize: expectedSize, allowsLocalHTTP: allowsLocalHTTP, progress: progress)
+        let download = Download(file: file, expectedSize: expectedSize, allowsLocalHTTP: allowsLocalHTTP,
+                                allowsRedirect: allowsRedirect, progress: progress)
         let session = URLSession(configuration: configuration, delegate: download, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
         var request = URLRequest(url: url)
@@ -320,7 +326,8 @@ final class Download: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         let url = request.url
-        let ok = url?.scheme?.lowercased() == "https" || (allowsLocalHTTP && url.map(LanguagePackLibrary.isLocal) == true)
+        let ok = allowsRedirect.map { allows in url.map(allows) ?? false }
+            ?? (url?.scheme?.lowercased() == "https" || (allowsLocalHTTP && url.map(LanguagePackLibrary.isLocal) == true))
         if !ok { lock.withLock { failure = .unreachable(url?.absoluteString ?? "") } }
         completionHandler(ok ? request : nil)
     }

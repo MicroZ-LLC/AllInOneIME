@@ -2755,7 +2755,7 @@ enum SelfTest {
         let menu = controller.menu()
         let menuTitles = menu?.items.map(\.title) ?? []
         check(menuTitles.count > 2 && menuTitles[2].hasPrefix("模型："), "menu shows the model right after 设置… (\(menuTitles.prefix(3)))")
-        check(menuTitles.last == "报告问题…", "the menu ends with 报告问题… (\(menuTitles.suffix(2)))")
+        check(menuTitles.suffix(2) == ["报告问题…", "检查更新…"], "the menu ends with 报告问题… and 检查更新… (\(menuTitles.suffix(2)))")
         // The styles sit in a submenu, whose title names the ones that are on.
         let stylesItem = menu?.items.first { $0.title.hasPrefix("改写风格：") }
         let styleItems = stylesItem?.submenu?.items.filter { $0.action == #selector(AllInOneIMEInputController.toggleStyle(_:)) } ?? []
@@ -2801,6 +2801,7 @@ enum SelfTest {
               "input languages toggle; the last one stays on")
         testFloatingPanel(controller, snapshotDirectory: snapshotDirectory)
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
+        testUpdates(controller, snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 
         print(failures == 0 ? "SELFTEST PASSED" : "SELFTEST FAILED (\(failures))")

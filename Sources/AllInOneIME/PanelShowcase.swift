@@ -124,7 +124,7 @@ enum PanelShowcase {
 /// `settings-<page>.png`, from the config file as it is (nothing is saved).
 @MainActor
 enum SettingsPageImages {
-    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil) -> Never {
+    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -138,6 +138,21 @@ enum SettingsPageImages {
         if let extensions {
             model.config.extensionFolders = [ExtensionStore.abbreviated((extensions as NSString).expandingTildeInPath)]
             model.config.findRaycastScripts = false
+        }
+        // The Updates card in a state of its own (nothing is checked or downloaded).
+        if let update {
+            let updates = UpdateController.shared
+            updates.lastChecked = Date().addingTimeInterval(-2 * 3600)
+            updates.updatesInPlace = true  // as the installed copy shows it (Update, not Download)
+            switch update {
+            case "available": updates.state = .available(.sample())
+            case "downloading": updates.state = .downloading(.sample(), 0.42)
+            case "failed": updates.state = .failed(UpdateText.describe(UpdateError.hashMismatch), .sample())
+            case "updated":
+                updates.state = .upToDate
+                updates.lastResult = UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true)
+            default: updates.state = .upToDate
+            }
         }
         for page in SettingsPage.allCases {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),

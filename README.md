@@ -362,7 +362,12 @@ System Settings → Keyboard → Text Input → Input Sources → Edit… → + 
 
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
-To update, install again from the new version's disk image, without uninstalling first; settings, the jargon list and learned words are kept.
+Updating: Settings → About → Check for Updates. When there's a new version, About says so (and a line in the menu bar panel),
+with what's new; "Update to <version>" downloads it, checks it against the update information signed with AllInOneIME's
+release key, installs it and restarts the input method. Your settings, language packs, learned words and extensions stay, and
+if anything goes wrong the version you had is put back. AllInOneIME looks once a day by itself, in the background (turn it off
+with "Check for updates automatically" under About); nothing is installed until you click. This works from 0.6.3 on; to update
+an older version, or if you prefer, install the new version's disk image over it, without uninstalling first.
 Before upgrading, read the [changelog](CHANGELOG.md): it has each version's changes and upgrade notes.
 
 If you had AIPinyin installed (AllInOneIME's earlier name), just install: the old AIPinyin.app and its settings launcher are removed,
@@ -444,6 +449,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
+- Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
 ## Development
@@ -457,7 +463,8 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized)
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
 Code layout:
@@ -476,6 +483,27 @@ build/packs/*.tar.xz.json` writes `packs.json` there and signs it into `packs.js
 from the keychain (`allinoneime-languages-signing`). The app reads https://languages.allinoneime.com/packs.json, checks
 the signature, then the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and
 `AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`.
+
+Releasing a version (the in-app updater reads https://allinoneime.com/update.json, signed with the releases' own key):
+
+1. Bump the version (`AppVersion.swift` and the three Info.plists; `AppVersionTests` checks they agree) and the changelogs.
+2. `make dmg`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and `build/AllInOneIME-<version>-update.zip`
+   (both apps, as the disk image's installer carries them).
+3. Upload both to the GitHub release `v<version>` and publish it.
+4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
+   `site/public/update.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
+   the release notes' address and the summary) and signs it into `update.json.sig` with the key from the login keychain
+   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both.
+5. Deploy the site (`cd site && npx wrangler@4 deploy`), only once the release's assets download: the apps check once a day,
+   and `AllInOneIME --check-update` shows what they see.
+
+The app checks the manifest's signature with the public key built into it before reading it, never installs a version that
+isn't newer, downloads only over https from allinoneime.com or the repository's GitHub release assets, and installs the
+archive only once its size and SHA-256 match the manifest, both apps' bundle IDs, versions and code signatures check out and
+the new input method starts. The input method then hands over to its own executable as a helper (`--apply-update`), which
+waits for it to quit, swaps the apps the way the installer does (the old ones moved aside, put back if anything fails) and
+registers the new one. To try it against a local server: `make update-test`, or `--test-key` with
+`Scripts/build-update-manifest.swift` and `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`.
 
 The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to remember the added input source and the microphone permission, so changing it would mean adding the input method and granting the permission again.
 

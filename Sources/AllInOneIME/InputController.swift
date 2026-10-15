@@ -296,6 +296,8 @@ final class AllInOneIMEInputController: IMKInputController {
             // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             let app = (sender as? IMKTextInput)?.bundleIdentifier()
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
+            // Once a day at most, in the background: comparing two dates here, never on a keystroke.
+            UpdateController.shared.checkIfDue()
         }
     }
 
@@ -2044,6 +2046,12 @@ final class AllInOneIMEInputController: IMKInputController {
         let report = NSMenuItem(title: tr("报告问题…", "Report an Issue…"), action: #selector(reportIssue(_:)), keyEquivalent: "")
         report.target = self
         menu.addItem(report)
+        // Settings → About, checking there (or, with a new version known, offering it).
+        let newer = UpdateController.shared.available?.version
+        let update = NSMenuItem(title: newer.map { tr("更新到 \($0)…", "Update to \($0)…") } ?? tr("检查更新…", "Check for Updates…"),
+                                action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        update.target = self
+        menu.addItem(update)
         return menu
     }
 
@@ -2153,6 +2161,15 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
             SettingsWindow.shared.show()
+        }
+    }
+
+    /// The input menu's "Check for Updates…": Settings → About, which checks (or shows the update already found).
+    @objc func checkForUpdates(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
+            SettingsWindow.shared.show(page: .about)
+            if UpdateController.shared.available == nil { UpdateController.shared.check(userInitiated: true) }
         }
     }
 
