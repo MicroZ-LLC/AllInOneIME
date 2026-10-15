@@ -67,6 +67,19 @@ final class SettingsModel: ObservableObject {
         typoApps = TypoMemory.apps
     }
 
+    /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.
+    @Published private(set) var recentQuestions = QuestionHistoryStore.history.entries.count
+
+    func clearRecentQuestions() {
+        QuestionHistoryStore.clear()
+        recentQuestions = 0
+    }
+
+    /// Questions asked since the window opened.
+    func refreshRecentQuestions() {
+        recentQuestions = QuestionHistoryStore.history.entries.count
+    }
+
     enum TestStatus: Equatable {
         case idle
         case running
@@ -834,6 +847,21 @@ struct SettingsView: View {
                 titled(tr("使用选中的文字", "Use the selected text"),
                        tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
                           "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."))
+            }
+            // The recent @questions (`QuestionHistory`): kept only on this Mac; off forgets them too.
+            Toggle(isOn: $model.config.rememberQuestions) {
+                titled(tr("记住最近的问题", "Remember recent questions"),
+                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
+                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
+            }
+            .disabled(!model.canSave)
+            HStack {
+                Text(model.recentQuestions == 0 ? tr("没有保存的问题。", "No questions saved.")
+                     : tr("保存了 \(model.recentQuestions) 个问题。", "\(model.recentQuestions) saved \(model.recentQuestions == 1 ? "question" : "questions")."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(tr("清除（\(model.recentQuestions)）", "Clear (\(model.recentQuestions))")) { model.clearRecentQuestions() }
+                    .disabled(model.recentQuestions == 0)
             }
         }
     }
@@ -1715,6 +1743,10 @@ struct SettingsView: View {
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
         .onChange(of: model.config.useSelection) { model.save() }
+        .onChange(of: model.config.rememberQuestions) {
+            model.save()
+            if !model.config.rememberQuestions { model.clearRecentQuestions() }
+        }
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
@@ -1738,6 +1770,7 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+            model.refreshRecentQuestions()
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
             if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
@@ -2655,7 +2688,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
