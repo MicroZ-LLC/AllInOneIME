@@ -562,6 +562,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         reset()
 
         selectionCommands()
+        refineResults()
         horizontalAndReport()
         extensions()
         frenchAndKorean()
@@ -647,6 +648,68 @@ final class Harness: NSObject, NSApplicationDelegate {
               "a selection moved meanwhile gives the command up; the next key types as usual ('\(committed)' + '\(marked)')")
         reset()
         textView.string = ""
+    }
+
+    /// 6a'. Refining the results: @improve a long English sentence and pick row 1 (V1); the same sentence again (the
+    ///     cache answers at once), "shorter" typed while the results are up and ⏎ asks again with them as context; the
+    ///     draft stays as it was (the letters went to the refine line, not the sentence), and 1 inserts the refined
+    ///     version, which is shorter than V1 (live Bedrock).
+    func refineResults() {
+        print("— refine the results: shorter (live Bedrock)")
+        reset()
+        textView.string = ""
+        tapShift()  // English: the sentence and the instruction are typed as letters
+        let words = ["i", "wanted", "to", "let", "you", "know", "that", "the", "meeting", "we", "planned", "for", "tomorrow",
+                     "morning", "has", "been", "moved", "to", "the", "afternoon", "because", "the", "big", "room", "was", "not",
+                     "free", "and", "several", "people", "could", "not", "join", "that", "early"]
+        let sentence = words.joined(separator: " ")
+        /// "@improve" and the sentence, marked as typed.
+        func draft() -> Bool {
+            command("i")
+            for word in words {
+                type(word)
+                space()
+            }
+            return waitUntil(2) { self.marked == "improve › " + sentence + " " }
+        }
+        /// The panel's frames stay the same for a second (the rows are all in), within `timeout`.
+        func settled(_ timeout: TimeInterval) -> Bool {
+            var last = imePanelFrames(), since = Date()
+            return waitUntil(timeout) {
+                let now = imePanelFrames()
+                if now != last { last = now; since = Date() }
+                return !now.isEmpty && Date().timeIntervalSince(since) >= 1
+            }
+        }
+        check(draft(), "sentence drafted in English (\(marked))")
+        act()
+        let improved = waitUntil(25) {
+            if self.committed.isEmpty { self.space() }  // ignored until the first version is complete
+            return !self.committed.isEmpty
+        }
+        let first = committed
+        check(improved && Self.looksEnglish(first) && marked.isEmpty, "@improve inserts its first version: '\(first)'")
+        textView.string = ""
+        check(draft(), "the same sentence again")
+        act()
+        pump(1.5)  // answered from the cache
+        check(settled(10), "its results are up")
+        type("shorter")
+        pump(0.3)
+        check(marked == "improve › " + sentence + " ", "'shorter' goes to the refine line: the sentence is as it was (\(marked))")
+        enter()
+        let started = Date()
+        let picked = waitUntil(25) {
+            if self.committed.isEmpty { self.key("1", keyCodes["1"]!); self.pump(0.3) }  // ignored until row 1 is complete
+            return !self.committed.isEmpty
+        }
+        let refined = committed
+        check(picked && Self.looksEnglish(refined) && marked.isEmpty && refined != first && refined.count < first.count,
+              String(format: "⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
+                     Date().timeIntervalSince(started), refined, refined.count, first.count))
+        reset()
+        textView.string = ""
+        tapShift()  // back to Chinese
     }
 
     /// 6b. Candidates in a row (`candidateLayout`): the panel is one line (shorter than the same candidates in a column,

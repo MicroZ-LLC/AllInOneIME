@@ -663,6 +663,66 @@ enum SelfTest {
         return controller.composer.phase == .choosing
     }
 
+    /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⏎ asks again with
+    /// the results as context; the new versions are shorter, the header names the step, Esc goes back to the results
+    /// before it, secure input refuses a refine like any request, and a pick inserts the refined text.
+    static func testRefine(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— refine the results: shorter (live Bedrock)")
+        func versions() -> [String] { controller.composer.choices.filter { $0.kind == .version }.map(\.text) }
+        func average(_ lines: [String]) -> Double { lines.isEmpty ? 0 : Double(lines.map(\.count).reduce(0, +)) / Double(lines.count) }
+        tapShift(controller, client)  // English: the sentence and the instruction are typed as letters
+        improve(controller, client)
+        let sentence = "i wanted to let you know that the meeting we planned for tomorrow morning has been moved to "
+            + "three in the afternoon because the big room was not available and several people could not join earlier"
+        type(sentence, controller, client)
+        _ = act(controller, client)
+        guard finishConversion(controller, "@improve on a long sentence") else {
+            controller.commitComposition(client)
+            tapShift(controller, client)
+            return
+        }
+        let before = versions(), beforeResult = controller.composer.result
+        type("shorter", controller, client)
+        let typing = controller.panelModel()
+        check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
+              "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
+        check(typing.footer.hasPrefix("⏎ 按这句修改结果"), "the footer says ⏎ refines (\(typing.footer))")
+        check(enter(controller, client) && controller.composer.isRefining, "⏎ runs the refine")
+        if finishConversion(controller, "refine: shorter") {
+            let after = versions()
+            check(after.count >= 2 && average(after) < average(before),
+                  String(format: "the refined versions are shorter (%.0f → %.0f characters on average)", average(before), average(after)))
+            let header = controller.panelModel().header ?? ""
+            check(header == "已修改：shorter", "the header names the step (\(header))")
+            check(controller.panelModel().footer.contains("Esc 上一版"), "the footer offers the step back (\(controller.panelModel().footer))")
+            // Esc: the results before it, as they were.
+            _ = escape(controller, client)
+            check(controller.composer.result == beforeResult && controller.composer.refineHistory.isEmpty
+                  && controller.composer.phase == .choosing, "Esc goes back to the results before the refine")
+            // The same refine again comes from the cache.
+            type("shorter", controller, client)
+            _ = enter(controller, client)
+            _ = pump(timeout: 2) { controller.composer.phase == .choosing }
+            check(controller.composer.phase == .choosing && versions() == after, "the same refine again is answered from the cache")
+            // Secure input refuses a refine like any request: the results stay, the instruction comes back.
+            controller.secureInputActive = { true }
+            type("warmer", controller, client)
+            _ = enter(controller, client)
+            let refusal = controller.composer.refineError ?? ""
+            check(refusal.contains("安全输入") && versions() == after && controller.composer.refineText == "warmer"
+                  && controller.panelModel().status == .error(refusal), "secure input refuses the refine (\(refusal))")
+            controller.secureInputActive = { false }
+            _ = escape(controller, client)  // clears the line
+            let first = controller.composer.choices[controller.composer.highlighted].text
+            _ = press(controller, client, "1", code: 0x12)
+            check(client.inserted.last == first && client.marked.isEmpty && !controller.composer.isComposing,
+                  "1 inserts the refined version: \(client.inserted.last ?? "")")
+        }
+        controller.commitComposition(client)
+        tapShift(controller, client)  // back to Chinese
+        _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the 中 (Chinese mode) notice
+    }
+
     /// @improve with English typed in English mode → English polish (and English rewrites, incl. jargon,
     /// 黑话); Chinese output; the default input mode.
     static func testEnglishAndOutput(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
@@ -2779,6 +2839,8 @@ enum SelfTest {
         _ = space(controller, client)
         check(client.inserted.last == choices[1].text, "Space commits the highlighted English")
 
+        testRefine(controller, client)
+
         print("— typing more in level two continues the sentence")
         improve(controller, client)
         type("nihao", controller, client)
@@ -2855,7 +2917,7 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         let english = controller.panelModel()
         let styleNames = english.rows.dropFirst().map { $0.comment.components(separatedBy: " · ")[0] }
-        check(english.footer == "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back"
+        check(english.footer == "Space / ⏎ insert · digits pick · type to refine · ⌘C copy · Esc back"
               && english.rows.first?.comment == "original" && !styleNames.joined().containsHan,
               "English results panel: \(english.footer) | \(english.rows.map(\.comment))")
         snapshot("9-english-ui", in: snapshotDirectory)
