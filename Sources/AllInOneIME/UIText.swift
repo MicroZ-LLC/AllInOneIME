@@ -368,6 +368,7 @@ enum UIText {
                           "The \(name(p)) API key was saved for \(saved), not this base URL: save the key again for it")
             case let .http(p, status, type, message): return "\(name(p)) \(type ?? "HTTP \(status)")" + tr("：", ": ") + message
             case let .stream(p, type, message): return "\(name(p)) \(type)" + tr("：", ": ") + message
+            case .refused(.apple): return tr("Apple Intelligence 拒绝了这个请求", "Apple Intelligence declined this request")
             case let .refused(p): return tr("\(name(p)) 拒绝了这个请求", "The \(name(p)) declined this request")
             case let .invalidResponse(p, detail):
                 return tr("\(name(p)) 的响应无法解析：\(detail)", "Couldn't read the \(name(p)) response: \(detail)")

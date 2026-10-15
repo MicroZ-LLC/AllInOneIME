@@ -10,6 +10,14 @@ extension SelfTest {
         print("— Apple Intelligence on this Mac (\(availability.rawValue))")
         check(Provider.offered.contains(.apple) == availability.isOffered,
               "the provider list has it on macOS 26 and later (\(Provider.offered.map(\.rawValue)))")
+        let pickedBefore = UIText.choice
+        UIText.choice = .english
+        let refusedEnglish = UIText.describe(ProviderError.refused(.apple))
+        UIText.choice = .chinese
+        let refusedChinese = UIText.describe(ProviderError.refused(.apple))
+        UIText.choice = pickedBefore
+        check(refusedEnglish == "Apple Intelligence declined this request" && refusedChinese == "Apple Intelligence 拒绝了这个请求",
+              "a refusal reads naturally (\(refusedEnglish) / \(refusedChinese))")
         guard availability == .available else {
             print("  skipped: the on-device model isn't available here")
             return
@@ -61,7 +69,6 @@ extension SelfTest {
         controller.commitComposition(client)
 
         // The settings window with it chosen: Test Connection asks the on-device model; the page as the README shows it.
-        let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
         for chinese in [true, false] {
             UIText.choice = chinese ? .chinese : .english
