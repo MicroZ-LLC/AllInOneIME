@@ -84,10 +84,12 @@ public struct Config: Codable, Equatable, Sendable {
     public var keyboardLayouts: [String: String]
     /// A command's result is typed into the document character by character, like a person typing
     /// (pinyin picks still go in at once), at `typeOutRate` characters a second (1/6: 6 s a character),
-    /// in bursts of changing pace when `typeOutVaries`.
+    /// in bursts of changing pace when `typeOutVaries`, with an occasional typo fixed on the way when
+    /// `typeOutMistakes` (`TypeOut.plan`; the text ends up exactly the result).
     public var typeOut: Bool
     public var typeOutRate: Double
     public var typeOutVaries: Bool
+    public var typeOutMistakes: Bool
     /// How the candidates of a word being typed (pinyin, Hindi) are laid out: in a column (the default) or in a
     /// row, like macOS's own panel. The other lists (commands, results) are always a column.
     public var candidateLayout: CandidateArrangement
@@ -160,6 +162,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
         self.typeOutVaries = false
+        self.typeOutMistakes = false
         self.candidateLayout = .vertical
         normalizeLanguages()
     }
@@ -179,7 +182,7 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case provider, anthropic, gemini, openai
     }
 
@@ -229,6 +232,7 @@ public struct Config: Codable, Equatable, Sendable {
         let olderRate: Double? = ["slow": 8, "normal": 16, "fast": 32, "random": 16][older ?? ""]
         typeOutRate = try c.decodeIfPresent(Double.self, forKey: .typeOutRate) ?? olderRate ?? d.typeOutRate
         typeOutVaries = try c.decodeIfPresent(Bool.self, forKey: .typeOutVaries) ?? (older == "random")
+        typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
         // A value a later version added reads as the default.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
@@ -303,6 +307,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
+        try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
         try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
