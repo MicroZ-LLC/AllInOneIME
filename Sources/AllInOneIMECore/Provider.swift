@@ -139,7 +139,7 @@ public enum ProviderError: Error, LocalizedError, Equatable {
             return "The \(p.displayName) API key was saved for \(saved), not this base URL: save the key again for it"
         case let .http(p, status, type, message): return "\(p.displayName) \(type ?? "HTTP \(status)"): \(message)"
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
-        case let .refused(p): return "The \(p.displayName) declined this request"
+        case let .refused(p): return p == .apple ? "Apple Intelligence declined this request" : "The \(p.displayName) declined this request"
         case let .invalidResponse(p, detail): return "Couldn't read the \(p.displayName) response: \(detail)"
         case .signedOut: return "Sign in to AllInOneIME Cloud in the settings"
         case .quotaExhausted: return "No requests left today: subscribe, or add your own API key in the settings"
