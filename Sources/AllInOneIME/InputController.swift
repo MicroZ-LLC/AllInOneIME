@@ -443,6 +443,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.actionKey = config.actionKey
         composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.typeOut
+        composer.horizontalCandidates = config.candidateLayout == .horizontal
         (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
         setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
@@ -1791,6 +1792,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 CandidateView.Row(label: $0.label, text: $0.text, comment: $0.comment, style: .candidate)
             }
             model.highlighted = state.highlighted
+            // A word's candidates in a row, as macOS's own panel, if set so (every other list is a column); as the
+            // composer takes the arrow keys, from the settings the text field was given.
+            model.horizontal = composer.horizontalCandidates
             let key = composer.actionKey
             if let command = composer.draftCommand {
                 // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.

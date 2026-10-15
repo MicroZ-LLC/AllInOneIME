@@ -88,6 +88,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var typeOut: Bool
     public var typeOutRate: Double
     public var typeOutVaries: Bool
+    /// How the candidates of a word being typed (pinyin, Hindi) are laid out: in a column (the default) or in a
+    /// row, like macOS's own panel. The other lists (commands, results) are always a column.
+    public var candidateLayout: CandidateArrangement
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -157,6 +160,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
         self.typeOutVaries = false
+        self.candidateLayout = .vertical
         normalizeLanguages()
     }
 
@@ -175,7 +179,7 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case provider, anthropic, gemini, openai
     }
 
@@ -225,6 +229,8 @@ public struct Config: Codable, Equatable, Sendable {
         let olderRate: Double? = ["slow": 8, "normal": 16, "fast": 32, "random": 16][older ?? ""]
         typeOutRate = try c.decodeIfPresent(Double.self, forKey: .typeOutRate) ?? olderRate ?? d.typeOutRate
         typeOutVaries = try c.decodeIfPresent(Bool.self, forKey: .typeOutVaries) ?? (older == "random")
+        // A value a later version added reads as the default.
+        candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -297,6 +303,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
+        try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)
@@ -345,6 +352,14 @@ public struct Config: Codable, Equatable, Sendable {
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(self).write(to: url, options: .atomic)
     }
+}
+
+/// The candidate panel's layout for a word being typed (`Config.candidateLayout`).
+public enum CandidateArrangement: String, Codable, CaseIterable, Sendable {
+    /// One under the other, numbered on the left (↑↓ move, -/= turn the page).
+    case vertical
+    /// Side by side, as macOS's own panel (← → move, ↑↓ or -/= turn the page).
+    case horizontal
 }
 
 public enum ConfigError: Error, LocalizedError, Equatable {
