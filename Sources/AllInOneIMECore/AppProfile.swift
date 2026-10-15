@@ -49,17 +49,19 @@ public struct AppProfile: Codable, Equatable, Sendable {
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or
     /// with spaces), is left out; a value that isn't an object at all reads as none. Bundle ids are matched ignoring
-    /// case (`Config.profile(for:)`): of keys that differ only in case, the first in sorted order is kept (always the
-    /// same one, "com.apple.Mail" before "com.apple.mail"), the others left out.
+    /// case (`Config.profile(for:)`): of keys that differ only in case, one is kept, the others left out: one that sets
+    /// something over one that doesn't (an empty one would be dropped on the next save), and among those the first in
+    /// sorted order (always the same one, "com.apple.Mail" before "com.apple.mail").
     static func decodeAll<Key: CodingKey>(_ c: KeyedDecodingContainer<Key>, forKey key: Key) -> [String: AppProfile] {
         guard let entries = (try? c.decodeIfPresent([String: Lenient].self, forKey: key)).flatMap({ $0 }) else { return [:] }
-        var profiles: [String: AppProfile] = [:]
-        var seen = Set<String>()
+        var kept: [String: (app: String, profile: AppProfile)] = [:]  // by the id in lower case
         for app in entries.keys.sorted() {
-            guard let profile = entries[app]?.profile, isBundleID(app), seen.insert(app.lowercased()).inserted else { continue }
-            profiles[app] = profile
+            guard let profile = entries[app]?.profile, isBundleID(app) else { continue }
+            let id = app.lowercased()
+            if let other = kept[id], !(other.profile.isEmpty && !profile.isEmpty) { continue }
+            kept[id] = (app, profile)
         }
-        return profiles
+        return Dictionary(uniqueKeysWithValues: kept.values.map { ($0.app, $0.profile) })
     }
 
     /// Whether `id` can be an app's bundle id ("com.apple.mail"): not empty, no spaces or line breaks.
