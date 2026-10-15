@@ -133,8 +133,11 @@ While the results of `@improve`, `@translate`, `@question` or a prompt command a
 switches languages), and press ⏎: the results go to the AI again with your instruction, and the new ones replace them in
 the same panel. Refine again as often as you like; the panel's top line lists the steps ("Refined: shorter · more
 formal"), and you can pick a row at any time as usual. A letter starts the instruction (shown as "refine › …" at the top
-of the panel); while it's empty, digits, Space and ⏎ pick as before. Esc clears the instruction, then goes back one step
-to the results before the last refine, then back to the sentence. On selected text, the result you pick still replaces
+of the panel); while it's empty, digits, Space and ⏎ pick as before. Refining starts once the results are complete:
+typing while the first results still stream in continues the sentence, as before. While a refine runs you can already
+type the next instruction; the refine goes on, and ⏎ runs the next one once its results are in. Esc clears the
+instruction, then goes back one step to the results before the last refine (during a refine: stops it), then back to the
+sentence; ⌫ on an empty line steps back the same way. On selected text, the result you pick still replaces
 exactly the selection, which stays untouched until then. A refine that fails (or is refused during secure input) leaves
 the results as they were, its instruction ready for ⏎ to try again. The same refine of the same results is answered from
 the cache.
