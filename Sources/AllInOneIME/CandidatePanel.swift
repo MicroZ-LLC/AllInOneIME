@@ -1,3 +1,4 @@
+import AllInOneIMECore
 import AppKit
 
 /// Borderless, non-activating floating panel shown under the insertion point.
@@ -33,6 +34,8 @@ final class CandidatePanel: NSPanel {
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        // The pointer over a row highlights it (`CandidateView.hovered`), the panel never being key.
+        acceptsMouseMovedEvents = true
         view.drawsBackground = false
         contentView = Self.glass(around: view)
     }
@@ -117,6 +120,9 @@ final class CandidateView: NSView {
         var isComplete: Bool = true
         /// A symbol in a colored rounded square before the text, like the icons of iOS Settings.
         var icon: Icon? = nil
+        /// A click picks it and the pointer over it highlights it (`onSelect`); not a line a script printed or a
+        /// list's information, which nothing picks.
+        var pickable = true
     }
 
     /// An SF Symbol, drawn white on `color`.
@@ -198,8 +204,13 @@ final class CandidateView: NSView {
         didSet { if model != oldValue { relayout() } }
     }
 
+    /// A row clicked: its index in `model.rows`.
     var onSelect: ((Int) -> Void)?
     var onScroll: ((Int) -> Void)?
+    /// The row under the pointer, drawn lightly highlighted: what a click would pick.
+    private(set) var hovered: Int? {
+        didSet { if hovered != oldValue { needsDisplay = true } }
+    }
     /// Scrolling not yet a whole row (a trackpad's small steps add up).
     private var pendingScroll: CGFloat = 0
     private(set) var contentSize = NSSize(width: Metrics.minWidth, height: 40)
@@ -273,6 +284,8 @@ final class CandidateView: NSView {
         }
         contentSize = NSSize(width: ceil(width), height: ceil(y + p))
         needsDisplay = true
+        // Other rows under a pointer that stayed put: the one there now.
+        hovered = window.flatMap { $0.isVisible ? row(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
     }
 
     private static func measure(_ text: NSAttributedString, minHeight: CGFloat) -> NSSize {
@@ -345,6 +358,10 @@ final class CandidateView: NSView {
 
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
             let highlighted = index == model.highlighted
+            if index == hovered, !highlighted {
+                NSColor.selectedContentBackgroundColor.withAlphaComponent(0.18).setFill()
+                NSBezierPath(roundedRect: layout.frame, xRadius: Metrics.rowRadius, yRadius: Metrics.rowRadius).fill()
+            }
             if highlighted {
                 NSColor.selectedContentBackgroundColor.setFill()
                 NSBezierPath(roundedRect: layout.frame, xRadius: Metrics.rowRadius, yRadius: Metrics.rowRadius).fill()
@@ -409,11 +426,28 @@ final class CandidateView: NSView {
         onScroll?(rows)
     }
 
+    /// The row a click at `point` picks (`CandidateLayout.row`).
+    private func row(at point: NSPoint) -> Int? {
+        guard bounds.contains(point) else { return nil }
+        return CandidateLayout.row(at: point, frames: rowLayouts.map(\.frame), pickable: model.rows.map(\.pickable))
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        // Always: the panel is never key, and the input method's app is never active.
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self))
+    }
+
+    override func mouseMoved(with event: NSEvent) { hovered = row(at: convert(event.locationInWindow, from: nil)) }
+    override func mouseEntered(with event: NSEvent) { hovered = row(at: convert(event.locationInWindow, from: nil)) }
+    override func mouseExited(with event: NSEvent) { hovered = nil }
+
+    /// A click picks the row as its digit would (`Composer.choose`); the text field keeps the focus, the panel
+    /// being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if let index = rowLayouts.firstIndex(where: { $0.frame.contains(point) }) {
-            onSelect?(index)
-        }
+        if let index = row(at: convert(event.locationInWindow, from: nil)) { onSelect?(index) }
     }
 }
 
