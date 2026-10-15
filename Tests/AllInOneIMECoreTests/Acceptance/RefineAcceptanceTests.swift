@@ -948,35 +948,114 @@ struct RefineAcceptanceTests {
 
     // MARK: Edge cases
 
-    @Test func edge_aRefineTypedWhileTheFirstResultsStream() {
+    /// Point 2 as clarified: a refine starts only once the results are complete. Letters typed while the first
+    /// results stream do what they did before the feature: back to the draft, continuing the sentence.
+    @Test func edge_lettersWhileTheFirstResultsStreamContinueTheSentenceAsBefore() {
         let rig = RARig()
         rig.c.setInputMode(.english)
         rig.pick("i")
         rig.type(sentence)
         rig.key(enterKey)
         _ = rig.c.receive(ConversionResult(versions: [CandidateLine("I have", isComplete: false)]), isFinal: false, id: 1)
-        #expect(rig.c.isLevelTwo)
-        // The user starts typing an instruction before the answer is complete.
-        let typed = refine(rig, "shorter", run: false)
-        // The request isn't thrown away, nor is the sentence edited.
-        #expect(!typed.contains(.cancelConversion), "typing during streaming cancelled the request: \(typed)")
-        #expect(rig.c.isLevelTwo && rig.c.draft == "@improve " + sentence,
-                "level two: \(rig.c.isLevelTwo), phase: \(rig.c.phase), draft: \(rig.c.draft.debugDescription), effects: \(typed)")
+        #expect(rig.c.isLevelTwo && !rig.c.canRefine)
+        let typed = rig.type("s")
+        // The request is stopped, and the letter continues the sentence in the draft; no refine line.
+        #expect(typed.contains(.cancelConversion))
+        #expect(!rig.c.isLevelTwo && rig.c.draft == "@improve " + sentence + "s")
+        #expect(rig.c.refineLine == nil && rig.c.refineText.isEmpty && rig.c.refineHistory.isEmpty)
+        rig.type("o")
+        #expect(rig.c.draft == "@improve " + sentence + "so")
+        // What still arrives for the stopped request is ignored.
         _ = rig.c.receive(first, isFinal: true, id: 1)
-        #expect(rig.rows == first.versions.map(\.text))
-        // The instruction is in the line, and ⏎ sends it.
-        #expect(rig.c.refineText == "shorter")
-        #expect(raRefines(rig.key(enterKey)).first?.turns.last?.instruction == "shorter")
+        #expect(!rig.c.isLevelTwo && rig.c.draft == "@improve " + sentence + "so")
+        // ⏎ sends the longer sentence as a new, normal request.
+        #expect(rig.key(enterKey).contains(.startConversion(input: sentence + "so", id: 2)))
     }
 
-    @Test func edge_keysWhileARefineStreamsDoNotStopIt() {
+    /// New requirement: keys typed while a refine streams are not lost. They start (or extend) the refine line for
+    /// the next refine, and the running refine goes on.
+    @Test func edge_keysTypedWhileARefineStreamsAreKeptForTheNextRefine() {
         let rig = improveShown()
         refine(rig, "shorter")
+        #expect(rig.c.isRefining)
+        // Typed before any of the answer is in: starts the line.
+        let early = refine(rig, "more", run: false)
         _ = rig.c.receive(ConversionResult(versions: [CandidateLine("An", isComplete: false)]), isFinal: false, id: 2)
-        let typed = rig.type("x")
-        #expect(!typed.contains(.cancelConversion) && rig.c.isRefining && commits(typed).isEmpty)
+        // Typed while it streams: extends it (a Space and letters).
+        let later = refine(rig, " formal", run: false)
+        let typed = early + later
+        #expect(!typed.contains(.cancelConversion) && commits(typed).isEmpty && !raStartsSomething(typed))
+        #expect(rig.c.isRefining && rig.c.isLevelTwo, "the running refine was stopped: phase \(rig.c.phase)")
+        #expect(rig.c.refineText == "more formal", "line while streaming: \(rig.c.refineText.debugDescription)")
+        // The refine's results arrive in full, and the line is still there.
         _ = rig.c.receive(shorter, isFinal: true, id: 2)
-        #expect(rig.rows == shorter.versions.map(\.text))
+        #expect(rig.c.phase == .choosing && rig.rows == shorter.versions.map(\.text))
+        #expect(rig.c.refineHistory == ["shorter"])
+        #expect(rig.c.refineText == "more formal" && rig.c.refineLine == "more formal",
+                "line after the results: \(rig.c.refineText.debugDescription)")
+        // ⏎ runs it as the next refine, on the refined results.
+        let next = raRefines(rig.key(enterKey)).first
+        #expect(next?.turns == [
+            Refinement.Turn(answer: first, instruction: "shorter"),
+            Refinement.Turn(answer: shorter, instruction: "more formal"),
+        ])
+    }
+
+    /// Accepted: ⌫ on an empty refine line steps back like Esc (with no refines left: back to the draft, as before).
+    @Test func edge_backspaceOnAnEmptyLineStepsBackLikeEsc() {
+        let rig = improveShown()
+        refine(rig, "shorter")
+        _ = rig.c.receive(shorter, isFinal: true, id: 2)
+        refine(rig, "more formal")
+        _ = rig.c.receive(formal, isFinal: true, id: 3)
+        // ⌫ in a non-empty line deletes; once it's empty, the next ⌫ steps back.
+        rig.type("ab")
+        rig.key(backspaceKey)
+        rig.key(backspaceKey)
+        #expect(rig.c.refineText.isEmpty && rig.c.isLevelTwo && rig.rows == formal.versions.map(\.text))
+        let back = rig.key(backspaceKey)
+        #expect(commits(back).isEmpty && rig.c.isLevelTwo && rig.rows == shorter.versions.map(\.text))
+        #expect(rig.c.refineHistory == ["shorter"])
+        rig.key(backspaceKey)
+        #expect(rig.c.isLevelTwo && rig.rows == first.versions.map(\.text) && rig.c.refineHistory.isEmpty)
+        rig.key(backspaceKey)
+        #expect(!rig.c.isLevelTwo && rig.c.draft == "@improve " + sentence)
+        // While a refine runs, ⌫ on the empty line stops it and shows the results before, as Esc does.
+        let running = improveShown()
+        refine(running, "shorter")
+        let stop = running.key(backspaceKey)
+        #expect(stop.contains(.cancelConversion) && running.c.phase == .choosing)
+        #expect(running.rows == first.versions.map(\.text) && running.c.refineHistory.isEmpty)
+    }
+
+    /// Accepted: Esc with pinyin being typed in the line clears the pinyin first, then the line on the next Esc.
+    @Test func edge_escClearsThePinyinFirstThenTheLine() {
+        let rig = RARig()
+        rig.engine.dictionary["kouyu"] = ["口语"]
+        rig.pick("i")
+        rig.type("nihao")
+        rig.key(enterKey)
+        let zh = ConversionResult(versions: [CandidateLine("您好"), CandidateLine("你好呀")])
+        _ = rig.c.receive(zh, isFinal: true, id: 1)
+        rig.type("kouyu")
+        rig.key(spaceKey)
+        rig.type("geng")
+        #expect(rig.c.refineText == "口语" && rig.c.refineIsComposing && rig.c.refineLine == "口语geng")
+        // First Esc: the pinyin goes, the words picked stay.
+        rig.key(escKey)
+        #expect(!rig.c.refineIsComposing && rig.c.refineText == "口语" && rig.c.refineLine == "口语")
+        #expect(rig.c.isLevelTwo && rig.rows == zh.versions.map(\.text))
+        // Second Esc: the line is cleared; the results stay.
+        rig.key(escKey)
+        #expect(rig.c.refineText.isEmpty && rig.c.refineLine == nil && rig.c.isLevelTwo && rig.rows == zh.versions.map(\.text))
+        // Pinyin alone in the line: one Esc clears it, the results stay.
+        rig.type("geng")
+        #expect(rig.c.refineLine == "geng")
+        rig.key(escKey)
+        #expect(rig.c.refineLine == nil && rig.c.isLevelTwo && rig.rows == zh.versions.map(\.text))
+        // Then Esc on the empty line (no refines): back to the draft.
+        rig.key(escKey)
+        #expect(!rig.c.isLevelTwo && rig.c.draft == "@improve 你好")
     }
 
     @Test func edge_unicodeAndCJKInstructionsReachTheModelIntact() async throws {
