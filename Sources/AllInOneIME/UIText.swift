@@ -282,6 +282,9 @@ enum UIText {
     /// Main thread only.
     static var agentName = AgentKind.claude.displayName()
 
+    /// The agent `config` picks, by name.
+    static func agentName(_ config: Config) -> String { config.agent.displayName(custom: config.agentCommand) }
+
     /// The row comment of an answer: "回答" / "answer", the agent's name.
     static func answerLabel(_ command: Command?) -> String {
         if command == .webSearch { return tr("搜索结果", "results") }

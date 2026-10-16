@@ -458,8 +458,10 @@ case "--settings-image":
         let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
         // `update=available|current|downloading|failed`: the About page's Updates card in that state.
         let update = arguments.first { $0.hasPrefix("update=") }.map { String($0.dropFirst("update=".count)) }
+        // `agent=gemini|kiro|custom:<command>`: the agent `@agent` hands the text to.
+        let agent = arguments.first { $0.hasPrefix("agent=") }.map { String($0.dropFirst("agent=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
-                               extensions: extensions, update: update)
+                               extensions: extensions, update: update, agent: agent)
     }
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))

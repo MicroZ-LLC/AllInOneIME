@@ -31,11 +31,11 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     }
 
     /// What runs in Terminal, without the prompt (appended as the last argument). "--": the prompt is the prompt, even
-    /// when it starts with "-". Nil when there's nothing to run.
+    /// when it starts with "-" (Gemini CLI takes its first message as `-i`'s value instead). Nil when there's nothing to run.
     public func terminalArguments(custom: [String] = []) -> [String]? {
         switch self {
         case .claude: return ["claude", "--"]
-        case .gemini: return ["gemini", "--"]  // its first message, then it goes on interactively
+        case .gemini: return ["gemini", "-i"]  // --prompt-interactive: its first message, then it goes on interactively
         case .kiro: return ["kiro-cli", "chat", "--"]
         case .custom: return program(custom: custom) == nil ? nil : custom
         }

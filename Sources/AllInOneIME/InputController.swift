@@ -56,9 +56,15 @@ enum CommandUsageStore {
     static var usage: CommandUsage = {
         guard let data = UserDefaults.standard.data(forKey: key),
               var usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
-        usage.migrateRenamed(from: "claude", to: "agent")  // 0.6.5: @agent is @agent now
+        // 0.6.5: @claude is @agent now. Once: a command of the user's own may be named "claude" afterwards.
+        if !UserDefaults.standard.bool(forKey: renamedKey) {
+            usage.migrateRenamed(from: "claude", to: "agent")
+            UserDefaults.standard.set(true, forKey: renamedKey)
+            if let data = try? JSONEncoder().encode(usage) { UserDefaults.standard.set(data, forKey: key) }
+        }
         return usage
     }()
+    private static let renamedKey = "commandUsageRenamedClaudeToAgent"
 
     static func save(_ new: CommandUsage) {
         usage = new

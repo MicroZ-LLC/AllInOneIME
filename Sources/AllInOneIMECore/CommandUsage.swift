@@ -19,7 +19,7 @@ public struct CommandUsage: Codable, Equatable, Sendable {
         return entry.score * pow(0.5, max(now.timeIntervalSince(entry.last), 0) / Self.halfLife)
     }
 
-    /// A built-in command took a new name (`@agent` → `@agent`): its use counts under the new one, once (a score
+    /// A built-in command took a new name (`@claude` → `@agent`): its use counts under the new one, once (a score
     /// already kept under `to` stays as it is).
     public mutating func migrateRenamed(from old: String, to new: String) {
         guard let entry = entries.removeValue(forKey: old), entries[new] == nil else { return }

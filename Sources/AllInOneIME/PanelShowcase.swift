@@ -124,7 +124,8 @@ enum PanelShowcase {
 /// `settings-<page>.png`, from the config file as it is (nothing is saved), with sample apps and hidden words.
 @MainActor
 enum SettingsPageImages {
-    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil) -> Never {
+    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil,
+                    agent: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -153,6 +154,13 @@ enum SettingsPageImages {
             model.config.findRaycastScripts = paths.count > 1
             model.config.hiddenExtensionFolders = []
             LiveExtensions.shownFound = Array(paths.dropFirst())
+        }
+        // `@agent` handing the text to another agent (`agent=gemini`, `agent=custom:muse --`).
+        if let agent {
+            let (kind, command) = agent.firstIndex(of: ":").map { (String(agent[..<$0]), String(agent[agent.index(after: $0)...])) }
+                ?? (agent, "")
+            model.config.agent = AgentKind(rawValue: kind) ?? .claude
+            model.config.agentCommand = CustomCommand.arguments(fromCommandLine: command) ?? []
         }
         // The Updates card in a state of its own (nothing is checked or downloaded).
         if let update {

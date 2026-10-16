@@ -5,7 +5,7 @@ import Testing
 struct AgentKindTests {
     @Test func eachAgentsProgramAndArguments() {
         #expect(AgentKind.claude.terminalArguments() == ["claude", "--"] && AgentKind.claude.program() == "claude")
-        #expect(AgentKind.gemini.terminalArguments() == ["gemini", "--"] && AgentKind.gemini.program() == "gemini")
+        #expect(AgentKind.gemini.terminalArguments() == ["gemini", "-i"] && AgentKind.gemini.program() == "gemini")
         #expect(AgentKind.kiro.terminalArguments() == ["kiro-cli", "chat", "--"] && AgentKind.kiro.program() == "kiro-cli")
         #expect(AgentKind.custom.terminalArguments(custom: ["/opt/bin/muse", "--"]) == ["/opt/bin/muse", "--"])
         #expect(AgentKind.custom.displayName(custom: ["/opt/bin/muse", "--"]) == "muse")

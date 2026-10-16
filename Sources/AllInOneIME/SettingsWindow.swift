@@ -979,8 +979,9 @@ struct SettingsView: View {
             }
             if model.config.agent == .custom {
                 // Words as a custom terminal command's; the text you type is added as the last argument.
-                TextField(tr("命令", "Command"), text: $agentCommandLine,
-                          prompt: Text(tr("例如 ", "e.g. ") + "muse --"))
+                TextField(text: $agentCommandLine, prompt: Text(tr("例如 ", "e.g. ") + "muse --")) {
+                    titled(tr("命令", "Command"), tr("你打的字加在最后，作为最后一个参数。", "What you typed is added as its last argument."))
+                }
                     .onAppear { agentCommandLine = CustomCommand.commandLine(model.config.agentCommand) }
                     .onChange(of: agentCommandLine) {
                         let argv = CustomCommand.arguments(fromCommandLine: agentCommandLine) ?? []
@@ -991,8 +992,8 @@ struct SettingsView: View {
                 titled(tr("@agent 在后台运行，做完通知我", "@agent runs in the background and notifies me"),
                        model.config.agent.supportsBackground
                            ? tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk.")
-                           : tr("只有 Claude Code 能在后台运行；\(agentTitle(model.config.agent)) 总在终端打开。",
-                                "Only Claude Code runs in the background; \(agentTitle(model.config.agent)) always opens in Terminal."))
+                           : tr("只有 Claude Code 能在后台运行；\(UIText.agentName(model.config)) 总在终端打开。",
+                                "Only Claude Code runs in the background; \(UIText.agentName(model.config)) always opens in Terminal."))
             }
             .disabled(!model.config.agent.supportsBackground)
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
@@ -1571,8 +1572,9 @@ struct SettingsView: View {
     /// A row's title with a short explanation under it, as System Settings shows them.
     /// An agent's name in the picker: a custom one without a command is "自定义" / "Custom".
     private func agentTitle(_ kind: AgentKind) -> String {
-        kind == .custom && kind.program(custom: model.config.agentCommand) == nil
-            ? tr("自定义", "Custom") : kind.displayName(custom: kind == .custom ? model.config.agentCommand : [])
+        guard kind == .custom else { return kind.displayName() }
+        return kind.program(custom: model.config.agentCommand) == nil
+            ? tr("自定义", "Custom") : tr("自定义：", "Custom: ") + kind.displayName(custom: model.config.agentCommand)
     }
 
     private func titled(_ title: String, _ note: String) -> some View {
