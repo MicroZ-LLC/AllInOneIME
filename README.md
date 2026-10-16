@@ -79,7 +79,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background and notifies me" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
-| `@config` | Changes settings as you describe them: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎ shows the changes, old → new; ⏎ (or 1) applies them, Esc cancels, typing more refines them; ⌘Z or `@config undo` puts them back. See [Settings by describing them](#settings-by-describing-them-new) |
+| `@config` | Changes settings as you describe them: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎ shows the changes, old → new; ⏎ (or 1) applies them, Esc cancels, type more and press ⇧⏎ to refine them; ⌘Z or `@config undo` puts them back. See [Settings by describing them](#settings-by-describing-them-new) |
 | `@doctor` | Checks your setup on this Mac and fixes what it safely can: ⏎ lists the results, problems first; a digit fixes that one, ⏎ the safe ones, through `@config`'s preview. `@doctor why doesn't translate work` also has the AI explain the likely cause. See [Checking your setup](#checking-your-setup-new) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
 | `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
@@ -365,7 +365,8 @@ something, never naming them.
 `@config candidates in a column`, `@config turn off the typos`, `@config use Claude`. ⏎ shows the changes in the candidate
 panel, a row each, old → new, with the labels Settings uses ("Translation languages: English, Japanese → English, French",
 "Apps · WeChat · Starts in: Same as everywhere → Chinese"); nothing is changed or typed yet. ⏎ (or 1) applies them all, Esc
-cancels, and typing more refines the proposal ("also German"). Once applied, ⌘Z while the confirmation is up, or
+cancels, and typing more then ⇧⏎ refines the proposal ("also German"; ⇧⏎ with nothing typed does nothing, and
+⏎ applies the proposal shown). Once applied, ⌘Z while the confirmation is up, or
 `@config undo` within the next 10 minutes, puts back exactly the values those settings had.
 
 - **What it can change:** the translation and input languages (and the default one), the rewrite styles, the candidate
@@ -404,7 +405,8 @@ Opening a System Settings pane, downloading a language pack and Settings' key fi
 changes undo like `@config`'s (⌘Z, `@config undo`). No fix deletes your data or touches a key.
 
 `@doctor <question>` (`@doctor why doesn't translate work`) runs the checks, then the AI explains the likely cause from
-their results and suggests fixes, which ⏎ then applies. On Apple Intelligence when this Mac has it, which calls the checks
+their results and marks the fixes it suggests (⏎ still applies only the safe ones; the others by their number). In an
+app with No AI the checks still run and only the question is refused. On Apple Intelligence when this Mac has it, which calls the checks
 it needs as tools; otherwise your provider, and the panel says so. Only the check results (no paths beyond `~`, no keys,
 none of your text) and your question are sent; the checks alone send nothing.
 
