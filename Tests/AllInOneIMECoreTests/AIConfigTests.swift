@@ -353,6 +353,36 @@ struct AIConfigTests {
         #expect((try? AIConfig.parse(canonical))?.changes == [.init(key: .app("WeChat", .inputLanguage), value: .string("zh"))])
     }
 
+    /// "In a row" and the other ways to say it are the candidate layout, unmistakably, for the small on-device model too
+    /// (it made nothing of "candidates in a row" now and then): in the examples, the setting's line and, held to the
+    /// schema, the description of the value it writes.
+    @Test func theCandidateLayoutIsUnmistakable() {
+        for compact in [false, true] {
+            let system = AIConfigPrompt.request("candidates in a row", context: .init(config: config), compact: compact)
+                .system.map(\.text).joined()
+            #expect(system.contains(#""candidates in a row", "side by side", "horizontal candidates", "候选横排" → {"changes": [{"key": "candidateLayout", "value": "horizontal"}]}"#))
+            #expect(system.contains(#""candidates in a column", "one under the other", "vertical candidates", "候选竖排" → {"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#))
+            #expect(system.contains(#""horizontal" in a row (side by side, 横排)"#) && system.contains(#""vertical" in a column (one under the other, 竖排)"#))
+        }
+        guard case let .object(_, properties) = AIConfigPrompt.schema(.init(config: config)),
+              case let .array(.choice(_, choices), _, _)? = properties.first?.schema else {
+            Issue.record("not a list of choices")
+            return
+        }
+        let layout = choices.compactMap { choice -> [GuidedSchema.Property]? in
+            if case let .object(name, fields) = choice, name == "CandidateLayout" { return fields } else { return nil }
+        }.first
+        let value = layout?.first { $0.name == "value" }
+        #expect(value?.schema == .strings(name: "Layout", ["vertical", "horizontal"]))
+        #expect(value?.description.map { ["horizontal", "in a row", "side by side", "横排", "vertical", "in a column", "竖排"].allSatisfy($0.contains) } == true)
+        // No other value carries a meaning: the rest of the schema is as it was.
+        let described = choices.flatMap { choice -> [String] in
+            guard case let .object(name, fields) = choice else { return [] }
+            return fields.filter { $0.name == "value" && $0.description != nil }.map { _ in name }
+        }
+        #expect(described == ["CandidateLayout"])
+    }
+
     // MARK: - The request
 
     final class GuidedStub: AppleGuidedBackend, @unchecked Sendable {
