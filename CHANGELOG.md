@@ -2,6 +2,20 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Added
+
+- `@question` conversations: once an answer is in, type the next question and press ⇧⏎. The panel grows into the conversation, earlier rounds dimmed as Q / A rows and the next question's line on top with its round ("question 2/5 › …"); it grows to about half the screen, then scrolls. Every round's answer can be inserted (its digit 1–5, ↑↓ then ⏎, a click; the latest is selected) and ⌘C copies the selected one; Esc clears what you typed, then goes back one round. Each follow-up is sent as a normal conversation (the questions and answers so far, then the new question); the first question is sent exactly as before. With Apple Intelligence on this Mac a long conversation is fitted into its small context (older answers shortened, then the oldest rounds left out) and the panel says "earlier rounds shortened". Up to 5 rounds (`questionRounds` in the config, 2–10).
+- Continue an `@question` conversation in Claude or another AI: after the last round the next question's line becomes "5 rounds in: continue in Claude or another AI", and ⌘⏎ shows the same choices at any round. ⌘1, ⌘2 … pick Claude Code (an interactive session in Terminal, when the `claude` command is installed), Claude or ChatGPT on the web (the conversation filled in, or on the clipboard when it's long), Gemini on the web (on the clipboard), or copying the conversation as Markdown; what you type then is the first message there. Which ones and in which order: Settings → General → "Continue a conversation in" (`questionContinueIn`). The conversation goes, as shown, only to the service you pick.
+- Recent questions keep a whole conversation under its first question, and picking it shows its rounds to go on with; files from 0.6.3 load as before.
+
+### Changed
+
+- ⇧⏎ sends a follow-up or a refine; ⏎ always inserts. After AI results, what you type goes into a follow-up line (the next question after `@question`, an instruction after `@improve`, a prompt command or the rewrite of a selection), and ⇧⏎ sends it; ⏎ inserts the selected result, also with a follow-up half typed. With nothing typed, ⇧⏎ inserts what you typed as is, as everywhere.
+- `@translate` no longer refines: type to edit the text and translate again (letters after its results continue the sentence, ⏎ translates it).
+- `@question` no longer makes up live information: asked about the weather, news, prices, scores or anything "today", it says it can't check live data and gives what general guidance it can.
+
 ## 0.6.3 (2026-10-15)
 
 ### Fixed
