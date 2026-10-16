@@ -358,6 +358,36 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Whether letters go straight into the text view (English) or into pinyin, asked by typing "a" into an empty text
+    /// view and taking it back; nil if neither happened. Leaves the text view empty.
+    func typesEnglish() -> Bool? {
+        textView.string = ""
+        type("a")
+        _ = waitUntil(2) { !self.marked.isEmpty || !self.committed.isEmpty }
+        let english: Bool? = !marked.isEmpty ? false : committed == "a" ? true : nil
+        reset()
+        textView.string = ""
+        return english
+    }
+
+    /// English or Chinese (pinyin) as asked: Shift only when the field isn't in it already (a tap toggles, so it isn't
+    /// taken on trust). Whether the field is in it now.
+    func switchTo(english: Bool) -> Bool {
+        for _ in 0..<3 {
+            guard let now = typesEnglish() else { return false }
+            if now == english { return true }
+            tapShift()
+            pump(0.3)
+        }
+        return typesEnglish() == english
+    }
+
+    /// The candidate panel is up (one of the input method's windows, not the menu bar icon).
+    func imePanelShown() -> Bool {
+        let top = NSScreen.screens.first.map { $0.frame.maxY - 40 } ?? .greatestFiniteMagnitude
+        return imePanelFrames().contains { $0.maxY < top }
+    }
+
     /// The input method's action key (config `actionKey`): Return unless set otherwise.
     lazy var actionKey = configValue("actionKey") as? String ?? "enter"
 
@@ -386,6 +416,10 @@ final class Harness: NSObject, NSApplicationDelegate {
     }
 
     static func hasHan(_ s: String) -> Bool { s.unicodeScalars.contains { $0.properties.isIdeographic } }
+    /// Hiragana or katakana (half-width too): Japanese, which shares its Han characters with Chinese.
+    static func hasKana(_ s: String) -> Bool {
+        s.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x31F0...0x31FF).contains($0.value) || (0xFF66...0xFF9D).contains($0.value) }
+    }
     static func looksEnglish(_ s: String) -> Bool {
         !s.isEmpty && !hasHan(s) && s.unicodeScalars.filter { CharacterSet.letters.contains($0) && $0.isASCII }.count >= 3
     }
@@ -427,6 +461,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     func finish() -> Never {
         (skipping, inSection) = (nil, false)
         reset()
+        finishing = true
         restoreConfig()
         restoreQuestions()
         if let extensionFolder { try? FileManager.default.removeItem(at: extensionFolder) }
@@ -1243,8 +1278,9 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     /// 7d. `@config` (live: the on-device model if this Mac has it, else the configured provider): "candidates in a row"
     ///     shows its preview, ⏎ applies it to the config file (the test's config has them in a column) and nothing is
-    ///     inserted; ⌘Z on the confirmation puts the column back (else `@config undo`). The config is the test's own,
-    ///     restored after like every section's.
+    ///     inserted; ⌘Z on the confirmation puts the column back (else `@config undo`). The config is the test's own.
+    ///     English is asked of the field before the sentence is typed, and a draft that isn't exactly the sentence is
+    ///     given up unsent; ⏎ stops once the changes are applied (the input method's log) or the preview is gone.
     func aiConfig() {
         section("@config: candidates in a row, and undo (live)")
         guard setConfig({ $0["candidateLayout"] = "vertical" }) else {
@@ -1254,23 +1290,49 @@ final class Harness: NSObject, NSApplicationDelegate {
         reset()
         textView.string = ""
         func layout() -> String? { configValue("candidateLayout") as? String }
-        tapShift()  // English: the sentence is typed as letters
+        // English (the sentence is typed as letters), asked of the field, not taken on trust from a Shift tap.
+        let wasEnglish = typesEnglish()
+        guard switchTo(english: true) else {
+            check(false, "@config: letters can't be typed as English here (nothing sent)")
+            return
+        }
+        defer { _ = switchTo(english: wasEnglish ?? false) }
         command("conf")
         type("candidates in a row")
-        check(waitUntil(2) { self.marked == "config › candidates in a row" }, "@config drafted (\(marked))")
+        // Anything else in the draft (a letter lost, pinyin) would be sent as it is: give the section up instead.
+        let drafted = waitUntil(2) { self.marked == "config › candidates in a row" }
+        check(drafted, "@config drafted (\(marked))")
+        guard drafted else {
+            reset()
+            textView.string = ""
+            return
+        }
+        let requests = RequestLog.start(prefix: "@config")
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
+        defer { requests?.stop() }
+        let mark = requests?.count ?? 0
         let started = Date()
         act()
-        // ⏎ while the request runs does nothing; once the preview is up it applies it.
-        let applied = waitUntil(45) {
-            if layout() != "horizontal" { self.enter(); self.pump(1.5) }
-            return layout() == "horizontal"
+        // ⏎ while the request runs does nothing; once the preview is up it applies it. No more ⏎ once the input method
+        // says the changes were applied, or its panel (the preview) is gone: another would close the confirmation, and
+        // the next would type a new line into the text view.
+        var panelSeen = false
+        _ = waitUntil(45) {
+            if !(requests?.lines(after: mark, containing: "changes applied").isEmpty ?? true) || layout() == "horizontal" { return true }
+            let shown = self.imePanelShown()
+            if panelSeen, !shown { return true }
+            panelSeen = panelSeen || shown
+            self.enter()
+            self.pump(1.5)
+            return false
         }
+        let applied = waitUntil(3) { layout() == "horizontal" }
         check(applied && committed.isEmpty,
               String(format: "the preview, then ⏎ writes candidateLayout = horizontal after %.1fs; nothing inserted ('%@')",
                      Date().timeIntervalSince(started), committed))
         guard applied else {
             reset()
-            tapShift()
+            textView.string = ""
             return
         }
         key("z", keyCodes["z"]!, .command)
@@ -1286,7 +1348,6 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(undone && committed.isEmpty && marked.isEmpty, "undo puts the column back (\(layout() ?? "-")), nothing inserted")
         reset()
         textView.string = ""
-        tapShift()  // back to Chinese
     }
 
     /// 7e. `@doctor`: its checks run on this Mac (nothing sent) and find the input method installed and enabled (✓, read
@@ -1316,13 +1377,15 @@ final class Harness: NSObject, NSApplicationDelegate {
     }
 
     /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
-    ///    through the input languages in order. The config gets them for the test and is restored after.
+    ///    through the input languages in order. The config gets them for the section, and the test's languages back after.
     func frenchAndKorean() {
         section("French (AZERTY), Korean, Hindi")
+        let before = configValues(["inputLanguages", "defaultInput", "keyboardLayouts"])
         guard addTestLanguages() else {
             check(false, "config file readable, to add French and Korean for the test")
             return
         }
+        defer { putBack(before) }
         // The text field again, so the input method reads the languages and starts in French (the default).
         window.makeFirstResponder(nil)
         pump(0.5)
@@ -1361,8 +1424,9 @@ final class Harness: NSObject, NSApplicationDelegate {
                 return !self.committed.isEmpty
             }
             let line = committed
+            // The Chinese line: Han characters, and no kana (a Japanese line has Han characters too).
             check(inserted && marked.isEmpty
-                  && (english ? Self.looksEnglish(line) : Self.hasHan(line) && !Self.hasLatinLetter(line) && !line.contains("요")),
+                  && (english ? Self.looksEnglish(line) : Self.hasHan(line) && !Self.hasKana(line) && !Self.hasLatinLetter(line) && !line.contains("요")),
                   "@translate from Korean: \(digit) inserts the \(english ? "English" : "Chinese") line: '\(line)'")
             reset()
         }
@@ -1385,7 +1449,6 @@ final class Harness: NSObject, NSApplicationDelegate {
         textView.string = ""
         type("q")
         check(waitUntil(2) { self.committed == "q" }, "Shift again: English, the system's layout ('\(committed)')")
-        restoreConfig()
     }
 
     /// 6c. `@question`'s recent questions (live Bedrock): a question asked is kept in the file; "@question " lists it,
@@ -1445,9 +1508,10 @@ final class Harness: NSObject, NSApplicationDelegate {
     ///     input method's log says so) while the panel grows; with `questionRounds` 2 in the test's config the row of where
     ///     to go on is then up, and its copy choice (⌘1 here: `questionContinueIn` ["copy", "chatgpt"]) puts the
     ///     conversation on the clipboard in Markdown, nothing inserted. Nothing is handed to Claude or a browser; the
-    ///     user's clipboard and config are put back, and nothing is kept in the recent questions.
+    ///     user's clipboard and the three keys it set are put back, and nothing is kept in the recent questions.
     func questionConversation() {
         section("@question: a conversation (live Bedrock)")
+        let before = configValues(["questionRounds", "questionContinueIn", "rememberQuestions"])
         _ = setConfig {
             $0["questionRounds"] = 2
             $0["questionContinueIn"] = ["copy", "chatgpt"]
@@ -1461,7 +1525,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             reset()
             textView.string = ""
             tapShift()  // back to Chinese
-            restoreConfig()
+            putBack(before)  // only these: the rest stays the test's (the user's comes back in `finish`)
         }
         reset()
         textView.string = ""
@@ -1560,7 +1624,26 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The values `keys` have now (nil: not set), for `putBack` after a section that changes them.
+    func configValues(_ keys: [String]) -> [(key: String, value: Any?)] { keys.map { ($0, configValue($0)) } }
+
+    /// Puts back what `configValues` read (a key that wasn't set is removed again); the rest stays the test's.
+    func putBack(_ values: [(key: String, value: Any?)]) {
+        _ = setConfig { json in for (key, value) in values { json[key] = value } }
+    }
+
+    /// Set by `finish`, the only place the user's own config comes back: back any earlier, every section after it would
+    /// run on the user's settings (their provider, languages, default input), not the test's.
+    var finishing = false
+
     func restoreConfig() {
+        guard finishing else {
+            // A bug in the test, not in the input method: fail loudly, whatever the section's state, and keep the test's config.
+            print("✗ restoreConfig() before finish(): a section must put back only the keys it changed (`putBack`)")
+            fflush(stdout)
+            failures += 1
+            return
+        }
         guard let savedConfig else { return }
         try? savedConfig.write(to: Self.configURL, options: .atomic)
         try? FileManager.default.removeItem(at: configBackupFile)
