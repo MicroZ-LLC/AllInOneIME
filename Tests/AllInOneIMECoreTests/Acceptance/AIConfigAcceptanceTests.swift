@@ -210,12 +210,15 @@ enum AIC {
 
     static func env(chinese: Bool = false, missingPacks: Set<Language> = [], hasKey: Set<Provider> = [],
                     offered: [Provider] = [.bedrock, .anthropic, .gemini, .openai],
-                    profiles: [String] = ["default", "work"]) -> AIConfig.Environment {
+                    profiles: [String] = ["default", "work"], typed: String = "") -> AIConfig.Environment {
         AIConfig.Environment(
             packInstalled: { !missingPacks.contains($0) }, apps: apps, awsProfiles: { profiles },
             knownModels: { models[$0] ?? [] }, offeredProviders: offered,
-            hasKey: { hasKey.contains($0) }, chinese: chinese)
+            hasKey: { hasKey.contains($0) }, chinese: chinese, typedText: typed)
     }
+
+    /// A sentence naming a base URL's host (a new one must have been typed, or be a known service's).
+    static let typedURL = "use my own server at https://api.example.com/v1"
 
     static func context(_ config: Config, env: AIConfig.Environment = env()) -> AIConfigPrompt.Context {
         AIConfigPrompt.Context(config: config, knownModels: models, awsProfiles: env.awsProfiles(),
@@ -384,6 +387,8 @@ final class AICRig {
             return
         }
         let config = self.config
+        var env = self.env
+        env.typedText = ([keys.text] + turns.map { AIConfig.droppingKeys($0.instruction).text }).joined(separator: "\n")
         do {
             let tools = AIConfigService.Tools(
                 findApps: { [apps = env.apps] in apps.search($0).map { "\($0.name): \($0.bundleID)" }.joined(separator: "\n") },
@@ -431,13 +436,13 @@ final class AICRig {
     /// As `undoConfig`.
     func undo() {
         let text = AIConfig.Text(chinese: env.chinese)
-        guard let applied = lastApplied, (try? AIConfig.undo(applied, at: url, now: now)) == true else {
+        guard let applied = lastApplied, let report = try? AIConfig.undoing(applied, at: url, now: now) else {
             lastApplied = nil
             notices.append(text.nothingToUndo)
             return
         }
         lastApplied = nil
-        notices.append(text.undone)
+        notices.append(text.undone(skipped: report.skipped))
     }
 
     /// The rows shown.
@@ -451,7 +456,7 @@ struct AIConfigAcceptanceTests {
 
     /// Every allowed setting (and every app field) can be changed, and applying it changes exactly that setting.
     @Test func allow_everyAllowedSettingWorks() throws {
-        let env = AIC.env(hasKey: Set(Provider.allCases))
+        let env = AIC.env(hasKey: Set(Provider.allCases), typed: AIC.typedURL)
         typealias Case = (key: String, value: Any, check: (Config) -> Bool)
         let cases: [Case] = [
             ("outputLanguages", ["en", "fr"], { $0.outputLanguages == [.english, OutputLanguage("fr")] }),
@@ -750,6 +755,225 @@ struct AIConfigAcceptanceTests {
         }
     }
 
+    /// Sign-off rule: a new base URL whose host the user never typed (and that isn't a known service) is refused with
+    /// "type the address yourself": the model can't send the key-bearing requests somewhere the user didn't name.
+    @Test func prov_baseURLUnknownHostNotTypedRefused() throws {
+        for chinese in [false, true] {
+            for typed in ["", "use an OpenAI-compatible service", "use my server at https://other.example.org/v1"] {
+                let env = AIC.env(chinese: chinese, typed: typed)
+                let proposal = try AIConfig.parse(AIC.answer([("openai.baseURL", "https://llm.attacker.example/v1"), ("typeOut", true)]))
+                let preview = try AIConfig.preview(proposal, config: AIC.base, environment: env).get()
+                let row = try #require(preview.rows.first { $0.key == "openai.baseURL" })
+                #expect(row.isRefused && row.edit == nil, "typed: \(typed)")
+                let line = row.text(chinese: chinese)
+                #expect(chinese ? line.contains("请自己输入这个地址") : line.contains("type the address yourself"), "\(line)")
+                #expect(preview.edits == [.flag(.typeOut, true)])
+            }
+        }
+    }
+
+    /// Edge: the host must be the one typed, not a part of it ("llm.example.com" inside "myllm.example.com").
+    @Test func prov_baseURLHostOnlyInsideATypedHostRefused() throws {
+        let env = AIC.env(typed: "use my server at https://myllm.example.com/v1")
+        #expect(try AIC.preview([("openai.baseURL", "https://llm.example.com/v1")], env: env) == .failure(.notAllowed))
+        let other = AIC.env(typed: "point it at https://api.example.com.mine.dev/v1")
+        #expect(try AIC.preview([("openai.baseURL", "https://api.example.com/v1")], env: other) == .failure(.notAllowed))
+    }
+
+    /// A host the user typed (in the sentence, or a refine's line) is accepted.
+    @Test func prov_baseURLTypedHostAccepted() async throws {
+        let url = "https://llm.mycompany.example/v1"
+        let env = AIC.env(typed: "point it at \(url) please")
+        #expect(try AIC.preview([("openai.baseURL", url)], env: env).get().edits == [.baseURL(url)])
+        #expect(try AIC.preview([("openai.baseURL", "https://LLM.MyCompany.example/v1")], env: env).get().edits.count == 1)
+        // Through the panel: typed in the sentence, then in a refine's line.
+        let answer = AIC.answer([("openai.baseURL", url)])
+        let rig = try AICRig(apple: AICAppleStub([answer]))
+        await rig.run("use llm.mycompany.example as the base URL")
+        #expect(rig.previews.last?.edits == [.baseURL(url)], "\(rig.rows)")
+        await rig.key(enterKey)
+        #expect(rig.config.openai.baseURL == url)
+        let refined = try AICRig(apple: AICAppleStub([AIC.answer([("typeOut", true)]), answer]))
+        await refined.run("type results out")
+        await refined.type("and use llm.mycompany.example")
+        await refined.key(acceptanceShiftReturn)
+        #expect(refined.previews.last?.edits == [.baseURL(url)], "\(refined.rows)")
+    }
+
+    /// A known service's host (Settings' list) needs no typing.
+    @Test func prov_baseURLKnownServiceAccepted() throws {
+        for url in ["https://api.deepseek.com/v1", "https://openrouter.ai/api/v1", "https://api.moonshot.cn/v1"] {
+            #expect(try AIC.preview([("openai.baseURL", url)], env: AIC.env(typed: "")).get().edits == [.baseURL(url)], "\(url)")
+        }
+        #expect(AIConfig.compatibleHosts.contains("api.deepseek.com"))
+    }
+
+    /// Credentials or a key in the URL are refused, as before, even with the host typed or known; the key isn't shown.
+    @Test func prov_baseURLWithCredentialsOrAQueryKeyRefused() throws {
+        let urls = ["https://user:hunter2@api.deepseek.com/v1", "https://user@api.deepseek.com/v1",
+                    "https://api.deepseek.com/v1?api_key=\(AIC.claudeKey)", "https://api.deepseek.com/v1?key=\(AIC.geminiKey)",
+                    "https://llm.mycompany.example/v1?token=\(AIC.claudeKey)"]
+        for url in urls {
+            let env = AIC.env(typed: "use \(url)")
+            let proposal = try AIConfig.parse(AIC.answer([("openai.baseURL", url)]))
+            #expect(AIConfig.preview(proposal, config: AIC.base, environment: env) == .failure(.notAllowed), "\(url)")
+            for row in AIConfig.check(proposal, config: AIC.base, environment: env).rows {
+                let line = row.text(chinese: false)
+                #expect(!line.contains(AIC.claudeKey) && !line.contains(AIC.geminiKey) && !line.contains("hunter2"), "\(line)")
+            }
+        }
+    }
+
+    /// Sign-off: at most 20 words are added at a time, each one line of at most 64 characters; the rest is refused on
+    /// its own row, and the words already hidden stay.
+    @Test func valid_customWordsCapped() throws {
+        var config = AIC.base
+        config.redaction.customWords = ["Alpha"]
+        let many = (1...25).map { "Word\($0)" }
+        let preview = try AIC.preview([("redaction.customWords.add", many)], config: config).get()
+        #expect(preview.edits == [.addWords(Array(many.prefix(20)))])
+        let refused = preview.rows.filter { $0.isRefused }
+        #expect(refused.count == 1 && refused[0].text(chinese: false).contains("5"), "\(preview.rows)")
+        var after = config
+        AIConfig.apply(preview.edits, to: &after)
+        #expect(after.redaction.customWords == ["Alpha"] + many.prefix(20))
+
+        // Ordinary words (a run of one letter would look like a key, refused for that instead).
+        let fits = String(repeating: "word ", count: 12) + "abcd", long = fits + "e"
+        #expect(fits.count == 64 && long.count == 65 && !AIConfig.looksLikeKey(long))
+        let shaped = try AIC.preview([("redaction.customWords.add", ["ok", "two\nlines", long, fits])], config: config).get()
+        #expect(shaped.edits == [.addWords(["ok", fits])])
+        #expect(shaped.rows.contains { $0.isRefused })
+        #expect(try AIC.preview([("redaction.customWords.add", [long, "a\nb"])], config: config) == .failure(.notAllowed))
+        #expect(AIConfig.maxWordsAdded == 20 && AIConfig.maxWordLength == 64)
+    }
+
+    /// Sign-off: keys this version doesn't know, and the known ones @config didn't change, survive an apply and an undo
+    /// as they were in the file.
+    @Test func flow_unknownKeysSurviveApplyAndUndo() throws {
+        let url = try AIC.tempConfig()
+        let extra: [String: AIConfig.JSONValue] = [
+            "futureSetting": .object(["nested": .array([.number(1), .string("two")])]), "zzFromANewerVersion": .string("keep me"),
+            "questionRounds": .number(3),
+        ]
+        try AIConfig.patchingFile(at: url) { file in for (key, value) in extra { file[key] = value } }
+        func object() throws -> [String: AIConfig.JSONValue] {
+            let any = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+            guard case let .object(file)? = AIConfig.JSONValue(any) else { return [:] }
+            return file
+        }
+        let before = try object()
+        let applied = try AIConfig.applying([.outputLanguages([.english, OutputLanguage("fr")]), .candidateLayout(.vertical)], at: url)
+        let after = try object()
+        for (key, value) in extra { #expect(after[key] == value, "\(key) after apply") }
+        #expect(try Config.load(from: url).outputLanguages == [.english, OutputLanguage("fr")])
+        #expect(try AIConfig.undo(applied, at: url))
+        let undone = try object()
+        #expect(undone == before)
+    }
+
+    /// Sign-off: undo leaves a key changed since (in Settings, by hand) as it is, puts back the others, and says which
+    /// it left.
+    @Test func flow_undoSkipsKeysChangedSinceAndSaysSo() async throws {
+        let url = try AIC.tempConfig()
+        let t = Date(timeIntervalSince1970: 1_800_000_000)
+        let applied = try AIConfig.applying([.outputLanguages([.english, OutputLanguage("fr")]), .candidateLayout(.vertical)], at: url, now: t)
+        var changed = try Config.load(from: url)
+        changed.setOrder([OutputLanguage("de")])
+        try changed.write(to: url)
+        let report = try #require(try AIConfig.undoing(applied, at: url, now: t.addingTimeInterval(60)))
+        #expect(report.undone == 1 && report.skipped.count == 1)
+        let config = try Config.load(from: url)
+        #expect(config.outputLanguages == [OutputLanguage("de")])
+        #expect(config.candidateLayout == .horizontal)
+        let line = AIConfig.Text(chinese: false).undone(skipped: report.skipped)
+        #expect(line.contains("Translation languages") && line != AIConfig.Text(chinese: false).undone, "\(line)")
+        #expect(AIConfig.Text(chinese: true).undone(skipped: report.skipped).contains("翻译语言"))
+
+        // Through the panel: `@config undo` says so.
+        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"]), ("candidateLayout", "vertical")])]))
+        await rig.run("English and French, candidates in a column")
+        await rig.key(enterKey)
+        await rig.key(escKey)
+        var edited = rig.config
+        edited.candidateLayout = .horizontal
+        edited.typeOut = true
+        try edited.write(to: rig.url)
+        await rig.run("undo")
+        #expect(rig.config.outputLanguages == AIC.base.outputLanguages)
+        #expect(rig.config.candidateLayout == .horizontal && rig.config.typeOut)
+        #expect(rig.notices.last?.contains("Candidate layout") == true, "\(rig.notices)")
+    }
+
+    /// Sign-off: `questionRounds` and `questionContinueIn` are the config's own keys: refused here like any key off the
+    /// allowlist, not an unreadable answer.
+    @Test func allow_questionKeysAreKnownConfigKeys() throws {
+        for key in ["questionRounds", "questionContinueIn"] {
+            guard case .forbidden? = AIConfig.Key.parse(key) else { Issue.record("\(key): \(String(describing: AIConfig.Key.parse(key)))"); continue }
+            #expect(Config.allKeys.contains(key))
+        }
+        let preview = try AIC.preview([("questionRounds", 9), ("typeOut", true)]).get()
+        #expect(preview.rows.first { $0.key == "questionRounds" }?.isRefused == true)
+        #expect(preview.edits == [.flag(.typeOut, true)])
+    }
+
+    /// Sign-off: what @config may know of the AWS profiles is their names and regions, read from the files the
+    /// environment names (never a key, a token or another setting).
+    @Test func prov_awsProfilesHoldNamesAndRegionsOnly() throws {
+        let secrets = [AIC.awsKey, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "IQoJb3JpZ2luX2VjEXAMPLETOKEN",
+                       "https://my-sso-portal.awsapps.com/start", "arn:aws:iam::123456789012:role/Admin", "/usr/local/bin/get-creds"]
+        let config = """
+            [default]
+            region = us-west-2
+            output = json
+
+            [profile work]
+            region=eu-west-1
+            role_arn = \(secrets[4])
+            source_profile = default
+
+            [profile sso]
+            sso_start_url = \(secrets[3])
+            sso_region = us-east-1
+
+            [profile scripted]
+            credential_process = \(secrets[5])
+            region = ap-northeast-1
+
+            [sso-session corp]
+            sso_start_url = \(secrets[3])
+            """
+        let credentials = """
+            [default]
+            aws_access_key_id = \(secrets[0])
+            aws_secret_access_key = \(secrets[1])
+            aws_session_token = \(secrets[2])
+
+            [personal]
+            aws_access_key_id = \(secrets[0])
+            aws_secret_access_key = \(secrets[1])
+            region = us-east-2
+            """
+        let expected = [AIConfig.AWSProfile(name: "default", region: "us-west-2"), AIConfig.AWSProfile(name: "personal", region: "us-east-2"),
+                        AIConfig.AWSProfile(name: "scripted", region: "ap-northeast-1"), AIConfig.AWSProfile(name: "sso", region: nil),
+                        AIConfig.AWSProfile(name: "work", region: "eu-west-1")]
+        let profiles = AIConfig.awsProfiles(config: config, credentials: credentials)
+        #expect(Set(profiles.map(\.name)) == Set(expected.map(\.name)))
+        #expect(profiles.first?.name == "default")
+        for profile in expected { #expect(profiles.contains(profile), "\(profile)") }
+        let dump = String(describing: profiles) + String(reflecting: profiles)
+        for secret in secrets { #expect(!dump.contains(secret), "\(secret)") }
+        #expect(Mirror(reflecting: profiles[0]).children.compactMap(\.label).sorted() == ["name", "region"])
+        // The files the environment names, never ~/.aws here.
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("aic-aws-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try config.write(to: folder.appendingPathComponent("config"), atomically: true, encoding: .utf8)
+        try credentials.write(to: folder.appendingPathComponent("credentials"), atomically: true, encoding: .utf8)
+        let fromFiles = AIConfig.awsProfiles(environment: ["AWS_CONFIG_FILE": folder.appendingPathComponent("config").path,
+                                                           "AWS_SHARED_CREDENTIALS_FILE": folder.appendingPathComponent("credentials").path])
+        #expect(fromFiles == profiles)
+    }
+
     /// A provider that needs a key it hasn't got: a row says the key is entered in Settings (never sent to the AI),
     /// and applying opens the key field; with the key saved, no such row.
     @Test func prov_needsKeyRowOpensTheKeyField() async throws {
@@ -840,7 +1064,7 @@ struct AIConfigAcceptanceTests {
     /// other changes.
     @Test func prov_testConnectionAfterAProviderChange() async throws {
         for (key, value) in [("provider", "openai"), ("awsProfile", "work"), ("region", "eu-west-1"),
-                             ("modelId", AIC.bedrockModels[1]), ("openai.baseURL", "https://api.example.com/v1")] as [(String, Any)] {
+                             ("modelId", AIC.bedrockModels[1]), ("openai.baseURL", "https://api.deepseek.com/v1")] as [(String, Any)] {
             #expect(try AIC.preview([(key, value)], env: AIC.env(hasKey: [.openai])).get().changesProvider, "\(key)")
         }
         #expect(try AIC.preview([("candidateLayout", "vertical")]).get().changesProvider == false)
@@ -1206,7 +1430,7 @@ struct AIConfigAcceptanceTests {
         var start = AIC.base
         start.appProfiles = ["com.apple.mail": AppProfile(rewriteStyles: ["正式"])]
         start.redaction.customWords = ["Alpha"]
-        let env = AIC.env(hasKey: Set(Provider.allCases))
+        let env = AIC.env(hasKey: Set(Provider.allCases), typed: AIC.typedURL)
         let changes: [(String, Any)] = [
             ("outputLanguages", ["fr"]), ("inputLanguages", ["en", "zh", "fr"]), ("defaultInput", "fr"),
             ("rewriteStyles", []), ("candidateLayout", "vertical"), ("typeOut", true), ("typeOutRate", 0.5),

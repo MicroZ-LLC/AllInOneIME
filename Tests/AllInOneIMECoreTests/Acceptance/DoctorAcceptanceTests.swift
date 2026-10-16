@@ -586,6 +586,108 @@ struct DoctorAcceptanceTests {
         #expect(preview?.edits.isEmpty ?? true)
     }
 
+    /// Sign-off: @doctor's repairs keep the rest of the file: keys this version doesn't know survive a settings repair
+    /// (through @config's apply and undo) and the removal of repeated languages, which changes nothing else.
+    @Test func fix_unknownKeysSurviveRepairs() throws {
+        var start = AIC.base
+        start.typeOutRate = 100
+        let url = try AIC.tempConfig(start)
+        let extra: [String: AIConfig.JSONValue] = ["futureSetting": .object(["a": .array([.number(1), .bool(true)])]),
+                                                   "zzFromANewerVersion": .string("keep me"), "questionRounds": .number(3)]
+        try AIConfig.patchingFile(at: url) { file in
+            for (key, value) in extra { file[key] = value }
+            file["outputLanguages"] = .array([.string("en"), .string("ja"), .string("en"), .string("zh")])
+        }
+        func object() throws -> [String: AIConfig.JSONValue] {
+            let any = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+            guard case let .object(file)? = AIConfig.JSONValue(any) else { return [:] }
+            return file
+        }
+        let data = try Data(contentsOf: url)
+        var facts = Doc.healthy
+        facts.config = try Config.load(from: url)
+        facts.configData = data
+        let findings = Doctor.findings(facts, chinese: false)
+        let repair = try #require(findings.compactMap(\.fix).first { if case .repairConfig = $0 { return true } else { return false } })
+        #expect(findings.contains { $0.fix == .resaveConfig })
+
+        // The speed repaired through @config's preview, apply and undo.
+        let before = try object()
+        let preview = try #require(Doctor.fixPreview([repair], config: facts.config!, environment: AIC.env()))
+        let applied = try AIConfig.applying(preview.edits, at: url)
+        var after = try object()
+        for (key, value) in extra { #expect(after[key] == value, "\(key) after the repair") }
+        #expect(after["typeOutRate"] == .number(TypeOut.defaultRate))
+        #expect(try AIConfig.undo(applied, at: url))
+        #expect(try object() == before)
+
+        // The repeated languages taken out, nothing else.
+        try Doctor.removeRepeatedLanguages(at: url)
+        after = try object()
+        #expect(after["outputLanguages"] == .array([.string("en"), .string("ja"), .string("zh")]))
+        var expected = before
+        expected["outputLanguages"] = after["outputLanguages"]
+        #expect(after == expected)
+    }
+
+    /// Sign-off: `questionRounds` and `questionContinueIn` are the config's own keys, not "keys this version doesn't know".
+    @Test func config_questionKeysAreKnown() {
+        #expect(Doctor.knownConfigKeys.isSuperset(of: ["questionRounds", "questionContinueIn"]))
+        var facts = Doc.healthy
+        var object = (try? JSONSerialization.jsonObject(with: facts.configData!) as? [String: Any]) ?? [:]
+        object["questionRounds"] = 4
+        object["questionContinueIn"] = ["notes"]
+        facts.configData = try? JSONSerialization.data(withJSONObject: object)
+        let config = Doc.findings(facts, .config)
+        #expect(config.map(\.status) == [.ok], "\(config.map { $0.text(chinese: false) })")
+    }
+
+    /// Sign-off: after a fix that wrote no settings (the input method enabled again), ⌘Z isn't offered: it doesn't undo
+    /// an older @config change either.
+    @Test func fix_commandZNotOfferedAfterAFixThatWroteNoSettings() async throws {
+        var facts = Doc.healthy
+        facts.inputMethod.enabled = false
+        let rig = try DocRig(facts)
+        // An earlier @config change, still within its ten minutes.
+        rig.lastApplied = try AIConfig.applying([.candidateLayout(.vertical)], at: rig.url, now: rig.now)
+        let written = try AIC.bytes(rig.url)
+        await rig.run()
+        await rig.key(enterKey)  // the safe fixes: enable the input method
+        #expect(rig.rows.count == 1 && rig.rows[0].hasPrefix("→"), "\(rig.rows)")
+        await rig.key(enterKey)
+        #expect(rig.actions == [.enableInputMethod])
+        #expect(rig.c.configState.applied != nil && rig.c.configState.writesSettings == false)
+        let effects = await rig.key(docCommandZ)
+        #expect(!effects.contains(.undoConfig))
+        #expect(try AIC.bytes(rig.url) == written)
+        #expect(rig.config.candidateLayout == .vertical)
+    }
+
+    /// Sign-off: every absolute path in the findings, and in the report the model gets, is masked: ~ for the home
+    /// folder, "…/<last component>" for any other; web addresses stay as they are.
+    @Test func ask_allAbsolutePathsMasked() {
+        let home = NSHomeDirectory()
+        var facts = Doc.broken
+        facts.skippedExtensions = ["/Volumes/Work Drive/Secret Project/ext/weather.sh: no @raycast.title"]
+        facts.pluginErrors = ["/opt/homebrew/share/aio/plugins/broken: manifest.json can't be read"]
+        facts.updates.lastError = "couldn't move /private/var/folders/xy/T/AllInOneIME.zip"
+        facts.recentErrors = ["failed to load \(home)/Library/Rime/user.dict.yaml"]
+        facts.connection = .failed("could not reach https://api.deepseek.com/v1/chat/completions")
+        var unreadable = Doctor.Facts()
+        unreadable.configError = "/etc/allinoneime/team/config.json: not valid JSON"
+        let hidden = ["/Volumes", "Work Drive", "Secret Project", "/opt/homebrew", "/private/var", "folders/xy", home, "/etc/allinoneime"]
+        for facts in [facts, unreadable] {
+            let findings = Doctor.findings(facts, chinese: false)
+            let shown = findings.map { $0.text(chinese: false) } + Doctor.findings(facts, chinese: true).map { $0.text(chinese: true) }
+            for text in shown + [Doctor.report(findings)] {
+                for part in hidden { #expect(!text.contains(part), "\(part) in: \(text)") }
+            }
+        }
+        let report = Doctor.report(Doctor.findings(facts, chinese: false))
+        #expect(report.contains("weather.sh") && report.contains("AllInOneIME.zip") && report.contains("~/Library/Rime"))
+        #expect(report.contains("https://api.deepseek.com/v1/chat/completions"))
+    }
+
     /// The checks themselves never send anything: `@doctor` alone asks no model.
     @Test func fix_checksNeverSend() async throws {
         let rig = try DocRig(Doc.broken, apple: AICAppleStub(["{}"]))
