@@ -528,15 +528,18 @@ make install
 #### AWS profile
 
 AWS CLI 不用问你就能用的 profile 都可以，来自 `~/.aws/config` 和 `~/.aws/credentials`（或者 shell 里 `AWS_CONFIG_FILE`、
-`AWS_SHARED_CREDENTIALS_FILE` 指定的文件）。一个 profile 里按下面的顺序，用它有的第一种：
+`AWS_SHARED_CREDENTIALS_FILE` 指定的文件）。一个 profile 里按 AWS CLI 的顺序，用它有的第一种（同时有 `role_arn` 和密钥的 profile 算角色）：
 
 | 种类 | profile 里写的 | 怎么刷新 |
 | --- | --- | --- |
-| 固定密钥 | `aws_access_key_id`、`aws_secret_access_key`（还有 `aws_session_token`） | 每次请求都重新读 |
+| 角色 | `role_arn` 加 `source_profile`（这里任何一种都行，也可以串起来；指向自己的 profile 用它自己的密钥）或 `credential_source = Environment`；`role_session_name`、`external_id`、`duration_seconds` | 到期前 5 分钟再调用 STS `AssumeRole`（在 profile 的 `region`，没有就 us-east-1） |
+| SSO | `sso_account_id`、`sso_role_name` 加 `sso_session` 和它的 `[sso-session …]`（或者老的 `sso_start_url`、`sso_region`） | 到期前 5 分钟用缓存的登录再取一次 |
+| 固定密钥 | `~/.aws/credentials` 里的 `aws_access_key_id`、`aws_secret_access_key`（还有 `aws_session_token`） | 每次请求都重新读 |
 | `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev`（像 shell 命令一样拆开，但不经过 shell 运行；用登录 shell 的 PATH，在主目录里，最多 60 秒） | 在它给的 `Expiration` 前 5 分钟再运行；没有 `Expiration` 时，等 AWS 不接受了再运行 |
-| 角色 | `role_arn` 加 `source_profile`（这里任何一种都行，也可以串起来）或 `credential_source = Environment`；`role_session_name`、`external_id`、`duration_seconds` | 到期前 5 分钟再调用 STS `AssumeRole`（在 profile 的 `region`，没有就 us-east-1） |
-| SSO | `sso_session` 和它的 `[sso-session …]`（或者老的 `sso_start_url`）、`sso_account_id`、`sso_role_name` | 到期前 5 分钟用缓存的登录再取一次 |
-| 环境变量 | shell 里的 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_SESSION_TOKEN` | 只用于 profile「default」（或者没填），而且没有带凭证的 default profile 时 |
+| 固定密钥 | `~/.aws/config` 里的同样几个密钥 | 每次请求都重新读 |
+
+profile 是「default」（或者没选）时，和 AWS CLI 一样先用 shell 里的密钥：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、
+`AWS_SESSION_TOKEN`（profile 没写区域时用 `AWS_REGION`）。选了别的 profile 时从不用它们。
 
 - **自动：** 会过期的凭证只放在内存里（从不写到磁盘），到期前 5 分钟重新取；剩不到 10 分钟时，请求先用现有的，同时在后台取新的，
   打字不用等。同时来的请求只等同一次刷新。Bedrock 回答凭证过期（`ExpiredTokenException` 等）时，重新取一次凭证，请求再发一次。

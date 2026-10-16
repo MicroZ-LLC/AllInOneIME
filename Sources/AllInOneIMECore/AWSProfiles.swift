@@ -146,15 +146,18 @@ public struct AWSProfileFiles: Equatable, Sendable {
         Self.value(config[profile]?["region"]) ?? Self.value(credentials[profile]?["region"])
     }
 
-    /// The static keys of one section: the credentials file's before the config file's, never a key of one with the
-    /// secret or token of the other.
-    func staticKeys(_ profile: String) -> AWSCredentials? {
-        for section in [credentials[profile], config[profile]].compactMap({ $0 }) {
-            if let id = Self.value(section["aws_access_key_id"]), let secret = Self.value(section["aws_secret_access_key"]) {
-                return AWSCredentials(accessKeyId: id, secretAccessKey: secret, sessionToken: Self.value(section["aws_session_token"]))
-            }
-        }
-        return nil
+    /// The static keys in one file's section of the profile: never a key of one file with the secret or token of the other.
+    func staticKeys(_ profile: String, inCredentialsFile: Bool) -> AWSCredentials? {
+        guard let section = inCredentialsFile ? credentials[profile] : config[profile],
+              let id = Self.value(section["aws_access_key_id"]), let secret = Self.value(section["aws_secret_access_key"]) else { return nil }
+        return AWSCredentials(accessKeyId: id, secretAccessKey: secret, sessionToken: Self.value(section["aws_session_token"]))
+    }
+
+    /// Whether the profile has any static key setting (botocore's test for a source profile: then its keys are used, not
+    /// its role).
+    func hasStaticKeys(_ profile: String) -> Bool {
+        guard let settings = settings(profile) else { return false }
+        return ["aws_access_key_id", "aws_secret_access_key", "aws_session_token"].contains { Self.value(settings[$0]) != nil }
     }
 
     static func value(_ s: String?) -> String? {
@@ -256,19 +259,19 @@ enum AWSProfilePlan: Equatable, Sendable {
         }
     }
 
-    /// The profile's plan, in this order: static keys (the credentials file's, then the config file's), then
-    /// `credential_process`, then `role_arn` (with `source_profile` or `credential_source`), then SSO. "default" (or no
-    /// name) with no such profile, or one with no credential settings at all, takes the keys in the environment.
-    static func make(_ profile: String, files: AWSProfileFiles, environment: [String: String]) throws -> AWSProfilePlan {
+    /// The profile's plan, in the AWS CLI's (botocore's) order for a named profile: `role_arn` (assume the role), SSO,
+    /// static keys in the credentials file, `credential_process`, static keys in the config file. The profile setting
+    /// "default" (or empty) takes the environment's keys first, when both are set; a named profile never does.
+    /// `asSource`: resolved as a role's `source_profile`: never from the environment, and a profile with static keys
+    /// (any of them) isn't assumed as a role itself, as botocore resolves a source (its own keys, a self-reference too).
+    static func make(_ profile: String, files: AWSProfileFiles, environment: [String: String], asSource: Bool = false) throws -> AWSProfilePlan {
         let name = profile.isEmpty ? "default" : profile
-        guard let settings = files.settings(name) else {
-            if name == "default", let keys = AWSEnvironment.credentials(environment) { return .environment(keys) }
-            throw AWSCredentialError.profileNotFound(name)
-        }
-        if let keys = files.staticKeys(name) { return .staticKeys(keys) }
+        if !asSource, name == "default", let keys = AWSEnvironment.credentials(environment) { return .environment(keys) }
+        guard let settings = files.settings(name) else { throw AWSCredentialError.profileNotFound(name) }
         func value(_ key: String) -> String? { AWSProfileFiles.value(settings[key]) }
-        if let command = value("credential_process") { return .process(command: command) }
-        if let roleArn = value("role_arn") {
+        // 1. A role (not one for web identity, which isn't supported).
+        if let roleArn = value("role_arn"), !(asSource && files.hasStaticKeys(name)) {
+            if value("web_identity_token_file") != nil { throw AWSCredentialError.unsupported(profile: name, kind: "web_identity_token_file") }
             if value("mfa_serial") != nil { throw AWSCredentialError.needsMFA(profile: name) }
             let sourceProfile = value("source_profile"), credentialSource = value("credential_source")
             let source: Role.Source
@@ -282,9 +285,6 @@ enum AWSProfilePlan: Equatable, Sendable {
             case (_?, _?):
                 throw AWSCredentialError.invalidProfile(profile: name, reason: "role_arn has both source_profile and credential_source; keep one")
             case (nil, nil):
-                if value("web_identity_token_file") != nil {
-                    throw AWSCredentialError.unsupported(profile: name, kind: "web_identity_token_file")
-                }
                 throw AWSCredentialError.invalidProfile(profile: name, reason: "role_arn needs source_profile or credential_source")
             }
             var duration: Int?
@@ -297,30 +297,37 @@ enum AWSProfilePlan: Equatable, Sendable {
             return .role(Role(roleArn: roleArn, source: source, sessionName: value("role_session_name"), externalId: value("external_id"),
                               durationSeconds: duration, region: files.region(name)))
         }
-        if let session = value("sso_session") {
-            guard let sessionSettings = files.ssoSessions[session] else {
-                throw AWSCredentialError.invalidProfile(profile: name, reason: "sso_session \(session) has no [sso-session \(session)] section")
-            }
-            func sessionValue(_ key: String) -> String? { AWSProfileFiles.value(sessionSettings[key]) }
-            guard let start = sessionValue("sso_start_url"), let region = sessionValue("sso_region") else {
-                throw AWSCredentialError.invalidProfile(profile: name, reason: "[sso-session \(session)] needs sso_start_url and sso_region")
-            }
+        // 2. SSO: a profile with an account or a role name for it.
+        if value("sso_account_id") != nil || value("sso_role_name") != nil {
             guard let account = value("sso_account_id"), let role = value("sso_role_name") else {
                 throw AWSCredentialError.invalidProfile(profile: name, reason: "an SSO profile needs sso_account_id and sso_role_name")
             }
-            return .sso(SSO(startURL: start, region: region, accountId: account, roleName: role, cacheKey: session))
-        }
-        if let start = value("sso_start_url") {
-            guard let region = value("sso_region"), let account = value("sso_account_id"), let role = value("sso_role_name") else {
-                throw AWSCredentialError.invalidProfile(profile: name, reason: "an SSO profile needs sso_region, sso_account_id and sso_role_name")
+            if let session = value("sso_session") {
+                guard let sessionSettings = files.ssoSessions[session] else {
+                    throw AWSCredentialError.invalidProfile(profile: name, reason: "sso_session \(session) has no [sso-session \(session)] section")
+                }
+                func sessionValue(_ key: String) -> String? { AWSProfileFiles.value(sessionSettings[key]) }
+                guard let start = sessionValue("sso_start_url"), let region = sessionValue("sso_region") else {
+                    throw AWSCredentialError.invalidProfile(profile: name, reason: "[sso-session \(session)] needs sso_start_url and sso_region")
+                }
+                return .sso(SSO(startURL: start, region: region, accountId: account, roleName: role, cacheKey: session))
+            }
+            guard let start = value("sso_start_url") else {
+                throw AWSCredentialError.invalidProfile(profile: name, reason: "an SSO profile needs sso_session (or sso_start_url)")
+            }
+            guard let region = value("sso_region") else {
+                throw AWSCredentialError.invalidProfile(profile: name, reason: "an SSO profile needs sso_region")
             }
             return .sso(SSO(startURL: start, region: region, accountId: account, roleName: role, cacheKey: start))
         }
-        if ["sso_account_id", "sso_role_name", "sso_region"].contains(where: { value($0) != nil }) {
-            throw AWSCredentialError.invalidProfile(profile: name, reason: "an SSO profile needs sso_session (or sso_start_url)")
+        // 3. Static keys in the credentials file, 4. credential_process, 5. static keys in the config file.
+        if let keys = files.staticKeys(name, inCredentialsFile: true) { return .staticKeys(keys) }
+        if let command = value("credential_process") { return .process(command: command) }
+        if let keys = files.staticKeys(name, inCredentialsFile: false) { return .staticKeys(keys) }
+        if value("sso_session") != nil || value("sso_start_url") != nil {
+            throw AWSCredentialError.invalidProfile(profile: name, reason: "an SSO profile needs sso_account_id and sso_role_name")
         }
         if value("web_identity_token_file") != nil { throw AWSCredentialError.unsupported(profile: name, kind: "web_identity_token_file") }
-        if name == "default", let keys = AWSEnvironment.credentials(environment) { return .environment(keys) }
         throw AWSCredentialError.noCredentials(profile: name)
     }
 

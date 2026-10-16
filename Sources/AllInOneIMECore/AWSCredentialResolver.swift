@@ -150,9 +150,9 @@ public struct AWSProfileStatus: Equatable, Sendable {
     }
 }
 
-/// Credentials for an AWS profile, as the AWS CLI resolves them (`AWSProfilePlan.make` has the order): static keys,
-/// `credential_process`, `role_arn` (`source_profile`, or `credential_source = Environment`), SSO, and for "default" the
-/// environment's keys. What expires is cached per profile, in memory only, until 5 minutes before it does; a request
+/// Credentials for an AWS profile, as the AWS CLI resolves them (`AWSProfilePlan.make` has the order): `role_arn`
+/// (`source_profile`, or `credential_source = Environment`), SSO, static keys in the credentials file,
+/// `credential_process`, static keys in the config file; for "default" (or no name) the environment's keys first. What expires is cached per profile, in memory only, until 5 minutes before it does; a request
 /// with under 10 minutes left gets the cached credentials and starts a refresh in the background. Requests that come
 /// while one is fetched wait for that one. Programs run and STS or SSO is called only for a request (or Test
 /// Connection), never to list profiles.
@@ -207,7 +207,7 @@ public final class AWSCredentialResolver: Sendable {
     /// ones kept if that fails.
     public func resolve(profile: String, forceRefresh: Bool = false) async throws -> AWSSharedConfig.Resolved {
         let name = Self.name(profile)
-        let (fetched, plan, region) = try await credentials(name, chain: [], force: forceRefresh)
+        let (fetched, plan, region, _) = try await credentials(name, force: forceRefresh)
         return AWSSharedConfig.Resolved(
             credentials: fetched.credentials, region: region, expiration: fetched.expiration, kind: plan.kind,
             refresh: AWSCredentialRefresh { [self] in try await refresh(profile: name, replacing: fetched.credentials) })
@@ -251,22 +251,37 @@ public final class AWSCredentialResolver: Sendable {
         return trimmed.isEmpty ? "default" : trimmed
     }
 
-    private func credentials(_ name: String, chain: [String], force: Bool) async throws -> (Fetched, AWSProfilePlan, String?) {
-        if let start = chain.firstIndex(of: name) { throw AWSCredentialError.sourceProfileLoop(Array(chain[start...]) + [name]) }
+    /// The profile's credentials, plan and region, and the cache entry they're kept in. `chain`: the role profiles being
+    /// resolved that lead here (`asSource`: as the last one's `source_profile`).
+    private func credentials(_ name: String, chain: [String] = [], force: Bool, asSource: Bool = false)
+        async throws -> (fetched: Fetched, plan: AWSProfilePlan, region: String?, key: String) {
         let files = AWSProfileFiles.read(context.locations)
+        // A profile met again is a loop, except a role naming itself with keys of its own: those are its source (botocore).
+        if let start = chain.firstIndex(of: name), !(asSource && chain.last == name && files.hasStaticKeys(name)) {
+            throw AWSCredentialError.sourceProfileLoop(Array(chain[start...]) + [name])
+        }
         let environment = context.environment()
-        let plan = try AWSProfilePlan.make(name, files: files, environment: environment)
-        let region = files.contains(name) ? files.region(name) : AWSEnvironment.region(environment)
+        let plan = try AWSProfilePlan.make(name, files: files, environment: environment, asSource: asSource)
+        let region = Self.region(name, plan: plan, files: files, environment: environment)
         switch plan {
         case let .staticKeys(keys), let .environment(keys):
-            return (Fetched(credentials: keys, expiration: nil), plan, region)
+            return (Fetched(credentials: keys, expiration: nil), plan, region, name)
         case .process, .role, .sso:
+            // A source resolved otherwise than the profile itself (a role's own keys…) is cached apart from it.
+            let key = asSource && (try? AWSProfilePlan.make(name, files: files, environment: environment)) != plan ? name + " (source)" : name
             let fingerprint = AWSProfilePlan.fingerprint(name, files: files)
-            let fetched = try await cached(name, fingerprint: fingerprint, force: force) { [self] in
+            let fetched = try await cached(key, fingerprint: fingerprint, force: force) { [self] in
                 try await fetch(plan, profile: name, chain: chain + [name], force: force)
             }
-            return (fetched, plan, region)
+            return (fetched, plan, region, key)
         }
+    }
+
+    /// The profile's own region, else (keys from the environment) `AWS_REGION` or `AWS_DEFAULT_REGION`.
+    static func region(_ name: String, plan: AWSProfilePlan?, files: AWSProfileFiles, environment: [String: String]) -> String? {
+        if let region = files.region(name) { return region }
+        if case .environment? = plan { return AWSEnvironment.region(environment) }
+        return files.contains(name) ? nil : AWSEnvironment.region(environment)
     }
 
     private enum Next: Sendable {
@@ -399,9 +414,11 @@ public final class AWSCredentialResolver: Sendable {
 
     private func assumeRole(_ role: AWSProfilePlan.Role, profile: String, chain: [String], force: Bool) async throws -> Fetched {
         var source: AWSCredentials
+        var sourceKey: String?
         switch role.source {
         case let .profile(name):
-            source = try await credentials(name, chain: chain, force: force).0.credentials
+            let resolved = try await credentials(name, chain: chain, force: force, asSource: true)
+            (source, sourceKey) = (resolved.fetched.credentials, resolved.key)
         case .environment:
             guard let keys = AWSEnvironment.credentials(context.environment()) else {
                 throw AWSCredentialError.environmentMissing(profile: profile)
@@ -435,14 +452,15 @@ public final class AWSCredentialResolver: Sendable {
             return try await call(source)
         } catch let error as AWSCredentialError {
             // The source's own credentials expired (a program's without an expiration, say): fetched again, once.
-            guard case let .stsFailed(_, code?, _) = error, AWSSTS.expiredCodes.contains(code), case let .profile(name) = role.source else {
+            guard case let .stsFailed(_, code?, _) = error, AWSSTS.expiredCodes.contains(code), case let .profile(name) = role.source,
+                  let key = sourceKey else {
                 throw error
             }
             let failed = source
             state.withLock { state in
-                if state.entries[name]?.value?.credentials == failed { state.entries[name]?.value = nil }
+                if state.entries[key]?.value?.credentials == failed { state.entries[key]?.value = nil }
             }
-            source = try await credentials(name, chain: chain, force: false).0.credentials
+            source = try await credentials(name, chain: chain, force: false, asSource: true).fetched.credentials
             return try await call(source)
         }
     }
@@ -520,8 +538,8 @@ public final class AWSCredentialResolver: Sendable {
     /// The profile's region (its own, else `AWS_REGION` when it comes from the environment).
     public func region(profile: String) -> String? {
         let name = Self.name(profile)
-        let files = AWSProfileFiles.read(context.locations)
-        return files.contains(name) ? files.region(name) : AWSEnvironment.region(context.environment())
+        let files = AWSProfileFiles.read(context.locations), environment = context.environment()
+        return Self.region(name, plan: try? AWSProfilePlan.make(name, files: files, environment: environment), files: files, environment: environment)
     }
 
     /// The profile as the settings show it (`AWSProfileStatus`): files and the SSO cache read, nothing run or fetched.
@@ -531,7 +549,8 @@ public final class AWSCredentialResolver: Sendable {
         let environment = context.environment()
         var status = AWSProfileStatus(profile: name)
         status.kind = Self.kind(name, files: files, environment: environment)
-        status.region = files.contains(name) ? files.region(name) : AWSEnvironment.region(environment)
+        status.region = Self.region(name, plan: try? AWSProfilePlan.make(name, files: files, environment: environment), files: files,
+                                    environment: environment)
         let now = context.now()
         do {
             let plan = try AWSProfilePlan.make(name, files: files, environment: environment)
@@ -582,9 +601,11 @@ public final class AWSCredentialResolver: Sendable {
             case .environment:
                 return (AWSEnvironment.credentials(environment) == nil ? .environmentMissing(profile: profile) : nil, nil)
             case let .profile(source):
-                if let start = chain.firstIndex(of: source) { return (.sourceProfileLoop(Array(chain[start...]) + [source]), nil) }
+                if let start = chain.firstIndex(of: source), !(source == profile && files.hasStaticKeys(source)) {
+                    return (.sourceProfileLoop(Array(chain[start...]) + [source]), nil)
+                }
                 do {
-                    let sourcePlan = try AWSProfilePlan.make(source, files: files, environment: environment)
+                    let sourcePlan = try AWSProfilePlan.make(source, files: files, environment: environment, asSource: true)
                     return check(sourcePlan, profile: source, chain: chain + [source], files: files, environment: environment, now: now)
                 } catch let error as AWSCredentialError {
                     return (error, nil)
@@ -605,12 +626,13 @@ public final class AWSCredentialResolver: Sendable {
         if let plan = try? AWSProfilePlan.make(name, files: files, environment: environment) { return plan.kind }
         guard let settings = files.settings(name) else { return nil }
         func has(_ key: String) -> Bool { AWSProfileFiles.value(settings[key]) != nil }
-        if has("credential_process") { return .credentialProcess }
+        // In the order `AWSProfilePlan.make` takes them.
         if has("role_arn") {
             return .role(source: AWSProfileFiles.value(settings["source_profile"]) ?? AWSProfileFiles.value(settings["credential_source"]) ?? "?")
         }
-        if has("sso_session") || has("sso_start_url") || has("sso_account_id") { return .sso }
-        return AWSProfileFiles.value(settings["aws_access_key_id"]) != nil ? .staticKeys : .noCredentials
+        if has("sso_account_id") || has("sso_role_name") || has("sso_session") || has("sso_start_url") { return .sso }
+        if has("aws_access_key_id") { return .staticKeys }
+        return has("credential_process") ? .credentialProcess : .noCredentials
     }
 }
 

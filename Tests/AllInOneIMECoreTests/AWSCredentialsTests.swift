@@ -373,7 +373,7 @@ struct AWSCredentialResolverTests {
         #expect(resolved.credentials == AWSCredentials(accessKeyId: "AKIACREDS", secretAccessKey: "k"))
     }
 
-    @Test func environmentOnlyForDefaultWithoutADefaultProfile() async throws {
+    @Test func environmentFirstForDefaultNeverForANamedProfile() async throws {
         let env = ["AWS_ACCESS_KEY_ID": "AKIAENV", "AWS_SECRET_ACCESS_KEY": "envSecret", "AWS_SESSION_TOKEN": "envToken", "AWS_REGION": "ca-central-1"]
         let none = try AWSCTHome(credentials: "[work]\naws_access_key_id = AKIAWORK\naws_secret_access_key = w\n")
         defer { none.remove() }
@@ -385,10 +385,21 @@ struct AWSCredentialResolverTests {
         // A named profile never takes the environment's keys.
         await #expect(throws: AWSCredentialError.profileNotFound("other")) { try await AWSCT.resolver(none, environment: env).resolve(profile: "other") }
         #expect(try await AWSCT.resolver(none, environment: env).resolve(profile: "work").credentials.accessKeyId == "AKIAWORK")
-        // A default profile with keys wins over the environment.
+        // "default" takes the environment's keys first, even over a default profile with keys (as the AWS CLI does); without
+        // them, the profile's.
         let withDefault = try AWSCTHome(credentials: "[default]\naws_access_key_id = AKIADEFAULT\naws_secret_access_key = d\n")
         defer { withDefault.remove() }
-        #expect(try await AWSCT.resolver(withDefault, environment: env).resolve(profile: "default").credentials.accessKeyId == "AKIADEFAULT")
+        let first = try await AWSCT.resolver(withDefault, environment: env).resolve(profile: "default")
+        #expect(first.credentials.accessKeyId == "AKIAENV" && first.kind == .environment && first.region == "ca-central-1")
+        #expect(try await AWSCT.resolver(withDefault).resolve(profile: "default").credentials.accessKeyId == "AKIADEFAULT")
+        #expect(try await AWSCT.resolver(withDefault, environment: ["AWS_ACCESS_KEY_ID": "AKIAHALF"]).resolve(profile: "default")
+            .credentials.accessKeyId == "AKIADEFAULT", "only both the key ID and the secret count")
+        // A named profile without credentials still doesn't take them.
+        let named = try AWSCTHome(config: "[profile work]\nregion = eu-west-1\n")
+        defer { named.remove() }
+        await #expect(throws: AWSCredentialError.noCredentials(profile: "work")) {
+            try await AWSCT.resolver(named, environment: env).resolve(profile: "work")
+        }
         // One with only a region: the environment's keys, its region.
         let regionOnly = try AWSCTHome(config: "[default]\nregion = sa-east-1\n")
         defer { regionOnly.remove() }
@@ -658,10 +669,105 @@ struct AWSCredentialResolverTests {
         await #expect(throws: AWSCredentialError.sourceProfileLoop(["self", "self"])) { try await resolver.resolve(profile: "self") }
         #expect(http.requests.isEmpty)
         #expect(resolver.status(profile: "b").problem == .sourceProfileLoop(["b", "a", "b"]))
-        // A profile with its own keys that names itself uses them (static keys come first).
+        // A role naming itself with keys of its own: they're its source (botocore), not a loop.
         try home.write(config: "[profile self]\nrole_arn = arn:aws:iam::1:role/s\nsource_profile = self\n",
                        credentials: "[self]\naws_access_key_id = AKIASELF\naws_secret_access_key = s\n")
-        #expect(try await resolver.resolve(profile: "self").kind == .staticKeys)
+        http.on("sts.us-east-1.amazonaws.com", .init(status: 200, body: AWSCT.assumeRoleXML("ASIASELFROLE", expiration: Date().addingTimeInterval(3600))))
+        let assumed = try await resolver.resolve(profile: "self")
+        #expect(assumed.kind == .role(source: "self") && assumed.credentials.accessKeyId == "ASIASELFROLE")
+        #expect(AWSCT.header(try #require(http.requests.first), "Authorization")?.contains("Credential=AKIASELF/") == true)
+        #expect(resolver.status(profile: "self").problem == nil)
+        // Met again further down the chain, a profile is a loop even with keys of its own (only itself may name itself).
+        try home.write(config: "[profile c]\nrole_arn = arn:aws:iam::1:role/c\nsource_profile = d\n[profile d]\nrole_arn = arn:aws:iam::1:role/d\nsource_profile = c\n",
+                       credentials: "[c]\naws_access_key_id = AKIAC\naws_secret_access_key = c\n")
+        await #expect(throws: AWSCredentialError.sourceProfileLoop(["c", "d", "c"])) { try await resolver.resolve(profile: "c") }
+        #expect(resolver.status(profile: "c").problem == .sourceProfileLoop(["c", "d", "c"]))
+    }
+
+    /// botocore's order within a named profile: role_arn, SSO, the credentials file's keys, credential_process, the config
+    /// file's keys.
+    @Test func withinAProfileTheAWSCLIsOrder() async throws {
+        let home = try AWSCTHome(config: """
+            [profile base]
+            region = us-east-1
+            [profile both]
+            role_arn = arn:aws:iam::1:role/both
+            source_profile = base
+            [profile ssoAndKeys]
+            sso_session = my-sso
+            sso_account_id = 123456789012
+            sso_role_name = BedrockUser
+            [profile keysAndProcess]
+            credential_process = my-creds
+            [profile processAndConfigKeys]
+            credential_process = my-creds
+            aws_access_key_id = AKIACONFIG
+            aws_secret_access_key = c
+            [profile configKeys]
+            aws_access_key_id = AKIACONFIGONLY
+            aws_secret_access_key = c
+            [profile hybrid]
+            role_arn = arn:aws:iam::1:role/never
+            source_profile = base
+            [profile top]
+            role_arn = arn:aws:iam::1:role/top
+            source_profile = hybrid
+            [profile sessionOnly]
+            sso_session = my-sso
+            [sso-session my-sso]
+            sso_start_url = https://my-sso-portal.awsapps.com/start
+            sso_region = us-east-1
+            """, credentials: """
+            [base]
+            aws_access_key_id = AKIABASE
+            aws_secret_access_key = b
+            [both]
+            aws_access_key_id = AKIABOTH
+            aws_secret_access_key = b
+            [ssoAndKeys]
+            aws_access_key_id = AKIASSOKEYS
+            aws_secret_access_key = s
+            [keysAndProcess]
+            aws_access_key_id = AKIACREDSFILE
+            aws_secret_access_key = k
+            [hybrid]
+            aws_access_key_id = AKIAHYBRID
+            aws_secret_access_key = h
+            """)
+        defer { home.remove() }
+        let clock = AWSCTClock(), http = AWSCTHTTP()
+        try home.signIn("my-sso", expiresAt: clock.now.addingTimeInterval(3600))
+        http.on("sts.us-east-1.amazonaws.com", .init(status: 200, body: AWSCT.assumeRoleXML("ASIAROLE", expiration: clock.now.addingTimeInterval(3600))))
+        http.on("portal.sso.us-east-1.amazonaws.com", .init(status: 200, body: AWSCT.ssoJSON("ASIASSO", expiration: clock.now.addingTimeInterval(3600))))
+        let runner = AWSCTRunner([AWSCT.processJSON("ASIAPROCESS")])
+        let resolver = AWSCT.resolver(home, clock: clock, http: http, runner: runner)
+        // 1. A role, though the profile has keys too: assumed with its source's keys.
+        let both = try await resolver.resolve(profile: "both")
+        #expect(both.kind == .role(source: "base") && both.credentials.accessKeyId == "ASIAROLE")
+        #expect(AWSCT.header(try #require(http.requests.last), "Authorization")?.contains("Credential=AKIABASE/") == true)
+        // 2. SSO before keys.
+        #expect(try await resolver.resolve(profile: "ssoAndKeys").credentials.accessKeyId == "ASIASSO")
+        // 3. The credentials file's keys before credential_process, 4. which comes before the config file's keys.
+        #expect(try await resolver.resolve(profile: "keysAndProcess").credentials.accessKeyId == "AKIACREDSFILE")
+        #expect(runner.runs.isEmpty)
+        let process = try await resolver.resolve(profile: "processAndConfigKeys")
+        #expect(process.kind == .credentialProcess && process.credentials.accessKeyId == "ASIAPROCESS" && runner.runs.count == 1)
+        #expect(try await resolver.resolve(profile: "configKeys").kind == .staticKeys)
+        // A source profile with keys of its own is used with them, not assumed as a role itself.
+        let stsBefore = http.requests.count
+        #expect(try await resolver.resolve(profile: "top").credentials.accessKeyId == "ASIAROLE")
+        #expect(http.requests.count == stsBefore + 1)
+        #expect(AWSCT.header(try #require(http.requests.last), "Authorization")?.contains("Credential=AKIAHYBRID/") == true)
+        // Resolved on its own, it is the role.
+        #expect(try await resolver.resolve(profile: "hybrid").kind == .role(source: "base"))
+        await #expect(throws: AWSCredentialError.invalidProfile(profile: "sessionOnly", reason: "an SSO profile needs sso_account_id and sso_role_name")) {
+            try await resolver.resolve(profile: "sessionOnly")
+        }
+        // The settings' picker says the same kinds.
+        let kinds = Dictionary(uniqueKeysWithValues: resolver.profiles().map { ($0.name, $0.kind) })
+        #expect(kinds["both"] == .role(source: "base") && kinds["ssoAndKeys"] == .sso && kinds["keysAndProcess"] == .staticKeys
+                && kinds["processAndConfigKeys"] == .credentialProcess && kinds["hybrid"] == .role(source: "base"))
+        #expect(AWSProfileKind.role(source: "base").label(chinese: false) == "Role via base")
     }
 
     @Test func badRoleSettingsSayWhatsWrong() async throws {

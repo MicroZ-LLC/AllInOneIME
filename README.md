@@ -605,15 +605,19 @@ Translations and rewrites use your own AI provider, and the costs go to your acc
 
 Any profile the AWS CLI can use without asking you anything works, from `~/.aws/config` and `~/.aws/credentials` (or the
 files `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE` name in your shell). Within a profile, the first of these that
-it has is used:
+it has is used, in the AWS CLI's order (a profile with both `role_arn` and keys is a role):
 
 | Kind | In the profile | Refreshed |
 | --- | --- | --- |
-| Static keys | `aws_access_key_id`, `aws_secret_access_key` (and `aws_session_token`) | read again for each request |
+| Role | `role_arn` with `source_profile` (any kind here, chains too; a profile naming itself uses its own keys) or `credential_source = Environment`; `role_session_name`, `external_id`, `duration_seconds` | STS `AssumeRole` (in the profile's `region`, else us-east-1) again 5 minutes before they expire |
+| SSO | `sso_account_id`, `sso_role_name` with `sso_session` and its `[sso-session …]` section (or the older `sso_start_url`, `sso_region`) | fetched again with your cached sign-in 5 minutes before they expire |
+| Static keys | `aws_access_key_id`, `aws_secret_access_key` (and `aws_session_token`) in `~/.aws/credentials` | read again for each request |
 | `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev` (split like a shell command, run without a shell, with your login shell's PATH, in your home folder, 60 s at most) | run again 5 minutes before its `Expiration`; with none, when AWS refuses the credentials |
-| Role | `role_arn` with `source_profile` (any kind here, chains too) or `credential_source = Environment`; `role_session_name`, `external_id`, `duration_seconds` | STS `AssumeRole` (in the profile's `region`, else us-east-1) again 5 minutes before they expire |
-| SSO | `sso_session` and its `[sso-session …]` section (or the older `sso_start_url`), `sso_account_id`, `sso_role_name` | fetched again with your cached sign-in 5 minutes before they expire |
-| Environment | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` in your shell | only for the profile "default" (or none) when no default profile has credentials |
+| Static keys | the same keys in `~/.aws/config` | read again for each request |
+
+With the profile "default" (or none chosen), the keys in your shell come first, as the AWS CLI takes them:
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` (the region from `AWS_REGION` when the profile has
+none). A profile you name is never mixed with them.
 
 - **Automatic:** credentials that expire are kept in memory (never written to disk) and fetched again 5 minutes before
   they do; with less than 10 minutes left, a request uses them and fetches new ones in the background, so typing doesn't
