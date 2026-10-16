@@ -41,13 +41,15 @@ enum DoctorSession {
         } else {
             facts.inputMethod.registered = false
         }
-        let url = AIConfigSession.url, logs = RimeDirectories.logs
+        let url = AIConfigSession.url, logs = RimeDirectories.logs, lookup = AIConfigSession.keySource
         let read = await Task.detached(priority: .userInitiated) { () -> Background in
             let data = try? Data(contentsOf: url)
             let config = Result { try Config.load(from: url) }
+            // As Settings and @config see them (the item's attributes: no key read, no prompt).
+            let keyed = AIConfigSession.providersWithKey(lookup)
             var keys: [Provider: Bool] = [:]
             for provider in Provider.allCases where provider != .bedrock && provider != .apple {
-                keys[provider] = APIKeys.source(provider) != .none  // the item's attributes: no key read, no prompt
+                keys[provider] = keyed.contains(provider)
             }
             var profile: Result<String, Error>?
             if case let .success(loaded) = config, loaded.provider == .bedrock {

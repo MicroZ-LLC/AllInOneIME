@@ -223,6 +223,30 @@ extension SelfTest {
         controller.commitComposition(client)
         check(client.inserted.allSatisfy { $0.hasPrefix("@config") }, "nothing but the draft as typed ever went in")
         testRememberQuestionsReload(snapshotDirectory: snapshotDirectory)
+        testKeyStatus(snapshotDirectory: snapshotDirectory)
+    }
+
+    /// Settings → AI Provider says where each key is, from the lookup `@config`'s checks and `@doctor`'s use too (a
+    /// stand-in here: the user's keychain is never asked): a key in the keychain is "Saved in the keychain", one in the
+    /// shell names its variable. The model is the real window's (it looks keys up), on a config of its own.
+    static func testKeyStatus(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("keys-config.json")
+        let saved = (AIConfigSession.keySource, SettingsModel.looksUpKeys)
+        defer {
+            (AIConfigSession.keySource, SettingsModel.looksUpKeys) = saved
+            try? FileManager.default.removeItem(at: url)
+        }
+        AIConfigSession.keySource = { $0 == .openai ? .keychain : $0 == .anthropic ? .environment("ANTHROPIC_API_KEY") : .none }
+        SettingsModel.looksUpKeys = true
+        try? Config.default.write(to: url)
+        let model = SettingsModel(configURL: url)
+        model.refreshKeys()
+        _ = pump(timeout: 3) { !model.keySources.isEmpty }
+        let shown = [Provider.openai, .anthropic, .gemini].map(model.keyStatus)
+        check(shown == [tr("已保存在钥匙串里", "Saved in the keychain"), tr("使用 shell 里的 ANTHROPIC_API_KEY", "Using ANTHROPIC_API_KEY from your shell"),
+                        tr("还没有 API key", "No API key yet")], "Settings shows a saved key as saved (\(shown))")
+        let keyed = AIConfigSession.providersWithKey(AIConfigSession.keySource)
+        check(keyed == [.openai, .anthropic], "@config's and @doctor's checks see the same keys (\(keyed))")
     }
 
     /// Settings deletes the questions kept only when its switch turns "Remember recent questions" off, never when the

@@ -211,6 +211,8 @@ final class SettingsModel: ObservableObject {
 
     /// False in the self-test: none of its windows asks the user's keychain or shell which keys there are.
     static var looksUpKeys = true
+    /// Bumped by each look: only the latest one's answer is shown.
+    private var keyLookups = 0
 
     func refreshKeys() {
         let providers = Provider.allCases.filter { $0 != .bedrock }
@@ -219,10 +221,17 @@ final class SettingsModel: ObservableObject {
             keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) })
             return
         }
+        keyLookups += 1
+        // As @config and @doctor look (`AIConfigSession.keySource`).
+        let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
-            let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.source($0)) })
-            await MainActor.run { [weak self] in self?.keySources = sources }
+            let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, lookup($0)) })
+            await MainActor.run { [weak self] in
+                // One that started earlier (the window opening) never overwrites a later one's (a key just saved).
+                guard let self, self.keyLookups == generation else { return }
+                self.keySources = sources
+            }
         }
     }
 

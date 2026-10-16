@@ -32,6 +32,16 @@ enum AIConfigSession {
             NotificationCenter.default.post(name: .allInOneIMEFocusAPIKey, object: nil, userInfo: ["provider": provider.rawValue])
         }
     }
+    /// Where each provider's key is: the keychain item's attributes (the key isn't read, nothing is asked), else the
+    /// login shell's variables (`APIKeys.source`). Settings' "Saved in the keychain", `@config`'s checks and `@doctor`'s
+    /// all ask here, off the main thread; the self-test gives its own (the user's keychain is never asked).
+    static var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
+
+    /// The providers with a key, by `lookup` (`keySource`, taken on the main thread).
+    nonisolated static func providersWithKey(_ lookup: @Sendable (Provider) -> APIKeys.Source) -> Set<Provider> {
+        Set(Provider.allCases.filter { $0 != .bedrock && $0 != .apple && lookup($0) != .none })
+    }
+
     private static var prewarmed: Date?
 
     /// As `@config` or `@doctor` is written ("@co" in the list, or picked): the on-device model loaded and the checks'
@@ -59,9 +69,10 @@ enum AIConfigSession {
         let hosts = AIConfig.compatibleHosts.union(CompatibleService.all.compactMap { URL(string: $0.baseURL)?.host?.lowercased() })
         let others = RecentApps.apps + Array(((try? Config.load(from: url)) ?? .default).appProfiles.keys)
         let cached = cachedApps.flatMap { Date().timeIntervalSince($0.date) < 60 ? $0.catalog : nil }
-        // Off it: the keychain items' attributes and the login shell's variables (`APIKeys.source`), the apps on disk.
+        // Off it: the keychain items' attributes and the login shell's variables (`keySource`), the apps on disk.
+        let lookup = keySource
         let (keyed, apps) = await Task.detached(priority: .userInitiated) {
-            (Set(Provider.allCases.filter { APIKeys.source($0) != .none }), cached ?? scanApps(adding: others))
+            (providersWithKey(lookup), cached ?? scanApps(adding: others))
         }.value
         if cached == nil { cachedApps = (Date(), apps) }
         return AIConfig.Environment(
