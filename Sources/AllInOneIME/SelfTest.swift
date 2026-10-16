@@ -2999,6 +2999,7 @@ enum SelfTest {
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(controller, client, snapshotDirectory: snapshotDirectory)
         testDoctor(controller, client, snapshotDirectory: snapshotDirectory)
+        testAWSCredentials(snapshotDirectory: snapshotDirectory)
 
         section("error display (an invalid Bedrock model)", needs: [.composing, .bedrock])
         controller.converter = Converter(loadConfig: {
