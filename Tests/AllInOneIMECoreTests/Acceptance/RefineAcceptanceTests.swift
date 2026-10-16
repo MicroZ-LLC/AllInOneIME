@@ -321,7 +321,7 @@ struct RefineAcceptanceTests {
         for ch in instruction {
             typed += ch == " " ? rig.key(spaceKey) : rig.type(String(ch))
         }
-        return run ? rig.key(shiftEnterKey) : typed
+        return run ? rig.key(acceptanceShiftReturn) : typed
     }
 
     func refineOnline(_ rig: RARig, _ instruction: String, answer: RAStubProtocol.Reply) async -> [Composer.Effect] {
@@ -618,7 +618,7 @@ struct RefineAcceptanceTests {
         rig.key(backspaceKey)
         #expect(rig.c.refineText == "make it 2 lines, pleas" && rig.c.isLevelTwo, "line: \(rig.c.refineText.debugDescription)")
         // ⇧⏎ sends exactly what is in the line.
-        #expect(raRefines(rig.key(shiftEnterKey)).first?.turns.last?.instruction == "make it 2 lines, pleas")
+        #expect(raRefines(rig.key(acceptanceShiftReturn)).first?.turns.last?.instruction == "make it 2 lines, pleas")
     }
 
     @Test func edge_aDigitInANonEmptyLineDoesNotPickARow() {
@@ -733,7 +733,7 @@ struct RefineAcceptanceTests {
         #expect(rig.c.refineText == "shorter" && rig.c.refineError != nil && rig.c.refineHistory.isEmpty)
         // ⇧⏎ again tries again.
         RAStubProtocol.enqueue(rig.host, .answer(lines(shorter)))
-        await rig.press(shiftEnterKey)
+        await rig.press(acceptanceShiftReturn)
         #expect(rig.rows == shorter.versions.map(\.text) && rig.c.refineHistory == ["shorter"] && rig.c.refineText.isEmpty)
         #expect(try rig.sent().count == 3)
     }
@@ -744,7 +744,7 @@ struct RefineAcceptanceTests {
         #expect(rig.c.phase == .choosing && rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError != nil)
         RAStubProtocol.enqueue(rig.host, .answer(lines(shorter)))
-        await rig.press(shiftEnterKey)
+        await rig.press(acceptanceShiftReturn)
         #expect(rig.rows == shorter.versions.map(\.text))
     }
 
@@ -756,7 +756,7 @@ struct RefineAcceptanceTests {
         #expect(rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError == RARig.secureMessage)
         rig.secureInput = false
-        await rig.press(shiftEnterKey)
+        await rig.press(acceptanceShiftReturn)
         #expect(rig.rows == shorter.versions.map(\.text) && rig.c.refineError == nil)
     }
 
@@ -768,7 +768,7 @@ struct RefineAcceptanceTests {
         #expect(rig.c.phase == .choosing && rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError == "The network connection was lost.")
         // The next key clears the error; ⇧⏎ runs the same instruction again.
-        let retry = rig.key(shiftEnterKey)
+        let retry = rig.key(acceptanceShiftReturn)
         #expect(raRefines(retry).first?.turns == [Refinement.Turn(answer: first, instruction: "shorter")])
     }
 
@@ -887,7 +887,8 @@ struct RefineAcceptanceTests {
         let cases = refineAcceptanceGoldenCases()
         #expect(cases.count == refineAcceptanceGolden.count)
         for (name, request) in cases {
-            let data = LiveDataRule.strip(refineAcceptanceEncode(request))
+            // @question's without 0.6.4's live-data rule; the others as they are.
+            let data = AcceptanceLiveRule.strip(refineAcceptanceEncode(request), question: name.hasPrefix("question/"))
             let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
             #expect(refineAcceptanceGolden[name] == hash, "\(name) differs from 55d496e")
         }
@@ -919,7 +920,7 @@ struct RefineAcceptanceTests {
         let rig = improveShown()
         refine(rig, String(repeating: "a", count: 250), run: false)
         #expect(rig.c.refineText.count == 200)
-        let run = rig.key(shiftEnterKey)
+        let run = rig.key(acceptanceShiftReturn)
         #expect(raRefines(run).first?.turns.last?.instruction.count == 200)
     }
 
@@ -997,7 +998,7 @@ struct RefineAcceptanceTests {
         #expect(rig.c.refineText == "more formal" && rig.c.refineLine == "more formal",
                 "line after the results: \(rig.c.refineText.debugDescription)")
         // ⇧⏎ runs it as the next refine, on the refined results.
-        let next = raRefines(rig.key(shiftEnterKey)).first
+        let next = raRefines(rig.key(acceptanceShiftReturn)).first
         #expect(next?.turns == [
             Refinement.Turn(answer: first, instruction: "shorter"),
             Refinement.Turn(answer: shorter, instruction: "more formal"),
@@ -1077,7 +1078,7 @@ struct RefineAcceptanceTests {
         let instruction = "更口语 très poli, 日本語で 🙂"
         #expect(rig.c.refineText == instruction, "line: \(rig.c.refineText.debugDescription)")
         RAStubProtocol.enqueue(rig.host, .answer(lines(shorter)))
-        let run = await rig.press(shiftEnterKey)
+        let run = await rig.press(acceptanceShiftReturn)
         #expect(raRefines(run).first?.turns.last?.instruction == instruction)
         let ask = try #require(try rig.sent().last?.lastUser)
         #expect(ask.contains(instruction))
