@@ -34,8 +34,8 @@ struct PrivacySection: View {
         } footer: {
             Text(tr("能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址，要隐藏的名字请加到上面的词里。",
                     "Recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses, so add the names to hide as your own words.")
-                 + "\n" + tr("只用于发给你的 AI 服务的请求；@claude、@search 和脚本扩展照原样发送文字。",
-                             "Applies to requests to your AI service; @claude, @search and script extensions send text as typed."))
+                 + "\n" + tr("只用于发给你的 AI 服务的请求；@claude、从网站取数据或打开网站的插件（@stock、@x）和脚本扩展照原样发送文字。",
+                             "Applies to requests to your AI service; @claude, plugins that fetch from or open a website (@stock, @x) and script extensions send text as typed."))
                 .font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
