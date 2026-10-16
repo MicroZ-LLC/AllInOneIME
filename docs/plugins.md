@@ -1,10 +1,10 @@
 # Plugins: plan
 
 @ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@claude`, `@open`, `@note`,
-`@reminder`, `@calculate`, `@py`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`; `@read` and `@search` are
-built but not offered yet, their names still taken), **plugins** installed from the plugin library (what not everyone
-wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands). When names clash: built-in >
-plugin > custom, so a plugin named like a built-in command never shows up.
+`@reminder`, `@calculate`, `@py`, `@js`, `@tasks`, `@settings`, `@config`, `@doctor`, `@imessage`, `@reportissue`;
+`@read` and `@search` are built but not offered yet, their names still taken), **plugins** installed from the plugin
+library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands).
+When names clash: built-in > plugin > custom, so a plugin named like a built-in command never shows up.
 
 ## What a plugin is
 

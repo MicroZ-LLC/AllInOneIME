@@ -130,7 +130,7 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 | Variable | Value |
 |---|---|
 | `ALLINONEIME_PROTOCOL` | `1` |
-| `ALLINONEIME_VERSION` | the app's version, like `0.6.3` |
+| `ALLINONEIME_VERSION` | the app's version, like `0.6.4` |
 | `ALLINONEIME_LANGUAGE` | the interface language: `en` or `zh` |
 | `ALLINONEIME_INPUT_LANGUAGE` | the language being typed: `en`, `zh`, `fr`, `ko` or `hi` |
 | `ALLINONEIME_APP` | the bundle id of the app being typed in |
