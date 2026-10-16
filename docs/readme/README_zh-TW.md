@@ -34,7 +34,7 @@
 > [!NOTE]
 > 從 0.6.3 起，AllInOneIME 以 Developer ID 簽署並經過 Apple 公證：不必再到 System Settings → Privacy & Security（系統設定 → 隱私權與安全性）中允許它。從較舊的版本更新後，對 AllInOneIME 存在鑰匙圈中的每把金鑰，macOS 都會詢問一次你的登入密碼：輸入後按一下「Always Allow」（永遠允許）。只從 [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com) 下載 AllInOneIME。
 
-一款在每個文字欄位都能使用 AI 指令的 macOS 輸入法。在句子開頭輸入 `@`，寫完後按 ⏎：`@improve` 潤飾你寫的內容並提供幾種改寫，`@translate` 把它翻譯成你選的語言，`@question` 提出問題，`@claude` 把它交給 Claude Code，`@open` 尋找檔案和 App，或開啟網址。你也可以按住右側 ⌥ 說話。不以 `@` 開頭時，按鍵照常送到 App。它也能輸入中文（拼音，以 Rime 和 rime-ice 為基礎）、法文、韓文（諺文）和印地文（以拉丁字母輸入天城文），並能把你自己的腳本當作 @ 指令執行。
+一款在每個文字欄位都能使用 AI 指令的 macOS 輸入法。在句子開頭輸入 `@`，寫完後按 ⏎：`@improve` 潤飾你寫的內容並提供幾種改寫，`@translate` 把它翻譯成你選的語言，`@question` 提出問題，`@agent` 把它交給 Claude Code、Gemini CLI、Kiro CLI 等程式設計 agent，`@open` 尋找檔案和 App，或開啟網址。你也可以按住右側 ⌥ 說話。不以 `@` 開頭時，按鍵照常送到 App。它也能輸入中文（拼音，以 Rime 和 rime-ice 為基礎）、法文、韓文（諺文）和印地文（以拉丁字母輸入天城文），並能把你自己的腳本當作 @ 指令執行。
 
 ![@improve 加上一句粗略的話，再按 ⏎：潤飾後的版本，以及改寫](../en/improve.png)
 
@@ -56,7 +56,7 @@
 | ⌘V | 和 ⌃V 一樣，但有些 App 會自行處理 ⌘V（Ghostty、iTerm2、Terminal 等終端機，以及 Notes），照常貼到 App 裡；在這些 App 中請用 ⌃V |
 | Esc、⌫ | 回到句子繼續編輯；結果出現後輸入標點或數字就是接著寫。修改結果後：回到修改前的那一版 |
 | AI 結果出現後輸入字母 | 後續內容：`@question` 之後是下一個問題（見[對話](#與-question-對話新)），`@improve` 或提示詞指令之後是修改要求，例如 `shorter`（見[修改結果](#修改結果新)）；按 ⇧⏎ 送出。`@translate` 之後輸入字母是接著寫這個句子，按 ⏎ 重新翻譯 |
-| ⌘⏎、⌘1–⌘5 | 在 `@question` 對話中：列出可以接著聊的地方（Claude Code、Claude、ChatGPT、Gemini，或拷貝對話）；⌘1、⌘2… 選一個 |
+| ⌘⏎、⌘1–⌘5 | 在 `@question` 對話中：列出可以接著聊的地方（Claude Code 或你為 `@agent` 選的其他 agent、Claude、ChatGPT、Gemini，或拷貝對話）；⌘1、⌘2… 選一個 |
 | 按一下某一列 | 在候選視窗中：選取這一列，和按它的數字鍵一樣（字詞、清單中的指令、結果、`@open` 找到的檔案、收件人、擴充功能列出的列）；指標下方的那一列會反白。文字欄位保持焦點 |
 | 輕按 Shift | 有多種輸入語言時：依序切換到下一種（英文 → 中文 → 法文 → …，然後回到第一種） |
 | 按住右側 ⌥ | 說話，放開即停止。以你正在輸入的語言辨識（英文、中文、法文、韓文或印地文）。在指令中，文字會接在指令後面；否則直接插入 |
@@ -68,7 +68,7 @@
 | `@improve` | 潤飾：1–3 是用句子本身語言寫的三個版本，4 之後是改寫風格（在設定中加入並排序），0 是原文。不會翻譯；開啟「@improve also translates」（@improve 同時翻譯）時，效果等同 `@translate @improve` |
 | `@translate` | 翻譯成你加入的語言（設定 →「Translate」，拖曳可調整順序），每種一行；只有一種語言時提供三個版本；句子本身的語言會略過。`@translate @improve` 一起使用時，一次請求就能翻譯並改寫 |
 | `@question` | 提出問題；答案會出現在候選中，按 ⏎ 或 Space 插入，⌘C 拷貝。接著輸入並按 ⇧⏎ 就是追問：候選視窗會變成最多 5 輪的對話，之後建議到 Claude 或其他 AI 接著聊。後面沒有輸入任何內容時，會列出你最近的 5 個問題，最新的在前；接著輸入就能篩選（問題中任何位置的字詞，不分大小寫，中文也可以）。按數字鍵、↑↓ 再按 ⏎，或按一下，會立刻顯示該問題已儲存的答案，不需連網，照常插入或拷貝；在那裡按 ⌘R 會重新提問以取得新的答案。沒有符合的項目，或沒有選取任何項目時，⏎ 會提出你輸入的問題 |
-| `@claude` | 把任務交給 Claude Code：預設在背景執行，完成時會發出通知（按一下通知，即可在 Terminal 中開啟該工作階段繼續），或用 `@tasks` 查看。它使用你自己的 Claude Code（`claude` 指令），以及它自己的登入和設定。在設定中關閉「@claude runs in the background and notifies me」（@claude 在背景執行並在完成時通知我），就會像以前一樣在 Terminal 中開啟。第一次開啟 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「OK」（好） |
+| `@agent` | 把任務交給你 Mac 上的程式設計 agent，在 Settings → General →「@agent hands it to」（@agent 交給）中選擇：Claude Code（預設）、Gemini CLI、Kiro CLI，或你自己的指令（你輸入的內容會作為最後一個引數加在後面）。Claude Code 預設在背景執行，完成時會發出通知（按一下通知即可在 Terminal 中打開該工作階段繼續），也可以用 `@tasks` 查看；關閉「@agent runs in the background and notifies me」（@agent 在背景執行並在完成時通知我）就會改在 Terminal 中打開。其他 agent 會在 Terminal 中打開，你輸入的內容就是第一則訊息。每個 agent 都使用自己的登入和設定。第一次打開 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「好」。（0.6.4 之前叫 `@claude`。） |
 | `@tasks` | 列出背景中的 Claude 任務（進行中／已完成／等你回應），以及它們最後的回覆；按 ⏎ 在 Terminal 中開啟，⌘C 拷貝回覆 |
 | `@settings` | 立即開啟設定視窗（選取它就夠了） |
 | `@config` | 依你的描述修改設定：`@config output languages English and French`、`@config use Chinese in WeChat`、`@config candidates in a column`。按 ⏎ 顯示要改的地方（原本 → 改為）；⏎（或 1）套用，Esc 取消，接著輸入再按 ⇧⏎ 可以再調整；⌘Z 或 `@config undo` 會還原。見[用描述的方式修改設定](#用描述的方式修改設定新) |
@@ -90,13 +90,13 @@
 
 ![@open 邊輸入邊尋找 App；以 / 開頭則是路徑：列出資料夾內容，Tab 補全](../en/open.png)
 
-`@` 後面接的不是指令時（例如 `@john`），`@` 會照常插入，所以在聊天 App 中 @ 提及別人仍然可用。緊接在字母、數字、`.`、`_` 或 `-` 後面輸入時（例如 `bob@example.com`、`ssh user@host`），`@` 就只是普通文字：不會打開清單，在任何 App 中都一樣，終端機也是。清單打開時，按 ← → 或指令名稱中不可能出現的鍵（`.`、`:`、`/`）會關閉清單，並保留你輸入的內容（`@`、`@im`）原樣不動；在終端機中，← → 這時只會關閉清單。`@question`、`@improve` 和 `@translate` 只在你按下執行鍵時才送到你自己的 Bedrock；`@open` 只在這台 Mac 上搜尋；`@note` 和 `@reminder` 只送到這台 Mac 上的 Notes 和 Reminders；`@claude` 使用安裝在你 Mac 上的 Claude Code（`claude` 指令）及其自己的帳號，並且和平常一樣，在修改檔案或執行指令前會先詢問你。沒有安裝 Claude Code 時，不提供 `@claude`。`@imessage` 只讀取這台 Mac 上的 Contacts（姓名、電話號碼、電子郵件），絕不經過 AI，訊息由 Messages 傳送；沒有 Messages App 時不提供。
+`@` 後面接的不是指令時（例如 `@john`），`@` 會照常插入，所以在聊天 App 中 @ 提及別人仍然可用。緊接在字母、數字、`.`、`_` 或 `-` 後面輸入時（例如 `bob@example.com`、`ssh user@host`），`@` 就只是普通文字：不會打開清單，在任何 App 中都一樣，終端機也是。清單打開時，按 ← → 或指令名稱中不可能出現的鍵（`.`、`:`、`/`）會關閉清單，並保留你輸入的內容（`@`、`@im`）原樣不動；在終端機中，← → 這時只會關閉清單。`@question`、`@improve` 和 `@translate` 只在你按下執行鍵時才送到你自己的 Bedrock；`@open` 只在這台 Mac 上搜尋；`@note` 和 `@reminder` 只送到這台 Mac 上的 Notes 和 Reminders；`@agent` 使用安裝在你 Mac 上的 agent（預設是 Claude Code 的 `claude` 指令）及其自己的帳號，並且和平常一樣，在修改檔案或執行指令前會先詢問你。沒有安裝該 agent 時，不提供 `@agent`。`@imessage` 只讀取這台 Mac 上的 Contacts（姓名、電話號碼、電子郵件），絕不經過 AI，訊息由 Messages 傳送；沒有 Messages App 時不提供。
 
 `@calculate` 在這台 Mac 上離線計算：`+ - * /`（也可用 `× ÷`）、`^` 或 `**` 表示次方、括號、百分比（`50%` 是 0.5，`200*5%` 是 10；和計算機一樣，加上或減去的百分比是相對於前面的數：`100+10%` 是 110，`100-10%` 是 90）、函式 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`（`log` 以 10 為底，角度單位為弧度，`round(x, 2)` 保留兩位小數），以及常數 `pi`（`π`）和 `e`。全形數字和符號也能用。運算以十進位精確計算，所以 `0.1+0.2` 是 `0.3`；結果最多 15 位有效數字，38 位以內的整數會完整寫出（`2^100` → `1267650600228229401496703205376`）。
 
 ### 對選取的文字使用指令（新）
 
-在任何 App 中選取一段文字（Notes 裡的一句話、Mail 裡的一段），輸入 `@improve`、`@translate`、`@question` 或其他處理文字的指令，然後按 ⏎：指令會處理選取的文字，你挑選的結果會取代它。你輸入時，選取的文字保持原樣、維持選取狀態：指令寫在候選視窗中，第一行是你輸入的內容，下一行是「On the selection: “…” (N characters)」（針對選取範圍：N 個字元）。按 Esc、⇧⏎ 或按一下別處，文字都保持原樣；途中改變選取範圍也一樣，而且會取消指令。指令後面輸入的文字，對 `@improve` 和 `@translate` 是要求（`@translate ja`、`@improve more formal`），對 `@question` 則是關於這段選取文字的問題（`@question what does this mean`）。`@open`、`@claude`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、終端機指令和腳本擴充功能不使用它：它們只用你輸入的內容，選取的文字保持原樣。最多 5000 個字元；處於安全輸入狀態時或在終端機中絕不讀取。若在某個 App 中運作不正常，請到 Settings → General →「Use the selected text」（使用選取的文字）關閉。
+在任何 App 中選取一段文字（Notes 裡的一句話、Mail 裡的一段），輸入 `@improve`、`@translate`、`@question` 或其他處理文字的指令，然後按 ⏎：指令會處理選取的文字，你挑選的結果會取代它。你輸入時，選取的文字保持原樣、維持選取狀態：指令寫在候選視窗中，第一行是你輸入的內容，下一行是「On the selection: “…” (N characters)」（針對選取範圍：N 個字元）。按 Esc、⇧⏎ 或按一下別處，文字都保持原樣；途中改變選取範圍也一樣，而且會取消指令。指令後面輸入的文字，對 `@improve` 和 `@translate` 是要求（`@translate ja`、`@improve more formal`），對 `@question` 則是關於這段選取文字的問題（`@question what does this mean`）。`@open`、`@agent`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、終端機指令和腳本擴充功能不使用它：它們只用你輸入的內容，選取的文字保持原樣。最多 5000 個字元；處於安全輸入狀態時或在終端機中絕不讀取。若在某個 App 中運作不正常，請到 Settings → General →「Use the selected text」（使用選取的文字）關閉。
 
 ### 修改結果（新）
 
@@ -108,7 +108,7 @@
 
 5 輪之後（設定檔中的 `questionRounds`，2–10），下一個問題的那一行會變成「5 rounds in: continue in Claude or another AI」（已聊 5 輪：到 Claude 或其他 AI 接著聊），選項依 ⌘1、⌘2… 編號；任何一輪按 ⌘⏎ 都能顯示這些選項（答案還在出現時按它不做任何事，也絕不會傳給 App）。這時你輸入的內容就是到那邊的第一則訊息；只有 ⌘1、⌘2… 會送出它（⇧⏎ 不再提問，也不打開任何東西）。對選取文字提出的問題會把那段文字一起帶過去，作為獨立的引用區塊。可選的有：
 
-- **Claude Code**（已安裝 `claude` 指令時）：在 Terminal 中開啟一個互動式工作階段，開頭是這段對話和「Let's continue this discussion」。
+- **`@agent` 所交給的 agent**，顯示它的名稱（預設是 Claude Code，也可以是在 Settings → General 中選的 Gemini CLI、Kiro CLI 或你自己的指令；已安裝時才有）：在 Terminal 中開啟一個互動式工作階段，開頭是這段對話和「Let's continue this discussion」。
 - 網頁版 **Claude** 或 **ChatGPT**，對話已經填好（太長時會放到剪貼簿：貼上即可）。
 - 網頁版 **Gemini**，對話在剪貼簿中，貼上即可。
 - **Copy the conversation**（拷貝對話），Markdown 格式（**Q:** / **A:**）。
@@ -205,7 +205,7 @@ Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent`
 
 外掛程式是現成的 `@` 指令，用於不是每個人都需要的功能，例如用 `@stock AAPL 600519 700` 查詢股價。安裝後，它們和其他指令一樣使用；設定中的「Plugins」（外掛程式）會顯示已安裝的外掛程式、各自把你的文字送到哪裡，並可移除它們。外掛程式是在獨立行程中執行的 JavaScript：它們只能連到自己宣告的網站（HTTPS），無法讀取檔案或執行其他程式。設定中「Plugins」下的「Browse Library…」（瀏覽程式庫…）可從[外掛程式庫](https://github.com/MicroZ-LLC/AllInOneIME-plugins)安裝外掛程式：安裝前會顯示外掛程式會連到哪些網站；程式庫的索引經過簽署，每個檔案都必須與索引相符。有新版本時會顯示「Update」（更新）按鈕；不會自動更新任何東西。你自己的外掛程式放在 `~/.config/allinoneime/plugins/`（「Open Plugins Folder」，打開外掛程式資料夾）：這些是本機外掛程式，絕不會被程式庫覆寫。「Link」（連結）外掛程式不執行任何程式碼：它們把文字放進網址並在瀏覽器中開啟，例如 `@x nice weather today` 會開啟 X 的撰文畫面並填好文字；要不要發佈由你在頁面上決定。程式庫中有四個（`@x`、`@threads`、`@bsky`、`@weibo`）。`@xe` 換算貨幣：`@xe 100 USD CNY`、`@xe 1000 JPY EUR`，結果為一行，附上匯率日期（匯率來自 ExchangeRate-API）。撰寫外掛程式：[docs/plugins.md](../plugins.md)。
 
-會擷取資料的指令（外掛程式和程式）也能在句子中使用：`@reply tell her @stock AAPL is up today`。內層的指令先執行，它們的輸出取代它們原本的位置，外層的指令再處理結果。引數是指令後面的那個詞，加上緊接其後的大寫代碼或數字（`@stock AAPL TSLA`、`@stock 600519 700`）；遇到小寫的詞就結束（`@stock SNDK is good to buy` 查詢的是 SNDK）。引號可以精確標出引數：`@stock "aapl tsla"`。`@calculate` 也能在句子中使用；它的引數是後面的整個運算式，包括空格，直到其他文字為止：`@reply the total is @calculate 23 * 17 dollars`。在 `@claude` 和終端機指令中，它們不會執行：這些指令收到的是照寫的文字（在其中輸入 `@` 也不會開啟指令清單）。
+會擷取資料的指令（外掛程式和程式）也能在句子中使用：`@reply tell her @stock AAPL is up today`。內層的指令先執行，它們的輸出取代它們原本的位置，外層的指令再處理結果。引數是指令後面的那個詞，加上緊接其後的大寫代碼或數字（`@stock AAPL TSLA`、`@stock 600519 700`）；遇到小寫的詞就結束（`@stock SNDK is good to buy` 查詢的是 SNDK）。引號可以精確標出引數：`@stock "aapl tsla"`。`@calculate` 也能在句子中使用；它的引數是後面的整個運算式，包括空格，直到其他文字為止：`@reply the total is @calculate 23 * 17 dollars`。在 `@agent` 和終端機指令中，它們不會執行：這些指令收到的是照寫的文字（在其中輸入 `@` 也不會開啟指令清單）。
 
 ### 執行鍵
 
@@ -230,7 +230,7 @@ Settings → Apps 可以為某個 App 提供自己的設定，每一項都是選
 | 它的文字欄位一開始使用的輸入語言 | Slack 用英文，WeChat 用拼音 | `inputLanguage` |
 | `@improve` 在那裡提供的改寫風格 | Mail 正式且委婉，Slack 口語 | `rewriteStyles` |
 | 是否逐字輸入結果 | 聊天 App 中開啟，Mail 中關閉 | `typeOut` |
-| 這個 App 中不使用 AI | `@improve`、`@translate`、`@question`、`@claude` 和你的提示詞指令在那裡不送出任何內容，並會提示；打字和其他指令照常運作 | `noAI` |
+| 這個 App 中不使用 AI | `@improve`、`@translate`、`@question`、`@agent` 和你的提示詞指令在那裡不送出任何內容，並會提示；打字和其他指令照常運作 | `noAI` |
 
 「Add App…」（加入 App）會列出你最近打過字的 App，或在 /Applications 中挑選一個。輸入選單中的「This App: <名稱>」提供正在打字的 App 的快速開關（No AI、Type Results Out、一開始的語言）。設定檔中它們位於 `appProfiles` 之下，依 bundle ID 區分：`"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`。bundle ID 比對時不分大小寫（`com.apple.Mail` 就是 Mail 的 `com.apple.mail`）。`@reportissue` 只計算設定了內容的 App 數量，絕不寫出它們的名稱。
 
@@ -263,7 +263,7 @@ Settings → Apps 可以為某個 App 提供自己的設定，每一項都是選
 
 - Notes（備忘錄）：用 `@note` 儲存的備忘錄，最新的 5 則；按一下即可在 Notes 中開啟。
 - Reminders（提醒事項）：Reminders 中 AllInOneIME 列表裡尚未完成的提醒事項（`@reminder` 就是加到這個列表），最快到期的排在前面，顯示 8 則；按一下圓圈即可勾選完成，按一下標題則開啟 Reminders。
-- Claude Tasks（Claude 任務）：和 `@tasks` 一樣，是背景中的 Claude 任務（`@claude` 交出去的工作），最多 30 個，一次顯示 5 個：捲動可看更多，或在搜尋框中搜尋它們的標題和回覆；附有進度，以及最後一則回覆的第一行；按一下即可在 Terminal 中開啟並繼續。
+- Claude Tasks（Claude 任務）：和 `@tasks` 一樣，是背景中的 Claude 任務（`@agent` 交給 Claude Code 的工作），最多 30 個，一次顯示 5 個：捲動可看更多，或在搜尋框中搜尋它們的標題和回覆；附有進度，以及最後一則回覆的第一行；按一下即可在 Terminal 中開啟並繼續。
 
 用兩指把某一列（備忘錄、提醒事項或任務）向左滑動，會顯示它的「Remove」（移除）按鈕，一路滑到底則直接移除；使用滑鼠時，按右鍵即可。移除只會把它從面板上拿掉：備忘錄仍留在 Notes 中，提醒事項仍在 Reminders 中（不會標為完成），任務仍在 Claude Code 中。
 
@@ -273,7 +273,7 @@ Settings → Apps 可以為某個 App 提供自己的設定，每一項都是選
 
 - Notes：清單是面板自己的紀錄（面板關閉時也會保留），而且絕不會啟動 Notes：只有在 Notes 已經在執行、且 AllInOneIME 先前已獲准控制它時，面板才會檢查其中被修改的標題和被刪除的備忘錄。
 - Reminders：面板展開時、每 60 秒，以及提醒事項變更時，會讀取 AllInOneIME 列表。面板絕不會自行讓 macOS 要求存取權限：如果 macOS 還沒問過你，它會顯示「Allow Access to Reminders」（允許取用提醒事項），只有按下這個按鈕才會詢問；如果你拒絕了，它會顯示「Open System Settings」（打開系統設定）。
-- Claude 任務：面板只在展開時執行 `claude agents`：展開時一次、按重新整理時、`@claude` 交出任務時；以及有任務尚未完成時每 15 秒一次，全部完成後就不再執行。最後的回覆讀取自這台 Mac 上 Claude Code 的對話紀錄結尾（`~/.claude/projects`），而且只在對話紀錄有變更時才讀取。
+- Claude 任務：面板只在展開時執行 `claude agents`：展開時一次、按重新整理時、`@agent` 交出任務時；以及有任務尚未完成時每 15 秒一次，全部完成後就不再執行。最後的回覆讀取自這台 Mac 上 Claude Code 的對話紀錄結尾（`~/.claude/projects`），而且只在對話紀錄有變更時才讀取。
 - 面板關閉時，以上都不會執行；它只會記錄 `@note` 儲存的備忘錄。
 
 ## 輸入與翻譯
@@ -438,7 +438,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | 你自己的字詞，不分大小寫 | 像 `Project Atlas` 這樣的代號、一個名字 | `customWords` |
 
 - 它適用於 `@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，以及修改它們的結果（使用同樣的預留位置），所有供應商都一樣，包括 AllInOneIME Cloud 和 Apple Intelligence。術語表中含有要隱藏內容的項目不會送出。
-- 它能辨識有固定格式的值；無法辨識人名或地址，請把它們加為你自己的字詞。`@claude`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。詳見「隱私」。
+- 它能辨識有固定格式的值；無法辨識人名或地址，請把它們加為你自己的字詞。`@agent`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。詳見「隱私」。
 - 設定檔中：`"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`。
 
 所有設定都存放在 `~/.config/allinoneime/config.json`；變更後，下一次翻譯就會使用新設定，不需要重新啟動。較新的鍵：
@@ -459,9 +459,12 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | `fuzzyPinyin` | 模糊拼音配對：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 | `useSelection` | @ 指令處理欄位中選取的文字（見「對選取的文字使用指令」） | `true` |
 | `checkForUpdates` | 每天在背景檢查一次新版本；你沒按下之前不會安裝任何東西 | `true` |
+| `agent` | `@agent` 要把文字交給哪個程式設計 agent：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
+| `agentCommand` | 自訂 agent 的指令，你輸入的內容會作為最後一個引數加在後面，例如 `["muse", "--"]` | `[]` |
+| `claudeInBackground` | `@agent` 使用 Claude Code 時在背景執行，完成時通知你（其他 agent 一律在 Terminal 中打開） | `true` |
 | `rememberQuestions` | 在這台 Mac 上保留你最近 5 個 `@question` 問題和答案，列在 `@question` 下方（見「最近的問題」） | `true` |
 | `questionRounds` | `@question` 對話在候選視窗中進行幾輪後，建議到別處接著聊，2–10 | `5` |
-| `questionContinueIn` | `@question` 對話可以在哪裡接著聊，依序排列，第一個為預設：`claudeCode`、`claudeWeb`、`chatgpt`、`gemini`、`copy` | Claude Code（若已安裝）、Claude、ChatGPT、拷貝 |
+| `questionContinueIn` | `@question` 對話可以在哪裡接著聊，依序排列，第一個為預設：`claudeCode`（`@agent` 所交給的 agent）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `@agent` 的 agent（若已安裝）、Claude、ChatGPT、拷貝 |
 | `appProfiles` | 單一 App 的設定，依 bundle ID，每一項都是選擇性的：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（見「依 App 設定」） | `{}` |
 | `redaction` | 對 AI 隱藏敏感資訊（見「隱私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；每種偵測（`emails`、`phones`、`cards`、`keys`、`ips`）除非設為 `false`，否則都開啟 | `enabled: false` |
 
@@ -469,9 +472,9 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 
 - 打字（英文和拼音）以及 `@calculate` 的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。修改結果（在結果出現後輸入要求，再按 ⇧⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求；追問（⇧⏎）則會連同到目前為止的對話一起送出。
 - `@config` 和 `@doctor <question>` 會在你按 ⏎ 時把文字送給模型：只要這台 Mac 能用 Apple Intelligence 就用它（不會有任何內容離開 Mac），否則用你的供應商。`@config` 會送出你的句子（句子中輸入的金鑰會先去除），以及它可以修改的那些設定的目前值：絕不包含金鑰，也不包含你對 AI 隱藏的詞（只送出有幾個），AWS 設定檔的名稱也只在句子與 AWS 或 Bedrock 有關時才送出。`@doctor <question>` 會送出你的問題和遮蔽過的檢查結果：路徑只到 `~` 為止、沒有金鑰、記錄檔的內容改為固定的說法。隱藏敏感資訊對兩者都適用，和其他請求一樣。單獨執行檢查時（`@doctor` 後面什麼都不接），除了 Test Connection 的請求之外什麼都不送出，而且只在供應商有金鑰或憑證可測試時才送。
-- 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上的 Claude Code（Anthropic）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
+- 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上 `@agent` 所交給的 agent（預設是 Anthropic 的 Claude Code）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
 - 使用 AllInOneIME Cloud 時，句子會經由開發者的伺服器送到模型供應商（目前經由 OpenRouter）：伺服器只保留計數，絕不保留文字。登入只會保留你的電子郵件地址。
-- 隱藏敏感資訊（Settings → AI Provider → Privacy，預設關閉）：任何請求送出之前（`@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，所有供應商皆然，包括 AllInOneIME Cloud），電子郵件地址、電話號碼、付款卡號（經 Luhn 檢查）、API 金鑰和權杖（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和很長的隨機字串）、IP 位址以及你自己的字詞（代號、名字）會先在 Mac 上換成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 這類預留位置；同一個值使用同一個預留位置。模型的結果在顯示或插入之前會換回真實內容，候選視窗會顯示「2 items hidden from the AI」。模型把預留位置改得無法辨認的結果，會照原樣顯示並標上「⚠ placeholder changed」。術語表中含有被隱藏內容的項目不會送出。每一類都能個別關閉。全形寫法（`zhang＠example.com`、`１３８…`）也找得到，值或片語中間換行也可以。它能辨識有固定格式的值，例如電子郵件、號碼和金鑰；無法辨識人名或地址（請把它們加為你自己的字詞），也無法辨識其他字母系統中外形相似的字母。只適用於送往你的 AI 服務的請求；`@claude`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。設定檔中為 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
+- 隱藏敏感資訊（Settings → AI Provider → Privacy，預設關閉）：任何請求送出之前（`@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，所有供應商皆然，包括 AllInOneIME Cloud），電子郵件地址、電話號碼、付款卡號（經 Luhn 檢查）、API 金鑰和權杖（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和很長的隨機字串）、IP 位址以及你自己的字詞（代號、名字）會先在 Mac 上換成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 這類預留位置；同一個值使用同一個預留位置。模型的結果在顯示或插入之前會換回真實內容，候選視窗會顯示「2 items hidden from the AI」。模型把預留位置改得無法辨認的結果，會照原樣顯示並標上「⚠ placeholder changed」。術語表中含有被隱藏內容的項目不會送出。每一類都能個別關閉。全形寫法（`zhang＠example.com`、`１３８…`）也找得到，值或片語中間換行也可以。它能辨識有固定格式的值，例如電子郵件、號碼和金鑰；無法辨識人名或地址（請把它們加為你自己的字詞），也無法辨識其他字母系統中外形相似的字母。只適用於送往你的 AI 服務的請求；`@agent`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。設定檔中為 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 只有在你按住右側 ⌥ 時才會錄音，並在 Mac 上辨識；辨識出的文字只有在上述指令中、你按下執行鍵時才會送出。
 - 輸入法只在你於指令中按 ⌃V 或 ⌘V 時讀取剪貼簿文字一次；密碼管理工具標示為隱藏的內容不會被讀取。文字會先顯示在指令中，同樣只在你按下執行鍵時才會送出。較新的 macOS 版本會詢問是否允許 AllInOneIME 讀取剪貼簿：請允許。若不想每次都被詢問，請在 System Settings → Privacy & Security 中把 AllInOneIME 的貼上權限設為一律允許。
 - 在密碼欄位中，macOS 會切換到它自己的鍵盤（U.S. 或 ABC），離開時再切回來。只要你正在輸入的 App 處於安全輸入狀態，AllInOneIME 就不會組字，也無法錄音：按鍵照原樣輸入。而且當系統處於安全輸入狀態時（密碼欄位、Terminal 的 Secure Keyboard Entry（安全鍵盤輸入）等），不會有任何內容送到 AI。
