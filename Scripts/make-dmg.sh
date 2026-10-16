@@ -51,12 +51,14 @@ rm -f "$dmg" "$dmg.sha256"
 hdiutil convert -quiet "$work/rw.dmg" -format ULMO -o "$dmg"
 hdiutil verify -quiet "$dmg"
 
-# The certificate IDENTITY picks (a name or a hash); only a Developer ID one signs the image.
-certificate=$( [ -n "$identity" ] && security find-identity -v -p codesigning | grep -F -- "$identity" | head -1 || true)
+# The certificate IDENTITY picks (a name or a hash; the first if several match) as "HASH NAME"
+# (Scripts/sign-identity.sh); only a Developer ID one signs the image, by its hash.
+certificate=$("$repo/Scripts/sign-identity.sh" "$identity" || true)
+name=${certificate#* }
 signed=no
-case $certificate in
-*"Developer ID Application"*)
-    codesign --force --timestamp --sign "$identity" "$dmg"
+case $name in
+"Developer ID Application"*)
+    codesign --force --timestamp --sign "${certificate%% *}" "$dmg"
     codesign --verify --strict "$dmg"
     signed=yes
     ;;
@@ -65,7 +67,7 @@ esac
 notarized=no
 if [ -n "$profile" ]; then
     if [ "$signed" = no ]; then
-        echo "error: notarizing needs a Developer ID Application certificate; '$identity' picks ${certificate:-none}" >&2
+        echo "error: notarizing needs a Developer ID Application certificate; '$identity' picks ${name:-none}" >&2
         exit 1
     fi
     if ! result=$(xcrun notarytool submit "$dmg" --keychain-profile "$profile" --wait --output-format json); then
