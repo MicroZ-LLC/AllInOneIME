@@ -90,7 +90,7 @@
 
 ![@open 邊輸入邊尋找 App；以 / 開頭則是路徑：列出資料夾內容，Tab 補全](../en/open.png)
 
-`@` 後面接的不是指令時（例如 `@john`），`@` 會照常插入，所以在聊天 App 中 @ 提及別人仍然可用。`@question`、`@improve` 和 `@translate` 只在你按下執行鍵時才送到你自己的 Bedrock；`@open` 只在這台 Mac 上搜尋；`@note` 和 `@reminder` 只送到這台 Mac 上的 Notes 和 Reminders；`@claude` 使用安裝在你 Mac 上的 Claude Code（`claude` 指令）及其自己的帳號，並且和平常一樣，在修改檔案或執行指令前會先詢問你。沒有安裝 Claude Code 時，不提供 `@claude`。`@imessage` 只讀取這台 Mac 上的 Contacts（姓名、電話號碼、電子郵件），絕不經過 AI，訊息由 Messages 傳送；沒有 Messages App 時不提供。
+`@` 後面接的不是指令時（例如 `@john`），`@` 會照常插入，所以在聊天 App 中 @ 提及別人仍然可用。緊接在字母、數字、`.`、`_` 或 `-` 後面輸入時（例如 `bob@example.com`、`ssh user@host`），`@` 就只是普通文字：不會打開清單，在任何 App 中都一樣，終端機也是。清單打開時，按 ← → 或指令名稱中不可能出現的鍵（`.`、`:`、`/`）會關閉清單，並保留你輸入的內容（`@`、`@im`）原樣不動；在終端機中，← → 這時只會關閉清單。`@question`、`@improve` 和 `@translate` 只在你按下執行鍵時才送到你自己的 Bedrock；`@open` 只在這台 Mac 上搜尋；`@note` 和 `@reminder` 只送到這台 Mac 上的 Notes 和 Reminders；`@claude` 使用安裝在你 Mac 上的 Claude Code（`claude` 指令）及其自己的帳號，並且和平常一樣，在修改檔案或執行指令前會先詢問你。沒有安裝 Claude Code 時，不提供 `@claude`。`@imessage` 只讀取這台 Mac 上的 Contacts（姓名、電話號碼、電子郵件），絕不經過 AI，訊息由 Messages 傳送；沒有 Messages App 時不提供。
 
 `@calculate` 在這台 Mac 上離線計算：`+ - * /`（也可用 `× ÷`）、`^` 或 `**` 表示次方、括號、百分比（`50%` 是 0.5，`200*5%` 是 10；和計算機一樣，加上或減去的百分比是相對於前面的數：`100+10%` 是 110，`100-10%` 是 90）、函式 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`（`log` 以 10 為底，角度單位為弧度，`round(x, 2)` 保留兩位小數），以及常數 `pi`（`π`）和 `e`。全形數字和符號也能用。運算以十進位精確計算，所以 `0.1+0.2` 是 `0.3`；結果最多 15 位有效數字，38 位以內的整數會完整寫出（`2^100` → `1267650600228229401496703205376`）。
 
@@ -244,7 +244,7 @@ Settings → Apps 可以為某個 App 提供自己的設定，每一項都是選
 - **可以修改的：** 翻譯語言和輸入語言（以及預設的那一種）、改寫風格、候選排列、逐字輸出結果（開關、速度、時快時慢、打錯再改）、使用選取的文字、記住問題、隱藏敏感資訊（開關、隱藏哪些、要加入的詞）、檢查更新、依 App 設定（App 用你稱呼它的名字，依名稱或 bundle ID 在你的 App 中尋找），以及 AI 供應商：用哪一個、Bedrock 的設定檔（來自 `~/.aws`）和區域、App 知道適用於它的模型，以及相容 OpenAI 服務的 Base URL（僅限 `https://`）。
 - **絕不碰的：** API 金鑰和鑰匙圈中的任何東西、自訂指令、擴充功能資料夾和來源、外掛程式、術語表、任何會執行程式的東西，以及其他所有設定。這些列會被拒絕並註明原因，其餘的仍可套用。
 - **和設定中一樣檢查：** 不是語言的語言、超過 5 種翻譯語言、超出範圍的值、無法辨認的 App，或語言套件尚未安裝的語言（「needs the Korean language pack: download it in Settings → Input」，即需要韓文語言套件，請在 Settings → Input 中下載）都會逐列拒絕；絕不會寫入無效的設定檔。
-- **金鑰：** 需要金鑰的供應商會多一列「API key: enter it in Settings (never sent to the AI)」（API 金鑰：請在設定中輸入，絕不會送給 AI）：套用時會打開 Settings → AI Provider 並停在金鑰欄位。句子中輸入的金鑰會在送出任何內容之前去除。換了供應商之後會執行 Test Connection，結果顯示在確認訊息下方。
+- **金鑰：** 它絕不會切換到沒有金鑰的供應商（鑰匙圈和 shell 中都沒有）：那一列會寫「Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there」（Gemini API 需要 API 金鑰：按 ⏎ 打開設定加入，絕不會送給 AI；你可以在那裡切換過去），套用時會打開 Settings → AI Provider，並跳出輸入這把金鑰的小視窗（「Save」儲存，或「Save and Use」儲存並切換過去），其他列照常套用。有金鑰時，供應商會切換，接著執行 Test Connection，結果顯示在確認訊息下方。句子中輸入的金鑰會在送出任何內容之前去除。
 - **先用本機：** 只要這台 Mac 有 Apple Intelligence（macOS 26）就使用它，不論你選了哪個供應商，甚至在還沒設定任何供應商之前也一樣；它只能提出允許的設定和值，並能查詢你的 App、AWS 設定檔和語言套件。沒有的話，由你的供應商回答。請求中只有允許的設定及其目前的值（絕不包含金鑰，也不包含你要隱藏的詞），隱藏敏感資訊也和其他請求一樣適用。
 
 ### 檢查你的設定（新）
@@ -374,10 +374,31 @@ make install
 ### Amazon Bedrock
 
 1. 在 AWS 主控台中啟用 Bedrock，並確認你能使用選定的模型。預設是 Claude Haiku 4.5；第一次使用 Anthropic 的模型時，需要填寫一次使用案例表單。
-2. 建立一組具有 `bedrock:InvokeModelWithResponseStream` 權限的存取金鑰，並放進 `~/.aws/credentials` 中的某個設定檔（profile）。目前只支援這種靜態金鑰，不支援 SSO 或 assume-role。
+2. 使用一個允許 `bedrock:InvokeModelWithResponseStream` 的 AWS 設定檔（profile）：`~/.aws/credentials` 中的靜態金鑰，或能取得臨時憑證的設定檔（`credential_process`、角色、SSO；見下方的「AWS 設定檔」）。
 3. 打開「AllInOneIME Settings」：你可以在 Spotlight 或「應用程式」中找到它，或從選單列中輸入法的圖像 →「Settings…」（設定…）打開。選擇設定檔、區域和模型，然後按一下「Test Connection」（測試連線）。設定視窗頂端的「Language」（語言）可以是英文或中文；預設（「System」）跟隨系統（系統偏好語言中中文排在英文前面時為中文，否則為英文）。設定視窗、候選視窗中的提示和輸入選單都會跟隨這項設定。
 
 <img src="../en/settings.png" width="420" alt="設定視窗">
+
+#### AWS 設定檔
+
+只要是 AWS CLI 不必詢問你就能使用的設定檔都可以，來自 `~/.aws/config` 和 `~/.aws/credentials`（或 shell 中 `AWS_CONFIG_FILE` 和 `AWS_SHARED_CREDENTIALS_FILE` 指定的檔案）。在一個設定檔中，會依 AWS CLI 的順序使用它所具備的第一種來源（同時有 `role_arn` 和金鑰的設定檔算作角色）：
+
+| 種類 | 設定檔中的內容 | 何時更新 |
+| --- | --- | --- |
+| 角色 | `role_arn` 加上 `source_profile`（這裡可以是任何一種，也可以串接；指向自己的設定檔使用它自己的金鑰）或 `credential_source = Environment`；`role_session_name`、`external_id`、`duration_seconds` | 到期前 5 分鐘再次呼叫 STS `AssumeRole`（在設定檔的 `region`，沒有則為 us-east-1） |
+| SSO | `sso_account_id`、`sso_role_name` 加上 `sso_session` 及其 `[sso-session …]` 區段（或舊式的 `sso_start_url`、`sso_region`） | 到期前 5 分鐘用你快取的登入再取一次 |
+| 靜態金鑰 | `~/.aws/credentials` 中的 `aws_access_key_id`、`aws_secret_access_key`（以及 `aws_session_token`） | 每次請求都重新讀取 |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev`（像 shell 指令一樣拆開，但不透過 shell 執行；使用登入 shell 的 PATH，在你的個人專屬資料夾中，最多 60 秒） | 在它給的 `Expiration` 前 5 分鐘再次執行；沒有到期時間時，則在 AWS 拒絕憑證時再執行 |
+| 靜態金鑰 | `~/.aws/config` 中同樣的金鑰 | 每次請求都重新讀取 |
+
+設定檔為「default」（或未選擇）時，會和 AWS CLI 一樣優先使用 shell 中的金鑰：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY` 和 `AWS_SESSION_TOKEN`。你指定名稱的設定檔絕不會和它們混用。shell 中的 `AWS_REGION`（或 `AWS_DEFAULT_REGION`）和 AWS CLI 一樣優先於設定檔的 `region`；設定中的「Region」欄位又優先於這兩者。
+
+- **自動：** 會過期的憑證只保存在記憶體中（絕不寫入磁碟），並在到期前 5 分鐘重新取得；剩下不到 10 分鐘時，請求會先使用現有的憑證，同時在背景取得新的，所以打字不必等待。同時發出的請求只會等待同一次取得。Bedrock 回應憑證已過期（`ExpiredTokenException` 等）時，會重新取得憑證並再送出一次請求，只重試一次。
+- **SSO：** AllInOneIME 使用 AWS CLI 存放在 `~/.aws/sso/cache` 中的登入（只讀取），無法替你登入，因為那需要瀏覽器。登入過期時，候選視窗會顯示「SSO sign-in expired: run aws sso login --profile X」（SSO 登入已過期：請執行 aws sso login --profile X）：在 Terminal 中執行它（設定中有「Copy Command」和「Open in Terminal」；`@doctor` 也會提供可拷貝的指令），之後 AllInOneIME 會自動使用新的登入。
+- **不支援：** `mfa_serial`（輸入法無法向你要 MFA 驗證碼：請改用 `credential_process` 或 SSO，或讓你的 CLI 快取憑證）、`credential_source = Ec2InstanceMetadata` 或 `EcsContainer`（Mac 上沒有），以及 web identity。
+- **已知限制：** 只有 PATH 和 AWS 檔案的變數（`AWS_CONFIG_FILE`、`AWS_SHARED_CREDENTIALS_FILE`）來自你的登入 shell，`credential_process` 也一樣（不帶入其他環境變數）。AllInOneIME 不會續期 `sso_session` 的權杖（不使用 CLI 的 refresh token：SSO 快取只讀不寫），所以快取的權杖過期後，請執行 `aws sso login`（平常使用 AWS CLI 時它也會自動續期）。
+- **Settings → AI Provider** 會列出每個設定檔及其種類（「dev — Role via base」），並說明所選設定檔的憑證何時到期（「Role via base: credentials expire at 15:30」、「SSO (signed in until 18:00)」）或該怎麼做。Test Connection 會沿著整條鏈取得新的憑證；`@doctor` 也會回報同樣的內容。
+- 只有在請求或 Test Connection 需要憑證時，才會執行程式、向 AWS 要求憑證（`sts.<region>.amazonaws.com`、`portal.sso.<region>.amazonaws.com`）：列出設定檔時絕不會，`@config` 也絕不會。
 
 ### 其他 AI 供應商：Claude API、Gemini、與 OpenAI 相容的服務
 
@@ -390,6 +411,7 @@ make install
 | 與 OpenAI 相容 | OpenAI 的 `gpt-6-luna`（或 `gpt-5.4-mini`）；「Common Services…」（常用服務…）中有 DeepSeek、Qwen、Kimi、Zhipu GLM、SiliconFlow、OpenRouter，以及這台 Mac 上的 Ollama：選擇其中一個會填入它的 Base URL，再輸入它的模型 | 該服務的金鑰；把 Base URL 設為它的位址，例如 `https://api.deepseek.com/v1`，或這台 Mac 上 Ollama 的 `http://localhost:11434/v1` |
 
 - API 金鑰保存在系統鑰匙圈中，絕不會寫進設定檔。鑰匙圈中沒有金鑰時，會使用你 shell 中的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）和 `OPENAI_API_KEY`。
+- API 金鑰那一列會顯示是否已設定金鑰：「✓ Saved · ends in a1b2」（已儲存 · 結尾為 a1b2：最後 4 個字元，儲存金鑰時一併記下，顯示時不必讀取金鑰本身），旁邊有「Replace…」（取代）和「Remove…」（移除）；來自 shell 的顯示「✓ From $OPENAI_API_KEY」（來自 $OPENAI_API_KEY）；沒有的話顯示「No API key yet」（尚未設定 API 金鑰），並直接提供貼上的欄位。
 - 「Thinking」（思考）預設為低：輸入法每一句都要等待，思考越少越快。不支援這項設定的模型請選擇「Not set」（未設定）。
 - 選擇 Claude Opus 5.5 或 Sonnet 5.5 時，請求會帶有 Claude API 的拒絕備援（`fallbacks: "default"`）：安全分類器拒絕時，伺服器會改用另一個模型重試。
 - 設定檔中：`provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`），以及 `anthropic`、`gemini` 和 `openai` 下的 `model`、`baseURL`、`effort` 和 `temperature`（未設定的使用預設值）。

@@ -90,7 +90,7 @@
 
 ![@open은 입력하는 대로 앱을 찾음. /로 시작하면 경로: 폴더 내용이 나열되고 Tab으로 완성](../en/open.png)
 
-`@john`처럼 `@` 뒤에 명령어가 오지 않으면 `@`가 평소처럼 입력되므로, 채팅 앱에서 사람을 @멘션하는 것도 그대로 됩니다. `@question`, `@improve`, `@translate`는 실행 키를 눌렀을 때만 여러분의 Bedrock으로 보냅니다. `@open`은 이 Mac에서만 검색합니다. `@note`와 `@reminder`는 이 Mac의 Notes와 Reminders로만 갑니다. `@claude`는 Mac에 설치된 Claude Code(`claude` 명령어)와 그 계정을 사용하며, 파일을 바꾸거나 명령어를 실행하기 전에 평소처럼 먼저 묻습니다. Claude Code가 설치되어 있지 않으면 `@claude`는 제공되지 않습니다. `@imessage`는 이 Mac의 Contacts(이름, 전화번호, 이메일)만 읽으며, AI를 거치지 않고, 메시지는 Messages가 보냅니다. Messages 앱이 없으면 제공되지 않습니다.
+`@john`처럼 `@` 뒤에 명령어가 오지 않으면 `@`가 평소처럼 입력되므로, 채팅 앱에서 사람을 @멘션하는 것도 그대로 됩니다. 글자, 숫자, `.`, `_`, `-` 바로 뒤에 입력한 `@`는(`bob@example.com`이나 `ssh user@host`처럼) 그냥 텍스트입니다. 목록이 열리지 않으며, 터미널을 포함해 모든 앱에서 그렇습니다. 목록이 열려 있을 때 ← →나 명령어 이름에 들어갈 수 없는 키(`.`, `:`, `/`)를 누르면 목록이 닫히고 입력한 내용(`@`, `@im`)은 그대로 남습니다. 터미널에서는 이때 ← →가 목록만 닫습니다. `@question`, `@improve`, `@translate`는 실행 키를 눌렀을 때만 여러분의 Bedrock으로 보냅니다. `@open`은 이 Mac에서만 검색합니다. `@note`와 `@reminder`는 이 Mac의 Notes와 Reminders로만 갑니다. `@claude`는 Mac에 설치된 Claude Code(`claude` 명령어)와 그 계정을 사용하며, 파일을 바꾸거나 명령어를 실행하기 전에 평소처럼 먼저 묻습니다. Claude Code가 설치되어 있지 않으면 `@claude`는 제공되지 않습니다. `@imessage`는 이 Mac의 Contacts(이름, 전화번호, 이메일)만 읽으며, AI를 거치지 않고, 메시지는 Messages가 보냅니다. Messages 앱이 없으면 제공되지 않습니다.
 
 `@calculate`는 이 Mac에서 오프라인으로 작동합니다. `+ - * /`(`× ÷`도 가능), 거듭제곱의 `^` 또는 `**`, 괄호, 퍼센트(`50%`는 0.5, `200*5%`는 10. 계산기처럼 더하거나 빼는 퍼센트는 앞의 값에 대한 것입니다: `100+10%`는 110, `100-10%`는 90), 함수 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`(`log`는 밑이 10, 각도는 라디안, `round(x, 2)`는 소수 둘째 자리까지), 상수 `pi`(`π`)와 `e`를 쓸 수 있습니다. 전각 숫자와 기호도 됩니다. 계산은 십진수로 정확하게 하므로 `0.1+0.2`는 `0.3`입니다. 결과는 유효 숫자 최대 15자리이며, 38자리까지의 정수는 생략 없이 표시됩니다(`2^100` → `1267650600228229401496703205376`).
 
@@ -244,7 +244,7 @@ Settings → Apps에서 앱마다 자체 설정을 줄 수 있으며, 모두 선
 - **바꿀 수 있는 것:** 번역 언어와 입력 언어(그리고 기본 언어), 다시 쓰기 스타일, 후보 배치, 결과 타이핑(켜기/끄기, 속도, 빨라졌다 느려졌다, 오타), 선택 영역 사용, 질문 기억, 민감한 정보 숨기기(켜기/끄기, 숨길 대상, 추가할 단어), 업데이트 확인, 앱별 설정(사용자가 부르는 이름으로 지정한 앱을, 이름이나 번들 ID로 설치된 앱에서 찾음), 그리고 AI 제공업체: 어느 것을 쓸지, Bedrock 프로필(`~/.aws`에서)과 리전, 앱이 그 제공업체에 대해 아는 모델, OpenAI 호환 기본 URL(`https://`만).
 - **절대 건드리지 않는 것:** API 키와 키체인에 있는 모든 것, 사용자 지정 명령어, 확장 폴더와 소스, 플러그인, Jargon 용어 목록, 프로그램을 실행하는 모든 것, 그리고 그 밖의 모든 설정. 이런 행은 이유와 함께 거부되며, 나머지는 그대로 적용할 수 있습니다.
 - **설정에서처럼 확인합니다:** 언어가 아닌 언어, 5개를 넘는 번역 언어, 범위를 벗어난 값, 알아볼 수 없는 앱, 언어 팩이 설치되지 않은 언어("needs the Korean language pack: download it in Settings → Input", 즉 한국어 언어 팩이 필요하니 Settings → Input에서 내려받으라는 뜻)는 행마다 거부됩니다. 잘못된 설정 파일은 절대 쓰지 않습니다.
-- **키:** 키가 필요한 제공업체에는 "API key: enter it in Settings (never sent to the AI)"(API 키: 설정에서 입력하세요. AI로는 절대 보내지 않습니다)라는 행이 붙으며, 적용하면 Settings → AI Provider의 키 입력란이 열립니다. 문장에 입력한 키는 무엇이든 보내기 전에 제거됩니다. 제공업체가 바뀐 뒤에는 Test Connection이 실행되고, 그 결과가 확인 표시 아래에 나타납니다.
+- **키:** 키가 없는 제공업체(키체인에도 셸에도 없음)로는 절대 바꾸지 않습니다. 그 행에는 "Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there"(Gemini API에는 API 키가 필요합니다. ⏎로 설정을 열어 추가하세요. AI로는 절대 보내지 않습니다. 거기서 바꿀 수 있습니다)라고 표시되고, 적용하면 Settings → AI Provider가 열리면서 그 키를 위한 작은 시트가 나타나며("Save"로 저장, "Save and Use"로 저장하고 바꾸기), 나머지 행은 그대로 적용됩니다. 키가 있으면 제공업체가 바뀌고 Test Connection이 실행되어 그 결과가 확인 표시 아래에 나타납니다. 문장에 입력한 키는 무엇이든 보내기 전에 제거됩니다.
 - **이 Mac에서 먼저:** 이 Mac에 Apple Intelligence가 있으면(macOS 26), 어떤 제공업체를 골랐든, 심지어 제공업체를 설정하기 전이라도 항상 그것을 씁니다. 허용된 설정과 값으로 제한되며, 앱, AWS 프로필, 언어 팩을 조회할 수 있습니다. 없으면 사용자의 제공업체가 답합니다. 요청에는 허용된 설정과 그 현재 값만 들어 있으며(키나 숨기는 단어는 절대 없음), 민감한 정보 숨기기는 다른 요청과 마찬가지로 적용됩니다.
 
 ### 설정 점검하기 (신규)
@@ -374,10 +374,31 @@ make install
 ### Amazon Bedrock
 
 1. AWS 콘솔에서 Bedrock을 활성화하고, 선택한 모델을 쓸 수 있는지 확인하세요. 기본값은 Claude Haiku 4.5입니다. Anthropic 모델을 처음 쓸 때는 사용 사례 양식을 한 번 작성합니다.
-2. `bedrock:InvokeModelWithResponseStream` 권한이 있는 액세스 키를 만들어 `~/.aws/credentials`의 프로필에 넣으세요. 현재는 이런 정적 키만 지원하며, SSO나 assume-role은 지원하지 않습니다.
+2. `bedrock:InvokeModelWithResponseStream`이 허용된 AWS 프로필을 쓰세요. `~/.aws/credentials`의 정적 키, 또는 임시 자격 증명을 받아 오는 프로필(`credential_process`, 역할, SSO. 아래 "AWS 프로필" 참고)입니다.
 3. "AllInOneIME Settings"를 여세요. Spotlight나 응용 프로그램 폴더에서 찾거나, 메뉴 막대의 입력기 아이콘 → "Settings…"(설정…)에서 열 수 있습니다. 프로필, 리전, 모델을 고르고 "Test Connection"(연결 테스트)을 클릭하세요. 설정 창 맨 위의 "Language"(언어)는 영어 또는 중국어로 할 수 있으며, 기본값("System")은 시스템을 따릅니다(시스템의 선호하는 언어에서 중국어가 영어보다 앞이면 중국어, 아니면 영어). 설정 창, 후보 패널의 힌트, 입력 메뉴가 모두 이를 따릅니다.
 
 <img src="../en/settings.png" width="420" alt="설정 창">
+
+#### AWS 프로필
+
+AWS CLI가 아무것도 묻지 않고 쓸 수 있는 프로필이면 무엇이든 됩니다. `~/.aws/config`와 `~/.aws/credentials`(또는 셸의 `AWS_CONFIG_FILE`과 `AWS_SHARED_CREDENTIALS_FILE`이 가리키는 파일)에서 읽습니다. 한 프로필 안에서는 AWS CLI와 같은 순서로, 그 프로필에 있는 첫 번째 것을 씁니다(`role_arn`과 키가 둘 다 있는 프로필은 역할로 봅니다).
+
+| 종류 | 프로필 내용 | 갱신 |
+| --- | --- | --- |
+| 역할 | `role_arn`과 `source_profile`(여기에는 어떤 종류든 올 수 있고 연쇄도 가능하며, 자기 자신을 가리키는 프로필은 자기 키를 씀) 또는 `credential_source = Environment`. `role_session_name`, `external_id`, `duration_seconds` | 만료 5분 전에 STS `AssumeRole`로 다시 받음(프로필의 `region`, 없으면 us-east-1) |
+| SSO | `sso_account_id`, `sso_role_name`과 `sso_session` 및 그 `[sso-session …]` 섹션(또는 예전 방식의 `sso_start_url`, `sso_region`) | 만료 5분 전에 캐시된 로그인으로 다시 받음 |
+| 정적 키 | `~/.aws/credentials`의 `aws_access_key_id`, `aws_secret_access_key`(와 `aws_session_token`) | 요청할 때마다 다시 읽음 |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev`(셸 명령처럼 나누되 셸 없이 실행, 로그인 셸의 PATH로, 홈 폴더에서, 최대 60초) | `Expiration` 5분 전에 다시 실행. 없으면 AWS가 자격 증명을 거부할 때 |
+| 정적 키 | `~/.aws/config`에 있는 같은 키 | 요청할 때마다 다시 읽음 |
+
+프로필이 "default"이면(또는 고르지 않았으면) AWS CLI처럼 셸의 키가 먼저 쓰입니다: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`. 이름을 지정한 프로필은 이것들과 절대 섞이지 않습니다. 셸의 `AWS_REGION`(또는 `AWS_DEFAULT_REGION`)은 AWS CLI처럼 프로필의 `region`보다 우선하고, 설정의 Region 칸은 둘보다 우선합니다.
+
+- **자동:** 만료되는 자격 증명은 메모리에만 두고(디스크에는 절대 쓰지 않음) 만료 5분 전에 다시 받아 옵니다. 10분이 채 안 남았으면 요청은 기존 자격 증명을 쓰면서 백그라운드에서 새것을 받아 오므로, 타이핑이 기다리지 않습니다. 동시에 들어온 요청은 한 번의 받아 오기를 기다립니다. Bedrock이 자격 증명이 만료되었다고 답하면(`ExpiredTokenException` …) 다시 받아 와서 요청을 한 번 더 보냅니다.
+- **SSO:** AllInOneIME는 AWS CLI가 `~/.aws/sso/cache`에 보관하는 로그인을 쓰며(읽기만 함), 브라우저가 필요하기 때문에 대신 로그인할 수는 없습니다. 로그인이 끝나면 후보 패널에 "SSO sign-in expired: run aws sso login --profile X"(SSO 로그인 만료: aws sso login --profile X를 실행하세요)가 표시됩니다. Terminal에서 그 명령을 실행하면(설정에 "Copy Command"와 "Open in Terminal"이 있고, `@doctor`도 복사할 명령을 제공합니다) AllInOneIME가 새 로그인을 알아서 사용합니다.
+- **지원하지 않음:** `mfa_serial`(입력기는 MFA 코드를 물어볼 수 없습니다. `credential_process`나 SSO를 쓰거나, CLI가 자격 증명을 캐시하게 하세요), `credential_source = Ec2InstanceMetadata`나 `EcsContainer`(Mac에는 없음), 그리고 web identity.
+- **알려진 제한:** 로그인 셸에서 가져오는 것은 PATH와 AWS 파일 변수(`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`)뿐이며, `credential_process`에도 마찬가지입니다(나머지 환경 변수는 가져오지 않음). AllInOneIME는 `sso_session` 토큰을 갱신하지 않으므로(CLI의 갱신 토큰은 쓰지 않고, SSO 캐시는 읽기만 함), 캐시된 토큰이 만료되면 `aws sso login`을 실행하세요(AWS CLI를 쓸 때마다 갱신되기도 합니다).
+- **Settings → AI Provider**는 모든 프로필을 종류와 함께 나열하고("dev — Role via base"), 선택한 프로필에 대해 자격 증명이 언제 만료되는지("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") 또는 무엇을 해야 하는지 알려 줍니다. Test Connection은 체인 전체를 거쳐 새 자격 증명을 받아 오고, `@doctor`도 같은 내용을 보고합니다.
+- 프로그램을 실행하고 AWS에 자격 증명을 요청하는 것(`sts.<region>.amazonaws.com`, `portal.sso.<region>.amazonaws.com`)은 요청이나 Test Connection에 필요할 때뿐입니다. 프로필 목록을 보여 줄 때도, `@config`를 위해서도 절대 하지 않습니다.
 
 ### 기타 AI 제공업체: Claude API, Gemini, OpenAI 호환 서비스
 
@@ -390,6 +411,7 @@ AWS가 없어도 됩니다. 설정의 "AI Provider"(AI 제공업체)에서 하�
 | OpenAI 호환 | OpenAI의 `gpt-6-luna`(또는 `gpt-5.4-mini`). "Common Services…"(자주 쓰는 서비스…)에는 DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter, 이 Mac의 Ollama가 있으며, 하나를 고르면 Base URL이 채워지므로 이어서 모델을 입력합니다 | 해당 서비스의 키. Base URL을 그 주소로 설정합니다(예: `https://api.deepseek.com/v1`, 이 Mac의 Ollama는 `http://localhost:11434/v1`) |
 
 - API 키는 시스템 키체인에 보관되며, 설정 파일에는 절대 저장되지 않습니다. 키체인에 키가 없으면 셸의 `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`(또는 `GOOGLE_API_KEY`), `OPENAI_API_KEY`를 사용합니다.
+- API 키 행에는 키가 설정되어 있는지 표시됩니다: "✓ Saved · ends in a1b2"(저장됨 · 끝자리 a1b2: 마지막 4자를 키와 함께 저장해 두어, 표시할 때 키 자체를 읽지 않음)와 "Replace…"(교체), "Remove…"(제거), 셸에서 온 키라면 "✓ From $OPENAI_API_KEY"($OPENAI_API_KEY에서), 없으면 "No API key yet"(아직 API 키 없음)과 붙여 넣을 칸이 표시됩니다.
 - "Thinking"(사고)은 기본값이 낮음입니다. 입력기는 문장마다 기다리므로, 사고가 적을수록 빠릅니다. 이를 지원하지 않는 모델에는 "Not set"(설정 안 함)을 고르세요.
 - Claude Opus 5.5나 Sonnet 5.5를 고르면 요청에 Claude API의 거부 시 대체(`fallbacks: "default"`)가 포함됩니다. 안전 분류기가 거부하면 서버가 다른 모델로 다시 시도합니다.
 - 설정 파일에서: `provider`(`"bedrock"`, `"anthropic"`, `"gemini"`, `"openai"`), 그리고 `anthropic`, `gemini`, `openai` 아래의 `model`, `baseURL`, `effort`, `temperature`(설정하지 않은 것은 기본값 사용).

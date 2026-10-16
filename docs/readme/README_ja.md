@@ -90,7 +90,7 @@
 
 ![@open は入力に合わせてアプリを探す。/ で始めるとパスになり、フォルダの中身が表示され、Tab で補完](../en/open.png)
 
-`@john` のように `@` の後がコマンドでない場合は、`@` がいつもどおり入力されるので、チャットアプリでの @ メンションもそのまま使えます。`@question`、`@improve`、`@translate` があなた自身の Bedrock に送信するのは、実行キーを押したときだけです。`@open` はこの Mac 上だけを検索します。`@note` と `@reminder` が送る先は、この Mac の Notes と Reminders だけです。`@claude` は Mac にインストールされた Claude Code（`claude` コマンド）とそのアカウントを使い、ファイルの変更やコマンドの実行の前には、いつもどおり確認を求めます。Claude Code がインストールされていなければ、`@claude` は表示されません。`@imessage` はこの Mac の Contacts（名前、電話番号、メールアドレス）だけを読み取り、AI を経由することはなく、メッセージは Messages が送信します。Messages アプリがなければ表示されません。
+`@john` のように `@` の後がコマンドでない場合は、`@` がいつもどおり入力されるので、チャットアプリでの @ メンションもそのまま使えます。文字、数字、`.`、`_`、`-` の直後に入力した `@` は（`bob@example.com` や `ssh user@host` のように）ただの文字で、リストは開きません。どのアプリでも同じで、ターミナルも含みます。リストが開いているときに ← → や、コマンド名に含まれ得ないキー（`.`、`:`、`/`）を押すと、リストが閉じ、入力した内容（`@`、`@im`）はそのまま残ります。ターミナルでは、このとき ← → はリストを閉じるだけです。`@question`、`@improve`、`@translate` があなた自身の Bedrock に送信するのは、実行キーを押したときだけです。`@open` はこの Mac 上だけを検索します。`@note` と `@reminder` が送る先は、この Mac の Notes と Reminders だけです。`@claude` は Mac にインストールされた Claude Code（`claude` コマンド）とそのアカウントを使い、ファイルの変更やコマンドの実行の前には、いつもどおり確認を求めます。Claude Code がインストールされていなければ、`@claude` は表示されません。`@imessage` はこの Mac の Contacts（名前、電話番号、メールアドレス）だけを読み取り、AI を経由することはなく、メッセージは Messages が送信します。Messages アプリがなければ表示されません。
 
 `@calculate` はこの Mac 上でオフラインで動作します。`+ - * /`（`× ÷` も可）、べき乗の `^` または `**`、括弧、パーセント（`50%` は 0.5、`200*5%` は 10。電卓と同じく、足したり引いたりするパーセントはその前の値に対するものです：`100+10%` は 110、`100-10%` は 90）、関数 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`（`log` は常用対数、角度はラジアン、`round(x, 2)` は小数点以下 2 桁）、定数 `pi`（`π`）と `e` が使えます。全角の数字や記号も使えます。計算は 10 進数で正確に行われるので、`0.1+0.2` は `0.3` です。結果は最大 15 桁の有効数字で、38 桁までの整数は省略せずに表示されます（`2^100` → `1267650600228229401496703205376`）。
 
@@ -244,7 +244,7 @@ Settings → Apps では、アプリごとに独自の設定を持たせられ�
 - **変更できるもの：** 翻訳言語と入力言語（とデフォルトの言語）、書き換えスタイル、候補の並び方、結果のタイプ入力（オン／オフ、速さ、緩急、打ち間違い）、選択範囲の利用、質問の記憶、機密情報の非表示（オン／オフ、隠す対象、追加する語）、アップデートの確認、アプリごとの設定（あなたの呼び方で指定したアプリを、名前またはバンドル ID でインストール済みのアプリから探します）、そして AI プロバイダ：どれを使うか、Bedrock のプロファイル（`~/.aws` から）とリージョン、アプリがそのプロバイダについて知っているモデル、OpenAI 互換のベース URL（`https://` のみ）。
 - **決して触れないもの：** API キーとキーチェーン内のすべて、カスタムコマンド、拡張機能のフォルダとソース、プラグイン、Jargon 用語リスト、プログラムを実行するもの、その他すべての設定。これらの行は理由とともに拒否され、残りはそのまま適用できます。
 - **設定画面と同じチェック：** 言語として認識できない言語、6 つ以上の翻訳言語、範囲外の値、特定できないアプリ、言語パックがインストールされていない言語（「needs the Korean language pack: download it in Settings → Input」、つまり韓国語の言語パックが必要なので Settings → Input でダウンロードしてください）は行ごとに拒否されます。無効な設定ファイルが書き込まれることはありません。
-- **キー：** キーが必要なプロバイダには「API key: enter it in Settings (never sent to the AI)」（API キー：設定画面で入力してください。AI には送信されません）という行が付き、適用すると Settings → AI Provider のキー入力欄が開きます。文の中に入力したキーは、何かを送信する前に取り除かれます。プロバイダを変更した後は Test Connection が実行され、その結果が確認の下に表示されます。
+- **キー：** キーのないプロバイダ（キーチェーンにもシェルにもない）に切り替えることはありません。その行には「Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there」（Gemini API には API キーが必要です。⏎ で設定画面を開いて追加してください。AI には送信されません。そこで切り替えられます）と表示され、適用すると Settings → AI Provider が開き、そのキーを入力する小さなシートが表示されます（「Save」で保存、「Save and Use」で保存して切り替え）。ほかの行はそのまま適用されます。キーがあればプロバイダが切り替わり、Test Connection が実行され、その結果が確認の下に表示されます。文の中に入力したキーは、何かを送信する前に取り除かれます。
 - **まずこの Mac で：** この Mac に Apple Intelligence があれば（macOS 26）、どのプロバイダを選んでいても、またプロバイダを設定する前でも、常にそれを使います。許可された設定と値に限定され、アプリ、AWS プロファイル、言語パックを調べることができます。ない場合は、あなたのプロバイダが答えます。リクエストに含まれるのは許可された設定とその現在の値だけで（キーや隠す語は決して含まれません）、機密情報の非表示はほかのリクエストと同じように適用されます。
 
 ### セットアップの確認（新機能）
@@ -374,10 +374,31 @@ make install
 ### Amazon Bedrock
 
 1. AWS コンソールで Bedrock を有効にし、選んだモデルが使えることを確認します。デフォルトは Claude Haiku 4.5 です。Anthropic のモデルを初めて使うときは、ユースケースのフォームに一度記入します。
-2. `bedrock:InvokeModelWithResponseStream` 権限を持つアクセスキーを作成し、`~/.aws/credentials` のプロファイルに入れます。現在サポートしているのはこのような静的キーのみで、SSO や assume-role には対応していません。
+2. `bedrock:InvokeModelWithResponseStream` を許可された AWS プロファイルを使います。`~/.aws/credentials` の静的キー、または一時的な認証情報を取得するプロファイル（`credential_process`、ロール、SSO。下の「AWS プロファイル」を参照）です。
 3. 「AllInOneIME Settings」を開きます。Spotlight やアプリケーションフォルダで見つかるほか、メニューバーの入力メソッドのアイコン →「Settings…」（設定…）からも開けます。プロファイル、リージョン、モデルを選び、「Test Connection」（接続をテスト）をクリックします。設定ウインドウ上部の「Language」（言語）は英語か中国語にできます。デフォルト（「System」）ではシステムに従います（システムの優先する言語で中国語が英語より前にあれば中国語、そうでなければ英語）。設定ウインドウ、候補パネルのヒント、入力メニューはすべてこれに従います。
 
 <img src="../en/settings.png" width="420" alt="設定ウインドウ">
+
+#### AWS プロファイル
+
+AWS CLI が何も尋ねずに使えるプロファイルなら、どれでも使えます。`~/.aws/config` と `~/.aws/credentials`（またはシェルの `AWS_CONFIG_FILE` と `AWS_SHARED_CREDENTIALS_FILE` が指定するファイル）から読み込みます。1 つのプロファイルの中では、AWS CLI と同じ順序で、そのプロファイルにある最初のものが使われます（`role_arn` とキーの両方があるプロファイルはロールとして扱われます）。
+
+| 種類 | プロファイルの内容 | 更新 |
+| --- | --- | --- |
+| ロール | `role_arn` と `source_profile`（ここにはどの種類でも指定でき、連鎖も可。自分自身を指すプロファイルは自身のキーを使用）または `credential_source = Environment`。`role_session_name`、`external_id`、`duration_seconds` | 期限切れの 5 分前に STS `AssumeRole` で再取得（プロファイルの `region`、なければ us-east-1） |
+| SSO | `sso_account_id`、`sso_role_name` と `sso_session`、およびその `[sso-session …]` セクション（または従来の `sso_start_url`、`sso_region`） | 期限切れの 5 分前に、キャッシュされたサインインで再取得 |
+| 静的キー | `~/.aws/credentials` の `aws_access_key_id`、`aws_secret_access_key`（と `aws_session_token`） | リクエストのたびに読み直し |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev`（シェルのコマンドのように分割し、シェルを介さずに実行。ログインシェルの PATH を使い、ホームフォルダで、最長 60 秒） | `Expiration` の 5 分前に再実行。期限がない場合は、AWS が認証情報を拒否したとき |
+| 静的キー | `~/.aws/config` にある同じキー | リクエストのたびに読み直し |
+
+プロファイルが「default」のとき（または選択していないとき）は、AWS CLI と同じく、シェルのキーが優先されます：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_SESSION_TOKEN`。名前を指定したプロファイルがこれらと混ざることはありません。シェルの `AWS_REGION`（または `AWS_DEFAULT_REGION`）は、AWS CLI と同じくプロファイルの `region` より優先され、設定画面の Region 欄はその両方より優先されます。
+
+- **自動：** 期限のある認証情報はメモリ上にだけ保持され（ディスクには書き込みません）、期限切れの 5 分前に再取得されます。残りが 10 分未満のときは、リクエストは手元の認証情報を使いつつバックグラウンドで新しいものを取得するので、入力が待たされることはありません。同時に来たリクエストは 1 回の取得を待ちます。Bedrock が認証情報の期限切れを返したとき（`ExpiredTokenException` など）は、再取得してリクエストをもう一度だけ送ります。
+- **SSO：** AllInOneIME は AWS CLI が `~/.aws/sso/cache` に保存しているサインインを使い（読み取るだけです）、代わりにサインインすることはできません。サインインにはブラウザが必要だからです。サインインの期限が切れると、候補パネルに「SSO sign-in expired: run aws sso login --profile X」（SSO のサインインの期限切れ：aws sso login --profile X を実行してください）と表示されます。Terminal でそれを実行すれば（設定画面には「Copy Command」と「Open in Terminal」があり、`@doctor` もコピー用のコマンドを示します）、AllInOneIME が新しいサインインを自動で使い始めます。
+- **非対応：** `mfa_serial`（入力メソッドは MFA コードを尋ねられません。`credential_process` か SSO を使うか、CLI に認証情報をキャッシュさせてください）、`credential_source = Ec2InstanceMetadata` と `EcsContainer`（Mac にはありません）、web identity。
+- **既知の制限：** ログインシェルから取り込むのは PATH と AWS のファイル用の変数（`AWS_CONFIG_FILE`、`AWS_SHARED_CREDENTIALS_FILE`）だけで、`credential_process` でも同じです（それ以外の環境変数は取り込みません）。AllInOneIME は `sso_session` のトークンを更新しません（CLI のリフレッシュトークンは使わず、SSO キャッシュは読み取るだけです）。キャッシュのトークンが切れたら `aws sso login` を実行してください（AWS CLI を使うたびにも更新されます）。
+- **Settings → AI Provider** には、すべてのプロファイルがその種類とともに表示され（「dev — Role via base」）、選択中のプロファイルについて、認証情報の期限（「Role via base: credentials expire at 15:30」、「SSO (signed in until 18:00)」）またはすべきことが表示されます。Test Connection はチェーン全体を通して新しい認証情報を取得し、`@doctor` も同じ内容を報告します。
+- プログラムを実行したり AWS に認証情報を求めたり（`sts.<region>.amazonaws.com`、`portal.sso.<region>.amazonaws.com`）するのは、リクエストか Test Connection が必要とするときだけです。プロファイルの一覧表示や `@config` のためには決して行いません。
 
 ### その他の AI プロバイダ：Claude API、Gemini、OpenAI 互換サービス
 
@@ -390,6 +411,7 @@ AWS は必須ではありません。設定の「AI Provider」（AI プロバ�
 | OpenAI 互換 | OpenAI の `gpt-6-luna`（または `gpt-5.4-mini`）。「Common Services…」（よく使うサービス…）には DeepSeek、Qwen、Kimi、Zhipu GLM、SiliconFlow、OpenRouter、この Mac の Ollama があり、選ぶとその Base URL が入力されるので、続けてモデルを入力します | そのサービスのキー。Base URL をそのアドレスに設定します（例：`https://api.deepseek.com/v1`、この Mac の Ollama なら `http://localhost:11434/v1`） |
 
 - API キーはシステムのキーチェーンに保存され、設定ファイルには決して書き込まれません。キーチェーンにキーがない場合は、シェルの `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（または `GOOGLE_API_KEY`）、`OPENAI_API_KEY` が使われます。
+- API キーの行には、キーが設定されているかどうかが表示されます。「✓ Saved · ends in a1b2」（保存済み · 末尾 a1b2：末尾 4 文字をキーと一緒に保存しておくので、表示のためにキー自体を読み出すことはありません）と「Replace…」（置き換え）、「Remove…」（削除）。シェルのキーなら「✓ From $OPENAI_API_KEY」（$OPENAI_API_KEY から）、なければ「No API key yet」（API キーはまだありません）と貼り付け用の欄が表示されます。
 - 「Thinking」（思考）はデフォルトで低です。入力メソッドは文ごとに応答を待つので、思考が少ないほうが速くなります。対応していないモデルでは「Not set」（未設定）を選んでください。
 - Claude Opus 5.5 または Sonnet 5.5 を選んだ場合、リクエストには Claude API の拒否時フォールバック（`fallbacks: "default"`）が付きます。安全性の分類器が拒否すると、サーバが別のモデルで再試行します。
 - 設定ファイルでは：`provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`）と、`anthropic`、`gemini`、`openai` の下の `model`、`baseURL`、`effort`、`temperature`（未設定のものはデフォルト値）。
