@@ -977,7 +977,7 @@ struct AIConfigAcceptanceTests {
     /// The English row of a provider without a key, as the spec words it.
     static func needsKeyLine(_ provider: Provider) -> String {
         AIConfig.Text(chinese: false).provider(provider)
-            + " needs an API key: ⏎ opens Settings to add it (never sent to the AI); once it's saved, choose it there"
+            + " needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there"
     }
 
     /// Spec change (2026-10-15): a provider that needs a key and has none isn't switched to. Its row says so, and ⏎
@@ -1026,6 +1026,7 @@ struct AIConfigAcceptanceTests {
                 let line = zh.rows.first { if case .needsKey = $0.status { return true } else { return false } }?.text(chinese: true) ?? ""
                 let name = AIConfig.Text(chinese: true).provider(provider)
                 for part in [name, "需要 API key", "设置", "不会发给 AI"] { #expect(line.contains(part), "\(part) not in \(line)") }
+                #expect(line.hasSuffix("可以在那里换过去"), "\(line)")
             }
         }
     }
