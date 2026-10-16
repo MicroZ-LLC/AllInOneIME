@@ -373,7 +373,10 @@ extension AIConfig {
         if setting.isFlag {
             guard case let .bool(on) = value else { return refused(text.notValid) }
             let before = flag(setting, in: config)
-            return on == before ? nil : row(text.onOff(before), text.onOff(on), .flag(setting, on))
+            guard on != before else { return nil }
+            // Recent questions turned off here keep the ones saved: the row says so, and where they're deleted.
+            let kept = setting == .rememberQuestions && !on ? text.questionsKept : ""
+            return row(text.onOff(before), text.onOff(on) + kept, .flag(setting, on))
         }
         switch setting {
         case .outputLanguages:

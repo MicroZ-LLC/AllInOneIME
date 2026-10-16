@@ -185,8 +185,9 @@ conversation shows all its rounds: type to go on with it. With no match, or noth
 that goes on, replaces the saved one.
 
 - They're kept only on this Mac (see Privacy): not while secure input is on, and never for questions on selected text.
-- Settings → General → "Remember recent questions" turns it off and deletes them (`rememberQuestions` in the config);
-  "Clear (N)" deletes them.
+- Settings → General → "Remember recent questions" turns it off (`rememberQuestions` in the config); turned off there,
+  it deletes them too. Turned off through `@config`, they're kept, so that undoing it puts back exactly what was (its
+  preview says so); "Clear (N)" deletes them.
 
 ### Notes and reminders
 
@@ -682,7 +683,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - For "Add App…" in Settings → Apps, the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
-- `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac, in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Settings → General → "Remember recent questions" turns it off and deletes them (`rememberQuestions` in the config); "Clear" deletes them.
+- `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac, in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Turning off "Remember recent questions" in Settings → General deletes them too; turning it off through `@config` (`rememberQuestions` in the config) keeps them, so it can be undone exactly. "Clear" deletes them.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.

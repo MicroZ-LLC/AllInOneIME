@@ -126,6 +126,24 @@ struct AIConfigTests {
         #expect(try rows(#"{"changes": [{"key": "typeOutRate", "value": 0.17}]}"#).first?.new == "6 s each")
     }
 
+    /// Recent questions turned off by @config keep the saved ones (so undo puts back exactly what was): the row says
+    /// so, and that Settings' "Clear" deletes them. Turned on, the row is as any other.
+    @Test func rememberQuestionsOffSaysTheSavedOnesAreKept() throws {
+        let off = #"{"changes": [{"key": "rememberQuestions", "value": false}]}"#
+        #expect(try rows(off).map { $0.text(chinese: false) }
+                == ["Remember recent questions: on → off (saved questions are kept; Settings → General → “Clear” deletes them)"])
+        #expect(try rows(off, env: env(chinese: true)).map { $0.text(chinese: true) }
+                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → 通用里点「清除」）"])
+        #expect(try rows(off).first?.edit == .flag(.rememberQuestions, false))
+        var forgetting = config
+        forgetting.rememberQuestions = false
+        #expect(try rows(#"{"changes": [{"key": "rememberQuestions", "value": true}]}"#, forgetting).map { $0.text(chinese: false) }
+                == ["Remember recent questions: off → on"])
+        // Another switch turned off says nothing more.
+        #expect(try rows(#"{"changes": [{"key": "useSelection", "value": false}]}"#).map { $0.text(chinese: false) }
+                == ["Use the selected text: on → off"])
+    }
+
     @Test func whatIsAlreadySetIsLeftOut() throws {
         #expect(try preview(#"{"changes": [{"key": "candidateLayout", "value": "horizontal"}]}"#) == .failure(.alreadySet))
         #expect(try preview(#"{"changes": []}"#) == .failure(.notUnderstood))

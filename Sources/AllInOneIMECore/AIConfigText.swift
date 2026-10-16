@@ -67,6 +67,12 @@ extension AIConfig {
 
         public func onOff(_ on: Bool) -> String { on ? tr("开", "on") : tr("关", "off") }
 
+        /// After "Remember recent questions: on → off": turned off here, the saved questions stay (so undo is exact);
+        /// Settings' "Clear" deletes them, as its switch does.
+        var questionsKept: String {
+            tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
+        }
+
         public func outputs(_ languages: [OutputLanguage]) -> String {
             languages.map { $0.name(chinese: chinese) }.joined(separator: separator)
         }
