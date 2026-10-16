@@ -243,6 +243,7 @@ extension SelfTest {
         testKeyFieldsKeepKeys(snapshotDirectory: snapshotDirectory)
         testSettingsWritesNothingUnasked(snapshotDirectory: snapshotDirectory)
         testFieldsFollowOutsideWrites(snapshotDirectory: snapshotDirectory)
+        testAgentCommandFollowsOutsideWrites(snapshotDirectory: snapshotDirectory)
         testSettingsSavesOnlyItsChanges(snapshotDirectory: snapshotDirectory)
     }
 

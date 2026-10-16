@@ -146,6 +146,50 @@ extension SelfTest {
         }
     }
 
+    /// The custom agent's command (General → "@agent hands it to") follows the config the same way: a command written into
+    /// the file by hand while the field shows is read again and shown, and what's typed then goes on from it.
+    static func testAgentCommandFollowsOutsideWrites(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("agent-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var config = Config.default
+        (config.agent, config.agentCommand) = (.custom, ["muse", "--"])
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .general)))
+        window.setContentSize(NSSize(width: 880, height: 900))
+        window.makeKeyAndOrderFront(nil)
+        _ = pump(timeout: 0.6) { false }
+        // By hand: another command, and the window told (as when it notices the file changed).
+        config.agentCommand = ["kiro-cli", "chat", "--"]
+        try? config.write(to: url)
+        NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+        _ = pump(timeout: 0.5) { false }
+        func textFields(_ view: NSView) -> [NSTextField] {
+            ((view as? NSTextField).map { [$0] } ?? []) + view.subviews.flatMap(textFields)
+        }
+        let field = window.contentView.map(textFields)?.first { $0.placeholderString == tr("例如 ", "e.g. ") + "muse --" }
+        let shown = field?.stringValue ?? "-"
+        // " x" typed at its end.
+        if let field, window.makeFirstResponder(field), let editor = window.firstResponder as? NSTextView {
+            editor.moveToEndOfDocument(nil)
+            for character in " x" {
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: window.windowNumber, context: nil, characters: String(character),
+                                                    charactersIgnoringModifiers: String(character), isARepeat: false,
+                                                    keyCode: keyCodes[character] ?? 0) { window.sendEvent(event) }
+                }
+            }
+            _ = pump(timeout: 0.2) { false }
+        }
+        window.close()
+        model.save()  // as the settings window's close does
+        _ = pump(timeout: 0.3) { false }
+        let written = (try? Config.load(from: url))?.agentCommand ?? []
+        check(shown == "kiro-cli chat --" && written == ["kiro-cli", "chat", "--", "x"],
+              "the custom agent's command follows a hand edit, and typing goes on from it (shown \(shown), written \(written))")
+    }
+
     /// A Settings save writes only what the window changed. With Settings open, `@config` sets one app's profile and a
     /// switch of hiding sensitive information, and the window isn't told; the window then changes another app's profile
     /// and another switch, and saves: all four are in the file, and the window shows them.

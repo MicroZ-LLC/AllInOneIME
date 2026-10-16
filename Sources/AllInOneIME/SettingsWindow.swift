@@ -988,6 +988,12 @@ struct SettingsView: View {
                         guard let argv = CustomCommand.arguments(fromCommandLine: agentCommandLine) else { return }
                         if argv != model.config.agentCommand { model.config.agentCommand = argv }
                     }
+                    // A command written elsewhere (by hand, read again) is shown; one typed here stays as typed.
+                    .onChange(of: model.config.agentCommand) {
+                        if CustomCommand.arguments(fromCommandLine: agentCommandLine) != model.config.agentCommand {
+                            agentCommandLine = CustomCommand.commandLine(model.config.agentCommand)
+                        }
+                    }
             }
             Toggle(isOn: $model.config.claudeInBackground) {
                 titled(tr("@agent 在后台运行，做完通知我", "@agent runs in the background and notifies me"),
