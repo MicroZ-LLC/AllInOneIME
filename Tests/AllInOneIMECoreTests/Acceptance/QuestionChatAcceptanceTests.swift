@@ -133,7 +133,7 @@ struct QCSent {
 
 private let qcAt = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
 private let qcTab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
-private let qcShiftReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
+private let qcShiftReturn = acceptanceShiftReturn
 private let qcCommandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)
 private let qcCommandC = KeyEvent(keyCode: 0x08, characters: "c", charactersIgnoringModifiers: "c", modifiers: .command)
 private let qcOptionSpace = KeyEvent(keyCode: VirtualKey.space, characters: "\u{A0}", charactersIgnoringModifiers: " ", modifiers: .option)
@@ -360,6 +360,16 @@ final class QCRig {
             case .startRefine, .startCommand, .startConversion, .reask: return true
             default: return false
             }
+        }
+    }
+}
+
+/// Effects that touch the text field or hand the conversation over.
+func qcLeavesThePanel(_ effects: [Composer.Effect]) -> [Composer.Effect] {
+    effects.filter {
+        switch $0 {
+        case .commit, .replaceSelection, .typeOut, .copy, .openLink, .continueInClaudeCode, .cancelConversion: return true
+        default: return false
         }
     }
 }
@@ -811,6 +821,23 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.requestCount == 5)
     }
 
+    /// Coordinator (after review): ⇧⏎ with text at the round limit only shows the choices: nothing is launched, opened
+    /// or copied, the text stays for the hand-off, and ⌘1–⌘5 is needed to pick where it goes.
+    @Test func limit_shiftReturnWithTextAtTheLimitOnlyShowsTheChoices() async throws {
+        let rig = QCRig()  // the default choices: Claude Code first
+        await rig.converse(5)
+        await rig.type("tell me more")
+        let out = await rig.key(qcShiftReturn)
+        #expect(qcLeavesThePanel(out).isEmpty, "⇧⏎ at the limit did: \(qcLeavesThePanel(out))")
+        #expect(rig.claudeCode.isEmpty && rig.opened.isEmpty && rig.copied.isEmpty, "⇧⏎ at the limit launched a hand-off")
+        #expect(rig.requestCount == 5 && rig.committed.isEmpty)
+        #expect(rig.c.isQuestionChat && rig.c.showsHandoff, "the choices should be shown")
+        #expect(rig.c.refineText == "tell me more", "the text typed should stay, for the hand-off")
+        // ⌘1 then hands it off, with the text.
+        await rig.key(qcCommandDigit(1))
+        #expect(rig.claudeCode.count == 1 && rig.claudeCode.first?.hasSuffix("tell me more") == true)
+    }
+
     /// limit: ⏎ still inserts the selected answer at the limit, and digits still pick answers there.
     @Test func limit_returnAndDigitsStillInsertAnswersAtTheLimit() async throws {
         let rig = QCRig()
@@ -898,6 +925,72 @@ struct QuestionChatAcceptanceTests {
         await digits.key(qcCommandReturn)
         await digits.key(k("1"))
         #expect(digits.committed == [qcAnswer("q1")] && digits.copied.isEmpty && digits.opened.isEmpty)
+    }
+
+    /// Coordinator (after review): ⌘⏎ while an answer is streaming (round 1's, or a follow-up's) is the input method's:
+    /// consumed, not passed to the app; nothing is inserted or handed over, and the answer still comes in.
+    @Test func handoff_commandReturnWhileAnswerStreamsIsConsumed() async throws {
+        // Round 1's answer coming in.
+        let first = QCRig()
+        await first.pick("q")
+        await first.type("q1")
+        let start = first.c.handleKeyDown(enterKey).effects  // not performed: the answer is still to come
+        #expect(QCRig.asks(start))
+        let during = first.c.handleKeyDown(qcCommandReturn)
+        #expect(during.handled, "⌘⏎ during round 1's answer went to the app")
+        #expect(qcLeavesThePanel(during.effects).isEmpty, "\(during.effects)")
+        if case .translating = first.c.phase {} else { Issue.record("round 1: \(first.c.phase)") }
+        _ = first.c.receive(ConversionResult(versions: [CandidateLine("A1", isComplete: true)]), isFinal: true, id: 1)
+        #expect(first.c.isQuestionChat && first.c.chatRounds.map(\.answer) == ["A1"])
+
+        // A follow-up's answer coming in.
+        let later = QCRig()
+        await later.ask("q1")
+        await later.type("q2")
+        let asked = later.c.handleKeyDown(qcShiftReturn).effects
+        let id = try #require(asked.lazy.compactMap { if case let .startRefine(_, id) = $0 { return id } else { return nil } }.first)
+        let duringFollowUp = later.c.handleKeyDown(qcCommandReturn)
+        #expect(duringFollowUp.handled, "⌘⏎ during a follow-up's answer went to the app")
+        #expect(qcLeavesThePanel(duringFollowUp.effects).isEmpty, "\(duringFollowUp.effects)")
+        #expect(later.c.isQuestionChat)
+        _ = later.c.receive(ConversionResult(versions: [CandidateLine("A2", isComplete: true)]), isFinal: true, id: id)
+        #expect(later.c.chatRound == 2 && later.c.chatRounds.map(\.answer) == [qcAnswer("q1"), "A2"])
+        #expect(later.committed.isEmpty && later.claudeCode.isEmpty && later.opened.isEmpty)
+    }
+
+    /// Coordinator (after review): a question about a selection hands off without the `<selected_text>` tags: the
+    /// question's line is the question alone, and the selection is a block of its own (once, before the answer). The
+    /// selection in the field is left as it is.
+    @Test func handoff_aSelectionIsItsOwnBlockWithoutTags() async throws {
+        let selected = "Error 404 at the users page"
+        for destination in [ChatHandoff.Destination.copy, .claudeCode, .claudeWeb] {
+            let rig = QCRig(selection: Composer.Selection(text: selected, range: 0..<27)) { $0.questionContinueIn = [destination] }
+            QCStubProtocol.enqueue(rig.host, .answer("The page wasn't found."))
+            await rig.pick("q")
+            await rig.type("what does this mean")
+            await rig.key(enterKey)
+            #expect(rig.c.isQuestionChat, "\(destination)")
+            await rig.key(qcCommandReturn)
+            await rig.key(qcCommandDigit(1))
+            let text: String
+            switch destination {
+            case .copy: text = try #require(rig.copied.first, "\(destination)")
+            case .claudeCode: text = try #require(rig.claudeCode.first, "\(destination)")
+            default:
+                let url = try #require(rig.opened.first, "\(destination)")
+                text = try #require(url.absoluteString.components(separatedBy: "?q=").last?.removingPercentEncoding)
+            }
+            #expect(!text.contains("<selected_text>") && !text.contains("</selected_text>"), "\(destination): \(text)")
+            let blocks = text.components(separatedBy: "\n\n")
+            #expect(blocks.contains("**Q:** what does this mean"), "\(destination): \(text)")
+            #expect(blocks.contains("**A:** The page wasn't found."), "\(destination): \(text)")
+            let selection = blocks.firstIndex { $0.contains(selected) && !$0.hasPrefix("**Q:**") && !$0.hasPrefix("**A:**") }
+            let answer = blocks.firstIndex { $0.hasPrefix("**A:**") }
+            #expect(selection != nil, "\(destination): the selection isn't a block of its own: \(text)")
+            if let selection, let answer { #expect(selection < answer, "\(destination): \(text)") }
+            #expect(text.components(separatedBy: selected).count == 2, "\(destination): the selection once")
+            #expect(rig.replaced.isEmpty && rig.committed.isEmpty, "\(destination)")
+        }
     }
 
     /// handoff: Claude Code gets the transcript, "Let's continue this discussion" (English), then the follow-up typed;

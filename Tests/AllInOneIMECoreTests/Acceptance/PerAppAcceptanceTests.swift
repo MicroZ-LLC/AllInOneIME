@@ -414,7 +414,8 @@ struct PerAppAcceptanceTests {
                 func check(_ app: String?, _ golden: String) async throws {
                     let sent = await send(run, config: config, app: app, provider: provider)
                     #expect(sent.error == nil, "\(golden) \(app ?? "nil")")
-                    let body = LiveDataRule.strip(try #require(sent.bodies.first, "\(golden) \(app ?? "nil")"))
+                    let body = AcceptanceLiveRule.strip(try #require(sent.bodies.first, "\(golden) \(app ?? "nil")"),
+                                                        question: runName.hasPrefix("question"))
                     let row = try #require(perAppAccGoldens[golden])
                     let want = provider == .anthropic ? row.anthropic : row.openai
                     #expect(PerAppAccGolden.sha256(body) == want.sha && body.count == want.length,
@@ -824,11 +825,13 @@ struct PerAppAcceptanceTests {
     @Test func thePromptStructureIsByteIdenticalToBefore() throws {
         for c in PerAppAccGolden.cases {
             let row = try #require(perAppAccGoldens[c.name])
-            #expect(PerAppAccGolden.sha256(LiveDataRule.strip(try PerAppAccGolden.structure(c))) == row.structure, "\(c.name)")
+            // An @question case without 0.6.4's live-data rule; the others as they are.
+            let question = c.name.split(separator: "/").last?.hasPrefix("question") == true
+            #expect(PerAppAccGolden.sha256(AcceptanceLiveRule.strip(try PerAppAccGolden.structure(c), question: question)) == row.structure, "\(c.name)")
             // With profiles in the config (for other apps), the same.
             var profiled = c
             profiled.config.appProfiles = [Self.slack: AppProfile(inputLanguage: .english, rewriteStyles: ["口语"], typeOut: true, noAI: true)]
-            #expect(PerAppAccGolden.sha256(LiveDataRule.strip(try PerAppAccGolden.structure(profiled))) == row.structure, "\(c.name) with profiles")
+            #expect(PerAppAccGolden.sha256(AcceptanceLiveRule.strip(try PerAppAccGolden.structure(profiled), question: question)) == row.structure, "\(c.name) with profiles")
         }
     }
 
@@ -856,7 +859,8 @@ struct PerAppAcceptanceTests {
                 for provider in [Provider.anthropic, .openai] {
                     let sent = await send(c.run, config: config, app: app, provider: provider)
                     #expect(sent.error == nil, "\(c.name), \(label): \(String(describing: sent.error))")
-                    let body = LiveDataRule.strip(try #require(sent.bodies.first, "\(c.name), \(label)"))
+                    let body = AcceptanceLiveRule.strip(try #require(sent.bodies.first, "\(c.name), \(label)"),
+                                                        question: c.name.split(separator: "/").last?.hasPrefix("question") == true)
                     let want = provider == .anthropic ? row.anthropic : row.openai
                     #expect(sent.bodies.count == 1)
                     #expect(PerAppAccGolden.sha256(body) == want.sha && body.count == want.length,

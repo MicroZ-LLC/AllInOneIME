@@ -231,19 +231,24 @@ func leakCollect(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) async t
 
 /// The request as sent, as one digest: method, URL, the headers the app sets (not the signature's date-bound ones),
 /// and the body bytes.
-func leakDigest(_ request: LeakRecorder.Captured) -> String {
+func leakDigest(_ request: LeakRecorder.Captured, question: Bool = false) -> String {
     let skipped: Set<String> = ["authorization", "x-amz-date", "user-agent", "accept-language"]
-    // Without @question's live-data rule (0.6.4, `LiveDataRule`), its length too.
-    let stripped = LiveDataRule.strip(request.body)
+    // An @question request without 0.6.4's live-data rule (`AcceptanceLiveRule`; any other as it is). Its Content-Length
+    // then is the stripped body's, but only where the header was the length of the body actually sent: a wrong one is
+    // kept, and differs from the golden.
+    let stripped = AcceptanceLiveRule.strip(request.body, question: question)
+    func value(_ name: String, _ value: String) -> String {
+        name == "content-length" && value == String(request.body.count) ? String(stripped.count) : value
+    }
     let headers = request.headers.filter { !skipped.contains($0.key.lowercased()) }
-        .map { "\($0.key.lowercased()): \($0.key.lowercased() == "content-length" && stripped.count != request.body.count ? String(stripped.count) : $0.value)" }
+        .map { "\($0.key.lowercased()): \(value($0.key.lowercased(), $0.value))" }
         .sorted().joined(separator: "\n")
     var data = Data((request.method + " " + request.url + "\n" + headers + "\n\n").utf8)
     // Bedrock's body comes from JSONEncoder, whose key order changes from run to run (release-0.6.3 too): its keys
     // are put in order. The other providers' bodies are compared byte for byte as sent.
     if request.url.contains(".amazonaws.com/"), let object = try? JSONSerialization.jsonObject(with: request.body),
        let sorted = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]) {
-        data.append(LiveDataRule.strip(sorted))
+        data.append(AcceptanceLiveRule.strip(sorted, question: question))
     } else {
         data.append(stripped)
     }
@@ -303,7 +308,7 @@ struct GoldenScenario: Sendable {
         _ = try await leakCollect(run(rig.converter(config, jargon: jargon)))
         let requests = rig.requests
         guard requests.count == 1 else { throw GoldenError.requests(requests.count) }
-        return leakDigest(requests[0])
+        return leakDigest(requests[0], question: name.contains("question"))
     }
 
     enum GoldenError: Error { case requests(Int) }

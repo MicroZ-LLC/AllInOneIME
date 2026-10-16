@@ -620,7 +620,7 @@ struct QuestionHistoryAcceptanceTests {
         #expect(h.answerShown == "A3: AI 芯片的未来" && h.requests.count == 3)
     }
 
-    /// Spec 4: Shift-R (caps) re-asks too.
+    /// Spec 4: ⌘⇧R (Shift held, or caps) re-asks too. (0.6.4: ⌘R and ⌘⇧R re-ask; R alone starts a follow-up.)
     @Test func capitalRReasks() async throws {
         let h = try QHHarness(history: QHHarness.history(["What is Rust?"]))
         await h.startQuestion()
@@ -949,7 +949,7 @@ struct QuestionHistoryAcceptanceTests {
         var headers = request.allHTTPHeaderFields ?? [:]
         headers["Content-Length"] = nil
         return request.httpMethod == golden.method && url == golden.url && headers == golden.headers
-            && LiveDataRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self)) == golden.body
+            && AcceptanceLiveRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self), question: true) == golden.body
     }
 
     /// Spec 8: asking sends exactly the request 55d496e sends (Claude API and OpenAI-compatible), with or without
@@ -1014,7 +1014,7 @@ struct QuestionHistoryAcceptanceTests {
             #expect(requests.count == 2)
             for request in requests {
                 // The same JSON (Bedrock's body is encoded without sorted keys: the order of its keys varies by run).
-                let sent = LiveDataRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self))
+                let sent = AcceptanceLiveRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self), question: true)
                 #expect(Self.sameJSON(sent, golden.body), "\(golden.question): sent \(sent)")
                 #expect(request.url?.absoluteString.replacingOccurrences(of: fixed.region!, with: "golden-1") == golden.url)
                 #expect(request.httpMethod == golden.method)
