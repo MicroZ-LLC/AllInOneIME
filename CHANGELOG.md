@@ -2,12 +2,6 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
-## 0.6.5 (unreleased)
-
-### Changed
-
-- `@claude` is now `@agent`, and it hands the text to the coding agent you pick in Settings → General → "@agent hands it to": Claude Code (the default, as before), Gemini CLI, Kiro CLI, or a command of your own (`agentCommand`, what you typed added as its last argument). Claude Code still runs in the background if you like (`@tasks` lists those tasks); the other agents open in Terminal with what you typed as their first message. An agent that isn't installed isn't offered. The prompt always reaches the agent whole, however long. `@claude` is no longer a command (a command of your own may use the name); how often you used it carries over to `@agent` in the command list. In the config: `agent`, `agentCommand`. A command of your own or a plugin named `agent` is now hidden by it (as with every built-in name): rename it.
-
 ## 0.6.4 (2026-10-16)
 
 ### Added
@@ -22,6 +16,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- `@claude` is now `@agent`, and it hands the text to the coding agent you pick in Settings → General → "@agent hands it to": Claude Code (the default, as before), Gemini CLI, Kiro CLI, or a command of your own (`agentCommand`, what you typed added as its last argument). Claude Code still runs in the background if you like (`@tasks` lists those tasks); the other agents open in Terminal with what you typed as their first message. An agent that isn't installed isn't offered. The prompt always reaches the agent whole, however long. `@claude` is no longer a command (a command of your own may use the name); how often you used it carries over to `@agent` in the command list. In the config: `agent`, `agentCommand`. A command of your own or a plugin named `agent` is now hidden by it (as with every built-in name): rename it.
 - ⇧⏎ sends a follow-up or a refine; ⏎ always inserts. After AI results, what you type goes into a follow-up line (the next question after `@question`, an instruction after `@improve`, a prompt command or the rewrite of a selection), and ⇧⏎ sends it; ⏎ inserts the selected result, also with a follow-up half typed. With nothing typed, ⇧⏎ inserts what you typed as is, as everywhere.
 - A saved answer of `@question` is asked again with ⌘R (it was R), so a follow-up on it can start with any letter; on a saved conversation ⌘R asks its latest question again.
 - In `@question` results, 0 no longer inserts the question: the digits pick the conversation's answers.
