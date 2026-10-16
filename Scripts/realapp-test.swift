@@ -1227,7 +1227,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     }
 
     /// 6c. `@question`'s recent questions (live Bedrock): a question asked is kept in the file; "@question " lists it,
-    ///     1 shows its saved answer at once (nothing is asked) and Space inserts the same text; R asks it again for a fresh
+    ///     1 shows its saved answer at once (nothing is asked) and Space inserts the same text; ⌘R asks it again for a fresh
     ///     answer, which takes its place. The user's own recent questions are put back afterwards (the input method reads
     ///     the file again once it changed).
     func recentQuestions() {
@@ -1270,9 +1270,9 @@ final class Harness: NSObject, NSApplicationDelegate {
         key("1", keyCodes["1"]!)
         pump(0.3)
         let before = kept()
-        key("r", keyCodes["r"]!)
+        key("r", keyCodes["r"]!, .command)
         let again = insertAnswer(25)
-        check(again && Self.hasHan(committed) && marked.isEmpty, "R asks again, Space inserts the fresh answer: '\(committed.prefix(40))'")
+        check(again && Self.hasHan(committed) && marked.isEmpty, "⌘R asks again, Space inserts the fresh answer: '\(committed.prefix(40))'")
         check(waitUntil(2) { kept() != before } && kept().components(separatedBy: "\"question\"").count == 2,
               "the fresh answer takes the old one's place (one question kept)")
         reset()

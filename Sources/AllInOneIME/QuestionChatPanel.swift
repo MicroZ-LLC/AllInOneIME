@@ -102,9 +102,12 @@ extension AllInOneIMEInputController {
             model.footer = (count > 1 ? "⌘1–⌘\(count) " : "⌘1 ") + tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : tr(" · ⇧⏎ 发到 \(first)", " · ⇧⏎ send to \(first)"))
                 + tr(" · ⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回", " · ⏎ insert · 1–5 pick · ⌘C copy · Esc back")
-        } else if composer.showsSavedAnswer, composer.refinements.isEmpty, composer.refineLine == nil {
-            // A saved answer of one question: R asks it again for a fresh one (letters otherwise start the next question).
-            model.footer = tr("⇧⏎ 追问 · ⏎ 上屏 · R 重新问 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · R re-ask · ⌘C copy · Esc back")
+        } else if composer.showsSavedAnswer, composer.refineLine == nil {
+            // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
+            model.footer = composer.refinements.isEmpty
+                ? tr("⇧⏎ 追问 · ⏎ 上屏 · ⌘R 重新问 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · ⌘R re-ask · ⌘C copy · Esc back")
+                : tr("⇧⏎ 追问 · ⏎ 上屏 · 1–5 选 · ⌘R 重新问 · ⌘C 复制 · Esc 返回",
+                     "⇧⏎ ask · ⏎ insert · 1–5 pick · ⌘R re-ask · ⌘C copy · Esc back")
         } else {
             model.footer = tr("⇧⏎ 追问 · ⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · 1–5 pick · ⌘C copy · Esc back")
         }

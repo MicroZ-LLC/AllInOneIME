@@ -479,7 +479,7 @@ struct QuestionChatTests {
         _ = c.handleKeyDown(tab)
         _ = c.handleKeyDown(k("1"))
         #expect(c.showsSavedAnswer && c.isQuestionChat && c.chatRounds == thread && c.highlighted == 1)
-        // R starts the next question here (only a single saved answer is asked again with it).
+        // R starts the next question, as any letter (⌘R asks again).
         type("rationale", c)
         let run = started(c.handleKeyDown(shiftEnterKey).effects)
         #expect(run?.0.request == .command(.question, input: "what is rust") && run?.0.turns.map(\.instruction) == ["who made it", "rationale"])
@@ -489,7 +489,7 @@ struct QuestionChatTests {
         #expect(saved?.thread.map(\.question) == ["what is rust", "who made it", "rationale"] && c.questionHistory.entries.count == 1)
     }
 
-    @Test func aSavedSingleAnswerIsStillAskedAgainWithR() {
+    @Test func commandRAsksASavedAnswerAgain() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
         c.questionHistory = QuestionHistory(entries: [QuestionHistory.Entry(question: "what is rust", answer: "A language.", date: .distantPast)])
         c.setInputMode(.english)
@@ -498,7 +498,57 @@ struct QuestionChatTests {
         _ = c.handleKeyDown(tab)
         _ = c.handleKeyDown(k("1"))
         #expect(c.showsSavedAnswer && c.chatRounds.count == 1)
-        #expect(c.handleKeyDown(k("r")).effects.contains { if case .reask = $0 { true } else { false } })
+        // R is the start of a follow-up; ⌘R asks it again (what was typed goes).
+        _ = c.handleKeyDown(k("r"))
+        #expect(c.refineLine == "r" && c.showsSavedAnswer)
+        #expect(c.handleKeyDown(k("r", mods: .command)).effects.contains { if case .reask(.question, "what is rust", _) = $0 { true } else { false } })
+    }
+
+    @Test func commandRAsksASavedConversationsLatestQuestionAgainPastTheCache() {
+        let thread = [QuestionChat.Round(question: "what is rust", answer: "A language."),
+                      QuestionChat.Round(question: "who made it", answer: "Graydon.")]
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.questionRounds = 2
+        c.questionHistory = QuestionHistory(entries: [QuestionHistory.Entry(rounds: thread, date: Date(timeIntervalSince1970: 1))])
+        c.now = { Date(timeIntervalSince1970: 9) }
+        c.setInputMode(.english)
+        _ = c.handleKeyDown(at)
+        type("question", c)
+        _ = c.handleKeyDown(tab)
+        _ = c.handleKeyDown(k("1"))
+        #expect(c.showsSavedAnswer && c.chatAtLimit)
+        // At the last round too: asked again, not handed over.
+        let run = started(c.handleKeyDown(KeyEvent(keyCode: 0x0F, characters: "r", modifiers: .command)).effects)
+        #expect(run?.0 == Refinement(request: .command(.question, input: "what is rust"),
+                                     turns: [Refinement.Turn(answer: answer("A language."), instruction: "who made it")], fresh: true))
+        #expect(!c.showsSavedAnswer && c.chatRound == 2 && c.refineText.isEmpty)
+        let effects = c.receive(answer("Graydon Hoare."), isFinal: true, id: run?.1 ?? 0)
+        let saved = effects.compactMap { if case let .rememberQuestion(e) = $0 { return e } else { return nil } }.first
+        #expect(saved?.thread.map(\.answer) == ["A language.", "Graydon Hoare."] && c.questionHistory.entries.count == 1)
+        // In an app with no AI: nothing asked.
+        let d = Composer(engine: FakeEngine(), actionKey: .enter)
+        d.questionHistory = c.questionHistory
+        d.aiRefusal = { "No AI in this app" }
+        d.setInputMode(.english)
+        _ = d.handleKeyDown(at)
+        type("question", d)
+        _ = d.handleKeyDown(tab)
+        _ = d.handleKeyDown(k("1"))
+        #expect(d.handleKeyDown(k("r", mods: .command)).effects == [.notice("No AI in this app"), .showPanel] && d.showsSavedAnswer)
+    }
+
+    @Test func aFreshFollowUpGetsPastTheCache() async throws {
+        let rig = RARig()
+        RAStubProtocol.enqueue(rig.host, .answer("In 2006."), .answer("Back in 2006."))
+        let turns = [Refinement.Turn(answer: answer("A language."), instruction: "when?")]
+        var answers: [String] = []
+        for fresh in [false, true] {
+            for try await update in rig.converter.generate(.question, input: "what is rust", fresh: fresh, turns: turns) where update.isFinal {
+                answers.append(update.result.versions.first?.text ?? "")
+            }
+        }
+        let sent = try rig.sent().count
+        #expect(answers == ["In 2006.", "Back in 2006."] && sent == 2)
     }
 
     @Test func oldFilesLoadAsOneRoundAndOneRoundIsWrittenAsBefore() throws {

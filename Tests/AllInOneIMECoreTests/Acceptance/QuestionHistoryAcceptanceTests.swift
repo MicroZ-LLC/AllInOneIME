@@ -596,7 +596,7 @@ struct QuestionHistoryAcceptanceTests {
         #expect(h.answerShown == "A2: AI 芯片的未来" && h.requests.count == 2)
         h.clock.now += 3600
         let mark = h.log.count
-        await h.press(k("r"))
+        await h.press(k("r", mods: .command))
         #expect(h.requests.count == 3)
         #expect(QHAcceptanceURLProtocol.question(in: h.requests[2]) == "AI 芯片的未来")
         #expect(h.requests[2].httpBody == h.requests[1].httpBody)  // the same request as when it was first asked
@@ -625,7 +625,7 @@ struct QuestionHistoryAcceptanceTests {
         let h = try QHHarness(history: QHHarness.history(["What is Rust?"]))
         await h.startQuestion()
         await h.press(k("1"))
-        await h.press(k("R", mods: .shift))
+        await h.press(k("R", mods: [.command, .shift]))
         #expect(h.requests.count == 1 && h.answerShown == "A1: What is Rust?")
         #expect(h.saved.entries.first?.answer == "A1: What is Rust?")
     }
@@ -640,7 +640,7 @@ struct QuestionHistoryAcceptanceTests {
         await h.startQuestion()
         await h.press(k("1"))
         h.clock.now += 3600
-        await h.press(k("r"))
+        await h.press(k("r", mods: .command))
         #expect(h.requests.count == 2)  // it was tried
         if case .failed = h.composer.phase {} else { Issue.record("expected a failure, got \(h.composer.phase)") }
         #expect(h.saved == before)
@@ -980,7 +980,7 @@ struct QuestionHistoryAcceptanceTests {
                     for _ in 0...found { await h.press(downKey) }
                     await h.press(enterKey)
                     #expect(h.composer.showsSavedAnswer && h.requests.count == 1)
-                    await h.press(k("r"))
+                    await h.press(k("r", mods: .command))
                     #expect(h.requests.count == 2)
                     if h.requests.count == 2 {
                         #expect(matches(h.requests[1], golden, host: h.host), "re-ask \(provider) \(golden.question)")

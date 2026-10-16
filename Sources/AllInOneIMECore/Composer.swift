@@ -2277,11 +2277,6 @@ public final class Composer {
 
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
-        // A saved answer: R asks its question again, for a fresh answer (a conversation's: the letter starts a follow-up).
-        if reasksSavedAnswer, let text = event.printableText, text.lowercased() == "r",
-           event.modifiers.subtracting([.shift, .capsLock]).isEmpty {
-            return .consumed(reaskQuestion())
-        }
         if let response = handleRefineKey(event) { return response }
         switch event.keyCode {
         case VirtualKey.space:
@@ -2409,14 +2404,15 @@ public final class Composer {
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
     /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way; where the
     /// conversation can go on is shown instead (its last round, or ⌘⏎), it goes there, the first choice.
-    private func runRefine() -> [Effect] {
+    /// `fresh`: asked again past the cache (⌘R on a saved conversation: its latest question, `reaskSaved`).
+    func runRefine(fresh: Bool = false) -> [Effect] {
         if let engine, engine.snapshot().isComposing {
             _ = convertComposition(engine)
             engineState = engine.snapshot()
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
-        if showsHandoff, let first = handoffChoices.first { return handOff(to: first) }
+        if !fresh, showsHandoff, let first = handoffChoices.first { return handOff(to: first) }
         // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
         // turned on while they were up. They stay, the instruction too.
         if let refusal = aiRefusal() {
@@ -2433,7 +2429,7 @@ public final class Composer {
         phase = .translating(id: requestCounter)
         result = .empty
         highlightOverride = nil
-        return [.startRefine(Refinement(request: request, turns: refinements), id: requestCounter), .showPanel]
+        return [.startRefine(Refinement(request: request, turns: refinements, fresh: fresh), id: requestCounter), .showPanel]
     }
 
     /// Esc (or ⌫) after a refine: the results before it are back, as they were (a refine running is stopped).
@@ -3120,7 +3116,7 @@ extension Composer {
     /// Nothing is typed after "@question": the digits 1–5 pick from the list (with text, they're part of the question).
     public var questionDigitsPick: Bool { parse(draft)?.content.isEmpty == true && !questionMatches.isEmpty }
 
-    /// Level two shows a saved answer (picked from the recent questions), not one just asked for; R asks again.
+    /// Level two shows a saved answer (picked from the recent questions), not one just asked for; ⌘R asks again.
     public var showsSavedAnswer: Bool { phase == .choosing && recalled != nil }
 
     /// When the saved answer shown was given.
@@ -3171,8 +3167,8 @@ extension Composer {
         return [.updateMarkedText, .showPanel]
     }
 
-    /// R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
-    /// takes the old one's place in the list.
+    /// ⌘R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
+    /// takes the old one's place in the list (a saved conversation's: `reaskSaved`).
     func reaskQuestion() -> [Effect] {
         guard recalled != nil else { return [] }
         // In an app with no AI the saved answers may still be shown (nothing is sent), but not asked again: the answer

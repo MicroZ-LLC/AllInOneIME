@@ -136,7 +136,7 @@ extension ComposerTests {
         c.aiRefusal = { "No AI in this app" }
         #expect(c.questionMatches.count == 3)
         #expect(requests(c.handleKeyDown(k("3")).effects).isEmpty && c.showsSavedAnswer)
-        let again = c.handleKeyDown(k("r")).effects
+        let again = c.handleKeyDown(k("r", mods: .command)).effects
         #expect(requests(again).isEmpty && again.contains(.notice("No AI in this app")))
         #expect(c.showsSavedAnswer && c.choices.map(\.text) == ["A language."])
         let d = questionDraft()

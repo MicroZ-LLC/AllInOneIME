@@ -1607,7 +1607,7 @@ final class AllInOneIMEInputController: IMKInputController {
                                                  improveTranslates: loadSettings().improveTranslates)
             stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
         case let .command(command, input):
-            stream = converter.generate(command, input: input, app: appID, turns: refinement.turns)
+            stream = converter.generate(command, input: input, app: appID, fresh: refinement.fresh, turns: refinement.turns)
             generates = true
         }
         // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
@@ -2035,9 +2035,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
             case .choosing where composer.showsSavedAnswer:
-                // A recent question's answer as it was saved (nothing was asked): R asks again for a fresh one.
-                model.footer = tr("空格 / ⏎ 上屏 · R 重新问 · 0 问题 · ⌘C 复制 · Esc 返回",
-                                  "Space / ⏎ insert · R re-ask · 0 question · ⌘C copy · Esc back")
+                // A recent question's answer as it was saved (nothing was asked): ⌘R asks again for a fresh one.
+                model.footer = tr("空格 / ⏎ 上屏 · ⌘R 重新问 · ⌘C 复制 · Esc 返回",
+                                  "Space / ⏎ insert · ⌘R re-ask · ⌘C copy · Esc back")
                 model.detail = composer.savedAnswerDate.map { tr("保存于", "saved ") + UIText.ago($0) }
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }

@@ -67,10 +67,23 @@ extension Composer {
         }
     }
 
-    /// R on a saved answer asks it again: a single question's, with nothing typed (a saved conversation's letters start
-    /// the next question).
-    var reasksSavedAnswer: Bool {
-        showsSavedAnswer && refineText.isEmpty && !engineState.isComposing && (recalled?.entry.thread.count ?? 0) == 1
+    /// ⌘R on a saved answer asks it again, for a fresh answer: a single question as it was asked (`reaskQuestion`), a
+    /// conversation's latest question with the rounds before it. What was typed goes; the fresh answer takes the saved
+    /// one's place (`rememberAnswer`). Letters always start the next question.
+    func reaskSaved() -> [Effect] {
+        guard showsSavedAnswer, let entry = recalled?.entry else { return [] }
+        guard entry.thread.count > 1, let last = refinements.last else { return reaskQuestion() }
+        if let refusal = aiRefusal() { return [.notice(refusal), .showPanel] }
+        // Pinyin being typed goes (`convertComposition` on nothing left only reads the engine's state again).
+        if let engine, engine.snapshot().isComposing {
+            engine.clearComposition()
+            _ = convertComposition(engine)
+        }
+        refinements.removeLast()
+        result = last.answer
+        refineText = last.instruction
+        handoffRequested = false
+        return runRefine(fresh: true)
     }
 
     /// A saved question picked (`showSavedAnswer`): its rounds, to go on with; the latest answer is `result`.
@@ -85,9 +98,15 @@ extension Composer {
     }
 
     /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌘1, ⌘2 … pick
-    /// one. Nil: the key acts as usual.
+    /// one. ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
     func handleHandoffKey(_ event: KeyEvent) -> Response? {
-        guard isQuestionChat, phase == .choosing, event.modifiers.subtracting(.capsLock) == .command else { return nil }
+        let modifiers = event.modifiers.subtracting(.capsLock)
+        // ⌘R (⌘⇧R too) on a saved answer: asked again.
+        if showsSavedAnswer, modifiers.contains(.command), modifiers.isSubset(of: [.command, .shift]),
+           event.charactersIgnoringModifiers.lowercased() == "r" {
+            return .consumed(reaskSaved())
+        }
+        guard isQuestionChat, phase == .choosing, modifiers == .command else { return nil }
         if event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter {
             handoffRequested = true
             return .consumed([.showPanel])

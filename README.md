@@ -75,7 +75,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 |---|---|
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
 | `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
-| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. Type on and ⇧⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
+| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. Type on and ⇧⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; ⌘R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
 | `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background and notifies me" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
@@ -176,8 +176,8 @@ conversation is saved under its first question in the recent questions, and pick
 `@question` with nothing typed after it lists your last 5 questions, newest first, with when they were asked ("3 hours
 ago"). Typing narrows them down: every word anywhere in the question, in any case (Chinese without spaces too). A digit,
 ↑↓ then ⏎, or a click shows a question's saved answer at once, without going online: Space or ⏎ inserts it, ⌘C copies
-it, R asks it again for a fresh answer, Esc goes back to the list. A saved conversation shows all its rounds: type to go on
-with it. With no match, or nothing picked, ⏎ asks what you typed. A new answer to the same question, or a conversation
+it, ⌘R asks it again for a fresh answer (a conversation: its latest question), Esc goes back to the list. A saved
+conversation shows all its rounds: type to go on with it. With no match, or nothing picked, ⏎ asks what you typed. A new answer to the same question, or a conversation
 that goes on, replaces the saved one.
 
 - They're kept only on this Mac (see Privacy): not while secure input is on, and never for questions on selected text.

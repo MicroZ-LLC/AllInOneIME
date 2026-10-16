@@ -13,6 +13,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Changed
 
 - ⇧⏎ sends a follow-up or a refine; ⏎ always inserts. After AI results, what you type goes into a follow-up line (the next question after `@question`, an instruction after `@improve`, a prompt command or the rewrite of a selection), and ⇧⏎ sends it; ⏎ inserts the selected result, also with a follow-up half typed. With nothing typed, ⇧⏎ inserts what you typed as is, as everywhere.
+- A saved answer of `@question` is asked again with ⌘R (it was R), so a follow-up on it can start with any letter; on a saved conversation ⌘R asks its latest question again.
 - `@translate` no longer refines: type to edit the text and translate again (letters after its results continue the sentence, ⏎ translates it).
 - `@question` no longer makes up live information: asked about the weather, news, prices, scores or anything "today", it says it can't check live data and gives what general guidance it can.
 

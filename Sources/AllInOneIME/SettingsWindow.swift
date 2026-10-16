@@ -858,8 +858,8 @@ struct SettingsView: View {
             // The recent @questions (`QuestionHistory`): kept only on this Mac; off forgets them too.
             Toggle(isOn: $model.config.rememberQuestions) {
                 titled(tr("记住最近的问题", "Remember recent questions"),
-                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
-                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
+                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
+                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), ⌘R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
             }
             .disabled(!model.canSave)
             HStack {
