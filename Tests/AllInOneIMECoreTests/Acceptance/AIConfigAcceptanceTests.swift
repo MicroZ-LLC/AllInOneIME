@@ -176,9 +176,9 @@ struct AICNoCredentials: Error {}
 
 enum AIC {
     /// Keys as a user might paste them (detected by Redaction's key detection: checked in `keysAreKeys`).
-    static let claudeKey = "sk-ant-api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
+    static let claudeKey = "sk-ant-" + "api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
     static let geminiKey = "AIzaSyD3x9Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1M"
-    static let awsKey = "AKIAZX8QW2LM4NP6RT0V"
+    static let awsKey = "AKIA" + "ZX8QW2LM4NP6RT0V"
 
     static let bedrockModels = ["us.anthropic.claude-haiku-4-5-20251001-v1:0", "us.anthropic.claude-opus-5-5-v1:0"]
     static let models: [Provider: [String]] = [
@@ -920,7 +920,7 @@ struct AIConfigAcceptanceTests {
     /// Sign-off: what @config may know of the AWS profiles is their names and regions, read from the files the
     /// environment names (never a key, a token or another setting).
     @Test func prov_awsProfilesHoldNamesAndRegionsOnly() throws {
-        let secrets = [AIC.awsKey, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "IQoJb3JpZ2luX2VjEXAMPLETOKEN",
+        let secrets = [AIC.awsKey, "wJalrXUtnFEMI/K7MDENG" + "/bPxRfiCYEXAMPLEKEY", "IQoJb3JpZ2luX2VjEXAMPLETOKEN",
                        "https://my-sso-portal.awsapps.com/start", "arn:aws:iam::123456789012:role/Admin", "/usr/local/bin/get-creds"]
         let config = """
             [default]

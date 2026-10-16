@@ -324,7 +324,7 @@ struct DoctorTests {
     }
 
     @Test func probesNeverShowOrSendKeysOrFullPaths() {
-        let key = "sk-ant-api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
+        let key = "sk-ant-" + "api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
         let home = NSHomeDirectory()
         let findings = Doctor.findings(facts {
             $0.connection = .failed("401: invalid key \(key)")

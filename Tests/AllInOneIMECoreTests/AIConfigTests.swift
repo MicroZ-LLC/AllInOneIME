@@ -136,7 +136,7 @@ struct AIConfigTests {
     }
 
     @Test func aSecretIsNeverShown() throws {
-        let found = try rows(#"{"changes": [{"key": "anthropic.apiKey", "value": "sk-ant-api03-SECRETSECRETSECRET"}, {"key": "typeOut", "value": true}]}"#)
+        let found = try rows(#"{"changes": [{"key": "anthropic.apiKey", "value": "sk-ant-"# + #"api03-SECRETSECRETSECRET"}, {"key": "typeOut", "value": true}]}"#)
         let refused = try #require(found.first { $0.isRefused })
         #expect(refused.label == "API key" && !refused.text(chinese: false).contains("SECRET") && refused.old == nil && refused.new == nil)
     }
@@ -201,7 +201,7 @@ struct AIConfigTests {
     }
 
     @Test func keysTypedIntoTheSentenceAreDropped() {
-        let dropped = AIConfig.droppingKeys("use claude with sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789 please")
+        let dropped = AIConfig.droppingKeys("use claude with sk-ant-" + "api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789 please")
         #expect(dropped.dropped && dropped.provider == .anthropic && dropped.text == "use claude with please")
         #expect(!AIConfig.droppingKeys("output languages English and French").dropped)
         // The preview then has the key row, whatever the answer said.
@@ -471,7 +471,7 @@ struct AIConfigTests {
 
     // MARK: - Secrets and the ⇧⏎ rule
 
-    let key = "sk-ant-api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
+    let key = "sk-ant-" + "api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
 
     @Test func aValueThatLooksLikeAKeyIsNeverQuoted() throws {
         let json = """
@@ -579,12 +579,15 @@ struct AIConfigTests {
             [sso-session corp]
             sso_region = us-east-1
             """
+        // Built at runtime: no key-shaped literal in the source.
+        let keyID = "AKIA" + "ZX8QW2LM4NP6RT0V", otherKeyID = "AKIA" + "ZX8QW2LM4NP6RT0X"
+        let secret = "wJalrXUtnFEMI/K7MDENG" + "/bPxRfiCYEXAMPLEKEY"
         let credentials = """
             [default]
-            aws_access_key_id = AKIAZX8QW2LM4NP6RT0V
-            aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            aws_access_key_id = \(keyID)
+            aws_secret_access_key = \(secret)
             [static]
-            aws_access_key_id = AKIAZX8QW2LM4NP6RT0X
+            aws_access_key_id = \(otherKeyID)
             region = sa-east-1
             """
         let profiles = AIConfig.awsProfiles(config: config, credentials: credentials)

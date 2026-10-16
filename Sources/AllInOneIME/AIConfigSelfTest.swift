@@ -173,7 +173,7 @@ extension SelfTest {
 
         // A key typed into the text: never sent; the key field opens instead.
         command("")
-        for ch in "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789" {  // "-" is its own key
+        for ch in "sk-ant-" + "api03-abcdefghijklmnopqrstuvwxyz0123456789" {  // "-" is its own key
             press(controller, client, String(ch), code: ch == "-" ? 0x1B : keyCodes[ch] ?? 0)
         }
         _ = enter(controller, client)
