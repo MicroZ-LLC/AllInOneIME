@@ -9,13 +9,13 @@ extension SelfTest {
     /// settings model picking up what it wrote, then remove. Settings → Custom Commands and the review are drawn
     /// (settings-commands-sources*.png, extension-source-review*.png).
     static func testExtensionSources(snapshotDirectory: URL) {
-        print("— extension sources (a local bare repository)")
+        section("extension sources (a local bare repository)")
         let fm = FileManager.default
         let dir = snapshotDirectory.appendingPathComponent("extension-sources", isDirectory: true)
         try? fm.removeItem(at: dir)
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: dir) }
-        let realBefore = try? Data(contentsOf: Config.defaultURL)
+        let realBefore = try? Data(contentsOf: Config.userURL)
         let sources = ExtensionSourceController.shared
         let before = (sources.root, sources.git, sources.statuses, sources.trashItem)
         defer {
@@ -229,7 +229,7 @@ extension SelfTest {
         check(!fm.fileExists(atPath: installed.path) && sources.statuses[url] == nil && model.config.extensionSources.isEmpty
               && model.config.extensionFolders.isEmpty && model.config.extensionPreferences["selftestgreetings"] != nil,
               "Remove: the clone, the source and its folder go; its preferences stay")
-        check((try? Data(contentsOf: Config.defaultURL)) == realBefore, "the real config file was not touched")
+        check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
     }
 
     /// This app's executable with `arguments`: its exit status and what it printed (both streams).

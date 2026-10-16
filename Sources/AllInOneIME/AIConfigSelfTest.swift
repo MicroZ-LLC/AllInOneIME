@@ -31,8 +31,8 @@ extension SelfTest {
     /// inserted, ⌘Z puts it back, "@config undo" with nothing to undo says so, a key typed into the text is never sent
     /// (the key field opens), a provider change runs Test Connection. The user's config file is never touched.
     static func testAIConfig(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @config: settings by describing them (canned answer)")
-        let realBefore = try? Data(contentsOf: Config.defaultURL)
+        section("@config: settings by describing them (canned answer)", needs: .composing)
+        let realBefore = try? Data(contentsOf: Config.userURL)
         let url = snapshotDirectory.appendingPathComponent("aiconfig-config.json")
         let model = CannedGuidedModel("")
         var opened: [Provider] = []
@@ -52,7 +52,7 @@ extension SelfTest {
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
             try? FileManager.default.removeItem(at: url)
-            check((try? Data(contentsOf: Config.defaultURL)) == realBefore, "@config: the user's config file was not touched")
+            check((try? Data(contentsOf: Config.userURL)) == realBefore, "@config: the user's config file was not touched")
         }
         var start = settings
         start.candidateLayout = .horizontal

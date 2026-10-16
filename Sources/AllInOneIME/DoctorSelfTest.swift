@@ -7,8 +7,8 @@ extension SelfTest {
     /// fix can be picked; a fix through `@config`'s preview, applied and undone; an action fix recorded, not run; a
     /// question answered by a stand-in on-device model. The user's config is never touched.
     static func testDoctor(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @doctor: checks and fixes (fake probes)")
-        let realBefore = try? Data(contentsOf: Config.defaultURL)
+        section("@doctor: checks and fixes (fake probes)", needs: .composing)
+        let realBefore = try? Data(contentsOf: Config.userURL)
         let url = snapshotDirectory.appendingPathComponent("doctor-config.json")
         var performed: [AIConfig.Action] = []
         var opened: [Provider] = []
@@ -27,7 +27,7 @@ extension SelfTest {
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
             try? FileManager.default.removeItem(at: url)
-            check((try? Data(contentsOf: Config.defaultURL)) == realBefore, "@doctor: the user's config file was not touched")
+            check((try? Data(contentsOf: Config.userURL)) == realBefore, "@doctor: the user's config file was not touched")
         }
         var start = settings
         start.provider = .anthropic

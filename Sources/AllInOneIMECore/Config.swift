@@ -394,10 +394,18 @@ public struct Config: Codable, Equatable, Sendable {
         return config
     }
 
-    public static var defaultURL: URL {
+    /// The config file everything reads and writes: the user's (`userURL`), or the self-test's own while it runs.
+    public static var defaultURL: URL { selfTestURL ?? userURL }
+
+    /// The user's config file, `~/.config/allinoneime/config.json`.
+    public static var userURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/allinoneime/config.json")
     }
+
+    /// Set only by the app's self-test, before anything reads the config: a file of its own in its own folder, so
+    /// that nothing it runs depends on the user's settings or changes them. Never set in the input method.
+    nonisolated(unsafe) public static var selfTestURL: URL?
 
     /// Loads the config file. A missing file yields `Config.default`; a malformed file throws.
     public static func load(from url: URL = defaultURL) throws -> Config {

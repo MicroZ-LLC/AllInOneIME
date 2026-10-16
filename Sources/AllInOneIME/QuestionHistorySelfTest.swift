@@ -6,7 +6,7 @@ extension SelfTest {
     /// set by `run`); "@question " lists it, a digit shows its saved answer at once (nothing asked), ⌘R asks again, a
     /// question during secure input isn't kept, Clear empties the list, and with the setting off there's none.
     static func testRecentQuestions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @question: recent questions (live Bedrock)")
+        section("@question: recent questions (live Bedrock)", needs: [.composing, .bedrock])
         let settingsBefore = settings
         defer {
             controller.commitComposition(client)

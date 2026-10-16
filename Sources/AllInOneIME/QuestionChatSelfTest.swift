@@ -36,7 +36,7 @@ extension SelfTest {
     /// is started or opened here), a long conversation is shortened for a small context and the panel scrolls within
     /// half the screen, and the thread is kept whole. Images: question-chat*.png, question-chat-handoff*.png.
     static func testQuestionChat(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @question: a conversation in the panel (canned answers)")
+        section("@question: a conversation in the panel (canned answers)", needs: .composing)
         let answers = [
             "what is rust": "Rust is a systems programming language focused on safety, speed and concurrency.",
             "who made it": "Graydon Hoare started it in 2006; Mozilla sponsored it from 2009.",

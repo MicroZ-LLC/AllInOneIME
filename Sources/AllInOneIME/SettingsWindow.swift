@@ -209,10 +209,13 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Provider
 
+    /// False in the self-test: none of its windows asks the user's keychain or shell which keys there are.
+    static var looksUpKeys = true
+
     func refreshKeys() {
         let providers = Provider.allCases.filter { $0 != .bedrock }
         // A preview (the self-test's README images) shows no keys and never asks the user's keychain.
-        guard persists else {
+        guard persists, Self.looksUpKeys else {
             keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) })
             return
         }
@@ -275,7 +278,7 @@ final class SettingsModel: ObservableObject {
 
     func refreshSearchKey() {
         // A preview (the self-test's README images) shows no key and never asks the user's keychain.
-        guard persists else {
+        guard persists, Self.looksUpKeys else {
             searchKeySource = APIKeys.Source.none
             return
         }

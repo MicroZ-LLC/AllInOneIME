@@ -7,7 +7,7 @@ extension SelfTest {
     /// in pinyin, types results out and rewrites formally only (live Bedrock); back in the chat app, English again.
     /// Then the input menu's "This App" item, and Settings → Apps rendered in Chinese and English.
     static func testAppProfiles(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— per-app settings (two apps through the fake client)")
+        section("per-app settings (two apps through the fake client)", needs: .composing)
         let (chat, mail) = ("com.example.chat", "com.example.mail")
         let (settingsBefore, converterBefore, recordBefore) = (settings, controller.converter, controller.recordApp)
         var recorded: [String] = []
@@ -24,7 +24,7 @@ extension SelfTest {
         settings.appProfiles = [chat: AppProfile(inputLanguage: .english, noAI: true),
                                 mail: AppProfile(inputLanguage: .chinese, rewriteStyles: ["正式"], typeOut: true)]
         let profiles = settings.appProfiles
-        // The live requests with the same profiles (the real config otherwise, translating into English).
+        // The live requests with the same profiles (the self-test's config otherwise, translating into English).
         controller.converter = Converter(loadConfig: {
             var config = try Config.load()
             config.setOrder([OutputLanguage.english, .chinese])
@@ -61,6 +61,7 @@ extension SelfTest {
         controller.commitComposition(client)
 
         // The mail app: pinyin, typed out, its own rewrite style only (live Bedrock).
+        needing([.composing, .bedrock])
         client.bundleIDOverride = mail
         controller.activateServer(client)
         check(controller.composer.inputLanguage == .chinese && controller.composer.typesResults && controller.composer.aiRefusal() == nil,
@@ -78,6 +79,7 @@ extension SelfTest {
         controller.commitComposition(client)
 
         // The chat app again (a Shift there before sticks no more than the default would): English.
+        needing(.composing)
         controller.composer.setInputMode(.chinese)
         client.bundleIDOverride = chat
         controller.activateServer(client)
@@ -97,6 +99,7 @@ extension SelfTest {
               "the input menu's \(item?.title ?? "This App item") (\(titles.filter { !$0.isEmpty }.joined(separator: ", ")))")
 
         // Settings → Apps, in both languages, with sample apps (nothing saved).
+        needing([])
         let chosen = UIText.choice
         defer { UIText.choice = chosen }
         for (name, language) in [("settings-apps", Language.chinese), ("settings-apps-en", .english)] {
