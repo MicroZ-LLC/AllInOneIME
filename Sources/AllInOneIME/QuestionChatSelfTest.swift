@@ -176,6 +176,8 @@ extension SelfTest {
         ask("one")
         guard finishConversion(controller, "a long answer, round 1") else { return }
         guard followUp("two"), followUp("three") else { return }
+        // (The hand-off's notice may still be up in its place for a moment.)
+        _ = pump(timeout: 8) { (controller.panelModel().detail ?? "").contains("前面几轮已缩短") }
         check(controller.lastShortened && (controller.panelModel().detail ?? "").contains("前面几轮已缩短"),
               "earlier rounds shortened to fit, said in the footer (\(controller.panelModel().detail ?? "-"))")
         CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)

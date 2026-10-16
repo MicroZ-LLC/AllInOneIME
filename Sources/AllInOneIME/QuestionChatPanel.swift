@@ -33,7 +33,8 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// A destination's short name, for the settings' chips (the web ones are the web's; "Copy" copies it).
+    /// A destination's short name, for the panel's choices and the settings' chips (the web ones are the web's; "Copy"
+    /// copies the conversation).
     static func shortName(_ destination: ChatHandoff.Destination) -> String {
         switch destination {
         case .claudeCode: return "Claude Code"
@@ -79,7 +80,7 @@ extension AllInOneIMEInputController {
         // The line on top: where the conversation can go on, or the next question.
         let typed = composer.refineLine.map { $0 + "▏" } ?? "▏"
         if composer.showsHandoff {
-            let choices = composer.handoffChoices.enumerated().map { "⌘\($0.offset + 1) " + Self.name($0.element) }.joined(separator: "   ")
+            let choices = composer.handoffChoices.enumerated().map { "⌘\($0.offset + 1) " + Self.shortName($0.element) }.joined(separator: "   ")
             let title = composer.chatAtLimit
                 ? tr("已经聊了 \(composer.chatRound) 轮：在 Claude 或别的 AI 里接着聊", "\(composer.chatRound) rounds in: continue in Claude or another AI")
                 : tr("在 Claude 或别的 AI 里接着聊", "Continue in Claude or another AI")
@@ -93,7 +94,7 @@ extension AllInOneIMEInputController {
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(tr("AI 回答中…", "Answering…")) }
         let count = composer.handoffChoices.count
-        let first = composer.handoffChoices.first.map(Self.name) ?? ""
+        let first = composer.handoffChoices.first.map(Self.shortName) ?? ""
         if answering {
             model.footer = composer.refinements.isEmpty ? tr("回答中… · Esc 返回", "Answering… · Esc back")
                 : tr("回答中… · 可以接着打下一个问题 · Esc 回到上一轮", "Answering… · type the next question meanwhile · Esc previous round")

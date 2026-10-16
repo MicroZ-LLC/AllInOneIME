@@ -360,8 +360,9 @@ final class CandidateView: NSView {
     private var overflow: CGFloat = 0
 
     /// A conversation taller than `maxHeight`: its rows are shown between `rowsTop` and what is left above the status
-    /// and footer, moved up to show the last one, or the highlighted one when it is above (an earlier answer picked with
-    /// ↑), or as far as the wheel moved them; the status and the footer move up with the bottom of the panel.
+    /// and footer, moved up to show the bottom of the last one, or the highlighted one when it is above (an earlier
+    /// answer picked with ↑), or as far as the wheel moved them; the status and the footer move up with the bottom of
+    /// the panel.
     private func fitTranscript(height: CGFloat, rowsTop: CGFloat, rowsBottom: CGFloat, width: CGFloat) {
         rowsShift = 0
         rowsClip = nil
@@ -369,8 +370,10 @@ final class CandidateView: NSView {
         guard model.transcript, let maxHeight, height > maxHeight, rowsBottom > rowsTop else { return }
         overflow = min(height - maxHeight, rowsBottom - rowsTop - 40)  // a few rows always show
         guard overflow > 0 else { overflow = 0; return }
+        // The newest row stays at the bottom even when it's taller than the panel (its start then scrolls into view);
+        // an earlier one selected above the panel's top comes down to it.
         var shift = overflow
-        if let highlighted = model.highlighted, rowLayouts.indices.contains(highlighted) {
+        if let highlighted = model.highlighted, rowLayouts.indices.contains(highlighted), highlighted < rowLayouts.count - 1 {
             shift = min(shift, max(rowLayouts[highlighted].frame.minY - rowsTop, 0))
         }
         if let scrolled { shift = min(max(scrolled, 0), overflow) }
