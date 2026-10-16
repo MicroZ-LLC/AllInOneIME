@@ -2957,6 +2957,8 @@ enum SelfTest {
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
+        testAIConfig(controller, client, snapshotDirectory: snapshotDirectory)
+        testDoctor(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {

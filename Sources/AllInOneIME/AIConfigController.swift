@@ -303,9 +303,10 @@ extension AllInOneIMEInputController {
         let apply = shown.preview.edits.isEmpty ? tr("⏎ / 1 打开设置填密钥", "⏎ / 1 open Settings for the key")
             : shown.preview.needsKey != nil ? tr("⏎ / 1 应用并打开设置填密钥", "⏎ / 1 apply, then enter the key in Settings")
             : tr("⏎ / 1 全部应用", "⏎ / 1 apply all")
-        model.footer = composer.refineLine != nil
-            ? tr("⏎ 按这句修改 · ⌫ 删字 · Esc 清除", "⏎ refine · ⌫ delete · Esc clear")
+        model.footer = composer.activeCommand?.kind == .doctor ? apply + tr(" · Esc 回到检查结果", " · Esc back to the results")
+            : composer.refineLine != nil ? tr("⏎ 按这句修改 · ⌫ 删字 · Esc 清除", "⏎ refine · ⌫ delete · Esc clear")
             : apply + tr(" · 打字修改 · Esc 取消", " · type to refine · Esc cancel")
+        guard composer.activeCommand?.kind == .config else { return }  // @doctor's fixes asked no AI
         model.detail = AIConfigSession.service.onDevice ? tr("本机", "on device")
             : lastFromCache ? tr("缓存", "cached") : lastElapsed.map { String(format: "%.1fs", $0) }
     }
