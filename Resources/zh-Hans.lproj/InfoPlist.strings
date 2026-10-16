@@ -4,7 +4,7 @@
 "com.aipinyin.inputmethod.AIPinyin" = "AllInOneIME";
 "NSMicrophoneUsageDescription" = "按住右 ⌥ 说话时录音。语音在这台 Mac 上识别成文字，不会上传。";
 "NSSpeechRecognitionUsageDescription" = "按住右 ⌥ 说话时把语音识别成文字（在这台 Mac 上完成）。";
-"NSAppleEventsUsageDescription" = "为 @claude 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。";
+"NSAppleEventsUsageDescription" = "为 @agent 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。";
 "NSContactsUsageDescription" = "用 @imessage 时按名字、拼音、手机号或邮箱找收件人。只读取姓名、电话和邮箱，不会上传。";
 "NSRemindersUsageDescription" = "用 @reminder 时把提醒加进「提醒事项」（AllInOneIME 列表）；悬浮面板列出这个列表里的提醒。";
 "NSRemindersFullAccessUsageDescription" = "用 @reminder 时把提醒加进「提醒事项」（AllInOneIME 列表）；悬浮面板列出这个列表里的提醒。";

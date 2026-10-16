@@ -54,12 +54,14 @@ enum LivePlugins {
 enum CommandUsageStore {
     private static let key = "commandUsage"
     static var usage: CommandUsage = {
+        // 0.6.5: @claude is @agent now. Once (also with nothing kept yet): a command of the user's own may be named
+        // "claude" afterwards.
+        let renamed = UserDefaults.standard.bool(forKey: renamedKey)
+        UserDefaults.standard.set(true, forKey: renamedKey)
         guard let data = UserDefaults.standard.data(forKey: key),
               var usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
-        // 0.6.5: @claude is @agent now. Once: a command of the user's own may be named "claude" afterwards.
-        if !UserDefaults.standard.bool(forKey: renamedKey) {
+        if !renamed {
             usage.migrateRenamed(from: "claude", to: "agent")
-            UserDefaults.standard.set(true, forKey: renamedKey)
             if let data = try? JSONEncoder().encode(usage) { UserDefaults.standard.set(data, forKey: key) }
         }
         return usage
@@ -593,13 +595,14 @@ final class AllInOneIMEInputController: IMKInputController {
                                               extensions: self.loadExtensions(config, false).commands.count)
         }
         (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
+        applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
         setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
-        applyAgent(config)  // after the messages: it names the agent in them
+        nameAgent()  // the messages were just reset
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
         // The Korean and Hindi packs' data, for their input (nil without the pack).
@@ -641,13 +644,20 @@ final class AllInOneIMEInputController: IMKInputController {
         agent = config.agent
         agentCommand = config.agentCommand
         composer.claudeInBackground = config.claudeInBackground && config.agent.supportsBackground
-        let name = config.agent.displayName(custom: config.agentCommand)
-        UIText.agentName = name
-        // "已在终端打开 Claude Code": the agent picked, by name.
-        let base = UIText.chinese ? Composer.Messages.chinese : .english
-        composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: name)
-        composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: name)
+        UIText.agentName = config.agent.displayName(custom: config.agentCommand)
+        nameAgent()
     }
+
+    /// "已在终端打开 Claude Code": the agent picked, by name, in the messages.
+    @MainActor
+    func nameAgent() {
+        let base = UIText.chinese ? Composer.Messages.chinese : .english
+        composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
+        composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
+    }
+
+    /// Whether the agent changed since its program was last checked (`setCommands`).
+    private var agentChanged: Bool { [agent.rawValue] + agentCommand != checkedAgent }
 
     /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@agent`
     /// without its agent, a custom command's missing `argv[0]`): "@agent …" is then just text, like
@@ -745,15 +755,16 @@ final class AllInOneIMEInputController: IMKInputController {
             let config = loadSettings()
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
                                                       index: loadExtensions(config, false), disabled: config.disabledExtensions)
-            if changed {
-                setCommands(commands)
+            applyAgent(config)
+            // Another agent picked in Settings: its program is checked (`setCommands` sees it changed).
+            if changed || agentChanged && !checkedCommands.isEmpty {
+                setCommands(changed ? commands : checkedCommands)
             } else if missingCheckWaiting {
                 // A check of the programs that ended while a command was being written.
                 composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
             }
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
-            applyAgent(loadSettings())
             composer.remembersQuestions = loadSettings().rememberQuestions
             applyChatSettings(loadSettings())
             composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared

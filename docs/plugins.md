@@ -1,6 +1,6 @@
 # Plugins: plan
 
-@ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@claude`, `@open`, `@note`,
+@ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
 `@reminder`, `@calculate`, `@py`, `@js`, `@tasks`, `@settings`, `@config`, `@doctor`, `@imessage`, `@reportissue`;
 `@read` and `@search` are built but not offered yet, their names still taken), **plugins** installed from the plugin
 library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands).
@@ -138,7 +138,7 @@ letters (`AAPL TSLA`, `600519 700`; `@stock SNDK is good to buy` takes `SNDK`), 
 
 **One model call at most.** Only commands that run code or fetch data go inside a text; the AI runs once, as the
 outer command. An AI command inside a text (`@question …` after `@reply`) stays text, and the model never plans
-the order: whoever needs that much opens a session (`@claude`) or Terminal. This keeps every command quick,
+the order: whoever needs that much opens a session (`@agent`) or Terminal. This keeps every command quick,
 predictable and one request's worth of cost.
 
 Commands that **send** something run last, on the final text, only after the user confirms in the candidate panel.

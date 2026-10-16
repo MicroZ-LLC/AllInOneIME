@@ -24,7 +24,7 @@ enum TerminalLauncher {
         try files.createDirectory(at: folder, withIntermediateDirectories: true)
         // Prompts of earlier launches whose script never ran (Terminal closed first …): gone after an hour.
         let hourAgo = Date().addingTimeInterval(-3600)
-        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("agent-prompt-") && name.hasSuffix(".txt") {
+        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] where (name.hasPrefix("agent-prompt-") || name.hasPrefix("claude-prompt-")) && name.hasSuffix(".txt") {
             let url = folder.appendingPathComponent(name)
             if let modified = (try? files.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date, modified < hourAgo {
                 try? files.removeItem(at: url)

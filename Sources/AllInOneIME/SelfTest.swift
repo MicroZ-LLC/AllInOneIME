@@ -1070,6 +1070,22 @@ enum SelfTest {
         _ = enter(controller, client)
         check(terminal.count == 2 && terminal.last == "你好" && client.marked.isEmpty,
               "…and starts it once secure input is off (\(terminal))")
+        // Another agent picked in Settings whose program isn't on this Mac: @agent goes with the next key, without the
+        // text field becoming active again; picked back, it's there again.
+        let installedBefore = controller.programInstalled
+        controller.programInstalled = { $0 == "claude" }
+        func nextKey() {
+            type("a", controller, client)
+            controller.commitComposition(client)
+        }
+        SelfTest.settings.agent = .gemini
+        nextKey()
+        let goneForGemini = pump(timeout: 3) { !controller.composer.commands.contains(.agent) }
+        SelfTest.settings.agent = .claude
+        nextKey()
+        let backForClaude = pump(timeout: 3) { controller.composer.commands.contains(.agent) }
+        check(goneForGemini && backForClaude, "@agent is offered for the agent picked: not for Gemini CLI missing, again for Claude Code")
+        controller.programInstalled = installedBefore
         check(TerminalLauncher.shellQuote("it's $HOME `x`") == "'it'\\''s $HOME `x`'", "the prompt is passed as one quoted word")
 
         settle()

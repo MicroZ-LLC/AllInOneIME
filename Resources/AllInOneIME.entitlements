@@ -7,7 +7,7 @@
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<!-- Apple events, which the hardened runtime blocks without this (the user is still asked, under
-	     Automation): @claude and "run in Terminal" commands ask Terminal to open a window and run the
+	     Automation): @agent and "run in Terminal" commands ask Terminal to open a window and run the
 	     command once its shell is ready; @note saves to Notes through AppleScript; @imessage asks
 	     Messages to send a confirmed message. -->
 	<key>com.apple.security.automation.apple-events</key>

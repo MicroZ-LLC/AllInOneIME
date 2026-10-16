@@ -37,7 +37,9 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .claude: return ["claude", "--"]
         case .gemini: return ["gemini", "-i"]  // --prompt-interactive: its first message, then it goes on interactively
         case .kiro: return ["kiro-cli", "chat", "--"]
-        case .custom: return program(custom: custom) == nil ? nil : custom
+        case .custom:
+            guard let program = program(custom: custom) else { return nil }
+            return [program] + custom.dropFirst()  // the program as `program` has it (a hand-edited " muse")
         }
     }
 

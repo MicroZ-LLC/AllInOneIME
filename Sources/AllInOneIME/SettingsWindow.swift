@@ -984,7 +984,8 @@ struct SettingsView: View {
                 }
                     .onAppear { agentCommandLine = CustomCommand.commandLine(model.config.agentCommand) }
                     .onChange(of: agentCommandLine) {
-                        let argv = CustomCommand.arguments(fromCommandLine: agentCommandLine) ?? []
+                        // An unclosed quote while typing keeps the last command that reads.
+                        guard let argv = CustomCommand.arguments(fromCommandLine: agentCommandLine) else { return }
                         if argv != model.config.agentCommand { model.config.agentCommand = argv }
                     }
             }
@@ -1569,7 +1570,6 @@ struct SettingsView: View {
         }
     }
 
-    /// A row's title with a short explanation under it, as System Settings shows them.
     /// An agent's name in the picker: a custom one without a command is "自定义" / "Custom".
     private func agentTitle(_ kind: AgentKind) -> String {
         guard kind == .custom else { return kind.displayName() }
@@ -1577,6 +1577,7 @@ struct SettingsView: View {
             ? tr("自定义", "Custom") : tr("自定义：", "Custom: ") + kind.displayName(custom: model.config.agentCommand)
     }
 
+    /// A row's title with a short explanation under it, as System Settings shows them.
     private func titled(_ title: String, _ note: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -2545,6 +2546,7 @@ final class SettingsWindow {
     }
 
     func show() {
+        AgentAvailability.forget()  // an agent may have been installed meanwhile
         if window?.isVisible != true {
             // (Re)build so the window reflects the config file as it is now.
             window?.close()
@@ -3080,6 +3082,9 @@ private struct PreferenceField: View {
 /// asks the login shell for its PATH). Main thread only.
 enum AgentAvailability {
     private static var found: [String: Bool] = [:]
+
+    /// Looked up again from now on (the Settings window opens).
+    static func forget() { found = [:] }
 
     static func installed(_ kind: AgentKind, custom: [String]) -> Bool {
         guard let program = kind.program(custom: custom) else { return false }

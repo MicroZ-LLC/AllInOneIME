@@ -98,7 +98,7 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
-	# @claude, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
+	# @agent, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
 	# (@imessage); the installer and `make dmg` ship this same build.
 	if [ -n "$(SIGN_HASH)" ]; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \

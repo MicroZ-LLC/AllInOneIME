@@ -6,7 +6,7 @@
 
 ### 变化
 
-- `@claude` 改名为 `@agent`，交给你在设置 → 通用 →「@agent 交给」里选的编程 agent：Claude Code（默认，和以前一样）、Gemini CLI、Kiro CLI，或你自己的命令（`agentCommand`，你打的字加在最后，作为最后一个参数）。Claude Code 照样可以在后台做（`@tasks` 列出这些任务）；别的 agent 在终端打开，你打的字是第一句话。没装的 agent 不显示。不管多长，打的字都完整交给 agent。`@claude` 不再是命令（你自己的命令可以用这个名字）；以前用它的次数算到 `@agent` 上，命令列表的顺序不变。配置里：`agent`、`agentCommand`。
+- `@claude` 改名为 `@agent`，交给你在设置 → 通用 →「@agent 交给」里选的编程 agent：Claude Code（默认，和以前一样）、Gemini CLI、Kiro CLI，或你自己的命令（`agentCommand`，你打的字加在最后，作为最后一个参数）。Claude Code 照样可以在后台做（`@tasks` 列出这些任务）；别的 agent 在终端打开，你打的字是第一句话。没装的 agent 不显示。不管多长，打的字都完整交给 agent。`@claude` 不再是命令（你自己的命令可以用这个名字）；以前用它的次数算到 `@agent` 上，命令列表的顺序不变。配置里：`agent`、`agentCommand`。你自己的命令或插件叫 `agent` 的，会被它盖住（和别的内置命令同名时一样），请改个名。
 
 ## 0.6.4（2026-10-16）
 
