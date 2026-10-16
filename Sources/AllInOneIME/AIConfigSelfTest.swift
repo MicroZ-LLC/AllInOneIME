@@ -62,11 +62,11 @@ extension SelfTest {
         AIConfigSession.url = url
         AIConfigSession.service = AIConfigService(client: ChatClient(apple: model))
         AIConfigSession.lastApplied = nil
-        AIConfigSession.environment = {
+        AIConfigSession.environment = { typed in
             AIConfig.Environment(
                 apps: AIConfig.AppCatalog(apps: [.init(bundleID: "com.tencent.xinWeChat", names: ["WeChat", "微信"])]),
                 awsProfiles: { ["default"] }, knownModels: { $0 == .anthropic ? ["claude-haiku-5-5"] : [] },
-                hasKey: { $0 == .anthropic }, chinese: UIText.chinese)
+                hasKey: { $0 == .anthropic }, chinese: UIText.chinese, typedText: typed)
         }
         AIConfigSession.openKeyField = { opened.append($0) }
         AIConfigSession.testConnection = { _ in
@@ -145,6 +145,8 @@ extension SelfTest {
         _ = waitForPreview()
         model.answer = #"{"changes": [{"key": "outputLanguages", "value": ["en", "fr", "de"]}]}"#
         type("also german", controller, client)
+        let refining = controller.panelModel().footer
+        check(refining == "⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除", "the refine line's footer says ⇧⏎ refines, ⏎ applies (\(refining))")
         _ = shiftEnter(controller, client)  // ⇧⏎ sends the line (⏎ would apply the proposal shown)
         _ = waitForPreview()
         let refined = controller.panelModel().rows.map(\.text)

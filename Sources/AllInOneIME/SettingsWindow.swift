@@ -765,7 +765,9 @@ struct SettingsView: View {
     /// The API key being typed (a saved key is never shown again: it stays in the keychain).
     @State private var newKey = ""
     /// The key field has the focus (`@config` opens the window there when a provider needs a key).
-    @FocusState private var keyFieldFocused: Bool
+    @FocusState private var focusedKey: Provider?
+    /// A provider whose key `@config` asked for while another is in use: its key field is shown under the provider's.
+    @State private var keyFor: Provider?
     @State private var removingKey: Provider?
     /// The web search key being typed (likewise).
     @State private var newSearchKey = ""
@@ -1314,6 +1316,9 @@ struct SettingsView: View {
             } else {
                 apiKeySettings(model.config.provider)
             }
+            if let other = keyFor, other != model.config.provider, other.needsKey {
+                ProviderKeyField(model: model, provider: other, focus: $focusedKey)
+            }
             HStack {
                 Button(tr("测试连接", "Test Connection")) { model.runTest() }
                     .disabled(model.testStatus == .running)
@@ -1816,10 +1821,11 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
             model.reloadIfChanged()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
             page = .provider
             model.reloadIfChanged()  // the provider @config just set
-            keyFieldFocused = true
+            keyFor = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:))
+            DispatchQueue.main.async { focusedKey = keyFor }
         }
         .onDisappear { model.save() }
     }
@@ -2133,7 +2139,7 @@ struct SettingsView: View {
         }
         HStack {
             SecureField("API key", text: $newKey, prompt: Text(tr("粘贴新的 API key", "Paste a new API key")))
-                .focused($keyFieldFocused)
+                .focused($focusedKey, equals: provider)
                 .onSubmit { saveKey(provider) }
             Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
             if model.keySources[provider] == .keychain {

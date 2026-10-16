@@ -785,7 +785,14 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .startCommand(command, input, id):
                 // @doctor's checks stay on this Mac; only a question goes to the AI.
                 if command.kind == .doctor {
-                    if !input.isEmpty, refusedForSecureInput(id: id, client: target) { break }
+                    // During secure input only the question is refused (one line); the checks still run, as in an app
+                    // with no AI.
+                    if !input.isEmpty, secureInputActive() {
+                        showNotice(tr("系统安全输入已开启：问题没有发给 AI，只做了检查", "Secure input is on: the question wasn't sent; the checks ran"),
+                                   client: target)
+                        startDoctor("", id: id)
+                        break
+                    }
                     startDoctor(input, id: id)
                     break
                 }
@@ -1942,6 +1949,9 @@ final class AllInOneIMEInputController: IMKInputController {
             model.horizontal = composer.horizontalCandidates
             model.footer = composer.isQuestionChat
                 ? tr("空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音", "Space picks · ⇧⏎ ask · ⏎ insert the answer · Esc clear the pinyin")
+                // @config: ⏎ applies the proposal shown (nothing is inserted).
+                : composer.activeCommand?.kind == .config
+                ? tr("空格 选词 · ⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ apply · Esc clear the pinyin")
                 : tr("空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin")
         } else if composer.isLevelTwo {
             let choices = composer.choices
@@ -2101,7 +2111,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 model.status = .error(message)
                 model.highlighted = nil  // Space retries; nothing is selected
                 // A reminder without anything to be reminded of: write it in.
-                model.footer = command == .reminder || command?.kind == .config ? tr("Esc 返回修改", "Esc back to edit")
+                model.footer = command == .reminder || command?.kind == .config || command?.kind == .doctor
+                    ? tr("Esc 返回修改", "Esc back to edit")
                     : composer.actionKey == .enter
                     ? tr("空格 / ⏎ 重试 · 0 原文 · Esc 返回", "Space / ⏎ retry · 0 original · Esc back")
                     : tr("空格 重试 · ⏎ 上屏原文 · Esc 返回", "Space retry · ⏎ insert original · Esc back")

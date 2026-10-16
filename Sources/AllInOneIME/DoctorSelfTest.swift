@@ -36,7 +36,7 @@ extension SelfTest {
         try? start.write(to: url)
         AIConfigSession.url = url
         AIConfigSession.lastApplied = nil
-        AIConfigSession.environment = { AIConfig.Environment(hasKey: { _ in false }, chinese: UIText.chinese) }
+        AIConfigSession.environment = { _ in AIConfig.Environment(hasKey: { _ in false }, chinese: UIText.chinese) }
         AIConfigSession.openKeyField = { opened.append($0) }
         AIConfigSession.testConnection = { _ in (false, "No API key for the Claude API") }
         DoctorSession.perform = { performed.append($0) }
@@ -71,11 +71,12 @@ extension SelfTest {
         let panel = controller.panelModel()
         let rows = panel.rows
         check(rows.first?.text.hasPrefix("✗") == true && rows.last?.text.hasPrefix("✓") == true, "problems first, then what is fine")
+        // No key saved: Test Connection isn't run, the provider's row says what's missing (no second ✗ row).
         check(rows.contains { $0.text == "✗ 韩语语言包没有装 — 装好以前打不了韩语" } && rows.contains { $0.text.hasPrefix("✗ 打字速度超出范围") }
-              && rows.contains { $0.text.hasPrefix("✗ 连接失败") } && rows.contains { $0.text.hasPrefix("✓ AllInOneIME") },
+              && !rows.contains { $0.text.hasPrefix("✗ 连接失败") } && rows.contains { $0.text.hasPrefix("✓ AllInOneIME") },
               "the findings (\(rows.map(\.text)))")
         check(rows.filter { !$0.label.isEmpty }.map(\.label) == ["1", "2", "3"], "the fixable ones are numbered (\(rows.map(\.label)))")
-        check({ if case let .hint(text) = panel.status { return text.hasPrefix("4 个问题") } else { return false } }()
+        check({ if case let .hint(text) = panel.status { return text.hasPrefix("3 个问题") } else { return false } }()
               && panel.footer.hasPrefix("数字 修这一项"), "the summary and keys (\(panel.status) | \(panel.footer))")
         snapshot("doctor", in: snapshotDirectory)
 
