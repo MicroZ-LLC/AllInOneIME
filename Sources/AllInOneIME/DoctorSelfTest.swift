@@ -64,6 +64,8 @@ extension SelfTest {
             _ = enter(controller, client)
             _ = pump(timeout: 5) { controller.composer.phase == .choosing && controller.composer.configState.report?.isFinal == true }
         }
+        /// A fix's preview is worked out in the panel's task (`previewFixes`): shown once the run loop has run it.
+        func previewShown() { _ = pump(timeout: 5) { controller.composer.configState.fixPreview != nil } }
         client.inserted.removeAll()
         _ = pump(timeout: 4) { controller.panelModel().detail == nil }  // the notices before go
 
@@ -83,6 +85,7 @@ extension SelfTest {
         // The typing speed's fix, through @config's preview: applied, then ⌘Z.
         let speed = rows.first { $0.text.hasPrefix("✗ 打字速度") }?.label ?? "?"
         type(speed, controller, client)
+        previewShown()
         check(controller.panelModel().rows.map(\.text) == ["打字速度：每秒 100 个字 → 每秒 16 个字"],
               "a fix shows as @config's preview (\(controller.panelModel().rows.map(\.text)))")
         snapshot("doctor-fix", in: snapshotDirectory)
@@ -94,11 +97,14 @@ extension SelfTest {
         // ⏎ on the findings: the safe fixes (the speed); a pack download only when picked, recorded here.
         doctor()
         _ = enter(controller, client)
+        previewShown()
         check(controller.panelModel().rows.map(\.text) == ["打字速度：每秒 100 个字 → 每秒 16 个字"], "⏎ previews the safe fixes")
         _ = escape(controller, client)
         let pack = controller.panelModel().rows.first { $0.text.hasPrefix("✗ 韩语语言包") }?.label ?? "?"
         type(pack, controller, client)
+        previewShown()
         _ = enter(controller, client)
+        _ = pump(timeout: 5) { !performed.isEmpty }
         check(performed == [.downloadPack(.korean)] && controller.composer.choices.first?.text == "已完成：下载韩语语言包",
               "a pack's fix downloads it once confirmed (\(performed))")
         _ = escape(controller, client)
