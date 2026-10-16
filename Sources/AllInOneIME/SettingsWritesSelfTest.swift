@@ -146,7 +146,7 @@ extension SelfTest {
         }
     }
 
-    /// The custom agent's command (General → "@agent hands it to") follows the config the same way: a command written into
+    /// The custom agent's command (Settings → Agent) follows the config the same way: a command written into
     /// the file by hand while the field shows is read again and shown, and what's typed then goes on from it.
     static func testAgentCommandFollowsOutsideWrites(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("agent-config.json")
@@ -155,7 +155,7 @@ extension SelfTest {
         (config.agent, config.agentCommand) = (.custom, ["muse", "--"])
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .general)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .agent)))
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }

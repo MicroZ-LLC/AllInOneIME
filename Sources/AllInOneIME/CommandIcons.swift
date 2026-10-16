@@ -95,6 +95,8 @@ enum CommandIcons {
     static let plugins = CandidateView.Icon(symbol: "puzzlepiece.extension.fill", color: .systemPink)
     static let voice = CandidateView.Icon(symbol: "mic.fill", color: .systemRed)
     static let provider = CandidateView.Icon(symbol: "cpu.fill", color: .systemTeal)
+    /// Settings → Agent: `@agent`'s own.
+    static var agent: CandidateView.Icon { icon(for: .agent) }
     static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
     static let panel = CandidateView.Icon(symbol: "rectangle.on.rectangle", color: .systemTeal)
     static let webSearch = CandidateView.Icon(symbol: "globe", color: .systemCyan)

@@ -1818,6 +1818,10 @@ enum SelfTest {
         // The setting is on the Input page (with the input languages), and the search finds it there.
         check(SettingsPage.input.matches("candidate layout") && SettingsPage.input.matches("横排") && !SettingsPage.general.matches("横排"),
               "searching for the candidate layout finds the Input page, not General")
+        // @agent's settings are on a page of their own.
+        check(SettingsPage.agent.matches("kiro") && SettingsPage.agent.matches("后台 通知") && SettingsPage.agent.matches("claude tasks")
+              && !SettingsPage.general.matches("kiro") && !SettingsPage.general.matches("后台"),
+              "searching for the agents or Claude Code's background finds the Agent page, not General")
     }
 
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).

@@ -874,8 +874,6 @@ struct SettingsView: View {
     @State private var keySheet: KeySheetRequest?
     /// The web search key row's paste field.
     @State private var editingSearchKey = false
-    /// The custom agent's command as typed (`Config.agentCommand` follows it, split into words).
-    @State private var agentCommandLine = ""
     /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
@@ -966,43 +964,6 @@ struct SettingsView: View {
                     .disabled(model.typoApps.isEmpty)
                 }
             }
-            // `@agent`: the coding agent it hands the text to (`AgentKind`); one not on this Mac can still be picked.
-            Picker(selection: $model.config.agent) {
-                ForEach(AgentKind.allCases, id: \.self) { kind in
-                    Text(agentTitle(kind) + (AgentAvailability.installed(kind, custom: model.config.agentCommand)
-                                             ? "" : tr("（未安装）", " (not installed)")))
-                        .tag(kind)
-                }
-            } label: {
-                titled(tr("@agent 交给", "@agent hands it to"),
-                       tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message."))
-            }
-            if model.config.agent == .custom {
-                // Words as a custom terminal command's; the text you type is added as the last argument.
-                TextField(text: $agentCommandLine, prompt: Text(tr("例如 ", "e.g. ") + "muse --")) {
-                    titled(tr("命令", "Command"), tr("你打的字加在最后，作为最后一个参数。", "What you typed is added as its last argument."))
-                }
-                    .onAppear { agentCommandLine = CustomCommand.commandLine(model.config.agentCommand) }
-                    .onChange(of: agentCommandLine) {
-                        // An unclosed quote while typing keeps the last command that reads.
-                        guard let argv = CustomCommand.arguments(fromCommandLine: agentCommandLine) else { return }
-                        if argv != model.config.agentCommand { model.config.agentCommand = argv }
-                    }
-                    // A command written elsewhere (by hand, read again) is shown; one typed here stays as typed.
-                    .onChange(of: model.config.agentCommand) {
-                        if CustomCommand.arguments(fromCommandLine: agentCommandLine) != model.config.agentCommand {
-                            agentCommandLine = CustomCommand.commandLine(model.config.agentCommand)
-                        }
-                    }
-            }
-            Toggle(isOn: $model.config.claudeInBackground) {
-                titled(tr("@agent 在后台运行，做完通知我", "@agent runs in the background and notifies me"),
-                       model.config.agent.supportsBackground
-                           ? tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk.")
-                           : tr("只有 Claude Code 能在后台运行；\(UIText.agentName(model.config)) 总在终端打开。",
-                                "Only Claude Code runs in the background; \(UIText.agentName(model.config)) always opens in Terminal."))
-            }
-            .disabled(!model.config.agent.supportsBackground)
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
             Toggle(isOn: $model.config.useSelection) {
                 titled(tr("使用选中的文字", "Use the selected text"),
@@ -1581,13 +1542,6 @@ struct SettingsView: View {
         }
     }
 
-    /// An agent's name in the picker: a custom one without a command is "自定义" / "Custom".
-    private func agentTitle(_ kind: AgentKind) -> String {
-        guard kind == .custom else { return kind.displayName() }
-        return kind.program(custom: model.config.agentCommand) == nil
-            ? tr("自定义", "Custom") : tr("自定义：", "Custom: ") + kind.displayName(custom: model.config.agentCommand)
-    }
-
     /// A row's title with a short explanation under it, as System Settings shows them.
     private func titled(_ title: String, _ note: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -1878,6 +1832,7 @@ struct SettingsView: View {
                     pluginsSection
                     webSearchSection
                 case .voice: voiceSection
+                case .agent: AgentSettingsPage(model: model)
                 case .provider:
                     providerSection
                     requestSection
@@ -2898,11 +2853,11 @@ struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, input, writing, commands, plugins, voice, provider, advanced, about, apps
+    case general, input, writing, commands, plugins, voice, agent, provider, advanced, about, apps
 
     var id: String { rawValue }
 
-    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .provider], [.advanced, .about]]
+    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .agent, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
@@ -2912,6 +2867,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return tr("自定义命令", "Custom Commands")
         case .plugins: return tr("插件", "Plugins")
         case .voice: return tr("语音输入", "Voice Input")
+        case .agent: return tr("Agent", "Agent")
         case .provider: return tr("AI 服务", "AI Provider")
         case .advanced: return tr("高级", "Advanced")
         case .about: return tr("关于", "About")
@@ -2927,6 +2883,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return CommandIcons.commands
         case .plugins: return CommandIcons.plugins
         case .voice: return CommandIcons.voice
+        case .agent: return CommandIcons.agent
         case .provider: return CommandIcons.provider
         case .advanced: return CommandIcons.advanced
         case .about: return CandidateView.Icon(symbol: "info", color: .systemBlue)
@@ -2937,12 +2894,13 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 @agent coding agent claude gemini cli kiro custom 编程 交给 自定义 background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
+        case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed not installed background notify tasks @tasks claude tasks 编程 交给 自定义 命令 终端 已安装 未安装 后台 通知 任务"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 sso role assume credential_process sts mfa 角色 登录 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
@@ -3086,27 +3044,5 @@ private struct PreferenceField: View {
         guard edited else { return }
         edited = false
         if text != value { save(text) }
-    }
-}
-
-/// Whether an agent's program is on this Mac, for the Settings picker and the `@question` hand-off: each program looked
-/// up once (the first lookup asks the login shell for its PATH). Main thread only.
-enum AgentAvailability {
-    private static var found: [String: Bool] = [:]
-
-    /// Looked up again from now on (the Settings window opens).
-    static func forget() { found = [:] }
-
-    static func installed(_ kind: AgentKind, custom: [String]) -> Bool {
-        kind.program(custom: custom).map(installed(program:)) ?? false
-    }
-
-    /// Whether `program` (`AgentKind.program`) is on this Mac: Claude Code also where Terminal finds it.
-    static func installed(program: String) -> Bool {
-        if let known = found[program] { return known }
-        let installed = (program == "claude" && TerminalLauncher.claudePath != nil)
-            || CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
-        found[program] = installed
-        return installed
     }
 }
