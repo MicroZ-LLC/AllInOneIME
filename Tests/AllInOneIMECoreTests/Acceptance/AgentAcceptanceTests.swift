@@ -242,14 +242,14 @@ struct AgentAcceptanceTests {
 
     @Test func s2_terminalArgumentsWithoutThePrompt() {
         #expect(AgentKind.claude.terminalArguments() == ["claude", "--"])
-        #expect(AgentKind.gemini.terminalArguments() == ["gemini", "--"])
+        #expect(AgentKind.gemini.terminalArguments() == ["gemini", "-i"])
         #expect(AgentKind.kiro.terminalArguments() == ["kiro-cli", "chat", "--"])
         #expect(AgentKind.custom.terminalArguments(custom: ["muse", "--"]) == ["muse", "--"])
         // As is: nothing added, nothing taken away.
         #expect(AgentKind.custom.terminalArguments(custom: ["muse"]) == ["muse"])
         #expect(AgentKind.custom.terminalArguments(custom: ["/usr/local/bin/aider", "--yes", "--message"])
                 == ["/usr/local/bin/aider", "--yes", "--message"])
-        #expect(AgentKind.gemini.terminalArguments(custom: ["muse", "--"]) == ["gemini", "--"])
+        #expect(AgentKind.gemini.terminalArguments(custom: ["muse", "--"]) == ["gemini", "-i"])
         // Nothing to run.
         #expect(AgentKind.custom.terminalArguments() == nil)
         #expect(AgentKind.custom.terminalArguments(custom: []) == nil)
@@ -332,11 +332,14 @@ struct AgentAcceptanceTests {
         }
     }
 
-    @Test func s3_theBuiltInAgentsEndWithDoubleDash() {
-        // The prompt comes last, after "--": a prompt starting with "-" stays the prompt.
-        for kind in [AgentKind.claude, .gemini, .kiro] {
+    @Test func s3_theBuiltInAgentsTakeThePromptAsTheirLastArgumentsValue() {
+        // Claude Code and Kiro: after "--", so a prompt starting with "-" stays the prompt.
+        for kind in [AgentKind.claude, .kiro] {
             #expect(kind.terminalArguments()?.last == "--", "\(kind)")
         }
+        // Gemini CLI: the prompt is the value of -i (--prompt-interactive), so it can't be read as an option either.
+        #expect(AgentKind.gemini.terminalArguments()?.last == "-i")
+        #expect(AgentKind.gemini.terminalArguments()?.contains("--") == false)
     }
 
     // MARK: 4. Offered only when the agent's program is installed
