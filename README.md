@@ -176,10 +176,11 @@ own. The choices:
 - **Copy the conversation**, in Markdown (**Q:** / **A:**).
 
 Which ones, and in which order (the first is the default): Settings → General → "Continue a conversation in"
-(`questionContinueIn` in the config); with more than 5, ⌘6 … ⌘9 pick the rest. With Apple Intelligence on this Mac a
-long conversation doesn't fit its small context: the oldest answers are shortened, then the oldest rounds left out, and
-the panel says "earlier rounds shortened". A conversation is saved under its first question in the recent questions,
-and picking it shows the rounds to go on with.
+(`questionContinueIn` in the config); with more than 5, ⌘6 … ⌘9 pick the rest. "@agent's agent" there is whichever
+agent Settings → Agent picks, by its name; an agent that isn't installed right now keeps its place in the list when you
+edit it. With Apple Intelligence on this Mac a long conversation doesn't fit its small context: the oldest answers are
+shortened, then the oldest rounds left out, and the panel says "earlier rounds shortened". A conversation is saved
+under its first question in the recent questions, and picking it shows the rounds to go on with.
 
 ### Recent questions (new)
 
@@ -717,7 +718,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `claudeInBackground` | `@agent` with Claude Code runs in the background and notifies you (other agents always open in Terminal) | `true` |
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
-| `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | the agents installed (the `@agent` one first), Claude, ChatGPT, copy |
+| `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 

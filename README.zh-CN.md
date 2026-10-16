@@ -146,7 +146,7 @@ agent（默认是 Claude Code 的 `claude` 命令）和它自己的账号，改�
 - 网页版 **Gemini**，对话在剪贴板里，粘贴进去。
 - **复制对话**，Markdown 格式（**Q:** / **A:**）。
 
-列哪几个、按什么顺序（第一个是默认）：设置 →「通用」→「对话接着在哪里聊」（配置里的 `questionContinueIn`）；超过 5 个时用 ⌘6…⌘9 选后面的。用本机的 Apple
+列哪几个、按什么顺序（第一个是默认）：设置 →「通用」→「对话接着在哪里聊」（配置里的 `questionContinueIn`）；超过 5 个时用 ⌘6…⌘9 选后面的。那里的「@agent 的 agent」就是设置 →「Agent」里选的那个，显示它的名字；暂时没装的 agent 在列表里改动时保留原来的位置。用本机的 Apple
 Intelligence 时，长对话放不进它很小的上下文：先缩短最早的几个答案，再去掉最早的几轮，候选框里会写「前面几轮已缩短」。
 对话按第一个问题存在「最近的问题」里，选出来就能看到所有轮次，接着聊。
 
@@ -625,7 +625,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `claudeInBackground` | `@agent` 用 Claude Code 时在后台运行，做完通知你（别的 agent 总在终端打开） | `true` |
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
-| `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | 装了的 agent（`@agent` 的在最前）、Claude、ChatGPT、复制 |
+| `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
