@@ -284,20 +284,26 @@ Commands → Extension Sources → **Add from Link…**: paste the repository's 
 `ssh://…`, `https://…`; optionally a branch, the bundle's folder in the repository, and a tag or commit to pin it to).
 AllInOneIME clones it with **your own git and SSH setup** (keys, agent, ~/.ssh/config, credential helpers), so a
 private repository works as it does in Terminal; the app never asks for or stores a password. The clone goes into
-`~/Library/Application Support/AllInOneIME/Sources/`, never straight into an extensions folder.
+`~/Library/Application Support/AllInOneIME/Sources/`: first into a hidden staging folder, never straight into an
+extensions folder. (Don't put a name, password or token in an https address: git's credential helper keeps them.)
 
 - **Review first.** Before anything loads you see the bundle, every command (name, title, description, output), the
   programs they run, its preferences, and the commit, under the warning "This source isn't signed: it will run
   programs from <address>". Only **Enable** adds it; Cancel deletes the clone. You review a source once.
 - **Updates are yours to apply.** Once a day (and soon after the input method starts) a source is fetched to see what's
   new: Settings shows "N updates" with the commits (subject, author, date) and a badge on the page. Nothing changes
-  until you click **Update**, which only fast-forwards and runs no hooks; after a force push it offers **Re-clone**.
+  until you click **Update**, which only fast-forwards and runs no hooks. A force push makes the source need a review
+  again: **Re-clone** shows it, and only Enable puts the rewritten history in place (until then the reviewed version
+  keeps working).
   A source pinned to a tag or commit isn't checked. Turn the daily check off per source (`autoCheck`).
 - **Errors** are git's own words, with "This uses your own git and SSH setup; check that `git ls-remote <url>` works in
   Terminal", and your own reminder under it if you set one (`authHint` in the config).
 - **Remove** moves the clone to the Trash; the bundle's preferences are kept for next time.
 - From a terminal: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]` (prints the review and enables
-  it), `--update-sources`, `--list-extensions` (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+  it; again after a force push), `--update-sources` (fast-forwards every reviewed source that isn't pinned),
+  `--list-extensions` (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+- Only reviewed code loads: a source folder in the load list that wasn't reviewed on this Mac (a copied config) is left
+  out. git never waits for an answer: no terminal and no prompts, so an unknown host key or a password prompt fails at once.
 
 The config keeps them as `extensionSources`; the repository layout is in [docs/extensions.md](docs/extensions.md#10-extension-sources).
 

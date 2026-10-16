@@ -344,7 +344,7 @@ bundle, others in a repository of their own.
 
 | Key | Meaning |
 |---|---|
-| `url` | `ssh://…`, `git@host:path`, `https://…`, or `file://…` (a repository on this Mac). `http://` isn't used |
+| `url` | `ssh://…`, `git@host:path`, `https://…`, or `file://…` (a repository on this Mac). `http://` isn't used, nor an https address with a user name, password or token in it (git's credential helper keeps those) |
 | `path` | the bundle's folder in the repository (none: found as above) |
 | `branch` | the branch followed (none: the repository's default) |
 | `pin` | a tag or commit the clone stays on; `null` follows the branch. A pinned source isn't checked for updates |
@@ -354,33 +354,52 @@ bundle, others in a repository of their own.
 **What happens.**
 
 - **Git.** `/usr/bin/git` (Xcode's or the command line tools'; without them, a clear error instead of the installer)
-  runs as you, with your login shell's PATH and SSH agent, so your keys, `~/.ssh/config` and credential helpers sign in;
-  the app never sees a password. Never interactively: `GIT_TERMINAL_PROMPT=0`, ssh with `-o BatchMode=yes` added to
-  your own ssh command (`GIT_SSH_COMMAND` or `core.sshCommand`), standard input closed, 60 seconds a call, hooks off
-  (`-c core.hooksPath=/dev/null`) for every call.
-- **Adding.** A shallow clone (`--depth 1`, the one branch, no tags; the pin fetched and checked out) into a temporary
-  folder, moved into place as `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of
-  the address). Nothing of it loads until you've seen the review (the bundle, each command's name, title,
-  description and output, the programs it runs, its preferences, the address and commit) and clicked Enable, which
-  adds the bundle's folder to `extensionFolders`. Cancel deletes the clone. A command whose name is taken follows §7,
-  and the review says so.
-- **Trust** is per source and address: once enabled, its updates don't need another review.
+  runs as you, with your login shell's PATH and SSH agent, so your keys, `~/.ssh/config`, your own ssh command
+  (`GIT_SSH_COMMAND`, `core.sshCommand`, left exactly as they are) and credential helpers sign in; the app never sees a
+  password. Never interactively: git runs in a session of its own with no controlling terminal and standard input
+  closed, so ssh can't ask for a host key or a password (it fails, as "Host key verification failed." or "Permission
+  denied"), with `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`, 60 seconds a call, hooks off
+  (`-c core.hooksPath=/dev/null`) for every call. Only the ssh, https and file transports (`GIT_ALLOW_PROTOCOL`).
+- **Names.** Every branch, tag or commit (the config's, Settings', a pin, and the repository's own default branch) has to
+  be a name `git check-ref-format --branch` accepts and can't start with `-`; git gets it after `--end-of-options`. A
+  repository whose default branch is named like an option is refused.
+- **Adding.** A shallow clone (`--depth 1`, the one branch, no tags; the pin fetched and checked out) into a hidden
+  staging folder (`Sources/.staging/`). Nothing of it is in place or loads until you've seen the review (the bundle,
+  each command's name, title, description and output, the programs it runs, a script that is a link out of the
+  repository, its preferences, the address and commit) and clicked Enable, which moves it into place as
+  `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of the address; in one step,
+  swapped with any older clone there) and adds the bundle's folder to `extensionFolders`. Cancel deletes the staged
+  clone, never one in place. A bundle folder that leads out of the repository (a link) is refused. A command whose name
+  is taken follows §7, and the review says so.
+- **Only reviewed code loads.** A folder of the sources folder in the load list that isn't a reviewed source's bundle
+  (a config copied from another Mac, a lost `sources.json`) isn't loaded, and is taken out of the load list when the
+  input method starts and when Settings shows the page.
+- **Trust** is per source and address: once enabled, its fast-forward updates don't need another review. A force push
+  is different: the rewritten history could be anything, so Re-clone shows the review again and only Enable puts it in
+  place (the reviewed clone keeps working meanwhile).
 - **Checking** (`autoCheck`, or Check Now): `git fetch` of the branch (100 commits deep), and the commits after the
   clone's listed (subject, author, date). Nothing changes.
 - **Update** (only when you click it, or `--update-sources`): fetched again, then the clone is moved to the new commit
   if it follows the clone's (a fast-forward; never a merge). If the history was rewritten (a force push, or more than
-  100 new commits), Re-clone replaces the clone instead. The loader reads the changed files as for any folder (§1).
+  100 new commits), Update is refused: Re-clone stages a new clone and shows the review (from a terminal,
+  `--add-source` again). The loader reads the changed files as for any folder (§1).
+- **Pin.** Changing the pin checks that ref out first, and the config keeps it only when that worked; Unpin goes back to
+  the branch's newest commit (a fast-forward, as Update).
 - **Removing** moves the clone to the Trash and takes the source and its folder out of the config; the bundle's
   `extensionPreferences` (and passwords in the keychain) stay, so adding it back restores them.
 - **State.** What's known of each clone (trusted, its branch and commit, the last check and error, what's new) is in
-  `sources.json` next to the clones. The command line writes it too; a running input method reads it again.
+  `sources.json` next to the clones. The command line writes it too; a running input method reads it again. An entry it
+  can't read is skipped; a file that isn't JSON is moved aside as `sources.json.bad-<date>`, never overwritten. Left-over
+  staging and temporary folders are removed when the input method starts.
 
 **Command line** (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`):
 
 | | |
 |---|---|
-| `--add-source URL [--path P] [--branch B] [--pin REF]` | clone, print the review, enable (running it is the consent); non-zero on any error |
-| `--update-sources` | check and fast-forward every enabled source that isn't pinned; print what changed |
-| `--list-extensions` | the loaded commands (name, output, source or folder), those turned off or hidden, and the files left out |
+| `--add-source URL [--path P] [--branch B] [--pin REF]` | clone into staging, print the review, put it in place and enable it (running it is the consent); also how a force-pushed source is reviewed again; non-zero on any error |
+| `--update-sources` | check every reviewed source that isn't pinned and fast-forward it (a force-pushed one isn't moved: it says to run `--add-source` again); print what changed; non-zero if any failed |
+| `--list-extensions` | the loaded commands (name, output, source or folder), those turned off or hidden, unreviewed source folders, and the files left out |
+
+They take only these options (and `--config FILE`, `--sources-dir DIR` for tests); any other is refused.
 
 There is no signature on a source: it runs what its repository holds, as you. Add only repositories you trust.
