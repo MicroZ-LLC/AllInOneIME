@@ -58,7 +58,7 @@
 | ⌘V | 和 ⌃V 一样，但有的 App 会自己处理 ⌘V（终端如 Ghostty、iTerm2、Terminal，还有备忘录），在那里会照常粘贴进 App，请用 ⌃V |
 | Esc、⌫ | 回到这句话继续修改；出结果后打标点或数字就是接着往后写。改过结果后：回到改之前的那一版 |
 | 出了 AI 结果后打字 | 接着说：`@question` 之后是下一个问题（见[对话](#question-接着问对话新)），`@improve` 或提示词命令之后是修改要求，比如「更短」（见[修改结果](#修改结果新)）；⇧⏎ 发出去。`@translate` 之后打字是接着写这句话，⏎ 重新翻译 |
-| ⌘⏎、⌘1–⌘5 | 在 `@question` 对话里：列出可以接着聊的地方（Claude Code、Claude、ChatGPT、Gemini，或复制对话），⌘1、⌘2… 选一个 |
+| ⌘⏎、⌘1–⌘5 | 在 `@question` 对话里：列出可以接着聊的地方（Claude Code 或你给 `@agent` 选的别的 agent、Claude、ChatGPT、Gemini，或复制对话），⌘1、⌘2… 选一个 |
 | 鼠标点一行 | 在候选框里：选中这一行，和按它的数字一样（词、命令列表里的命令、结果、`@open` 找到的文件、收件人、扩展列出的行）；鼠标指着的那一行会高亮。输入框不会失去焦点 |
 | 单按 Shift | 有不止一种输入语言时：按顺序换到下一种（中文 → 英文 → 法语 → …，再回到第一个） |
 | 按住右 ⌥ | 说话，松开结束。按你正在打的语言识别（中文、英文、法语、韩语或印地语）。在命令里就接在后面，否则直接上屏 |
@@ -70,7 +70,7 @@
 | `@improve` | 润色：1–3 是原文语言的三种说法，4 起是改写风格（设置里加、拖动排序），0 是原文。不翻译；设置里打开「@improve 同时翻译」就和 `@translate @improve` 一样 |
 | `@translate` | 翻译成你加的语言（设置「翻译」里加、拖动排序），每种一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。`@translate @improve` 写在一起就一次请求同时翻译和改写 |
 | `@question` | 提问，答案出现在候选里，⏎ 或空格上屏，⌘C 复制。接着打字按 ⇧⏎ 就是追问：候选框变成最多 5 轮的对话，聊满后建议到 Claude 或别的 AI 里接着聊。后面不打字时，列出最近 5 个问题（最新的在前）；接着打字就按问题里任何位置的字筛选（不分大小写，中文也行）。按数字、↑↓ 再按 ⏎，或者点一下，马上显示当时保存的答案（不联网），照常上屏或复制；在那里按 ⌘R 重新问一遍，拿新的答案。没有匹配的、或者没选时，⏎ 照常问你打的问题 |
-| `@agent` | 交给本机的编程 agent，在设置 → 通用 →「@agent 交给」里选：Claude Code（默认）、Gemini CLI、Kiro CLI，或你自己的命令（你打的字加在最后，作为最后一个参数）。Claude Code 默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看；关掉「@agent 在后台运行，做完通知我」就在终端打开。别的 agent 在终端打开，你打的字是第一句话。各自用自己的登录和设置。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」。（0.6.5 以前叫 `@claude`。） |
+| `@agent` | 交给本机的编程 agent，在设置 → 通用 →「@agent 交给」里选：Claude Code（默认）、Gemini CLI、Kiro CLI，或你自己的命令（你打的字加在最后，作为最后一个参数）。Claude Code 默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看；关掉「@agent 在后台运行，做完通知我」就在终端打开。别的 agent 在终端打开，你打的字是第一句话。各自用自己的登录和设置。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」。（0.6.4 以前叫 `@claude`。） |
 | `@tasks` | 列出后台的 Claude 任务（进行中 / 完成 / 等你确认）和它们最后的回复；⏎ 在终端打开接着聊，⌘C 复制回复 |
 | `@settings` | 直接打开设置窗口（选中就打开，不用再写内容） |
 | `@config` | 用一句话改设置：`@config 翻译成英语和法语`、`@config 微信里用中文`、`@config 候选竖排`。⏎ 列出要改的地方（原来 → 改成），⏎（或 1）全部应用，Esc 取消，接着打字再按 ⇧⏎ 可以再改；⌘Z 或 `@config undo` 撤销。见[用一句话改设置](#用一句话改设置新) |
@@ -141,7 +141,7 @@ agent（默认是 Claude Code 的 `claude` 命令）和它自己的账号，改�
 后面是用 ⌘1、⌘2… 选的几个地方；随时按 ⌘⏎ 也能列出来（答案还在出来时按它什么都不做，也不会传给 App）。这时打的字就是到那边的第一句话，
 只有按 ⌘1、⌘2… 才发出去（⇧⏎ 不再追问，也不打开任何东西）。对选中文字的提问会把那段文字作为单独的引用块一起带过去。可以选：
 
-- **Claude Code**（装了 `claude` 命令时）：在终端里开一个能接着聊的会话，开头是这段对话和「Let's continue this discussion」。
+- **`@agent` 交给的那个 agent**，显示它的名字（默认是 Claude Code，也可以是在设置 → 通用里选的 Gemini CLI、Kiro CLI 或你自己的命令；装了才有）：在终端里开一个能接着聊的会话，开头是这段对话和「Let's continue this discussion」。
 - 网页版 **Claude** 或 **ChatGPT**，对话直接填好（太长时放到剪贴板，粘贴进去就行）。
 - 网页版 **Gemini**，对话在剪贴板里，粘贴进去。
 - **复制对话**，Markdown 格式（**Q:** / **A:**）。
@@ -625,7 +625,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `claudeInBackground` | `@agent` 用 Claude Code 时在后台运行，做完通知你（别的 agent 总在终端打开） | `true` |
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
-| `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`claudeCode`、`claudeWeb`、`chatgpt`、`gemini`、`copy` | Claude Code（装了的话）、Claude、ChatGPT、复制 |
+| `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`claudeCode`（`@agent` 交给的 agent）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `@agent` 的 agent（装了的话）、Claude、ChatGPT、复制 |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
@@ -633,7 +633,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 
 - 打拼音和 `@calculate` 计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。修改结果（结果出来后打要求再按 ⇧⏎）时，同样的请求连同显示的结果和你的要求再发一次；追问（⇧⏎）时连同前面的对话一起发。
 - `@config` 和 `@doctor <问题>` 按 ⏎ 时会把文字发给模型：这台 Mac 有 Apple 智能就用它（不离开这台 Mac），没有就用你选的服务。`@config` 发出你写的那句话（里面打的密钥先去掉）和允许改的设置现在的值：从不发密钥，也不发你对 AI 隐藏的词（只说有几个）；AWS profile 的名字只在这句话说到 AWS 或 Bedrock 时才发。`@doctor <问题>` 发出你的问题和遮掉敏感内容的检查结果：路径只到 `~`，没有密钥，日志只留固定的短语。两者都和别的请求一样会隐藏敏感信息（如果打开了）。只检查（`@doctor` 后面不打字）时，除了测试连接的那一次请求（服务有密钥或凭证可测时才测）什么都不发。
-- `@question` 对话换个地方接着聊（聊满后按 ⌘1…，或按 ⌘⏎）时，对话连同你打的字发给你选的服务：本机的 Claude Code（Anthropic）、claude.ai、chatgpt.com 或 gemini.google.com，放在网址里或经剪贴板。发过去的是你看到的样子：发给 AI 的请求里隐藏的内容（见下）在里面是原样的，因为是你自己选择发到那里。不选就什么都不发；「复制对话」只是放到剪贴板。
+- `@question` 对话换个地方接着聊（聊满后按 ⌘1…，或按 ⌘⏎）时，对话连同你打的字发给你选的服务：本机上 `@agent` 交给的 agent（默认是 Anthropic 的 Claude Code）、claude.ai、chatgpt.com 或 gemini.google.com，放在网址里或经剪贴板。发过去的是你看到的样子：发给 AI 的请求里隐藏的内容（见下）在里面是原样的，因为是你自己选择发到那里。不选就什么都不发；「复制对话」只是放到剪贴板。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。
 - 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和 prompt 插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；`@agent`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
