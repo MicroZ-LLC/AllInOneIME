@@ -870,6 +870,27 @@ struct SettingsView: View {
                 Button(tr("清除（\(model.recentQuestions)）", "Clear (\(model.recentQuestions))")) { model.clearRecentQuestions() }
                     .disabled(model.recentQuestions == 0)
             }
+            // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift).
+            LabeledContent {
+                HStack(spacing: 6) {
+                    LanguageChips(items: model.continueChoices, name: AllInOneIMEInputController.name, firstNote: tr("默认", "default"),
+                                  reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
+                    let missing = model.missingContinueChoices
+                    if !missing.isEmpty {
+                        Menu(tr("添加…", "Add…")) {
+                            ForEach(missing, id: \.self) { destination in
+                                Button(AllInOneIMEInputController.name(destination)) { model.addContinueIn(destination) }
+                            }
+                        }
+                        .fixedSize()
+                    }
+                }
+            } label: {
+                titled(tr("对话接着在哪里聊", "Continue a conversation in"),
+                       tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，拖动排序，第一个是默认。对话会发给你选的服务。",
+                          "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there; drag to reorder, the first is the default. The conversation goes to the service you pick."))
+            }
+            .disabled(!model.canSave)
         }
     }
 
@@ -2732,7 +2753,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
