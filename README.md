@@ -445,7 +445,8 @@ Updating to 0.6.3 from an earlier version: 0.6.3 is the first version signed wit
 doesn't yet know it as the app that saved your keys. The first time it needs each key it saved (an API key, the
 AllInOneIME Cloud sign-in, an extension's password), macOS asks for your login password: enter it and click "Always
 Allow". It doesn't ask again, also after later updates. Amazon Bedrock's keys are in `~/.aws/credentials`, which
-isn't affected.
+isn't affected. Accessibility (System Settings → Privacy & Security → Accessibility), which pasting into terminals and
+reading the selection use, needs one step too: if AllInOneIME is listed, remove it and turn it on again when asked.
 
 If you had AIPinyin installed (AllInOneIME's earlier name), just install: the old AIPinyin.app and its settings launcher are removed,
 and the entry in your input sources gets the new name, with no need to add it again. Settings, the jargon list and learned words move to the new folders

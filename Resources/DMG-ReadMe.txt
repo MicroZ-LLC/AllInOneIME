@@ -17,6 +17,7 @@ for each key AllInOneIME saved in the keychain: enter it and click "Always Allow
 To uninstall: open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
 Needs macOS 14 or later; voice input needs macOS 26 or later.
 Documentation: https://allinoneime.com/docs
+Made by Weijian Zhang (https://weijianz.com). Source available under FSL-1.1-ALv2 (LICENSE.txt).
 
 
 AllInOneIME 安装说明

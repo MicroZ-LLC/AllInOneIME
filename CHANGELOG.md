@@ -35,6 +35,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - 0.6.3 is signed differently from earlier versions (with a Developer ID instead of ad hoc), so the keychain doesn't yet know it as the app that saved your keys: the first time it needs each one (an API key, the AllInOneIME Cloud sign-in, an extension's password), macOS asks for your login password. Enter it and click "Always Allow"; it isn't asked again, also after later updates. Amazon Bedrock's keys in `~/.aws/credentials` aren't affected.
 - For the same reason macOS may ask once more for permissions you gave the earlier version (the microphone, controlling Notes, Terminal or Messages, Reminders, Contacts): allow them again.
+- Accessibility (System Settings → Privacy & Security → Accessibility), which pasting into terminals and reading the selection use: if AllInOneIME is listed, remove it and turn it on again when asked.
 - Install 0.6.3 from its disk image (over the old version, without uninstalling); updates after it can come from Settings → About.
 
 ## 0.6.2 (2026-10-14)
