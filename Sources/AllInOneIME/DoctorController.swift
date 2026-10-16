@@ -126,7 +126,11 @@ enum DoctorSession {
     static func performLive(_ action: AIConfig.Action) {
         switch action {
         case .resaveConfig:
-            if let config = try? Config.load(from: AIConfigSession.url) { try? config.write(to: AIConfigSession.url) }
+            // In place: only the repeated languages go, every other byte of the file stays.
+            let url = AIConfigSession.url
+            if let text = try? String(contentsOf: url, encoding: .utf8), let patched = Doctor.removingRepeatedLanguages(from: text) {
+                try? patched.write(to: url, atomically: true, encoding: .utf8)
+            }
         case .enableInputMethod:
             typealias R = InputSourceRegistrar
             _ = R.register()
@@ -223,8 +227,11 @@ extension AllInOneIMEInputController {
             }
             return
         }
-        model.rows = composer.choices.map {
-            CandidateView.Row(label: $0.label, text: Self.preview($0.text), style: .candidate, pickable: !$0.label.isEmpty)
+        // The fixes the model suggested are marked; ⏎ still applies only the safe ones (`Report.defaultFixes`).
+        model.rows = composer.choices.enumerated().map { index, choice in
+            CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
+                              comment: report.recommended.contains(index) ? tr("AI 建议", "suggested") : "",
+                              style: .candidate, pickable: !choice.label.isEmpty)
         }
         model.highlighted = nil
         if let explanation = report.explanation {
@@ -237,8 +244,7 @@ extension AllInOneIMEInputController {
         let fixable = report.fixes.contains { $0 != nil }
         model.footer = !report.isFinal ? tr("检查中… · Esc 取消", "Checking… · Esc cancel")
             : !fixable ? tr("⏎ / Esc 关闭", "⏎ / Esc close")
-            : report.recommended.isEmpty ? tr("数字 修这一项 · ⏎ 修安全的几项 · Esc 关闭", "Digits fix one · ⏎ fix the safe ones · Esc close")
-            : tr("数字 修这一项 · ⏎ 修 AI 建议的几项 · Esc 关闭", "Digits fix one · ⏎ fix the suggested ones · Esc close")
+            : tr("数字 修这一项 · ⏎ 修安全的几项 · Esc 关闭", "Digits fix one · ⏎ fix the safe ones · Esc close")
         model.detail = lastElapsed.map { String(format: "%.1fs", $0) }
     }
 }

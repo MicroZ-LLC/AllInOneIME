@@ -54,6 +54,8 @@ public final class DoctorService: Sendable {
     public func ask(_ question: String, findings: [Doctor.Finding], config: Config) async throws -> Answer {
         let onDevice = self.onDevice
         if !onDevice, config.provider == .apple { throw AppleModelError.unavailable(client.apple.availability) }
+        // A key typed into the question never goes out, whatever the hiding settings.
+        let question = AIConfig.droppingKeys(question).text
         var redaction = Redaction(config.redaction)
         let sent = redaction?.hide(question) ?? question
         let request = ConverseRequest(system: [.init(Self.system(findings, tools: onDevice))], messages: [.init(role: "user", text: question)],

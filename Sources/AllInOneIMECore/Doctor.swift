@@ -41,7 +41,8 @@ public enum Doctor {
         case downloadPack(Language)
         /// Settings changed through `@config`'s checks and apply/undo.
         case repairConfig([AIConfig.Change])
-        /// The config file written again as Settings writes it (repeats gone); its values stay as they read.
+        /// The repeated languages taken out of the config file, in place (`removingRepeatedLanguages`): nothing else in it
+        /// changes, keys this version doesn't know included.
         case resaveConfig
         /// Settings → AI Provider at the key field.
         case openKeyField(Provider)
@@ -170,6 +171,13 @@ public enum Doctor {
             out.append(Finding(area: .recentErrors, status: .warning,
                                title: t.tr("最近的日志里有 \(facts.recentErrors.count) 个错误", "\(facts.recentErrors.count) recent errors in the logs"),
                                detail: facts.recentErrors.last))
+        }
+        // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
+        out = out.map { finding in
+            var finding = finding
+            finding.title = scrub(finding.title)
+            finding.detail = finding.detail.map { scrub($0) }
+            return finding
         }
         let order = Area.allCases
         return out.enumerated().sorted { a, b in
@@ -389,8 +397,12 @@ public enum Doctor {
             return Set(list).count < list.count
         }
         if repeats("outputLanguages") || repeats("inputLanguages") {
+            // Patched in place (nothing else in the file changes); where it can't be, the file is the user's to edit.
+            let patchable = data.map { removingRepeatedLanguages(from: String(decoding: $0, as: UTF8.self)) != nil } ?? false
             out.append(Finding(area: .config, status: .warning, title: t.tr("config.json 里有重复的语言", "A language is listed twice in config.json"),
-                               detail: t.tr("重新保存一次就去掉", "saving it again removes it"), fix: .resaveConfig))
+                               detail: patchable ? t.tr("可以只去掉重复的，别的不动", "the repeats can be removed, nothing else changes")
+                                   : t.tr("在 config.json 里删掉重复的（设置 → 高级 → 配置文件）", "remove the repeats in config.json (Settings → Advanced → Config file)"),
+                               fix: patchable ? .resaveConfig : nil))
         }
         if out.isEmpty { out.append(Finding(area: .config, status: .ok, title: t.tr("config.json 正常", "config.json is fine"))) }
         return out
@@ -412,11 +424,48 @@ public enum Doctor {
             // glog: "E20261008 15:45:58.123 1234 file.cc:56] message"
             if let bracket = text.range(of: "] ") { text = String(text[bracket.upperBound...]) }
             text = text.replacingOccurrences(of: home, with: "~")
-            text = text.replacingOccurrences(of: #""[^"]*""#, with: "\"…\"", options: .regularExpression)
-            text = text.replacingOccurrences(of: #"'[^']*'"#, with: "'…'", options: .regularExpression)
+            // Quoted text may be the user's: in straight, typographic and CJK quotes alike.
+            for (open, close) in quotes {
+                text = text.replacingOccurrences(of: NSRegularExpression.escapedPattern(for: open) + "[^" + close + "]*"
+                                                     + NSRegularExpression.escapedPattern(for: close),
+                                                 with: open + "…" + close, options: .regularExpression)
+            }
+            text = AIConfig.maskingKeys(text, with: "[KEY]")
             text = text.trimmingCharacters(in: .whitespaces)
             return text.count > 120 ? String(text.prefix(120)) + "…" : text
         }
+    }
+
+    /// The quotes whose text `summarizeLogLines` leaves out.
+    static let quotes: [(String, String)] = [("\"", "\""), ("“", "”"), ("‘", "’"), ("「", "」"), ("『", "』"), ("«", "»"), ("'", "'")]
+
+    /// `text` as a finding shows it and the model may get it: the home folder as "~", anything that looks like a key
+    /// (`Redaction`'s key detection, whatever the user's hiding settings) as "[KEY]".
+    public static func scrub(_ text: String, home: String = NSHomeDirectory()) -> String {
+        AIConfig.maskingKeys(home.isEmpty ? text : text.replacingOccurrences(of: home, with: "~"), with: "[KEY]")
+    }
+
+    /// The config file's text with each language listed once in `outputLanguages` and `inputLanguages`, the first of
+    /// each kept, in place: everything else (keys this version doesn't know, the spacing) byte for byte as it was. Nil
+    /// when there is nothing to remove, or the lists can't be patched in place.
+    public static func removingRepeatedLanguages(from text: String) -> String? {
+        var out = text, changed = false
+        for key in ["outputLanguages", "inputLanguages"] {
+            let pattern = "\"" + key + #""\s*:\s*\[[^\]\[{}]*\]"#
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
+                  let range = Range(match.range, in: out) else { continue }
+            let literal = String(out[range])
+            guard let open = literal.firstIndex(of: "["),
+                  let list = (try? JSONSerialization.jsonObject(with: Data(literal[open...].utf8))) as? [String] else { return nil }
+            var seen = Set<String>()
+            let kept = list.filter { seen.insert($0).inserted }
+            guard kept.count < list.count,
+                  let data = try? JSONSerialization.data(withJSONObject: kept, options: [.withoutEscapingSlashes]) else { continue }
+            out.replaceSubrange(range, with: literal[..<open] + String(decoding: data, as: UTF8.self))
+            changed = true
+        }
+        return changed ? out : nil
     }
 
     // MARK: - For the model
@@ -427,7 +476,7 @@ public enum Doctor {
         findings.enumerated().compactMap { index, finding in
             guard areas?.contains(finding.area) ?? true else { return nil }
             let id = finding.fix == nil ? "" : " [fix F\(index + 1)]"
-            return "- \(finding.area.rawValue): \(finding.text(chinese: false))\(id)"
+            return "- \(finding.area.rawValue): \(scrub(finding.text(chinese: false)))\(id)"
         }.joined(separator: "\n")
     }
 
@@ -474,7 +523,7 @@ extension Doctor {
                 AIConfig.apply(checked.compactMap(\.edit), to: &working)
                 rows += checked
             case .resaveConfig:
-                action("重新保存 config.json（去掉重复的语言，值不变）", "Save config.json again (repeated languages go; values stay)", .resaveConfig)
+                action("去掉 config.json 里重复的语言（别的不动）", "Remove the repeated languages from config.json (nothing else changes)", .resaveConfig)
             case .enableInputMethod:
                 action("重新启用 AllInOneIME 输入法", "Enable the AllInOneIME input method again", .enableInputMethod)
             case let .openPrivacy(pane):

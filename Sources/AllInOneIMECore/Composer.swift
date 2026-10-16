@@ -3262,10 +3262,13 @@ extension Composer {
                 self.isFinal = isFinal
             }
 
-            /// The fixes ⏎ applies: the ones the model named, else every safe one.
+            /// The fixes ⏎ applies: every safe one, those the model named first. A fix it named that isn't safe is only
+            /// highlighted: it's picked by its number.
             public var defaultFixes: [Doctor.Fix] {
-                let named = recommended.compactMap { fixes.indices.contains($0) ? fixes[$0] : nil }
-                return named.isEmpty ? fixes.compactMap { $0 }.filter(\.isSafe) : named
+                let safe = fixes.indices.filter { fixes[$0]?.isSafe == true }
+                let ordered = recommended.filter(safe.contains) + safe.filter { !recommended.contains($0) }
+                var seen = Set<Int>()
+                return ordered.filter { seen.insert($0).inserted }.compactMap { fixes[$0] }
             }
         }
 
@@ -3317,8 +3320,14 @@ extension Composer {
         if command.kind == .config, ["undo", "撤销", "撤回"].contains(input.lowercased()) {
             return .consumed(finish(committing: "") + [.undoConfig, used(command)])
         }
-        // `@doctor` alone sends nothing: its checks run on this Mac.
-        if command.kind == .config || !input.isEmpty, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
+        // `@doctor` alone sends nothing: its checks run on this Mac. In an app with no AI only its question is refused (one
+        // line), and the checks still run.
+        var input = input, refused: [Effect] = []
+        if command.kind == .config || !input.isEmpty, let refusal = aiRefusal() {
+            guard command.kind == .doctor else { return .consumed([.updateMarkedText, .notice(refusal)]) }
+            input = ""
+            refused = [.notice(refusal)]
+        }
         requestCounter += 1
         phase = .translating(id: requestCounter)
         result = .empty
@@ -3328,7 +3337,7 @@ extension Composer {
         activeCommand = command
         // Typing after @config's preview refines it ("also German"): the same request with the conversation after it.
         refineRequest = command.kind == .config ? .command(command, input: input) : nil
-        return .consumed([.startCommand(command, input: input, id: requestCounter), .updateMarkedText, .showPanel, used(command)])
+        return .consumed([.startCommand(command, input: input, id: requestCounter), .updateMarkedText, .showPanel, used(command)] + refused)
     }
 
     /// The preview of the answer `answer` to request `id`, its rows as shown (`lines`). A refine's replaces the one before.

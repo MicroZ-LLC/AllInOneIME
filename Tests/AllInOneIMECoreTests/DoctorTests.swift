@@ -93,7 +93,7 @@ struct DoctorTests {
         let preview = try #require(Doctor.fixPreview(fixes, config: config, environment: AIConfig.Environment()))
         #expect(preview.edits == [.typeOutRate(16), .outputLanguages(["en", "fr", "de", "es", "it"].map(OutputLanguage.init))])
         #expect(preview.actions == [.resaveConfig])
-        #expect(preview.rows.map { $0.text(chinese: false) }.last == "→ Save config.json again (repeated languages go; values stay)")
+        #expect(preview.rows.map { $0.text(chinese: false) }.last == "→ Remove the repeated languages from config.json (nothing else changes)")
         #expect(Doctor.configFindings(data: try JSONEncoder().encode(Config.default), error: nil, config: .default, chinese: false)
             .map(\.status) == [.ok])
     }
@@ -209,9 +209,78 @@ struct DoctorTests {
     @Test func checksAloneSendNothingEvenWithoutAI() {
         let c = drafted()
         c.aiRefusal = { "AI is off in this app" }
-        #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.doctor, input: "", id: 1))
-        let d = drafted("why")
-        d.aiRefusal = { "AI is off in this app" }
-        #expect(d.handleKeyDown(enterKey).effects.contains(.notice("AI is off in this app")))
+        let effects = c.handleKeyDown(enterKey).effects
+        #expect(effects.first == .startCommand(.doctor, input: "", id: 1) && !effects.contains { if case .notice = $0 { return true } else { return false } })
+    }
+
+    // MARK: - What must never show or go out
+
+    @Test func repeatsAreRemovedInPlaceKeepingUnknownKeys() {
+        let text = """
+            {
+              "futureSetting" : {"keep": [1, 2]},
+              "inputLanguages" : ["zh", "en", "zh"],
+              "outputLanguages" : [ "en", "fr", "en" ],
+              "temperature" : 0.3
+            }
+            """
+        let patched = Doctor.removingRepeatedLanguages(from: text)
+        #expect(patched == text.replacingOccurrences(of: #"["zh", "en", "zh"]"#, with: #"["zh","en"]"#)
+            .replacingOccurrences(of: #"[ "en", "fr", "en" ]"#, with: #"["en","fr"]"#))
+        #expect(Doctor.removingRepeatedLanguages(from: #"{"outputLanguages": ["en"]}"#) == nil)
+        // A file it can't patch in place: no automatic fix, the file is pointed to.
+        let raw = #"{"outputLanguages": ["en", "en"]}"#
+        var config = Config.default
+        config.setOrder([OutputLanguage.english])
+        let odd = Doctor.configFindings(data: Data(#"{"outputLanguages": ["en", "en", {"x": 1}]}"#.utf8), error: nil, config: config, chinese: false)
+        #expect(odd.first { $0.title.hasPrefix("A language is listed twice") } == nil)  // not a list of strings: not repeats
+        let fine = Doctor.configFindings(data: Data(raw.utf8), error: nil, config: config, chinese: false)
+        #expect(fine.first { $0.title.hasPrefix("A language is listed twice") }?.fix == .resaveConfig)
+        // Written so it can't be patched in place (an escaped key): no automatic fix, the file is pointed to.
+        let escaped = Doctor.configFindings(data: Data(#"{"outputLanguage\u0073": ["en", "en"]}"#.utf8), error: nil, config: config, chinese: false)
+        let twice = escaped.first { $0.title.hasPrefix("A language is listed twice") }
+        #expect(twice != nil && twice?.fix == nil && twice?.detail?.contains("config.json") == true)
+    }
+
+    @Test func typographicAndCJKQuotesAreLeftOut() {
+        let lines = ["error: couldn’t read “my diary.txt”", "failed: 「我想去医院」 and 『秘密』 and «privé» and ‘mine’"]
+        let out = Doctor.summarizeLogLines(lines, home: "/Users/x")
+        #expect(out == ["error: couldn’t read “…”", "failed: 「…」 and 『…』 and «…» and ‘…’"])
+    }
+
+    @Test func probesNeverShowOrSendKeysOrFullPaths() {
+        let key = "sk-ant-api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
+        let home = NSHomeDirectory()
+        let findings = Doctor.findings(facts {
+            $0.connection = .failed("401: invalid key \(key)")
+            $0.pluginErrors = ["\(home)/Library/plugins/x: bad"]
+            $0.updates.lastError = "couldn't move \(home)/Downloads/a.zip"
+        }, chinese: false)
+        let shown = findings.map { $0.text(chinese: false) }.joined(separator: "\n")
+        #expect(!shown.contains(key) && !shown.contains(home) && shown.contains("~/Downloads/a.zip") && shown.contains("[KEY]"))
+        #expect(!Doctor.report(findings).contains(key) && !Doctor.report(findings).contains(home))
+        // Even findings made elsewhere, as the report is sent.
+        let raw = [Doctor.Finding(area: .extensions, status: .warning, title: "x", detail: "\(home)/a \(key)")]
+        #expect(Doctor.report(raw) == "- extensions: ⚠ x — ~/a [KEY]")
+    }
+
+    @Test func enterAppliesOnlySafeFixesWhateverTheModelSuggests() {
+        let report = Composer.ConfigState.Report(lines: ["a", "b", "c", "d"],
+                                                 fixes: [.downloadPack(.korean), .repairConfig([]), nil, .checkForUpdates],
+                                                 recommended: [0, 3])
+        #expect(report.defaultFixes == [.checkForUpdates, .repairConfig([])])
+    }
+
+    @Test func inAnAppWithNoAIOnlyTheQuestionIsRefused() {
+        let c = drafted("why")
+        c.aiRefusal = { "AI is off in this app" }
+        let effects = c.handleKeyDown(enterKey).effects
+        #expect(effects.first == .startCommand(.doctor, input: "", id: 1) && effects.contains(.notice("AI is off in this app")))
+    }
+
+    @Test func shiftReturnDoesNothingOnTheFindings() {
+        let (c, _) = reported()
+        #expect(c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)).effects.isEmpty)
+        #expect(c.phase == .choosing)
     }
 }

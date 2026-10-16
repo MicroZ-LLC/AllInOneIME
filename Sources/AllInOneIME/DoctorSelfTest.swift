@@ -109,7 +109,7 @@ extension SelfTest {
         doctor("why no translate")
         let asked = controller.panelModel()
         check({ if case let .hint(text) = asked.status { return text.hasPrefix("没有 Claude API 的 key") } else { return false } }()
-              && model.requests == 1 && asked.footer.contains("AI 建议"), "the question is answered on device (\(asked.status))")
+              && model.requests == 1 && asked.rows.first?.comment == "AI 建议", "the question is answered on device (\(asked.status))")
         snapshot("doctor-question", in: snapshotDirectory)
         _ = escape(controller, client)
 
