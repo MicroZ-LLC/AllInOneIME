@@ -130,7 +130,7 @@ enum UIText {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
         case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
-        case .claude: return tr("交给 Claude Code 去做", "Hand it to Claude Code")
+        case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
         case .open: return tr("找文件、文件夹或 App 并打开", "Find a file, folder or app and open it")
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
@@ -243,8 +243,11 @@ enum UIText {
         case .improve, .translate:
             return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
-        case .claude: return config.claudeInBackground ? tr("交给 Claude 在后台做", "hand it to Claude in the background")
-                                                       : tr("在终端打开 Claude Code", "open Claude Code in Terminal")
+        case .agent:
+            let agent = config.agent.displayName(custom: config.agentCommand)
+            return config.claudeInBackground && config.agent.supportsBackground
+                ? tr("交给 \(agent) 在后台做", "hand it to \(agent) in the background")
+                : tr("在终端打开 \(agent)", "open \(agent) in Terminal")
         case .open: return tr("搜索并打开", "search and open")
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
@@ -275,11 +278,15 @@ enum UIText {
     /// same on every Mac. Main thread only.
     static var clock24: Bool?
 
-    /// The row comment of an answer: "回答" / "answer", "Claude".
+    /// The agent `@agent` hands the text to, by name (`AgentKind.displayName`; the controller sets it with the settings).
+    /// Main thread only.
+    static var agentName = AgentKind.claude.displayName()
+
+    /// The row comment of an answer: "回答" / "answer", the agent's name.
     static func answerLabel(_ command: Command?) -> String {
         if command == .webSearch { return tr("搜索结果", "results") }
         if command?.kind == .run { return command?.plugin.map { "@" + $0.name } ?? tr("输出", "output") }
-        return command == .claude ? "Claude" : tr("回答", "answer")
+        return command == .agent ? agentName : tr("回答", "answer")
     }
 
     /// An error as the settings window shows it.

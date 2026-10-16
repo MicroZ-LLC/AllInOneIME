@@ -1,8 +1,8 @@
 import AllInOneIMECore
 import AppKit
 
-/// `@claude`: a Claude Code session in a Terminal window, with the typed text as its first message.
-/// Claude Code asks before it changes files or runs commands, as it always does.
+/// `@agent`: the coding agent picked in Settings (`AgentKind`) in a Terminal window, with the typed text as its first
+/// message. The agent asks before it changes files or runs commands, as it always does.
 enum TerminalLauncher {
     /// Where the `claude` command was found (absolute, so the window doesn't depend on PATH).
     static let claudePath: String? = {
@@ -11,38 +11,41 @@ enum TerminalLauncher {
                 "/usr/local/bin/claude"].first { FileManager.default.isExecutableFile(atPath: $0) }
     }()
 
-    /// Opens a new Terminal window in the home folder that runs `claude <prompt>`. The script deletes
-    /// itself when it starts; the prompt is passed as one quoted argument, never as shell code.
-    static func claude(_ prompt: String) throws {
-        // "--": the prompt is the prompt, even when it starts with "-" (`--dangerously-skip-permissions`).
-        try launch([claudePath ?? "claude", "--", prompt], name: "claude")
-    }
-
-    /// An `@question` conversation going on in Claude Code (`ChatHandoff`): an interactive session (not in the
-    /// background) whose first message is `prompt`, however long. The text goes in a file only the user can read; the
-    /// script reads it into one argument and deletes it, so it is never part of a shell command.
-    static func claude(promptFile prompt: String) throws {
+    /// Opens a new Terminal window in the home folder that runs `arguments` (`AgentKind.terminalArguments`) with
+    /// `prompt`, however long, as the last argument. Claude Code by the path it was found at. The text goes in a file
+    /// only the user can read; the script reads it into one argument and deletes it, so it is never part of a shell
+    /// command (the script deletes itself too).
+    static func agent(_ arguments: [String], prompt: String) throws {
+        guard !arguments.isEmpty else { return }
+        var argv = arguments
+        if argv[0] == "claude", let claudePath { argv[0] = claudePath }
         let files = FileManager.default
         let folder = files.temporaryDirectory.appendingPathComponent("AllInOneIME", isDirectory: true)
         try files.createDirectory(at: folder, withIntermediateDirectories: true)
         // Prompts of earlier launches whose script never ran (Terminal closed first …): gone after an hour.
         let hourAgo = Date().addingTimeInterval(-3600)
-        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("claude-prompt-") && name.hasSuffix(".txt") {
+        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("agent-prompt-") && name.hasSuffix(".txt") {
             let url = folder.appendingPathComponent(name)
             if let modified = (try? files.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date, modified < hourAgo {
                 try? files.removeItem(at: url)
             }
         }
-        let file = folder.appendingPathComponent("claude-prompt-\(UUID().uuidString).txt")
+        let file = folder.appendingPathComponent("agent-prompt-\(UUID().uuidString).txt")
         guard files.createFile(atPath: file.path, contents: Data(prompt.utf8), attributes: [.posixPermissions: 0o600]) else {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: file.path])
         }
         do {
-            try launch([claudePath ?? "claude", "--"], name: "claude", promptFile: file)
+            try launch(argv, name: "agent", promptFile: file)
         } catch {
             try? files.removeItem(at: file)  // nothing will read it
             throw error
         }
+    }
+
+    /// An `@question` conversation going on in Claude Code (`ChatHandoff`): an interactive session (not in the
+    /// background) whose first message is `prompt`, however long.
+    static func claude(promptFile prompt: String) throws {
+        try agent(AgentKind.claude.terminalArguments() ?? ["claude", "--"], prompt: prompt)
     }
 
     /// Opens a new Terminal window in `directory` (else the home folder) that runs `argv` (a custom

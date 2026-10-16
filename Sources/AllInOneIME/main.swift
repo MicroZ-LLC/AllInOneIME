@@ -139,7 +139,7 @@ func runServer(showSettings: Bool = false) -> Never {
     DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
-    // Background @claude tasks: notifications, and tasks from before a restart watched again.
+    // Background @agent tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
     // The menu bar icon (on by default) and its panel, once the server and Rime are up. The notes @note
     // saves are recorded whether the panel is shown or not, so that it lists them when it drops down.

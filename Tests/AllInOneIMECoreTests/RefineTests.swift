@@ -364,7 +364,7 @@ struct RefineTests {
             #expect(Prompt.liveDataRule.contains(word), "\(word)")
         }
         let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]).last!
-        for command in [Command.edit, .claude, reply] { #expect(!Prompt.commandSystem(command).contains(Prompt.liveDataRule)) }
+        for command in [Command.edit, .agent, reply] { #expect(!Prompt.commandSystem(command).contains(Prompt.liveDataRule)) }
         #expect(!Prompt.system(styles: RewriteStyle.resolve(RewriteStyle.defaultNames)).contains("live information"))
     }
 

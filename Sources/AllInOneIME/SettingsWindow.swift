@@ -874,6 +874,8 @@ struct SettingsView: View {
     @State private var keySheet: KeySheetRequest?
     /// The web search key row's paste field.
     @State private var editingSearchKey = false
+    /// The custom agent's command as typed (`Config.agentCommand` follows it, split into words).
+    @State private var agentCommandLine = ""
     /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
@@ -964,10 +966,35 @@ struct SettingsView: View {
                     .disabled(model.typoApps.isEmpty)
                 }
             }
-            Toggle(isOn: $model.config.claudeInBackground) {
-                titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
-                       tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk."))
+            // `@agent`: the coding agent it hands the text to (`AgentKind`); one not on this Mac can still be picked.
+            Picker(selection: $model.config.agent) {
+                ForEach(AgentKind.allCases, id: \.self) { kind in
+                    Text(agentTitle(kind) + (AgentAvailability.installed(kind, custom: model.config.agentCommand)
+                                             ? "" : tr("（未安装）", " (not installed)")))
+                        .tag(kind)
+                }
+            } label: {
+                titled(tr("@agent 交给", "@agent hands it to"),
+                       tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message."))
             }
+            if model.config.agent == .custom {
+                // Words as a custom terminal command's; the text you type is added as the last argument.
+                TextField(tr("命令", "Command"), text: $agentCommandLine,
+                          prompt: Text(tr("例如 ", "e.g. ") + "muse --"))
+                    .onAppear { agentCommandLine = CustomCommand.commandLine(model.config.agentCommand) }
+                    .onChange(of: agentCommandLine) {
+                        let argv = CustomCommand.arguments(fromCommandLine: agentCommandLine) ?? []
+                        if argv != model.config.agentCommand { model.config.agentCommand = argv }
+                    }
+            }
+            Toggle(isOn: $model.config.claudeInBackground) {
+                titled(tr("@agent 在后台运行，做完通知我", "@agent runs in the background and notifies me"),
+                       model.config.agent.supportsBackground
+                           ? tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk.")
+                           : tr("只有 Claude Code 能在后台运行；\(agentTitle(model.config.agent)) 总在终端打开。",
+                                "Only Claude Code runs in the background; \(agentTitle(model.config.agent)) always opens in Terminal."))
+            }
+            .disabled(!model.config.agent.supportsBackground)
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
             Toggle(isOn: $model.config.useSelection) {
                 titled(tr("使用选中的文字", "Use the selected text"),
@@ -1542,6 +1569,12 @@ struct SettingsView: View {
     }
 
     /// A row's title with a short explanation under it, as System Settings shows them.
+    /// An agent's name in the picker: a custom one without a command is "自定义" / "Custom".
+    private func agentTitle(_ kind: AgentKind) -> String {
+        kind == .custom && kind.program(custom: model.config.agentCommand) == nil
+            ? tr("自定义", "Custom") : kind.displayName(custom: kind == .custom ? model.config.agentCommand : [])
+    }
+
     private func titled(_ title: String, _ note: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -1904,6 +1937,8 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
+        .onChange(of: model.config.agent) { model.save() }
+        .onChange(of: model.config.agentCommand) { model.save() }
         .onChange(of: model.config.useSelection) { model.save() }
         .onChange(of: model.config.rememberQuestions) { model.save() }
         .onChange(of: model.config.typeOut) { model.save() }
@@ -1972,10 +2007,10 @@ struct SettingsView: View {
         let key = UIText.howToPress(model.config.actionKey)
         let languages = model.config.inputLanguages.map(AllInOneIMEInputController.inputName).joined(separator: tr("、", ", "))
         return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
-                      + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
+                      + "@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
                   "A regular input method: \(languages). "
                       + "Type @ first for commands: @improve polishes and rewrites, @translate "
-                      + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
+                      + "translates, @question asks, @agent hands it to a coding agent (Claude Code …), @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }
 
@@ -3036,5 +3071,20 @@ private struct PreferenceField: View {
         guard edited else { return }
         edited = false
         if text != value { save(text) }
+    }
+}
+
+/// Whether an agent's program is on this Mac, for the Settings picker: each program looked up once (the first lookup
+/// asks the login shell for its PATH). Main thread only.
+enum AgentAvailability {
+    private static var found: [String: Bool] = [:]
+
+    static func installed(_ kind: AgentKind, custom: [String]) -> Bool {
+        guard let program = kind.program(custom: custom) else { return false }
+        if let known = found[program] { return known }
+        let installed = (program == "claude" && TerminalLauncher.claudePath != nil)
+            || CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+        found[program] = installed
+        return installed
     }
 }

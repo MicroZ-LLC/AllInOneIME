@@ -140,7 +140,7 @@ enum SelfTest {
     /// What the controller under test reads as its settings (the self-test's own config, adjusted per section).
     static var settings: Config = {
         var config = Config.default
-        config.claudeInBackground = false  // @claude records a Terminal launch here; nothing starts in the background
+        config.claudeInBackground = false  // @agent records a Terminal launch here; nothing starts in the background
         config.setOrder([Language.chinese, .english])  // pinyin first, Shift to English (a new install has English only)
         return config
     }()
@@ -993,17 +993,18 @@ enum SelfTest {
     }
 
     /// @ commands through the controller, with ⏎ as the action key: the palette, @question (live
-    /// Bedrock) and ⌘C, @claude (starts nothing here), @open as you type (real Spotlight and folder
+    /// Bedrock) and ⌘C, @agent (starts nothing here), @open as you type (real Spotlight and folder
     /// listings; nothing is opened), and "@name" mentions.
     static func testCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("@ commands (live Bedrock, Spotlight)", needs: .composing)
         var opened: [String] = [], terminal: [String] = [], copied: [String] = []
         let saved = (openItem: controller.openItem, runInTerminal: controller.runInTerminal, copyText: controller.copyText)
         controller.openItem = { opened.append($0) }
-        controller.runInTerminal = { terminal.append($0) }
+        var agentArguments: [[String]] = []
+        controller.runInTerminal = { agentArguments.append($0); terminal.append($1) }
         controller.startAgent = { _ in "selftest" }  // never a real background task
         controller.copyText = { copied.append($0) }
-        controller.programInstalled = { _ in true }  // @claude runs here even without Claude Code
+        controller.programInstalled = { _ in true }  // @agent runs here even without its agent
         controller.setCommands(Command.catalog(controller.loadSettings().customCommands), recheck: true)
         controller.composer.commands = Command.catalog(controller.loadSettings().customCommands)
         defer {
@@ -1023,7 +1024,7 @@ enum SelfTest {
         settle()
         at()
         let commands = controller.panelModel().rows.map(\.text)
-        check(client.marked == "@" && commands == ["@improve", "@translate", "@question", "@claude", "@open"],
+        check(client.marked == "@" && commands == ["@improve", "@translate", "@question", "@agent", "@open"],
               "@ opens the command palette (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
@@ -1046,24 +1047,25 @@ enum SelfTest {
         needing(.composing)
 
         at()
-        type("cl", controller, client)
+        type("ag", controller, client)
         _ = space(controller, client)
         type("bangwoxiegeshellxiaojiaoben", controller, client)  // 帮我写个shell小脚本: write me a small shell script
         let insertedBefore = client.inserted
         _ = enter(controller, client)
         check(terminal.count == 1 && terminal.first?.hasPrefix("帮我写") == true && client.inserted == insertedBefore
               && client.marked.isEmpty && !controller.composer.isComposing,
-              "@claude starts a Claude Code session with the text, inserts nothing (\(terminal) | \(controller.panelModel().detail ?? "-"))")
+              "@agent starts a Claude Code session with the text, inserts nothing (\(terminal) | \(controller.panelModel().detail ?? "-"))")
+        check(agentArguments.first == ["claude", "--"], "…as `claude -- <text>` (\(agentArguments))")
         // While secure input is on it doesn't start: the text stays in the draft until it is off.
         let secureInput = controller.secureInputActive
         controller.secureInputActive = { true }
         at()
-        type("cl", controller, client)
+        type("ag", controller, client)
         _ = space(controller, client)
         type("nihao", controller, client)
         _ = enter(controller, client)
-        check(terminal.count == 1 && client.marked == "claude › 你好",
-              "@claude doesn't start Claude Code while secure input is on (\(client.marked))")
+        check(terminal.count == 1 && client.marked == "agent › 你好",
+              "@agent doesn't start Claude Code while secure input is on (\(client.marked))")
         controller.secureInputActive = secureInput
         _ = enter(controller, client)
         check(terminal.count == 2 && terminal.last == "你好" && client.marked.isEmpty,
@@ -2590,11 +2592,11 @@ enum SelfTest {
         (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])  // Shift switches
-        settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
+        settings.claudeInBackground = false  // @agent records a Terminal launch; nothing starts in the background
         settings.voiceInput = true
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
-        settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
+        settings.claudeInBackground = false  // @agent records a Terminal launch; nothing starts in the background
         // In a column (horizontal is the default): the checks and README images below read the candidates one under
         // the other; `testHorizontalCandidates` tries the row.
         settings.candidateLayout = .vertical

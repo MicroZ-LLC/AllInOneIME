@@ -282,7 +282,7 @@ struct SelectionTests {
     }
 
     @Test func commandsThatDontUseItLeaveIt() {
-        #expect(!Composer.usesSelection(.open) && !Composer.usesSelection(.claude) && !Composer.usesSelection(.tasks)
+        #expect(!Composer.usesSelection(.open) && !Composer.usesSelection(.agent) && !Composer.usesSelection(.tasks)
                 && !Composer.usesSelection(.settings) && !Composer.usesSelection(.imessage) && !Composer.usesSelection(.reminder))
         #expect(Composer.usesSelection(.improve) && Composer.usesSelection(.question) && Composer.usesSelection(.calc)
                 && Composer.usesSelection(.note))

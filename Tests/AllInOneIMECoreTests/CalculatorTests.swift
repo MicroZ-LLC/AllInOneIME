@@ -233,8 +233,8 @@ struct CalculatorTests {
         let custom = CustomCommand(name: "calculate", type: .run, argv: ["bc", "-l"], stdin: "{input}\n")
         #expect(Command.catalog([custom]).filter { $0.name == "calculate" } == [.calc])
         #expect(custom.problem(among: []) == .nameTaken)
-        // In the list: "@c" offers it after @claude (then @config, and @search and @doctor, which contain a c), "@ca" only it.
-        #expect(Command.palette("c", in: Command.builtins, usage: CommandUsage()).map(\.name) == ["claude", "calculate", "config", "search", "doctor"])
+        // In the list: "@c" offers it first (then @config, and @search and @doctor, which contain a c), "@ca" only it.
+        #expect(Command.palette("c", in: Command.builtins, usage: CommandUsage()).map(\.name) == ["calculate", "config", "search", "doctor"])
         #expect(Command.palette("ca", in: Command.builtins, usage: CommandUsage()) == [.calc])
     }
 

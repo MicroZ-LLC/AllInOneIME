@@ -189,7 +189,7 @@ struct DashboardTests {
         #expect(AgentTaskList.started(session("a", nil, started: ms)) == t0)
         #expect(AgentTaskList.started(session("a", nil, started: t0.timeIntervalSince1970)) == t0)  // seconds
         #expect(AgentTaskList.started(session("a", nil, started: nil)) == nil)
-        // Newest first (up to `limit`); the name, else the prompt @claude started it with, else the id.
+        // Newest first (up to `limit`); the name, else the prompt @agent started it with, else the id.
         var sessions = (0..<8).map { session("t\($0)", "done", started: ms + Double($0) * 1000, name: "task \($0)") }
         sessions.append(session("nameless", "working", started: ms + 60_000))
         sessions.append(session("blank", "waiting_for_input", started: ms + 50_000, name: "  "))

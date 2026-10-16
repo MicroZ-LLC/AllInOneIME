@@ -38,9 +38,9 @@ extension ComposerTests {
         // Five rows are shown at a time and they come after @read: the list scrolls to them, or their
         // letters bring them up.
         let all = palette().0
-        #expect(Array(all.paletteVisible) == [.improve, .translate, .question, .claude, .open])
+        #expect(Array(all.paletteVisible) == [.improve, .translate, .question, .agent, .open])
         #expect(all.paletteMatches.contains(.note) && all.paletteMatches.contains(.reminder))
-        #expect(palette("n").0.paletteMatches == [.note, .translate, .question, .open, .reminder, .settings, .config])  // then names containing "n"
+        #expect(palette("n").0.paletteMatches == [.note, .translate, .question, .agent, .open, .reminder, .settings, .config])  // then names containing "n"
         #expect(palette("no").0.paletteMatches == [.note])
         #expect(palette("rem").0.paletteMatches == [.reminder])
         #expect(palette("r").0.paletteMatches == [.read, .reminder, .reportIssue, .improve, .translate, .webSearch, .doctor])  // starting with "r" first
@@ -215,8 +215,8 @@ extension ComposerTests {
     }
 
     @Test func noCommandListInsideATerminalCommand() {
-        // @claude and a custom terminal command get their text as typed (nothing inside runs first): "@claude 你好@"
-        // listed @read …, the draft showed 「claude › 你好read › …」, and Claude Code got "你好@read https://…" anyway.
+        // @agent and a custom terminal command get their text as typed (nothing inside runs first): "@agent 你好@"
+        // listed @read …, the draft showed 「agent › 你好read › …」, and Claude Code got "你好@read https://…" anyway.
         let sh = CustomCommand(name: "sh", type: .terminal, argv: ["zsh", "-c", "{input}"])
         let catalog = Command.catalog([sh])
         func start(_ letters: String) -> Composer {
@@ -227,13 +227,13 @@ extension ComposerTests {
             _ = c.handleKeyDown(tab)
             return c
         }
-        let claude = start("cl")
+        let claude = start("ag")
         type("nihao", claude)
         _ = claude.handleKeyDown(spaceKey)
-        #expect(claude.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && claude.draft == "@claude 你好@")
-        #expect(claude.paletteQuery == nil && claude.paletteMatches.isEmpty && claude.markedText == "claude › 你好＠")
+        #expect(claude.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && claude.draft == "@agent 你好@")
+        #expect(claude.paletteQuery == nil && claude.paletteMatches.isEmpty && claude.markedText == "agent › 你好＠")
         type("r", claude)  // pinyin, as anywhere else in the text
-        #expect(claude.paletteQuery == nil && claude.markedText == "claude › 你好＠r", "\(claude.markedText)")
+        #expect(claude.paletteQuery == nil && claude.markedText == "agent › 你好＠r", "\(claude.markedText)")
         #expect(claude.handleKeyDown(enterKey).effects.contains(.runInTerminal(prompt: "你好@r")))
         let shell = start("sh")  // "s" alone is @settings first
         type("ls", shell)
@@ -244,9 +244,9 @@ extension ComposerTests {
         #expect(shell.draft == "@sh ls @read" && shell.paletteQuery == nil && shell.markedText == "sh › ls ＠read", "\(shell.markedText)")
         #expect(shell.handleKeyDown(enterKey).effects.contains(.launchInTerminal(argv: ["zsh", "-c", "ls @read"])))
         // A command written in the text isn't shown as one either.
-        let pasted = start("cl")
+        let pasted = start("ag")
         _ = paste("你好@read https://example.com", into: pasted)
-        #expect(pasted.markedText == "claude › 你好＠read https://example.com")
+        #expect(pasted.markedText == "agent › 你好＠read https://example.com")
     }
 
     @Test func reminderIsShownToConfirmThenAdded() {

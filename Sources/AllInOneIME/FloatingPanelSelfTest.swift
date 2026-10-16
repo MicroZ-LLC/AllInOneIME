@@ -286,7 +286,7 @@ extension SelfTest {
         stand.sessions = sessions
         post(.allInOneIMEAgentStarted, ["id": "a1b2c3d4"])
         check(pump(timeout: 1) { stand.agentLooks > looks && taskRows().first?.progress == .working },
-              "@claude starts a task: it looks at once")
+              "@agent starts a task: it looks at once")
         looks = stand.agentLooks
         _ = pump(timeout: 1.1) { false }
         check(stand.agentLooks >= looks + 2, "…and by itself again while that runs (\(stand.agentLooks - looks) looks in 1.1 s)")

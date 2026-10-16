@@ -63,7 +63,7 @@ public final class Composer {
         /// Type a result into the document character by character (`typesResults`); the marked text is gone.
         case typeOut(String)
         case startConversion(input: String, id: Int)
-        /// Run a `.generate` command (`@question`, `@claude`) on `input`; results arrive via `receive`.
+        /// Run a `.generate` command (`@question`, `@agent`) on `input`; results arrive via `receive`.
         case startCommand(Command, input: String, id: Int)
         /// Ask again for the results shown, revised as the last of the `Refinement`'s instructions says ("shorter");
         /// the new results arrive via `receive`, in place of the ones shown.
@@ -74,14 +74,14 @@ public final class Composer {
         case open(path: String)
         /// Open a `link` command's web address, with the text in it, in the default browser.
         case openLink(URL)
-        /// Start a Claude Code session in a terminal window with `prompt` as its first message (`@claude`).
+        /// Start a Claude Code session in a terminal window with `prompt` as its first message (`@agent`).
         case runInTerminal(prompt: String)
         /// Go on with an `@question` conversation in an interactive Claude Code session in Terminal (`ChatHandoff`):
         /// `prompt` (the conversation, maybe long) is its first message, passed through a file.
         case continueInClaudeCode(prompt: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
         case launchInTerminal(argv: [String])
-        /// Start `prompt` as a Claude Code background session (`@claude` with `claudeInBackground`).
+        /// Start `prompt` as a Claude Code background session (`@agent` with `claudeInBackground`).
         case startBackgroundAgent(prompt: String)
         /// List the background tasks (`@tasks`); they arrive via `receiveSearch`.
         case listAgents(id: Int)
@@ -215,11 +215,11 @@ public final class Composer {
         public var nothingFound: String
         public var copied: String
         public var openedTerminal: String
-        /// @claude while secure input is on: Claude Code isn't started.
+        /// @agent while secure input is on: the agent isn't started ("Claude Code" in it: the agent's name, by the controller).
         public var secureInputTerminal: String
         /// A custom terminal command was started in its own window.
         public var ranInTerminal: String
-        /// `@claude` started in the background.
+        /// `@agent` started in the background.
         public var startedInBackground: String
         /// A custom terminal command while secure input is on: nothing is started.
         public var secureInputCommand: String
@@ -410,7 +410,7 @@ public final class Composer {
     private var questionPick: (index: Int, draft: String)?
     /// The saved answer shown in level two (`showsSavedAnswer`), and the draft it was picked in (Esc goes back to it).
     var recalled: (entry: QuestionHistory.Entry, draftBefore: String)?
-    /// `@claude` starts a background session instead of a Terminal window.
+    /// `@agent` starts a background session instead of a Terminal window.
     public var claudeInBackground = false
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
     public var typesResults = false
@@ -808,7 +808,7 @@ public final class Composer {
     /// Level-two rows: "0" the sentence as typed, "1"–"3" the versions in the output language, then
     /// the rewrites in the configured styles, numbered on from 4. A rewrite is shown once it has fully
     /// arrived, and only if it changes the wording (not just punctuation) and repeats no other row.
-    /// For `@question` / `@claude`: "0" the text sent and "1" the answer; for `@open`: the files found;
+    /// For `@question` / `@agent`: "0" the text sent and "1" the answer; for `@open`: the files found;
     /// for `@reminder`: "1" the reminder to add.
     public var choices: [Choice] {
         guard isLevelTwo else { return [] }
@@ -920,7 +920,7 @@ public final class Composer {
     /// Whether `command` works on the selection (`selection`): the writing commands, the AI's (`@question`, a prompt
     /// command), programs that print something to insert (`@calculate`, `@py`, a custom or plugin `run` command), a link
     /// (it goes in the address) and `@note` (it's saved). The others leave it alone, and it goes back once they're
-    /// done: `@open`, `@tasks` and `@settings` have nothing to do with it; `@claude` and terminal commands would hand
+    /// done: `@open`, `@tasks` and `@settings` have nothing to do with it; `@agent` and terminal commands would hand
     /// text the user didn't write to an agent or a shell; `@reminder`, `@imessage`, `@reportissue` and script
     /// extensions (their arguments) take what is typed.
     public static func usesSelection(_ command: Command) -> Bool {
@@ -968,7 +968,7 @@ public final class Composer {
         return (String(query), true, at)
     }
 
-    /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@claude`, a custom
+    /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@agent`, a custom
     /// one) or a script extension: no command inside its text runs first (`startAction`; Terminal, Claude Code and
     /// the script get the text as typed), so an "@" in it is just text (no list to pick a command from, none
     /// shown as picked).
@@ -2573,7 +2573,7 @@ public final class Composer {
                 return .consumed(finish(committing: "") + [.launchInTerminal(argv: custom.arguments(for: input)),
                                                            .notice(messages.ranInTerminal), usage])
             }
-            if command == .claude, claudeInBackground {
+            if command == .agent, claudeInBackground {
                 return .consumed(finish(committing: "") + [.startBackgroundAgent(prompt: input),
                                                            .notice(messages.startedInBackground), usage])
             }

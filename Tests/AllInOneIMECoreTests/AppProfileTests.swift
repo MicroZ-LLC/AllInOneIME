@@ -239,7 +239,7 @@ struct AppProfileTests {
     // MARK: - No AI
 
     @Test func whichCommandsUseAI() {
-        #expect([Command.improve, .translate, .question, .claude, .edit].allSatisfy { $0.usesAI })
+        #expect([Command.improve, .translate, .question, .agent, .edit].allSatisfy { $0.usesAI })
         #expect(![Command.open, .read, .note, .reminder, .calc, .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
             .contains { $0.usesAI })
         let custom = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply."),
@@ -270,7 +270,7 @@ struct AppProfileTests {
     }
 
     @Test func aiCommandsAreRefusedWithANotice() {
-        for draft in ["@improve hello there", "@translate hello", "@question why", "@claude fix it"] {
+        for draft in ["@improve hello there", "@translate hello", "@question why", "@agent fix it"] {
             let c = noAIComposer()
             typeKeys(draft, c)
             let effects = c.handleKeyDown(enterKey).effects

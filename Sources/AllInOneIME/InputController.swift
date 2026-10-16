@@ -55,7 +55,8 @@ enum CommandUsageStore {
     private static let key = "commandUsage"
     static var usage: CommandUsage = {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
+              var usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
+        usage.migrateRenamed(from: "claude", to: "agent")  // 0.6.5: @agent is @agent now
         return usage
     }()
 
@@ -164,8 +165,12 @@ final class AllInOneIMEInputController: IMKInputController {
     }
     var loadOpenHistory: () -> OpenHistory = { OpenHistoryStore.history }
     var recordOpen: (String) -> Void = { OpenHistoryStore.record($0) }
-    /// `@claude`: starts Claude Code in Terminal (the self-test starts nothing).
-    var runInTerminal: (String) throws -> Void = { try TerminalLauncher.claude($0) }
+    /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in Terminal (the self-test
+    /// starts nothing).
+    var runInTerminal: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
+    /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`, `applyAgent`).
+    private(set) var agent = AgentKind.claude
+    private(set) var agentCommand: [String] = []
     /// An `@question` conversation going on in Claude Code (`ChatHandoff`; the self-test starts nothing).
     var continueInClaudeCode: (String) throws -> Void = { try TerminalLauncher.claude(promptFile: $0) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
@@ -185,18 +190,20 @@ final class AllInOneIMEInputController: IMKInputController {
     private(set) static weak var activeController: AllInOneIMEInputController?
     /// Whether a command's program is on this Mac (the self-test supplies its own). Called off the main thread.
     var programInstalled: @Sendable (String) -> Bool = { program in
+        if program.isEmpty { return false }  // a custom agent without a command
         if program == "claude", TerminalLauncher.claudePath != nil { return true }
         if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
         return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
     }
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
     private var checkedCommands: [Command] = []
+    private var checkedAgent: [String] = []
     private var missingCommands: Set<String> = []
     /// A check ended while a command was being written: its result applies once that's done.
     private var missingCheckWaiting = false
     /// The latest check (an older one that finishes later is ignored).
     private var programCheck = 0
-    /// Background `@claude` tasks: starting one, the list, opening one (the self-test supplies its own).
+    /// Background `@agent` tasks (Claude Code's): starting one, the list, opening one (the self-test supplies its own).
     var startAgent: (String) async throws -> String = { try await AgentMonitor.shared.start($0) }
     var listAgents: () async throws -> [(session: AgentSession, reply: String?)] = { try await AgentMonitor.shared.list() }
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
@@ -569,7 +576,6 @@ final class AllInOneIMEInputController: IMKInputController {
         let app = app ?? appID
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
-        composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
@@ -587,6 +593,7 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
+        applyAgent(config)  // after the messages: it names the agent in them
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
         // The Korean and Hindi packs' data, for their input (nil without the pack).
@@ -622,18 +629,39 @@ final class AllInOneIMEInputController: IMKInputController {
         TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
-    /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@claude`
-    /// without Claude Code, a custom command's missing `argv[0]`): "@claude …" is then just text, like
+    /// The agent picked for `@agent`: only Claude Code runs in the background; the command list's summary names it.
+    @MainActor
+    func applyAgent(_ config: Config) {
+        agent = config.agent
+        agentCommand = config.agentCommand
+        composer.claudeInBackground = config.claudeInBackground && config.agent.supportsBackground
+        let name = config.agent.displayName(custom: config.agentCommand)
+        UIText.agentName = name
+        // "已在终端打开 Claude Code": the agent picked, by name.
+        let base = UIText.chinese ? Composer.Messages.chinese : .english
+        composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: name)
+        composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: name)
+    }
+
+    /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@agent`
+    /// without its agent, a custom command's missing `argv[0]`): "@agent …" is then just text, like
     /// "@name". Which are missing is checked in the background when the commands changed, or with
     /// `recheck` (a text field became active: something may have been installed meanwhile).
     @MainActor
     func setCommands(_ commands: [Command], recheck: Bool = false) {
         composer.commands = commands.filter { !missingCommands.contains($0.name) }
-        guard recheck || commands != checkedCommands else { return }
+        // Another agent picked is checked again too (its program may be missing).
+        let checkedFor = [agent.rawValue] + agentCommand
+        guard recheck || commands != checkedCommands || checkedFor != checkedAgent else { return }
         checkedCommands = commands
+        checkedAgent = checkedFor
         programCheck += 1
         let check = programCheck
-        let needed = commands.compactMap { command in command.program.map { (command.name, $0) } }
+        // A custom agent without a command needs a program that can't be found: `@agent` isn't offered.
+        let needed = commands.compactMap { command in
+            command == .agent ? (command.name, command.program(agent: agent, custom: agentCommand) ?? "")
+                : command.program.map { (command.name, $0) }
+        }
         let installed = programInstalled
         DispatchQueue.global().async { [weak self] in
             // The first check asks the user's shell for its PATH, which takes a moment.
@@ -719,7 +747,7 @@ final class AllInOneIMEInputController: IMKInputController {
             }
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
-            composer.claudeInBackground = loadSettings().claudeInBackground
+            applyAgent(loadSettings())
             composer.remembersQuestions = loadSettings().rememberQuestions
             applyChatSettings(loadSettings())
             composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
@@ -897,7 +925,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     do {
                         _ = try await self?.startAgent(prompt)
                     } catch {
-                        log.error("@claude in the background failed: \(String(describing: error), privacy: .public)")
+                        log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
                         self?.showNotice(UIText.describe(error), client: nil)
                     }
                 }
@@ -923,11 +951,16 @@ final class AllInOneIMEInputController: IMKInputController {
                     self.perform(self.composer.receiveSearch(results, id: id), client: nil)
                 }
             case let .runInTerminal(prompt):
+                // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
+                guard let arguments = agent.terminalArguments(custom: agentCommand) else {
+                    log.error("@agent: no command for the custom agent")
+                    break
+                }
                 do {
-                    try runInTerminal(prompt)
-                    log.notice("@claude: Terminal session started (\(prompt.count) chars)")
+                    try runInTerminal(arguments, prompt)
+                    log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")
                 } catch {
-                    log.error("@claude: could not start Terminal: \(String(describing: error), privacy: .public)")
+                    log.error("@agent: could not start Terminal: \(String(describing: error), privacy: .public)")
                     showNotice(UIText.describe(error), client: target)
                 }
             case let .continueInClaudeCode(prompt):

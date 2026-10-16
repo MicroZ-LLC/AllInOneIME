@@ -1,7 +1,7 @@
 import Foundation
 
 // The menu bar panel's logic (dropped down from its icon: notes saved with @note, reminders added with
-// @reminder, @claude's background tasks). The window and its sources are in the input method.
+// @reminder, @agent's background tasks). The window and its sources are in the input method.
 
 /// The panel's own record of the notes `@note` saved, newest first: kept from launch, whether the
 /// panel is on or not. Notes isn't read on a timer for this: an Apple event to Notes launches it
@@ -216,7 +216,7 @@ public enum PanelPlacement {
 public struct AgentTaskRow: Equatable, Sendable, Identifiable {
     /// The short id, which opening it takes (`claude attach`).
     public var id: String
-    /// Its name (else the prompt @claude started it with, else its id), on one line.
+    /// Its name (else the prompt @agent started it with, else its id), on one line.
     public var title: String
     public var progress: AgentSession.Progress
     public var started: Date?
@@ -262,7 +262,7 @@ public enum AgentTaskList {
     }
 
     /// The rows of the newest sessions, with the replies read so far (session id → first line) and the
-    /// prompts of the tasks @claude started (short id → prompt) for those Claude Code hasn't named yet.
+    /// prompts of the tasks @agent started (short id → prompt) for those Claude Code hasn't named yet.
     public static func rows(_ sessions: [AgentSession], replies: [String: String],
                             prompt: (String) -> String? = { _ in nil }) -> [AgentTaskRow] {
         newest(sessions).map { session in

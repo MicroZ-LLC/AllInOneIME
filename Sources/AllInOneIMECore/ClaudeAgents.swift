@@ -1,6 +1,6 @@
 import Foundation
 
-/// `@claude` in the background: Claude Code's own background sessions (`claude --bg`), followed with
+/// `@agent` in the background: Claude Code's own background sessions (`claude --bg`), followed with
 /// `claude agents --json --all` until they are done, their last reply read from the session's
 /// transcript. Claude Code keeps its own login, settings and permissions; this only starts, watches
 /// and points at sessions.
@@ -118,7 +118,7 @@ public struct AgentSession: Codable, Equatable, Sendable {
     }
 }
 
-/// The background tasks `@claude` started, until each is reported (done, or waiting for the user).
+/// The background tasks `@agent` started, until each is reported (done, or waiting for the user).
 public struct AgentWatch: Codable, Equatable, Sendable {
     public struct Task: Codable, Equatable, Sendable {
         public var id: String

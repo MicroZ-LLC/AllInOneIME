@@ -75,8 +75,12 @@ public struct Config: Codable, Equatable, Sendable {
     /// Git repositories extension bundles are installed from (`ExtensionSource`); an enabled one's bundle folder is in
     /// `extensionFolders`. Empty by default.
     public var extensionSources: [ExtensionSource]
-    /// `@claude` runs as a Claude Code background session, with a notification when it's done
-    /// (false: an interactive session in Terminal).
+    /// The coding agent `@agent` hands the text to (`AgentKind`); Claude Code by default.
+    public var agent: AgentKind
+    /// A custom agent's command (`AgentKind.custom`), the prompt appended as its last argument: `["muse", "--"]`.
+    public var agentCommand: [String]
+    /// `@agent` with Claude Code runs as a Claude Code background session, with a notification when it's done
+    /// (false: an interactive session in Terminal). Other agents always open in Terminal.
     public var claudeInBackground: Bool
     /// `@question` keeps the last few questions and answers on this Mac (`QuestionHistory`) and lists them when nothing
     /// is typed after it. On by default.
@@ -182,6 +186,8 @@ public struct Config: Codable, Equatable, Sendable {
         self.disabledExtensions = []
         self.extensionPreferences = [:]
         self.extensionSources = []
+        self.agent = .claude
+        self.agentCommand = []
         self.claudeInBackground = true
         self.rememberQuestions = true
         self.questionRounds = QuestionChat.defaultRounds
@@ -215,7 +221,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Every key a config file may hold (`allKeys`: what `@doctor` and `@config` know as the config's own).
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground, agent, agentCommand
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case checkForUpdates, useSelection, appProfiles
@@ -264,6 +270,9 @@ public struct Config: Codable, Equatable, Sendable {
         disabledExtensions = try c.decodeIfPresent([String].self, forKey: .disabledExtensions) ?? d.disabledExtensions
         extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
             ?? d.extensionPreferences
+        // A kind this version doesn't know (a later one's) is Claude Code, not an error.
+        agent = (try? c.decodeIfPresent(AgentKind.self, forKey: .agent)).flatMap { $0 } ?? d.agent
+        agentCommand = try c.decodeIfPresent([String].self, forKey: .agentCommand) ?? d.agentCommand
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
         questionRounds = QuestionChat.rounds((try? c.decodeIfPresent(Int.self, forKey: .questionRounds)).flatMap { $0 } ?? d.questionRounds)
@@ -352,6 +361,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
         try c.encode(disabledExtensions, forKey: .disabledExtensions)
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
+        try c.encode(agent, forKey: .agent)
+        try c.encode(agentCommand, forKey: .agentCommand)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(rememberQuestions, forKey: .rememberQuestions)
         // Only when set: a file that never had them doesn't gain them.

@@ -64,9 +64,9 @@ public struct Command: Hashable, Sendable {
     public static let translate = Command(name: "translate", kind: .convert)
     /// Answer a question; the answer can be inserted.
     public static let question = Command(name: "question", kind: .generate)
-    /// Start a Claude Code session in Terminal with the text as its first message (long work,
-    /// conversations); nothing is inserted.
-    public static let claude = Command(name: "claude", kind: .terminal)
+    /// Hand the text to the coding agent picked in Settings (`Config.agent`: Claude Code, Gemini CLI, Kiro CLI or a
+    /// custom one), in Terminal with the text as its first message (long work, conversations); nothing is inserted.
+    public static let agent = Command(name: "agent", kind: .terminal)
     /// Find files and apps by name (Spotlight) or path, as you type, and open the one picked.
     public static let open = Command(name: "open", kind: .search)
 
@@ -95,7 +95,7 @@ public struct Command: Hashable, Sendable {
     /// `@question 用一句话总结 @search 苹果发布会`.
     public static let webSearch = Command(name: "search", kind: .run)
 
-    /// The background tasks `@claude` started: how they're doing and what they replied.
+    /// The background tasks `@agent` started (Claude Code's): how they're doing and what they replied.
     public static let tasks = Command(name: "tasks", kind: .agents)
 
     /// The settings window.
@@ -120,7 +120,7 @@ public struct Command: Hashable, Sendable {
     /// Never offered in the list: the composer starts it (`Composer.selection`).
     public static let edit = Command(name: "edit", kind: .generate)
 
-    public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
+    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .read, .note, .reminder, .calc,
                                              .py, .js, .webSearch, .tasks, .settings, .config, .doctor, .imessage, .reportIssue]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
@@ -144,11 +144,14 @@ public struct Command: Hashable, Sendable {
     /// command switches the engine to English, and Chinese comes back when the command is done.
     public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
-    /// The program this command needs on the Mac: `claude` for `@claude`, `python3` for `@py`, `argv[0]`
-    /// for a custom `run` or `terminal` command, the app that sends for a send command (an absolute ".app"
-    /// path); nil when it needs none.
-    public var program: String? {
-        if self == .claude { return "claude" }
+    /// `program(agent:)` with Claude Code as the agent.
+    public var program: String? { program(agent: .claude) }
+
+    /// The program this command needs on the Mac: the agent's for `@agent` (`AgentKind.program`; `agentCommand` is a
+    /// custom agent's), `python3` for `@py`, `argv[0]` for a custom `run` or `terminal` command, the app that sends for a
+    /// send command (an absolute ".app" path); nil when it needs none.
+    public func program(agent: AgentKind, custom agentCommand: [String] = []) -> String? {
+        if self == .agent { return agent.program(custom: agentCommand) }
         if self == .py { return InlineCode.python }
         if self == .imessage { return "/System/Applications/Messages.app" }
         guard let custom, custom.type == .run || custom.type == .terminal else { return nil }
