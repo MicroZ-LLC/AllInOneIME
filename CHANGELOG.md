@@ -21,6 +21,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - `@translate` no longer refines: type to edit the text and translate again (letters after its results continue the sentence, ⏎ translates it).
 - `@question` no longer makes up live information: asked about the weather, news, prices, scores or anything "today", it says it can't check live data and gives what general guidance it can.
 - Custom commands named `config` or `doctor` are now hidden by the built-in `@config` and `@doctor` (Settings → Custom Commands says so): rename them to keep using them.
+- Removing a saved key is a choice of its own: "Remove Key…" (and an extension password's "Remove…") asks first, with Cancel as the default (⏎); a key field left empty, submitted, closed or filled with spaces never removes a key. Saving and removing a key are logged (which key, never the key itself).
 
 ## 0.6.3 (2026-10-15)
 

@@ -137,9 +137,14 @@ public enum WebSearch {
         APIKeys.source(account: backend.keyAccount, variables: backend.keyVariables)
     }
 
-    /// Keeps `key` in the keychain; an empty key removes it.
+    /// Keeps `key` in the keychain (an empty one is refused: `removeKey` removes it).
     public static func saveKey(_ key: String, for backend: any SearchBackend = WebSearch.backend) throws {
         try APIKeys.save(key, account: backend.keyAccount, label: "AllInOneIME: \(backend.name)")
+    }
+
+    /// Removes the key from the keychain (Settings, once confirmed).
+    public static func removeKey(for backend: any SearchBackend = WebSearch.backend) throws {
+        try APIKeys.remove(account: backend.keyAccount)
     }
 
     // MARK: Search

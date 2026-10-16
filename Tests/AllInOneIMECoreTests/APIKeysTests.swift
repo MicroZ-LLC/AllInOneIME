@@ -151,3 +151,39 @@ struct KeyCacheTests {
         #expect(reads.made == 2)
     }
 }
+
+/// A key is removed only by `APIKeys.remove` (Settings' Remove Key…, confirmed): a save with an empty or blank key —
+/// a key field submitted, left or closed empty — never removes it. In an in-memory keychain: the user's isn't touched.
+struct KeyRemovalTests {
+    let label = "AllInOneIME: Gemini API"
+
+    @Test func anEmptyOrBlankSaveNeverRemovesAKey() throws {
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-gemini", account: "gemini", label: label, in: store)
+        for empty in ["", " ", "   ", "\n", "\t \n"] {
+            #expect(throws: APIKeys.EmptyKey.self) { try APIKeys.save(empty, account: "gemini", label: label, in: store) }
+        }
+        #expect(store.read("gemini") == "sk-test-gemini")
+        #expect(APIKeys.hasKeychainKey(account: "gemini", in: store))
+        // Nor is one made for an account without a key.
+        #expect(throws: APIKeys.EmptyKey.self) { try APIKeys.save("", account: "openai", label: label, in: store) }
+        #expect(!APIKeys.hasKeychainKey(account: "openai", in: store))
+    }
+
+    @Test func onlyRemoveRemovesAndOnlyThatKey() throws {
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-gemini", account: "gemini", label: label, in: store)
+        try APIKeys.save("sk-test-openai", account: "openai", label: label, in: store)
+        try APIKeys.remove(account: "gemini", in: store)
+        #expect(!APIKeys.hasKeychainKey(account: "gemini", in: store) && store.read("openai") == "sk-test-openai")
+        try APIKeys.remove(account: "gemini", in: store)  // none there: nothing to do, no error
+    }
+
+    @Test func aSaveReplacesTheKeyInPlace() throws {
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-one", account: "gemini", label: label, host: "Generativelanguage.googleapis.com", in: store)
+        let created = store.attributes("gemini")?.created
+        try APIKeys.save("  sk-test-two \n", account: "gemini", label: label, in: store)
+        #expect(store.read("gemini") == "sk-test-two" && store.attributes("gemini")?.created == created)
+    }
+}

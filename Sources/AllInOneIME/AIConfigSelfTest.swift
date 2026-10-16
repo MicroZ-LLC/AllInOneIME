@@ -1,5 +1,6 @@
 import AllInOneIMECore
 import AppKit
+import SwiftUI
 
 /// Stands in for the on-device model in the self-test: available, held to the schema, answers with the JSON it's given
 /// (no live AI), and counts the requests.
@@ -239,6 +240,67 @@ extension SelfTest {
         check(client.inserted.allSatisfy { $0.hasPrefix("@config") }, "nothing but the draft as typed ever went in")
         testRememberQuestionsReload(snapshotDirectory: snapshotDirectory)
         testKeyStatus(snapshotDirectory: snapshotDirectory)
+        testKeyFieldsKeepKeys(snapshotDirectory: snapshotDirectory)
+    }
+
+    /// A key field never removes a key. Settings is opened at a key field as `@config` opens it (the provider in use's,
+    /// and another's), ⏎ goes to the empty field, the focus moves on, the window closes: every key is still there. An
+    /// empty or blank save does nothing; only Remove Key…, confirmed (`removeKey`), removes one, and only that one. The
+    /// keys are in an in-memory keychain: the user's is never touched.
+    static func testKeyFieldsKeepKeys(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("keyfields-config.json")
+        let saved = (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys)
+        let store = APIKeys.Keychain.inMemory()
+        APIKeys.keychain = store
+        defer {
+            (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys) = saved
+            try? FileManager.default.removeItem(at: url)
+            _ = secureInputGoes()  // the key field's, if it had the focus
+        }
+        try? APIKeys.save("sk-selftest-gemini", for: .gemini)
+        try? APIKeys.save("sk-selftest-openai", for: .openai)
+        AIConfigSession.keySource = { APIKeys.hasKeychainKey(account: $0.rawValue) ? .keychain : .none }
+        SettingsModel.looksUpKeys = true
+        var config = Config.default
+        config.provider = .gemini
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .provider)))
+        window.setContentSize(NSSize(width: 880, height: 700))
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        _ = pump(timeout: 2) { model.keySources[.gemini] == .keychain }
+        func keys() -> [String?] { [store.read("gemini"), store.read("openai")] }
+        let both: [String?] = ["sk-selftest-gemini", "sk-selftest-openai"]
+        func key(_ characters: String, _ code: UInt16) {
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                   windowNumber: window.windowNumber, context: nil, characters: characters,
+                                                   charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code) else { continue }
+                window.sendEvent(event)
+            }
+            _ = pump(timeout: 0.15) { false }
+        }
+        // The provider in use's own field, then @config's field for another provider: ⏎ on it empty, Tab away.
+        var focused: [Provider] = []
+        for provider in [Provider.gemini, .openai] {
+            NotificationCenter.default.post(name: .allInOneIMEFocusAPIKey, object: nil, userInfo: ["provider": provider.rawValue])
+            _ = pump(timeout: 0.6) { false }
+            if window.firstResponder is NSText { focused.append(provider) }  // a field editor: the key field has the focus
+            key("\r", 0x24)
+            key("\t", 0x30)
+        }
+        window.close()
+        _ = pump(timeout: 0.3) { false }
+        check(keys() == both, "Settings opened at a key field, ⏎ on it empty, the focus moved, the window closed: no key removed "
+              + "(focus reached \(focused.map(\.rawValue)))")
+        model.saveKey("", for: .gemini)
+        model.saveKey("  \n", for: .gemini)
+        check(keys() == both, "an empty or blank key saved leaves the key there")
+        model.saveKey("sk-selftest-new", for: .gemini)
+        check(keys() == ["sk-selftest-new", "sk-selftest-openai"], "a key typed is saved in place")
+        model.removeKey(.gemini)
+        check(keys() == [nil, "sk-selftest-openai"], "Remove Key…, confirmed, removes that key only")
     }
 
     /// Settings → AI Provider says where each key is, from the lookup `@config`'s checks and `@doctor`'s use too (a

@@ -235,15 +235,29 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    /// Stores (or with an empty key removes) the provider's API key in the keychain.
+    /// Stores the provider's API key in the keychain. An empty or blank one does nothing: it never removes the key
+    /// saved (that's `removeKey`, after the user confirmed).
     func saveKey(_ key: String, for provider: Provider) {
-        guard persists else { return }
+        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         do {
             // Tied to the base URL it is saved with: it isn't sent to another one set later.
             try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
             keyError = nil
         } catch {
             keyError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
+        }
+        refreshKeys()
+    }
+
+    /// Removes the provider's API key from the keychain: Remove Key…, confirmed.
+    func removeKey(_ provider: Provider) {
+        guard persists else { return }
+        do {
+            try APIKeys.remove(provider)
+            log.notice("Settings: the \(provider.rawValue, privacy: .public) key removed (Remove Key…, confirmed)")
+            keyError = nil
+        } catch {
+            keyError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
         }
         refreshKeys()
     }
@@ -298,14 +312,27 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    /// Stores (or with an empty key removes) the web search key in the keychain; never in the config.
+    /// Stores the web search key in the keychain, never in the config; an empty one does nothing (`removeSearchKey`).
     func saveSearchKey(_ key: String) {
-        guard persists else { return }
+        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         do {
             try WebSearch.saveKey(key)
             searchKeyError = nil
         } catch {
             searchKeyError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
+        }
+        searchTestStatus = .idle
+        refreshSearchKey()
+    }
+
+    /// Removes the web search key: Remove Key…, confirmed.
+    func removeSearchKey() {
+        guard persists else { return }
+        do {
+            try WebSearch.removeKey()
+            searchKeyError = nil
+        } catch {
+            searchKeyError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
         }
         searchTestStatus = .idle
         refreshSearchKey()
@@ -538,10 +565,12 @@ final class SettingsModel: ObservableObject {
         config.extensionPreferences[bundle.name]?[preference.name] ?? preference.defaultValue ?? ""
     }
 
-    /// Saves a preference: a password in the keychain (empty: removed), anything else in the config file.
+    /// Saves a preference: a password in the keychain (an empty one does nothing: `removePassword` removes it),
+    /// anything else in the config file.
     func setPreference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference, _ value: String) {
         guard persists else { return }
         if preference.kind == .password {
+            guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             do {
                 try APIKeys.save(value, account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name),
                                  label: "AllInOneIME: \(bundle.title) – \(preference.title)")
@@ -552,6 +581,18 @@ final class SettingsModel: ObservableObject {
         } else {
             config.extensionPreferences[bundle.name, default: [:]][preference.name] = value
             save()
+        }
+        refreshExtensions()
+    }
+
+    /// Removes a password preference from the keychain: Remove…, confirmed.
+    func removePassword(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference) {
+        guard persists, preference.kind == .password else { return }
+        do {
+            try APIKeys.remove(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
+            extensionError = nil
+        } catch {
+            extensionError = tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ") + error.localizedDescription
         }
         refreshExtensions()
     }
@@ -1194,9 +1235,9 @@ struct SettingsView: View {
             }
             ForEach(bundle.preferences, id: \.name) { preference in
                 PreferenceField(preference: preference, value: model.preference(bundle, preference),
-                                saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name)) {
-                    model.setPreference(bundle, preference, $0)
-                }
+                                saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name),
+                                save: { model.setPreference(bundle, preference, $0) },
+                                remove: { model.removePassword(bundle, preference) })
                 .padding(.leading, 28)
             }
             if on {
@@ -1359,10 +1400,11 @@ struct SettingsView: View {
                         .onSubmit { saveSearchKey() }
                     Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
                     if model.searchKeySource == .keychain {
-                        Button(tr("删除", "Remove")) { removingSearchKey = true }
-                            .confirmationDialog(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
-                                                isPresented: $removingSearchKey) {
-                                Button(tr("删除", "Remove"), role: .destructive) { model.saveSearchKey("") }
+                        Button(tr("删除密钥…", "Remove Key…")) { removingSearchKey = true }
+                            .alert(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                   isPresented: $removingSearchKey) {
+                                Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
+                                Button(tr("删除", "Remove"), role: .destructive) { model.removeSearchKey() }
                             }
                     }
                 }
@@ -2159,10 +2201,15 @@ struct SettingsView: View {
                 .onSubmit { saveKey(provider) }
             Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
             if model.keySources[provider] == .keychain {
-                Button(tr("删除", "Remove")) { removingKey = provider }
-                    .confirmationDialog(tr("删除钥匙串里的 \(provider.displayName) API key？", "Remove the \(provider.displayName) API key from the keychain?"),
-                                        isPresented: Binding(get: { removingKey == provider }, set: { if !$0 { removingKey = nil } })) {
-                        Button(tr("删除", "Remove"), role: .destructive) { model.saveKey("", for: provider) }
+                // Removing is a choice of its own, asked again (Cancel is ⏎); an empty field never removes the key.
+                Button(tr("删除密钥…", "Remove Key…")) { removingKey = provider }
+                    .alert(tr("从钥匙串里删除 \(UIText.name(provider)) 的 API key？", "Remove the key for \(UIText.name(provider)) from the keychain?"),
+                           isPresented: Binding(get: { removingKey == provider }, set: { if !$0 { removingKey = nil } })) {
+                        Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
+                        Button(tr("删除", "Remove"), role: .destructive) { model.removeKey(provider) }
+                    } message: {
+                        Text(tr("删除后，要再粘贴一次 key 才能用 \(UIText.name(provider))。",
+                                "To use \(UIText.name(provider)) again, you'll have to paste the key again."))
                     }
             }
         }
@@ -2883,7 +2930,10 @@ private struct PreferenceField: View {
     /// A password: one is in the keychain.
     let saved: Bool
     let save: (String) -> Void
+    /// A password's Remove…, once confirmed.
+    let remove: () -> Void
     @State private var text = ""
+    @State private var removing = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -2903,7 +2953,14 @@ private struct PreferenceField: View {
                         .onSubmit { commitPassword() }
                         .onChange(of: focused) { if !focused { commitPassword() } }
                         .frame(maxWidth: 220)
-                    if saved { Button(tr("移除", "Remove")) { save("") } }
+                    if saved {
+                        Button(tr("移除…", "Remove…")) { removing = true }
+                            .alert(tr("从钥匙串里删除「\(preference.title)」？", "Remove “\(preference.title)” from the keychain?"),
+                                   isPresented: $removing) {
+                                Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
+                                Button(tr("删除", "Remove"), role: .destructive) { remove() }
+                            }
+                    }
                 }
             case .textfield:
                 TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
@@ -2923,9 +2980,9 @@ private struct PreferenceField: View {
         }
     }
 
-    /// A password typed is saved (and the field emptied); an empty field leaves the saved one alone.
+    /// A password typed is saved (and the field emptied); an empty or blank field leaves the saved one alone.
     private func commitPassword() {
-        guard !text.isEmpty else { return }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         save(text)
         text = ""
     }

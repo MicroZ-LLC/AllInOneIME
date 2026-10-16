@@ -2462,6 +2462,8 @@ enum SelfTest {
         let userConfig = try? Data(contentsOf: Config.userURL)
         useOwnConfig(in: snapshotDirectory)
         SettingsModel.looksUpKeys = false
+        // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched.
+        APIKeys.keychain = .inMemory()
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""
