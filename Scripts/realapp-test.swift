@@ -1323,22 +1323,33 @@ final class Harness: NSObject, NSApplicationDelegate {
         let mark = requests?.count ?? 0
         let started = Date()
         act()
-        // ⏎ while the request runs does nothing; once the preview is up it applies it. No more ⏎ once the input method
-        // says the changes were applied, or its panel (the preview) is gone: another would close the confirmation, and
-        // the next would type a new line into the text view.
-        var panelSeen = false
-        _ = waitUntil(45) {
-            if !(requests?.lines(after: mark, containing: "changes applied").isEmpty ?? true) || layout() == "horizontal" { return true }
-            let shown = self.imePanelShown()
-            if panelSeen, !shown { return true }
-            panelSeen = panelSeen || shown
-            self.enter()
-            self.pump(1.5)
-            return false
+        // ⏎ only once the preview's rows are shown (the input method logs "@config N: … rows"), or it says why there are
+        // none ("@config N: no preview (…)"), within 60 s: the on-device model may take a while to load the first time.
+        // ⏎ while it's pending does nothing. Then ⏎ once applies it, and the input method logs "changes applied".
+        func logged(_ text: String) -> String? { requests?.lines(after: mark, containing: text).first }
+        guard requests != nil else {
+            check(false, "@config: the input method's log can't be read, so the preview can't be waited for")
+            reset()
+            textView.string = ""
+            return
         }
-        let applied = waitUntil(3) { layout() == "horizontal" }
+        // Or it failed ("@config N failed: …", "@config N: the answer wasn't readable"): no use waiting the 60 s out.
+        func noPreview() -> String? { logged(": no preview") ?? logged(" failed: ") ?? logged("wasn't readable") }
+        let answered = waitUntil(60) { logged(" rows, ") != nil || noPreview() != nil }
+        let previewed = logged(" rows, ")
+        check(answered && previewed != nil,
+              String(format: "@config shows its preview after %.1fs (%@)", Date().timeIntervalSince(started),
+                     (previewed ?? noPreview() ?? "no answer within 60 s").components(separatedBy: "] ").last ?? "-"))
+        guard previewed != nil else {
+            reset()
+            textView.string = ""
+            return
+        }
+        pump(0.3)  // the rows drawn
+        enter()
+        let applied = waitUntil(10) { logged("changes applied") != nil && layout() == "horizontal" }
         check(applied && committed.isEmpty,
-              String(format: "the preview, then ⏎ writes candidateLayout = horizontal after %.1fs; nothing inserted ('%@')",
+              String(format: "⏎ once applies it: candidateLayout = horizontal after %.1fs; nothing inserted ('%@')",
                      Date().timeIntervalSince(started), committed))
         guard applied else {
             reset()
