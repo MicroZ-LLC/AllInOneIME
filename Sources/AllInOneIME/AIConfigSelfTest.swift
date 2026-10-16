@@ -210,5 +210,31 @@ extension SelfTest {
         _ = escape(controller, client)
         controller.commitComposition(client)
         check(client.inserted.allSatisfy { $0.hasPrefix("@config") }, "nothing but the draft as typed ever went in")
+        testRememberQuestionsReload(snapshotDirectory: snapshotDirectory)
+    }
+
+    /// Settings deletes the questions kept only when its switch turns "Remember recent questions" off, never when the
+    /// window reads the config again with it off (as `@config` writes it, which may still be undone).
+    static func testRememberQuestionsReload(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("remember-config.json")
+        defer {
+            try? FileManager.default.removeItem(at: url)
+            QuestionHistoryStore.clear()
+        }
+        var config = settings
+        config.rememberQuestions = true
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        QuestionHistoryStore.clear()
+        QuestionHistoryStore.record(QuestionHistory.Entry(question: "一加一等于几", answer: "二", date: Date()))
+        config.rememberQuestions = false
+        try? config.write(to: url)
+        try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: url.path)
+        model.reloadIfChanged()
+        check(!model.config.rememberQuestions && QuestionHistoryStore.history.entries.count == 1,
+              "Settings reading the config again with the switch off keeps the questions (\(QuestionHistoryStore.history.entries.count))")
+        model.setRememberQuestions(true)
+        model.setRememberQuestions(false)
+        check(QuestionHistoryStore.history.entries.isEmpty, "turning the switch off in Settings deletes them")
     }
 }
