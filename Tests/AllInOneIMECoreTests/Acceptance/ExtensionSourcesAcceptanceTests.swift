@@ -12,7 +12,10 @@ import Testing
 // SHELL=/usr/bin/false so the user's shell startup files aren't run, and check that the user's real config and
 // sources folder are byte for byte / name for name what they were. When no binary is built they're skipped.
 //
-// Spec clauses are cited as §N.
+// Spec clauses are cited as §N; "CHANGE A" is the coordinator's change of 2026-10-16 after the security review (no ssh
+// BatchMode: the user's ssh command passes through untouched, prompts are prevented by a session without a terminal,
+// SSH_ASKPASS_REQUIRE=never and the rest; GIT_ALLOW_PROTOCOL, --end-of-options, ref checks; a re-clone after a force
+// push is reviewed again).
 
 // MARK: - Fixtures
 
@@ -204,6 +207,20 @@ final class ExtSrcAccRepo: @unchecked Sendable {
     func tag(_ name: String) throws {
         try ExtSrcAcc.git(["tag", name], in: work)
         try ExtSrcAcc.git(["push", "-q", "origin", name], in: work)
+    }
+
+    /// The bare repository's default branch (its HEAD) made `name`, at main's commit: what clone follows.
+    func setDefaultBranch(_ name: String) throws {
+        try ExtSrcAcc.git(["update-ref", "refs/heads/" + name, "refs/heads/main"], in: bare)
+        try ExtSrcAcc.git(["symbolic-ref", "HEAD", "refs/heads/" + name], in: bare)
+    }
+
+    /// A program that leaves `marker` behind if anything runs it, and the option that would run it as git's upload-pack.
+    var marker: URL { root.appendingPathComponent("PWNED") }
+    func evilOption() throws -> String {
+        let evil = root.appendingPathComponent("evil.sh")
+        try ExtSrcAcc.write("#!/bin/sh\ntouch '\(marker.path)'\nexit 1\n", to: evil, executable: true)
+        return "--upload-pack=" + evil.path
     }
 
     /// The commit the clone of `url` under `sources` is at.
@@ -462,13 +479,17 @@ struct ExtensionSourcesAcceptancePathTests {
 
 @Suite("ExtensionSourcesAcceptance: how git runs")
 struct ExtensionSourcesAcceptanceGitEnvironmentTests {
-    @Test("no prompts, ssh in batch mode, the login PATH, the SSH agent and HOME (§2)")
+    @Test("no prompts, no askpass, only ssh/https/file, the login PATH, the SSH agent and HOME (§2, CHANGE A)")
     func environment() {
         let env = ExtensionSources.gitEnvironment(
-            base: ["PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HOME": "/Users/someone", "GIT_TERMINAL_PROMPT": "1", "LANG": "en_US.UTF-8"],
+            base: ["PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HOME": "/Users/someone", "GIT_TERMINAL_PROMPT": "1", "LANG": "en_US.UTF-8",
+                   "SSH_ASKPASS_REQUIRE": "force", "GIT_ALLOW_PROTOCOL": "ext:ssh"],
             login: ["SSH_AUTH_SOCK": "/private/tmp/com.apple.launchd.x/Listeners"])
         #expect(env["GIT_TERMINAL_PROMPT"] == "0", "a prompt would hang the IME: always 0, whatever was set")
-        #expect(env["GIT_SSH_COMMAND"]?.contains("BatchMode=yes") == true, "\(env["GIT_SSH_COMMAND"] ?? "nil")")
+        #expect(env["SSH_ASKPASS_REQUIRE"] == "never", "no askpass program, whatever was set")
+        #expect(Set((env["GIT_ALLOW_PROTOCOL"] ?? "").split(separator: ":").map(String.init)) == ["ssh", "https", "file"],
+                "\(env["GIT_ALLOW_PROTOCOL"] ?? "nil")")
+        #expect(env["GIT_SSH_COMMAND"] == nil, "none is set when the user has none: \(env["GIT_SSH_COMMAND"] ?? "nil")")
         #expect(env["PATH"] == "/opt/homebrew/bin:/usr/bin:/bin")
         #expect(env["HOME"] == "/Users/someone")
         #expect(env["SSH_AUTH_SOCK"] == "/private/tmp/com.apple.launchd.x/Listeners")
@@ -481,28 +502,31 @@ struct ExtensionSourcesAcceptanceGitEnvironmentTests {
         #expect(env["SSH_AUTH_SOCK"] == "/tmp/agent")
     }
 
-    @Test("BatchMode is added to the user's own ssh command, not instead of it (§2)")
-    func ownSSHCommandKept() {
+    @Test("the user's own GIT_SSH_COMMAND passes through exactly; core.sshCommand and GIT_SSH are left to git (CHANGE A)")
+    func ownSSHCommandPassedThrough() {
         let own = "ssh -i ~/.ssh/work_key -F ~/.ssh/config.work"
-        for env in [ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin", "GIT_SSH_COMMAND": own]),
-                    ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin"], login: ["GIT_SSH_COMMAND": own]),
-                    ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin"], sshCommand: own)] {
-            let command = env["GIT_SSH_COMMAND"] ?? ""
-            #expect(command.hasPrefix(own), "the user's command and options stay: \(command)")
-            #expect(command.contains("BatchMode=yes"), "\(command)")
-        }
+        #expect(ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin", "GIT_SSH_COMMAND": own])["GIT_SSH_COMMAND"] == own)
+        #expect(ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin"], login: ["GIT_SSH_COMMAND": own])["GIT_SSH_COMMAND"] == own,
+                "the login shell's own value, as it is")
+        // core.sshCommand is git's own setting (with the user's includeIf and per-repo config): the IME doesn't copy it out.
+        #expect(ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin"], sshCommand: own)["GIT_SSH_COMMAND"] == nil)
+        let program = ExtensionSources.gitEnvironment(base: ["PATH": "/usr/bin", "GIT_SSH": "/usr/local/bin/my-ssh"])
+        #expect(program["GIT_SSH"] == "/usr/local/bin/my-ssh")
+        #expect(program["GIT_SSH_COMMAND"] == nil, "GIT_SSH isn't overridden by a command of the IME's")
     }
 
-    @Test("the user's git: /usr/bin/git, 60 s a call, in the login shell's environment, no prompts (§2)")
+    @Test("the user's git: /usr/bin/git, 60 s a call, in the login shell's environment, no prompts (§2, CHANGE A)")
     func userRunner() async {
         let runner = await ProcessGitRunner.user()
         #expect(runner.executable.path == "/usr/bin/git")
         #expect(runner.timeout == 60)
         #expect(ExtensionSources.timeout == 60)
         #expect(runner.environment["GIT_TERMINAL_PROMPT"] == "0")
-        if runner.environment["GIT_SSH"]?.isEmpty != false {
-            #expect(runner.environment["GIT_SSH_COMMAND"]?.contains("BatchMode=yes") == true)
-        }
+        #expect(runner.environment["SSH_ASKPASS_REQUIRE"] == "never")
+        #expect(Set((runner.environment["GIT_ALLOW_PROTOCOL"] ?? "").split(separator: ":").map(String.init)) == ["ssh", "https", "file"])
+        let usersOwn = [ShellEnvironment.current["GIT_SSH_COMMAND"], ShellEnvironment.login["GIT_SSH_COMMAND"]]
+            .compactMap { $0 }.first { !$0.isEmpty }
+        #expect(runner.environment["GIT_SSH_COMMAND"] == usersOwn, "the user's own ssh command, untouched (none if they have none)")
         #expect(runner.environment["PATH"] == ShellEnvironment.current["PATH"], "the login shell's PATH (the user's tools)")
         if let agent = ShellEnvironment.login["SSH_AUTH_SOCK"], !agent.isEmpty {
             #expect(runner.environment["SSH_AUTH_SOCK"] == agent, "the login shell's SSH agent")
@@ -545,6 +569,10 @@ struct ExtensionSourcesAcceptanceGitEnvironmentTests {
         _ = try await manager.reclone(source, status)
         #expect(!recording.calls.isEmpty)
         for call in recording.calls { #expect(extSrcAccNoHooks(call), "hooks not off: git \(call.joined(separator: " "))") }
+        // CHANGE A: a ref git could read as an option comes after --end-of-options.
+        for call in recording.calls where ["fetch", "log", "reset", "checkout", "merge-base"].contains(where: { call.contains($0) }) {
+            #expect(call.contains("--end-of-options"), "git \(call.joined(separator: " "))")
+        }
     }
 
     @Test("a git call that hangs is stopped at the timeout (§2)")
@@ -581,7 +609,52 @@ struct ExtensionSourcesAcceptanceGitEnvironmentTests {
         let lines = Set(result.output.split(separator: "\n").map(String.init))
         #expect(lines.contains("GIT_TERMINAL_PROMPT=0"))
         #expect(lines.contains("SSH_AUTH_SOCK=/tmp/acc-agent"))
-        #expect(lines.contains { $0.hasPrefix("GIT_SSH_COMMAND=") && $0.contains("BatchMode=yes") })
+        #expect(lines.contains("SSH_ASKPASS_REQUIRE=never"))
+        #expect(lines.contains { $0.hasPrefix("GIT_ALLOW_PROTOCOL=") })
+        #expect(!lines.contains { $0.hasPrefix("GIT_SSH_COMMAND=") }, "no ssh command of the IME's")
+    }
+
+    /// The child can't open /dev/tty and has no terminal. When the test process itself has no terminal this part
+    /// holds anyway; the session check below (its own process group, as a session leader has) doesn't depend on that.
+    @Test("git runs in a session of its own, without a controlling terminal (CHANGE A)")
+    func noControllingTerminal() async throws {
+        let folder = try ExtSrcAcc.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let fake = folder.appendingPathComponent("tty-git")
+        try ExtSrcAcc.write("""
+            #!/bin/sh
+            if (exec 3</dev/tty) 2>/dev/null; then echo tty=yes; else echo tty=no; fi
+            echo "tt=$(/bin/ps -o tt= -p $$ | tr -d ' ')"
+            echo "pid=$$ pgid=$(/bin/ps -o pgid= -p $$ | tr -d ' ')"
+            """, to: fake, executable: true)
+        let result = try await ProcessGitRunner(executable: fake, environment: ["PATH": "/usr/bin:/bin"], timeout: 10).run([], in: folder)
+        let lines = result.output.split(separator: "\n").map(String.init)
+        #expect(lines.contains("tty=no"), "git could open /dev/tty: \(result.output)")
+        #expect(lines.contains("tt=??") || lines.contains("tt=-"), "a controlling terminal: \(result.output)")
+        let ids = lines.first { $0.hasPrefix("pid=") }?.split(separator: " ").map { $0.split(separator: "=").last.map(String.init) ?? "" } ?? []
+        #expect(ids.count == 2 && ids[0] == ids[1] && ids[0] != String(getpgrp()),
+                "its own session and process group, not the input method's: \(result.output)")
+    }
+
+    @Test("refs come after --end-of-options in the git commands built (CHANGE A)")
+    func endOfOptions() {
+        for arguments in [ExtensionSources.fetchArguments("main", depth: 1), ExtensionSources.logArguments("a1b2c3d..e4f5a6b")] {
+            let marker = arguments.firstIndex(of: "--end-of-options")
+            #expect(marker != nil, "\(arguments)")
+            if let marker { #expect(marker < arguments.count - 1, "before the ref: \(arguments)") }
+        }
+    }
+
+    @Test("branch, tag and commit names are checked as git checks a branch name (CHANGE A)")
+    func refsChecked() async throws {
+        let manager = ExtensionSourceManager(root: try ExtSrcAcc.temporaryFolder(), git: ExtSrcAcc.realGit())
+        defer { try? FileManager.default.removeItem(at: manager.root) }
+        for good in ["main", "release/0.6", "v1.2.0", "feature-x", "9fceb02d0ae598e95dc970b74767f19372d61af8"] {
+            await #expect(throws: Never.self, "\(good)") { try await manager.checkRef(good) }
+        }
+        for bad in ["-x", "--upload-pack=/tmp/x", "-c", "main..x", "a b", "x~1", "x^", "x:y", "", "HEAD@{1}", "x.lock", "/main", "main/"] {
+            await #expect(throws: (any Error).self, "\(bad)") { try await manager.checkRef(bad) }
+        }
     }
 
     @Test("without the Command Line Tools, a clear error instead of /usr/bin/git's installer (§2)")
@@ -1151,6 +1224,183 @@ struct ExtensionSourcesAcceptanceConfigTests {
     }
 }
 
+// MARK: - CHANGE A: refs, addresses and paths an attacker controls
+
+@Suite("ExtensionSourcesAcceptance: security (CHANGE A)")
+struct ExtensionSourcesAcceptanceSecurityTests {
+    /// The repository's owner names its default branch like an option. git clones it happily; passed on to a later
+    /// `git fetch origin <branch>` it would run a program of the owner's choosing. It must be refused, and run nothing.
+    @Test("a default branch named like an option (--upload-pack=…) is refused and runs nothing")
+    func optionLikeDefaultBranch() async throws {
+        let repo = try ExtSrcAccRepo()
+        try repo.bundle()
+        try repo.commit("First")
+        let payload = try repo.evilOption()
+        try repo.setDefaultBranch(payload)
+
+        // Control: the payload is live. A plain clone gets the branch, and a naive fetch of it runs the program.
+        let probe = repo.root.appendingPathComponent("probe")
+        try ExtSrcAcc.git(["clone", "-q", "--depth", "1", "--single-branch", "--", repo.url, probe.path], in: repo.root)
+        #expect(try ExtSrcAcc.git(["rev-parse", "--abbrev-ref", "HEAD"], in: probe) == payload)
+        _ = try? ExtSrcAcc.git(["fetch", "--depth", "1", "origin", payload], in: probe)
+        try #require(FileManager.default.fileExists(atPath: repo.marker.path), "control: a naive fetch runs it")
+        try FileManager.default.removeItem(at: repo.marker)
+
+        // Adding it: refused, nothing staged or in place, nothing run.
+        let manager = repo.manager()
+        let source = ExtensionSource(url: repo.url)
+        do {
+            let staged = try await manager.stage(source)
+            Issue.record("staged a repository whose default branch is \(payload): \(staged.folder.path)")
+            manager.discard(staged)
+        } catch {}
+        #expect(!FileManager.default.fileExists(atPath: ExtensionSources.cloneFolder(for: repo.url, root: repo.sources).path))
+        #expect(ExtensionSources.bundleFolders(in: repo.sources).isEmpty, "no clone of it left anywhere under Sources")
+        #expect(!FileManager.default.fileExists(atPath: repo.marker.path), "the payload ran")
+
+        // A clone of its main branch, with that name recorded as the branch it follows: a check refuses it too.
+        let following = ExtensionSource(url: repo.url, branch: "main")
+        var status = try await manager.clone(following).status
+        status.trusted = true
+        status.branch = payload
+        await #expect(throws: (any Error).self) { _ = try await manager.check(ExtensionSource(url: repo.url), status) }
+        await #expect(throws: (any Error).self) { _ = try await manager.update(ExtensionSource(url: repo.url), status) }
+        #expect(!FileManager.default.fileExists(atPath: repo.marker.path), "the payload ran")
+    }
+
+    @Test("a branch or a pin starting with \"-\" is refused before git sees it")
+    func dashRefs() async throws {
+        let repo = try ExtSrcAccRepo()
+        try repo.bundle()
+        let first = try repo.commit("First")
+        let payload = try repo.evilOption()
+        for source in [ExtensionSource(url: repo.url, branch: payload), ExtensionSource(url: repo.url, branch: "-b"),
+                       ExtensionSource(url: repo.url, pin: payload), ExtensionSource(url: repo.url, pin: "-x")] {
+            let recording = ExtSrcAccRecordingGit(inner: ExtSrcAcc.realGit())
+            await #expect(throws: (any Error).self, "\(source)") { _ = try await repo.manager(git: recording).stage(source) }
+            #expect(!recording.calls.contains { $0.contains("clone") || $0.contains("fetch") }, "git cloned or fetched: \(recording.calls)")
+        }
+        // Changing the pin of a clone in place to one.
+        let source = ExtensionSource(url: repo.url)
+        let status = try await repo.manager().clone(source).status
+        await #expect(throws: (any Error).self) { _ = try await repo.manager().pin(source, to: payload, status) }
+        await #expect(throws: (any Error).self) { _ = try await repo.manager().pin(source, to: "-x", status) }
+        #expect(try repo.cloneHead() == first)
+        #expect(!FileManager.default.fileExists(atPath: repo.marker.path), "the payload ran")
+    }
+
+    @Test("https addresses with a user name, password or token are refused", arguments: [
+        "https://user:secret@github.com/you/my-extensions.git",
+        "https://ghp_0123456789abcdef@github.com/you/my-extensions.git",
+        "https://user:@git.example.com/team/MyExtensions.git",
+        "HTTPS://user:secret@git.example.com/team/MyExtensions.git",
+    ])
+    func credentials(_ url: String) async throws {
+        #expect(throws: (any Error).self) { try ExtensionSources.validate(url) }
+        let root = try ExtSrcAcc.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let git = ExtSrcAccRecordingGit { _, _ in GitResult(status: 0) }
+        await #expect(throws: (any Error).self) { _ = try await ExtensionSourceManager(root: root, git: git).stage(ExtensionSource(url: url)) }
+        #expect(git.calls.isEmpty)
+    }
+
+    @Test("ssh user names are still fine (they aren't secrets)")
+    func sshUserFine() throws {
+        #expect(try ExtensionSources.validate("ssh://git@git.example.com/team/MyExtensions") == "ssh://git@git.example.com/team/MyExtensions")
+        #expect(try ExtensionSources.validate("git@github.com:you/my-extensions.git") == "git@github.com:you/my-extensions.git")
+    }
+
+    @Test("a bundle path that leads out of the clone through a symbolic link is refused")
+    func pathOutsideThroughLink() throws {
+        let folder = try ExtSrcAcc.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let clone = folder.appendingPathComponent("clone", isDirectory: true)
+        let outside = folder.appendingPathComponent("outside", isDirectory: true)
+        try ExtSrcAcc.makeBundle(in: outside.appendingPathComponent("team"), commands: [("xsrcoutside", "Outside", "d", "show")])
+        try ExtSrcAcc.write("# repo\n", to: clone.appendingPathComponent("README.md"))
+        let fm = FileManager.default
+        try fm.createSymbolicLink(at: clone.appendingPathComponent("ext"), withDestinationURL: outside.appendingPathComponent("team"))
+        try fm.createSymbolicLink(at: clone.appendingPathComponent("link"), withDestinationURL: outside)
+        try fm.createSymbolicLink(atPath: clone.appendingPathComponent("rel").path, withDestinationPath: "../outside/team")
+        for path in ["ext", "link/team", "rel", "./ext"] {
+            #expect(throws: (any Error).self, "\(path)") { try ExtensionSources.resolveBundlePath(path, in: clone) }
+        }
+        #expect(throws: (any Error).self, "found by itself through a link") { try ExtensionSources.resolveBundlePath(nil, in: clone) }
+    }
+
+    @Test("a repository with a link out of it as its bundle: cloned, then refused (real git)")
+    func linkedBundleInRepository() async throws {
+        let repo = try ExtSrcAccRepo()
+        let outside = repo.root.appendingPathComponent("outside/team", isDirectory: true)
+        try ExtSrcAcc.makeBundle(in: outside, commands: [("xsrcoutside", "Outside", "d", "show")])
+        try repo.write("README.md", "# repo\n")
+        try FileManager.default.createSymbolicLink(atPath: repo.work.appendingPathComponent("ext").path, withDestinationPath: outside.path)
+        try repo.commit("A link out")
+        let manager = repo.manager()
+        let staged = try await manager.stage(ExtensionSource(url: repo.url, path: "ext"))
+        defer { manager.discard(staged) }
+        #expect(throws: (any Error).self) { try ExtensionSources.resolveBundlePath("ext", in: staged.folder) }
+        #expect(!staged.bundles.contains("ext"), "a link isn't offered as a bundle: \(staged.bundles)")
+    }
+}
+
+// MARK: - CHANGE A: after a force push, a re-clone is reviewed again
+
+@Suite("ExtensionSourcesAcceptance: re-clone is reviewed again (CHANGE A)")
+struct ExtensionSourcesAcceptanceRecloneReviewTests {
+    @Test("the new history is staged for a review; the clone in place and the config stay until Enable")
+    func stagedForReview() async throws {
+        let repo = try ExtSrcAccRepo()
+        try repo.bundle()
+        let first = try repo.commit("First")
+        var config = ExtSrcAcc.emptyConfig()
+        let source = ExtensionSource(url: repo.url)
+        let status = try await repo.addTrusted(source, config: &config)
+        try repo.bundle(commands: [("xsrchello", "Say Hello", "Prints a greeting.", "show"), ("xsrcsneaky", "Sneaky", "New.", "silent")])
+        let rewritten = try repo.commit("First, rewritten", amend: true, force: true)
+        let manager = repo.manager()
+        await #expect(throws: ExtensionSourceError.notFastForward) { _ = try await manager.update(source, status) }
+
+        let enabled = config
+        let staged = try await manager.stage(source)
+        let inPlace = ExtensionSources.cloneFolder(for: repo.url, root: repo.sources)
+        #expect(staged.folder.standardizedFileURL.path != inPlace.standardizedFileURL.path, "staged elsewhere, for the review")
+        #expect(try ExtSrcAcc.git(["rev-parse", "HEAD"], in: staged.folder) == rewritten)
+        #expect(try repo.cloneHead() == first, "nothing replaced before Enable")
+        #expect(config == enabled)
+        #expect(!ExtSrcAcc.loadedNames(config).contains("xsrcsneaky"), "the new history isn't loaded before its review")
+        // As the app reviews a replacement: next to everything else loaded, without the clone it replaces.
+        var others = config
+        others.extensionFolders.removeAll { ExtensionSources.comparable($0) == ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: repo.sources).path) }
+        let review = ExtensionSourceReview.make(bundleFolder: staged.folder, path: "", url: source.url, commit: staged.status.commit,
+                                                commitDate: staged.status.commitDate, config: others, repository: staged.folder)
+        #expect(review.commit == rewritten)
+        #expect(review.commands.map(\.name).contains("xsrcsneaky"), "the review shows what the new history runs")
+
+        _ = try manager.install(staged)
+        #expect(try repo.cloneHead() == rewritten)
+        #expect(ExtSrcAcc.loadedNames(config).contains("xsrcsneaky"))
+    }
+
+    @Test("Cancel on the re-review leaves the old clone as it was")
+    func cancelKeepsOld() async throws {
+        let repo = try ExtSrcAccRepo()
+        try repo.bundle()
+        let first = try repo.commit("First")
+        var config = ExtSrcAcc.emptyConfig()
+        let source = ExtensionSource(url: repo.url)
+        _ = try await repo.addTrusted(source, config: &config)
+        try repo.write("x.txt", "x\n")
+        try repo.commit("Rewritten", amend: true, force: true)
+        let manager = repo.manager()
+        let staged = try await manager.stage(source)
+        manager.discard(staged)
+        #expect(!FileManager.default.fileExists(atPath: staged.folder.path))
+        #expect(try repo.cloneHead() == first)
+        #expect(ExtSrcAcc.loadedNames(config).contains("xsrchello"))
+    }
+}
+
 // MARK: - §6 The command line
 
 /// The app binary, run with a temporary config and sources folder.
@@ -1391,6 +1641,66 @@ struct ExtensionSourcesAcceptanceCLITests {
         let updated = try ExtSrcAccCLI.run(["--update-sources"], config: configFile, sources: repo.sources)
         #expect(updated.status == 0)
         #expect(try repo.cloneHead() == c1, "pinned: not updated")
+    }
+
+    @Test("after a force push: --update-sources refuses and points to a new review; --add-source shows it and re-clones (CHANGE A)")
+    func forcePushReviewedAgain() throws {
+        let user = ExtSrcAccCLI.UserState.now()
+        defer { #expect(ExtSrcAccCLI.UserState.now() == user) }
+        let repo = try ExtSrcAccRepo()
+        try repo.bundle()
+        let first = try repo.commit("First")
+        let configFile = repo.root.appendingPathComponent("config.json")
+        try ExtSrcAccCLI.writeConfig(ExtSrcAcc.emptyConfig(), to: configFile)
+        try #require(try ExtSrcAccCLI.run(["--add-source", repo.url], config: configFile, sources: repo.sources).status == 0)
+        try repo.bundle(commands: [("xsrchello", "Say Hello", "Prints a greeting.", "show"), ("xsrcsneaky", "Sneaky", "New.", "silent")])
+        let rewritten = try repo.commit("First, rewritten", amend: true, force: true)
+
+        let updated = try ExtSrcAccCLI.run(["--update-sources"], config: configFile, sources: repo.sources)
+        #expect(updated.status != 0)
+        let said = updated.output + updated.errors
+        #expect(said.lowercased().contains("force push") || said.lowercased().contains("re-clone") || said.contains("--add-source"), "\(said)")
+        #expect(try repo.cloneHead() == first, "nothing moved")
+        #expect(!ExtSrcAcc.loadedNames(try Config.load(from: configFile)).contains("xsrcsneaky"))
+
+        let again = try ExtSrcAccCLI.run(["--add-source", repo.url], config: configFile, sources: repo.sources)
+        #expect(again.status == 0, "\(again.output)\n\(again.errors)")
+        #expect(again.output.contains("This source isn't signed"), "the review again: \(again.output)")
+        #expect(again.output.contains(String(rewritten.prefix(7))) && again.output.contains("xsrcsneaky"), "\(again.output)")
+        #expect(try repo.cloneHead() == rewritten)
+        let config = try Config.load(from: configFile)
+        #expect(config.extensionSources.count == 1)
+        #expect(ExtSrcAcc.loadedNames(config).contains("xsrcsneaky"))
+    }
+
+    @Test("--add-source refuses an option-like default branch, a dash pin, https credentials and a linked bundle path (CHANGE A)")
+    func securityRefusals() throws {
+        let user = ExtSrcAccCLI.UserState.now()
+        defer { #expect(ExtSrcAccCLI.UserState.now() == user) }
+        let repo = try ExtSrcAccRepo()
+        try repo.bundle(at: "team")
+        try repo.commit("First")
+        let payload = try repo.evilOption()
+        let outside = repo.root.appendingPathComponent("outside/team", isDirectory: true)
+        try ExtSrcAcc.makeBundle(in: outside, commands: [("xsrcoutside", "Outside", "d", "show")])
+        try FileManager.default.createSymbolicLink(atPath: repo.work.appendingPathComponent("ext").path, withDestinationPath: outside.path)
+        try repo.commit("A link out")
+        let configFile = repo.root.appendingPathComponent("config.json")
+        try ExtSrcAccCLI.writeConfig(ExtSrcAcc.emptyConfig(), to: configFile)
+        let before = try Data(contentsOf: configFile)
+
+        for arguments in [[repo.url, "--pin", payload], [repo.url, "--branch", "-b"], [repo.url, "--path", "ext"],
+                          ["https://user:secret@github.com/you/my-extensions.git"]] {
+            let ran = try ExtSrcAccCLI.run(["--add-source"] + arguments, config: configFile, sources: repo.sources)
+            #expect(ran.status != 0, "\(arguments): \(ran.output)")
+            #expect(try Data(contentsOf: configFile) == before, "\(arguments)")
+        }
+        try repo.setDefaultBranch(payload)
+        let ran = try ExtSrcAccCLI.run(["--add-source", repo.url], config: configFile, sources: repo.sources)
+        #expect(ran.status != 0, "\(ran.output)")
+        #expect(try Data(contentsOf: configFile) == before)
+        #expect(!FileManager.default.fileExists(atPath: ExtensionSources.cloneFolder(for: repo.url, root: repo.sources).path))
+        #expect(!FileManager.default.fileExists(atPath: repo.marker.path), "the payload ran")
     }
 
     @Test("--update-sources doesn't fetch a source that was never reviewed and enabled (§3)")
