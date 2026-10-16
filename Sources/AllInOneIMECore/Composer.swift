@@ -76,9 +76,11 @@ public final class Composer {
         case openLink(URL)
         /// Start the agent `@agent` hands to (`Config.agent`) in a terminal window with `prompt` as its first message.
         case runInTerminal(prompt: String)
-        /// Go on with an `@question` conversation in the agent `@agent` hands to (Claude Code by default), interactive, in
-        /// Terminal (`ChatHandoff`): `prompt` (the conversation, maybe long) is its first message, passed through a file.
+        /// Go on with an `@question` conversation in Claude Code, interactive, in Terminal (`ChatHandoff`): `prompt` (the
+        /// conversation, maybe long) is its first message, passed through a file.
         case continueInClaudeCode(prompt: String)
+        /// The same in another agent (Gemini CLI, Kiro CLI, the custom one), started as `@agent` starts it.
+        case continueInAgent(AgentKind, prompt: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
         case launchInTerminal(argv: [String])
         /// Start `prompt` as a Claude Code background session (`@agent` with `claudeInBackground`).
@@ -258,12 +260,22 @@ public final class Composer {
         public var scriptStarted = "在后台运行，完成后通知你："
         /// A list row's `open` with something that can't be opened: it follows.
         public var cantOpen = "打不开："
+        /// An `@question` conversation handed to an agent, with "{agent}" (`agentNames`).
+        public var openedAgent = "已在终端打开 {agent}"
+        /// The agents' names where they aren't `AgentKind.displayName()`'s: a custom one's is its program's (the
+        /// controller sets it).
+        public var agentNames: [AgentKind: String] = [:]
         /// The action key's name in the interface language (the controller sets it).
         public var actionKeyName = "⏎"
 
         /// Asks before running a script (`confirm`).
         public func confirm(_ script: ScriptCommand) -> String {
             confirmScript.replacingOccurrences(of: "{title}", with: script.title).replacingOccurrences(of: "{key}", with: actionKeyName)
+        }
+
+        /// The notice of a hand-off to `agent` (`openedAgent`).
+        public func opened(_ agent: AgentKind) -> String {
+            openedAgent.replacingOccurrences(of: "{agent}", with: agentNames[agent] ?? agent.displayName())
         }
 
         /// The notice of a switch of input language.
@@ -314,7 +326,8 @@ public final class Composer {
             codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text",
             frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi",
             scriptNeeds: "Needs: ", scriptChoices: "Pick one of: ", confirmScript: "Run {title}? {key} again", scriptRan: "Ran ",
-            scriptStarted: "Running in the background, you'll be notified: ", cantOpen: "Can't open: ")
+            scriptStarted: "Running in the background, you'll be notified: ", cantOpen: "Can't open: ",
+            openedAgent: "Opened {agent} in Terminal")
     }
     /// The command of the request in level two (nil otherwise).
     public internal(set) var activeCommand: Command?
@@ -341,7 +354,7 @@ public final class Composer {
     /// Rounds in the panel before it offers to go on elsewhere (`Config.questionRounds`, set by the controller).
     public var questionRounds = QuestionChat.defaultRounds
     /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
-    public var handoffChoices = ChatHandoff.defaultChoices(claudeCode: false)
+    public var handoffChoices = ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false })
     /// What the hand-off says, in the interface language (set by the controller).
     public var chatMessages = ChatMessages.chinese
     /// ⌘⏎ showed where the conversation can go on before its last round (Esc hides it again).

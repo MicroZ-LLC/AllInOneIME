@@ -6,28 +6,25 @@ import AppKit
 /// earlier ones dimmed and shortened, the latest answer in full. The panel grows with them up to about half the
 /// screen, then scrolls, the latest at the bottom (`CandidateView.Model.transcript`).
 extension AllInOneIMEInputController {
-    /// Whether the agent `@agent` hands to (`Config.agent`) is on this Mac: it's offered to go on in
-    /// (`ChatHandoff.Destination.claudeCode`). Each program looked for once (`AgentAvailability`). Main thread only.
-    static func agentInstalled(_ config: Config) -> Bool {
-        ChatHandoff.agentInstalled(config, installed: AgentAvailability.installed(program:))
-    }
-
-    /// The rounds and where a conversation can go on, from the settings; what the hand-off says in the interface language.
+    /// The rounds and where a conversation can go on, from the settings: the agents installed (`agentInstalled`), the one
+    /// `@agent` hands to first; what the hand-off says in the interface language.
     @MainActor
     func applyChatSettings(_ config: Config) {
         composer.questionRounds = config.questionRounds
-        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, claudeCode: Self.agentInstalled(config))
+        let installed = agentInstalled
+        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
+                                                      installed: { installed($0, config.agentCommand) })
         composer.chatMessages = UIText.chinese ? .chinese : .english
     }
 
     /// The answer a click on row `row` of a conversation picks (rows alternate: a question, then its answer).
     static func chatChoice(row: Int) -> Int? { row % 2 == 1 ? row / 2 : nil }
 
-    /// A destination's name in the panel and the settings: the agent `@agent` hands to by its name (`agent`: "Claude
-    /// Code", "Gemini CLI" …; the settings window passes the one it shows).
-    static func name(_ destination: ChatHandoff.Destination, agent: String = UIText.agentName) -> String {
+    /// A destination's name in the panel and the settings: an agent by its name ("Claude Code", "Gemini CLI" …; the custom
+    /// one's from `custom`, its command).
+    static func name(_ destination: ChatHandoff.Destination, custom: [String] = []) -> String {
         switch destination {
-        case .claudeCode: return agent
+        case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return shortName(destination, custom: custom)
         case .claudeWeb: return tr("Claude 网页版", "Claude (web)")
         case .chatgpt: return tr("ChatGPT 网页版", "ChatGPT (web)")
         case .gemini: return tr("Gemini 网页版", "Gemini (web)")
@@ -37,9 +34,9 @@ extension AllInOneIMEInputController {
 
     /// A destination's short name, for the panel's choices and the settings' chips (the agent by its name, the web ones
     /// are the web's; "Copy" copies the conversation).
-    static func shortName(_ destination: ChatHandoff.Destination, agent: String = UIText.agentName) -> String {
+    static func shortName(_ destination: ChatHandoff.Destination, custom: [String] = []) -> String {
         switch destination {
-        case .claudeCode: return agent
+        case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return destination.agent?.displayName(custom: custom) ?? ""
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"
         case .gemini: return "Gemini"
@@ -82,7 +79,11 @@ extension AllInOneIMEInputController {
         // The line on top: where the conversation can go on, or the next question.
         let typed = composer.refineLine.map { $0 + "▏" } ?? "▏"
         if composer.showsHandoff {
-            let choices = composer.handoffChoices.enumerated().map { "⌘\($0.offset + 1) " + Self.shortName($0.element) }.joined(separator: "   ")
+            // Up to 4 on a line; more (the agents installed, the web …), 3 a line, so the panel stays as wide.
+            let labels = composer.handoffChoices.enumerated().map { "⌘\($0.offset + 1) " + Self.shortName($0.element, custom: agentCommand) }
+            let perLine = labels.count <= 4 ? 4 : 3
+            let choices = stride(from: 0, to: labels.count, by: perLine)
+                .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n")
             let title = composer.chatAtLimit
                 ? tr("已经聊了 \(composer.chatRound) 轮：在 Claude 或别的 AI 里接着聊", "\(composer.chatRound) rounds in: continue in Claude or another AI")
                 : tr("在 Claude 或别的 AI 里接着聊", "Continue in Claude or another AI")

@@ -988,16 +988,16 @@ struct SettingsView: View {
             // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift).
             LabeledContent {
                 HStack(spacing: 6) {
-                    // The agent by the name of the one picked above.
+                    // The agents by name (a custom one's from its command).
                     LanguageChips(items: model.continueChoices,
-                                  name: { AllInOneIMEInputController.shortName($0, agent: UIText.agentName(model.config)) },
+                                  name: { AllInOneIMEInputController.shortName($0, custom: model.config.agentCommand) },
                                   firstNote: tr("默认", "default"),
                                   reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
                     let missing = model.missingContinueChoices
                     if !missing.isEmpty {
                         Menu(tr("添加…", "Add…")) {
                             ForEach(missing, id: \.self) { destination in
-                                Button(AllInOneIMEInputController.name(destination, agent: UIText.agentName(model.config))) {
+                                Button(AllInOneIMEInputController.name(destination, custom: model.config.agentCommand)) {
                                     model.addContinueIn(destination)
                                 }
                             }

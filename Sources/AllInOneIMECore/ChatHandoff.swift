@@ -1,43 +1,79 @@
 import Foundation
 
 /// Going on with an `@question` conversation elsewhere (`QuestionChat`): after the last round the panel allows
-/// (`Config.questionRounds`), or at any round with ⌘⏎, it offers the coding agent `@agent` hands to (Claude Code by
-/// default), Claude, ChatGPT or Gemini on the web, or copying the conversation, picked with ⌘1–⌘5
+/// (`Config.questionRounds`), or at any round with ⌘⏎, it offers the coding agents installed here (the one `@agent` hands
+/// to first, then the others), Claude, ChatGPT or Gemini on the web, or copying the conversation, picked with ⌘1–⌘9
 /// (`Config.questionContinueIn` says which, in which order). The text goes to the service the user picks, as it was
 /// shown: values hidden from our own requests (`Redaction`) are in it as they are, since the user chooses to send it
 /// there.
 public enum ChatHandoff {
     public enum Destination: String, Codable, CaseIterable, Equatable, Sendable {
-        /// The coding agent `@agent` hands to (`Config.agent`: Claude Code by default, whose name the config's
-        /// `claudeCode` keeps), in Terminal, interactive, with the conversation as its first message.
+        /// Claude Code in Terminal, interactive, with the conversation as its first message, started as `@agent` starts
+        /// it (`AgentKind.terminalArguments`).
         case claudeCode
+        /// Gemini CLI, Kiro CLI and the custom agent (`Config.agentCommand`), likewise.
+        case geminiCLI, kiroCLI, customAgent
         case claudeWeb
         case chatgpt
         case gemini
         /// The conversation on the clipboard, in Markdown.
         case copy
+
+        /// The one that starts `agent` in Terminal.
+        public init(agent: AgentKind) {
+            switch agent {
+            case .claude: self = .claudeCode
+            case .gemini: self = .geminiCLI
+            case .kiro: self = .kiroCLI
+            case .custom: self = .customAgent
+            }
+        }
+
+        /// The coding agent it starts in Terminal; nil for the web and copying.
+        public var agent: AgentKind? {
+            switch self {
+            case .claudeCode: return .claude
+            case .geminiCLI: return .gemini
+            case .kiroCLI: return .kiro
+            case .customAgent: return .custom
+            case .claudeWeb, .chatgpt, .gemini, .copy: return nil
+            }
+        }
     }
 
-    /// What the choices are when the config doesn't say: the agent `@agent` hands to (when it's installed,
-    /// `agentInstalled`), Claude on the web, ChatGPT, then copying. Gemini can be added in the settings.
-    public static func defaultChoices(claudeCode installed: Bool) -> [Destination] {
-        (installed ? [.claudeCode] : []) + [.claudeWeb, .chatgpt, .copy]
+    /// What the choices are when the config doesn't say: the agent `@agent` hands to (`picked`) first, so ⌘1 is it, then
+    /// the other agents (Claude Code, Gemini CLI, Kiro CLI, the custom one), each only when `installed`; then Claude on
+    /// the web, ChatGPT and copying. Gemini on the web can be added in the settings.
+    public static func defaultChoices(picked: AgentKind, installed: (AgentKind) -> Bool) -> [Destination] {
+        let agents = [picked] + AgentKind.allCases.filter { $0 != picked }
+        return agents.filter(installed).map(Destination.init(agent:)) + [.claudeWeb, .chatgpt, .copy]
     }
 
     /// The choices offered: `configured` (`Config.questionContinueIn`; nil: `defaultChoices`) in its order, each once,
-    /// without the agent when it isn't installed. Never none: copying is always possible.
-    public static func choices(_ configured: [Destination]?, claudeCode installed: Bool) -> [Destination] {
+    /// without an agent that isn't `installed`. Never none: copying is always possible.
+    public static func choices(_ configured: [Destination]?, picked: AgentKind, installed: (AgentKind) -> Bool) -> [Destination] {
         var seen = Set<Destination>()
-        let list = (configured ?? defaultChoices(claudeCode: installed))
-            .filter { ($0 != .claudeCode || installed) && seen.insert($0).inserted }
+        let list = (configured ?? defaultChoices(picked: picked, installed: installed))
+            .filter { ($0.agent.map(installed) ?? true) && seen.insert($0).inserted }
         return list.isEmpty ? [.copy] : list
     }
 
-    /// Whether `.claudeCode`, the agent `@agent` hands to, can be offered: that agent's program (`AgentKind.program`) is
-    /// on this Mac, as `installed` finds it. Another agent being installed (Claude Code, say) doesn't stand in for it; a
-    /// custom agent without a command never is.
-    public static func agentInstalled(_ config: Config, installed: (String) -> Bool) -> Bool {
-        config.agent.program(custom: config.agentCommand).map(installed) ?? false
+    /// Whether `kind` can be offered: its program (`AgentKind.program`, a custom one's from `config.agentCommand`) is on
+    /// this Mac, as `program` finds it. A custom agent without a command never is.
+    public static func installed(_ kind: AgentKind, in config: Config, program: (String) -> Bool) -> Bool {
+        kind.program(custom: config.agentCommand).map(program) ?? false
+    }
+
+    /// `defaultChoices(picked:installed:)` with Claude Code the only agent there could be (as the first 0.6.4 builds had it).
+    @available(*, deprecated, message: "Claude Code the only agent: use defaultChoices(picked:installed:)")
+    public static func defaultChoices(claudeCode installed: Bool) -> [Destination] {
+        defaultChoices(picked: .claude, installed: { $0 == .claude && installed })
+    }
+
+    /// `choices(_:picked:installed:)` with Claude Code the only agent there could be (as the first 0.6.4 builds had it).
+    @available(*, deprecated, message: "Claude Code the only agent: use choices(_:picked:installed:)")
+    public static func choices(_ configured: [Destination]?, claudeCode installed: Bool) -> [Destination] {
+        choices(configured, picked: .claude, installed: { $0 == .claude && installed })
     }
 
     // MARK: - The text
@@ -79,8 +115,8 @@ public enum ChatHandoff {
 
     /// What picking `destination` does with `prompt` (`prompt(_:followUp:)`), and `copied` for copying.
     public enum Action: Equatable, Sendable {
-        /// Start the agent `@agent` hands to in Terminal with `prompt` as its first message.
-        case claudeCode(prompt: String)
+        /// Start `agent` in Terminal with `prompt` as its first message, as `@agent` starts it.
+        case agent(AgentKind, prompt: String)
         /// Open `url`; with `clipboard`, that text is put on the clipboard first, to paste there.
         case open(URL, clipboard: String?)
         /// Put `text` on the clipboard.
@@ -89,7 +125,10 @@ public enum ChatHandoff {
 
     public static func action(_ destination: Destination, prompt: String, copied: String) -> Action {
         switch destination {
-        case .claudeCode: return .claudeCode(prompt: prompt)
+        case .claudeCode: return .agent(.claude, prompt: prompt)
+        case .geminiCLI: return .agent(.gemini, prompt: prompt)
+        case .kiroCLI: return .agent(.kiro, prompt: prompt)
+        case .customAgent: return .agent(.custom, prompt: prompt)
         case .claudeWeb: return web("https://claude.ai/new", prompt)
         case .chatgpt: return web("https://chatgpt.com/", prompt)
         // No way to fill its message box from the address that works reliably.

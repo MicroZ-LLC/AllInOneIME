@@ -331,13 +331,31 @@ struct QuestionChatTests {
         type("go deeper", c)
         #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.showsHandoff && c.refineText == "go deeper")
         #expect(c.isLevelTwo && c.chatRound == 2)
-        // ⌘1 (the agent @agent hands to here) goes on there with it.
+        // ⌘1 (Claude Code here) goes on there with it.
         let effects = c.handleKeyDown(command(1)).effects
         #expect(started(effects) == nil && c.phase == .idle)
         let prompt = effects.compactMap { if case let .continueInClaudeCode(p) = $0 { return p } else { return nil } }.first
         #expect(prompt == "**Q:** what is rust\n\n**A:** A systems language.\n\n**Q:** who made it\n\n**A:** Graydon Hoare.\n\n"
                 + "Let's continue this discussion.\n\ngo deeper")
         #expect(effects.contains(.hidePanel) && commits(effects).isEmpty && effects.contains(.notice(c.messages.openedTerminal)))
+    }
+
+    /// Another agent than Claude Code: its own effect, and the notice names it (a custom one by its program).
+    @Test func anotherAgentIsHandedTheConversationByItsOwnEffect() {
+        let c = asked(rounds: 2, handoff: [.kiroCLI, .customAgent, .copy])
+        c.messages = .english
+        c.messages.agentNames = [.custom: "muse"]
+        followUp(c, "who made it", reply: "Graydon Hoare.")
+        let kiro = c.handleKeyDown(command(1)).effects
+        #expect(kiro.contains { if case .continueInAgent(.kiro, _) = $0 { return true } else { return false } })
+        #expect(!kiro.contains { if case .continueInClaudeCode = $0 { return true } else { return false } })
+        #expect(kiro.contains(.notice("Opened Kiro CLI in Terminal")))
+        let again = asked(rounds: 2, handoff: [.kiroCLI, .customAgent, .copy])
+        again.messages.agentNames = [.custom: "muse"]
+        followUp(again, "who made it", reply: "Graydon Hoare.")
+        let custom = again.handleKeyDown(command(2)).effects
+        #expect(custom.contains { if case .continueInAgent(.custom, _) = $0 { return true } else { return false } })
+        #expect(custom.contains(.notice("已在终端打开 muse")))
     }
 
     @Test func commandDigitsPickWhereToGoOnOnceShown() {
@@ -650,34 +668,41 @@ struct QuestionChatTests {
 
     // MARK: - The hand-off
 
-    @Test func theDefaultChoicesDependOnTheAgentBeingInstalled() {
-        #expect(ChatHandoff.defaultChoices(claudeCode: true) == [.claudeCode, .claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.defaultChoices(claudeCode: false) == [.claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.choices(nil, claudeCode: false) == [.claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.choices([.gemini, .claudeCode, .gemini, .copy], claudeCode: false) == [.gemini, .copy])
-        #expect(ChatHandoff.choices([.claudeCode], claudeCode: false) == [.copy])
-        #expect(ChatHandoff.choices([.chatgpt, .claudeCode], claudeCode: true) == [.chatgpt, .claudeCode])
+    /// The default choices: the agent `@agent` hands to first (⌘1), then the other agents installed, then Claude on the web,
+    /// ChatGPT and Copy; an agent that isn't installed isn't there.
+    @Test func theDefaultChoicesAreTheAgentsInstalledThePickedOneFirst() {
+        let all: (AgentKind) -> Bool = { _ in true }
+        #expect(ChatHandoff.defaultChoices(picked: .claude, installed: all)
+                == [.claudeCode, .geminiCLI, .kiroCLI, .customAgent, .claudeWeb, .chatgpt, .copy])
+        #expect(ChatHandoff.defaultChoices(picked: .kiro, installed: all)
+                == [.kiroCLI, .claudeCode, .geminiCLI, .customAgent, .claudeWeb, .chatgpt, .copy])
+        // Only those installed; the one picked isn't there when it isn't, and Claude Code doesn't stand in for it.
+        #expect(ChatHandoff.defaultChoices(picked: .gemini, installed: { $0 == .claude || $0 == .kiro })
+                == [.claudeCode, .kiroCLI, .claudeWeb, .chatgpt, .copy])
+        #expect(ChatHandoff.choices(nil, picked: .claude, installed: { _ in false }) == [.claudeWeb, .chatgpt, .copy])
+        // Configured: its order, each once, without the agents that aren't installed; never empty.
+        let gemini: (AgentKind) -> Bool = { $0 == .gemini }
+        #expect(ChatHandoff.choices([.gemini, .claudeCode, .geminiCLI, .gemini, .copy], picked: .claude, installed: gemini)
+                == [.gemini, .geminiCLI, .copy])
+        #expect(ChatHandoff.choices([.claudeCode, .kiroCLI], picked: .claude, installed: gemini) == [.copy])
+        #expect(ChatHandoff.choices([.chatgpt, .claudeCode], picked: .gemini, installed: all) == [.chatgpt, .claudeCode])
+        // Claude Code the only agent (the first 0.6.4 builds): as they had it.
+        #expect(ChatHandoff.choices(nil, picked: .claude, installed: { $0 == .claude }) == [.claudeCode, .claudeWeb, .chatgpt, .copy])
     }
 
-    /// The first choice is the agent `@agent` hands to (`Config.agent`), offered only when that agent's program is
-    /// installed: Claude Code by default, else the one picked.
-    @Test func theAgentToGoOnInIsTheOneAtAgentHandsTo() {
+    /// Whether an agent can be offered: its program found; a custom one's as typed (trimmed), never without a command.
+    @Test func anAgentIsOfferedWhenItsProgramIsFound() {
         var config = Config.default
-        #expect(ChatHandoff.agentInstalled(config, installed: { $0 == "claude" }))
-        #expect(!ChatHandoff.agentInstalled(config, installed: { $0 == "gemini" }))
-        config.agent = .gemini
-        #expect(ChatHandoff.agentInstalled(config, installed: { $0 == "gemini" }))
-        // Claude Code being installed doesn't bring it back for another agent that isn't.
-        let claudeOnly = ChatHandoff.agentInstalled(config, installed: { $0 == "claude" })
-        #expect(!claudeOnly && ChatHandoff.choices(nil, claudeCode: claudeOnly) == [.claudeWeb, .chatgpt, .copy])
-        config.agent = .kiro
-        #expect(ChatHandoff.agentInstalled(config, installed: { $0 == "kiro-cli" }))
-        // A custom agent: its program as typed (trimmed); without a command it's never offered.
-        config.agent = .custom
-        #expect(!ChatHandoff.agentInstalled(config, installed: { _ in true }))
+        #expect(ChatHandoff.installed(.claude, in: config, program: { $0 == "claude" }))
+        #expect(!ChatHandoff.installed(.gemini, in: config, program: { $0 == "claude" }))
+        #expect(ChatHandoff.installed(.kiro, in: config, program: { $0 == "kiro-cli" }))
+        #expect(!ChatHandoff.installed(.custom, in: config, program: { _ in true }))
         config.agentCommand = [" /opt/bin/muse ", "--"]
         var looked: [String] = []
-        #expect(ChatHandoff.agentInstalled(config, installed: { looked.append($0); return true }) && looked == ["/opt/bin/muse"])
+        #expect(ChatHandoff.installed(.custom, in: config, program: { looked.append($0); return true }) && looked == ["/opt/bin/muse"])
+        // Each agent's choice, and back.
+        for kind in AgentKind.allCases { #expect(ChatHandoff.Destination(agent: kind).agent == kind) }
+        #expect([ChatHandoff.Destination.claudeWeb, .chatgpt, .gemini, .copy].allSatisfy { $0.agent == nil })
     }
 
     @Test func theTextAndWhereItGoes() {
@@ -696,10 +721,12 @@ struct QuestionChatTests {
         let long = String(repeating: "长", count: 2000)
         #expect(ChatHandoff.action(.claudeWeb, prompt: long, copied: "") == .open(URL(string: "https://claude.ai/new")!, clipboard: long))
         #expect(ChatHandoff.action(.chatgpt, prompt: long, copied: "") == .open(URL(string: "https://chatgpt.com/")!, clipboard: long))
-        // Gemini: always the clipboard; copy; Claude Code.
+        // Gemini: always the clipboard; copy; the agents.
         #expect(ChatHandoff.action(.gemini, prompt: "x", copied: "") == .open(URL(string: "https://gemini.google.com/app")!, clipboard: "x"))
         #expect(ChatHandoff.action(.copy, prompt: "x", copied: "md") == .copy("md"))
-        #expect(ChatHandoff.action(.claudeCode, prompt: "x", copied: "md") == .claudeCode(prompt: "x"))
+        #expect(ChatHandoff.action(.claudeCode, prompt: "x", copied: "md") == .agent(.claude, prompt: "x"))
+        #expect(ChatHandoff.action(.geminiCLI, prompt: "x", copied: "md") == .agent(.gemini, prompt: "x"))
+        #expect(ChatHandoff.action(.customAgent, prompt: "x", copied: "md") == .agent(.custom, prompt: "x"))
         // The longest address that still carries it.
         let fits = String(repeating: "a", count: ChatHandoff.maxURLLength - "https://claude.ai/new?q=".count)
         if case let .open(u, nil) = ChatHandoff.action(.claudeWeb, prompt: fits, copied: "") { #expect(u.absoluteString.count == ChatHandoff.maxURLLength) }

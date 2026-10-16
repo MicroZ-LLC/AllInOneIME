@@ -179,9 +179,12 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`, `applyAgent`).
     private(set) var agent = AgentKind.claude
     private(set) var agentCommand: [String] = []
-    /// An `@question` conversation going on in the agent `@agent` hands to: its arguments
-    /// (`AgentKind.terminalArguments`) with the conversation in Terminal (`ChatHandoff`; the self-test starts nothing).
+    /// An `@question` conversation going on in a coding agent: its arguments (`AgentKind.terminalArguments`) with the
+    /// conversation in Terminal (`ChatHandoff`; the self-test starts nothing).
     var continueInAgent: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
+    /// Whether an agent is on this Mac (a custom one by its command), for the `@question` hand-off's choices (the
+    /// self-test supplies its own). Main thread only.
+    var agentInstalled: (AgentKind, [String]) -> Bool = { AgentAvailability.installed($0, custom: $1) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
     var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
     /// `@note`: saves the text to Apple Notes (the self-test saves nothing).
@@ -649,12 +652,14 @@ final class AllInOneIMEInputController: IMKInputController {
         nameAgent()
     }
 
-    /// "已在终端打开 Claude Code": the agent picked, by name, in the messages.
+    /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
+    /// hand-off's.
     @MainActor
     func nameAgent() {
         let base = UIText.chinese ? Composer.Messages.chinese : .english
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
+        composer.messages.agentNames = [.custom: AgentKind.custom.displayName(custom: agentCommand)]
     }
 
     /// Whether the agent changed since its program was last checked (`setCommands`).
@@ -695,6 +700,23 @@ final class AllInOneIMEInputController: IMKInputController {
                     self.composer.commands = commands.filter { !missing.contains($0.name) }
                 }
             }
+        }
+    }
+
+    /// An `@question` conversation handed to `kind` (`ChatHandoff`): started in Terminal as `@agent` starts it, the
+    /// conversation its first message. A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
+    @MainActor
+    private func handOff(_ prompt: String, to kind: AgentKind, client: IMKTextInput?) {
+        guard let arguments = kind.terminalArguments(custom: agentCommand) else {
+            log.error("@question: no command for the custom agent")
+            return
+        }
+        do {
+            try continueInAgent(arguments, prompt)
+            log.notice("@question: conversation handed to \(kind.rawValue, privacy: .public) (\(prompt.count) chars)")
+        } catch {
+            log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
+            showNotice(UIText.describe(error), client: client)
         }
     }
 
@@ -982,18 +1004,9 @@ final class AllInOneIMEInputController: IMKInputController {
                     showNotice(UIText.describe(error), client: target)
                 }
             case let .continueInClaudeCode(prompt):
-                // The agent picked for @agent (a custom one without a command isn't offered).
-                guard let arguments = agent.terminalArguments(custom: agentCommand) else {
-                    log.error("@question: no command for the custom agent")
-                    break
-                }
-                do {
-                    try continueInAgent(arguments, prompt)
-                    log.notice("@question: conversation handed to \(self.agent.rawValue, privacy: .public) (\(prompt.count) chars)")
-                } catch {
-                    log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
-                    showNotice(UIText.describe(error), client: target)
-                }
+                handOff(prompt, to: .claude, client: target)
+            case let .continueInAgent(kind, prompt):
+                handOff(prompt, to: kind, client: target)
             case .commandUsed:
                 saveCommandUsage(composer.commandUsage)
             case let .rememberQuestion(entry):

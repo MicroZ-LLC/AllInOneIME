@@ -7,8 +7,8 @@ import Foundation
 /// question, each of `refinements` an answer and the question typed after it, `result` the latest answer. Every round's
 /// answer can be picked (digits 1–5, ↑↓ then ⏎, a click; the latest is selected), ⇧⏎ asks the question typed, Esc with
 /// nothing typed goes back a round. After the last round, or with ⌘⏎ at any round, the panel offers to go on in the
-/// agent `@agent` hands to (Claude Code by default), Claude, ChatGPT or Gemini, or to copy the conversation
-/// (`handoffChoices`, ⌘1 …; `ChatHandoff`).
+/// coding agents installed (the one `@agent` hands to first), Claude, ChatGPT or Gemini, or to copy the conversation
+/// (`handoffChoices`, ⌘1–⌘9; `ChatHandoff`).
 extension Composer {
     /// What a hand-off says near the caret, in the interface language.
     public struct ChatMessages: Equatable, Sendable {
@@ -146,8 +146,10 @@ extension Composer {
                                         copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected))
         let done = finish(committing: "", selection: .kept)
         switch action {
-        case let .claudeCode(prompt):
-            return done + [.continueInClaudeCode(prompt: prompt), .notice(messages.openedTerminal)]
+        case let .agent(agent, prompt):
+            // Claude Code by its own effect (the one it always had); the others by theirs.
+            let start: Effect = agent == .claude ? .continueInClaudeCode(prompt: prompt) : .continueInAgent(agent, prompt: prompt)
+            return done + [start, .notice(messages.opened(agent))]
         case let .open(url, clipboard?):
             return done + [.copy(clipboard), .openLink(url), .notice(chatMessages.pasteIt)]
         case let .open(url, nil):

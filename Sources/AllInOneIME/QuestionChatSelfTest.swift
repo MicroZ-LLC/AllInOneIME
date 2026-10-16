@@ -32,10 +32,10 @@ extension SelfTest {
     /// An @question conversation through the controller, with canned answers (`CannedChatModel`): typing after the
     /// answer is the next question, ⇧⏎ asks it as user and assistant turns, the panel grows into 问/答 rows with the next
     /// question's line on top and its round, every answer can be picked (↑, ⌘C), Esc goes back a round, the third
-    /// round (`questionRounds` 3 here) offers where to go on (⌘1 the agent `@agent` hands to, Claude Code or another one
-    /// picked, ⌘2 Claude on the web, ⌘4 copy; nothing is started or opened here), a long conversation is shortened for a
-    /// small context and the panel scrolls within half the screen, and the thread is kept whole. Images:
-    /// question-chat*.png, question-chat-handoff*.png.
+    /// round (`questionRounds` 3 here) offers where to go on (⌘1 the agent `@agent` hands to, then the other agents
+    /// "installed", the web and copying; nothing is started or opened here), a long conversation is shortened for a small
+    /// context and the panel scrolls within half the screen, and the thread is kept whole. Images: question-chat*.png,
+    /// question-chat-handoff*.png.
     static func testQuestionChat(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("@question: a conversation in the panel (canned answers)", needs: .composing)
         let answers = [
@@ -46,11 +46,11 @@ extension SelfTest {
         let model = CannedChatModel(answers: answers)
         var started: [String] = [], opened: [String] = [], copied: [String] = [], agentArguments: [[String]] = []
         let saved = (converter: controller.converter, settings: settings, open: controller.openItem, copy: controller.copyText,
-                     agent: controller.continueInAgent)
+                     agent: controller.continueInAgent, installed: controller.agentInstalled)
         defer {
             controller.commitComposition(client)
-            (controller.converter, settings, controller.openItem, controller.copyText, controller.continueInAgent)
-                = (saved.converter, saved.settings, saved.open, saved.copy, saved.agent)
+            (controller.converter, settings, controller.openItem, controller.copyText, controller.continueInAgent, controller.agentInstalled)
+                = (saved.converter, saved.settings, saved.open, saved.copy, saved.agent, saved.installed)
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
         }
@@ -62,6 +62,8 @@ extension SelfTest {
         controller.openItem = { opened.append($0) }
         controller.copyText = { copied.append($0) }
         controller.continueInAgent = { agentArguments.append($0); started.append($1) }
+        // The agents "installed" here, whatever is on this Mac: Claude Code and Gemini CLI, and the custom one once set.
+        controller.agentInstalled = { kind, custom in kind == .claude || kind == .gemini || (kind == .custom && !custom.isEmpty) }
         controller.applySettings()
         controller.composer.setInputMode(.english)
         QuestionHistoryStore.clear()
@@ -127,6 +129,9 @@ extension SelfTest {
         check(controller.composer.showsHandoff && (panel.input ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n⌘1 ")
               && panel.footer.hasPrefix("⌘1–⌘\(choices.count) 接着聊"),
               "after round 3: where to go on (\(panel.input?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
+        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && (panel.input ?? "").contains("⌘1 Claude Code")
+              && (panel.input ?? "").contains("⌘2 Gemini CLI"),
+              "the agent @agent hands to first, then the other agents installed, then the web and Copy (\(choices.map(\.rawValue)))")
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the image without round 2's "copied"
         readmeSnapshot("question-chat-handoff", controller, client, in: snapshotDirectory)
         let kept = QuestionHistoryStore.history.entries.first
@@ -150,31 +155,32 @@ extension SelfTest {
         check(controller.composer.showsSavedAnswer && controller.composer.chatRounds.count == 3 && controller.composer.showsHandoff,
               "the saved thread shows its 3 rounds and where to go on")
         type("go deeper", controller, client)
-        if choices.first == .claudeCode {
-            let input = controller.panelModel().input ?? "-"
-            check(input.contains("⌘1 Claude Code"), "⌘1 is the agent @agent hands to, by its name (\(input))")
-            _ = command("1", code: 0x12)
-            check(started.count == 1 && started[0].hasPrefix("**Q:** what is rust") && started[0].hasSuffix("Let's continue this discussion.\n\ngo deeper"),
-                  "⌘1 hands it to Claude Code with the follow-up as its first message (nothing started here)")
-            check(agentArguments == [["claude", "--"]], "…through @agent's agent, as `claude -- <conversation>` (\(agentArguments))")
-        } else {
-            _ = command("1", code: 0x12)
-            check(opened.last?.hasPrefix("https://claude.ai/new?q=") == true, "⌘1 opens Claude with the conversation (nothing opened here)")
-        }
-        // Another agent picked for @agent (a custom one, `/bin/echo --`, on every Mac): ⌘1 is that one, by its name, and
-        // the conversation goes to it as its last argument.
+        _ = command("1", code: 0x12)
+        check(started.count == 1 && started[0].hasPrefix("**Q:** what is rust") && started[0].hasSuffix("Let's continue this discussion.\n\ngo deeper"),
+              "⌘1 hands it to Claude Code with the follow-up as its first message (nothing started here)")
+        check(agentArguments == [["claude", "--"]], "…started as @agent starts it, `claude -- <conversation>` (\(agentArguments))")
+        // Another agent picked for @agent (a custom one, `/bin/echo --`): it's ⌘1, by its name; the others follow, more
+        // than 5 choices now, each started as @agent starts it.
         (settings.agent, settings.agentCommand) = (.custom, ["/bin/echo", "--"])
         controller.applySettings()
         controller.composer.setInputMode(.english)
-        _ = press(controller, client, "@", code: 0x13, flags: .shift)
-        type("question", controller, client)
-        _ = press(controller, client, "\t", code: VirtualKey.tab)
-        type("1", controller, client)
-        let custom = controller.panelModel().input ?? "-"
+        func recall() {
+            _ = press(controller, client, "@", code: 0x13, flags: .shift)
+            type("question", controller, client)
+            _ = press(controller, client, "\t", code: VirtualKey.tab)
+            type("1", controller, client)
+        }
+        recall()
+        let six = controller.panelModel()
+        _ = command("3", code: 0x14)
+        check(controller.composer.handoffChoices.count == 6 && (six.input ?? "").contains("⌘1 echo") && (six.input ?? "").contains("⌘2 Claude Code")
+              && (six.input ?? "").contains("⌘6 复制") && six.footer.hasPrefix("⌘1–⌘6 接着聊") && agentArguments.last == ["gemini", "-i"],
+              "another agent picked: ⌘1 is it, the others after it, ⌘3 starts Gemini CLI as `gemini -i` "
+              + "(\(six.input?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(six.footer) | \(agentArguments.last ?? []))")
+        recall()
         _ = command("1", code: 0x12)
-        check(custom.contains("⌘1 echo") && agentArguments.last == ["/bin/echo", "--"]
-              && started.last?.hasSuffix("Let's continue this discussion.") == true,
-              "another agent picked for @agent: ⌘1 is it, by its name, and it gets the conversation (\(custom) | \(agentArguments.last ?? []))")
+        check(agentArguments.last == ["/bin/echo", "--"] && started.last?.hasSuffix("Let's continue this discussion.") == true,
+              "…and ⌘1 gives the custom agent the conversation as its last argument (\(agentArguments.last ?? []))")
         (settings.agent, settings.agentCommand) = (.claude, [])
         controller.applySettings()
         controller.composer.setInputMode(.english)
