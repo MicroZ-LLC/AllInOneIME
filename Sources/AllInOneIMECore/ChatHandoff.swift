@@ -83,10 +83,12 @@ public enum ChatHandoff {
     /// `list` after an edit in Settings of the entries it offers (`shown`, as `shownIndices` found them): `edited` is
     /// what they are now, reordered, one taken out or one added (at the end). The entries not offered (an agent not
     /// installed right now, the agent `.atAgent` stands for) keep their places; only one taken out goes (and any other
-    /// copy of it).
-    public static func edited(_ list: [Destination], shown: [Int], to edited: [Destination]) -> [Destination] {
+    /// copy of it). `.atAgent` taken out takes the entry it stands for now, `picked`'s own, with it, as a copy of it:
+    /// otherwise that agent would be back in its place and ⌘1 wouldn't change.
+    public static func edited(_ list: [Destination], shown: [Int], to edited: [Destination], picked: AgentKind? = nil) -> [Destination] {
         let before = shown.map { list[$0] }
-        let removed = Set(before).subtracting(edited)
+        var removed = Set(before).subtracting(edited)
+        if removed.contains(.atAgent), let picked { removed.insert(Destination(agent: picked)) }
         var order = edited.filter(before.contains)[...]
         var result: [Destination] = []
         for (index, entry) in list.enumerated() where !removed.contains(entry) {
@@ -148,10 +150,11 @@ public enum ChatHandoff {
         case copy(String)
     }
 
-    public static func action(_ destination: Destination, prompt: String, copied: String) -> Action {
+    /// `atAgent`: the agent `.atAgent` stands for, `@agent`'s when it's installed (`Composer.pickedAgent`); nil, and
+    /// `.atAgent` does nothing (nil). Every other destination has its action.
+    public static func action(_ destination: Destination, prompt: String, copied: String, atAgent: AgentKind? = nil) -> Action? {
         switch destination {
-        // Never a choice (`choices` puts the agent's own in its place): Claude Code, `@agent`'s default.
-        case .atAgent: return .agent(.claude, prompt: prompt)
+        case .atAgent: return atAgent.map { .agent($0, prompt: prompt) }
         case .claudeCode: return .agent(.claude, prompt: prompt)
         case .geminiCLI: return .agent(.gemini, prompt: prompt)
         case .kiroCLI: return .agent(.kiro, prompt: prompt)

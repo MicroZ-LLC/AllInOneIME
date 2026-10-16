@@ -355,6 +355,9 @@ public final class Composer {
     public var questionRounds = QuestionChat.defaultRounds
     /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
     public var handoffChoices = ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false })
+    /// The agent "@agent's agent" (`ChatHandoff.Destination.atAgent`) stands for: the one `@agent` hands to, when it's
+    /// installed (set by the controller); nil: none, and a hand-off to `.atAgent` does nothing.
+    public var pickedAgent: AgentKind?
     /// What the hand-off says, in the interface language (set by the controller).
     public var chatMessages = ChatMessages.chinese
     /// ⌘⏎ showed where the conversation can go on before its last round (Esc hides it again).

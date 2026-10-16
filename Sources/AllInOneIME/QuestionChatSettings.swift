@@ -31,9 +31,9 @@ extension SettingsModel {
     private func agentInstalled(_ kind: AgentKind) -> Bool { AgentAvailability.installed(kind, custom: config.agentCommand) }
 
     /// The chips in this order (dragged, added or removed in the window): saved into the list, its entries not shown now
-    /// kept where they were (`ChatHandoff.edited`).
+    /// kept where they were (`ChatHandoff.edited`); "@agent's agent" taken out takes the agent's own entry with it.
     func setContinueIn(_ choices: [ChatHandoff.Destination]) {
-        config.questionContinueIn = ChatHandoff.edited(continueList, shown: shownContinueIndices, to: choices)
+        config.questionContinueIn = ChatHandoff.edited(continueList, shown: shownContinueIndices, to: choices, picked: config.agent)
         save()
     }
 

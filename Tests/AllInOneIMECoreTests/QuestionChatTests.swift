@@ -721,14 +721,37 @@ struct QuestionChatTests {
                 == [.copy, .atAgent, .kiroCLI, .geminiCLI, .claudeCode, .chatgpt])
         #expect(ChatHandoff.edited(list, shown: shown, to: [.atAgent, .chatgpt, .copy]) == [.atAgent, .kiroCLI, .geminiCLI, .chatgpt, .copy])
         #expect(ChatHandoff.edited(list, shown: shown, to: [.atAgent, .claudeCode, .chatgpt, .copy, .gemini]) == list + [.gemini])
-        // Taken out, @agent's agent: Gemini CLI's own entry is offered again, where it was.
-        let without = ChatHandoff.edited(list, shown: shown, to: [.claudeCode, .chatgpt, .copy])
-        #expect(without == [.claudeCode, .kiroCLI, .geminiCLI, .chatgpt, .copy])
+        // Taken out, @agent's agent takes the entry it stands for (Gemini CLI's own) with it: ⌘1 really changes.
+        let without = ChatHandoff.edited(list, shown: shown, to: [.claudeCode, .chatgpt, .copy], picked: .gemini)
+        #expect(without == [.claudeCode, .kiroCLI, .chatgpt, .copy])
         #expect(ChatHandoff.choices(without, picked: .gemini, installed: { _ in true }) == without)
+        #expect(ChatHandoff.choices(list, picked: .gemini, installed: { _ in true }).first == .geminiCLI)
         // A copy of an entry taken out goes with it.
         let twice: [ChatHandoff.Destination] = [.chatgpt, .kiroCLI, .chatgpt, .copy]
         let offered = ChatHandoff.shownIndices(twice, picked: .claude, installed: { _ in true })
         #expect(ChatHandoff.edited(twice, shown: offered, to: [.kiroCLI, .copy]) == [.kiroCLI, .copy])
+    }
+
+    /// A hand-off to "@agent's agent" starts the agent `@agent` picked (`pickedAgent`), as that agent (Claude Code by its
+    /// own effect); with none installed, nothing happens and the conversation stays.
+    @Test func handingOffToAtAgentStartsThePickedAgent() {
+        #expect(ChatHandoff.action(.atAgent, prompt: "x", copied: "md", atAgent: .gemini) == .agent(.gemini, prompt: "x"))
+        #expect(ChatHandoff.action(.atAgent, prompt: "x", copied: "md") == nil)
+        let kiro = asked(rounds: 2, handoff: [.copy])
+        kiro.messages = .english
+        kiro.pickedAgent = .kiro
+        followUp(kiro, "who made it", reply: "Graydon Hoare.")
+        let started = kiro.handOff(to: .atAgent)
+        #expect(started.contains { if case .continueInAgent(.kiro, _) = $0 { return true } else { return false } })
+        #expect(started.contains(.notice("Opened Kiro CLI in Terminal")) && kiro.phase == .idle)
+        let claude = asked(rounds: 2, handoff: [.copy])
+        claude.pickedAgent = .claude
+        followUp(claude, "who made it", reply: "Graydon Hoare.")
+        #expect(claude.handOff(to: .atAgent).contains { if case .continueInClaudeCode = $0 { return true } else { return false } })
+        // None installed: nothing at all, not Claude Code.
+        let none = asked(rounds: 2, handoff: [.copy])
+        followUp(none, "who made it", reply: "Graydon Hoare.")
+        #expect(none.handOff(to: .atAgent).isEmpty && none.isQuestionChat && none.showsHandoff)
     }
 
     /// Whether an agent can be offered: its program found; a custom one's as typed (trimmed), never without a command.

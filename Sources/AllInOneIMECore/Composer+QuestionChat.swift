@@ -128,7 +128,7 @@ extension Composer {
     /// Goes on with the conversation in `destination`: the selected text the first question was about (if any), the rounds
     /// so far as they were shown, "Let's continue this discussion." and the next question typed, if any (`ChatHandoff`). The
     /// panel closes and nothing is inserted (a selection stays as it is). Only copying works during secure input or in an
-    /// app with no AI.
+    /// app with no AI. `.atAgent` is the agent `@agent` hands to (`pickedAgent`); with none installed, nothing happens.
     public func handOff(to destination: ChatHandoff.Destination) -> [Effect] {
         guard isQuestionChat, phase == .choosing else { return [] }
         // Pinyin still being typed goes in the follow-up first.
@@ -142,8 +142,9 @@ extension Composer {
         let selected = selectionInUse.flatMap { sentText.isEmpty ? nil : $0 }
         if selected != nil, !rounds.isEmpty { rounds[0].question = sentText }
         let followUp = refineText
-        let action = ChatHandoff.action(destination, prompt: ChatHandoff.prompt(rounds, followUp: followUp, selection: selected),
-                                        copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected))
+        guard let action = ChatHandoff.action(destination, prompt: ChatHandoff.prompt(rounds, followUp: followUp, selection: selected),
+                                              copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected),
+                                              atAgent: pickedAgent) else { return [] }
         let done = finish(committing: "", selection: .kept)
         switch action {
         case let .agent(agent, prompt):

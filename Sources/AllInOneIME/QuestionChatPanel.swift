@@ -14,6 +14,7 @@ extension AllInOneIMEInputController {
         let installed = agentInstalled
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
+        composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
         composer.chatMessages = UIText.chinese ? .chinese : .english
     }
 
