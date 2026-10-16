@@ -106,6 +106,11 @@ final class RequestLog: @unchecked Sendable {
         return (id, line.contains("cache=true"))
     }
 
+    /// Whether a request started after line `mark` says `text` ("@question round 2").
+    func started(after mark: Int, saying text: String) -> Bool {
+        lock.withLock { lines.dropFirst(mark).contains { $0.contains("] conversion ") && $0.contains(" started (") && $0.contains(text) } }
+    }
+
     /// The request id in "conversion 12 <word> …".
     private static func request(_ line: String, _ word: String) -> Int? {
         guard let range = line.range(of: "] conversion ") else { return nil }
@@ -228,6 +233,8 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     func space(_ flags: NSEvent.ModifierFlags = []) { key(" ", spaceCode, flags) }
     func enter() { key("\r", returnCode) }
+    /// ⇧⏎: sends a follow-up typed on AI results (a refine, an @question conversation's next question).
+    func shiftEnter() { key("\r", returnCode, .shift) }
     func escape() { key("\u{1B}", escapeCode) }
     func backspace() { key("\u{7F}", deleteCode) }
 
@@ -625,6 +632,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         refineResults()
         horizontalAndReport()
         recentQuestions()
+        questionConversation()
         extensions()
         perAppSettings()
         redaction()
@@ -715,7 +723,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     /// 6a'. Refining the results: @improve a long English sentence and, once all its results are in (the input
     ///     method's log says so, `RequestLog`), pick row 1 (V1); the same sentence again (the cache answers at once,
-    ///     all in), "shorter" typed while the results are up and ⏎ asks again with them as context; the draft stays as
+    ///     all in), "shorter" typed while the results are up and ⇧⏎ asks again with them as context; the draft stays as
     ///     it was (the letters went to the refine line, not the sentence), and 1 inserts the refined version, which is
     ///     shorter than V1 (live Bedrock).
     func refineResults() {
@@ -792,7 +800,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("shorter")
         pump(0.3)
         check(marked == "improve › " + sentence + " ", "'shorter' goes to the refine line: the sentence is as it was (\(marked))")
-        enter()
+        shiftEnter()  // ⇧⏎ sends a refine; ⏎ would insert the version selected
         let refining = Date()
         let picked = waitUntil(25) {
             if self.committed.isEmpty { self.key("1", keyCodes["1"]!); self.pump(0.3) }  // ignored until row 1 is complete
@@ -800,7 +808,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
         let refined = committed
         check(picked && Self.looksEnglish(refined) && marked.isEmpty && refined != first && refined.count < first.count,
-              String(format: "⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
+              String(format: "⇧⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
                      Date().timeIntervalSince(refining), refined, refined.count, first.count))
         endSection()
     }
@@ -1269,6 +1277,84 @@ final class Harness: NSObject, NSApplicationDelegate {
               "the fresh answer takes the old one's place (one question kept)")
         reset()
         textView.string = ""
+    }
+
+    /// 6d. An @question conversation (live Bedrock): a question asked, a follow-up typed and sent with ⇧⏎ as round 2 (the
+    ///     input method's log says so) while the panel grows; with `questionRounds` 2 in the test's config the row of where
+    ///     to go on is then up, and its copy choice (⌘1 here: `questionContinueIn` ["copy", "chatgpt"]) puts the
+    ///     conversation on the clipboard in Markdown, nothing inserted. Nothing is handed to Claude or a browser; the
+    ///     user's clipboard and config are put back, and nothing is kept in the recent questions.
+    func questionConversation() {
+        print("— @question: a conversation (live Bedrock)")
+        _ = setConfig {
+            $0["questionRounds"] = 2
+            $0["questionContinueIn"] = ["copy", "chatgpt"]
+            $0["rememberQuestions"] = false
+        }
+        let pasteboard = NSPasteboard.general
+        let clipboard = pasteboard.string(forType: .string)
+        defer {
+            pasteboard.clearContents()
+            if let clipboard { pasteboard.setString(clipboard, forType: .string) }
+            reset()
+            textView.string = ""
+            tapShift()  // back to Chinese
+            restoreConfig()
+        }
+        reset()
+        textView.string = ""
+        pump(1)  // the config read again by the input method
+        tapShift()  // English: the questions are typed as letters
+        let requests = RequestLog.start()
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }
+        defer { requests?.stop() }
+        /// Until the request started after `mark` is done (from the input method's log; without it, the panel settled).
+        func answered(after mark: Int, _ timeout: TimeInterval) -> Bool {
+            guard let requests else {
+                var last = imePanelFrames(), since = Date()
+                return waitUntil(timeout) {
+                    let now = imePanelFrames()
+                    if now != last { last = now; since = Date() }
+                    return !now.isEmpty && Date().timeIntervalSince(since) >= 3
+                }
+            }
+            let done = waitUntil(timeout) { requests.done(after: mark) != nil }
+            pump(0.5)
+            return done
+        }
+        func height() -> CGFloat { imePanelFrames().map(\.height).max() ?? 0 }
+        command("q")
+        for (index, word) in ["what", "is", "the", "capital", "of", "france"].enumerated() {
+            if index > 0 { space() }
+            type(word)
+        }
+        let first = requests?.count ?? 0
+        act()
+        check(answered(after: first, 25) && marked.hasPrefix("question › what is the capital of france") && committed.isEmpty,
+              "round 1 answered, the panel up (\(marked))")
+        let one = height()
+        for (index, word) in ["and", "its", "population"].enumerated() {
+            if index > 0 { space() }
+            type(word)
+        }
+        pump(0.3)
+        check(committed.isEmpty && marked.hasPrefix("question › what is the capital of france"),
+              "the follow-up goes to the next question's line, not the text (\(marked))")
+        let second = requests?.count ?? 0
+        shiftEnter()
+        let roundTwo = answered(after: second, 25)
+        check(roundTwo && (requests?.started(after: second, saying: "@question round 2") ?? true) && committed.isEmpty,
+              "⇧⏎ asks it as round 2 of the conversation")
+        let two = height()
+        check(two > one, "the panel grows with the conversation (\(Int(one)) → \(Int(two)) points)")
+        // Round 2 of 2: where to go on is up; ⌘1, its copy choice, copies the conversation.
+        pasteboard.clearContents()
+        key("1", keyCodes["1"]!, .command)
+        let copied = waitUntil(3) { pasteboard.string(forType: .string)?.contains("**A:**") == true }
+        let text = pasteboard.string(forType: .string) ?? ""
+        check(copied && text.hasPrefix("**Q:** what is the capital of france") && text.contains("**Q:** and its population")
+              && text.components(separatedBy: "**A:** ").count == 3 && committed.isEmpty && marked.isEmpty,
+              "after round 2 the hand-off row is up and ⌘1 (copy) puts both rounds on the clipboard, nothing inserted")
     }
 
     /// The user's recent questions while the test asks its own (`recentQuestions`): empty when there was no file.

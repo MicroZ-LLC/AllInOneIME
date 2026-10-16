@@ -663,7 +663,7 @@ enum SelfTest {
         return controller.composer.phase == .choosing
     }
 
-    /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⏎ asks again with
+    /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⇧⏎ asks again with
     /// the results as context; the new versions are shorter, the header names the step, Esc goes back to the results
     /// before it, secure input refuses a refine like any request, and a pick inserts the refined text.
     static func testRefine(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
@@ -686,9 +686,9 @@ enum SelfTest {
         let typing = controller.panelModel()
         check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
               "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
-        check(typing.footer.hasPrefix("⏎ 按这句修改结果"), "the footer says ⏎ refines (\(typing.footer))")
+        check(typing.footer.hasPrefix("⇧⏎ 修改 · ⏎ 上屏"), "the footer says ⇧⏎ refines, ⏎ inserts (\(typing.footer))")
         readmeSnapshot("refine-typing", controller, client, in: snapshotDirectory)  // release notes
-        check(enter(controller, client) && controller.composer.isRefining, "⏎ runs the refine")
+        check(shiftEnter(controller, client) && controller.composer.isRefining, "⇧⏎ runs the refine")
         if finishConversion(controller, "refine: shorter") {
             let after = versions()
             check(after.count >= 2 && average(after) < average(before),
@@ -703,13 +703,13 @@ enum SelfTest {
                   && controller.composer.phase == .choosing, "Esc goes back to the results before the refine")
             // The same refine again comes from the cache.
             type("shorter", controller, client)
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)
             _ = pump(timeout: 2) { controller.composer.phase == .choosing }
             check(controller.composer.phase == .choosing && versions() == after, "the same refine again is answered from the cache")
             // Secure input refuses a refine like any request: the results stay, the instruction comes back.
             controller.secureInputActive = { true }
             type("warmer", controller, client)
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)
             let refusal = controller.composer.refineError ?? ""
             check(refusal.contains("安全输入") && versions() == after && controller.composer.refineText == "warmer"
                   && controller.panelModel().status == .error(refusal), "secure input refuses the refine (\(refusal))")
@@ -1018,7 +1018,7 @@ enum SelfTest {
         _ = enter(controller, client)  // converts the pinyin and asks
         if finishConversion(controller, "@question") {
             let answer = controller.composer.choices.last
-            check(answer?.kind == .answer && answer?.text.containsHan == true && controller.composer.choices.first?.text.hasPrefix("什么") == true,
+            check(answer?.kind == .answer && answer?.text.containsHan == true && controller.composer.chatRounds.first?.question.hasPrefix("什么") == true,
                   "a Chinese answer to the question: \(answer?.text.prefix(50) ?? "")")
             readmeSnapshot("11-question", controller, client, in: snapshotDirectory)
             copy()
@@ -2924,7 +2924,7 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         let english = controller.panelModel()
         let styleNames = english.rows.dropFirst().map { $0.comment.components(separatedBy: " · ")[0] }
-        check(english.footer == "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back"
+        check(english.footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back"
               && english.rows.first?.comment == "original" && !styleNames.joined().containsHan,
               "English results panel: \(english.footer) | \(english.rows.map(\.comment))")
         snapshot("9-english-ui", in: snapshotDirectory)
@@ -2955,6 +2955,7 @@ enum SelfTest {
         testCommandsOnSelection(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
 
