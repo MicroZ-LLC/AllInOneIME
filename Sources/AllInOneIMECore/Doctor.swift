@@ -240,9 +240,10 @@ public enum Doctor {
                 out.append(Finding(area: .provider, status: .ok, title: label,
                                    detail: config.provider == .hosted ? t.tr("已登录", "signed in") : t.tr("已保存 API key", "API key saved")))
             } else {
+                // As `@config` says it of a provider without a key; its fix opens Settings at the key field.
                 out.append(Finding(area: .provider, status: .problem, title: label,
-                                   detail: config.provider == .hosted ? t.tr("没有登录：在设置里登录", "not signed in: sign in in Settings")
-                                       : t.tr("没有 API key：在设置里填（不会发给 AI）", "no API key: enter it in Settings (never sent to the AI)"),
+                                   detail: config.provider == .hosted ? t.tr("需要登录：在设置里登录", "needs a sign-in: sign in in Settings")
+                                       : t.tr("需要 API key：在设置里填（不会发给 AI）", "needs an API key: add it in Settings (never sent to the AI)"),
                                    fix: .openKeyField(config.provider)))
             }
         }
@@ -681,10 +682,13 @@ extension Doctor {
                 action("检查更新", "Check for updates", .checkForUpdates)
             case let .openKeyField(provider):
                 let text = AIConfig.Text(chinese: env.chinese)
-                rows.append(AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),
-                                         new: provider == .bedrock ? t.tr("在设置 → AI 服务里看 AWS profile",
-                                                                          "check the AWS profile in Settings → AI Provider")
-                                             : text.enterKey(provider), status: .needsKey(provider)))
+                // The row `@config` shows for a provider without a key (it is the one in use here: nothing to choose).
+                rows.append(provider == .bedrock
+                    ? AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),
+                                   new: t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider"),
+                                   status: .needsKey(provider))
+                    : AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.needsKey(provider),
+                                   new: text.addKey(provider, choose: false), status: .needsKey(provider)))
             }
         }
         let preview = AIConfig.Preview(rows: rows)

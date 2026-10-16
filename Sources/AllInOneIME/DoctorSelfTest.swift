@@ -110,6 +110,23 @@ extension SelfTest {
         _ = escape(controller, client)
         check(controller.composer.phase == .idle && client.inserted.isEmpty, "nothing is inserted")
 
+        // The provider without a key: said as @config says it; its fix opens Settings at the key field, nothing else.
+        doctor()
+        let keyFinding = controller.panelModel().rows.first { $0.text.hasPrefix("✗ AI 服务") }
+        check(keyFinding?.text == "✗ AI 服务：Claude API — 需要 API key：在设置里填（不会发给 AI）",
+              "the provider's finding says its key is needed (\(keyFinding?.text ?? "-"))")
+        type(keyFinding?.label ?? "?", controller, client)
+        previewShown()
+        check(controller.panelModel().rows.map(\.text) == ["Claude API 需要 API key：⏎ 打开设置去填（不会发给 AI）"],
+              "its fix is @config's key row (\(controller.panelModel().rows.map(\.text)))")
+        let provider = file().provider
+        _ = enter(controller, client)
+        _ = pump(timeout: 2) { !opened.isEmpty }
+        check(opened == [.anthropic] && file().provider == provider && client.inserted.isEmpty,
+              "⏎ opens Settings at the key field, nothing else (\(opened))")
+        opened.removeAll()
+        _ = pump(timeout: 4) { controller.panelModel().detail == nil }
+
         // A question: the model's explanation over the findings, its fixes first for ⏎.
         let model = CannedGuidedModel(#"{"explanation": "没有 Claude API 的 key，所以翻译发不出去。", "fixes": ["F1"]}"#)
         DoctorSession.service = DoctorService(client: ChatClient(apple: model))

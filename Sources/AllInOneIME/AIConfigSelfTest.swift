@@ -192,6 +192,21 @@ extension SelfTest {
               "a provider change runs Test Connection (\(controller.composer.choices.map(\.text)))")
         _ = escape(controller, client)
 
+        // A provider without a key isn't switched to (nothing would work): its row says so; ⏎ applies the rest and opens
+        // Settings at its key field, where it is chosen once the key is saved. No Test Connection.
+        model.answer = #"{"changes": [{"key": "provider", "value": "gemini"}, {"key": "candidateLayout", "value": "vertical"}]}"#
+        command("use Gemini, candidates in a column")
+        _ = enter(controller, client)
+        _ = waitForPreview()
+        let keyless = controller.panelModel().rows.map(\.text)
+        check(keyless == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），存好后在那里选它"],
+              "a provider without a key: the row says it's needed, no switch shown (\(keyless))")
+        _ = enter(controller, client)
+        _ = pump(timeout: 2) { opened.count == 2 }
+        check(file().provider == .anthropic && file().candidateLayout == .vertical && opened == [.anthropic, .gemini] && tested == 1
+              && client.inserted.isEmpty, "⏎ applies the rest and opens Gemini's key field; the provider stays (\(file().provider), \(opened))")
+        _ = escape(controller, client)
+
         _ = pump(timeout: 13) { controller.panelModel().detail == nil }  // the notices before go (the key's is up 12 s)
         // The release notes' images: three changes, in Chinese (config-changes.png), then in English.
         let changes = """

@@ -204,14 +204,29 @@ struct AIConfigTests {
 
     // MARK: - Providers
 
-    @Test func aProviderThatNeedsAKeyOpensItsField() throws {
-        let preview = try preview(#"{"changes": [{"key": "provider", "value": "anthropic"}, {"key": "anthropic.model", "value": "claude-sonnet-5-5"}]}"#).get()
-        #expect(preview.edits == [.provider(.anthropic), .model(.anthropic, "claude-sonnet-5-5")] && preview.needsKey == .anthropic)
-        #expect(preview.rows.last?.text(chinese: false) == "API key (Claude API): enter it in Settings (never sent to the AI)")
-        #expect(preview.changesProvider)
-        // With a key saved: no key row.
+    @Test func aProviderWithoutAKeyIsNotSwitchedTo() throws {
+        // No key saved (nor in the shell): the provider stays as it is; the row says the key is needed, and applying opens
+        // its field in Settings, where it is chosen once saved. The other changes still apply.
+        let json = #"{"changes": [{"key": "provider", "value": "anthropic"}, {"key": "anthropic.model", "value": "claude-sonnet-5-5"}, {"key": "typeOut", "value": true}]}"#
+        let preview = try preview(json).get()
+        #expect(preview.edits == [.flag(.typeOut, true), .model(.anthropic, "claude-sonnet-5-5")] && preview.needsKey == .anthropic)
+        #expect(!preview.edits.contains(.provider(.anthropic)) && !preview.rows.contains { $0.text(chinese: false).hasPrefix("AI provider") })
+        #expect(preview.rows.last?.text(chinese: false)
+                == "Claude API needs an API key: ⏎ opens Settings to add it (never sent to the AI); once it's saved, choose it there")
+        #expect(preview.rows.last?.edit == nil && preview.canApply)
+        let zh = try self.preview(#"{"changes": [{"key": "provider", "value": "gemini"}]}"#, env: env(chinese: true)).get()
+        #expect(zh.rows.map { $0.text(chinese: true) } == ["Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），存好后在那里选它"])
+        #expect(zh.edits.isEmpty && zh.needsKey == .gemini)
+        var applied = config
+        AIConfig.apply(preview.edits, to: &applied)
+        #expect(applied.provider == config.provider && applied.typeOut && applied.anthropic.model == "claude-sonnet-5-5")
+        // With a key saved (or set in the shell): switched to, no key row; Test Connection follows.
         let keyed = try self.preview(#"{"changes": [{"key": "provider", "value": "anthropic"}]}"#, env: env(keys: [.anthropic])).get()
-        #expect(keyed.needsKey == nil)
+        #expect(keyed.needsKey == nil && keyed.edits == [.provider(.anthropic)] && keyed.changesProvider)
+        // A key typed into the sentence for a provider that has one: switched to, and its field opens for the new key.
+        let typed = try AIConfig.preview(AIConfig.Proposal(changes: [.init(key: .setting(.provider), value: .string("anthropic"))]),
+                                         config: config, environment: env(keys: [.anthropic]), droppedKey: (true, .anthropic)).get()
+        #expect(typed.edits == [.provider(.anthropic)] && typed.needsKey == .anthropic)
         // Bedrock: the profile must exist, the region be one.
         let bedrock = try self.rows(#"{"changes": [{"key": "awsProfile", "value": "work"}, {"key": "region", "value": "us-west-2"}]}"#)
         #expect(bedrock.map(\.edit) == [.awsProfile("work"), .region("us-west-2")])

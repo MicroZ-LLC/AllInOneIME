@@ -411,9 +411,11 @@ cancels, and typing more then ⇧⏎ refines the proposal ("also German"; ⇧⏎
 - **Checked like Settings:** a language that isn't one, more than 5 translation languages, a value out of range, an app
   it can't tell, or a language whose pack isn't installed ("needs the Korean language pack: download it in Settings →
   Input") is refused row by row; an invalid config is never written.
-- **Keys:** a provider that needs a key gets a row "API key: enter it in Settings (never sent to the AI)": applying opens
-  Settings → AI Provider at the key field. A key typed into the sentence is dropped before anything is sent. After the
-  provider changes, Test Connection runs and its result shows under the confirmation.
+- **Keys:** it never switches to a provider that has no key (none in the keychain or your shell): the row says "Gemini
+  API needs an API key: ⏎ opens Settings to add it (never sent to the AI); once it's saved, choose it there", and
+  applying opens Settings → AI Provider at that provider's key field, while the other rows still apply. With a key, the
+  provider switches, Test Connection runs and its result shows under the confirmation. A key typed into the sentence is
+  dropped before anything is sent.
 - **On this Mac first:** it uses Apple Intelligence whenever this Mac has it (macOS 26), whatever provider you chose and
   even before one is set up, held to the allowed settings and values, with lookups for your apps, AWS profiles and
   language packs. Without it, your provider answers. The request holds only the allowed settings and their current

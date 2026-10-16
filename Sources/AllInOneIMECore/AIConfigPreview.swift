@@ -317,12 +317,21 @@ extension AIConfig {
                 rows.append(Row(key: change.key.path, label: text.label(.redactionWordsAdd), status: .refused(text.wordsRefused(words.refused))))
             }
         }
-        // A provider that needs a key it hasn't got: a row that opens Settings at its key field. Also when a key typed into
-        // the sentence was dropped.
-        let wanted = droppedKey.provider ?? (working.provider != config.provider ? working.provider : nil)
-            ?? (droppedKey.dropped ? config.provider : nil)
-        if let provider = wanted, [.anthropic, .gemini, .openai, .hosted].contains(provider),
-           !env.hasKey(provider) || droppedKey.dropped {
+        let keyed: [Provider] = [.anthropic, .gemini, .openai, .hosted]
+        let switched = working.provider != config.provider ? working.provider : nil
+        // A provider that needs a key it hasn't got (none saved, none in the shell) isn't switched to: nothing would work.
+        // Its row says so instead, and applying opens Settings at its key field; the user picks it there once the key is
+        // saved. The other changes still apply.
+        if let target = switched, keyed.contains(target), !env.hasKey(target) {
+            rows.removeAll { $0.edit == .provider(target) }
+            rows.append(Row(key: Setting.provider.path, label: text.needsKey(target), new: text.addKey(target, choose: true),
+                            status: .needsKey(target)))
+            return (rows, unchanged)
+        }
+        // A key typed into the sentence was dropped: a row that opens Settings at the key field of the provider it is for
+        // (or the one switched to, or in use).
+        let wanted = droppedKey.provider ?? switched ?? (droppedKey.dropped ? config.provider : nil)
+        if let provider = wanted, keyed.contains(provider), !env.hasKey(provider) || droppedKey.dropped {
             rows.append(Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider), new: text.enterKey(provider),
                             status: .needsKey(provider)))
         }

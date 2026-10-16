@@ -49,7 +49,7 @@ struct DoctorTests {
         #expect(Doctor.summary(findings, chinese: false).hasPrefix("4 problems, 2 warnings"))
         // The key's row never holds a key; only whether one is saved.
         #expect(findings.first { $0.area == .provider }?.text(chinese: false)
-                == "✗ AI provider: Claude API — no API key: enter it in Settings (never sent to the AI)")
+                == "✗ AI provider: Claude API — needs an API key: add it in Settings (never sent to the AI)")
     }
 
     @Test func theConnectionShowsWhileItRuns() {
@@ -103,6 +103,10 @@ struct DoctorTests {
         #expect(!Doctor.Fix.downloadPack(.korean).isSafe && !Doctor.Fix.openPrivacy(.microphone).isSafe && !Doctor.Fix.openKeyField(.gemini).isSafe)
         let preview = Doctor.fixPreview([.downloadPack(.korean), .openKeyField(.gemini)], config: .default, environment: AIConfig.Environment())
         #expect(preview?.actions == [.downloadPack(.korean)] && preview?.needsKey == .gemini && preview?.edits.isEmpty == true)
+        // The key's row says it as @config does (the provider is the one in use: nothing to choose).
+        #expect(preview?.rows.last?.text(chinese: false) == "Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI)")
+        let zh = Doctor.fixPreview([.openKeyField(.anthropic)], config: .default, environment: AIConfig.Environment(chinese: true))
+        #expect(zh?.rows.map { $0.text(chinese: true) } == ["Claude API 需要 API key：⏎ 打开设置去填（不会发给 AI）"])
         #expect(Doctor.fixPreview([], config: .default, environment: AIConfig.Environment()) == nil)
     }
 

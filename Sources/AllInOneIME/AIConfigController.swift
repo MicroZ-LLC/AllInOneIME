@@ -400,6 +400,10 @@ struct ProviderKeyField: View {
             }
         }
         Text(model.keyStatus(provider)).font(.caption).foregroundStyle(.secondary)
+        // `@config` doesn't switch to a provider without a key, and saving one here doesn't either.
+        Text(tr("存好以后，在上面的「服务」里选 \(UIText.name(provider)) 就能用了。",
+                "Once it's saved, choose \(UIText.name(provider)) as the Provider above to use it."))
+            .font(.caption).foregroundStyle(.secondary)
     }
 
     private func save() {

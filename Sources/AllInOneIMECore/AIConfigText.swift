@@ -139,6 +139,23 @@ extension AIConfig {
         func enterKey(_ provider: Provider) -> String {
             provider == .hosted ? tr("在设置里登录", "sign in in Settings") : tr("在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)")
         }
+        /// "Gemini API needs an API key" (AllInOneIME Cloud: a sign-in): the row of a provider without one, in `@config`'s
+        /// preview and on `@doctor`'s fix.
+        public func needsKey(_ provider: Provider) -> String {
+            let name = self.provider(provider)
+            return provider == .hosted ? tr("\(name) 需要登录", "\(name) needs a sign-in")
+                : tr("\(name) 需要 API key", "\(name) needs an API key")
+        }
+        /// What ⏎ does about it: Settings opens at the key field (the key never goes to the AI). `choose`: the provider
+        /// isn't switched to without a key, and Settings doesn't switch on a save, so the user picks it there.
+        public func addKey(_ provider: Provider, choose: Bool) -> String {
+            if provider == .hosted {
+                return choose ? tr("⏎ 打开设置，在那里选它并登录", "⏎ opens Settings: choose it there and sign in")
+                    : tr("⏎ 打开设置去登录", "⏎ opens Settings to sign in")
+            }
+            let add = tr("⏎ 打开设置去填（不会发给 AI）", "⏎ opens Settings to add it (never sent to the AI)")
+            return choose ? add + tr("，存好后在那里选它", "; once it's saved, choose it there") : add
+        }
         var notValid: String { tr("不是有效的值", "not a valid value") }
         /// A value that looks like a key: refused, never quoted.
         public var secretValue: String { tr("看起来像密钥的值被拒绝了（不显示）", "a value that looks like a key was refused") }
