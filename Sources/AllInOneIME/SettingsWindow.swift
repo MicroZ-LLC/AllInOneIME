@@ -114,6 +114,7 @@ final class SettingsModel: ObservableObject {
         fileDate = Self.modificationDate(configURL)
         do {
             config = try Config.load(from: configURL)
+            written = config
         } catch {
             // Keep the broken file untouched: the window shows the error instead of overwriting it.
             config = .default
@@ -125,10 +126,16 @@ final class SettingsModel: ObservableObject {
 
     var canSave: Bool { loadError == nil }
 
+    /// The config as the file has it (read or last written here): a save that would write the same writes nothing.
+    private var written: Config?
+
+    /// Writes the config file, only when something in it was changed: opening the window, moving through its fields,
+    /// ⏎ on one left as it was or closing it never touches the file (nor reformats one written elsewhere).
     func save() {
-        guard canSave, persists else { return }
+        guard canSave, persists, config != written else { return }
         do {
             try config.write(to: configURL)
+            written = config
             fileDate = Self.modificationDate(configURL)
             saveError = nil
         } catch {
@@ -143,6 +150,7 @@ final class SettingsModel: ObservableObject {
         fileDate = date
         do {
             config = try Config.load(from: configURL)
+            written = config
             loadError = nil
         } catch {
             loadError = UIText.describe(error)
@@ -2239,8 +2247,9 @@ struct SettingsView: View {
             }
         }
         if suggested.isEmpty || customProviderModel || !suggested.contains(where: { $0.id == settings.model }) {
+            // The default model, when there is one, is the placeholder: an empty field uses it, and is never saved as it.
             TextField(tr("模型 ID", "Model ID"), text: providerBinding(provider, \.model),
-                      prompt: Text(tr("例如 ", "e.g. ") + Self.modelExample(provider)))
+                      prompt: Text(ProviderSettings.defaults(for: provider).model ?? tr("例如 ", "e.g. ") + Self.modelExample(provider)))
                 .onSubmit { model.save() }
         }
         // Whether a key is set, in the row itself: with one, the paste field shows only after Replace….
@@ -2270,7 +2279,7 @@ struct SettingsView: View {
                     "Picking a service fills in its base URL; then enter its model under Custom…. Any other OpenAI-compatible address works too."))
                 .font(.caption).foregroundStyle(.secondary)
         }
-        Picker(tr("思考", "Thinking"), selection: providerBinding(provider, \.effort, empty: "")) {
+        Picker(tr("思考", "Thinking"), selection: providerBinding(provider, \.effort, empty: "", showsDefault: true)) {
             Text(tr("少（low，最快）", "Little (low, fastest)")).tag("low")
             Text("medium").tag("medium")
             Text("high").tag("high")
@@ -2298,15 +2307,23 @@ struct SettingsView: View {
         }
     }
 
-    /// A text field for one string setting of a provider; an empty one falls back to the default.
+    /// One string setting of a provider, as set: a text field shows only what was set, the default being its placeholder
+    /// (an empty field falls back to it), so leaving the field, or ⏎ on it, never writes the default as if the user had
+    /// typed it. `showsDefault`: a picker, which shows the default as its selection. Nothing is written unless the value
+    /// changes.
     private func providerBinding(_ provider: Provider, _ key: WritableKeyPath<ProviderSettings, String?>,
-                                 empty: String? = nil) -> Binding<String> {
+                                 empty: String? = nil, showsDefault: Bool = false) -> Binding<String> {
         Binding(
-            get: { model.providerSettings(provider)[keyPath: key] ?? model.config.settings(for: provider)[keyPath: key] ?? "" },
+            get: {
+                model.providerSettings(provider)[keyPath: key]
+                    ?? (showsDefault ? model.config.settings(for: provider)[keyPath: key] : nil) ?? ""
+            },
             set: { value in
                 var settings = model.providerSettings(provider)
                 let trimmed = value.trimmingCharacters(in: .whitespaces)
-                settings[keyPath: key] = trimmed.isEmpty ? empty : trimmed
+                let new = trimmed.isEmpty ? empty : trimmed
+                guard settings[keyPath: key] != new else { return }
+                settings[keyPath: key] = new
                 model.setProviderSettings(settings, for: provider)
             })
     }
@@ -2986,7 +3003,7 @@ private struct PreferenceField: View {
             case .textfield:
                 TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
                     .labelsHidden().focused($focused)
-                    .onSubmit { save(text) }
+                    .onSubmit { if text != value { save(text) } }  // ⏎ on it unchanged writes nothing
                     .onChange(of: focused) { if !focused, text != value { save(text) } }
                     .onAppear { text = value }
                     .frame(maxWidth: 220)
