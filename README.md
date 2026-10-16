@@ -400,15 +400,17 @@ twice, more than 5 translation languages), extensions and plugins that didn't lo
 app's own logs.
 
 The rows with a fix are numbered: a digit (or a click) shows what it does in `@config`'s preview, and ⏎ applies it; ⏎ on
-the list fixes all the safe ones at once (settings repaired, the input method enabled again, checking for updates).
-Opening a System Settings pane, downloading a language pack and Settings' key field are picked one by one. Settings
+the list fixes all the safe ones at once (settings repaired, repeated languages removed, the input method enabled again).
+Opening a System Settings pane, downloading a language pack, Check for Updates (it opens Settings) and Settings' key
+field are picked one by one. Settings
 changes undo like `@config`'s (⌘Z, `@config undo`). No fix deletes your data or touches a key.
 
 `@doctor <question>` (`@doctor why doesn't translate work`) runs the checks, then the AI explains the likely cause from
 their results and marks the fixes it suggests (⏎ still applies only the safe ones; the others by their number). In an
 app with No AI the checks still run and only the question is refused. On Apple Intelligence when this Mac has it, which calls the checks
 it needs as tools; otherwise your provider, and the panel says so. Only the check results (no paths beyond `~`, no keys,
-none of your text) and your question are sent; the checks alone send nothing.
+none of your text) and your question are sent; the checks send nothing except the Test Connection request (only when
+the provider has a key or credentials to test).
 
 ## Menu bar panel
 
