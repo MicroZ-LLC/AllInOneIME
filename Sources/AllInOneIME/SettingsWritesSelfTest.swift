@@ -145,4 +145,37 @@ extension SelfTest {
                   : "a word @config adds while the Privacy words show is still there once the page is left and closed (\(words))")
         }
     }
+
+    /// A Settings save writes only what the window changed. With Settings open, `@config` sets one app's profile and a
+    /// switch of hiding sensitive information, and the window isn't told; the window then changes another app's profile
+    /// and another switch, and saves: all four are in the file, and the window shows them.
+    static func testSettingsSavesOnlyItsChanges(snapshotDirectory: URL) {
+        let url = snapshotDirectory.appendingPathComponent("both-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let (mail, weChat) = ("com.apple.mail", "com.tencent.xinWeChat")
+        var config = Config.default
+        config.appProfiles = [mail: AppProfile(inputLanguage: .english), weChat: AppProfile(inputLanguage: .chinese)]
+        config.redaction = RedactionSettings(enabled: true)
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .apps)))
+        window.setContentSize(NSSize(width: 880, height: 900))
+        window.makeKeyAndOrderFront(nil)
+        _ = pump(timeout: 0.6) { false }
+        // @config: Mail's results typed out, emails no longer hidden; the window not told.
+        _ = try? AIConfig.applying([.app(mail, .typeOut(true)), .flag(.redactionEmails, false)], at: url, now: Date())
+        // The window: WeChat in English, phone numbers no longer hidden, saved as its controls save.
+        model.config.appProfiles[weChat]?.inputLanguage = .english
+        model.config.redaction.phones = false
+        model.save()
+        window.close()
+        model.save()  // as the settings window's close does
+        _ = pump(timeout: 0.3) { false }
+        let file = (try? Config.load(from: url)) ?? .default
+        check(file.appProfiles[mail] == AppProfile(inputLanguage: .english, typeOut: true) && file.appProfiles[weChat] == AppProfile(inputLanguage: .english)
+              && !file.redaction.emails && !file.redaction.phones && file.redaction.cards,
+              "a Settings save over an @config write it hadn't read keeps both: another app's profile, another switch (\(file.appProfiles), "
+              + "emails \(file.redaction.emails), phones \(file.redaction.phones))")
+        check(model.config.appProfiles[mail]?.typeOut == true && !model.config.redaction.emails, "and the window then shows @config's change")
+    }
 }

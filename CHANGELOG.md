@@ -27,6 +27,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - A key asked for another provider than the one in use (`@config`, `@doctor`) opens a small sheet on Settings → AI Provider: paste it, then Save, or Save and Use to switch to that provider (Test Connection follows); Cancel and Esc change nothing. Nothing about another provider is drawn on the current provider's page any more. `@config`'s row for a provider without a key now ends "you can switch to it there".
 - Settings writes `config.json` only when a setting changes: a provider's default base URL or model is the field's placeholder, so entering the field, pressing ⏎ on it or closing the window no longer writes the default into the file as if you had set it.
 - Words added to hide (`@config also hide …`, or a hand edit) while Settings → AI Provider shows the list are no longer dropped when you leave the page or close the window: the list follows the file until you edit it, and an edit there keeps words added elsewhere meanwhile. An extension's text setting follows the same rule.
+- A save from Settings writes only what was changed in the window, down to one app's settings and one switch of hiding sensitive information: something `@config` (or a hand edit) wrote while Settings was open and hadn't read yet is no longer put back, and Settings then shows it.
 
 ### Fixed
 

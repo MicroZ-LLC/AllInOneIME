@@ -128,16 +128,25 @@ final class SettingsModel: ObservableObject {
 
     var canSave: Bool { loadError == nil }
 
-    /// The config as the file has it (read or last written here): a save that would write the same writes nothing.
+    /// The config as the file has it (read or last written here): a save writes only what differs from it.
     private var written: Config?
 
-    /// Writes the config file, only when something in it was changed: opening the window, moving through its fields,
-    /// ⏎ on one left as it was or closing it never touches the file (nor reformats one written elsewhere).
+    /// Writes the settings changed in the window since the file was read or last written here, and only those
+    /// (`AIConfig.writing`), down to an app's profile and each switch of hiding sensitive information: a value written
+    /// meanwhile by `@config` or by hand that the window hasn't read yet stays as it is, and so do keys this version
+    /// doesn't know. Nothing is written when nothing changed (opening the window, moving through its fields, ⏎ on one
+    /// left as it was, closing it). The window then shows the file as it now is.
     func save() {
         guard canSave, persists, config != written else { return }
         do {
-            try config.write(to: configURL)
-            written = config
+            if let written {
+                try AIConfig.writing(config, from: written, keys: AIConfig.changedKeys(written, config), at: configURL)
+            } else {
+                try config.write(to: configURL)
+            }
+            let now = (try? Config.load(from: configURL)) ?? config
+            written = now
+            if now != config { config = now }  // what was written elsewhere meanwhile, now shown
             fileDate = Self.modificationDate(configURL)
             saveError = nil
         } catch {

@@ -469,9 +469,10 @@ public enum AIConfig {
 
     /// `config` written into the file at `url` key by key: only `keys` (and their companions) take `config`'s values, a
     /// key `config` no longer writes goes; every other key of the file stays as it was, its text untouched, one this
-    /// version doesn't know too. Inside an object-valued key (`appProfiles`, `redaction`, `openai` …) the same, field by
-    /// field (`merged`): fields this version doesn't know survive. `old` is the config the file held (what tells a field
-    /// `config` cleared from one it never knew). A missing file is written whole (`Config.write`).
+    /// version doesn't know too. Inside an object-valued key (`appProfiles` per app, `redaction` per field, `openai` …)
+    /// only what changed from `old` to `config` is written (`merged`): a field written meanwhile by something else (a
+    /// Settings window's save over `@config`'s write, or the other way round) and fields this version doesn't know stay.
+    /// `old` is the config the writer last read or wrote. A missing file is written whole (`Config.write`).
     public static func writing(_ config: Config, from old: Config, keys: Set<String>, at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
         guard !keys.isEmpty else { return }
@@ -483,14 +484,17 @@ public enum AIConfig {
         }
     }
 
-    /// The new value of a key over what the file holds: objects field by field, at every depth (a field `new` has takes
-    /// its value, one `old` had and `new` doesn't goes, one neither knows stays); anything else is `new`'s.
+    /// The new value of a key over what the file holds: objects field by field, at every depth, with only the fields that
+    /// changed from `old` to `new` written (one `new` has with another value takes it, one `old` had and `new` doesn't
+    /// goes); a field the writer left as it was keeps the file's value, and so does one neither knows. Anything else is
+    /// `new`'s.
     static func merged(file: JSONValue?, old: JSONValue?, new: JSONValue?) -> JSONValue? {
         guard case let .object(newFields)? = new, case var .object(fields)? = file else { return new }
         let oldFields: [String: JSONValue]
         if case let .object(known)? = old { oldFields = known } else { oldFields = [:] }
-        for (key, value) in newFields { fields[key] = merged(file: fields[key], old: oldFields[key], new: value) }
-        for key in oldFields.keys where newFields[key] == nil { fields[key] = nil }
+        for key in Set(newFields.keys).union(oldFields.keys) where newFields[key] != oldFields[key] {
+            fields[key] = newFields[key].flatMap { merged(file: fields[key], old: oldFields[key], new: $0) }
+        }
         return .object(fields)
     }
 

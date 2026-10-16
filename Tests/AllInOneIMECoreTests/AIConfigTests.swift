@@ -691,6 +691,40 @@ struct AIConfigTests {
                 == .baseURL("https://llm.example.com/v1"))
     }
 
+    /// A writer that read the file before another one wrote it (a Settings window not yet told of `@config`'s write)
+    /// writes only what it changed, down to one app's profile and one switch of hiding sensitive information: the other
+    /// writer's changes stay.
+    @Test func aWriteKeepsWhatAnotherWroteMeanwhile() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var read = Config.default
+        read.appProfiles = ["com.apple.mail": AppProfile(inputLanguage: .english), "com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese)]
+        read.redaction = RedactionSettings(enabled: true, customWords: ["Atlas"])
+        try read.write(to: url)
+        // @config: Mail typed out, emails no longer hidden.
+        var other = read
+        other.appProfiles["com.apple.mail"]?.typeOut = true
+        other.redaction.emails = false
+        try AIConfig.writing(other, from: read, keys: AIConfig.changedKeys(read, other), at: url)
+        // The window, as it read the file: WeChat in English, phone numbers no longer hidden.
+        var window = read
+        window.appProfiles["com.tencent.xinWeChat"]?.inputLanguage = .english
+        window.redaction.phones = false
+        try AIConfig.writing(window, from: read, keys: AIConfig.changedKeys(read, window), at: url)
+        let file = try Config.load(from: url)
+        #expect(file.appProfiles["com.apple.mail"] == AppProfile(inputLanguage: .english, typeOut: true))
+        #expect(file.appProfiles["com.tencent.xinWeChat"] == AppProfile(inputLanguage: .english))
+        #expect(!file.redaction.emails && !file.redaction.phones && file.redaction.customWords == ["Atlas"])
+        // An app's profile removed by the writer goes; one added by the other stays.
+        var removing = file
+        removing.appProfiles["com.apple.mail"] = nil
+        var adding = file
+        adding.appProfiles["com.apple.Notes"] = AppProfile(noAI: true)
+        try AIConfig.writing(adding, from: file, keys: AIConfig.changedKeys(file, adding), at: url)
+        try AIConfig.writing(removing, from: file, keys: AIConfig.changedKeys(file, removing), at: url)
+        #expect(try Set(Config.load(from: url).appProfiles.keys) == ["com.tencent.xinWeChat", "com.apple.Notes"])
+    }
+
     @Test func nestedUnknownFieldsAndLargeNumbersSurvive() throws {
         // The file as a later version (or another branch) wrote it: unknown fields inside known objects, and big integers.
         var base = config
