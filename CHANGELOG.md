@@ -6,6 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- Opening Settings no longer asks the keychain ("AllInOneIME wants to use your confidential information…") for the keys of services you don't use: whether a key is saved is told without reading it, a key is read only when a request needs it, and once allowed it isn't asked for again until the input method restarts or the key changes.
 - Settings → Custom Commands no longer fills with orange "the name is taken" and "Another bundle with this name is loaded" warnings when several copies of a folder are on the Mac (git worktrees, a copied repository): from a folder Spotlight found, only its Raycast Script Commands are loaded now (not its `@allinoneime` scripts or bundles; add the folder to use all of it), byte-identical copies of a script or bundle are skipped with one grey line ("Skipped N identical copies"), and found folders since removed drop out of the list.
 
 ### Changed
