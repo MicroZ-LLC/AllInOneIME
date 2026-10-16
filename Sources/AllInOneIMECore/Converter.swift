@@ -21,7 +21,7 @@ public struct ConversionUpdate: Equatable, Sendable {
 /// Config and credentials are re-read for every conversion, so edits apply without a restart.
 public final class Converter: Sendable {
     public typealias ConfigLoader = @Sendable () throws -> Config
-    public typealias CredentialLoader = @Sendable (_ profile: String) throws -> AWSSharedConfig.Resolved
+    public typealias CredentialLoader = ChatClient.CredentialLoader
     /// The user's jargon list for a config (only asked for when the jargon (黑话) style is on).
     public typealias JargonLoader = @Sendable (_ config: Config) -> [JargonEntry]
 
@@ -35,7 +35,7 @@ public final class Converter: Sendable {
     public init(
         client: BedrockClient = BedrockClient(),
         loadConfig: @escaping ConfigLoader = { try Config.load() },
-        loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
+        loadCredentials: @escaping CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
         appleModel: any AppleModelBackend = AppleModel.system

@@ -160,19 +160,17 @@ public struct ChatClient: Sendable {
         self.apple = apple
     }
 
-    public typealias CredentialLoader = @Sendable (_ profile: String) throws -> AWSSharedConfig.Resolved
+    /// The profile's credentials (`AWSCredentialResolver.shared` by default): fetched when the profile's kind needs it.
+    public typealias CredentialLoader = @Sendable (_ profile: String) async throws -> AWSSharedConfig.Resolved
     /// The key for `provider` to send to `host` (nil: none); throws when that key isn't for `host`.
     public typealias KeyLoader = @Sendable (_ provider: Provider, _ host: String) throws -> String?
 
-    public func stream(_ body: ConverseRequest, config: Config, loadCredentials: CredentialLoader,
+    public func stream(_ body: ConverseRequest, config: Config, loadCredentials: @escaping CredentialLoader,
                        loadKey: KeyLoader) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         do {
             switch config.provider {
             case .bedrock:
-                let resolved = try loadCredentials(config.awsProfile)
-                return bedrock.converseStream(
-                    body, modelId: config.modelId, region: config.region ?? resolved.region ?? "us-east-1",
-                    credentials: resolved.credentials, timeout: config.timeoutSeconds)
+                return bedrockStream(body, config: config, loadCredentials: loadCredentials)
             case .anthropic, .gemini, .openai, .hosted:
                 let provider = config.provider
                 let settings = config.settings(for: provider)

@@ -52,7 +52,7 @@ public final class AIConfigService: Sendable {
     private let cache = OSAllocatedUnfairLock(initialState: LRUCache(capacity: 32))
 
     public init(client: ChatClient = ChatClient(),
-                loadCredentials: @escaping ChatClient.CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
+                loadCredentials: @escaping ChatClient.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0) },
                 loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) }) {
         self.client = client
         self.loadCredentials = loadCredentials

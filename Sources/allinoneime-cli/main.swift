@@ -136,7 +136,7 @@ func convert(_ input: String, with converter: Converter, raw: Bool,
 }
 
 func dumpRawResponse(_ input: String, config: Config, to path: String) async throws {
-    let resolved = try AWSSharedConfig.load(profile: config.awsProfile)
+    let resolved = try await AWSCredentialResolver.shared.resolve(profile: config.awsProfile)
     let region = config.region ?? resolved.region ?? "us-east-1"
     let request = try BedrockClient.makeRequest(
         Prompt.request(for: input, config: config), modelId: config.modelId, region: region,
