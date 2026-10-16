@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AllInOneIME — AI commands in every text field on your Mac</title>
-<meta name="description" content="A macOS input method with AI commands in every text field: type @improve, @translate or @question in any app, press Return, pick the result. Your own AI provider. Free, with source on GitHub.">
+<meta name="description" content="A macOS input method with AI commands in every text field: type @improve, @translate or @question in any app, press Return, pick the result. Your own AI provider, or Apple Intelligence on your Mac. Free, with source on GitHub.">
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="alternate" hreflang="zh" href="https://allinoneime.com/zh/">
@@ -44,7 +44,7 @@
         </a>
         <a class="btn btn-ghost" href="https://github.com/MicroZ-LLC/AllInOneIME">View on GitHub</a>
       </div>
-      <p class="fineprint">Free · macOS 14 or later · Apple silicon and Intel</p>
+      <p class="fineprint">Free · macOS 14 or later · Apple silicon and Intel · Notarized by Apple</p>
       <div class="shot fade"><img src="/images/demo.png" alt="Type @translate and a sentence, press Return: a line in Spanish, French and German"></div>
     </div>
   </div>
@@ -73,6 +73,25 @@
           <p><code>@question</code> answers in place: insert the answer, or copy it with ⌘C. Type <code>@</code> on its own for the list of commands.</p>
         </div>
         <div class="shot"><img src="/images/commands.png" alt="Typing @ opens the command list; @question and a question, then Return for the answer" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>Refine it. Keep it private. Make it yours.</h2>
+        <p>The answer isn't quite right? Say what to change. Something in it is private? It needn't reach the AI.</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>Refine</div><p>Type <code>shorter</code> or <code>more formal</code> after the results and press Return: new ones replace them in place, as often as you like.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#14b8a6">▭</span>On the selection</div><p>Select text in any app, then type <code>@improve</code> or <code>@translate</code>: the result you pick replaces the selection.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">?</span>Recent questions</div><p><code>@question</code> on its own lists your last five questions; a saved answer shows at once, offline.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f59e0b">▦</span>Per app</div><p>Slack in English, WeChat in pinyin, Mail formal and tactful, or no AI at all in an app.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#334155">●</span>Hide sensitive info</div><p>Turn it on, and emails, phone numbers, card numbers, keys and your own words become placeholders before the AI sees them, then come back in the result.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#0ea5e9">◎</span>Apple Intelligence</div><p>On a Mac with Apple Intelligence (macOS 26), use the model built into macOS: no key, no cost, nothing leaves the Mac.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">↓</span>Updates</div><p>Settings → About finds a new version and installs it in a click, checked against a signed manifest first.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#ef4444">!</span>@reportissue</div><p>Opens a new GitHub issue with your title and the app's versions and settings; never your other text, paths or keys.</p></div>
       </div>
     </div>
   </section>
@@ -147,9 +166,12 @@
         <div class="card pillar"><h4>Nothing sent while you type</h4><p>Text goes out only when you run a command. Never from password fields or other secure input.</p></div>
         <div class="card pillar"><h4>Keys in your keychain</h4><p>API keys stay in the macOS keychain, and each goes only to the service it was saved for.</p></div>
         <div class="card pillar"><h4>On-device where it can be</h4><p>Speech, <code>@open</code>, <code>@calculate</code>, <code>@note</code> and <code>@reminder</code> never leave your Mac.</p></div>
+        <div class="card pillar"><h4>Sensitive values hidden</h4><p>Optionally, emails, numbers, keys and words you list are replaced with placeholders on your Mac before a request goes out.</p></div>
+        <div class="card pillar"><h4>Or no cloud at all</h4><p>With Apple Intelligence on macOS 26, the model built into your Mac answers. In apps you choose, no AI runs at all.</p></div>
+        <div class="card pillar"><h4>Signed and notarized</h4><p>Signed with a Developer ID and notarized by Apple. Updates are checked against a signed manifest before they're installed.</p></div>
       </div>
       <div class="providers fade">
-        <span>Amazon Bedrock</span><span>Claude API</span><span>Gemini</span><span>OpenAI</span><span>DeepSeek</span><span>Ollama, on your Mac</span>
+        <span>Amazon Bedrock</span><span>Claude API</span><span>Gemini</span><span>OpenAI</span><span>DeepSeek</span><span>Ollama, on your Mac</span><span>Apple Intelligence, on your Mac</span>
       </div>
     </div>
   </section>
@@ -177,7 +199,7 @@
         <a class="btn btn-primary" href="/download">Download for macOS</a>
         <a class="btn btn-ghost" href="/docs">Read the docs</a>
       </div>
-      <p class="fineprint">Not notarized by Apple yet: the first time, allow it in System Settings → Privacy &amp; Security → Open Anyway.</p>
+      <p class="fineprint">Signed with a Developer ID and notarized by Apple: it installs like any app you download.</p>
     </div>
   </section>
 </main>

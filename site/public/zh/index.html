@@ -44,7 +44,7 @@
         </a>
         <a class="btn btn-ghost" href="https://github.com/MicroZ-LLC/AllInOneIME">在 GitHub 上看</a>
       </div>
-      <p class="fineprint">免费 · macOS 14 及以上 · Apple 芯片和 Intel 都能用</p>
+      <p class="fineprint">免费 · macOS 14 及以上 · Apple 芯片和 Intel 都能用 · 经过 Apple 公证</p>
       <div class="shot fade"><img src="/images/demo-zh.png" alt="开头打 @translate 再打拼音，按回车：三种地道的英文说法"></div>
     </div>
   </div>
@@ -73,6 +73,25 @@
           <p><code>@question</code> 直接给答案，可以上屏，也可以 ⌘C 复制。单打一个 <code>@</code> 就是命令列表。</p>
         </div>
         <div class="shot"><img src="/images/commands-zh.png" alt="打 @ 弹出命令列表；@question 加问题，回车出答案" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>能接着改，能保护隐私，能按你的习惯来。</h2>
+        <p>结果不太对？说一句怎么改。有不想给 AI 看的内容？可以不发给它。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>修改结果</div><p>结果出来后打「更短」「更正式」再按回车，新结果就地替换，想改几次都行。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#14b8a6">▭</span>选中的文字</div><p>在任何 App 里选中一段文字，再打 <code>@improve</code> 或 <code>@translate</code>：选好的结果替换选中的文字。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">?</span>最近的问题</div><p>单打 <code>@question</code> 列出最近 5 个问题，当时的答案马上就能看，不联网。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f59e0b">▦</span>按 App 设置</div><p>Slack 里用英文，微信里用拼音，邮件里正式、委婉，或者某个 App 里干脆不用 AI。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#334155">●</span>隐藏敏感信息</div><p>打开后，邮箱、电话、卡号、密钥和你自己加的词，发给 AI 前先换成占位符，结果里再换回来。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#0ea5e9">◎</span>Apple Intelligence</div><p>Mac 支持 Apple Intelligence（macOS 26）时，可以用 macOS 自带的模型：不用 key，不花钱，不离开这台 Mac。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">↓</span>应用内更新</div><p>设置 →「关于」发现新版本，点一下就装好，装之前先和签名的更新信息核对。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#ef4444">!</span>@reportissue</div><p>打开 GitHub 的新问题页，带上你写的标题、App 的版本和设置；不带你别的文字、路径和密钥。</p></div>
       </div>
     </div>
   </section>
@@ -147,9 +166,12 @@
         <div class="card pillar"><h4>打字时什么都不发</h4><p>只有执行命令时才发出去。密码框和其他安全输入时，从不发送。</p></div>
         <div class="card pillar"><h4>密钥在钥匙串里</h4><p>API 密钥存在 macOS 钥匙串里，每个只发给保存时的那个服务。</p></div>
         <div class="card pillar"><h4>能在本机的都在本机</h4><p>语音、<code>@open</code>、<code>@calculate</code>、<code>@note</code> 和 <code>@reminder</code> 都不离开你的 Mac。</p></div>
+        <div class="card pillar"><h4>敏感内容先隐藏</h4><p>可以打开：邮箱、号码、密钥和你列出的词，请求发出前先在本机换成占位符。</p></div>
+        <div class="card pillar"><h4>也可以完全不上云</h4><p>macOS 26 上用 Apple Intelligence，由 Mac 自带的模型回答。你指定的 App 里，干脆不用 AI。</p></div>
+        <div class="card pillar"><h4>签名并经过公证</h4><p>用 Developer ID 签名，经过 Apple 公证。更新装之前先和签名的更新信息核对。</p></div>
       </div>
       <div class="providers fade">
-        <span>Amazon Bedrock</span><span>Claude API</span><span>Gemini</span><span>OpenAI</span><span>DeepSeek</span><span>Ollama（本机）</span>
+        <span>Amazon Bedrock</span><span>Claude API</span><span>Gemini</span><span>OpenAI</span><span>DeepSeek</span><span>Ollama（本机）</span><span>Apple Intelligence（本机）</span>
       </div>
     </div>
   </section>
@@ -177,7 +199,7 @@
         <a class="btn btn-primary" href="/download">下载 macOS 版</a>
         <a class="btn btn-ghost" href="/docs">看使用说明</a>
       </div>
-      <p class="fineprint">还没有经过 Apple 公证：第一次打开时，到「系统设置 → 隐私与安全性」点「仍要打开」。</p>
+      <p class="fineprint">用 Developer ID 签名并经过 Apple 公证：和别的下载的 App 一样直接安装。</p>
     </div>
   </section>
 </main>
