@@ -6,8 +6,9 @@ import Foundation
 /// `questionRounds` rounds (`QuestionChat`). The rounds are kept in the refine plumbing: `refineRequest` is the first
 /// question, each of `refinements` an answer and the question typed after it, `result` the latest answer. Every round's
 /// answer can be picked (digits 1–5, ↑↓ then ⏎, a click; the latest is selected), ⇧⏎ asks the question typed, Esc with
-/// nothing typed goes back a round. After the last round, or with ⌘⏎ at any round, the panel offers to go on in Claude
-/// Code, Claude, ChatGPT or Gemini, or to copy the conversation (`handoffChoices`, ⌘1 …; `ChatHandoff`).
+/// nothing typed goes back a round. After the last round, or with ⌘⏎ at any round, the panel offers to go on in the
+/// agent `@agent` hands to (Claude Code by default), Claude, ChatGPT or Gemini, or to copy the conversation
+/// (`handoffChoices`, ⌘1 …; `ChatHandoff`).
 extension Composer {
     /// What a hand-off says near the caret, in the interface language.
     public struct ChatMessages: Equatable, Sendable {

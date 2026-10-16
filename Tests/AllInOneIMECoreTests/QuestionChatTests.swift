@@ -331,7 +331,7 @@ struct QuestionChatTests {
         type("go deeper", c)
         #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.showsHandoff && c.refineText == "go deeper")
         #expect(c.isLevelTwo && c.chatRound == 2)
-        // ⌘1 (Claude Code here) goes on there with it.
+        // ⌘1 (the agent @agent hands to here) goes on there with it.
         let effects = c.handleKeyDown(command(1)).effects
         #expect(started(effects) == nil && c.phase == .idle)
         let prompt = effects.compactMap { if case let .continueInClaudeCode(p) = $0 { return p } else { return nil } }.first
@@ -650,13 +650,34 @@ struct QuestionChatTests {
 
     // MARK: - The hand-off
 
-    @Test func theDefaultChoicesDependOnClaudeCode() {
+    @Test func theDefaultChoicesDependOnTheAgentBeingInstalled() {
         #expect(ChatHandoff.defaultChoices(claudeCode: true) == [.claudeCode, .claudeWeb, .chatgpt, .copy])
         #expect(ChatHandoff.defaultChoices(claudeCode: false) == [.claudeWeb, .chatgpt, .copy])
         #expect(ChatHandoff.choices(nil, claudeCode: false) == [.claudeWeb, .chatgpt, .copy])
         #expect(ChatHandoff.choices([.gemini, .claudeCode, .gemini, .copy], claudeCode: false) == [.gemini, .copy])
         #expect(ChatHandoff.choices([.claudeCode], claudeCode: false) == [.copy])
         #expect(ChatHandoff.choices([.chatgpt, .claudeCode], claudeCode: true) == [.chatgpt, .claudeCode])
+    }
+
+    /// The first choice is the agent `@agent` hands to (`Config.agent`), offered only when that agent's program is
+    /// installed: Claude Code by default, else the one picked.
+    @Test func theAgentToGoOnInIsTheOneAtAgentHandsTo() {
+        var config = Config.default
+        #expect(ChatHandoff.agentInstalled(config, installed: { $0 == "claude" }))
+        #expect(!ChatHandoff.agentInstalled(config, installed: { $0 == "gemini" }))
+        config.agent = .gemini
+        #expect(ChatHandoff.agentInstalled(config, installed: { $0 == "gemini" }))
+        // Claude Code being installed doesn't bring it back for another agent that isn't.
+        let claudeOnly = ChatHandoff.agentInstalled(config, installed: { $0 == "claude" })
+        #expect(!claudeOnly && ChatHandoff.choices(nil, claudeCode: claudeOnly) == [.claudeWeb, .chatgpt, .copy])
+        config.agent = .kiro
+        #expect(ChatHandoff.agentInstalled(config, installed: { $0 == "kiro-cli" }))
+        // A custom agent: its program as typed (trimmed); without a command it's never offered.
+        config.agent = .custom
+        #expect(!ChatHandoff.agentInstalled(config, installed: { _ in true }))
+        config.agentCommand = [" /opt/bin/muse ", "--"]
+        var looked: [String] = []
+        #expect(ChatHandoff.agentInstalled(config, installed: { looked.append($0); return true }) && looked == ["/opt/bin/muse"])
     }
 
     @Test func theTextAndWhereItGoes() {

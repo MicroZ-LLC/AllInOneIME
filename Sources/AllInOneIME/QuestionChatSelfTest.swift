@@ -32,9 +32,10 @@ extension SelfTest {
     /// An @question conversation through the controller, with canned answers (`CannedChatModel`): typing after the
     /// answer is the next question, ⇧⏎ asks it as user and assistant turns, the panel grows into 问/答 rows with the next
     /// question's line on top and its round, every answer can be picked (↑, ⌘C), Esc goes back a round, the third
-    /// round (`questionRounds` 3 here) offers where to go on (⌘1 Claude Code, ⌘2 Claude on the web, ⌘4 copy; nothing
-    /// is started or opened here), a long conversation is shortened for a small context and the panel scrolls within
-    /// half the screen, and the thread is kept whole. Images: question-chat*.png, question-chat-handoff*.png.
+    /// round (`questionRounds` 3 here) offers where to go on (⌘1 the agent `@agent` hands to, Claude Code or another one
+    /// picked, ⌘2 Claude on the web, ⌘4 copy; nothing is started or opened here), a long conversation is shortened for a
+    /// small context and the panel scrolls within half the screen, and the thread is kept whole. Images:
+    /// question-chat*.png, question-chat-handoff*.png.
     static func testQuestionChat(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("@question: a conversation in the panel (canned answers)", needs: .composing)
         let answers = [
@@ -43,13 +44,13 @@ extension SelfTest {
             "why is it safe": "Its ownership rules and borrow checker catch memory errors when the code is compiled, not when it runs.",
         ]
         let model = CannedChatModel(answers: answers)
-        var started: [String] = [], opened: [String] = [], copied: [String] = []
+        var started: [String] = [], opened: [String] = [], copied: [String] = [], agentArguments: [[String]] = []
         let saved = (converter: controller.converter, settings: settings, open: controller.openItem, copy: controller.copyText,
-                     claude: controller.continueInClaudeCode)
+                     agent: controller.continueInAgent)
         defer {
             controller.commitComposition(client)
-            (controller.converter, settings, controller.openItem, controller.copyText, controller.continueInClaudeCode)
-                = (saved.converter, saved.settings, saved.open, saved.copy, saved.claude)
+            (controller.converter, settings, controller.openItem, controller.copyText, controller.continueInAgent)
+                = (saved.converter, saved.settings, saved.open, saved.copy, saved.agent)
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
         }
@@ -60,7 +61,7 @@ extension SelfTest {
         controller.converter = Converter(loadConfig: { fixed }, appleModel: model)
         controller.openItem = { opened.append($0) }
         controller.copyText = { copied.append($0) }
-        controller.continueInClaudeCode = { started.append($0) }
+        controller.continueInAgent = { agentArguments.append($0); started.append($1) }
         controller.applySettings()
         controller.composer.setInputMode(.english)
         QuestionHistoryStore.clear()
@@ -150,13 +151,33 @@ extension SelfTest {
               "the saved thread shows its 3 rounds and where to go on")
         type("go deeper", controller, client)
         if choices.first == .claudeCode {
+            let input = controller.panelModel().input ?? "-"
+            check(input.contains("⌘1 Claude Code"), "⌘1 is the agent @agent hands to, by its name (\(input))")
             _ = command("1", code: 0x12)
             check(started.count == 1 && started[0].hasPrefix("**Q:** what is rust") && started[0].hasSuffix("Let's continue this discussion.\n\ngo deeper"),
                   "⌘1 hands it to Claude Code with the follow-up as its first message (nothing started here)")
+            check(agentArguments == [["claude", "--"]], "…through @agent's agent, as `claude -- <conversation>` (\(agentArguments))")
         } else {
             _ = command("1", code: 0x12)
             check(opened.last?.hasPrefix("https://claude.ai/new?q=") == true, "⌘1 opens Claude with the conversation (nothing opened here)")
         }
+        // Another agent picked for @agent (a custom one, `/bin/echo --`, on every Mac): ⌘1 is that one, by its name, and
+        // the conversation goes to it as its last argument.
+        (settings.agent, settings.agentCommand) = (.custom, ["/bin/echo", "--"])
+        controller.applySettings()
+        controller.composer.setInputMode(.english)
+        _ = press(controller, client, "@", code: 0x13, flags: .shift)
+        type("question", controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
+        type("1", controller, client)
+        let custom = controller.panelModel().input ?? "-"
+        _ = command("1", code: 0x12)
+        check(custom.contains("⌘1 echo") && agentArguments.last == ["/bin/echo", "--"]
+              && started.last?.hasSuffix("Let's continue this discussion.") == true,
+              "another agent picked for @agent: ⌘1 is it, by its name, and it gets the conversation (\(custom) | \(agentArguments.last ?? []))")
+        (settings.agent, settings.agentCommand) = (.claude, [])
+        controller.applySettings()
+        controller.composer.setInputMode(.english)
 
         // Esc goes back a round; ⏎ inserts the answer selected, dropping a half-typed question.
         ask("what is rust")

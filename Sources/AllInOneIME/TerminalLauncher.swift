@@ -42,12 +42,6 @@ enum TerminalLauncher {
         }
     }
 
-    /// An `@question` conversation going on in Claude Code (`ChatHandoff`): an interactive session (not in the
-    /// background) whose first message is `prompt`, however long.
-    static func claude(promptFile prompt: String) throws {
-        try agent(AgentKind.claude.terminalArguments() ?? ["claude", "--"], prompt: prompt)
-    }
-
     /// Opens a new Terminal window in `directory` (else the home folder) that runs `argv` (a custom
     /// `terminal` command), each argument quoted as one word, with the login shell's PATH. `promptFile`: its text is the
     /// last argument, read when the script runs (the file is deleted then).

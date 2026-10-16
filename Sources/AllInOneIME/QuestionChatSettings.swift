@@ -2,19 +2,19 @@ import AllInOneIMECore
 import Foundation
 
 /// General → "Continue a conversation in" (`Config.questionContinueIn`): where an @question conversation can go on
-/// (`ChatHandoff`), in order, the first the default (⌘1; the choices show after the last round or with ⌘⏎). Claude Code
-/// only where the `claude` command is installed.
+/// (`ChatHandoff`), in order, the first the default (⌘1; the choices show after the last round or with ⌘⏎). The agent
+/// `@agent` hands to only where its program is installed.
 extension SettingsModel {
     /// The choices as the panel offers them now.
     var continueChoices: [ChatHandoff.Destination] {
-        ChatHandoff.choices(config.questionContinueIn, claudeCode: AllInOneIMEInputController.claudeCodeInstalled)
+        ChatHandoff.choices(config.questionContinueIn, claudeCode: AllInOneIMEInputController.agentInstalled(config))
     }
 
     /// The ones that can be added.
     var missingContinueChoices: [ChatHandoff.Destination] {
         let on = continueChoices
         return ChatHandoff.Destination.allCases.filter {
-            !on.contains($0) && ($0 != .claudeCode || AllInOneIMEInputController.claudeCodeInstalled)
+            !on.contains($0) && ($0 != .claudeCode || AllInOneIMEInputController.agentInstalled(config))
         }
     }
 

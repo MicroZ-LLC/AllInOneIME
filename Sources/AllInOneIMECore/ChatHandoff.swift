@@ -1,13 +1,15 @@
 import Foundation
 
 /// Going on with an `@question` conversation elsewhere (`QuestionChat`): after the last round the panel allows
-/// (`Config.questionRounds`), or at any round with ⌘⏎, it offers Claude Code, Claude, ChatGPT or Gemini on the web, or
-/// copying the conversation, picked with ⌘1–⌘5 (`Config.questionContinueIn` says which, in which order). The text goes
-/// to the service the user picks, as it was shown: values hidden from our own requests (`Redaction`) are in it as
-/// they are, since the user chooses to send it there.
+/// (`Config.questionRounds`), or at any round with ⌘⏎, it offers the coding agent `@agent` hands to (Claude Code by
+/// default), Claude, ChatGPT or Gemini on the web, or copying the conversation, picked with ⌘1–⌘5
+/// (`Config.questionContinueIn` says which, in which order). The text goes to the service the user picks, as it was
+/// shown: values hidden from our own requests (`Redaction`) are in it as they are, since the user chooses to send it
+/// there.
 public enum ChatHandoff {
     public enum Destination: String, Codable, CaseIterable, Equatable, Sendable {
-        /// A Claude Code session in Terminal, interactive, with the conversation as its first message.
+        /// The coding agent `@agent` hands to (`Config.agent`: Claude Code by default, whose name the config's
+        /// `claudeCode` keeps), in Terminal, interactive, with the conversation as its first message.
         case claudeCode
         case claudeWeb
         case chatgpt
@@ -16,19 +18,26 @@ public enum ChatHandoff {
         case copy
     }
 
-    /// What the choices are when the config doesn't say: Claude Code (when the `claude` command is installed), Claude on
-    /// the web, ChatGPT, then copying. Gemini can be added in the settings.
+    /// What the choices are when the config doesn't say: the agent `@agent` hands to (when it's installed,
+    /// `agentInstalled`), Claude on the web, ChatGPT, then copying. Gemini can be added in the settings.
     public static func defaultChoices(claudeCode installed: Bool) -> [Destination] {
         (installed ? [.claudeCode] : []) + [.claudeWeb, .chatgpt, .copy]
     }
 
     /// The choices offered: `configured` (`Config.questionContinueIn`; nil: `defaultChoices`) in its order, each once,
-    /// without Claude Code when it isn't installed. Never none: copying is always possible.
+    /// without the agent when it isn't installed. Never none: copying is always possible.
     public static func choices(_ configured: [Destination]?, claudeCode installed: Bool) -> [Destination] {
         var seen = Set<Destination>()
         let list = (configured ?? defaultChoices(claudeCode: installed))
             .filter { ($0 != .claudeCode || installed) && seen.insert($0).inserted }
         return list.isEmpty ? [.copy] : list
+    }
+
+    /// Whether `.claudeCode`, the agent `@agent` hands to, can be offered: that agent's program (`AgentKind.program`) is
+    /// on this Mac, as `installed` finds it. Another agent being installed (Claude Code, say) doesn't stand in for it; a
+    /// custom agent without a command never is.
+    public static func agentInstalled(_ config: Config, installed: (String) -> Bool) -> Bool {
+        config.agent.program(custom: config.agentCommand).map(installed) ?? false
     }
 
     // MARK: - The text
@@ -70,7 +79,7 @@ public enum ChatHandoff {
 
     /// What picking `destination` does with `prompt` (`prompt(_:followUp:)`), and `copied` for copying.
     public enum Action: Equatable, Sendable {
-        /// Start Claude Code in Terminal with `prompt` as its first message.
+        /// Start the agent `@agent` hands to in Terminal with `prompt` as its first message.
         case claudeCode(prompt: String)
         /// Open `url`; with `clipboard`, that text is put on the clipboard first, to paste there.
         case open(URL, clipboard: String?)

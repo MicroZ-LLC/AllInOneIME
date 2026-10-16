@@ -133,7 +133,7 @@ struct AWSProfileStatusRow: View {
         return text.replacingOccurrences(of: profile, with: shownAs)
     }
 
-    /// The command in a new Terminal window, as `@claude` opens one (`TerminalLauncher`): its words as they are, never
+    /// The command in a new Terminal window, as `@agent` opens one (`TerminalLauncher`): its words as they are, never
     /// through a shell.
     static func openInTerminal(_ command: String) {
         guard let arguments = try? AWSCredentialProcess.arguments(command) else { return }

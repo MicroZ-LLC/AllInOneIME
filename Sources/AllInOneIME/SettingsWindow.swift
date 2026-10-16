@@ -1021,13 +1021,18 @@ struct SettingsView: View {
             // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift).
             LabeledContent {
                 HStack(spacing: 6) {
-                    LanguageChips(items: model.continueChoices, name: AllInOneIMEInputController.shortName, firstNote: tr("默认", "default"),
+                    // The agent by the name of the one picked above.
+                    LanguageChips(items: model.continueChoices,
+                                  name: { AllInOneIMEInputController.shortName($0, agent: UIText.agentName(model.config)) },
+                                  firstNote: tr("默认", "default"),
                                   reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
                     let missing = model.missingContinueChoices
                     if !missing.isEmpty {
                         Menu(tr("添加…", "Add…")) {
                             ForEach(missing, id: \.self) { destination in
-                                Button(AllInOneIMEInputController.name(destination)) { model.addContinueIn(destination) }
+                                Button(AllInOneIMEInputController.name(destination, agent: UIText.agentName(model.config))) {
+                                    model.addContinueIn(destination)
+                                }
                             }
                         }
                         .fixedSize()
@@ -2926,7 +2931,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 @agent coding agent claude gemini cli kiro custom 编程 交给 自定义 background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
@@ -3078,8 +3083,8 @@ private struct PreferenceField: View {
     }
 }
 
-/// Whether an agent's program is on this Mac, for the Settings picker: each program looked up once (the first lookup
-/// asks the login shell for its PATH). Main thread only.
+/// Whether an agent's program is on this Mac, for the Settings picker and the `@question` hand-off: each program looked
+/// up once (the first lookup asks the login shell for its PATH). Main thread only.
 enum AgentAvailability {
     private static var found: [String: Bool] = [:]
 
@@ -3087,7 +3092,11 @@ enum AgentAvailability {
     static func forget() { found = [:] }
 
     static func installed(_ kind: AgentKind, custom: [String]) -> Bool {
-        guard let program = kind.program(custom: custom) else { return false }
+        kind.program(custom: custom).map(installed(program:)) ?? false
+    }
+
+    /// Whether `program` (`AgentKind.program`) is on this Mac: Claude Code also where Terminal finds it.
+    static func installed(program: String) -> Bool {
         if let known = found[program] { return known }
         let installed = (program == "claude" && TerminalLauncher.claudePath != nil)
             || CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])

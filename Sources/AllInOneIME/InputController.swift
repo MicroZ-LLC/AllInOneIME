@@ -54,7 +54,7 @@ enum LivePlugins {
 enum CommandUsageStore {
     private static let key = "commandUsage"
     static var usage: CommandUsage = {
-        // 0.6.5: @claude is @agent now. Once (also with nothing kept yet): a command of the user's own may be named
+        // 0.6.4: @claude is @agent now. Once (also with nothing kept yet): a command of the user's own may be named
         // "claude" afterwards.
         let renamed = UserDefaults.standard.bool(forKey: renamedKey)
         UserDefaults.standard.set(true, forKey: renamedKey)
@@ -107,7 +107,7 @@ enum LiveJargon {
 /// thread, so entry points hop into main-actor code with `MainActor.assumeIsolated`.
 @objc(AllInOneIMEInputController)
 final class AllInOneIMEInputController: IMKInputController {
-    /// The input state machine. It asks `secureInputActive` before starting Claude Code.
+    /// The input state machine. It asks `secureInputActive` before starting the agent.
     lazy var composer: Composer = {
         let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
@@ -179,8 +179,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`, `applyAgent`).
     private(set) var agent = AgentKind.claude
     private(set) var agentCommand: [String] = []
-    /// An `@question` conversation going on in Claude Code (`ChatHandoff`; the self-test starts nothing).
-    var continueInClaudeCode: (String) throws -> Void = { try TerminalLauncher.claude(promptFile: $0) }
+    /// An `@question` conversation going on in the agent `@agent` hands to: its arguments
+    /// (`AgentKind.terminalArguments`) with the conversation in Terminal (`ChatHandoff`; the self-test starts nothing).
+    var continueInAgent: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
     var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
     /// `@note`: saves the text to Apple Notes (the self-test saves nothing).
@@ -981,9 +982,14 @@ final class AllInOneIMEInputController: IMKInputController {
                     showNotice(UIText.describe(error), client: target)
                 }
             case let .continueInClaudeCode(prompt):
+                // The agent picked for @agent (a custom one without a command isn't offered).
+                guard let arguments = agent.terminalArguments(custom: agentCommand) else {
+                    log.error("@question: no command for the custom agent")
+                    break
+                }
                 do {
-                    try continueInClaudeCode(prompt)
-                    log.notice("@question: conversation handed to Claude Code (\(prompt.count) chars)")
+                    try continueInAgent(arguments, prompt)
+                    log.notice("@question: conversation handed to \(self.agent.rawValue, privacy: .public) (\(prompt.count) chars)")
                 } catch {
                     log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
                     showNotice(UIText.describe(error), client: target)

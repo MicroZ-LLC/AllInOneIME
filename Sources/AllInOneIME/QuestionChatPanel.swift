@@ -6,26 +6,28 @@ import AppKit
 /// earlier ones dimmed and shortened, the latest answer in full. The panel grows with them up to about half the
 /// screen, then scrolls, the latest at the bottom (`CandidateView.Model.transcript`).
 extension AllInOneIMEInputController {
-    /// Whether the `claude` command is on this Mac (where Terminal finds it, else on the login shell's PATH): Claude
-    /// Code is offered to go on in. Looked for once.
-    static let claudeCodeInstalled: Bool = TerminalLauncher.claudePath != nil
-        || CommandRunner.resolve("claude", path: ShellEnvironment.current["PATH"]) != nil
+    /// Whether the agent `@agent` hands to (`Config.agent`) is on this Mac: it's offered to go on in
+    /// (`ChatHandoff.Destination.claudeCode`). Each program looked for once (`AgentAvailability`). Main thread only.
+    static func agentInstalled(_ config: Config) -> Bool {
+        ChatHandoff.agentInstalled(config, installed: AgentAvailability.installed(program:))
+    }
 
     /// The rounds and where a conversation can go on, from the settings; what the hand-off says in the interface language.
     @MainActor
     func applyChatSettings(_ config: Config) {
         composer.questionRounds = config.questionRounds
-        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, claudeCode: Self.claudeCodeInstalled)
+        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, claudeCode: Self.agentInstalled(config))
         composer.chatMessages = UIText.chinese ? .chinese : .english
     }
 
     /// The answer a click on row `row` of a conversation picks (rows alternate: a question, then its answer).
     static func chatChoice(row: Int) -> Int? { row % 2 == 1 ? row / 2 : nil }
 
-    /// A destination's name in the panel and the settings.
-    static func name(_ destination: ChatHandoff.Destination) -> String {
+    /// A destination's name in the panel and the settings: the agent `@agent` hands to by its name (`agent`: "Claude
+    /// Code", "Gemini CLI" …; the settings window passes the one it shows).
+    static func name(_ destination: ChatHandoff.Destination, agent: String = UIText.agentName) -> String {
         switch destination {
-        case .claudeCode: return "Claude Code"
+        case .claudeCode: return agent
         case .claudeWeb: return tr("Claude 网页版", "Claude (web)")
         case .chatgpt: return tr("ChatGPT 网页版", "ChatGPT (web)")
         case .gemini: return tr("Gemini 网页版", "Gemini (web)")
@@ -33,11 +35,11 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// A destination's short name, for the panel's choices and the settings' chips (the web ones are the web's; "Copy"
-    /// copies the conversation).
-    static func shortName(_ destination: ChatHandoff.Destination) -> String {
+    /// A destination's short name, for the panel's choices and the settings' chips (the agent by its name, the web ones
+    /// are the web's; "Copy" copies the conversation).
+    static func shortName(_ destination: ChatHandoff.Destination, agent: String = UIText.agentName) -> String {
         switch destination {
-        case .claudeCode: return "Claude Code"
+        case .claudeCode: return agent
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"
         case .gemini: return "Gemini"

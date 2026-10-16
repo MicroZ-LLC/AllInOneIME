@@ -74,10 +74,10 @@ public final class Composer {
         case open(path: String)
         /// Open a `link` command's web address, with the text in it, in the default browser.
         case openLink(URL)
-        /// Start a Claude Code session in a terminal window with `prompt` as its first message (`@agent`).
+        /// Start the agent `@agent` hands to (`Config.agent`) in a terminal window with `prompt` as its first message.
         case runInTerminal(prompt: String)
-        /// Go on with an `@question` conversation in an interactive Claude Code session in Terminal (`ChatHandoff`):
-        /// `prompt` (the conversation, maybe long) is its first message, passed through a file.
+        /// Go on with an `@question` conversation in the agent `@agent` hands to (Claude Code by default), interactive, in
+        /// Terminal (`ChatHandoff`): `prompt` (the conversation, maybe long) is its first message, passed through a file.
         case continueInClaudeCode(prompt: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
         case launchInTerminal(argv: [String])
@@ -469,7 +469,7 @@ public final class Composer {
     /// clipboard instead.
     public var pastesIntoDraft = true
     /// Whether secure input is on anywhere (set by the input controller). Nothing is sent to a model
-    /// then: a terminal command doesn't start Claude Code, and its text stays in the draft. (The other
+    /// then: a terminal command doesn't start its agent or program, and its text stays in the draft. (The other
     /// commands are refused by the controller, which sends their requests; `@note` and `@reminder`
     /// stay on this Mac and go ahead.)
     public var secureInputActive: () -> Bool = { false }
@@ -969,7 +969,7 @@ public final class Composer {
     }
 
     /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@agent`, a custom
-    /// one) or a script extension: no command inside its text runs first (`startAction`; Terminal, Claude Code and
+    /// one) or a script extension: no command inside its text runs first (`startAction`; Terminal, the agent and
     /// the script get the text as typed), so an "@" in it is just text (no list to pick a command from, none
     /// shown as picked).
     private var takesTextAsTyped: Bool {
