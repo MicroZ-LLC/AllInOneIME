@@ -2073,11 +2073,6 @@ final class AllInOneIMEInputController: IMKInputController {
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
-            case .choosing where composer.showsSavedAnswer:
-                // A recent question's answer as it was saved (nothing was asked): ⌘R asks again for a fresh one.
-                model.footer = tr("空格 / ⏎ 上屏 · ⌘R 重新问 · ⌘C 复制 · Esc 返回",
-                                  "Space / ⏎ insert · ⌘R re-ask · ⌘C copy · Esc back")
-                model.detail = composer.savedAnswerDate.map { tr("保存于", "saved ") + UIText.ago($0) }
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
                 model.footer = command?.script?.output == .show && !picks

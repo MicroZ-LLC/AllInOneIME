@@ -330,7 +330,7 @@ public final class Composer {
     /// The request in flight is a refine (its id): a failure goes back to the results before it.
     private var refineID: Int?
     /// Why the last refine failed (secure input, the network …): shown over the results it left as they were, its
-    /// instruction back in the line to run again with ⏎. Cleared by the next key.
+    /// instruction back in the line to run again with ⇧⏎. Cleared by the next key.
     public internal(set) var refineError: String?
 
     // MARK: An @question conversation (`QuestionChat`; Composer+QuestionChat.swift)
@@ -2467,7 +2467,7 @@ public final class Composer {
     }
 
     /// A refine that failed (or brought nothing): the results before it stay, and its instruction is back in the line
-    /// to run again with ⏎, with what went wrong (`refineError`).
+    /// to run again with ⇧⏎, with what went wrong (`refineError`).
     private func refineFailed(_ message: String) -> [Effect] {
         guard let last = refinements.popLast() else { return [.showPanel] }
         result = last.answer
