@@ -2402,8 +2402,9 @@ public final class Composer {
 
     /// ⇧⏎ on the refine line: pinyin still being typed is converted, then the results shown go to the model again with
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
-    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way; where the
-    /// conversation can go on is shown instead (its last round, or ⌘⏎), it goes there, the first choice.
+    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way; at its last
+    /// round, or with where it can go on shown (⌘⏎), nothing is asked: the choices are shown (`showsHandoff`), the line
+    /// stays as the hand-off's first message, and only ⌘1–⌘5 send it.
     /// `fresh`: asked again past the cache (⌘R on a saved conversation: its latest question, `reaskSaved`).
     func runRefine(fresh: Bool = false) -> [Effect] {
         if let engine, engine.snapshot().isComposing {
@@ -2412,7 +2413,10 @@ public final class Composer {
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
-        if !fresh, showsHandoff, let first = handoffChoices.first { return handOff(to: first) }
+        if !fresh, showsHandoff {
+            handoffRequested = true
+            return [.showPanel]
+        }
         // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
         // turned on while they were up. They stay, the instruction too.
         if let refusal = aiRefusal() {

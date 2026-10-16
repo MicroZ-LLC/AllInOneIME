@@ -157,8 +157,10 @@ dropped). Esc clears what you typed, then goes back one round; at the first, it 
 about half the screen, then scrolls, the latest at the bottom.
 
 After 5 rounds (`questionRounds` in the config, 2–10) the next question's line becomes "5 rounds in: continue in Claude
-or another AI", with the choices numbered ⌘1, ⌘2 …; ⌘⏎ shows them at any round. What you type then is the first message
-there (⇧⏎ sends it to the first choice):
+or another AI", with the choices numbered ⌘1, ⌘2 …; ⌘⏎ shows them at any round (while an answer is still coming in it
+does nothing, and never reaches the app). What you type then is the first message there; only ⌘1, ⌘2 … send it (⇧⏎
+asks nothing more, and opens nothing). A question about selected text takes that text along, quoted as a block of its
+own. The choices:
 
 - **Claude Code**, when the `claude` command is installed: an interactive session in Terminal, starting with the
   conversation and "Let's continue this discussion".

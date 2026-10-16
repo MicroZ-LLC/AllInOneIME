@@ -323,9 +323,12 @@ struct QuestionChatTests {
         #expect(!c.showsHandoff && !c.chatAtLimit)
         followUp(c, "who made it", reply: "Graydon Hoare.")
         #expect(c.chatAtLimit && c.showsHandoff && c.chatRound == 2)
-        // Typing doesn't ask a third question: ⇧⏎ goes on in the first choice (Claude Code here) with it.
+        // Typing doesn't ask a third question, nor does ⇧⏎ launch anything: the choices stay up, the text kept for them.
         type("go deeper", c)
-        let effects = c.handleKeyDown(shiftEnterKey).effects
+        #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.showsHandoff && c.refineText == "go deeper")
+        #expect(c.isLevelTwo && c.chatRound == 2)
+        // ⌘1 (Claude Code here) goes on there with it.
+        let effects = c.handleKeyDown(command(1)).effects
         #expect(started(effects) == nil && c.phase == .idle)
         let prompt = effects.compactMap { if case let .continueInClaudeCode(p) = $0 { return p } else { return nil } }.first
         #expect(prompt == "**Q:** what is rust\n\n**A:** A systems language.\n\n**Q:** who made it\n\n**A:** Graydon Hoare.\n\n"
@@ -360,9 +363,10 @@ struct QuestionChatTests {
         #expect(c.handleKeyDown(commandReturn).effects == [.showPanel] && c.showsHandoff && !c.chatAtLimit)
         _ = c.handleKeyDown(escKey)
         #expect(!c.showsHandoff && c.isLevelTwo && c.chatRound == 1)
-        // Shown, a follow-up typed goes with the hand-off (⇧⏎: the first choice).
+        // Shown, a follow-up typed goes with the hand-off; ⇧⏎ asks nothing and launches nothing then.
         _ = c.handleKeyDown(commandReturn)
         type("more", c)
+        #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.showsHandoff && c.chatRound == 1 && c.refineText == "more")
         let effects = c.handleKeyDown(command(3)).effects
         let url = effects.compactMap { if case let .openLink(u) = $0 { return u } else { return nil } }.first
         #expect(url?.host == "chatgpt.com" && url?.absoluteString.hasSuffix("discussion.%0A%0Amore") == true)
@@ -401,8 +405,47 @@ struct QuestionChatTests {
         #expect(c.chatRounds.first?.question == "what does it mean")
         _ = c.handleKeyDown(commandReturn)
         let effects = c.handleKeyDown(command(1)).effects
-        #expect(effects.contains(.copy("**Q:** " + Prompt.question("what does it mean", about: "Error 404 at /api") + "\n\n**A:** Not found.")))
+        // The selected text as a quoted block of its own, the question as typed: no tags of ours.
+        #expect(effects.contains(.copy("**Selected text:**\n\n> Error 404 at /api\n\n**Q:** what does it mean\n\n**A:** Not found.")))
+        #expect(!effects.contains { if case let .copy(text) = $0 { text.contains("selected_text") } else { false } })
         #expect(!effects.contains { if case .replaceSelection = $0 { true } else { false } } && commits(effects).isEmpty)
+    }
+
+    @Test func commandReturnIsNeverTheAppsWhileAnAnswerComesIn() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.remembersQuestions = false
+        c.setInputMode(.english)
+        _ = c.handleKeyDown(at)
+        type("question", c)
+        _ = c.handleKeyDown(tab)
+        type("what is rust", c)
+        _ = c.handleKeyDown(enterKey)
+        // Round 1 coming in: consumed, nothing happens.
+        #expect(c.handleKeyDown(commandReturn) == .consumed() && !c.showsHandoff)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("A sys", isComplete: false)]), isFinal: false, id: 1)
+        #expect(c.handleKeyDown(commandReturn) == .consumed())
+        _ = c.receive(answer("A systems language."), isFinal: true, id: 1)
+        // A follow-up coming in: the same.
+        type("who", c)
+        _ = c.handleKeyDown(shiftEnterKey)
+        #expect(c.isRefining && c.handleKeyDown(commandReturn) == .consumed() && !c.showsHandoff)
+        _ = c.receive(answer("Graydon."), isFinal: true, id: 2)
+        // In: the choices.
+        #expect(c.handleKeyDown(commandReturn).effects == [.showPanel] && c.showsHandoff)
+        // After a failure too (nothing to show), and elsewhere ⌘⏎ is still the app's.
+        let d = asked()
+        _ = d.handleKeyDown(escKey)
+        _ = d.handleKeyDown(enterKey)
+        _ = d.fail("timeout", id: 2)
+        #expect(d.handleKeyDown(commandReturn) == .consumed())
+        #expect(!Composer(engine: FakeEngine(), actionKey: .enter).handleKeyDown(commandReturn).handled)
+    }
+
+    @Test func theHandoffTextQuotesTheSelectionWithoutTags() {
+        let rounds = [QuestionChat.Round(question: "what is this", answer: "A greeting.")]
+        #expect(ChatHandoff.prompt(rounds, selection: "Hello,\n\nworld") ==
+                "**Selected text:**\n\n> Hello,\n>\n> world\n\n**Q:** what is this\n\n**A:** A greeting.\n\nLet's continue this discussion.")
+        #expect(ChatHandoff.copied(rounds, selection: "  ") == ChatHandoff.copied(rounds))
     }
 
     // MARK: - Other commands keep refining; @translate doesn't
