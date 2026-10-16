@@ -126,6 +126,7 @@ extension SelfTest {
         check(controller.composer.showsHandoff && (panel.input ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n⌘1 ")
               && panel.footer.hasPrefix("⌘1–⌘\(choices.count) 接着聊"),
               "after round 3: where to go on (\(panel.input?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
+        _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the image without round 2's "copied"
         readmeSnapshot("question-chat-handoff", controller, client, in: snapshotDirectory)
         let kept = QuestionHistoryStore.history.entries.first
         check(kept?.thread.map(\.question) == ["what is rust", "who made it", "why is it safe"] && kept?.question == "what is rust",

@@ -192,16 +192,26 @@ extension SelfTest {
               "a provider change runs Test Connection (\(controller.composer.choices.map(\.text)))")
         _ = escape(controller, client)
 
-        _ = pump(timeout: 4) { controller.panelModel().detail == nil }  // the notices before go
-        // The release notes' images: the preview in English too.
+        _ = pump(timeout: 13) { controller.panelModel().detail == nil }  // the notices before go (the key's is up 12 s)
+        // The release notes' images: three changes, in Chinese (config-changes.png), then in English.
+        let changes = """
+            {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"},
+                         {"key": "candidateLayout", "value": "vertical"}]}
+            """
+        try? start.write(to: url)
+        controller.applySettings()
+        model.answer = changes
+        command("translate into English and French, Chinese in WeChat, candidates in a column")
+        _ = enter(controller, client)
+        _ = waitForPreview()
+        snapshot("config-changes", in: snapshotDirectory)
+        _ = escape(controller, client)
+        controller.commitComposition(client)
         settings.uiLanguage = .english
         try? start.write(to: url)
         controller.loadSettings = { var config = (try? Config.load(from: url)) ?? SelfTest.settings; config.uiLanguage = .english; return config }
         controller.applySettings()
-        model.answer = """
-            {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"},
-                         {"key": "candidateLayout", "value": "vertical"}]}
-            """
+        model.answer = changes
         command("translate into English and French, Chinese in WeChat, candidates in a column")
         _ = enter(controller, client)
         _ = waitForPreview()

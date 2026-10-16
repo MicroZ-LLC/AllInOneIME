@@ -12,6 +12,10 @@
 // refine.png    refining the results: an instruction typed under them → the refined results
 // recent-questions.png   @question with nothing after it: the recent questions (made-up ones)
 // selection.png @improve on the selected text, with an email and a phone number hidden from the AI
+// question-chat.png   an @question conversation: two rounds, the next question's line on top (canned answers)
+// question-chat-handoff.png   after the last round: where to go on (Claude Code, Claude, ChatGPT, a copy)
+// config.png    @config: the changes it would make, old → new (a canned answer)
+// doctor.png    @doctor: the checks, problems first (made-up findings)
 // panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
 import AppKit
 
@@ -216,10 +220,35 @@ try composite([
          marked: cut(selectedText, 90), panel: load("redaction"), selected: true),
 ], to: "selection.png")
 
+// 0.6.4's release notes.
+try composite([
+    Step(caption: tr("答案下面接着打下一个问题：⇧⏎ 追问，⏎ 上屏选中的答案",
+                     "Type the next question under the answer: ⇧⏎ asks it, ⏎ inserts the answer selected"),
+         marked: marked("question-chat", "question › what is rust"), panel: load("question-chat")),
+], to: "question-chat.png")
+try composite([
+    Step(caption: tr("聊满后：⌘1 Claude Code、⌘2 Claude、⌘3 ChatGPT 里接着聊",
+                     "After the last round: go on in Claude Code (⌘1), Claude (⌘2) or ChatGPT (⌘3)"),
+         marked: marked("question-chat-handoff", "question › what is rust"), panel: load("question-chat-handoff")),
+], to: "question-chat-handoff.png")
+try composite([
+    Step(caption: tr("@config 加一句话，按 ⏎：要改的设置，原来 → 改成；再按 ⏎ 应用",
+                     "@config and what to change, ⏎: each change, old → new; ⏎ again applies them"),
+         marked: tr("config › 翻译成英语和法语，微信里用中文，候选竖排",
+                    "config › translate into English and French, Chinese in WeChat, candidates in a column"),
+         panel: loadScene(tr("config-changes", "config-preview-en"))),
+], to: "config.png")
+try composite([
+    Step(caption: tr("@doctor 按 ⏎：检查这台 Mac 上的设置，问题在前；按数字修那一项",
+                     "@doctor, ⏎: the checks on this Mac, problems first; a digit fixes that one"),
+         marked: "doctor › ", panel: load("doctor")),
+], to: "doctor.png")
+
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
 for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
-      + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png")
+      + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png, question-chat.png, question-chat-handoff.png, "
+      + "config.png, doctor.png")
