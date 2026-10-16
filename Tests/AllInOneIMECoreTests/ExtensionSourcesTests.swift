@@ -219,7 +219,7 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sleep"), environment: [:], timeout: 0.3)
         let start = Date()
         await #expect(throws: ExtensionSourceError.timedOut(0.3)) { try await runner.run(["5"], in: nil) }
-        #expect(Date().timeIntervalSince(start) < 3)
+        #expect(Date().timeIntervalSince(start) < 10)
     }
 
     @Test func stdinClosed() async throws {

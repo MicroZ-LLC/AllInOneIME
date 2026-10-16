@@ -79,6 +79,13 @@ struct ExtensionSourcesSection: View {
                 if !trusted {
                     Button(tr("检查并启用…", "Review…")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }
                         .disabled(busy)
+                } else if !enabled {
+                    // Taken out of the load list (Script Extensions → Remove): back in, without another review.
+                    Button(tr("启用", "Enable")) {
+                        ExtensionSources.enable(source, in: &model.config, root: sources.root)
+                        model.save()
+                        model.refreshExtensions()
+                    }
                 } else if let status, source.pin == nil, !status.updates.isEmpty {
                     Text(ExtensionSourceText.updates(status.updates.count))
                         .font(.caption.weight(.semibold)).foregroundStyle(.white)
@@ -378,7 +385,8 @@ struct ExtensionSourceSheet: View {
                 review(clone, path: try ExtensionSources.resolveBundlePath(nil, in: clone.folder))
             }
         } catch {
-            if start.cloneNow == false { sources.discard(source) }
+            // A clone that can't be used (no bundle in it) goes, unless it's a trusted source's.
+            if !ExtensionSources.isTrusted(source, sources.statuses[source.url]) { sources.discard(source) }
             step = .failed(ExtensionSourceText.describe(error))
         }
     }

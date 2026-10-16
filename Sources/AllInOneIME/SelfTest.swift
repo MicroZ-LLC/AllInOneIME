@@ -3040,6 +3040,7 @@ enum SelfTest {
         testFloatingPanel(controller, snapshotDirectory: snapshotDirectory)
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
+        testExtensionSources(snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 
         print(failures == 0 ? "SELFTEST PASSED" : "SELFTEST FAILED (\(failures))")

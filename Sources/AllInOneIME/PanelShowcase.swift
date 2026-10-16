@@ -138,6 +138,10 @@ enum SettingsPageImages {
         model.config.appProfiles = AppProfileSamples.profiles
         // Hiding sensitive information shown on, with its switches and sample words, never the user's own.
         model.config.redaction = RedactionSettings(enabled: true, customWords: ["Project Atlas", "Phoenix"])
+        // Extension sources: samples, never the user's (their statuses only shown, never saved).
+        model.config.extensionSources = ExtensionSourceSamples.sources
+        for source in model.config.extensionSources { ExtensionSources.enable(source, in: &model.config) }
+        ExtensionSourceController.shared.show(ExtensionSourceSamples.statuses())
         // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
         // the first as added, any others as if Spotlight had found them).
         if let extensions {
