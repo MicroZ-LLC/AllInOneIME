@@ -141,12 +141,16 @@ extension AllInOneIMEInputController {
         lastFromCache = false
         lastHidden = 0
         let text = AIConfig.Text(chinese: UIText.chinese)
-        // A key typed into the sentence is dropped; with nothing else in it, nothing is sent and the key field opens.
+        // A key typed into the sentence, or into a refine's line, is dropped; with nothing else in what was typed last,
+        // nothing is sent and the key field opens.
         let keys = AIConfig.droppingKeys(input)
-        if keys.dropped, keys.text.filter(\.isLetter).count < 2 {
+        var sentTurns = turns
+        for index in sentTurns.indices { sentTurns[index].instruction = AIConfig.droppingKeys(sentTurns[index].instruction).text }
+        let latest = turns.last.map { AIConfig.droppingKeys($0.instruction) } ?? keys
+        if latest.dropped, latest.text.filter(\.isLetter).count < 2 {
             log.notice("@config: a key typed into the text was dropped; nothing sent")
             perform(composer.endConfig(), client: nil)
-            AIConfigSession.openKeyField(keys.provider ?? loadSettings().provider)
+            AIConfigSession.openKeyField(latest.provider ?? loadSettings().provider)
             showNotice(text.droppedKey, client: nil, long: true)
             return
         }
@@ -161,12 +165,12 @@ extension AllInOneIMEInputController {
         let started = Date()
         conversionTask = Task { @MainActor [weak self] in
             do {
-                let answer = try await service.ask(keys.text, turns: turns, context: context, tools: tools)
+                let answer = try await service.ask(keys.text, turns: sentTurns, context: context, tools: tools)
                 guard let self, !Task.isCancelled else { return }
                 self.lastElapsed = Date().timeIntervalSince(started)
                 self.lastFromCache = answer.fromCache
                 self.lastHidden = answer.hidden
-                self.showConfigAnswer(answer.text, id: id, env: env, droppedKey: (keys.dropped, keys.provider))
+                self.showConfigAnswer(answer.text, id: id, env: env, droppedKey: (latest.dropped, latest.provider))
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 log.error("@config \(id) failed: \(Self.errorKind(error), privacy: .public)")

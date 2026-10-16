@@ -299,7 +299,7 @@ public enum AIConfig {
 
     /// What applying a preview does besides the settings: `@doctor`'s fixes.
     public enum Action: Equatable, Sendable {
-        /// The config file written again as Settings writes it (its values as they read).
+        /// The repeated languages taken out of the config file in place (`Doctor.removingRepeatedLanguages`).
         case resaveConfig
         case enableInputMethod
         case openPrivacy(Doctor.PrivacyPane)
@@ -480,8 +480,7 @@ public enum AIConfig {
     /// `sentence` without the API keys and tokens in it (`Redaction`'s detection of keys), and whether there were any:
     /// a key typed here is never sent to the AI. The provider its shape belongs to, if it tells.
     public static func droppingKeys(_ sentence: String) -> (text: String, dropped: Bool, provider: Provider?) {
-        let settings = RedactionSettings(enabled: true, emails: false, phones: false, cards: false, keys: true, ips: false)
-        let found = Redaction.find(sentence, settings: settings).filter { $0.kind == .key }
+        let found = Redaction.find(sentence, settings: keysOnly).filter { $0.kind == .key }
         guard !found.isEmpty else { return (sentence, false, nil) }
         let ns = sentence as NSString
         let keys = found.map { ns.substring(with: $0.range) }
@@ -496,5 +495,32 @@ public enum AIConfig {
             return nil
         }.first
         return (text, true, provider)
+    }
+
+    /// `Redaction`'s detection of API keys and tokens alone, whatever the user's hiding settings.
+    static let keysOnly = RedactionSettings(enabled: true, emails: false, phones: false, cards: false, keys: true, ips: false)
+
+    /// Whether `text` holds something that looks like an API key or a token (`Redaction`'s key detection).
+    public static func looksLikeKey(_ text: String) -> Bool {
+        Redaction.find(text, settings: keysOnly).contains { $0.kind == .key }
+    }
+
+    /// `text` with what looks like a key replaced by `mask`: never shown, never sent.
+    public static func maskingKeys(_ text: String, with mask: String = "•••") -> String {
+        let found = Redaction.find(text, settings: keysOnly).filter { $0.kind == .key }
+        guard !found.isEmpty else { return text }
+        let out = NSMutableString(string: text)
+        for item in found.reversed() { out.replaceCharacters(in: item.range, with: mask) }
+        return out as String
+    }
+
+    /// Whether any string in `value` looks like a key.
+    static func holdsKey(_ value: JSONValue) -> Bool {
+        switch value {
+        case let .string(text): return looksLikeKey(text)
+        case let .array(items): return items.contains(where: holdsKey)
+        case let .object(fields): return fields.keys.contains(where: looksLikeKey) || fields.values.contains(where: holdsKey)
+        case .null, .bool, .number: return false
+        }
     }
 }

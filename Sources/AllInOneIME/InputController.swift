@@ -1862,7 +1862,9 @@ final class AllInOneIMEInputController: IMKInputController {
     func refineHeader() -> String? {
         let history = composer.refineHistory
         guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
-        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
+        // @config: a key typed into a step is never shown (nor sent: `startConfigRequest`).
+        let masks = composer.activeCommand?.kind == .config
+        let steps = history.map { Self.preview(masks ? AIConfig.maskingKeys($0) : $0, limit: 30) }.joined(separator: " · ")
         return tr("已修改：", "Refined: ") + steps
     }
 

@@ -70,6 +70,10 @@ public final class AIConfigService: Sendable {
         let onDevice = self.onDevice
         let config = context.config
         if !onDevice, config.provider == .apple { throw AppleModelError.unavailable(client.apple.availability) }
+        // Whatever the caller did: a key typed into the sentence or a refine's line never goes out.
+        let sentence = AIConfig.droppingKeys(sentence).text
+        var turns = turns
+        for index in turns.indices { turns[index].instruction = AIConfig.droppingKeys(turns[index].instruction).text }
         var redaction = Redaction(config.redaction)
         let sent = redaction?.hide(sentence) ?? sentence
         let lastMessage = Converter.hideTurns(turns, with: &redaction) ?? sent

@@ -134,6 +134,10 @@ extension AIConfig {
             provider == .hosted ? tr("在设置里登录", "sign in in Settings") : tr("在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)")
         }
         var notValid: String { tr("不是有效的值", "not a valid value") }
+        /// A value that looks like a key: refused, never quoted.
+        public var secretValue: String { tr("看起来像密钥的值被拒绝了（不显示）", "a value that looks like a key was refused") }
+        var someApp: String { tr("一个 App", "an app") }
+        var someSetting: String { tr("一项设置", "A setting") }
         func unknownLanguage(_ code: String) -> String { tr("不认识的语言「\(code)」", "unknown language “\(code)”") }
         var atLeastOne: String { tr("至少要有一种", "at least one is needed") }
         func tooMany(_ limit: Int) -> String { tr("最多 \(limit) 种", "at most \(limit)") }

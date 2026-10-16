@@ -468,4 +468,49 @@ struct AIConfigTests {
         c.aiRefusal = { "AI is off in this app" }
         #expect(c.handleKeyDown(enterKey).effects.contains(.notice("AI is off in this app")) && c.phase == .drafting)
     }
+
+    // MARK: - Secrets and the ⇧⏎ rule
+
+    let key = "sk-ant-api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
+
+    @Test func aValueThatLooksLikeAKeyIsNeverQuoted() throws {
+        let json = """
+            {"changes": [{"key": "outputLanguages", "value": ["\(key)"]}, {"key": "rewriteStyles", "value": ["\(key)"]},
+                         {"key": "appProfiles.\(key).typeOut", "value": true}, {"key": "openai.baseURL", "value": "https://example.com/v1?k=\(key)"},
+                         {"key": "redaction.customWords.add", "value": ["\(key)"]}, {"key": "typeOut", "value": true}],
+             "note": "your key \(key) is set"}
+            """
+        for chinese in [false, true] {
+            let all = try rows(json, env: env(chinese: chinese))
+            let lines = all.map { $0.text(chinese: chinese) }
+            #expect(lines.allSatisfy { !$0.contains(key) } && all.filter(\.isRefused).count == 5, "\(lines)")
+            #expect(lines.contains(chinese ? "✕ 翻译语言：看起来像密钥的值被拒绝了（不显示）" : "✕ Translation languages: a value that looks like a key was refused"))
+            #expect(all.allSatisfy { !$0.key.contains(key) })
+        }
+        // The rest still applies; the note shows without the key.
+        let preview = try preview(json).get()
+        #expect(preview.edits == [.flag(.typeOut, true)] && preview.note == "your key ••• is set")
+    }
+
+    @Test func keysInARefinesLineNeverGoOut() async throws {
+        let stub = GuidedStub(answer: #"{"changes": []}"#)
+        let service = AIConfigService(client: ChatClient(apple: stub))
+        let turns = [Refinement.Turn(answer: ConversionResult(versions: [CandidateLine("{\"changes\": []}")]), instruction: "use Claude with \(key)")]
+        _ = try await service.ask("candidates in a column \(key)", turns: turns, context: .init(config: config))
+        #expect(stub.prompts.allSatisfy { !$0.contains(key) } && stub.prompts.first == "<refine>use Claude with</refine>")
+    }
+
+    @Test func shiftReturnRefinesOnlyWithALine() throws {
+        // Nothing typed: ⇧⏎ does nothing (never "@config …" as typed), on the preview and on a failure.
+        let (c, _) = try previewed()
+        #expect(c.handleKeyDown(shiftEnter).effects.isEmpty && c.phase == .choosing)
+        let failed = drafted("pink")
+        _ = failed.handleKeyDown(enterKey)
+        _ = failed.fail("Couldn't turn that into a setting", id: 1)
+        #expect(commits(failed.handleKeyDown(shiftEnter).effects).isEmpty)
+        // A line typed: ⏎ applies the proposal (the line goes with it); ⇧⏎ refines (above).
+        let (d, preview) = try previewed()
+        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
+        #expect(d.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
+    }
 }

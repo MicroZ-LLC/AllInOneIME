@@ -209,7 +209,8 @@ extension AIConfig {
     public static func preview(_ proposal: Proposal, config: Config, environment env: Environment,
                                droppedKey: (dropped: Bool, provider: Provider?) = (false, nil)) -> Result<Preview, Failure> {
         let (rows, unchanged) = check(proposal, config: config, environment: env, droppedKey: droppedKey)
-        let preview = Preview(rows: rows, note: proposal.note, droppedKey: droppedKey.dropped)
+        // The model's note is shown too: never a key in it.
+        let preview = Preview(rows: rows, note: proposal.note.map { maskingKeys($0) }, droppedKey: droppedKey.dropped)
         guard preview.canApply else {
             if rows.contains(where: \.isRefused) { return .failure(.notAllowed) }
             return .failure(unchanged > 0 ? .alreadySet : .notUnderstood)
@@ -246,7 +247,7 @@ extension AIConfig {
         }.map(\.element)
         var unchanged = 0
         for change in sorted {
-            guard let row = check(change, in: working, env: env, text: text) else {
+            guard let row = shown(change, check(change, in: working, env: env, text: text), text: text) else {
                 unchanged += 1
                 continue
             }
@@ -263,6 +264,27 @@ extension AIConfig {
                             status: .needsKey(provider)))
         }
         return (rows, unchanged)
+    }
+
+    /// `row` as it may be shown: a change whose value (or app, or key) looks like a key is refused, saying so without
+    /// quoting it, whatever the setting; so is a row that would quote one anywhere (a reason, an old value).
+    static func shown(_ change: Change, _ row: Row?, text: Text) -> Row? {
+        let secretKey: Bool
+        let label: String
+        switch change.key {
+        case let .setting(setting):
+            (secretKey, label) = (false, text.label(setting))
+        case let .app(name, field):
+            (secretKey, label) = (looksLikeKey(name), text.appLabel(looksLikeKey(name) ? text.someApp : name, field))
+        case let .forbidden(path, secret):
+            (secretKey, label) = (looksLikeKey(path), secret ? text.keyLabel(nil) : looksLikeKey(path) ? text.someSetting : path)
+        }
+        let quotes = row.map { row in
+            [row.label, row.old, row.new, { if case let .refused(reason) = row.status { return reason } else { return nil } }()]
+                .contains { $0.map(looksLikeKey) ?? false }
+        } ?? false
+        guard secretKey || holdsKey(change.value) || quotes else { return row }
+        return Row(key: maskingKeys(change.key.path), label: label, status: .refused(text.secretValue))
     }
 
     /// The row for `change` in `config` (as the changes before it left it); nil when it changes nothing.
