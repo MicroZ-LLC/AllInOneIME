@@ -1,0 +1,217 @@
+import Foundation
+import Testing
+@testable import AllInOneIMECore
+
+/// `@doctor`: findings from the probes' facts (problems first), the config file's own checks, the fixes as `@config`'s
+/// preview, the logs summarised, the question answered on the on-device model with the checks as tools, and the keys.
+struct DoctorTests {
+    func facts(_ change: (inout Doctor.Facts) -> Void = { _ in }) -> Doctor.Facts {
+        var facts = Doctor.Facts()
+        var config = Config.default
+        config.setOrder([Language.chinese, .english])
+        facts.config = config
+        facts.configData = try? JSONEncoder().encode(config)
+        facts.awsProfile = .success("us-west-2")
+        facts.apple = .available
+        facts.accessibility = .granted
+        facts.microphone = .granted
+        facts.packs = [.chinese: .installed]
+        facts.inputMethod.version = "0.6.4"
+        change(&facts)
+        return facts
+    }
+
+    @Test func allFineIsAllTicks() {
+        let findings = Doctor.findings(facts(), chinese: false)
+        #expect(findings.allSatisfy { $0.status == .ok })
+        #expect(findings.first?.text(chinese: false) == "✓ AllInOneIME 0.6.4 is installed and enabled")
+        #expect(findings.contains { $0.title == "Language packs installed: Chinese" })
+        #expect(Doctor.summary(findings, chinese: false) == "All \(findings.count) checks are fine")
+    }
+
+    @Test func problemsComeFirstWithTheirFixes() {
+        let findings = Doctor.findings(facts {
+            $0.inputMethod.enabled = false
+            var config = $0.config!
+            config.provider = .anthropic
+            $0.config = config
+            $0.keySaved = [.anthropic: false]
+            $0.connection = .failed("No API key for the Claude API")
+            $0.packs = [.chinese: .missing]
+            $0.secureInput = "loginwindow"
+            $0.updates.available = "0.6.5"
+        }, chinese: false)
+        #expect(findings.prefix(4).allSatisfy { $0.status == .problem })
+        #expect(findings.map(\.fix).contains(.enableInputMethod) && findings.map(\.fix).contains(.openKeyField(.anthropic))
+                && findings.map(\.fix).contains(.downloadPack(.chinese)) && findings.map(\.fix).contains(.checkForUpdates))
+        let statuses = findings.map(\.status)
+        #expect(statuses == statuses.sorted())
+        #expect(Doctor.summary(findings, chinese: false).hasPrefix("4 problems, 2 warnings"))
+        // The key's row never holds a key; only whether one is saved.
+        #expect(findings.first { $0.area == .provider }?.text(chinese: false)
+                == "✗ AI provider: Claude API — no API key: enter it in Settings (never sent to the AI)")
+    }
+
+    @Test func theConnectionShowsWhileItRuns() {
+        let running = Doctor.findings(facts { $0.connection = .running }, chinese: true)
+        #expect(running.contains { $0.area == .connection && $0.status == .warning && $0.title == "正在测试连接…" })
+        let ok = Doctor.findings(facts { $0.connection = .ok("0.8 s: Hi") }, chinese: false)
+        #expect(ok.contains { $0.text(chinese: false) == "✓ The connection works — 0.8 s: Hi" })
+    }
+
+    @Test func permissionsAreReportedWithoutAsking() {
+        let findings = Doctor.findings(facts {
+            $0.accessibility = .denied
+            $0.microphone = .denied
+            $0.automation = ["Notes": .denied, "Terminal": .granted]
+        }, chinese: false)
+        #expect(findings.map(\.fix).contains(.openPrivacy(.accessibility)) && findings.map(\.fix).contains(.openPrivacy(.microphone))
+                && findings.map(\.fix).contains(.openPrivacy(.automation)))
+        #expect(findings.contains { $0.title == "Allowed to control: Terminal" })
+        // Voice off: the microphone isn't a problem.
+        let quiet = Doctor.findings(facts {
+            $0.microphone = .denied
+            $0.config?.voiceInput = false
+        }, chinese: false)
+        #expect(!quiet.contains { $0.title.contains("microphone") })
+    }
+
+    @Test func theConfigFileIsChecked() throws {
+        #expect(Doctor.configFindings(data: nil, error: "bad JSON", config: nil, chinese: false).first?.status == .problem)
+        #expect(Doctor.configFindings(data: nil, error: "bad JSON", config: nil, chinese: false).first?.fix == nil)  // never replaced
+        var config = Config.default
+        config.typeOutRate = 100
+        config.outputLanguages = ["en", "fr", "de", "es", "it", "ja"].map(OutputLanguage.init)
+        let raw = #"{"outputLanguages": ["en", "en"], "inputLanguages": ["zh"], "fontSize": 12}"#
+        let findings = Doctor.configFindings(data: Data(raw.utf8), error: nil, config: config, chinese: false)
+        #expect(findings.map(\.title) == ["config.json has keys this version doesn't know", "The typing speed is out of range",
+                                          "More than 5 translation languages", "A language is listed twice in config.json"])
+        #expect(findings[0].detail == "fontSize (ignored)")
+        #expect(findings[3].fix == .resaveConfig)
+        // The repairs go through @config's checks: the preview shows them old → new.
+        let fixes = findings.compactMap(\.fix)
+        let preview = try #require(Doctor.fixPreview(fixes, config: config, environment: AIConfig.Environment()))
+        #expect(preview.edits == [.typeOutRate(16), .outputLanguages(["en", "fr", "de", "es", "it"].map(OutputLanguage.init))])
+        #expect(preview.actions == [.resaveConfig])
+        #expect(preview.rows.map { $0.text(chinese: false) }.last == "→ Save config.json again (repeated languages go; values stay)")
+        #expect(Doctor.configFindings(data: try JSONEncoder().encode(Config.default), error: nil, config: .default, chinese: false)
+            .map(\.status) == [.ok])
+    }
+
+    @Test func fixesAreSafeOrPicked() {
+        #expect(Doctor.Fix.repairConfig([]).isSafe && Doctor.Fix.resaveConfig.isSafe && Doctor.Fix.enableInputMethod.isSafe)
+        #expect(!Doctor.Fix.downloadPack(.korean).isSafe && !Doctor.Fix.openPrivacy(.microphone).isSafe && !Doctor.Fix.openKeyField(.gemini).isSafe)
+        let preview = Doctor.fixPreview([.downloadPack(.korean), .openKeyField(.gemini)], config: .default, environment: AIConfig.Environment())
+        #expect(preview?.actions == [.downloadPack(.korean)] && preview?.needsKey == .gemini && preview?.edits.isEmpty == true)
+        #expect(Doctor.fixPreview([], config: .default, environment: AIConfig.Environment()) == nil)
+    }
+
+    @Test func logLinesAreSummarisedWithoutTheUsersText() {
+        let lines = [
+            "I20261008 15:45:58.123 1234 deployer.cc:56] all fine",
+            "E20261008 15:45:59.001 1234 dictionary.cc:77] Error loading /Users/alice/Library/Rime/custom.yaml",
+            "2026-10-12 update check failed: \"my secret sentence\" was not sent",
+        ]
+        let summary = Doctor.summarizeLogLines(lines, home: "/Users/alice")
+        #expect(summary == ["Error loading ~/Library/Rime/custom.yaml", "2026-10-12 update check failed: \"…\" was not sent"])
+        let findings = Doctor.findings(facts { $0.recentErrors = summary }, chinese: false)
+        #expect(findings.contains { $0.area == .recentErrors && $0.status == .warning })
+    }
+
+    @Test func theReportForTheModelNamesFixesByID() {
+        let findings = Doctor.findings(facts { $0.packs = [.chinese: .missing] }, chinese: false)
+        let report = Doctor.report(findings)
+        #expect(report.hasPrefix("- languagePacks: ✗ The Chinese language pack isn't installed") && report.contains("[fix F1]"))
+        #expect(!report.contains(NSHomeDirectory()))
+        let parsed = DoctorService.parse(#"{"explanation": "The pack is missing.", "fixes": ["F1", "F9", "F1", "X"]}"#, findings: findings)
+        #expect(parsed.explanation == "The pack is missing." && parsed.fixes == [0])
+        #expect(DoctorService.parse("Just text.", findings: findings) == DoctorService.Answer(explanation: "Just text.", fixes: [], onDevice: false))
+    }
+
+    final class Stub: AppleGuidedBackend, @unchecked Sendable {
+        let availability: AppleModelAvailability = .available
+        let contextSize = 8192
+        let supportedLanguages: Set<String> = ["en"]
+        var tools: [String] = []
+        var instructions = ""
+        func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
+            AsyncThrowingStream { $0.finish() }
+        }
+        func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
+            self.tools = tools.map(\.name)
+            instructions = request.instructions
+            let packs = await tools.first { $0.name == "check_languagePacks" }?.call([:]) ?? ""
+            return packs.contains("[fix F1]") ? #"{"explanation": "Chinese can't be typed: its pack is missing.", "fixes": ["F1"]}"# : "{}"
+        }
+    }
+
+    @Test func aQuestionGoesToTheOnDeviceModelWithTheChecksAsTools() async throws {
+        let stub = Stub()
+        let findings = Doctor.findings(facts { $0.packs = [.chinese: .missing] }, chinese: false)
+        var config = Config.default
+        config.provider = .gemini  // not set up: never asked
+        let answer = try await DoctorService(client: ChatClient(apple: stub)).ask("why can't I type Chinese", findings: findings, config: config)
+        #expect(answer.onDevice && answer.fixes == [0] && answer.explanation.hasPrefix("Chinese can't be typed"))
+        #expect(stub.tools.contains("check_languagePacks") && stub.tools.contains("check_inputMethod"))
+        // The findings aren't in its instructions: it asks for them.
+        #expect(!stub.instructions.contains("[fix F1]") && stub.instructions.contains("languagePacks"))
+        #expect(DoctorService.system(findings, tools: false).contains("[fix F1]"))
+    }
+
+    // MARK: - The panel
+
+    func drafted(_ text: String = "") -> Composer {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        for ch in "doc" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        for ch in text { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
+        return c
+    }
+
+    func reported() -> (Composer, Composer.ConfigState.Report) {
+        let c = drafted()
+        #expect(c.draft == "@doctor ")
+        let started = c.handleKeyDown(enterKey).effects
+        #expect(started.first == .startCommand(.doctor, input: "", id: 1))
+        let report = Composer.ConfigState.Report(lines: ["✗ Chinese pack missing", "⚠ typing speed", "✓ fine"],
+                                                 fixes: [.downloadPack(.chinese), .repairConfig([]), nil])
+        _ = c.receiveDoctor(report, id: 1)
+        return (c, report)
+    }
+
+    @Test func findingsWithAFixAreNumbered() {
+        let (c, _) = reported()
+        #expect(c.phase == .choosing && c.choices.map(\.label) == ["1", "2", ""])
+        // A digit previews that fix; ⏎ the safe ones; nothing is inserted.
+        #expect(c.handleKeyDown(k("1")).effects == [.previewFixes([.downloadPack(.chinese)])])
+        #expect(c.handleKeyDown(enterKey).effects == [.previewFixes([.repairConfig([])])])
+        // A click on a numbered row too; one without a fix does nothing.
+        #expect(c.choose(index: 0) == [.previewFixes([.downloadPack(.chinese)])] && c.choose(index: 2).isEmpty)
+    }
+
+    @Test func theFixPreviewAppliesLikeConfigs() throws {
+        let (c, _) = reported()
+        let preview = try #require(Doctor.fixPreview([.downloadPack(.chinese)], config: .default, environment: AIConfig.Environment()))
+        _ = c.showFixPreview(preview, lines: ["→ Download the Chinese language pack"])
+        #expect(c.choices.map(\.text) == ["→ Download the Chinese language pack"])
+        // Esc goes back to the findings, ⏎ applies.
+        _ = c.handleKeyDown(escKey)
+        #expect(c.choices.map(\.label) == ["1", "2", ""] && c.phase == .choosing)
+        _ = c.showFixPreview(preview, lines: ["→ Download the Chinese language pack"])
+        #expect(c.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
+        _ = c.configApplied("Done")
+        let undo = c.handleKeyDown(k("z", mods: .command)).effects
+        #expect(undo.last == .undoConfig && commits(undo).isEmpty)
+    }
+
+    @Test func checksAloneSendNothingEvenWithoutAI() {
+        let c = drafted()
+        c.aiRefusal = { "AI is off in this app" }
+        #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.doctor, input: "", id: 1))
+        let d = drafted("why")
+        d.aiRefusal = { "AI is off in this app" }
+        #expect(d.handleKeyDown(enterKey).effects.contains(.notice("AI is off in this app")))
+    }
+}
