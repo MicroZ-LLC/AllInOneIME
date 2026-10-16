@@ -7,16 +7,32 @@ import Foundation
 /// it couldn't be asked again as it was, and the text would end up on disk.
 public struct QuestionHistory: Codable, Equatable, Sendable {
     public struct Entry: Codable, Equatable, Sendable {
-        /// The question as typed after "@question".
+        /// The question as typed after "@question": a conversation's first (its title).
         public var question: String
+        /// The answer; a conversation's last.
         public var answer: String
         /// When it was answered.
         public var date: Date
+        /// A conversation of two rounds or more (`QuestionChat`), all of them, the first being `question`; nil for one
+        /// question and its answer (and in a file from before conversations: it loads as one round).
+        public var rounds: [QuestionChat.Round]?
 
         public init(question: String, answer: String, date: Date) {
             self.question = question
             self.answer = answer
             self.date = date
+        }
+
+        /// A conversation (`rounds`); one round is kept as a question and an answer, as before.
+        public init(rounds: [QuestionChat.Round], date: Date) {
+            self.init(question: rounds.first?.question ?? "", answer: rounds.last?.answer ?? "", date: date)
+            self.rounds = rounds.count > 1 ? rounds : nil
+        }
+
+        /// Every round, oldest first: one for a single question.
+        public var thread: [QuestionChat.Round] {
+            if let rounds, rounds.count > 1 { return rounds }
+            return [QuestionChat.Round(question: question, answer: answer)]
         }
     }
 
@@ -34,12 +50,13 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
     }
 
     /// `entry` was answered just now: it goes first, in place of the same question asked before (`key`), whose wording
-    /// and answer go.
+    /// and answer go. A conversation is kept by its first question: each round answered updates it.
     public mutating func record(_ entry: Entry) {
         let question = entry.question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, !entry.answer.isEmpty else { return }
         var entry = entry
         entry.question = question
+        if entry.rounds?.isEmpty == false { entry.rounds![0].question = question }
         let key = Self.key(question)
         entries = Array(([entry] + entries.filter { Self.key($0.question) != key }).prefix(Self.limit))
     }

@@ -73,6 +73,9 @@ public final class Composer {
         case openLink(URL)
         /// Start a Claude Code session in a terminal window with `prompt` as its first message (`@claude`).
         case runInTerminal(prompt: String)
+        /// Go on with an `@question` conversation in an interactive Claude Code session in Terminal (`ChatHandoff`):
+        /// `prompt` (the conversation, maybe long) is its first message, passed through a file.
+        case continueInClaudeCode(prompt: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
         case launchInTerminal(argv: [String])
         /// Start `prompt` as a Claude Code background session (`@claude` with `claudeInBackground`).
@@ -193,7 +196,7 @@ public final class Composer {
         public var detail: String? = nil
     }
 
-    public private(set) var phase: Phase = .idle
+    public internal(set) var phase: Phase = .idle
     /// What the composer itself says (notices near the caret, a failure without a result), in the
     /// interface language. Chinese unless the controller sets another.
     public var messages = Messages.chinese
@@ -311,24 +314,35 @@ public final class Composer {
             scriptStarted: "Running in the background, you'll be notified: ", cantOpen: "Can't open: ")
     }
     /// The command of the request in level two (nil otherwise).
-    public private(set) var activeCommand: Command?
+    public internal(set) var activeCommand: Command?
 
     // MARK: Refining results
 
     /// The follow-up instruction being typed for the results shown ("shorter", "更口语一点"): letters typed in level two
     /// start it (`canRefine`), ⏎ runs it (`startRefine`), Esc clears it. Pinyin goes through the engine as in a draft.
-    public private(set) var refineText = ""
+    public internal(set) var refineText = ""
     /// The instructions run on these results so far, each with the results it replaced: Esc on an empty refine line
     /// goes back one. The last is the one in flight while a refine runs.
-    public private(set) var refinements: [Refinement.Turn] = []
+    public internal(set) var refinements: [Refinement.Turn] = []
     /// What the results shown came from, when they can be refined (an AI request: `@improve`, `@translate`,
     /// `@question`, a prompt command, `Command.edit` on a selection). Nil for every other command.
-    private var refineRequest: Refinement.Request?
+    var refineRequest: Refinement.Request?
     /// The request in flight is a refine (its id): a failure goes back to the results before it.
     private var refineID: Int?
     /// Why the last refine failed (secure input, the network …): shown over the results it left as they were, its
     /// instruction back in the line to run again with ⏎. Cleared by the next key.
-    public private(set) var refineError: String?
+    public internal(set) var refineError: String?
+
+    // MARK: An @question conversation (`QuestionChat`; Composer+QuestionChat.swift)
+
+    /// Rounds in the panel before it offers to go on elsewhere (`Config.questionRounds`, set by the controller).
+    public var questionRounds = QuestionChat.defaultRounds
+    /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
+    public var handoffChoices = ChatHandoff.defaultChoices(claudeCode: false)
+    /// What the hand-off says, in the interface language (set by the controller).
+    public var chatMessages = ChatMessages.chinese
+    /// ⌘⏎ showed where the conversation can go on before its last round (Esc hides it again).
+    var handoffRequested = false
 
     /// Whether the results shown can be refined now: they are an AI request's, and all in.
     public var canRefine: Bool { phase == .choosing && refineRequest != nil }
@@ -392,7 +406,7 @@ public final class Composer {
     /// The recent question highlighted with ↑↓, for the draft it was picked in (once the draft changes: none).
     private var questionPick: (index: Int, draft: String)?
     /// The saved answer shown in level two (`showsSavedAnswer`), and the draft it was picked in (Esc goes back to it).
-    private var recalled: (entry: QuestionHistory.Entry, draftBefore: String)?
+    var recalled: (entry: QuestionHistory.Entry, draftBefore: String)?
     /// `@claude` starts a background session instead of a Terminal window.
     public var claudeInBackground = false
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
@@ -522,7 +536,7 @@ public final class Composer {
     private var draftHasOutsideText = false
     /// Last known state of the level-one engine.
     public private(set) var engineState = EngineSnapshot.empty
-    public private(set) var result = ConversionResult.empty
+    public internal(set) var result = ConversionResult.empty
     public private(set) var voice = Voice.off
     /// The input languages on (`Config.inputLanguages`): with one, a tap of Shift doesn't switch.
     public var inputLanguages: [Language] = [.chinese, .english]
@@ -565,7 +579,7 @@ public final class Composer {
     /// Hindi is the input language (its engine in place of librime).
     private var hindiActive = false
 
-    private var highlightOverride: Int?
+    var highlightOverride: Int?
     private var requestCounter = 0
     private var voiceCounter = 0
     /// The right Option key is down on its own and dictation hasn't started yet.
@@ -795,6 +809,8 @@ public final class Composer {
         case .run? where activeCommand?.script != nil:
             return scriptChoices
         case .generate?, .run?, .link?:
+            // An @question conversation: every round's answer, numbered (the questions aren't picked).
+            if let chat = chatChoices { return chat }
             var out = [Choice(label: "0", kind: .original, text: originalText, isComplete: true)]
             if let line = result.versions.first {
                 out.append(Choice(label: "1", kind: .answer, text: line.text, isComplete: line.isComplete))
@@ -849,6 +865,8 @@ public final class Composer {
         }
         if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
             || activeCommand?.kind == .message || activeCommand?.kind == .report || inConfigFlow { return 0 }
+        // A conversation: its latest answer (still coming in, it can't be picked yet).
+        if isQuestionChat { return max(all.count - 1, 0) }
         if case .translating = phase { return 1 }
         // The first version, answer or translation (`@translate` into several languages has no versions).
         if let i = all.firstIndex(where: {
@@ -1321,6 +1339,8 @@ public final class Composer {
         if modifiers == .command, event.charactersIgnoringModifiers.lowercased() == "z", let response = undoConfigKey() {
             return response
         }
+        // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
+        if let response = handleHandoffKey(event) { return response }
         if modifiers.contains(.command) {
             // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
             // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
@@ -1691,7 +1711,7 @@ public final class Composer {
     /// Ends the composition inserting `text`, the draft as typed (and what is still being typed after it). A note
     /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
     /// says it wasn't saved. A one-line note goes in like any other draft.
-    private func finishAsTyped(_ text: String) -> [Effect] {
+    func finishAsTyped(_ text: String) -> [Effect] {
         // With a selection nothing goes in: no "@improve …" over it (the field keeps it as it is).
         guard draftIsNoteWithLines, let content = parse(text)?.content else {
             return finish(committing: text, leaving: true, selection: .kept)
@@ -2290,8 +2310,19 @@ public final class Composer {
                 // With a selection, it stays as it was.
                 return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: selection == nil ? sentText : ""))
             }
+            // ⇧⏎ with no follow-up typed on an AI's results: as typed, as everywhere (one typed is sent: `handleRefineKey`).
+            if event.modifiers.subtracting(.capsLock) == .shift, phase == .choosing,
+               refineRequest != nil || activeCommand?.kind == .convert {
+                return .consumed(finishAsTyped(draft))
+            }
             return .consumed(commitChoice(at: highlighted))
         case VirtualKey.escape, VirtualKey.delete:
+            // Where a conversation can go on, shown with ⌘⏎ before its last round: hidden again (at the last round it
+            // stays, and Esc goes back a round).
+            if handoffRequested, !chatAtLimit, phase == .choosing {
+                handoffRequested = false
+                return .consumed([.showPanel])
+            }
             // After a refine (or during one): back to the results before it; else back to the draft.
             return .consumed(refinements.isEmpty ? backToDraft() : previousResults())
         case VirtualKey.up, VirtualKey.pageUp:
@@ -2306,10 +2337,6 @@ public final class Composer {
             break
         }
         guard let text = event.printableText else { return .consumed() }
-        // A saved answer: R asks its question again, for a fresh answer.
-        if showsSavedAnswer, text.lowercased() == "r", event.modifiers.subtracting([.shift, .capsLock]).isEmpty {
-            return .consumed(reaskQuestion())
-        }
         if text.count == 1, let c = text.first, c.isASCII, c.isNumber {
             if let index = choices.firstIndex(where: { $0.label == text }) { return .consumed(commitChoice(at: index)) }
             // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
@@ -2323,17 +2350,21 @@ public final class Composer {
         return .consumed(back + next.effects)
     }
 
-    /// Keys while AI results can be refined (`canRefine`). A letter starts the refine line (pinyin through the engine,
-    /// its candidates shown, Space and digits picking them); once there is one, Space, digits and punctuation are part
-    /// of it, ⌫ deletes, ⏎ (or the action key) runs it, Esc clears it. With the line empty every key does what it did:
-    /// digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back. While a refine runs the same keys write the
-    /// next step's line (the running request goes on), except that ⏎ only converts pinyin (it runs once the results
-    /// are in) and Esc goes back to the results before the running refine, as always. Nil: the key acts as usual.
+    /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
+    /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown, Space and
+    /// digits picking them); once there is one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
+    /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every key does what
+    /// it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a refine runs
+    /// the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts pinyin (it
+    /// is sent once the results are in) and Esc goes back to the results before the running refine, as always. Nil: the
+    /// key acts as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
         guard modifiers.isSubset(of: .shift) else { return nil }
         let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
+        // ⏎ inserts the result selected, whatever is typed (the line goes with the rest); ⇧⏎ sends the line.
+        if isReturn, modifiers != .shift { return nil }
         if isRefining, event.keyCode == VirtualKey.escape { return nil }
         if let engine, engine.snapshot().isComposing {
             if isReturn { return .consumed(runRefine()) }
@@ -2345,13 +2376,13 @@ public final class Composer {
             return .consumed(typeIntoRefine(event))
         }
         if refineText.isEmpty {
-            // Only a letter starts one: digits pick, Space inserts, other keys are as they were.
+            // Only a letter starts one: digits pick, Space inserts, other keys are as they were (⇧⏎ as typed).
             guard let text = event.printableText, text.count == 1, text.first?.isLetter == true else { return nil }
             return .consumed(typeIntoRefine(event))
         }
         switch event.keyCode {
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
-            return .consumed(runRefine())  // while one runs: nothing yet (the line waits for its results)
+            return .consumed(runRefine())  // ⇧⏎; while one runs: nothing yet (the line waits for its results)
         case VirtualKey.escape:
             refineText = ""
             return .consumed([.showPanel])
@@ -2378,20 +2409,26 @@ public final class Composer {
         return [.showPanel]
     }
 
-    /// `text` at the end of the refine line, up to `Refinement.maxInstructionLength`.
+    /// `text` at the end of the refine line, up to `Refinement.maxInstructionLength` (a conversation's next question: up to
+    /// `QuestionChat.maxFollowUpLength`).
     private func appendRefine(_ text: String) {
-        refineText = String((refineText + text).prefix(Refinement.maxInstructionLength))
+        refineText = String((refineText + text).prefix(isQuestionChat ? QuestionChat.maxFollowUpLength : Refinement.maxInstructionLength))
     }
 
-    /// ⏎ on the refine line: pinyin still being typed is converted, then the results shown go to the model again with
+    /// ⇧⏎ on the refine line: pinyin still being typed is converted, then the results shown go to the model again with
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
-    private func runRefine() -> [Effect] {
+    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way; at its last
+    /// round, or with where it can go on shown (⌘⏎), nothing is asked: the choices are shown (`showsHandoff`), the line
+    /// stays as the hand-off's first message, and only ⌘1–⌘5 send it.
+    /// `fresh`: asked again past the cache (⌘R on a saved conversation: its latest question, `reaskSaved`).
+    func runRefine(fresh: Bool = false) -> [Effect] {
         if let engine, engine.snapshot().isComposing {
             _ = convertComposition(engine)
             engineState = engine.snapshot()
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
+        if !fresh, showsHandoff { return [.showPanel] }
         // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
         // turned on while they were up. They stay, the instruction too.
         if let refusal = aiRefusal() {
@@ -2401,12 +2438,14 @@ public final class Composer {
         refinements.append(Refinement.Turn(answer: result, instruction: instruction))
         refineText = ""
         refineError = nil
+        // A saved conversation goes on: its next answer is a new one (kept again: `rememberAnswer`).
+        if isQuestionChat { recalled = nil }
         requestCounter += 1
         refineID = requestCounter
         phase = .translating(id: requestCounter)
         result = .empty
         highlightOverride = nil
-        return [.startRefine(Refinement(request: request, turns: refinements), id: requestCounter), .showPanel]
+        return [.startRefine(Refinement(request: request, turns: refinements, fresh: fresh), id: requestCounter), .showPanel]
     }
 
     /// Esc (or ⌫) after a refine: the results before it are back, as they were (a refine running is stopped).
@@ -2452,6 +2491,7 @@ public final class Composer {
         refineRequest = nil
         refineID = nil
         refineError = nil
+        handoffRequested = false
     }
 
     private func startAction() -> Response {
@@ -2553,7 +2593,9 @@ public final class Composer {
         }
         // What the results can be refined from: the AI's answers (not a program's output, nor a text with commands
         // inside it, whose outputs the model saw but the composer doesn't have).
+        // Not @translate's (typing after them goes back to its text, translated again with ⏎).
         switch start {
+        case _ where parsed?.command == .translate: refineRequest = nil
         case let .startConversion(input, _): refineRequest = .writing(parsed?.command, input: input)
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
@@ -2912,7 +2954,7 @@ public final class Composer {
 
     /// Picks the highlighted candidate as Space would until no pinyin is left (a long input can take
     /// several picks); the words go to the draft.
-    private func convertComposition(_ engine: PinyinEngine) -> [Effect] {
+    func convertComposition(_ engine: PinyinEngine) -> [Effect] {
         var effects: [Effect] = []
         for _ in 0..<Self.maxPicks {
             let before = engine.snapshot()
@@ -2934,8 +2976,10 @@ public final class Composer {
     /// after a failure, asks again (a reminder with nothing to be reminded of would fail again: back to
     /// its text, like Esc).
     private func acceptInLevelTwo() -> [Effect] {
-        // A refine instruction typed: the action key runs it (on an empty line it inserts, as before).
-        if typesRefine, !refineText.isEmpty || engineState.isComposing { return runRefine() }
+        // A refine instruction or a follow-up typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎
+        // does; ⏎ inserts, the line going with the rest (on an empty line every action key inserts).
+        if typesRefine, actionKey != .enter, !refineText.isEmpty || engineState.isComposing { return runRefine() }
+        // @config, @doctor: ⏎ applies the preview (a refine line typed goes with it), closes the confirmation.
         if inConfigFlow { return configActionKey() }
         if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
         return commitChoice(at: highlighted)
@@ -3010,7 +3054,7 @@ public final class Composer {
     }
 
     /// How the field's selection (`selection`) ends with the composition (`finish`).
-    private enum SelectionEnd {
+    enum SelectionEnd {
         /// What is inserted takes its place (nothing: it's deleted, as before a result typed out).
         case replaced
         /// It stays as it is, still selected, and nothing goes in.
@@ -3020,7 +3064,7 @@ public final class Composer {
     /// Ends the composition, inserting `text`, and clears the engine. `leaving`: the field is left (or everything
     /// committed): a `show` script still running keeps going in the background (`detachScript`). With a selection (the
     /// draft was in the panel), `text` replaces it, or (`end`; by default when `text` is empty) it's kept as it is.
-    private func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil) -> [Effect] {
+    func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil) -> [Effect] {
         let selected = selection
         selection = nil
         var effects: [Effect] = []
@@ -3094,7 +3138,7 @@ extension Composer {
     /// Nothing is typed after "@question": the digits 1–5 pick from the list (with text, they're part of the question).
     public var questionDigitsPick: Bool { parse(draft)?.content.isEmpty == true && !questionMatches.isEmpty }
 
-    /// Level two shows a saved answer (picked from the recent questions), not one just asked for; R asks again.
+    /// Level two shows a saved answer (picked from the recent questions), not one just asked for; ⌘R asks again.
     public var showsSavedAnswer: Bool { phase == .choosing && recalled != nil }
 
     /// When the saved answer shown was given.
@@ -3135,6 +3179,8 @@ extension Composer {
         cursorTail = ""
         draft = "@\(command.name) " + entry.question
         result = ConversionResult(versions: [CandidateLine(entry.answer, isComplete: true)])
+        // Its rounds, to go on with (`QuestionChat`).
+        loadThread(entry, command: command)
         searchResults = []
         pendingReminder = nil
         highlightOverride = nil
@@ -3143,8 +3189,8 @@ extension Composer {
         return [.updateMarkedText, .showPanel]
     }
 
-    /// R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
-    /// takes the old one's place in the list.
+    /// ⌘R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
+    /// takes the old one's place in the list (a saved conversation's: `reaskSaved`).
     func reaskQuestion() -> [Effect] {
         guard recalled != nil else { return [] }
         // In an app with no AI the saved answers may still be shown (nothing is sent), but not asked again: the answer
@@ -3171,7 +3217,8 @@ extension Composer {
               !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         let question = sentText
         guard !question.isEmpty else { return [] }
-        let entry = QuestionHistory.Entry(question: question, answer: answer.text, date: now())
+        // A conversation is kept whole, by its first question.
+        let entry = QuestionHistory.Entry(rounds: QuestionChat.rounds(first: question, turns: refinements, latest: answer.text), date: now())
         questionHistory.record(entry)
         return [.rememberQuestion(entry)]
     }
@@ -3347,6 +3394,8 @@ extension Composer {
         let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
         let isSpace = event.keyCode == VirtualKey.space
         let isBack = event.keyCode == VirtualKey.escape || event.keyCode == VirtualKey.delete
+        // ⇧⏎ sends a refine line typed (`handleRefineKey`, before here); with none it does nothing: never "@config …" as typed.
+        if isReturn, event.modifiers.subtracting(.capsLock).contains(.shift) { return .consumed() }
         if configState.applied != nil {
             // The confirmation: closes with Esc, ⏎ or Space; another key closes it and is typed as usual.
             if isReturn || isSpace || isBack { return .consumed(finish(committing: "")) }

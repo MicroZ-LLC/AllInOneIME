@@ -313,15 +313,15 @@ struct RefineAcceptanceTests {
         return rig
     }
 
-    /// Types `instruction` into the refine line (Space as the Space key), then ⏎ when `run`. With `run`, what ⏎ did;
-    /// without, what the typing did.
+    /// Types `instruction` into the refine line (Space as the Space key), then ⇧⏎ when `run`. With `run`, what ⇧⏎ did;
+    /// without, what the typing did. (0.6.4: ⇧⏎ sends a refine, ⏎ inserts.)
     @discardableResult
     func refine(_ rig: RARig, _ instruction: String, run: Bool = true) -> [Composer.Effect] {
         var typed: [Composer.Effect] = []
         for ch in instruction {
             typed += ch == " " ? rig.key(spaceKey) : rig.type(String(ch))
         }
-        return run ? rig.key(enterKey) : typed
+        return run ? rig.key(acceptanceShiftReturn) : typed
     }
 
     func refineOnline(_ rig: RARig, _ instruction: String, answer: RAStubProtocol.Reply) async -> [Composer.Effect] {
@@ -347,8 +347,10 @@ struct RefineAcceptanceTests {
         translate.type("hello")
         #expect(translate.key(enterKey).contains(.startConversion(input: "hello", id: 1)))
         _ = translate.c.receive(ConversionResult(versions: [CandidateLine("你好")]), isFinal: true, id: 1)
+        // 0.6.4: @translate has no refine: a letter goes back to its text, which ⏎ translates again.
+        #expect(!translate.c.canRefine, "@translate")
         translate.type("s")
-        #expect(translate.c.refineLine == "s", "@translate")
+        #expect(translate.c.refineLine == nil && !translate.c.isLevelTwo && translate.c.draft == "@translate hellos", "@translate")
 
         // @question
         let question = RARig()
@@ -508,7 +510,7 @@ struct RefineAcceptanceTests {
         refine(ctrl, "shorter", run: false)
         let viaShortcut = ctrl.key(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .control))
         #expect(raRefines(viaShortcut).first?.turns.last?.instruction == "shorter")
-        // ⏎ still runs it when it isn't the action key.
+        // ⇧⏎ runs it when ⏎ isn't the action key too (0.6.4: ⏎ inserts).
         let enter = improveShown(RARig(actionKey: .optionSpace))
         let viaEnter = refine(enter, "shorter")
         #expect(raRefines(viaEnter).first?.turns.last?.instruction == "shorter")
@@ -560,8 +562,9 @@ struct RefineAcceptanceTests {
         #expect(sent[1].messages.map(\.role) == ["user", "assistant", "user"])
         #expect(sent[1].messages[0].text == "what is a monad" && sent[1].messages[1].text == answer)
         #expect(sent[1].messages[2].text.contains("shorter"))
-        #expect(rig.rows == ["A monad chains computations with context."])
-        #expect(rig.c.choices.first?.text == "what is a monad")
+        // 0.6.4: @question is a conversation: every round's answer is a row (no row 0), the latest selected.
+        #expect(rig.rows == [answer, "A monad chains computations with context."])
+        #expect(rig.c.choices[rig.c.highlighted].text == "A monad chains computations with context.")
     }
 
     // MARK: 4. Keys with an empty line
@@ -614,8 +617,8 @@ struct RefineAcceptanceTests {
         rig.key(backspaceKey)
         rig.key(backspaceKey)
         #expect(rig.c.refineText == "make it 2 lines, pleas" && rig.c.isLevelTwo, "line: \(rig.c.refineText.debugDescription)")
-        // ⏎ sends exactly what is in the line.
-        #expect(raRefines(rig.key(enterKey)).first?.turns.last?.instruction == "make it 2 lines, pleas")
+        // ⇧⏎ sends exactly what is in the line.
+        #expect(raRefines(rig.key(acceptanceShiftReturn)).first?.turns.last?.instruction == "make it 2 lines, pleas")
     }
 
     @Test func edge_aDigitInANonEmptyLineDoesNotPickARow() {
@@ -728,9 +731,9 @@ struct RefineAcceptanceTests {
         _ = await refineOnline(rig, "shorter", answer: .status(500))
         #expect(rig.c.phase == .choosing && rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError != nil && rig.c.refineHistory.isEmpty)
-        // ⏎ again tries again.
+        // ⇧⏎ again tries again.
         RAStubProtocol.enqueue(rig.host, .answer(lines(shorter)))
-        await rig.press(enterKey)
+        await rig.press(acceptanceShiftReturn)
         #expect(rig.rows == shorter.versions.map(\.text) && rig.c.refineHistory == ["shorter"] && rig.c.refineText.isEmpty)
         #expect(try rig.sent().count == 3)
     }
@@ -741,7 +744,7 @@ struct RefineAcceptanceTests {
         #expect(rig.c.phase == .choosing && rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError != nil)
         RAStubProtocol.enqueue(rig.host, .answer(lines(shorter)))
-        await rig.press(enterKey)
+        await rig.press(acceptanceShiftReturn)
         #expect(rig.rows == shorter.versions.map(\.text))
     }
 
@@ -753,7 +756,7 @@ struct RefineAcceptanceTests {
         #expect(rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError == RARig.secureMessage)
         rig.secureInput = false
-        await rig.press(enterKey)
+        await rig.press(acceptanceShiftReturn)
         #expect(rig.rows == shorter.versions.map(\.text) && rig.c.refineError == nil)
     }
 
@@ -764,8 +767,8 @@ struct RefineAcceptanceTests {
         _ = rig.c.fail("The network connection was lost.", id: 2)
         #expect(rig.c.phase == .choosing && rig.rows == first.versions.map(\.text))
         #expect(rig.c.refineText == "shorter" && rig.c.refineError == "The network connection was lost.")
-        // The next key clears the error; ⏎ runs the same instruction again.
-        let retry = rig.key(enterKey)
+        // The next key clears the error; ⇧⏎ runs the same instruction again.
+        let retry = rig.key(acceptanceShiftReturn)
         #expect(raRefines(retry).first?.turns == [Refinement.Turn(answer: first, instruction: "shorter")])
     }
 
@@ -884,7 +887,8 @@ struct RefineAcceptanceTests {
         let cases = refineAcceptanceGoldenCases()
         #expect(cases.count == refineAcceptanceGolden.count)
         for (name, request) in cases {
-            let data = refineAcceptanceEncode(request)
+            // @question's without 0.6.4's live-data rule; the others as they are.
+            let data = AcceptanceLiveRule.strip(refineAcceptanceEncode(request), question: name.hasPrefix("question/"))
             let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
             #expect(refineAcceptanceGolden[name] == hash, "\(name) differs from 55d496e")
         }
@@ -916,7 +920,7 @@ struct RefineAcceptanceTests {
         let rig = improveShown()
         refine(rig, String(repeating: "a", count: 250), run: false)
         #expect(rig.c.refineText.count == 200)
-        let run = rig.key(enterKey)
+        let run = rig.key(acceptanceShiftReturn)
         #expect(raRefines(run).first?.turns.last?.instruction.count == 200)
     }
 
@@ -993,8 +997,8 @@ struct RefineAcceptanceTests {
         #expect(rig.c.refineHistory == ["shorter"])
         #expect(rig.c.refineText == "more formal" && rig.c.refineLine == "more formal",
                 "line after the results: \(rig.c.refineText.debugDescription)")
-        // ⏎ runs it as the next refine, on the refined results.
-        let next = raRefines(rig.key(enterKey)).first
+        // ⇧⏎ runs it as the next refine, on the refined results.
+        let next = raRefines(rig.key(acceptanceShiftReturn)).first
         #expect(next?.turns == [
             Refinement.Turn(answer: first, instruction: "shorter"),
             Refinement.Turn(answer: shorter, instruction: "more formal"),
@@ -1074,14 +1078,16 @@ struct RefineAcceptanceTests {
         let instruction = "更口语 très poli, 日本語で 🙂"
         #expect(rig.c.refineText == instruction, "line: \(rig.c.refineText.debugDescription)")
         RAStubProtocol.enqueue(rig.host, .answer(lines(shorter)))
-        let run = await rig.press(enterKey)
+        let run = await rig.press(acceptanceShiftReturn)
         #expect(raRefines(run).first?.turns.last?.instruction == instruction)
         let ask = try #require(try rig.sent().last?.lastUser)
         #expect(ask.contains(instruction))
         #expect(rig.c.refineHistory == [instruction])
     }
 
-    @Test func edge_aRefineOnTranslateIntoSeveralLanguagesKeepsThemAll() async throws {
+    /// 0.6.4: @translate has no refine. Typing after its results (here into several languages) goes back to its text,
+    /// the results dropped, and ⏎ translates the edited text again as a normal request.
+    @Test func edge_translateIntoSeveralLanguagesHasNoRefine() async throws {
         let languages = [OutputLanguage.english, OutputLanguage("ja"), OutputLanguage("fr")]
         let rig = RARig(outputLanguages: languages)
         RAStubProtocol.enqueue(rig.host, .answer("EN: Hello.\nJA: こんにちは。\nFR: Bonjour."))
@@ -1089,23 +1095,15 @@ struct RefineAcceptanceTests {
         #expect(rig.c.draft == "@translate ")
         rig.type("nihao")
         await rig.press(enterKey)
-        #expect(rig.rows == ["Hello.", "こんにちは。", "Bonjour."])
-        _ = rig.shiftTap(at: 10)  // English for the instruction
-        _ = await refineOnline(rig, "more formal",
-                               answer: .answer("EN: Good day to you.\nJA: こんにちは（丁寧）。\nFR: Bonjour, madame."))
-        // All three come back, each in its language.
-        #expect(rig.rows == ["Good day to you.", "こんにちは（丁寧）。", "Bonjour, madame."])
-        #expect(rig.c.choices.compactMap { if case let .translation(code) = $0.kind { return code } else { return nil } }
-            == ["en", "ja", "fr"])
-        // The model was shown all three lines, with their languages.
+        #expect(rig.rows == ["Hello.", "こんにちは。", "Bonjour."] && !rig.c.canRefine)
+        rig.type("x")  // pinyin, continuing the text
+        #expect(!rig.c.isLevelTwo && rig.c.refineLine == nil && rig.c.draft == "@translate 你好")
+        RAStubProtocol.enqueue(rig.host, .answer("EN: Hello x.\nJA: こんにちはx。\nFR: Bonjour x."))
+        let again = await rig.press(enterKey)
+        #expect(again.contains(.startConversion(input: "你好x", id: 2)) && raRefines(again).isEmpty)
         let sent = try rig.sent()
         try #require(sent.count == 2)
-        let shown = try #require(sent[1].assistantTexts.last)
-        #expect(shown.contains("EN: Hello.") && shown.contains("JA: こんにちは。") && shown.contains("FR: Bonjour."))
-        #expect(sent[1].lastUser.contains("more formal"), "sent: \(sent[1].lastUser.debugDescription)")
-        // The first request is untouched inside it (the sentence "你好").
-        #expect(sent[0].lastUser == "你好")
-        #expect(zip(sent[0].messages, sent[1].messages).allSatisfy { $0.text == $1.text })
+        #expect(sent[1].lastUser == "你好x" && sent[1].assistantTexts.count == sent[0].assistantTexts.count)
     }
 
     @Test func edge_shiftSwitchesTheLanguageInsideTheLine() {

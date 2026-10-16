@@ -260,7 +260,9 @@ struct SelectionTests {
         pick("q", d)
         #expect(d.handleKeyDown(enterKey).effects.first == .startCommand(.question, input: "What is 2 + 2?", id: 1))
         _ = d.receive(ConversionResult(versions: [CandidateLine("4")]), isFinal: true, id: 1)
-        #expect(d.choices.first?.text == "What is 2 + 2?" && replaced(d.handleKeyDown(enterKey).effects) == ["4"])
+        // An @question conversation (0.6.4): the selection is its first question, the answer its one row.
+        #expect(d.chatRounds.first?.question == "What is 2 + 2?" && d.choices.map(\.text) == ["4"])
+        #expect(replaced(d.handleKeyDown(enterKey).effects) == ["4"])
     }
 
     @Test func noCommandRunsInsideTheSelection() {

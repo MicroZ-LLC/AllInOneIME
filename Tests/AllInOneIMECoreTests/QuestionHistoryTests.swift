@@ -125,7 +125,7 @@ extension ConverterTests {
     }
 }
 
-/// `@question` lists the recent questions: filter by typing, pick one to see its saved answer (nothing is asked), R asks
+/// `@question` lists the recent questions: filter by typing, pick one to see its saved answer (nothing is asked), ⌘R asks
 /// it again; a new question is kept with its answer, five at most, never during secure input or on a selection.
 extension ComposerTests {
     var savedQuestions: QuestionHistory {
@@ -204,7 +204,8 @@ extension ComposerTests {
         let effects = c.handleKeyDown(k("2")).effects
         #expect(requests(effects).isEmpty && remembered(effects).isEmpty)
         #expect(c.phase == .choosing && c.showsSavedAnswer && c.activeCommand == .question)
-        #expect(c.choices.map(\.text) == ["你好怎么说", "Hello."] && c.highlighted == 1)
+        // Its answer is round 1 of a conversation (0.6.4): the one row, selected.
+        #expect(c.choices.map(\.text) == ["Hello."] && c.highlighted == 0)
         #expect(c.markedText == "question › 你好怎么说" && c.savedAnswerDate == Date(timeIntervalSince1970: 2))
         // ⌘C copies it, ⏎ inserts it, as any answer.
         #expect(c.handleKeyDown(k("c", mods: .command)).effects.first == .copy("Hello."))
@@ -233,26 +234,30 @@ extension ComposerTests {
         let d = questionDraft()
         _ = d.handleKeyDown(upKey)
         #expect(d.questionHighlight == 2)
-        // Typing on a saved answer goes back to the list and types there.
+        // Typing on a saved answer starts the conversation's next question (0.6.4); Esc clears it, then goes back to the
+        // list.
         _ = d.handleKeyDown(enterKey)
         _ = d.handleKeyDown(k("s"))
-        #expect(d.draft == "@question s" && !d.isLevelTwo && d.questionMatches.map(\.question) == ["What is Swift", "what is rust"])
+        #expect(d.isLevelTwo && d.isQuestionChat && d.refineText == "s" && d.showsSavedAnswer)
+        _ = d.handleKeyDown(escKey)
+        _ = d.handleKeyDown(escKey)
+        #expect(d.draft == "@question " && !d.isLevelTwo && d.questionHighlight == 2)
     }
 
     @Test func aClickShowsTheSavedAnswer() {
         let c = questionDraft()
         type("swift", c)
         let effects = c.choose(index: 0)
-        #expect(requests(effects).isEmpty && c.showsSavedAnswer && c.choices.map(\.text) == ["What is Swift", "Also a language."])
+        #expect(requests(effects).isEmpty && c.showsSavedAnswer && c.choices.map(\.text) == ["Also a language."])
         _ = c.handleKeyDown(escKey)
         #expect(c.draft == "@question swift")
     }
 
-    @Test func rAsksItAgainForAFreshAnswerThatTakesItsPlace() {
+    @Test func commandRAsksItAgainForAFreshAnswerThatTakesItsPlace() {
         let c = questionDraft()
         c.now = { Date(timeIntervalSince1970: 100) }
         _ = c.handleKeyDown(k("3"))
-        let again = c.handleKeyDown(k("r")).effects
+        let again = c.handleKeyDown(k("r", mods: .command)).effects
         #expect(requests(again) == [.reask(.question, input: "what is rust", id: 1)])
         #expect(c.phase == .translating(id: 1) && !c.showsSavedAnswer && c.draft == "@question what is rust")
         let done = c.receive(answer("A systems language."), isFinal: true, id: 1)
@@ -260,17 +265,17 @@ extension ComposerTests {
         #expect(remembered(done) == [entry])
         #expect(c.questionHistory.entries.map(\.question) == ["what is rust", "What is Swift", "你好怎么说"])
         #expect(c.questionHistory.entries.first == entry)
-        // R in an answer just asked isn't a re-ask: like any letter on complete AI results it starts a refine
-        // instruction (refining the results), the answer staying up.
+        // ⌘R on an answer just asked isn't the input method's; R, like any letter, starts the next question.
+        #expect(!c.handleKeyDown(k("r", mods: .command)).handled)
         _ = c.handleKeyDown(k("r"))
         #expect(c.refineLine == "r" && c.isLevelTwo && c.draft == "@question what is rust" && !c.showsSavedAnswer)
-        // ⇧R too; ⌘R isn't the input method's.
+        // ⌘⇧R too; R on a saved answer is the start of a follow-up (0.6.4).
         let s = questionDraft()
         _ = s.handleKeyDown(k("1"))
-        #expect(requests(s.handleKeyDown(k("R", mods: .shift)).effects).count == 1)
+        #expect(requests(s.handleKeyDown(k("R", mods: [.command, .shift])).effects).count == 1)
         let t = questionDraft()
         _ = t.handleKeyDown(k("1"))
-        #expect(requests(t.handleKeyDown(k("r", mods: .command)).effects).isEmpty && t.showsSavedAnswer)
+        #expect(requests(t.handleKeyDown(k("r")).effects).isEmpty && t.showsSavedAnswer && t.refineLine == "r")
     }
 
     @Test func aNewQuestionIsAskedAndKept() {

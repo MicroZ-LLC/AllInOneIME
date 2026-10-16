@@ -57,12 +57,14 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
 | `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (a name typed in full first, then names starting with them, then names containing them). ⏎, Tab, Space or a digit chooses |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
-| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original |
+| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a follow-up half typed (it's dropped) |
+| ⇧⏎ | With a follow-up typed after AI results: sends it (the next question of an `@question` conversation, or a refine). While a command is typed, or on AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
 | ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
-| Letters, once AI results are up | A follow-up instruction, such as `shorter`: ⏎ refines the results (see [Refining the results](#refining-the-results-new)) |
+| Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
+| ⌘⏎, ⌘1–⌘5 | In an `@question` conversation: shows where to continue it (Claude Code, Claude, ChatGPT, Gemini, or copy it); ⌘1, ⌘2 … pick one |
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 | Hold right ⌥ | Talk, release to stop. In the language you're typing (English, Chinese, French, Korean or Hindi). In a command, the text goes after it; otherwise it's inserted directly |
@@ -73,7 +75,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 |---|---|
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
 | `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
-| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
+| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. Type on and ⇧⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; ⌘R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
 | `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background and notifies me" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
@@ -132,27 +134,55 @@ terminal. Turn it off under Settings → General → "Use the selected text" if 
 
 ### Refining the results (new)
 
-While the results of `@improve`, `@translate`, `@question` or a prompt command are up, type what to change, such as
-`shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese` or `用更口语的说法` (pinyin works, and a tap of Shift
-switches languages), and press ⏎: the results go to the AI again with your instruction, and the new ones replace them in
-the same panel. Refine again as often as you like; the panel's top line lists the steps ("Refined: shorter · more
-formal"), and you can pick a row at any time as usual. A letter starts the instruction (shown as "refine › …" at the top
-of the panel); while it's empty, digits, Space and ⏎ pick as before. Refining starts once the results are complete:
-typing while the first results still stream in continues the sentence, as before. While a refine runs you can already
-type the next instruction; the refine goes on, and ⏎ runs the next one once its results are in. Esc clears the
+While the results of `@improve`, a prompt command (your own or a plugin's) or the rewrite of a selection are up, type
+what to change, such as `shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese` or `用更口语的说法` (pinyin works,
+and a tap of Shift switches languages), and press ⇧⏎: the results go to the AI again with your instruction, and the new
+ones replace them in the same panel. ⏎ inserts the selected result, also with an instruction half typed (it's dropped).
+Refine again as often as you like; the panel's top line lists the steps ("Refined: shorter · more formal"), and you can
+pick a row at any time as usual. A letter starts the instruction (shown as "refine › …" at the top of the panel); while
+it's empty, digits, Space and ⏎ pick as before, and ⇧⏎ inserts what you typed as is. Refining starts once the results are
+complete: typing while the first results still stream in continues the sentence, as before. While a refine runs you can
+already type the next instruction; the refine goes on, and ⇧⏎ runs the next one once its results are in. Esc clears the
 instruction, then goes back one step to the results before the last refine (during a refine: stops it), then back to the
 sentence; ⌫ on an empty line steps back the same way. On selected text, the result you pick still replaces
 exactly the selection, which stays untouched until then. A refine that fails (or is refused during secure input) leaves
-the results as they were, its instruction ready for ⏎ to try again. The same refine of the same results is answered from
-the cache.
+the results as they were, its instruction ready for ⇧⏎ to try again. The same refine of the same results is answered from
+the cache. `@translate` has no refine: typing after its results continues the sentence, and ⏎ translates it again.
+
+### Conversations with @question (new)
+
+Once `@question` has answered, what you type is the next question: ⇧⏎ asks it, with the questions and answers so far,
+and the panel grows into the conversation, the earlier rounds dimmed as Q / A rows, the latest answer below them. The
+line on top says which round comes next ("question 2/5 › …"). Every answer can be inserted: its digit (1–5), ↑↓ then ⏎, or
+a click; the latest is selected, and ⌘C copies the selected one. ⏎ inserts it even with a question half typed (it's
+dropped). Esc clears what you typed, then goes back one round; at the first, it leaves as before. The panel grows to
+about half the screen, then scrolls, the latest at the bottom.
+
+After 5 rounds (`questionRounds` in the config, 2–10) the next question's line becomes "5 rounds in: continue in Claude
+or another AI", with the choices numbered ⌘1, ⌘2 …; ⌘⏎ shows them at any round (while an answer is still coming in it
+does nothing, and never reaches the app). What you type then is the first message there; only ⌘1, ⌘2 … send it (⇧⏎
+asks nothing more, and opens nothing). A question about selected text takes that text along, quoted as a block of its
+own. The choices:
+
+- **Claude Code**, when the `claude` command is installed: an interactive session in Terminal, starting with the
+  conversation and "Let's continue this discussion".
+- **Claude** or **ChatGPT** on the web, the conversation filled in (a long one goes on the clipboard: paste it).
+- **Gemini** on the web, the conversation on the clipboard to paste.
+- **Copy the conversation**, in Markdown (**Q:** / **A:**).
+
+Which ones, and in which order (the first is the default): Settings → General → "Continue a conversation in"
+(`questionContinueIn` in the config). With Apple Intelligence on this Mac a long conversation doesn't fit its small context:
+the oldest answers are shortened, then the oldest rounds left out, and the panel says "earlier rounds shortened". A
+conversation is saved under its first question in the recent questions, and picking it shows the rounds to go on with.
 
 ### Recent questions (new)
 
 `@question` with nothing typed after it lists your last 5 questions, newest first, with when they were asked ("3 hours
 ago"). Typing narrows them down: every word anywhere in the question, in any case (Chinese without spaces too). A digit,
 ↑↓ then ⏎, or a click shows a question's saved answer at once, without going online: Space or ⏎ inserts it, ⌘C copies
-it, 0 shows the question, R asks it again for a fresh answer, Esc goes back to the list. With no match, or nothing
-picked, ⏎ asks what you typed. A new answer to the same question, asked again or refined, replaces the saved one.
+it, ⌘R asks it again for a fresh answer (a conversation: its latest question), Esc goes back to the list. A saved
+conversation shows all its rounds: type to go on with it. With no match, or nothing picked, ⏎ asks what you typed. A new answer to the same question, or a conversation
+that goes on, replaces the saved one.
 
 - They're kept only on this Mac (see Privacy): not while secure input is on, and never for questions on selected text.
 - Settings → General → "Remember recent questions" turns it off and deletes them (`rememberQuestions` in the config);
@@ -600,12 +630,15 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `useSelection` | @ commands work on the text selected in the field (see On the selected text) | `true` |
 | `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
+| `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
+| `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `claudeCode`, `claudeWeb`, `chatgpt`, `gemini`, `copy` | Claude Code (if installed), Claude, ChatGPT, copy |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 
 ## Privacy
 
-- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⏎) sends the same request again with the results shown and your instruction.
+- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⇧⏎) sends the same request again with the results shown and your instruction; a follow-up question (⇧⏎) sends the conversation so far with it.
+- Continuing an `@question` conversation elsewhere (⌘1 … after the last round, or ⌘⏎) sends it, with what you typed, to the service you pick: Claude Code on this Mac (Anthropic), claude.ai, chatgpt.com or gemini.google.com, in the web address or through the clipboard. It goes as you saw it: values hidden from the AI's requests (see below) are in it as they are, since you choose to send it there. Nothing goes anywhere until you pick one; "Copy the conversation" only puts it on the clipboard.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@claude`, plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.

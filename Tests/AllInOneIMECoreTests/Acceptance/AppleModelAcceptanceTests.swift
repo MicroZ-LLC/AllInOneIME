@@ -467,7 +467,15 @@ struct AppleModelAcceptanceTests {
         #expect(groups.count == Self.golden063.count)
         for (name, text) in groups {
             let golden = try #require(Self.golden063[name], "no golden for \(name)")
+            // @question's requests (in a group of commands, `commands()` in order) without 0.6.4's live-data rule; every
+            // other request as it is, so the rule leaking into it shows.
             var compared = text
+            if name.hasSuffix("/commands") {
+                let questions = AcceptanceGolden.commands().map { $0.1 == .question }
+                let requests = text.components(separatedBy: "\n----\n")
+                #expect(requests.count == questions.count, "\(name)")
+                compared = zip(requests, questions).map { AcceptanceLiveRule.strip($0, question: $1) }.joined(separator: "\n----\n")
+            }
             for added in Self.addedSince063[name] ?? [] {
                 // A setting added after 55d496e, written with its default: it must be there exactly once, and the rest
                 // must still be 0.6.3's byte for byte.

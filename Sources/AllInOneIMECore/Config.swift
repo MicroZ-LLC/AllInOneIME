@@ -78,6 +78,12 @@ public struct Config: Codable, Equatable, Sendable {
     /// `@question` keeps the last few questions and answers on this Mac (`QuestionHistory`) and lists them when nothing
     /// is typed after it. On by default.
     public var rememberQuestions: Bool
+    /// Rounds of an `@question` conversation in the panel before it suggests going on elsewhere (`QuestionChat`):
+    /// 5 by default, 2–10. Only in the file.
+    public var questionRounds: Int
+    /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
+    /// default choices (`ChatHandoff.defaultChoices`).
+    public var questionContinueIn: [ChatHandoff.Destination]?
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
@@ -174,6 +180,8 @@ public struct Config: Codable, Equatable, Sendable {
         self.extensionPreferences = [:]
         self.claudeInBackground = true
         self.rememberQuestions = true
+        self.questionRounds = QuestionChat.defaultRounds
+        self.questionContinueIn = nil
         self.menuBarIcon = true
         self.fuzzyPinyin = []
         self.keyboardLayouts = [:]
@@ -206,7 +214,7 @@ public struct Config: Codable, Equatable, Sendable {
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case checkForUpdates, useSelection, appProfiles
-        case rememberQuestions
+        case rememberQuestions, questionRounds, questionContinueIn
         case redaction
         case provider, anthropic, gemini, openai
     }
@@ -249,6 +257,10 @@ public struct Config: Codable, Equatable, Sendable {
             ?? d.extensionPreferences
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
+        questionRounds = QuestionChat.rounds((try? c.decodeIfPresent(Int.self, forKey: .questionRounds)).flatMap { $0 } ?? d.questionRounds)
+        // Names this version doesn't know (a service a later one added) are left out, not an error.
+        questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?
+            .compactMap(ChatHandoff.Destination.init(rawValue:))
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
@@ -332,6 +344,9 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(rememberQuestions, forKey: .rememberQuestions)
+        // Only when set: a file that never had them doesn't gain them.
+        if questionRounds != QuestionChat.defaultRounds { try c.encode(questionRounds, forKey: .questionRounds) }
+        try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         try c.encode(keyboardLayouts, forKey: .keyboardLayouts)

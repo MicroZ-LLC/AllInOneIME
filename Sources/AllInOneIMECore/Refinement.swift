@@ -26,10 +26,13 @@ public struct Refinement: Equatable, Sendable {
     public var request: Request
     /// Oldest first; the last instruction is the one to run now.
     public var turns: [Turn]
+    /// Asked again past the cache: a saved @question conversation's latest question, re-asked (⌘R).
+    public var fresh: Bool
 
-    public init(request: Request, turns: [Turn]) {
+    public init(request: Request, turns: [Turn], fresh: Bool = false) {
         self.request = request
         self.turns = turns
+        self.fresh = fresh
     }
 
     /// The longest refine instruction kept, in Characters (a sentence or two).

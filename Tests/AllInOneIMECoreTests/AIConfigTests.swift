@@ -295,7 +295,8 @@ struct AIConfigTests {
         // `RefineTests` checks every normal request against release 0.6.3's; @config's own is none of them.
         let url = try #require(Bundle.module.url(forResource: "prompts-release-0.6.3", withExtension: "json", subdirectory: "Fixtures"))
         let golden = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
-        let now = try JSONSerialization.jsonObject(with: PromptGolden.json()) as? [String: Any]
+        // @question's gained the live-data rule since (`RefineTests`); without it, every request is as 0.6.3 built it.
+        let now = try JSONSerialization.jsonObject(with: PromptGolden.json(withoutLiveDataRule: true)) as? [String: Any]
         #expect(golden.map { NSDictionary(dictionary: $0) } == now.map { NSDictionary(dictionary: $0) })
         let all = String(decoding: try PromptGolden.json(), as: UTF8.self)
         #expect(!all.contains("AllInOneIME, an input method on a Mac, as the user describes"))
@@ -426,13 +427,16 @@ struct AIConfigTests {
         #expect(d.handleKeyDown(k("1")).effects == [.applyConfig(p), .showPanel])
     }
 
+    let shiftEnter = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
+
     @Test func escCancelsAndTypingRefines() throws {
         let (c, _) = try previewed()
         #expect(commits(c.handleKeyDown(escKey)).isEmpty && c.phase == .drafting && c.draft == "@config column")
         let (d, _) = try previewed()
         for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
         #expect(d.refineText == "also" && d.phase == .choosing)
-        let effects = d.handleKeyDown(enterKey).effects
+        // ⇧⏎ sends the line (⏎ would apply the proposal, the line going with it).
+        let effects = d.handleKeyDown(shiftEnter).effects
         let refine = effects.compactMap { if case let .startRefine(r, _) = $0 { return r } else { return nil } }.first
         #expect(refine?.request == .command(.config, input: "column") && refine?.turns.first?.answer.versions.first?.text == answer)
         // Its answer replaces the preview; Esc goes back to the one before.
