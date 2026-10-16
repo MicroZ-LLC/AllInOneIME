@@ -231,17 +231,28 @@ final class CandidateView: NSView {
     var model = Model() {
         didSet {
             guard model != oldValue else { return }
-            scrolled = nil  // the newest rows (or the highlighted one) come into view again
+            // The newest rows (or the highlighted one) come into view again, unless the wheel moved a conversation up
+            // from its end and only what the rows say changed (an answer coming in): they stay where the user put them.
+            if !keepsScroll(from: oldValue) { scrolled = nil }
             relayout()
         }
     }
+
+    /// Whether a conversation the wheel scrolled up stays put as the model goes from `old` to `model`: the same rows
+    /// with the same one picked, only their text (or the line on top, the status, the footer) changed. Scrolled back
+    /// to the bottom, it follows the end again.
+    private func keepsScroll(from old: Model) -> Bool {
+        guard let scrolled, scrolled < overflow - 0.5, model.transcript, old.transcript else { return false }
+        return model.rows.count == old.rows.count && model.highlighted == old.highlighted
+    }
+
     /// The tallest a conversation's panel gets (`Model.transcript`); nil: no limit.
     var maxHeight: CGFloat? {
         didSet { if maxHeight != oldValue, model.transcript { relayout() } }
     }
     /// A conversation's rows taller than fit: how far they are moved up (`rowsShift`), where they're shown
     /// (`rowsClip`), and how far the wheel moved them from where they'd be (nil: not moved).
-    private var rowsShift: CGFloat = 0
+    private(set) var rowsShift: CGFloat = 0
     private var rowsClip: NSRect?
     private var scrolled: CGFloat?
 

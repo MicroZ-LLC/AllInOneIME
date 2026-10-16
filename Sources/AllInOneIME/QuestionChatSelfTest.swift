@@ -185,6 +185,37 @@ extension SelfTest {
         let half = floor((CandidatePanel.screen(for: client.caretRect)?.visibleFrame.height ?? 900) / 2)
         check(height <= half + 1, "the panel grows up to half the screen, then scrolls (\(Int(height)) of \(Int(half)) points)")
         readmeSnapshot("question-chat-long", controller, client, in: snapshotDirectory)
+        testChatScroll(controller.panelModel(), anchor: client.caretRect)
         controller.commitComposition(client)
+    }
+
+    /// The wheel scrolls a conversation taller than the panel: while it's scrolled up, an answer coming in leaves the
+    /// rows where they are; scrolled back to the bottom, they follow the answer's end again.
+    static func testChatScroll(_ model: CandidateView.Model, anchor: NSRect) {
+        let panel = CandidatePanel.shared
+        var streaming = model
+        func comeIn(_ text: String) {
+            streaming.rows[streaming.rows.count - 1].text += text
+            panel.show(streaming, anchor: anchor)
+        }
+        func wheel(_ points: Int32) {
+            guard let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: points, wheel2: 0,
+                                      wheel3: 0).flatMap(NSEvent.init(cgEvent:)) else { return }
+            panel.view.scrollWheel(with: event)
+        }
+        defer { panel.hide() }
+        let more = String(repeating: " More of the answer comes in, a line or two at a time.", count: 12)
+        comeIn(more + more)  // taller than half of any screen
+        let end = panel.view.rowsShift
+        wheel(120)
+        let up = panel.view.rowsShift
+        comeIn(more)
+        check(end > 0 && up < end && panel.view.rowsShift == up,
+              "scrolled up, the conversation stays put while the answer comes in (\(Int(end)) → \(Int(up)) → \(Int(panel.view.rowsShift)))")
+        wheel(-100_000)
+        let bottom = panel.view.rowsShift
+        comeIn(more)
+        check(bottom > end && panel.view.rowsShift > bottom,
+              "at the bottom, it follows the answer's end (\(Int(bottom)) → \(Int(panel.view.rowsShift)))")
     }
 }
