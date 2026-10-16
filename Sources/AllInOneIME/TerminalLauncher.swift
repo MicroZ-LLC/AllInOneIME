@@ -22,13 +22,27 @@ enum TerminalLauncher {
     /// background) whose first message is `prompt`, however long. The text goes in a file only the user can read; the
     /// script reads it into one argument and deletes it, so it is never part of a shell command.
     static func claude(promptFile prompt: String) throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("AllInOneIME", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let files = FileManager.default
+        let folder = files.temporaryDirectory.appendingPathComponent("AllInOneIME", isDirectory: true)
+        try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Prompts of earlier launches whose script never ran (Terminal closed first …): gone after an hour.
+        let hourAgo = Date().addingTimeInterval(-3600)
+        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("claude-prompt-") && name.hasSuffix(".txt") {
+            let url = folder.appendingPathComponent(name)
+            if let modified = (try? files.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date, modified < hourAgo {
+                try? files.removeItem(at: url)
+            }
+        }
         let file = folder.appendingPathComponent("claude-prompt-\(UUID().uuidString).txt")
-        guard FileManager.default.createFile(atPath: file.path, contents: Data(prompt.utf8), attributes: [.posixPermissions: 0o600]) else {
+        guard files.createFile(atPath: file.path, contents: Data(prompt.utf8), attributes: [.posixPermissions: 0o600]) else {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: file.path])
         }
-        try launch([claudePath ?? "claude", "--"], name: "claude", promptFile: file)
+        do {
+            try launch([claudePath ?? "claude", "--"], name: "claude", promptFile: file)
+        } catch {
+            try? files.removeItem(at: file)  // nothing will read it
+            throw error
+        }
     }
 
     /// Opens a new Terminal window in `directory` (else the home folder) that runs `argv` (a custom

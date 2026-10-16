@@ -94,21 +94,23 @@ extension AllInOneIMEInputController {
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(tr("AI 回答中…", "Answering…")) }
         let count = composer.handoffChoices.count
+        // The digits that pick an answer: up to the round limit, 9 at most (no digit after it).
+        let pick = "1–\(min(QuestionChat.rounds(composer.questionRounds), 9))"
         if answering {
             model.footer = composer.refinements.isEmpty ? tr("回答中… · Esc 返回", "Answering… · Esc back")
                 : tr("回答中… · 可以接着打下一个问题 · Esc 回到上一轮", "Answering… · type the next question meanwhile · Esc previous round")
         } else if composer.showsHandoff {
             model.footer = (count > 1 ? "⌘1–⌘\(count) " : "⌘1 ") + tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : tr("，打的字一起带过去", ", with what you typed"))
-                + tr(" · ⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回", " · ⏎ insert · 1–5 pick · ⌘C copy · Esc back")
+                + tr(" · ⏎ 上屏 · \(pick) 选 · ⌘C 复制 · Esc 返回", " · ⏎ insert · \(pick) pick · ⌘C copy · Esc back")
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
                 ? tr("⇧⏎ 追问 · ⏎ 上屏 · ⌘R 重新问 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · ⌘R re-ask · ⌘C copy · Esc back")
-                : tr("⇧⏎ 追问 · ⏎ 上屏 · 1–5 选 · ⌘R 重新问 · ⌘C 复制 · Esc 返回",
-                     "⇧⏎ ask · ⏎ insert · 1–5 pick · ⌘R re-ask · ⌘C copy · Esc back")
+                : tr("⇧⏎ 追问 · ⏎ 上屏 · \(pick) 选 · ⌘R 重新问 · ⌘C 复制 · Esc 返回",
+                     "⇧⏎ ask · ⏎ insert · \(pick) pick · ⌘R re-ask · ⌘C copy · Esc back")
         } else {
-            model.footer = tr("⇧⏎ 追问 · ⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · 1–5 pick · ⌘C copy · Esc back")
+            model.footer = tr("⇧⏎ 追问 · ⏎ 上屏 · \(pick) 选 · ⌘C 复制 · Esc 返回", "⇧⏎ ask · ⏎ insert · \(pick) pick · ⌘C copy · Esc back")
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []

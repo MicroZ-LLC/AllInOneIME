@@ -2303,8 +2303,9 @@ public final class Composer {
             }
             return .consumed(commitChoice(at: highlighted))
         case VirtualKey.escape, VirtualKey.delete:
-            // Where a conversation can go on, shown with ⌘⏎: hidden again.
-            if handoffRequested, phase == .choosing {
+            // Where a conversation can go on, shown with ⌘⏎ before its last round: hidden again (at the last round it
+            // stays, and Esc goes back a round).
+            if handoffRequested, !chatAtLimit, phase == .choosing {
                 handoffRequested = false
                 return .consumed([.showPanel])
             }
@@ -2413,10 +2414,7 @@ public final class Composer {
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
-        if !fresh, showsHandoff {
-            handoffRequested = true
-            return [.showPanel]
-        }
+        if !fresh, showsHandoff { return [.showPanel] }
         // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
         // turned on while they were up. They stay, the instruction too.
         if let refusal = aiRefusal() {

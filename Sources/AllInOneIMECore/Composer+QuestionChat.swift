@@ -114,7 +114,8 @@ extension Composer {
         }
         guard isQuestionChat, phase == .choosing, modifiers == .command else { return nil }
         if isReturn {
-            handoffRequested = true
+            // At the last round they're up anyway: nothing to hide later with Esc.
+            if !chatAtLimit { handoffRequested = true }
             return .consumed([.showPanel])
         }
         guard showsHandoff, let digit = event.charactersIgnoringModifiers.first?.wholeNumberValue,

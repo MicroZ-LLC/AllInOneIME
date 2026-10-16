@@ -154,6 +154,10 @@ struct QuestionChatTests {
             final = update
         }
         #expect(final?.shortened == false)
+        // The same long conversation again, from the cache: still said to be shortened.
+        var again: ConversionUpdate?
+        for try await update in converter.generate(.question, input: "问题 1", turns: turns) { again = update }
+        #expect(again?.fromCache == true && again?.shortened == true && stub.requests.count == 1)
         let sent = try #require(short.requests.first)
         #expect(sent.examples.map(\.prompt) == ["what is rust"] && sent.examples.map(\.response) == ["A language."] && sent.prompt == "who made it")
     }
@@ -370,6 +374,31 @@ struct QuestionChatTests {
         let effects = c.handleKeyDown(command(3)).effects
         let url = effects.compactMap { if case let .openLink(u) = $0 { return u } else { return nil } }.first
         #expect(url?.host == "chatgpt.com" && url?.absoluteString.hasSuffix("discussion.%0A%0Amore") == true)
+    }
+
+    @Test func everyEscAtTheLastRoundDoesSomething() {
+        // ⇧⏎ with a follow-up at the limit, then Esc: the follow-up goes; the next Esc goes back a round.
+        let c = asked(rounds: 2)
+        followUp(c, "who made it", reply: "Graydon Hoare.")
+        type("more", c)
+        _ = c.handleKeyDown(shiftEnterKey)
+        _ = c.handleKeyDown(escKey)
+        #expect(c.refineText.isEmpty && c.showsHandoff && c.chatRound == 2)
+        _ = c.handleKeyDown(escKey)
+        #expect(!c.showsHandoff && c.chatRound == 1)
+        // ⌘⏎ at the limit (the choices are up already), then Esc: back a round at once.
+        let d = asked(rounds: 2)
+        followUp(d, "who made it", reply: "Graydon Hoare.")
+        _ = d.handleKeyDown(commandReturn)
+        _ = d.handleKeyDown(escKey)
+        #expect(!d.showsHandoff && d.chatRound == 1)
+        // ⌘⏎ before the limit, a round asked meanwhile up to it: Esc goes back a round there too.
+        let e = asked(rounds: 2)
+        _ = e.handleKeyDown(commandReturn)
+        _ = e.handleKeyDown(escKey)
+        followUp(e, "who made it", reply: "Graydon Hoare.")
+        _ = e.handleKeyDown(escKey)
+        #expect(e.chatRound == 1 && !e.showsHandoff)
     }
 
     @Test func theRoundsGoBackFromTheHandoffWithEsc() {

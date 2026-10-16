@@ -1,9 +1,9 @@
 import AllInOneIMECore
 import Foundation
 
-/// General → @question → "Continue a conversation in" (`Config.questionContinueIn`): where an @question conversation can
-/// go on (`ChatHandoff`), in order, the first the default (⌘1 and ⇧⏎ after the last round). Claude Code only where the
-/// `claude` command is installed.
+/// General → "Continue a conversation in" (`Config.questionContinueIn`): where an @question conversation can go on
+/// (`ChatHandoff`), in order, the first the default (⌘1; the choices show after the last round or with ⌘⏎). Claude Code
+/// only where the `claude` command is installed.
 extension SettingsModel {
     /// The choices as the panel offers them now.
     var continueChoices: [ChatHandoff.Destination] {

@@ -86,7 +86,7 @@ extension SelfTest {
         check(panel.transcript && panel.rows.map(\.text) == ["问：what is rust", "答：" + answers["what is rust"]!]
               && panel.rows.map(\.label) == ["", "1"] && panel.highlighted == 1,
               "round 1: the question and its answer, numbered (\(panel.rows.map(\.text)))")
-        check(panel.input == "追问 2/3 › ▏" && panel.footer == "⇧⏎ 追问 · ⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回",
+        check(panel.input == "追问 2/3 › ▏" && panel.footer == "⇧⏎ 追问 · ⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
               "the next question's line on top, with its round; the footer's keys (\(panel.input ?? "-") | \(panel.footer))")
 
         type("who made", controller, client)

@@ -178,20 +178,22 @@ public final class Converter: Sendable {
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
             + (turns.isEmpty ? "" : "|" + (chat ? QuestionChat.turnsKey(turns) : Prompt.turnsKey(turns)))
-        if !fresh, let hit = cache.withLock({ $0.get(key) }) {
-            continuation.yield(ConversionUpdate(
-                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden))
-            return
-        }
         let request = chat ? QuestionChat.request(first: input, turns: turns, config: config)
             : turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config)
             : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
         var protected = redaction?.protect(request, sent: lastMessage) ?? request
-        // The on-device model's context is small: a long conversation is fitted into it, older rounds shortened first.
+        // The on-device model's context is small: a long conversation is fitted into it, older rounds shortened first
+        // (said for an answer from the cache too).
         var shortened = false
         if chat, config.provider == .apple {
             (protected, shortened) = QuestionChat.fit(protected, contextSize: client.apple.contextSize,
                                                       maxTokens: protected.inferenceConfig.maxTokens ?? config.maxTokens)
+        }
+        if !fresh, let hit = cache.withLock({ $0.get(key) }) {
+            continuation.yield(ConversionUpdate(
+                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden,
+                shortened: shortened))
+            return
         }
         let stream = client.stream(protected, config: config, loadCredentials: loadCredentials, loadKey: loadKey)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
