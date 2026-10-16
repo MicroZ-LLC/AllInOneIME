@@ -110,7 +110,7 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 命令处理的就是选中的文字，你选好的结果替换它。打字时选中的文字原样留着、一直选中：命令写在候选框里，第一行是你打的字，下一行是
 「对选中的文字：“…”（N 字）」。按 Esc、⇧⏎ 或点到别处，文字都不变；中途改了选区，命令就取消，文字也不变。
 命令后面再写的字，对 `@improve`、`@translate` 是要求（`@translate ja`、`@improve 更正式`），对 `@question` 是关于这段文字的问题
-（`@question 这是什么意思`）。`@open`、`@claude`、`@tasks`、`@settings`、`@reminder`、`@imessage` 和脚本扩展不用它。
+（`@question 这是什么意思`）。`@open`、`@claude`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、终端命令和脚本扩展不用它：它们只用你打的字，选中的文字不动。
 最多 5000 字；系统安全输入时、终端里不读。哪个 App 里不正常，在设置 →「通用」→「使用选中的文字」里关掉。
 
 ### 修改结果（新）

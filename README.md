@@ -124,7 +124,8 @@ line is what you type and the next "On the selection: “…” (N characters)".
 as it was; so does a selection you change meanwhile, which cancels the command. Text typed after the command is an
 instruction for `@improve` and `@translate` (`@translate ja`, `@improve more formal`) and the question for `@question`
 (`@question what does this mean`), about the selection. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`,
-`@imessage` and script extensions don't use it. Up to 5000 characters; never read during secure input or in a
+`@imessage`, `@reportissue`, terminal commands and script extensions don't use it: they take what you type, and the
+selection stays as it is. Up to 5000 characters; never read during secure input or in a
 terminal. Turn it off under Settings → General → "Use the selected text" if it misbehaves in an app.
 
 ### Refining the results (new)
