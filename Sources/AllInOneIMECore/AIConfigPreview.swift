@@ -117,6 +117,8 @@ extension AIConfig {
             case refused(String)
             /// The provider needs a key (or a sign-in): applying opens Settings at its key field.
             case needsKey(Provider)
+            /// Something applying does besides the settings (`@doctor`'s fixes: a pack downloaded, a pane opened).
+            case action
         }
 
         /// The key as resolved ("appProfiles.com.tencent.xinWeChat.inputLanguage").
@@ -127,14 +129,18 @@ extension AIConfig {
         public var status: Status
         /// What applying it does (nil for a refused row and a key row).
         public var edit: Edit?
+        /// What an action row does.
+        public var action: Action?
 
-        public init(key: String, label: String, old: String? = nil, new: String? = nil, status: Status, edit: Edit? = nil) {
+        public init(key: String, label: String, old: String? = nil, new: String? = nil, status: Status, edit: Edit? = nil,
+                    action: Action? = nil) {
             self.key = key
             self.label = label
             self.old = old
             self.new = new
             self.status = status
             self.edit = edit
+            self.action = action
         }
 
         /// The row as the panel shows it: "Translation languages: English, Japanese → English, French"; a refused part
@@ -145,6 +151,7 @@ extension AIConfig {
             case .change: return label + colon + (old ?? "") + " → " + (new ?? "")
             case let .refused(reason): return "✕ " + label + colon + reason
             case .needsKey: return label + colon + (new ?? "")
+            case .action: return "→ " + label
             }
         }
 
@@ -171,8 +178,10 @@ extension AIConfig {
         public var needsKey: Provider? {
             rows.lazy.compactMap { if case let .needsKey(provider) = $0.status { return provider } else { return nil } }.first
         }
-        /// Something to apply (⏎ / 1): a change, or a key to enter.
-        public var canApply: Bool { !edits.isEmpty || needsKey != nil }
+        /// What applying does besides the settings, in order.
+        public var actions: [Action] { rows.compactMap(\.action) }
+        /// Something to apply (⏎ / 1): a change, a key to enter, an action.
+        public var canApply: Bool { !edits.isEmpty || needsKey != nil || !actions.isEmpty }
         /// The provider changes: Test Connection runs once it is applied.
         public var changesProvider: Bool {
             edits.contains {

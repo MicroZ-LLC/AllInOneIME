@@ -297,6 +297,17 @@ public enum AIConfig {
         case baseURL(String?)
     }
 
+    /// What applying a preview does besides the settings: `@doctor`'s fixes.
+    public enum Action: Equatable, Sendable {
+        /// The config file written again as Settings writes it (its values as they read).
+        case resaveConfig
+        case enableInputMethod
+        case openPrivacy(Doctor.PrivacyPane)
+        case downloadPack(Language)
+        case openAppleIntelligenceSettings
+        case checkForUpdates
+    }
+
     /// One field of an app's profile; nil: as everywhere.
     public enum AppValue: Equatable, Sendable {
         case inputLanguage(Language?)
