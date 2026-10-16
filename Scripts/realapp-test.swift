@@ -63,6 +63,61 @@ func imePanelFrames() -> [NSRect] {
     }
 }
 
+/// The input method's own log of its AI requests as it is written (`log stream`): "conversion 12 started (…)", then
+/// "conversion 12 done in 1.20s cache=false" once all its results are in, which the panel doesn't show from outside
+/// (its frames can stay the same while a rewrite is still being written, or be complete at once from the cache).
+final class RequestLog: @unchecked Sendable {
+    private let process = Process()
+    private let lock = NSLock()
+    private var lines: [String] = []
+    private var partial = ""
+
+    /// Streaming (it stops by itself after a few minutes, should the test end without stopping it); nil if it can't.
+    static func start() -> RequestLog? {
+        let log = RequestLog()
+        log.process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
+        log.process.arguments = ["stream", "--style", "compact", "--timeout", "3m", "--predicate",
+                                 "subsystem == \"\(imeID)\" AND eventMessage BEGINSWITH \"conversion \""]
+        let pipe = Pipe()
+        log.process.standardOutput = pipe
+        log.process.standardError = FileHandle.nullDevice
+        pipe.fileHandleForReading.readabilityHandler = { [weak log] handle in
+            let data = handle.availableData
+            if data.isEmpty { handle.readabilityHandler = nil; return }  // it stopped
+            guard let log, let text = String(data: data, encoding: .utf8) else { return }
+            log.lock.withLock {
+                let parts = (log.partial + text).components(separatedBy: "\n")
+                log.partial = parts.last ?? ""
+                log.lines += parts.dropLast()
+            }
+        }
+        do { try log.process.run() } catch { return nil }
+        return log
+    }
+
+    /// Lines so far (the first is `log stream`'s own header, once it streams).
+    var count: Int { lock.withLock { lines.count } }
+
+    /// The first request started after line `mark`, once it is done: whether it came from the cache (nil until then).
+    func done(after mark: Int) -> (id: Int, cached: Bool)? {
+        let new = lock.withLock { Array(lines.dropFirst(mark)) }
+        guard let id = new.lazy.compactMap({ Self.request($0, "started") }).first,
+              let line = new.first(where: { Self.request($0, "done") == id }) else { return nil }
+        return (id, line.contains("cache=true"))
+    }
+
+    /// The request id in "conversion 12 <word> …".
+    private static func request(_ line: String, _ word: String) -> Int? {
+        guard let range = line.range(of: "] conversion ") else { return nil }
+        let rest = line[range.upperBound...], digits = rest.prefix(while: \.isNumber)
+        return rest.dropFirst(digits.count).hasPrefix(" \(word)") ? Int(digits) : nil
+    }
+
+    func stop() {
+        if process.isRunning { process.terminate() }
+    }
+}
+
 let keyCodes: [Character: UInt16] = [
     "a": 0x00, "s": 0x01, "d": 0x02, "f": 0x03, "h": 0x04, "g": 0x05, "z": 0x06, "x": 0x07,
     "c": 0x08, "v": 0x09, "b": 0x0B, "q": 0x0C, "w": 0x0D, "e": 0x0E, "r": 0x0F, "y": 0x10,
@@ -658,10 +713,11 @@ final class Harness: NSObject, NSApplicationDelegate {
         textView.string = ""
     }
 
-    /// 6a'. Refining the results: @improve a long English sentence and, once all its results are in, pick row 1 (V1);
-    ///     the same sentence again (the cache answers at once, all in), "shorter" typed while the results are up and ⏎
-    ///     asks again with them as context; the draft stays as it was (the letters went to the refine line, not the
-    ///     sentence), and 1 inserts the refined version, which is shorter than V1 (live Bedrock).
+    /// 6a'. Refining the results: @improve a long English sentence and, once all its results are in (the input
+    ///     method's log says so, `RequestLog`), pick row 1 (V1); the same sentence again (the cache answers at once,
+    ///     all in), "shorter" typed while the results are up and ⏎ asks again with them as context; the draft stays as
+    ///     it was (the letters went to the refine line, not the sentence), and 1 inserts the refined version, which is
+    ///     shorter than V1 (live Bedrock).
     func refineResults() {
         print("— refine the results: shorter (live Bedrock)")
         reset()
@@ -689,34 +745,55 @@ final class Harness: NSObject, NSApplicationDelegate {
                 return !now.isEmpty && Date().timeIntervalSince(since) >= quiet
             }
         }
+        /// The request the action key starts, once all its results are in (from the cache or not; nil: not within
+        /// `timeout`). Without the input method's log: the panel unchanged for a few seconds (a rewrite only shows once
+        /// it is complete, so it can stay the same for a second while one is still being written).
+        let requests = RequestLog.start()
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
+        func actUntilAllIn(_ timeout: TimeInterval) -> Bool? {
+            let mark = requests?.count ?? 0
+            act()
+            guard let requests else { return settled(timeout, quiet: 3) ? false : nil }
+            var done: (id: Int, cached: Bool)?
+            _ = waitUntil(timeout) { done = requests.done(after: mark); return done != nil }
+            pump(0.3)  // its last rows shown
+            return done?.cached
+        }
+        /// The end of the section, also when it gives up: no log, nothing marked (the text view can't have its text
+        /// taken away under the marked text), Chinese again.
+        func endSection() {
+            requests?.stop()
+            reset()
+            textView.string = ""
+            tapShift()  // back to Chinese
+        }
         check(draft(), "sentence drafted in English (\(marked))")
-        act()
         // All the results first: V1 inserted while the rest still streams stops the request, and nothing is kept for
-        // the same sentence again. A rewrite only shows once it is complete, so the panel can stay the same for a
-        // second while one is still being written: all in is the panel unchanged for a few seconds, once rows came.
-        pump(0.3)
-        let waiting = imePanelFrames()  // sent, its rows not in yet
-        let allIn = waitUntil(30) { imePanelFrames() != waiting } && settled(40, quiet: 3)
-        let improved = allIn && waitUntil(5) {
+        // the same sentence again (from an earlier run of the test, it may be kept already).
+        let firstIn = actUntilAllIn(40)
+        let improved = firstIn != nil && waitUntil(5) {
             if self.committed.isEmpty { self.space() }
             return !self.committed.isEmpty
         }
-        let first = committed
+        let first = committed, kept = firstIn == true ? " (from the cache)" : ""
         check(improved && Self.looksEnglish(first) && marked.isEmpty,
-              "@improve inserts its first version, once all its results are in: '\(first)'")
+              "@improve inserts its first version, once all its results are in\(kept): '\(first)'")
+        guard improved, marked.isEmpty else { return endSection() }
         textView.string = ""
         check(draft(), "the same sentence again")
-        act()
         // From the cache: all in at once. A live request (nothing kept) would still be streaming, and the letters
         // typed next would go to the sentence.
-        pump(0.5)
-        let atOnce = imePanelFrames()
-        check(settled(10) && imePanelFrames() == atOnce, "its results are up at once, all in, from the cache (\(atOnce))")
+        let started = Date()
+        let againIn = actUntilAllIn(10)
+        check(requests == nil ? againIn != nil : againIn == true,
+              String(format: "its results are all in at once, from the cache (%.1fs%@)", Date().timeIntervalSince(started),
+                     requests == nil ? "; no log of the input method's: only the panel settled" : ""))
+        requests?.stop()
         type("shorter")
         pump(0.3)
         check(marked == "improve › " + sentence + " ", "'shorter' goes to the refine line: the sentence is as it was (\(marked))")
         enter()
-        let started = Date()
+        let refining = Date()
         let picked = waitUntil(25) {
             if self.committed.isEmpty { self.key("1", keyCodes["1"]!); self.pump(0.3) }  // ignored until row 1 is complete
             return !self.committed.isEmpty
@@ -724,10 +801,8 @@ final class Harness: NSObject, NSApplicationDelegate {
         let refined = committed
         check(picked && Self.looksEnglish(refined) && marked.isEmpty && refined != first && refined.count < first.count,
               String(format: "⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
-                     Date().timeIntervalSince(started), refined, refined.count, first.count))
-        reset()
-        textView.string = ""
-        tapShift()  // back to Chinese
+                     Date().timeIntervalSince(refining), refined, refined.count, first.count))
+        endSection()
     }
 
     /// 5b. Apple Intelligence on this Mac (`provider: "apple"`), where its model is available: @improve on English and on
