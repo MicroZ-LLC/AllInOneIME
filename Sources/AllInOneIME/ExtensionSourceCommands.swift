@@ -34,12 +34,22 @@ enum ExtensionSourceCommands {
         return options
     }
 
-    private static func fail(_ error: Error, url: String? = nil) -> Int32 {
+    /// The error, then for a git error or a timeout the generic hint and the source's own `authHint`.
+    private static func fail(_ error: Error, source: ExtensionSource? = nil) -> Int32 {
         printError("✗ " + ((error as? LocalizedError)?.errorDescription ?? "\(error)"))
-        if case ExtensionSourceError.git = error {
-            printError("  This uses your own git and SSH setup; check that git ls-remote \(url ?? "<url>") works in Terminal.")
-        }
+        hints(for: error, source: source).forEach { printError("  " + $0) }
         return 1
+    }
+
+    /// Under a git error or a timeout: "This uses your own git and SSH setup; check that git ls-remote <url> works in
+    /// Terminal.", then the source's own hint, if it has one.
+    static func hints(for error: Error, source: ExtensionSource?) -> [String] {
+        switch error as? ExtensionSourceError {
+        case .git?, .timedOut?:
+            return ["This uses your own git and SSH setup; check that git ls-remote \(source?.url ?? "<url>") works in Terminal."]
+                + (source?.authHint.map { [$0] } ?? [])
+        default: return []
+        }
     }
 
     private static func manager(_ options: Options) -> ExtensionSourceManager {
@@ -58,6 +68,14 @@ enum ExtensionSourceCommands {
         do {
             source.url = try ExtensionSources.validate(url)
             var config = try Config.load(from: options.configURL)
+            // An entry the config has for it already (handed out with its hint, say): its settings unless given here.
+            if let had = config.extensionSources.first(where: { $0.url == source.url }) {
+                source.path = source.path ?? had.path
+                source.branch = source.branch ?? had.branch
+                source.pin = source.pin ?? had.pin
+                source.autoCheck = had.autoCheck
+                source.authHint = had.authHint
+            }
             let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))
             if config.extensionSources.contains(where: { $0.url == source.url }), ExtensionSources.isTrusted(source, statuses[source.url]) {
                 throw ExtensionSourceError.alreadyAdded
@@ -95,7 +113,7 @@ enum ExtensionSourceCommands {
             print("enabled:     \(ExtensionSources.loadPath(for: source, root: options.root))")
             return 0
         } catch {
-            return fail(error, url: source.url)
+            return fail(error, source: source)
         }
     }
 
@@ -138,8 +156,7 @@ enum ExtensionSourceCommands {
             case let .failure(error):
                 failed += 1
                 printError("✗ \(name): " + ((error as? LocalizedError)?.errorDescription ?? "\(error)"))
-                if case ExtensionSourceError.git = error { printError("  This uses your own git and SSH setup; check that git ls-remote \(source.url) works in Terminal.") }
-                if let hint = source.authHint { printError("  \(hint)") }
+                hints(for: error, source: source).forEach { printError("  " + $0) }
                 statuses = manager.statuses()
                 statuses[source.url]?.error = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 try? manager.save(statuses)

@@ -361,14 +361,39 @@ public enum ExtensionSources {
         }
     }
 
-    /// What a failed git call says: its last lines with words (at most three), "hint:" lines left out.
+    /// What a failed git call says, for Settings and the command line: every line that states a cause (ssh's or the
+    /// server's refusal, `remote:` lines, each `fatal:` and `error:`), without git's progress, its "hint:" lines and its
+    /// closing boilerplate ("Please make sure you have the correct access rights / and the repository exists."). At most
+    /// `maxMessageLines` lines of at most 300 characters; the causes are kept first when there are more.
     public static func gitMessage(_ result: GitResult) -> String {
         let text = result.errors.isEmpty ? result.output : result.errors
-        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.contains(where: \.isLetter) && !$0.lowercased().hasPrefix("hint:") }
-        let message = lines.suffix(3).joined(separator: "\n")
+        let boilerplate: Set<String> = ["please make sure you have the correct access rights", "and the repository exists."]
+        let progress = ["cloning into", "remote: enumerating", "remote: counting", "remote: compressing", "remote: total",
+                        "receiving objects", "resolving deltas", "unpacking objects"]
+        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { line in
+            let lower = line.lowercased()
+            return line.contains(where: \.isLetter) && !lower.hasPrefix("hint:") && !boilerplate.contains(lower)
+                && !progress.contains { lower.hasPrefix($0) }
+        }
+        func isCause(_ line: String) -> Bool {
+            let lower = line.lowercased()
+            return lower.hasPrefix("fatal:") || lower.hasPrefix("error:") || lower.hasPrefix("remote:") || lower.contains("denied")
+                || lower.contains("failed") || lower.contains("could not") || lower.contains("not found")
+        }
+        var kept = lines
+        if kept.count > maxMessageLines {
+            // The causes first, in order; then the latest other lines, up to the cap.
+            let causes = Array(lines.enumerated().filter { isCause($0.element) }.suffix(maxMessageLines))
+            let room = maxMessageLines - causes.count
+            let others = room > 0 ? Array(lines.enumerated().filter { !isCause($0.element) }.suffix(room)) : []
+            kept = (causes + others).sorted { $0.offset < $1.offset }.map(\.element)
+        }
+        let message = kept.map { $0.count > 300 ? String($0.prefix(299)) + "…" : $0 }.joined(separator: "\n")
         return message.isEmpty ? "git failed (exit status \(result.status))" : message
     }
+
+    /// The most lines of git's own words shown for a failure.
+    public static let maxMessageLines = 8
 
     // MARK: Bundles
 
@@ -429,6 +454,11 @@ public enum ExtensionSources {
     /// Enable: the source is in the config (replacing one of the same address), and its bundle's folder in the load list.
     public static func enable(_ source: ExtensionSource, in config: inout Config, root: URL = directory) {
         if let index = config.extensionSources.firstIndex(where: { $0.url == source.url }) {
+            // An entry the config had (one handed out with its sign-in hint, say) keeps its hint and its schedule.
+            var source = source
+            let had = config.extensionSources[index]
+            source.authHint = source.authHint ?? had.authHint
+            source.autoCheck = had.autoCheck
             config.extensionSources[index] = source
         } else {
             config.extensionSources.append(source)

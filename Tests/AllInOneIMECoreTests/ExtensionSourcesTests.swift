@@ -186,8 +186,11 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
 
     @Test func messages() {
         let result = GitResult(status: 128, errors: "Cloning into 'x'...\ngit@host: Permission denied (publickey).\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\nhint: something\n")
-        #expect(ExtensionSources.gitMessage(result)
-                == "fatal: Could not read from remote repository.\nPlease make sure you have the correct access rights\nand the repository exists.")
+        #expect(ExtensionSources.gitMessage(result) == "git@host: Permission denied (publickey).\nfatal: Could not read from remote repository.")
+        // Many lines: the causes stay, the rest is cut to the cap.
+        let long = GitResult(status: 128, errors: (1...20).map { "warning: noise \($0)" }.joined(separator: "\n") + "\nfatal: the cause\n")
+        let lines = ExtensionSources.gitMessage(long).split(separator: "\n")
+        #expect(lines.count == ExtensionSources.maxMessageLines && lines.last == "fatal: the cause")
         #expect(ExtensionSources.gitMessage(GitResult(status: 1)) == "git failed (exit status 1)")
     }
 
@@ -272,6 +275,10 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         #expect(config.extensionSources.isEmpty && !config.extensionFolders.contains(path) && !ExtensionSources.isEnabled(source, in: config, root: root))
         #expect(config.extensionPreferences["greetings"]?["greeting"] == "yo")
         #expect(config.extensionFolders == [ExtensionStore.defaultFolder])
+        // Enabling an entry the config has keeps its hint and schedule.
+        config.extensionSources = [ExtensionSource(url: source.url, autoCheck: false, authHint: "Sign in first.")]
+        ExtensionSources.enable(ExtensionSource(url: source.url, path: "ext"), in: &config, root: root)
+        #expect(config.extensionSources == [ExtensionSource(url: source.url, path: "ext", autoCheck: false, authHint: "Sign in first.")])
     }
 
     @Test func statusFile() throws {
