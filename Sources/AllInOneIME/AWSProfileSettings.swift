@@ -27,6 +27,16 @@ final class AWSProfileModel: ObservableObject {
         }
     }
 
+    /// Reads them again and waits for that (the status row's loop).
+    func reread(profile: String) async {
+        generation += 1
+        let resolver = resolver, current = generation
+        let (summaries, status) = await Task.detached(priority: .utility) { (resolver.profiles(), resolver.status(profile: profile)) }.value
+        guard generation == current else { return }
+        self.summaries = summaries
+        self.status = status
+    }
+
     /// Reads them now (the self-test, the README images).
     func load(profile: String) {
         generation += 1
@@ -107,7 +117,15 @@ struct AWSProfileStatusRow: View {
                 }
             }
         }
-        .task(id: profile) { aws.refresh(profile: profile) }
+        // Read when shown and again at each boundary (credentials expiring, a sign-in ending, at least every minute), so the
+        // line never goes stale while the window stays open; coming back to the window reads it too (`didBecomeKey`).
+        .task(id: profile) {
+            while !Task.isCancelled {
+                await aws.reread(profile: profile)
+                let wait = aws.status(for: profile)?.secondsUntilChange() ?? 60
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            }
+        }
     }
 
     private func shown(_ text: String) -> String {

@@ -1921,6 +1921,8 @@ struct SettingsView: View {
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
             model.refreshRecentQuestions()
+            // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
+            if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
             if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
@@ -2882,7 +2884,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 sso role assume credential_process sts mfa 角色 登录 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
         case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉"

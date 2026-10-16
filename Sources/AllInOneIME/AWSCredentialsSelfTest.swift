@@ -26,7 +26,7 @@ final class AWSSelfTestBedrockStub: URLProtocol, @unchecked Sendable {
         let (type, message) = count == 1 ? ("ExpiredTokenException", "The security token included in the request is expired")
             : ("ValidationException", "The self-test's stand-in answers no further")
         let response = HTTPURLResponse(url: request.url!, statusCode: count == 1 ? 403 : 400, httpVersion: "HTTP/1.1",
-                                       headerFields: ["x-amzn-ErrorType": "\(type):http://internal.amazon.com/"])!
+                                       headerFields: ["x-amzn-ErrorType": type])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(#"{"message":"\#(message)"}"#.utf8))
         client?.urlProtocolDidFinishLoading(self)
