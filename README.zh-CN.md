@@ -517,13 +517,38 @@ make install
 ### Amazon Bedrock
 
 1. 在 AWS 控制台开通 Bedrock，确认能用所选的模型。默认是 Claude Haiku 4.5，第一次用 Anthropic 模型要填一次用途说明。
-2. 创建一个有 `bedrock:InvokeModelWithResponseStream` 权限的 access key，写进 `~/.aws/credentials` 里的一个 profile。
-   目前只支持这种固定密钥，不支持 SSO 和 assume-role。
+2. 用一个有 `bedrock:InvokeModelWithResponseStream` 权限的 AWS profile：`~/.aws/credentials` 里的固定密钥，或者能拿到临时凭证的
+   profile（`credential_process`、角色、SSO；见下面的「AWS profile」）。
 3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
    选好 profile、区域和模型，点「测试连接」。设置窗口最上面的「界面语言」可以选中文或 English；默认跟随系统
    （系统的首选语言里中文排在英文前面时显示中文，否则显示英文）。设置窗口、候选框里的提示和输入法菜单都跟着它。
 
 <img src="docs/settings.png" width="420" alt="设置窗口">
+
+#### AWS profile
+
+AWS CLI 不用问你就能用的 profile 都可以，来自 `~/.aws/config` 和 `~/.aws/credentials`（或者 shell 里 `AWS_CONFIG_FILE`、
+`AWS_SHARED_CREDENTIALS_FILE` 指定的文件）。一个 profile 里按下面的顺序，用它有的第一种：
+
+| 种类 | profile 里写的 | 怎么刷新 |
+| --- | --- | --- |
+| 固定密钥 | `aws_access_key_id`、`aws_secret_access_key`（还有 `aws_session_token`） | 每次请求都重新读 |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev`（像 shell 命令一样拆开，但不经过 shell 运行；用登录 shell 的 PATH，在主目录里，最多 60 秒） | 在它给的 `Expiration` 前 5 分钟再运行；没有 `Expiration` 时，等 AWS 不接受了再运行 |
+| 角色 | `role_arn` 加 `source_profile`（这里任何一种都行，也可以串起来）或 `credential_source = Environment`；`role_session_name`、`external_id`、`duration_seconds` | 到期前 5 分钟再调用 STS `AssumeRole`（在 profile 的 `region`，没有就 us-east-1） |
+| SSO | `sso_session` 和它的 `[sso-session …]`（或者老的 `sso_start_url`）、`sso_account_id`、`sso_role_name` | 到期前 5 分钟用缓存的登录再取一次 |
+| 环境变量 | shell 里的 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_SESSION_TOKEN` | 只用于 profile「default」（或者没填），而且没有带凭证的 default profile 时 |
+
+- **自动：** 会过期的凭证只放在内存里（从不写到磁盘），到期前 5 分钟重新取；剩不到 10 分钟时，请求先用现有的，同时在后台取新的，
+  打字不用等。同时来的请求只等同一次刷新。Bedrock 回答凭证过期（`ExpiredTokenException` 等）时，重新取一次凭证，请求再发一次。
+- **SSO：** AllInOneIME 用 AWS CLI 存在 `~/.aws/sso/cache` 里的登录（只读不写），没法替你登录，因为那要用浏览器。登录过期时，
+  候选框里会说「SSO 登录已过期：运行 aws sso login --profile X」：在终端里运行它（设置里有「复制命令」和「在终端里打开」，
+  `@doctor` 可以把命令复制下来），登录好后 AllInOneIME 自己会用上新的登录。
+- **不支持：** `mfa_serial`（输入法没法问你要 MFA 验证码：请改用 `credential_process` 或 SSO，或者先用 AWS CLI 缓存好凭证）、
+  `credential_source = Ec2InstanceMetadata` 或 `EcsContainer`（Mac 上没有），以及 web identity。
+- **设置 → AI 服务** 列出每个 profile 和它的种类（「dev — 通过 base 的角色」），并说明选中的那个的凭证什么时候到期（「通过 base 的角色：
+  凭证 15:30 到期」「SSO（登录到 18:00）」）或者该怎么做。「测试连接」会顺着整条链重新取凭证；`@doctor` 也会报告同样的内容。
+- 只有请求或「测试连接」需要凭证时，才会运行程序、向 AWS 要凭证（`sts.<区域>.amazonaws.com`、`portal.sso.<区域>.amazonaws.com`）：
+  列出 profile 时不会，`@config` 也不会。
 
 ### 其他 AI 服务：Claude API、Gemini、兼容 OpenAI 的服务
 

@@ -593,13 +593,43 @@ Translations and rewrites use your own AI provider, and the costs go to your acc
 ### Amazon Bedrock
 
 1. Enable Bedrock in the AWS console and make sure you can use the chosen model. The default is Claude Haiku 4.5; the first time you use an Anthropic model, you fill in a use-case form once.
-2. Create an access key with the `bedrock:InvokeModelWithResponseStream` permission and put it in a profile in `~/.aws/credentials`.
-   Only such static keys are supported for now, not SSO or assume-role.
+2. Use an AWS profile allowed `bedrock:InvokeModelWithResponseStream`: static keys in `~/.aws/credentials`, or a profile
+   that gets temporary credentials (`credential_process`, a role, SSO; see "AWS profiles" below).
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
    Pick the profile, region and model, and click "Test Connection". "Language" at the top of the settings window can be English or Chinese; by default ("System") it follows the system
    (Chinese if Chinese comes before English in the system's preferred languages, English otherwise). The settings window, the hints in the candidate panel and the input menu all follow it.
 
 <img src="docs/en/settings.png" width="420" alt="The settings window">
+
+#### AWS profiles
+
+Any profile the AWS CLI can use without asking you anything works, from `~/.aws/config` and `~/.aws/credentials` (or the
+files `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE` name in your shell). Within a profile, the first of these that
+it has is used:
+
+| Kind | In the profile | Refreshed |
+| --- | --- | --- |
+| Static keys | `aws_access_key_id`, `aws_secret_access_key` (and `aws_session_token`) | read again for each request |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev` (split like a shell command, run without a shell, with your login shell's PATH, in your home folder, 60 s at most) | run again 5 minutes before its `Expiration`; with none, when AWS refuses the credentials |
+| Role | `role_arn` with `source_profile` (any kind here, chains too) or `credential_source = Environment`; `role_session_name`, `external_id`, `duration_seconds` | STS `AssumeRole` (in the profile's `region`, else us-east-1) again 5 minutes before they expire |
+| SSO | `sso_session` and its `[sso-session …]` section (or the older `sso_start_url`), `sso_account_id`, `sso_role_name` | fetched again with your cached sign-in 5 minutes before they expire |
+| Environment | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` in your shell | only for the profile "default" (or none) when no default profile has credentials |
+
+- **Automatic:** credentials that expire are kept in memory (never written to disk) and fetched again 5 minutes before
+  they do; with less than 10 minutes left, a request uses them and fetches new ones in the background, so typing doesn't
+  wait for it. Requests at the same time wait for one fetch. When Bedrock answers that the credentials expired
+  (`ExpiredTokenException` …), they're fetched again and the request is sent again, once.
+- **SSO:** AllInOneIME uses the sign-in the AWS CLI keeps in `~/.aws/sso/cache` (only reads it) and can't sign in for you,
+  since that needs a browser. When the sign-in ends, the candidate panel says "SSO sign-in expired: run aws sso login
+  --profile X": run that in Terminal (Settings has Copy Command and Open in Terminal; `@doctor` offers the command to
+  copy), and AllInOneIME picks the new sign-in up by itself.
+- **Not supported:** `mfa_serial` (an input method can't ask you for an MFA code: use `credential_process` or SSO, or let
+  your CLI cache credentials), `credential_source = Ec2InstanceMetadata` or `EcsContainer` (not on a Mac), and web identity.
+- **Settings → AI Provider** lists every profile with its kind ("dev — Role via base") and says of the chosen one when
+  its credentials expire ("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") or what to do.
+  Test Connection fetches fresh credentials through the whole chain; `@doctor` reports the same.
+- Programs run and AWS is asked for credentials (`sts.<region>.amazonaws.com`, `portal.sso.<region>.amazonaws.com`) only
+  when a request or Test Connection needs them: never to list profiles, never for `@config`.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
