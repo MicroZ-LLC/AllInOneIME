@@ -77,6 +77,8 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background and notifies me" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
+| `@config` | Changes settings as you describe them: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎ shows the changes, old → new; ⏎ (or 1) applies them, Esc cancels, typing more refines them; ⌘Z or `@config undo` puts them back. See [Settings by describing them](#settings-by-describing-them-new) |
+| `@doctor` | Checks your setup on this Mac and fixes what it safely can: ⏎ lists the results, problems first; a digit fixes that one, ⏎ the safe ones, through `@config`'s preview. `@doctor why doesn't translate work` also has the AI explain the likely cause. See [Checking your setup](#checking-your-setup-new) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
 | `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
 | `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
@@ -326,6 +328,55 @@ something, never naming them.
   Shift switch then sticks for that app's fields until the setting changes.
 - With No AI, the AI commands stay in the @ list; running one shows the notice and keeps what you wrote. Your own
   terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
+
+### Settings by describing them (new)
+
+`@config` turns a sentence into settings: `@config output languages English and French`, `@config 微信里用中文，邮件里语气正式一点`,
+`@config candidates in a column`, `@config turn off the typos`, `@config use Claude`. ⏎ shows the changes in the candidate
+panel, a row each, old → new, with the labels Settings uses ("Translation languages: English, Japanese → English, French",
+"Apps · WeChat · Starts in: Same as everywhere → Chinese"); nothing is changed or typed yet. ⏎ (or 1) applies them all, Esc
+cancels, and typing more refines the proposal ("also German"). Once applied, ⌘Z while the confirmation is up, or
+`@config undo` within the next 10 minutes, puts back exactly the values those settings had.
+
+- **What it can change:** the translation and input languages (and the default one), the rewrite styles, the candidate
+  layout, typing results out (on/off, speed, speeding up and slowing down, typos), using the selection, remembering
+  questions, hiding sensitive information (on/off, what is hidden, words to add), checking for updates, per-app settings
+  (an app named as you call it, found among your apps by name or bundle ID), and the AI provider: which one, the Bedrock
+  profile (from `~/.aws`) and region, a model the app knows for it, and an OpenAI-compatible base URL (`https://` only).
+- **What it never touches:** API keys and anything in the keychain, custom commands, extension folders and sources,
+  plugins, the jargon list, anything that runs programs, and every other setting. Those rows are refused, with the
+  reason, and the rest can still be applied.
+- **Checked like Settings:** a language that isn't one, more than 5 translation languages, a value out of range, an app
+  it can't tell, or a language whose pack isn't installed ("needs the Korean language pack: download it in Settings →
+  Input") is refused row by row; an invalid config is never written.
+- **Keys:** a provider that needs a key gets a row "API key: enter it in Settings (never sent to the AI)": applying opens
+  Settings → AI Provider at the key field. A key typed into the sentence is dropped before anything is sent. After the
+  provider changes, Test Connection runs and its result shows under the confirmation.
+- **On this Mac first:** it uses Apple Intelligence whenever this Mac has it (macOS 26), whatever provider you chose and
+  even before one is set up, held to the allowed settings and values, with lookups for your apps, AWS profiles and
+  language packs. Without it, your provider answers. The request holds only the allowed settings and their current
+  values (never a key, nor the words you hide), and hiding sensitive information applies as for any request.
+
+### Checking your setup (new)
+
+`@doctor` ⏎ checks the setup on this Mac in a second or two (the connection test shows while it runs) and lists the
+results in the candidate panel, a row each, ✗ problems first, then ⚠ warnings, then ✓ what is fine, each with a short
+fix: the input method (installed, enabled, in your input sources), the AI provider (its key saved or the Bedrock profile's
+credentials found, never read or shown; Test Connection; Apple Intelligence), the permissions (Accessibility, the
+microphone if you dictate, controlling Notes, Reminders, Terminal and Messages, asked of macOS without a prompt), secure
+input, the language packs of your input languages, `config.json` (readable, unknown keys, values out of range, a language
+twice, more than 5 translation languages), extensions and plugins that didn't load, updates, and recent errors in the
+app's own logs.
+
+The rows with a fix are numbered: a digit (or a click) shows what it does in `@config`'s preview, and ⏎ applies it; ⏎ on
+the list fixes all the safe ones at once (settings repaired, the input method enabled again, checking for updates).
+Opening a System Settings pane, downloading a language pack and Settings' key field are picked one by one. Settings
+changes undo like `@config`'s (⌘Z, `@config undo`). No fix deletes your data or touches a key.
+
+`@doctor <question>` (`@doctor why doesn't translate work`) runs the checks, then the AI explains the likely cause from
+their results and suggests fixes, which ⏎ then applies. On Apple Intelligence when this Mac has it, which calls the checks
+it needs as tools; otherwise your provider, and the panel says so. Only the check results (no paths beyond `~`, no keys,
+none of your text) and your question are sent; the checks alone send nothing.
 
 ## Menu bar panel
 

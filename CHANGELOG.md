@@ -2,6 +2,13 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Added
+
+- `@config`: change settings by describing them (`@config output languages English and French`, `@config 微信里用中文，邮件里语气正式一点`, `@config candidates in a column`, `@config use Claude`). ⏎ shows the changes in the candidate panel, a row each, old → new, with the labels Settings uses; ⏎ (or 1) applies them, Esc cancels, typing more refines them, and ⌘Z on the confirmation or `@config undo` within 10 minutes puts back exactly what changed. Only an allowlist can change: the languages, rewrite styles, candidate layout, typing out, the selection, recent questions, hiding sensitive information (words only added), updates, per-app settings (apps found by name) and the provider's non-secret settings (provider, Bedrock profile and region, a known model, an `https://` base URL); keys, custom commands, extensions, plugins and anything that runs programs are refused with the reason, and every change is checked as Settings checks it (a language pack that isn't installed points to Settings). A provider that needs a key opens Settings at the key field, a key typed into the sentence is never sent, and Test Connection runs after the provider changes. It runs on Apple Intelligence whenever this Mac has it (held to the allowed settings, with lookups for your apps, AWS profiles and language packs), else on your provider; the request holds only the allowed settings' current values.
+- `@doctor`: checks the setup on this Mac and fixes what it safely can. ⏎ lists the results, ✗ problems first, then ⚠ and ✓, a row each with a short fix: the input method, the AI provider (key saved or Bedrock credentials found, never read; Test Connection; Apple Intelligence), permissions (asked of macOS without a prompt), secure input, language packs, `config.json`, extensions and plugins, updates, and recent errors in the app's logs. A digit previews that row's fix in `@config`'s preview and ⏎ applies it; ⏎ on the list fixes the safe ones (settings repaired, the input method enabled again, checking for updates); settings changes undo like `@config`'s, and nothing deletes your data or touches a key. `@doctor <question>` then has the AI explain the likely cause and suggest fixes, on Apple Intelligence when available (the checks are its tools), sending only the check results and the question.
+
 ## 0.6.3 (2026-10-15)
 
 ### Fixed
