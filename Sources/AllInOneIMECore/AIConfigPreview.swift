@@ -60,18 +60,29 @@ extension AIConfig {
                 hosts.insert(normalizedHost(host))
             }
         }
-        // Bare names: labels of letters, digits and "-" joined by dots, ending in a top-level domain, ASCII only (Chinese
-        // text right next to it doesn't make it part of a word).
+        // Bare names: labels of letters, digits and "-" joined by dots, ending in a top-level domain, ASCII only. Chinese,
+        // Japanese or Korean text right next to one doesn't make it part of a word; any other letter does, so a name
+        // with a lookalike letter in it ("exаmple.com", a Cyrillic а) yields nothing, never its ASCII tail.
         let label = #"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"#
-        let names = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9.-])(?:\#(label)\.)+[A-Za-z]{2,63}\.?(?![A-Za-z0-9-])"#)
+        let notCJK = #"[\p{L}\p{M}\p{N}.\-&&[^\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]]"#
+        let names = try! NSRegularExpression(pattern: #"(?<!\#(notCJK))(?:\#(label)\.)+[A-Za-z]{2,63}\.?(?!\#(notCJK))"#)
         for match in names.matches(in: text, range: all) { hosts.insert(normalizedHost(ns.substring(with: match.range))) }
+        // IPv4 addresses (each part 0–255), and IPv6 ones in brackets.
+        let ipv4 = try! NSRegularExpression(pattern: #"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])"#)
+        for match in ipv4.matches(in: text, range: all) {
+            let address = ns.substring(with: match.range)
+            if address.split(separator: ".").allSatisfy({ Int($0).map { $0 <= 255 } ?? false }) { hosts.insert(address) }
+        }
+        let ipv6 = try! NSRegularExpression(pattern: #"\[[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\]"#)
+        for match in ipv6.matches(in: text, range: all) { hosts.insert(normalizedHost(ns.substring(with: match.range))) }
         return hosts
     }
 
-    /// A host as compared: lowercased, without a trailing dot.
+    /// A host as compared: lowercased, without a trailing dot, an IPv6 address without its brackets.
     static func normalizedHost(_ host: String) -> String {
         var host = host.lowercased()
         while host.hasSuffix(".") { host.removeLast() }
+        if host.hasPrefix("["), host.hasSuffix("]") { host = String(host.dropFirst().dropLast()) }
         return host
     }
 

@@ -654,4 +654,86 @@ struct AIConfigTests {
         #expect(try rows(#"{"changes": [{"key": "openai.baseURL", "value": "https://llm.example.com/v1"}]}"#, env: typed).first?.edit
                 == .baseURL("https://llm.example.com/v1"))
     }
+
+    @Test func nestedUnknownFieldsAndLargeNumbersSurvive() throws {
+        // The file as a later version (or another branch) wrote it: unknown fields inside known objects, and big integers.
+        var base = config
+        base.appProfiles["com.apple.mail"] = AppProfile(rewriteStyles: ["正式"])
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(base)) as! [String: Any]
+        var profiles = object["appProfiles"] as! [String: Any]
+        var mail = profiles["com.apple.mail"] as! [String: Any]
+        mail["futureField"] = "keep"
+        profiles["com.apple.mail"] = mail
+        object["appProfiles"] = profiles
+        var redaction = object["redaction"] as! [String: Any]
+        redaction["futureDetector"] = true
+        object["redaction"] = redaction
+        var openai = object["openai"] as? [String: Any] ?? [:]
+        openai["futureOption"] = 7
+        object["openai"] = openai
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .prettyPrinted]),
+                          as: UTF8.self)
+        let url = try tempFile("{\n  \"futureBig\" : 12345678901234567," + text.dropFirst())
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = try AIConfig.applying([.app("com.apple.mail", .typeOut(true)), .flag(.redactionEmails, false), .baseURL("https://api.deepseek.com/v1")],
+                                  at: url)
+        let after = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        let read = try JSONSerialization.jsonObject(with: Data(after.utf8)) as! [String: Any]
+        let mailAfter = (read["appProfiles"] as! [String: Any])["com.apple.mail"] as! [String: Any]
+        #expect(mailAfter["futureField"] as? String == "keep" && mailAfter["typeOut"] as? Bool == true)
+        #expect((read["redaction"] as! [String: Any])["futureDetector"] as? Bool == true)
+        #expect((read["openai"] as! [String: Any])["futureOption"] as? Int == 7)
+        #expect((read["openai"] as! [String: Any])["baseURL"] as? String == "https://api.deepseek.com/v1")
+        // A key that didn't change keeps its text: the big integer is as it was written.
+        #expect(after.contains("\"futureBig\" : 12345678901234567"))
+        #expect(try Config.load(from: url).profile(for: "com.apple.mail")?.typeOut == true)
+    }
+
+    @Test func aRemovedKeyGoesWithItsComma() throws {
+        let text = "{\n  \"a\" : 1,\n  \"b\" : 2,\n  \"c\" : 3\n}"
+        #expect(JSONFileText.patched(text, setting: ["a": .number(1), "c": .number(3)], keys: ["b"]) == "{\n  \"a\" : 1,\n  \"c\" : 3\n}")
+        #expect(JSONFileText.patched(text, setting: ["a": .number(1), "b": .number(2)], keys: ["c"]) == "{\n  \"a\" : 1,\n  \"b\" : 2\n}")
+        #expect(JSONFileText.patched(text, setting: ["a": .number(1), "b": .number(2), "c": .number(3), "d": .bool(true)], keys: ["d"])
+                == "{\n  \"a\" : 1,\n  \"b\" : 2,\n  \"c\" : 3,\n  \"d\" : true\n}")
+        #expect(JSONFileText.patched("[1]", setting: [:], keys: ["a"]) == nil)
+    }
+
+    @Test func typedHostsTakeAddressesAndNeverALookalikesTail() {
+        let hosts = AIConfig.typedHosts("use 192.168.1.10 or https://[fe80::1]:8443/v1, not 999.1.1.1 nor exаmple.com (Cyrillic а)")
+        #expect(hosts == ["192.168.1.10", "fe80::1"])
+        #expect(AIConfig.typedHosts("try [::1] too").contains("::1"))
+        #expect(AIConfig.typedHosts("用llm.corp.example作为地址") == ["llm.corp.example"])
+        var typed = env()
+        typed.typedText = "my server is at 10.0.0.5"
+        #expect(try! rows(#"{"changes": [{"key": "openai.baseURL", "value": "https://10.0.0.5/v1"}]}"#, env: typed).first?.edit
+                == .baseURL("https://10.0.0.5/v1"))
+    }
+
+    @Test func onlyAProfilesOwnRegionLineCounts() {
+        let config = """
+            [profile work]
+            s3 =
+              region = eu-north-1
+            region = us-east-2
+            [profile nested]
+            s3 =
+              region = eu-west-3
+            """
+        #expect(AIConfig.awsProfiles(config: config, credentials: nil) == [.init(name: "nested", region: nil), .init(name: "work", region: "us-east-2")])
+    }
+
+    @Test func undoGivesTheFileBackByteForByte() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var base = Config.default
+        base.setOrder([OutputLanguage.english, .chinese])
+        try base.write(to: url)
+        let before = try Data(contentsOf: url)
+        // A key added (appProfiles), a list in an object (redaction's words), a list, a switch.
+        let applied = try AIConfig.applying([.outputLanguages([.english, OutputLanguage("fr")]), .flag(.typeOut, true),
+                                             .app("com.tencent.xinWeChat", .inputLanguage(.english)), .addWords(["Bluebird"])], at: url)
+        #expect(try Data(contentsOf: url) != before)
+        _ = try AIConfig.undo(applied, at: url)
+        #expect(try Data(contentsOf: url) == before)
+    }
 }

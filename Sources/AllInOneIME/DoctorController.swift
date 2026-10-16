@@ -230,9 +230,12 @@ extension AllInOneIMEInputController {
     /// A finding's fix picked (or ⏎: the safe ones): `@config`'s preview of what they do.
     @MainActor
     func previewFixes(_ fixes: [Doctor.Fix]) {
-        Task { @MainActor [weak self] in
+        // The panel's own task: closing the panel (`.cancelConversion`) stops it, and nothing shows after that.
+        conversionTask?.cancel()
+        conversionTask = Task { @MainActor [weak self] in
             let env = await AIConfigSession.environment("")
-            guard let self else { return }
+            guard let self, !Task.isCancelled, self.composer.activeCommand?.kind == .doctor, self.composer.phase == .choosing,
+                  self.composer.configState.applied == nil else { return }
             guard let preview = Doctor.fixPreview(fixes, config: self.loadSettings(), environment: env) else {
                 self.showNotice(tr("没有要修的", "Nothing to fix"), client: nil)
                 return

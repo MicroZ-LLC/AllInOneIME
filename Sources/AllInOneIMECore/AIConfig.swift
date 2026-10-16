@@ -416,7 +416,7 @@ public enum AIConfig {
         let before = try Config.load(from: url)
         var config = before
         let recorded = applyRecording(edits, to: &config)
-        try writing(config, keys: changedKeys(before, config), at: url)
+        try writing(config, from: before, keys: changedKeys(before, config), at: url)
         return Applied(undo: recorded.map(\.undo), date: now, count: edits.count, written: recorded.map(\.written))
     }
 
@@ -442,7 +442,7 @@ public enum AIConfig {
             applyOne(edit, to: &config)
             report.undone += 1
         }
-        try writing(config, keys: changedKeys(before, config), at: url)
+        try writing(config, from: before, keys: changedKeys(before, config), at: url)
         return report
     }
 
@@ -466,27 +466,48 @@ public enum AIConfig {
     }
 
     /// `config` written into the file at `url` key by key: only `keys` (and their companions) take `config`'s values, a
-    /// key `config` no longer writes goes; every other key of the file stays as it was, one this version doesn't know
-    /// too. A missing file is written whole (`Config.write`).
-    public static func writing(_ config: Config, keys: Set<String>, at url: URL) throws {
+    /// key `config` no longer writes goes; every other key of the file stays as it was, its text untouched, one this
+    /// version doesn't know too. Inside an object-valued key (`appProfiles`, `redaction`, `openai` …) the same, field by
+    /// field (`merged`): fields this version doesn't know survive. `old` is the config the file held (what tells a field
+    /// `config` cleared from one it never knew). A missing file is written whole (`Config.write`).
+    public static func writing(_ config: Config, from old: Config, keys: Set<String>, at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
         guard !keys.isEmpty else { return }
-        let values = encoded(config)
+        let values = encoded(config), before = encoded(old)
         try patchingFile(at: url) { file in
             for key in keys.union(keys.flatMap { companions[$0] ?? [] }) {
-                file[key] = values[key]
+                file[key] = merged(file: file[key], old: before[key], new: values[key])
             }
         }
     }
 
-    /// The config file at `url` as a JSON object, `change` made to its top-level keys, written back as `Config.write`
-    /// formats it (sorted keys, pretty). Throws when it isn't a JSON object (nothing is written then).
+    /// The new value of a key over what the file holds: objects field by field, at every depth (a field `new` has takes
+    /// its value, one `old` had and `new` doesn't goes, one neither knows stays); anything else is `new`'s.
+    static func merged(file: JSONValue?, old: JSONValue?, new: JSONValue?) -> JSONValue? {
+        guard case let .object(newFields)? = new, case var .object(fields)? = file else { return new }
+        let oldFields: [String: JSONValue]
+        if case let .object(known)? = old { oldFields = known } else { oldFields = [:] }
+        for (key, value) in newFields { fields[key] = merged(file: fields[key], old: oldFields[key], new: value) }
+        for key in oldFields.keys where newFields[key] == nil { fields[key] = nil }
+        return .object(fields)
+    }
+
+    /// The config file at `url` as a JSON object, `change` made to its top-level keys, and written back with only the
+    /// keys that changed rewritten (`JSONFileText.patched`): every other key keeps its text as it was, numbers too (a
+    /// large integer isn't turned into a float). Throws when it isn't a JSON object (nothing is written then).
     public static func patchingFile(at url: URL, _ change: (inout [String: JSONValue]) throws -> Void) throws {
         let data = try Data(contentsOf: url)
         guard case var .object(file)? = (try? JSONSerialization.jsonObject(with: data)).flatMap(JSONValue.init) else {
             throw ConfigError.malformed(path: url.path, detail: "not a JSON object")
         }
+        let before = file
         try change(&file)
+        let changed = Set(before.keys).union(file.keys).filter { before[$0] != file[$0] }
+        guard !changed.isEmpty else { return }
+        if let text = JSONFileText.patched(String(decoding: data, as: UTF8.self), setting: file, keys: changed) {
+            return try Data(text.utf8).write(to: url, options: .atomic)
+        }
+        // Text it can't patch in place (it parses, but not as expected): written whole, as `Config.write` does.
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try encoder.encode(JSONValue.object(file)).write(to: url, options: .atomic)

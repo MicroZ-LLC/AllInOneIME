@@ -167,12 +167,17 @@ public enum Doctor {
         out += packs(facts, t)
         out += extensions(facts, t)
         out += updates(facts, t)
+        // Lines no known event matches ("2 other log lines") aren't counted as errors.
+        let errors = facts.recentErrors.filter { !isOtherLogLines($0) }.count
         if facts.recentErrors.isEmpty {
             out.append(Finding(area: .recentErrors, status: .ok, title: t.tr("最近的日志里没有错误", "No recent errors in the logs")))
+        } else if errors == 0 {
+            out.append(Finding(area: .recentErrors, status: .warning, title: t.tr("日志里有别的记录", "Other lines in the logs"),
+                               detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
         } else {
             out.append(Finding(area: .recentErrors, status: .warning,
-                               title: t.tr("最近的日志里有 \(facts.recentErrors.count) 个错误",
-                                           "\(facts.recentErrors.count) recent errors in the logs"),
+                               title: t.tr("最近的日志里有 \(errors) 个错误",
+                                           errors == 1 ? "1 recent error in the logs" : "\(errors) recent errors in the logs"),
                                detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
@@ -335,7 +340,8 @@ public enum Doctor {
         if !facts.skippedExtensions.isEmpty {
             out.append(Finding(area: .extensions, status: .warning,
                                title: t.tr("\(facts.skippedExtensions.count) 个扩展命令没有加载",
-                                           "\(facts.skippedExtensions.count) extension commands weren't loaded"),
+                                           facts.skippedExtensions.count == 1 ? "1 extension command wasn't loaded"
+                                               : "\(facts.skippedExtensions.count) extension commands weren't loaded"),
                                detail: facts.skippedExtensions.prefix(3).joined(separator: t.tr("；", "; "))))
         }
         if !facts.pluginErrors.isEmpty {
@@ -439,9 +445,11 @@ public enum Doctor {
     // MARK: - Logs
 
     /// Error lines of the app's own logs, as `@doctor` may show and send them: the newest `limit`, each as a fixed phrase
-    /// for the event it records ("update check failed (network)", "Rime dictionary failed to load: ~/Library/Rime/…",
-    /// "plugin weather failed to load"), with a reason from a fixed list or an error code or domain; never a word of the
-    /// line's own text. Lines no known event matches are counted on one last line ("2 other log lines").
+    /// for the event it records ("update check failed (network, -1009)", "Rime dictionary failed to load", "plugin
+    /// weather failed to load"), with a reason from a fixed list or an error code or domain. Of the line's own text only
+    /// two things may be kept: a `~/…` path in a Rime dictionary event (which of its files), and a plugin's name when it
+    /// looks like one (letters, digits, - _ .). Lines no known event matches are counted on one last line ("2 other log
+    /// lines").
     public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
@@ -458,6 +466,11 @@ public enum Doctor {
         }
         if others > 0 { out.append(others == 1 ? "1 other log line" : "\(others) other log lines") }
         return out
+    }
+
+    /// The last line of `summarizeLogLines` that counts the lines no known event matched.
+    static func isOtherLogLines(_ line: String) -> Bool {
+        line.range(of: #"^\d+ other log lines?$"#, options: .regularExpression) != nil
     }
 
     /// The phrase for the event `line` records, or nil when it is none the app knows.
@@ -555,14 +568,23 @@ public enum Doctor {
     static func maskingAbsolutePaths(_ text: String) -> String {
         let folder = #"[^/\n:"“”'‘’「」]*[^/\s:"“”'‘’「」]"#
         let last = #"[^/\s:"“”'‘’「」,;()]+(?:[ \t](?![a-z])[^/\s:"“”'‘’「」,;()]+)*"#
-        let regex = try! NSRegularExpression(pattern: #"(?<![\w~./:\\-])/(?:\#(folder)/)*\#(last)"#)
-        let ns = text as NSString
-        let out = NSMutableString(string: text)
-        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
-            let path = ns.substring(with: match.range)
-            out.replaceCharacters(in: match.range, with: "…/" + (path.split(separator: "/").last.map(String.init) ?? ""))
+        // A file URL's path too ("file:///Users/…", "file://localhost/…"); not one masked already ("…/a.zip").
+        let fileURL = try! NSRegularExpression(pattern: #"(?i)(file://)(?:localhost)?/(?:\#(folder)/)*\#(last)"#)
+        let path = try! NSRegularExpression(pattern: #"(?<![\w~./:\\…-])/(?:\#(folder)/)*\#(last)"#)
+        var out = text
+        for (regex, keepsScheme) in [(fileURL, true), (path, false)] {
+            let ns = out as NSString
+            let masked = NSMutableString(string: out)
+            for match in regex.matches(in: out, range: NSRange(location: 0, length: ns.length)).reversed() {
+                let found = ns.substring(with: match.range)
+                let scheme = keepsScheme ? ns.substring(with: match.range(at: 1)) : ""
+                // A file URL's path is percent-encoded: its last component as it reads.
+                let lastComponent = found.split(separator: "/").last.map(String.init) ?? ""
+                masked.replaceCharacters(in: match.range, with: scheme + "…/" + (lastComponent.removingPercentEncoding ?? lastComponent))
+            }
+            out = masked as String
         }
-        return out as String
+        return out
     }
 
     /// The repeated languages taken out of `outputLanguages` and `inputLanguages` in the config file at `url`, the first

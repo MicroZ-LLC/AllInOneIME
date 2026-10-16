@@ -229,7 +229,9 @@ struct DoctorTests {
         let object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         #expect(object["inputLanguages"] as? [String] == ["zh", "en"] && object["outputLanguages"] as? [String] == ["en", "fr"])
         #expect((object["futureKey"] as? [String: Any])?["keep"] as? [Int] == [1, 2] && object["temperature"] as? Double == 0.3)
-        #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"temperature\" : 0.3"))
+        // Only those lists are rewritten: every other key keeps its text as it was.
+        let after = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        #expect(after.contains(#""futureKey": {"keep": [1, 2]}"#) && after.contains(#""temperature": 0.3"#))
         // Offered whenever a list repeats a language (not a list of strings: not repeats).
         var config = Config.default
         config.setOrder([OutputLanguage.english])
@@ -355,5 +357,22 @@ struct DoctorTests {
         let (c, _) = reported()
         #expect(c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)).effects.isEmpty)
         #expect(c.phase == .choosing)
+    }
+
+    @Test func fileURLsAndMaskedTextAreMaskedOnce() {
+        #expect(Doctor.maskingAbsolutePaths("couldn't open file:///Users/x/My%20Notes/secret.txt now") == "couldn't open file://…/secret.txt now")
+        #expect(Doctor.maskingAbsolutePaths("file://localhost/opt/data/a.json") == "file://…/a.json")
+        let once = Doctor.scrub("moved /opt/data/a.zip", home: "/Users/x")
+        #expect(once == "moved …/a.zip" && Doctor.scrub(once, home: "/Users/x") == once)
+    }
+
+    @Test func otherLogLinesArentCountedAsErrors() {
+        let only = Doctor.findings(facts { $0.recentErrors = ["2 other log lines"] }, chinese: false).first { $0.area == .recentErrors }
+        #expect(only?.text(chinese: false) == "⚠ Other lines in the logs — 2 other log lines")
+        let one = Doctor.findings(facts { $0.recentErrors = ["update check failed (network)", "1 other log line"] }, chinese: false)
+            .first { $0.area == .recentErrors }
+        #expect(one?.title == "1 recent error in the logs" && one?.detail == "update check failed (network); 1 other log line")
+        let skipped = Doctor.findings(facts { $0.skippedExtensions = ["a.sh: no title"] }, chinese: false).first { $0.area == .extensions }
+        #expect(skipped?.title == "1 extension command wasn't loaded")
     }
 }

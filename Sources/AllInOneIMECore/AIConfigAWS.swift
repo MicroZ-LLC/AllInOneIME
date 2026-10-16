@@ -50,7 +50,9 @@ extension AIConfig {
                     }
                     continue
                 }
-                guard let section, !line.hasPrefix("#"), !line.hasPrefix(";"), let equals = line.firstIndex(of: "=") else { continue }
+                // Only a profile's own `region` line: an indented one belongs to a nested setting (`s3 =` …).
+                guard let section, raw.first?.isWhitespace != true, !line.hasPrefix("#"), !line.hasPrefix(";"),
+                      let equals = line.firstIndex(of: "=") else { continue }
                 guard line[..<equals].trimmingCharacters(in: .whitespaces).lowercased() == "region" else { continue }
                 let value = line[line.index(after: equals)...].trimmingCharacters(in: .whitespaces)
                 // The config file's region wins over one in the credentials file.
