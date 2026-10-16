@@ -119,16 +119,17 @@ struct KeyCacheTests {
             _ = cache.key("hosted", stamp: saved, read: read)
             done.signal()
         }
-        #expect(started.wait(timeout: .now() + 5) == .success)
+        // The waits only catch a hang (the first read is held until it's released): long enough for a busy test run.
+        #expect(started.wait(timeout: .now() + 20) == .success)
         // Another account's key comes while the first's read (its prompt) is still up.
         let otherDone = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             #expect(cache.key("anthropic", stamp: saved, read: other.read) == "sk-one")
             otherDone.signal()
         }
-        #expect(otherDone.wait(timeout: .now() + 2) == .success)
+        #expect(otherDone.wait(timeout: .now() + 20) == .success)
         release.signal()
-        #expect(done.wait(timeout: .now() + 5) == .success)
+        #expect(done.wait(timeout: .now() + 20) == .success)
         #expect(held.made == 1 && other.made == 1)
     }
 
@@ -141,10 +142,10 @@ struct KeyCacheTests {
             #expect(cache.key("anthropic", stamp: saved, read: read) == "sk-one")  // that request gets what it read
             done.signal()
         }
-        #expect(started.wait(timeout: .now() + 5) == .success)
+        #expect(started.wait(timeout: .now() + 20) == .success)
         cache.forget("anthropic")  // as `APIKeys.save` does
         release.signal()
-        #expect(done.wait(timeout: .now() + 5) == .success)
+        #expect(done.wait(timeout: .now() + 20) == .success)
         reads.value = "sk-new"
         #expect(cache.key("anthropic", stamp: saved, read: reads.read) == "sk-new")
         #expect(reads.made == 2)

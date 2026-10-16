@@ -791,9 +791,9 @@ struct ReminderParserTests {
                      String(repeating: "3 ", count: 150) + "天后开会",
                      "两" + String(repeating: " ", count: 300) + "个"]
         for text in texts {
-            let start = Date()
-            _ = parser.parse(text, now: Self.realNow())
-            #expect(Date().timeIntervalSince(start) < 1, "\(text.prefix(20))…")
+            let now = Self.realNow()
+            let seconds = Timing.cpuSeconds { parser.parse(text, now: now) }.seconds  // CPU time (`Timing`)
+            #expect(seconds < 1, "\(text.prefix(20))…")
         }
         // Spaces inside a duration still read.
         #expect(fromNow(1800, parse("30 分钟 后关火"), at: now))
@@ -973,9 +973,7 @@ struct ReminderParserTests {
         let text = String(String(repeating: unit, count: 40).prefix(2000))
         let parser = ReminderParser()
         _ = parser.parse("明天", now: Date())  // the detector is made on first use
-        let start = Date()
-        let draft = parser.parse(text, now: Date())
-        let elapsed = Date().timeIntervalSince(start)
+        let (draft, elapsed) = Timing.cpuSeconds { parser.parse(text, now: Date()) }  // CPU time (`Timing`)
         #expect(elapsed < 0.05, "\(Int(elapsed * 1000)) ms")
         #expect(draft.hasTime && draft.title.hasPrefix("开会，周五前交报告") && draft.title.count > 1900, "\(draft.title.prefix(40))")
         // Dates are read in the first 500 characters; the title is all of the text.

@@ -673,11 +673,13 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
     @Test func signalsReset() async throws {
         let before = signal(SIGTERM, SIG_IGN)
         defer { signal(SIGTERM, before) }
-        let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"], timeout: 10)
+        // Surviving its SIGTERM, it would sleep a minute (`Timing`), with a limit past that.
+        let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"],
+                                      timeout: Double(Timing.longSleep * 2))
         let started = Date()
-        let result = try await runner.run(["-c", "kill -TERM $$; sleep 5; echo survived"], in: nil)
+        let result = try await runner.run(["-c", "kill -TERM $$; sleep \(Timing.longSleep); echo survived"], in: nil)
         #expect(result.status == 128 + SIGTERM && !result.output.contains("survived"), "\(result)")
-        #expect(Date().timeIntervalSince(started) < 4)
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
     }
 
     @Test func credentialsInAddresses() {

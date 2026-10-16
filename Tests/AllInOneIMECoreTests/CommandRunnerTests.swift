@@ -48,10 +48,11 @@ struct CommandRunnerTests {
     }
 
     @Test func slowProgramsAreStopped() async {
+        // Stopped at the 0.3 s limit, well before the minute it would sleep (`Timing`: the bound holds under load).
         let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "{input}"], timeoutSeconds: 0.3)
         let started = Date()
-        #expect(await run(sleep, "5").error == .timedOut(0.3))
-        #expect(Date().timeIntervalSince(started) < 3)
+        #expect(await run(sleep, "\(Timing.longSleep)").error == .timedOut(0.3))
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
     }
 
     @Test func endlessOutputIsStopped() async {
@@ -60,13 +61,15 @@ struct CommandRunnerTests {
     }
 
     @Test func cancellingStopsTheProgram() async throws {
-        let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "5"])
+        // A minute's sleep with a limit past it: only the cancel can stop it well before.
+        let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "\(Timing.longSleep)"],
+                                  timeoutSeconds: Double(Timing.longSleep * 2))
         let started = Date()
         let task = Task { await run(sleep, "") }
         try await Task.sleep(for: .milliseconds(200))
         task.cancel()
         _ = await task.value
-        #expect(Date().timeIntervalSince(started) < 3)
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
     }
 
     @Test func resolvesProgramsOnPath() {

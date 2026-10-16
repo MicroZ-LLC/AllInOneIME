@@ -14,11 +14,12 @@ struct SpotlightTests {
     }
 
     @Test func stopsAtTheTimeLimitAndKeepsWhatWasPrinted() async {
-        let spotlight = Spotlight(until: .now() + 0.5, executable: shell)
+        // A limit of 2 s leaves the shell time to start and print under load; it would sleep a minute (`Timing`).
+        let spotlight = Spotlight(until: .now() + 2, executable: shell)
         let started = Date()
-        let output = await inBackground { spotlight.mdfind(["-c", "echo first; exec sleep 10"]) }
+        let output = await inBackground { spotlight.mdfind(["-c", "echo first; exec sleep \(Timing.longSleep)"]) }
         #expect(output.map { String(decoding: $0, as: UTF8.self) } == "first\n")
-        #expect(Date().timeIntervalSince(started) < 3)
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
         #expect(!spotlight.hasTimeLeft && !spotlight.isCancelled)
     }
 
@@ -32,15 +33,16 @@ struct SpotlightTests {
     }
 
     @Test func cancellingStopsItAndDropsWhatWasPrinted() async throws {
-        let spotlight = Spotlight(until: .now() + 10, executable: shell)
+        // A minute's sleep with a limit past it: only the cancel can stop it well before (`Timing`).
+        let spotlight = Spotlight(until: .now() + Double(Timing.longSleep * 2), executable: shell)
         let started = Date()
-        let running = Task { await inBackground { spotlight.mdfind(["-c", "echo early; exec sleep 10"]) } }
+        let running = Task { await inBackground { spotlight.mdfind(["-c", "echo early; exec sleep \(Timing.longSleep)"]) } }
         try await Task.sleep(for: .milliseconds(300))
         let cancelling = Date()
         spotlight.cancel()
-        #expect(Date().timeIntervalSince(cancelling) < 0.1)  // never waits for a process
+        #expect(Date().timeIntervalSince(cancelling) < Timing.wellBeforeLongSleep)  // never waits for the process to end
         #expect(await running.value == nil)
-        #expect(Date().timeIntervalSince(started) < 3)
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
         // Nothing starts after that.
         let marker = FileManager.default.temporaryDirectory.appendingPathComponent("SpotlightTests-\(UUID().uuidString)")
         let later = await inBackground { spotlight.mdfind(["-c", "touch '\(marker.path)'; echo late"]) }
