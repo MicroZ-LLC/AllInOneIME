@@ -513,4 +513,133 @@ struct AIConfigTests {
         for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
         #expect(d.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
     }
+
+    // MARK: - Sign-off review fixes
+
+    func tempFile(_ text: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        try Data(text.utf8).write(to: url)
+        return url
+    }
+
+    @Test func applyAndUndoKeepUnknownKeys() throws {
+        // A key this version doesn't know (a later version's, another branch's) survives apply and undo.
+        var base = config
+        base.typeOut = false
+        let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(base)) as! [String: Any]
+        var file = encoded
+        file["futureKey"] = ["nested": [1, 2], "on": true]
+        let url = try tempFile(String(decoding: try JSONSerialization.data(withJSONObject: file), as: UTF8.self))
+        defer { try? FileManager.default.removeItem(at: url) }
+        func object() throws -> [String: Any] { try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [String: Any] }
+        let applied = try AIConfig.applying([.flag(.typeOut, true), .outputLanguages([OutputLanguage("fr")])], at: url)
+        var now = try object()
+        #expect((now["futureKey"] as? [String: Any])?["on"] as? Bool == true && now["typeOut"] as? Bool == true)
+        // The one in use goes with its list.
+        #expect(now["outputLanguages"] as? [String] == ["fr"] && now["outputLanguage"] as? String == "fr")
+        _ = try AIConfig.undo(applied, at: url)
+        now = try object()
+        #expect((now["futureKey"] as? [String: Any])?["nested"] as? [Int] == [1, 2] && now["typeOut"] as? Bool == false)
+        #expect(now["outputLanguages"] as? [String] == ["en", "ja", "zh"])
+        // Only the keys that changed are written: the others stay as the file had them.
+        #expect(AIConfig.changedKeys(base, { var c = base; c.typeOut = true; return c }()) == ["typeOut"])
+    }
+
+    @Test func undoLeavesAKeyChangedSince() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try config.write(to: url)
+        let applied = try AIConfig.applying([.flag(.typeOut, true), .candidateLayout(.vertical)], at: url)
+        // Settings changed the layout back meanwhile.
+        var changed = try Config.load(from: url)
+        changed.candidateLayout = .horizontal
+        try changed.write(to: url)
+        let report = try #require(try AIConfig.undoing(applied, at: url))
+        #expect(report.undone == 1 && report.skipped == [.candidateLayout(.horizontal)])
+        let after = try Config.load(from: url)
+        #expect(!after.typeOut && after.candidateLayout == .horizontal)
+        #expect(AIConfig.Text(chinese: false).undone(skipped: report.skipped) == "Undone; changed since, left as is: Candidate layout")
+    }
+
+    @Test func awsProfilesAreNamesAndRegionsOnly() {
+        let config = """
+            [default]
+            region = us-east-1
+            [profile sso-dev]
+            sso_session = corp
+            sso_account_id = 123456789012
+            region = eu-west-1
+            [profile assumed]
+            role_arn = arn:aws:iam::123:role/x
+            source_profile = default
+            region = ap-northeast-1
+            [profile tool]
+            credential_process = /usr/local/bin/creds --secret
+            region = us-west-2
+            [sso-session corp]
+            sso_region = us-east-1
+            """
+        let credentials = """
+            [default]
+            aws_access_key_id = AKIAZX8QW2LM4NP6RT0V
+            aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            [static]
+            aws_access_key_id = AKIAZX8QW2LM4NP6RT0X
+            region = sa-east-1
+            """
+        let profiles = AIConfig.awsProfiles(config: config, credentials: credentials)
+        #expect(profiles == [.init(name: "default", region: "us-east-1"), .init(name: "assumed", region: "ap-northeast-1"),
+                             .init(name: "sso-dev", region: "eu-west-1"), .init(name: "static", region: "sa-east-1"),
+                             .init(name: "tool", region: "us-west-2")])
+        let described = "\(profiles)"
+        #expect(!described.contains("AKIA") && !described.contains("wJalr") && !described.contains("creds") && !described.contains("corp"))
+    }
+
+    @Test func profileNamesGoToACloudProviderOnlyForAWS() {
+        var config = self.config
+        config.awsProfile = "work-account"
+        let hidden = AIConfigPrompt.request("candidates in a column", context: .init(config: config, awsProfiles: ["default", "work-account"],
+                                                                                    showsAWSProfile: false)).system.map(\.text).joined()
+        #expect(!hidden.contains("work-account") && !hidden.contains("\"default\""))
+        let shown = AIConfigPrompt.request("use bedrock with my work profile", context: .init(config: config, awsProfiles: ["default", "work-account"]))
+            .system.map(\.text).joined()
+        #expect(shown.contains("\"work-account\""))
+        #expect(AIConfig.mentionsAWS("use Bedrock") && AIConfig.mentionsAWS("switch my AWS profile") && !AIConfig.mentionsAWS("candidates in a column"))
+    }
+
+    @Test func theBaseURLIsShownWithoutSecrets() {
+        var config = self.config
+        config.openai.baseURL = "https://user:pass@api.example.com/v1?api_key=abc&x=1#frag"
+        let system = AIConfigPrompt.request("x", context: .init(config: config)).system.map(\.text).joined()
+        #expect(system.contains(#"now "https://api.example.com/v1""#) && !system.contains("user:pass") && !system.contains("api_key"))
+        #expect(!AIConfigPrompt.shownURL("https://api.example.com/\(key)/v1").contains(key))
+    }
+
+    @Test func wordsAddedAreLimited() throws {
+        let many = (1...25).map { "word\($0)" } + ["two\nlines", String(repeating: "ab ", count: 22)]
+        let json = String(decoding: try JSONSerialization.data(withJSONObject: ["changes": [["key": "redaction.customWords.add", "value": many]]]),
+                          as: UTF8.self)
+        let all = try rows(json)
+        #expect(all.count == 2 && all[0].edit == .addWords((1...20).map { "word\($0)" }))
+        #expect(all[1].text(chinese: false)
+                == "✕ Also hide these words: 7 more not added: at most 20 at a time, each one line of at most 64 characters")
+    }
+
+    @Test func aBaseURLOnlyFromTheUserOrAKnownService() throws {
+        let made = #"{"changes": [{"key": "openai.baseURL", "value": "https://evil.example.net/v1"}]}"#
+        #expect(try rows(made).first?.text(chinese: false) == "✕ Base URL: type the address yourself")
+        var typed = env()
+        typed.typedText = "use my server https://evil.example.net/v1"
+        #expect(try rows(made, env: typed).first?.edit == .baseURL("https://evil.example.net/v1"))
+        let known = #"{"changes": [{"key": "openai.baseURL", "value": "https://api.deepseek.com/v1"}]}"#
+        #expect(try rows(known).first?.edit == .baseURL("https://api.deepseek.com/v1"))
+    }
+
+    @Test func theRefineFooterSaysWhatTheKeysDo() throws {
+        // ⏎ applies the proposal shown even with a refine line typed; ⇧⏎ sends the line (`shiftReturnRefinesOnlyWithALine`).
+        let (d, preview) = try previewed()
+        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
+        #expect(d.refineLine == "also")
+        #expect(d.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
+    }
 }

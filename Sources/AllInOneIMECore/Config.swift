@@ -208,7 +208,8 @@ public struct Config: Codable, Equatable, Sendable {
         rewriteStyles: RewriteStyle.defaultNames
     )
 
-    private enum CodingKeys: String, CodingKey {
+    /// Every key a config file may hold (`allKeys`: what `@doctor` and `@config` know as the config's own).
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
@@ -218,6 +219,9 @@ public struct Config: Codable, Equatable, Sendable {
         case redaction
         case provider, anthropic, gemini, openai
     }
+
+    /// The names of every key a config file may hold, those it only reads (`typeOutSpeed`) too.
+    public static var allKeys: [String] { CodingKeys.allCases.map(\.rawValue) }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)

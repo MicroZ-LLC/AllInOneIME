@@ -117,15 +117,9 @@ public enum AIConfig {
 
         /// The config's own keys (and a few names of what it holds elsewhere): one not on the allowlist is refused, not
         /// unreadable.
-        static let knownRoots: Set<String> = [
-            "provider", "awsProfile", "region", "modelId", "anthropic", "gemini", "openai", "maxTokens", "temperature",
-            "timeoutSeconds", "rewriteStyles", "outputLanguage", "outputLanguages", "inputLanguages", "defaultInput",
-            "improveTranslates", "voiceInput", "jargonFile", "actionKey", "uiLanguage", "customCommands", "claudeInBackground",
-            "extensionFolders", "findRaycastScripts", "hiddenExtensionFolders", "disabledExtensions", "extensionPreferences",
-            "extensionSources", "rememberQuestions", "menuBarIcon", "fuzzyPinyin", "keyboardLayouts", "typeOut", "typeOutRate",
-            "typeOutVaries", "typeOutMistakes", "typeOutSpeed", "candidateLayout", "checkForUpdates", "useSelection",
-            "appProfiles", "redaction", "plugins", "extensions", "hosted", "apple", "bedrock", "jargon",
-        ]
+        static let knownRoots: Set<String> = Set(Config.allKeys).union([
+            "extensionSources", "plugins", "extensions", "hosted", "apple", "bedrock", "jargon",
+        ])
     }
 
     /// The AWS regions Bedrock runs in (a region must be one of them).
@@ -299,7 +293,7 @@ public enum AIConfig {
 
     /// What applying a preview does besides the settings: `@doctor`'s fixes.
     public enum Action: Equatable, Sendable {
-        /// The repeated languages taken out of the config file in place (`Doctor.removingRepeatedLanguages`).
+        /// The repeated languages taken out of the config file, nothing else (`Doctor.removeRepeatedLanguages`).
         case resaveConfig
         case enableInputMethod
         case openPrivacy(Doctor.PrivacyPane)
@@ -321,39 +315,50 @@ public enum AIConfig {
     /// these keys had (`undo`).
     @discardableResult
     public static func apply(_ edits: [Edit], to config: inout Config) -> [Edit] {
-        var undo: [Edit] = []
+        applyRecording(edits, to: &config).map(\.undo)
+    }
+
+    /// `apply`, with each key's value right after its edit (`written`, in the order of the undo edits): undo only puts
+    /// back a key still holding what was written (`undoing`).
+    static func applyRecording(_ edits: [Edit], to config: inout Config) -> [(undo: Edit, written: Edit)] {
+        var out: [(undo: Edit, written: Edit)] = []
         for edit in edits {
-            undo.append(inverse(of: edit, in: config))
-            switch edit {
-            case let .outputLanguages(languages): config.setOrder(languages)
-            case let .inputLanguages(languages): config.setOrder(languages)
-            case let .defaultInput(language):
-                config.setOrder([language] + config.inputLanguages.filter { $0 != language })
-            case let .rewriteStyles(names): config.rewriteStyles = names
-            case let .candidateLayout(layout): config.candidateLayout = layout
-            case let .flag(setting, on): setFlag(setting, on, in: &config)
-            case let .typeOutRate(rate): config.typeOutRate = rate
-            case let .addWords(words):
-                let have = Set(config.redaction.customWords.map { $0.lowercased() })
-                config.redaction.customWords += words.filter { !have.contains($0.lowercased()) }
-            case let .customWords(words): config.redaction.customWords = words
-            case let .app(app, value):
-                config.changeProfile(for: app, dropsEmpty: true) { profile in
-                    switch value {
-                    case let .inputLanguage(language): profile.inputLanguage = language
-                    case let .rewriteStyles(names): profile.rewriteStyles = names
-                    case let .typeOut(on): profile.typeOut = on
-                    case let .noAI(on): profile.noAI = on == true ? true : nil
-                    }
-                }
-            case let .provider(provider): config.provider = provider
-            case let .awsProfile(profile): config.awsProfile = profile
-            case let .region(region): config.region = region
-            case let .model(provider, model): setModel(model, of: provider, in: &config)
-            case let .baseURL(url): config.openai.baseURL = url
-            }
+            let before = inverse(of: edit, in: config)
+            applyOne(edit, to: &config)
+            out.append((before, inverse(of: edit, in: config)))
         }
-        return undo.reversed()
+        return out.reversed()
+    }
+
+    private static func applyOne(_ edit: Edit, to config: inout Config) {
+        switch edit {
+        case let .outputLanguages(languages): config.setOrder(languages)
+        case let .inputLanguages(languages): config.setOrder(languages)
+        case let .defaultInput(language):
+            config.setOrder([language] + config.inputLanguages.filter { $0 != language })
+        case let .rewriteStyles(names): config.rewriteStyles = names
+        case let .candidateLayout(layout): config.candidateLayout = layout
+        case let .flag(setting, on): setFlag(setting, on, in: &config)
+        case let .typeOutRate(rate): config.typeOutRate = rate
+        case let .addWords(words):
+            let have = Set(config.redaction.customWords.map { $0.lowercased() })
+            config.redaction.customWords += words.filter { !have.contains($0.lowercased()) }
+        case let .customWords(words): config.redaction.customWords = words
+        case let .app(app, value):
+            config.changeProfile(for: app, dropsEmpty: true) { profile in
+                switch value {
+                case let .inputLanguage(language): profile.inputLanguage = language
+                case let .rewriteStyles(names): profile.rewriteStyles = names
+                case let .typeOut(on): profile.typeOut = on
+                case let .noAI(on): profile.noAI = on == true ? true : nil
+                }
+            }
+        case let .provider(provider): config.provider = provider
+        case let .awsProfile(profile): config.awsProfile = profile
+        case let .region(region): config.region = region
+        case let .model(provider, model): setModel(model, of: provider, in: &config)
+        case let .baseURL(url): config.openai.baseURL = url
+        }
     }
 
     /// What `edit` changes, as it is in `config` now.
@@ -390,32 +395,108 @@ public enum AIConfig {
         public var date: Date
         /// The rows that were applied, for the confirmation ("Undone: …").
         public var count: Int
+        /// What each key of `undo` held right after it was applied (same order; empty: not checked): a key changed since
+        /// is left as it is.
+        public var written: [Edit]
 
-        public init(undo: [Edit], date: Date, count: Int) {
+        public init(undo: [Edit], date: Date, count: Int, written: [Edit] = []) {
             self.undo = undo
             self.date = date
             self.count = count
+            self.written = written
         }
 
         public func canUndo(at now: Date) -> Bool { now.timeIntervalSince(date) <= AIConfig.undoWindow && now >= date.addingTimeInterval(-1) }
     }
 
-    /// Reads the config file, makes `edits` and writes it back, as Settings saves (`Config.write`): the input method and
-    /// the settings window read it again from there. What undoes them, with now.
+    /// Reads the config file, makes `edits` and writes back the keys they changed (`writing`): the input method and the
+    /// settings window read it again from there; every other key of the file, one this version doesn't know too, stays
+    /// as it was. What undoes them, with now.
     public static func applying(_ edits: [Edit], at url: URL = Config.defaultURL, now: Date = Date()) throws -> Applied {
-        var config = try Config.load(from: url)
-        let undo = apply(edits, to: &config)
-        try config.write(to: url)
-        return Applied(undo: undo, date: now, count: edits.count)
+        let before = try Config.load(from: url)
+        var config = before
+        let recorded = applyRecording(edits, to: &config)
+        try writing(config, keys: changedKeys(before, config), at: url)
+        return Applied(undo: recorded.map(\.undo), date: now, count: edits.count, written: recorded.map(\.written))
+    }
+
+    /// What an undo did: how many keys it put back, and the edits it skipped because their key changed since.
+    public struct UndoReport: Equatable, Sendable {
+        public var undone: Int
+        /// The keys left as they are (changed since `@config` wrote them), as the edits that would have put them back.
+        public var skipped: [Edit]
+    }
+
+    /// Puts back what `applied` changed, if it is recent enough (nil: nothing to undo): each key still holding what was
+    /// written; one changed since (in Settings, by hand) is left as it is, and reported.
+    public static func undoing(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Date()) throws -> UndoReport? {
+        guard applied.canUndo(at: now) else { return nil }
+        let before = try Config.load(from: url)
+        var config = before
+        var report = UndoReport(undone: 0, skipped: [])
+        for (index, edit) in applied.undo.enumerated() {
+            if applied.written.indices.contains(index), inverse(of: edit, in: config) != applied.written[index] {
+                report.skipped.append(edit)
+                continue
+            }
+            applyOne(edit, to: &config)
+            report.undone += 1
+        }
+        try writing(config, keys: changedKeys(before, config), at: url)
+        return report
     }
 
     /// Puts back what `applied` changed, if it is recent enough (false: nothing to undo).
     public static func undo(_ applied: Applied, at url: URL = Config.defaultURL, now: Date = Date()) throws -> Bool {
-        guard applied.canUndo(at: now) else { return false }
-        var config = try Config.load(from: url)
-        apply(applied.undo, to: &config)
-        try config.write(to: url)
-        return true
+        try undoing(applied, at: url, now: now) != nil
+    }
+
+    // MARK: - Writing only what changed
+
+    /// Keys written with each other: the one in use leads its list.
+    static let companions: [String: [String]] = [
+        "outputLanguages": ["outputLanguage"], "outputLanguage": ["outputLanguages"],
+        "inputLanguages": ["defaultInput"], "defaultInput": ["inputLanguages"],
+    ]
+
+    /// The top-level keys whose encoded values differ between `old` and `new`.
+    public static func changedKeys(_ old: Config, _ new: Config) -> Set<String> {
+        let a = encoded(old), b = encoded(new)
+        return Set(a.keys).union(b.keys).filter { a[$0] != b[$0] }
+    }
+
+    /// `config` written into the file at `url` key by key: only `keys` (and their companions) take `config`'s values, a
+    /// key `config` no longer writes goes; every other key of the file stays as it was, one this version doesn't know
+    /// too. A missing file is written whole (`Config.write`).
+    public static func writing(_ config: Config, keys: Set<String>, at url: URL) throws {
+        guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
+        guard !keys.isEmpty else { return }
+        let values = encoded(config)
+        try patchingFile(at: url) { file in
+            for key in keys.union(keys.flatMap { companions[$0] ?? [] }) {
+                file[key] = values[key]
+            }
+        }
+    }
+
+    /// The config file at `url` as a JSON object, `change` made to its top-level keys, written back as `Config.write`
+    /// formats it (sorted keys, pretty). Throws when it isn't a JSON object (nothing is written then).
+    public static func patchingFile(at url: URL, _ change: (inout [String: JSONValue]) throws -> Void) throws {
+        let data = try Data(contentsOf: url)
+        guard case var .object(file)? = (try? JSONSerialization.jsonObject(with: data)).flatMap(JSONValue.init) else {
+            throw ConfigError.malformed(path: url.path, detail: "not a JSON object")
+        }
+        try change(&file)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(JSONValue.object(file)).write(to: url, options: .atomic)
+    }
+
+    /// `config` as its file holds it, key by key.
+    static func encoded(_ config: Config) -> [String: JSONValue] {
+        guard let data = try? JSONEncoder().encode(config), case let .object(object)? = (try? JSONSerialization.jsonObject(with: data))
+            .flatMap(JSONValue.init) else { return [:] }
+        return object
     }
 
     static func flag(_ setting: Setting, in config: Config) -> Bool {
@@ -521,6 +602,22 @@ public enum AIConfig {
         case let .array(items): return items.contains(where: holdsKey)
         case let .object(fields): return fields.keys.contains(where: looksLikeKey) || fields.values.contains(where: holdsKey)
         case .null, .bool, .number: return false
+        }
+    }
+}
+
+extension AIConfig.JSONValue: Encodable {
+    /// As JSON: whole numbers without a fraction (as `Config` writes its counts), the rest as they are.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .null: try c.encodeNil()
+        case let .bool(value): try c.encode(value)
+        case let .number(value):
+            if value == value.rounded(), abs(value) < 1e15 { try c.encode(Int64(value)) } else { try c.encode(value) }
+        case let .string(value): try c.encode(value)
+        case let .array(items): try c.encode(items)
+        case let .object(fields): try c.encode(fields)
         }
     }
 }

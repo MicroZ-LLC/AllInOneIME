@@ -16,12 +16,17 @@ extension AIConfig {
         /// Whether a key is saved for the provider (or the hosted service is signed in to); asked without reading it.
         public var hasKey: @Sendable (Provider) -> Bool
         public var chinese: Bool
+        /// What the user typed (the sentence, a refine's lines): a new base URL's host must be in it, or known.
+        public var typedText: String
+        /// The hosts of the services Settings offers (`compatibleHosts`): a base URL there needs no typing.
+        public var knownHosts: Set<String>
 
         public init(packInstalled: @escaping @Sendable (Language) -> Bool = { _ in true }, apps: AppCatalog = AppCatalog(),
                     awsProfiles: @escaping @Sendable () -> [String] = { [] },
                     knownModels: @escaping @Sendable (Provider) -> [String] = { _ in [] },
                     offeredProviders: [Provider] = [.bedrock, .anthropic, .gemini, .openai],
-                    hasKey: @escaping @Sendable (Provider) -> Bool = { _ in false }, chinese: Bool = false) {
+                    hasKey: @escaping @Sendable (Provider) -> Bool = { _ in false }, chinese: Bool = false,
+                    typedText: String = "", knownHosts: Set<String> = AIConfig.compatibleHosts) {
             self.packInstalled = packInstalled
             self.apps = apps
             self.awsProfiles = awsProfiles
@@ -29,8 +34,21 @@ extension AIConfig {
             self.offeredProviders = offeredProviders
             self.hasKey = hasKey
             self.chinese = chinese
+            self.typedText = typedText
+            self.knownHosts = knownHosts
         }
     }
+
+    /// The hosts of the OpenAI-compatible services Settings offers ("Common Services…", `CompatibleService.all`; the app
+    /// adds them from there too).
+    public static let compatibleHosts: Set<String> = [
+        "api.openai.com", "api.deepseek.com", "dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com", "api.moonshot.cn",
+        "open.bigmodel.cn", "api.siliconflow.cn", "openrouter.ai",
+    ]
+
+    /// At most this many words are added to the hidden ones in one go, each one line of at most `maxWordLength`.
+    public static let maxWordsAdded = 20
+    public static let maxWordLength = 64
 
     /// The apps an app name in the answer can be ("WeChat", "微信", "com.tencent.xinWeChat"): the installed ones, the
     /// ones typed in lately and those with settings of their own, each by its bundle id and its names.
@@ -253,6 +271,11 @@ extension AIConfig {
             }
             if let edit = row.edit { apply([edit], to: &working) }
             rows.append(row)
+            // Words past the limits are refused on a row of their own; the others still go in.
+            if case .setting(.redactionWordsAdd) = change.key, !row.isRefused, let words = newWords(change.value, in: config),
+               words.refused > 0 {
+                rows.append(Row(key: change.key.path, label: text.label(.redactionWordsAdd), status: .refused(text.wordsRefused(words.refused))))
+            }
         }
         // A provider that needs a key it hasn't got: a row that opens Settings at its key field. Also when a key typed into
         // the sentence was dropped.
@@ -366,13 +389,9 @@ extension AIConfig {
             let rounded = roundedRate(rate)
             return rounded == config.typeOutRate ? nil : row(text.rate(config.typeOutRate), text.rate(rounded), .typeOutRate(rounded))
         case .redactionWordsAdd:
-            guard let words = value.strings else { return refused(text.notValid) }
-            let have = Set(config.redaction.customWords.map { $0.lowercased() })
-            var seen = Set<String>()
-            let new = words.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty && !have.contains($0.lowercased()) && seen.insert($0.lowercased()).inserted }
-            guard !new.isEmpty else { return nil }
-            return row(text.wordCount(config.redaction.customWords.count), text.added(new), .addWords(new))
+            guard let words = newWords(value, in: config) else { return refused(text.notValid) }
+            guard !words.added.isEmpty else { return words.refused > 0 ? refused(text.wordsRefused(words.refused)) : nil }
+            return row(text.wordCount(config.redaction.customWords.count), text.added(words.added), .addWords(words.added))
         case .provider:
             guard case let .string(name) = value, let provider = Provider(rawValue: name.lowercased()) else {
                 return refused(text.notValid)
@@ -407,11 +426,17 @@ extension AIConfig {
             default: return refused(text.notValid)
             }
             if let url {
-                guard let parsed = URL(string: url), parsed.scheme?.lowercased() == "https", parsed.host?.isEmpty == false,
-                      parsed.user == nil, parsed.password == nil else { return refused(text.httpsOnly) }
+                guard let parsed = URL(string: url), parsed.scheme?.lowercased() == "https", let host = parsed.host?.lowercased(),
+                      !host.isEmpty, parsed.user == nil, parsed.password == nil else { return refused(text.httpsOnly) }
+                // Where the key will go: an address the user typed, or one of the services Settings offers; never one the
+                // model made up.
+                guard env.knownHosts.contains(host) || env.typedText.lowercased().contains(host) else {
+                    return refused(text.typeAddress)
+                }
             }
             let current = config.openai.baseURL
-            return url == current ? nil : row(current ?? text.byDefault, url ?? text.byDefault, .baseURL(url))
+            return url == current ? nil
+                : row(current.map(AIConfigPrompt.shownURL) ?? text.byDefault, url ?? text.byDefault, .baseURL(url))
         default:
             return refused(text.notValid)
         }
@@ -481,6 +506,24 @@ extension AIConfig {
             guard on != profile.typeOut else { return nil }
             return row(text.appFlag(profile.typeOut), text.appFlag(on), .typeOut(on))
         }
+    }
+
+    /// The words `value` adds to the hidden ones: the first `maxWordsAdded` that are new, one line each and at most
+    /// `maxWordLength` long; how many others it held that were refused. Nil when it isn't a list of strings.
+    static func newWords(_ value: JSONValue, in config: Config) -> (added: [String], refused: Int)? {
+        guard let words = value.strings else { return nil }
+        let have = Set(config.redaction.customWords.map { $0.lowercased() })
+        var seen = Set<String>(), added: [String] = [], refused = 0
+        for raw in words {
+            let word = raw.trimmingCharacters(in: .whitespaces)
+            guard !word.isEmpty, !have.contains(word.lowercased()), seen.insert(word.lowercased()).inserted else { continue }
+            if word.contains(where: \.isNewline) || word.count > maxWordLength || added.count >= maxWordsAdded {
+                refused += 1
+            } else {
+                added.append(word)
+            }
+        }
+        return (added, refused)
     }
 
     /// An output language by its code ("fr", "zh-Hant", case aside).

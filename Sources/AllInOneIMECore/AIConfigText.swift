@@ -155,6 +155,11 @@ extension AIConfig {
         var unknownRegion: String { tr("不是有效的 AWS 区域", "not a valid AWS region") }
         var unknownModel: String { tr("不在已知的模型里，请在设置里填", "not a model the app knows: enter it in Settings") }
         var httpsOnly: String { tr("只能是 https:// 地址", "https:// addresses only") }
+        var typeAddress: String { tr("请自己输入这个地址", "type the address yourself") }
+        func wordsRefused(_ count: Int) -> String {
+            tr("另外 \(count) 个没加：一次最多 \(AIConfig.maxWordsAdded) 个，每个一行、不超过 \(AIConfig.maxWordLength) 个字",
+               "\(count) more not added: at most \(AIConfig.maxWordsAdded) at a time, each one line of at most \(AIConfig.maxWordLength) characters")
+        }
         var unknownApp: String { tr("找不到这个 App", "no such app found") }
         func ambiguousApp(_ names: [String]) -> String {
             tr("有好几个：", "several match: ") + names.prefix(3).joined(separator: separator)
@@ -187,6 +192,41 @@ extension AIConfig {
         }
 
         public var undone: String { tr("已撤销刚才的设置修改", "Undone: the settings are as they were") }
+
+        /// After an undo: what it put back, and the settings it left as they are because they changed since.
+        public func undone(skipped: [Edit]) -> String {
+            guard !skipped.isEmpty else { return undone }
+            var labels: [String] = []
+            for edit in skipped where !labels.contains(label(for: edit)) { labels.append(label(for: edit)) }
+            return tr("已撤销；这些之后又改过，没有动：", "Undone; changed since, left as is: ") + labels.joined(separator: separator)
+        }
+
+        /// The label of the setting `edit` changes.
+        public func label(for edit: Edit) -> String {
+            switch edit {
+            case .outputLanguages: return label(.outputLanguages)
+            case .inputLanguages, .defaultInput: return label(.inputLanguages)
+            case .rewriteStyles: return label(.rewriteStyles)
+            case .candidateLayout: return label(.candidateLayout)
+            case let .flag(setting, _): return label(setting)
+            case .typeOutRate: return label(.typeOutRate)
+            case .addWords, .customWords: return label(.redactionWordsAdd)
+            case let .app(app, value):
+                let field: AppField
+                switch value {
+                case .inputLanguage: field = .inputLanguage
+                case .rewriteStyles: field = .rewriteStyles
+                case .typeOut: field = .typeOut
+                case .noAI: field = .noAI
+                }
+                return appLabel(app, field)
+            case .provider: return label(.provider)
+            case .awsProfile: return label(.awsProfile)
+            case .region: return label(.region)
+            case let .model(provider, _): return Setting.model(of: provider).map(label) ?? label(.provider)
+            case .baseURL: return label(.openaiBaseURL)
+            }
+        }
         public var nothingToUndo: String { tr("10 分钟内没有可以撤销的设置修改", "Nothing to undo from the last 10 minutes") }
     }
 }

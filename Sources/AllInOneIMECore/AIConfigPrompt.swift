@@ -15,15 +15,19 @@ public enum AIConfigPrompt {
         public var awsProfiles: [String]
         public var offeredProviders: [Provider]
         public var installedPacks: Set<Language>
+        /// The AWS profile in use may be named (false for a cloud provider when the sentence isn't about AWS or Bedrock:
+        /// `mentionsAWS`).
+        public var showsAWSProfile: Bool
 
         public init(config: Config, knownModels: [Provider: [String]] = [:], awsProfiles: [String] = [],
                     offeredProviders: [Provider] = [.bedrock, .anthropic, .gemini, .openai],
-                    installedPacks: Set<Language> = Set(Language.allCases)) {
+                    installedPacks: Set<Language> = Set(Language.allCases), showsAWSProfile: Bool = true) {
             self.config = config
             self.knownModels = knownModels
             self.awsProfiles = awsProfiles
             self.offeredProviders = offeredProviders
             self.installedPacks = installedPacks
+            self.showsAWSProfile = showsAWSProfile
         }
     }
 
@@ -127,8 +131,9 @@ public enum AIConfigPrompt {
         lines.append(line("provider", "where AI requests go (a provider with a key gets the key in Settings, never here)",
                           providers.map { "\"\($0)\"" }.joined(separator: ", "), json(config.provider.rawValue)))
         lines.append(line("awsProfile", "the AWS profile for Amazon Bedrock",
-                          context.awsProfiles.isEmpty ? "none found in ~/.aws" : context.awsProfiles.map { "\"\($0)\"" }.joined(separator: ", "),
-                          json(config.awsProfile)))
+                          !context.showsAWSProfile ? "names not shown" : context.awsProfiles.isEmpty ? "none found in ~/.aws"
+                              : context.awsProfiles.map { "\"\($0)\"" }.joined(separator: ", "),
+                          context.showsAWSProfile ? json(config.awsProfile) : "(not shown)"))
         lines.append(line("region", "the AWS region for Amazon Bedrock, or null for the profile's own", "an AWS region code such as us-east-1",
                           json(config.region)))
         for provider in [Provider.bedrock, .anthropic, .gemini, .openai] {
@@ -139,7 +144,7 @@ public enum AIConfigPrompt {
                               json(config.settings(for: provider).model)))
         }
         lines.append(line("openai.baseURL", "the base URL of an OpenAI-compatible service, or null for OpenAI's", "an https:// URL",
-                          json(config.openai.baseURL)))
+                          json(config.openai.baseURL.map(shownURL))))
         var profiles: [String: Any] = [:]
         for (app, profile) in config.appProfiles where !profile.isEmpty {
             var fields: [String: Any] = [:]
@@ -155,6 +160,17 @@ public enum AIConfigPrompt {
         lines.append(line("appProfiles.<app>.typeOut", "true, false or null: type results out in the app", nil, "as above"))
         lines.append(line("appProfiles.<app>.noAI", "true or null: no AI in the app", nil, "as above"))
         return lines
+    }
+
+    /// A base URL as the instructions (and the preview) show it: no user name or password, no query or fragment, and
+    /// anything left that looks like a key masked.
+    public static func shownURL(_ url: String) -> String {
+        guard var components = URLComponents(string: url) else { return AIConfig.maskingKeys(url) }
+        components.user = nil
+        components.password = nil
+        components.query = nil
+        components.fragment = nil
+        return AIConfig.maskingKeys(components.string ?? "")
     }
 
     // MARK: - The on-device model's schema
