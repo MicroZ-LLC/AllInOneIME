@@ -34,10 +34,17 @@ enum PromptGolden {
         return out
     }
 
-    /// `requests()` as JSON, keys sorted: what the fixture holds.
-    static func json() throws -> Data {
+    /// `requests()` as JSON, keys sorted: what the fixture holds. `withoutLiveDataRule`: @question's system prompt
+    /// without the rule 0.6.4 added (`Prompt.liveDataRule`), as 0.6.3 sent it.
+    static func json(withoutLiveDataRule: Bool = false) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
-        return try encoder.encode(requests())
+        var all = requests()
+        if withoutLiveDataRule {
+            for (name, request) in all where name.hasPrefix("question") {
+                all[name]?.system = request.system.map { .init($0.text.replacingOccurrences(of: " " + Prompt.liveDataRule, with: "")) }
+            }
+        }
+        return try encoder.encode(all)
     }
 }

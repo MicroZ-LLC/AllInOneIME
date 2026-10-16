@@ -467,7 +467,7 @@ struct AppleModelAcceptanceTests {
         #expect(groups.count == Self.golden063.count)
         for (name, text) in groups {
             let golden = try #require(Self.golden063[name], "no golden for \(name)")
-            var compared = text
+            var compared = LiveDataRule.strip(text)
             for added in Self.addedSince063[name] ?? [] {
                 // A setting added after 55d496e, written with its default: it must be there exactly once, and the rest
                 // must still be 0.6.3's byte for byte.

@@ -256,7 +256,13 @@ public enum Prompt {
     }
 
     /// Bump when the wording of `commandSystem` changes (it is part of the cache key).
-    public static let commandVersion = 3
+    public static let commandVersion = 4
+
+    /// What `@question` adds about live data: the model can't look anything up, so it must not make up today's weather,
+    /// news, prices or scores.
+    static let liveDataRule = "You can't check live information: never make up the weather, news, prices, scores, "
+        + "exchange rates or anything else about today or right now. If the question needs it, say plainly that you "
+        + "can't check live information, then give what general guidance you can."
 
     /// The request for a `.generate` command (`@question`, a custom `prompt` command): the text goes to the model as
     /// it was typed, and the answer is written to be inserted at the cursor.
@@ -282,7 +288,7 @@ public enum Prompt {
             return editSystem
         case .question:
             return insert + " Answer the user's question accurately and concisely: two or three sentences, "
-                + "unless the question asks for more. If you are not sure, say so briefly."
+                + "unless the question asks for more. If you are not sure, say so briefly." + " " + liveDataRule
         default:
             return insert
         }

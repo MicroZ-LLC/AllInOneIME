@@ -233,16 +233,19 @@ func leakCollect(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) async t
 /// and the body bytes.
 func leakDigest(_ request: LeakRecorder.Captured) -> String {
     let skipped: Set<String> = ["authorization", "x-amz-date", "user-agent", "accept-language"]
+    // Without @question's live-data rule (0.6.4, `LiveDataRule`), its length too.
+    let stripped = LiveDataRule.strip(request.body)
     let headers = request.headers.filter { !skipped.contains($0.key.lowercased()) }
-        .map { "\($0.key.lowercased()): \($0.value)" }.sorted().joined(separator: "\n")
+        .map { "\($0.key.lowercased()): \($0.key.lowercased() == "content-length" && stripped.count != request.body.count ? String(stripped.count) : $0.value)" }
+        .sorted().joined(separator: "\n")
     var data = Data((request.method + " " + request.url + "\n" + headers + "\n\n").utf8)
     // Bedrock's body comes from JSONEncoder, whose key order changes from run to run (release-0.6.3 too): its keys
     // are put in order. The other providers' bodies are compared byte for byte as sent.
     if request.url.contains(".amazonaws.com/"), let object = try? JSONSerialization.jsonObject(with: request.body),
        let sorted = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]) {
-        data.append(sorted)
+        data.append(LiveDataRule.strip(sorted))
     } else {
-        data.append(request.body)
+        data.append(stripped)
     }
     return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }

@@ -884,7 +884,7 @@ struct RefineAcceptanceTests {
         let cases = refineAcceptanceGoldenCases()
         #expect(cases.count == refineAcceptanceGolden.count)
         for (name, request) in cases {
-            let data = refineAcceptanceEncode(request)
+            let data = LiveDataRule.strip(refineAcceptanceEncode(request))
             let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
             #expect(refineAcceptanceGolden[name] == hash, "\(name) differs from 55d496e")
         }

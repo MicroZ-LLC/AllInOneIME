@@ -344,14 +344,27 @@ struct RefineTests {
 
     // MARK: - Prompts
 
-    /// The requests @improve, @translate, @question and prompt commands send are byte for byte those of 0.6.3:
-    /// only a refine adds anything.
+    /// The requests @improve, @translate and prompt commands send are byte for byte those of 0.6.3: only a refine adds
+    /// anything. @question's are too, but for the rule about live data 0.6.4 added at the end of its system prompt.
     @Test func normalRequestsAreUnchangedSinceRelease063() throws {
         let url = try #require(Bundle.module.url(forResource: "prompts-release-0.6.3", withExtension: "json", subdirectory: "Fixtures"))
         let golden = try Data(contentsOf: url)
-        let now = try PromptGolden.json()
-        #expect(now == golden)
-        #expect(Prompt.version == 7 && Prompt.commandVersion == 3)
+        #expect(try PromptGolden.json(withoutLiveDataRule: true) == golden)
+        #expect(try PromptGolden.json() != golden)
+        #expect(Prompt.version == 7 && Prompt.commandVersion == 4)
+    }
+
+    /// @question says it can't check live data (the weather, news, prices, scores, "today's" anything) instead of
+    /// making it up; no other command's prompt has the rule.
+    @Test func questionRefusesToMakeUpLiveData() {
+        let system = Prompt.commandSystem(.question)
+        #expect(system.hasSuffix(" If you are not sure, say so briefly. " + Prompt.liveDataRule))
+        for word in ["weather", "news", "prices", "scores", "today", "can't check live information", "general guidance"] {
+            #expect(Prompt.liveDataRule.contains(word), "\(word)")
+        }
+        let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]).last!
+        for command in [Command.edit, .claude, reply] { #expect(!Prompt.commandSystem(command).contains(Prompt.liveDataRule)) }
+        #expect(!Prompt.system(styles: RewriteStyle.resolve(RewriteStyle.defaultNames)).contains("live information"))
     }
 
     @Test func theRefineRequestIsTheNormalOneThenTheConversation() {

@@ -949,7 +949,7 @@ struct QuestionHistoryAcceptanceTests {
         var headers = request.allHTTPHeaderFields ?? [:]
         headers["Content-Length"] = nil
         return request.httpMethod == golden.method && url == golden.url && headers == golden.headers
-            && String(decoding: request.httpBody ?? Data(), as: UTF8.self) == golden.body
+            && LiveDataRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self)) == golden.body
     }
 
     /// Spec 8: asking sends exactly the request 55d496e sends (Claude API and OpenAI-compatible), with or without
@@ -1014,7 +1014,7 @@ struct QuestionHistoryAcceptanceTests {
             #expect(requests.count == 2)
             for request in requests {
                 // The same JSON (Bedrock's body is encoded without sorted keys: the order of its keys varies by run).
-                let sent = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+                let sent = LiveDataRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self))
                 #expect(Self.sameJSON(sent, golden.body), "\(golden.question): sent \(sent)")
                 #expect(request.url?.absoluteString.replacingOccurrences(of: fixed.region!, with: "golden-1") == golden.url)
                 #expect(request.httpMethod == golden.method)
