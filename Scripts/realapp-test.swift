@@ -658,10 +658,10 @@ final class Harness: NSObject, NSApplicationDelegate {
         textView.string = ""
     }
 
-    /// 6a'. Refining the results: @improve a long English sentence and pick row 1 (V1); the same sentence again (the
-    ///     cache answers at once), "shorter" typed while the results are up and ⏎ asks again with them as context; the
-    ///     draft stays as it was (the letters went to the refine line, not the sentence), and 1 inserts the refined
-    ///     version, which is shorter than V1 (live Bedrock).
+    /// 6a'. Refining the results: @improve a long English sentence and, once all its results are in, pick row 1 (V1);
+    ///     the same sentence again (the cache answers at once, all in), "shorter" typed while the results are up and ⏎
+    ///     asks again with them as context; the draft stays as it was (the letters went to the refine line, not the
+    ///     sentence), and 1 inserts the refined version, which is shorter than V1 (live Bedrock).
     func refineResults() {
         print("— refine the results: shorter (live Bedrock)")
         reset()
@@ -680,28 +680,38 @@ final class Harness: NSObject, NSApplicationDelegate {
             }
             return waitUntil(2) { self.marked == "improve › " + sentence + " " }
         }
-        /// The panel's frames stay the same for a second (the rows are all in), within `timeout`.
-        func settled(_ timeout: TimeInterval) -> Bool {
+        /// The panel's frames stay the same for `quiet` seconds, within `timeout`.
+        func settled(_ timeout: TimeInterval, quiet: TimeInterval = 1) -> Bool {
             var last = imePanelFrames(), since = Date()
             return waitUntil(timeout) {
                 let now = imePanelFrames()
                 if now != last { last = now; since = Date() }
-                return !now.isEmpty && Date().timeIntervalSince(since) >= 1
+                return !now.isEmpty && Date().timeIntervalSince(since) >= quiet
             }
         }
         check(draft(), "sentence drafted in English (\(marked))")
         act()
-        let improved = waitUntil(25) {
-            if self.committed.isEmpty { self.space() }  // ignored until the first version is complete
+        // All the results first: V1 inserted while the rest still streams stops the request, and nothing is kept for
+        // the same sentence again. A rewrite only shows once it is complete, so the panel can stay the same for a
+        // second while one is still being written: all in is the panel unchanged for a few seconds, once rows came.
+        pump(0.3)
+        let waiting = imePanelFrames()  // sent, its rows not in yet
+        let allIn = waitUntil(30) { imePanelFrames() != waiting } && settled(40, quiet: 3)
+        let improved = allIn && waitUntil(5) {
+            if self.committed.isEmpty { self.space() }
             return !self.committed.isEmpty
         }
         let first = committed
-        check(improved && Self.looksEnglish(first) && marked.isEmpty, "@improve inserts its first version: '\(first)'")
+        check(improved && Self.looksEnglish(first) && marked.isEmpty,
+              "@improve inserts its first version, once all its results are in: '\(first)'")
         textView.string = ""
         check(draft(), "the same sentence again")
         act()
-        pump(1.5)  // answered from the cache
-        check(settled(10), "its results are up")
+        // From the cache: all in at once. A live request (nothing kept) would still be streaming, and the letters
+        // typed next would go to the sentence.
+        pump(0.5)
+        let atOnce = imePanelFrames()
+        check(settled(10) && imePanelFrames() == atOnce, "its results are up at once, all in, from the cache (\(atOnce))")
         type("shorter")
         pump(0.3)
         check(marked == "improve › " + sentence + " ", "'shorter' goes to the refine line: the sentence is as it was (\(marked))")
