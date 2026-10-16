@@ -282,7 +282,7 @@ func printStatus() -> Int32 {
         if config.provider == .apple {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
-            print("api key:     \(APIKeys.load(config.provider) == nil ? "✗ none" : "found")")
+            print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
         } else { do {
             let resolved = try AWSSharedConfig.load(profile: config.awsProfile)
             let region = config.region ?? resolved.region ?? "us-east-1"

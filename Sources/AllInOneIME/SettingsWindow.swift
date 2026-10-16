@@ -204,6 +204,11 @@ final class SettingsModel: ObservableObject {
 
     func refreshKeys() {
         let providers = Provider.allCases.filter { $0 != .bedrock }
+        // A preview (the self-test's README images) shows no keys and never asks the user's keychain.
+        guard persists else {
+            keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) })
+            return
+        }
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
             let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.source($0)) })
@@ -326,7 +331,8 @@ final class SettingsModel: ObservableObject {
     private let presenter = AuthPresenter()
 
     func refreshAccount() {
-        guard HostedService.isConfigured else { return }
+        // A preview shows no account: the user's session token stays in the keychain.
+        guard persists, HostedService.isConfigured else { return }
         Task { [weak self] in
             do {
                 let account = try await HostedAccount.current()
@@ -448,10 +454,11 @@ final class SettingsModel: ObservableObject {
             .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
-        passwordsSaved = Set(index.bundles.flatMap { bundle in
+        // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
+        passwordsSaved = !persists ? [] : Set(index.bundles.flatMap { bundle in
             bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
-                APIKeys.keychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name)) == nil
-                    ? nil : bundle.name + "/" + preference.name
+                APIKeys.hasKeychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
+                    ? bundle.name + "/" + preference.name : nil
             }
         })
         if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
