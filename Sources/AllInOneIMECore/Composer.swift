@@ -3278,8 +3278,11 @@ extension Composer {
         public internal(set) var fixPreview: Shown?
         /// The changes went to the controller to apply: keys wait for `configApplied`.
         public internal(set) var applying = false
-        /// "Changed 2 settings": the changes are applied (⌘Z undoes them while it's up).
+        /// "Changed 2 settings": the changes are applied (⌘Z undoes them while it's up, when they wrote settings).
         public internal(set) var applied: String?
+        /// What is being applied (or was) writes settings: ⌘Z offers to undo it. False for `@doctor`'s fixes that only
+        /// open a pane, start a download …: ⌘Z then is the app's, and never undoes an older change.
+        public internal(set) var writesSettings = false
         /// A line under it: Test Connection running, or what it said.
         public internal(set) var status: String?
 
@@ -3448,6 +3451,7 @@ extension Composer {
             if let preview = configPreview?.preview {
                 guard preview.canApply else { return [] }
                 configState.applying = true
+                configState.writesSettings = !preview.edits.isEmpty
                 return [.applyConfig(preview), .showPanel]
             }
             guard activeCommand?.kind == .doctor, let report = configState.report else { return [] }
@@ -3474,7 +3478,7 @@ extension Composer {
 
     /// ⌘Z while the confirmation is up: the changes are put back (`.undoConfig`), and it closes.
     private func undoConfigKey() -> Response? {
-        guard inConfigFlow, configState.applied != nil else { return nil }
+        guard inConfigFlow, configState.applied != nil, configState.writesSettings else { return nil }
         return .consumed(finish(committing: "") + [.undoConfig])
     }
 }

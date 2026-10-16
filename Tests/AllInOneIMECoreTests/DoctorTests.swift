@@ -113,7 +113,7 @@ struct DoctorTests {
             "2026-10-12 update check failed: \"my secret sentence\" was not sent",
         ]
         let summary = Doctor.summarizeLogLines(lines, home: "/Users/alice")
-        #expect(summary == ["Error loading ~/Library/Rime/custom.yaml", "2026-10-12 update check failed: \"…\" was not sent"])
+        #expect(summary == ["Error loading ~/Library/Rime/custom.yaml", "update check failed: not"])
         let findings = Doctor.findings(facts { $0.recentErrors = summary }, chinese: false)
         #expect(findings.contains { $0.area == .recentErrors && $0.status == .warning })
     }
@@ -199,9 +199,14 @@ struct DoctorTests {
         // Esc goes back to the findings, ⏎ applies.
         _ = c.handleKeyDown(escKey)
         #expect(c.choices.map(\.label) == ["1", "2", ""] && c.phase == .choosing)
-        _ = c.showFixPreview(preview, lines: ["→ Download the Chinese language pack"])
-        #expect(c.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
-        _ = c.configApplied("Done")
+        // A fix that writes settings: ⏎ applies it, ⌘Z undoes it.
+        var config = Config.default
+        config.typeOutRate = 100
+        let repair = try #require(Doctor.fixPreview([.repairConfig([.init(key: .setting(.typeOutRate), value: .number(16))])],
+                                                    config: config, environment: AIConfig.Environment()))
+        _ = c.showFixPreview(repair, lines: ["Typing speed: 100 a second → 16 a second"])
+        #expect(c.handleKeyDown(enterKey).effects == [.applyConfig(repair), .showPanel])
+        _ = c.configApplied("Changed 1 setting")
         let undo = c.handleKeyDown(k("z", mods: .command)).effects
         #expect(undo.last == .undoConfig && commits(undo).isEmpty)
     }
@@ -215,37 +220,91 @@ struct DoctorTests {
 
     // MARK: - What must never show or go out
 
-    @Test func repeatsAreRemovedInPlaceKeepingUnknownKeys() {
-        let text = """
-            {
-              "futureSetting" : {"keep": [1, 2]},
-              "inputLanguages" : ["zh", "en", "zh"],
-              "outputLanguages" : [ "en", "fr", "en" ],
-              "temperature" : 0.3
-            }
-            """
-        let patched = Doctor.removingRepeatedLanguages(from: text)
-        #expect(patched == text.replacingOccurrences(of: #"["zh", "en", "zh"]"#, with: #"["zh","en"]"#)
-            .replacingOccurrences(of: #"[ "en", "fr", "en" ]"#, with: #"["en","fr"]"#))
-        #expect(Doctor.removingRepeatedLanguages(from: #"{"outputLanguages": ["en"]}"#) == nil)
-        // A file it can't patch in place: no automatic fix, the file is pointed to.
-        let raw = #"{"outputLanguages": ["en", "en"]}"#
+    @Test func repeatsAreRemovedKeepingUnknownKeys() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("doctor-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let text = #"{"futureKey": {"keep": [1, 2]}, "inputLanguages": ["zh", "en", "zh"], "outputLanguages": ["en", "fr", "en"], "temperature": 0.3}"#
+        try Data(text.utf8).write(to: url)
+        try Doctor.removeRepeatedLanguages(at: url)
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        #expect(object["inputLanguages"] as? [String] == ["zh", "en"] && object["outputLanguages"] as? [String] == ["en", "fr"])
+        #expect((object["futureKey"] as? [String: Any])?["keep"] as? [Int] == [1, 2] && object["temperature"] as? Double == 0.3)
+        #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"temperature\" : 0.3"))
+        // Offered whenever a list repeats a language (not a list of strings: not repeats).
         var config = Config.default
         config.setOrder([OutputLanguage.english])
-        let odd = Doctor.configFindings(data: Data(#"{"outputLanguages": ["en", "en", {"x": 1}]}"#.utf8), error: nil, config: config, chinese: false)
-        #expect(odd.first { $0.title.hasPrefix("A language is listed twice") } == nil)  // not a list of strings: not repeats
-        let fine = Doctor.configFindings(data: Data(raw.utf8), error: nil, config: config, chinese: false)
-        #expect(fine.first { $0.title.hasPrefix("A language is listed twice") }?.fix == .resaveConfig)
-        // Written so it can't be patched in place (an escaped key): no automatic fix, the file is pointed to.
-        let escaped = Doctor.configFindings(data: Data(#"{"outputLanguage\u0073": ["en", "en"]}"#.utf8), error: nil, config: config, chinese: false)
-        let twice = escaped.first { $0.title.hasPrefix("A language is listed twice") }
-        #expect(twice != nil && twice?.fix == nil && twice?.detail?.contains("config.json") == true)
+        let odd = Doctor.configFindings(data: Data(#"{"outputLanguages": ["en", "en", {"x": 1}]}"#.utf8), error: nil, config: config,
+                                        chinese: false)
+        #expect(odd.first { $0.title.hasPrefix("A language is listed twice") } == nil)
+        let twice = Doctor.configFindings(data: Data(#"{"outputLanguages": ["en", "en"]}"#.utf8), error: nil, config: config, chinese: false)
+        #expect(twice.first { $0.title.hasPrefix("A language is listed twice") }?.fix == .resaveConfig)
+    }
+
+    @Test func everyConfigKeyIsKnown() {
+        // Built from `Config.CodingKeys`: a key added there (questionRounds, questionContinueIn …) is never "unknown".
+        #expect(Set(Config.allKeys).isSubset(of: Doctor.knownConfigKeys))
+        for key in Config.allKeys { #expect(AIConfig.Key.parse(key) != nil, "\(key)") }
+        #expect(Config.allKeys.contains("questionRounds") && Config.allKeys.contains("questionContinueIn"))
+        let raw = #"{"questionRounds": 5, "questionContinueIn": "claude", "fontSize": 3}"#
+        let findings = Doctor.configFindings(data: Data(raw.utf8), error: nil, config: .default, chinese: false)
+        #expect(findings.first { $0.title.hasPrefix("config.json has keys") }?.detail == "fontSize (ignored)")
+    }
+
+    @Test func absolutePathsAreMasked() {
+        // Folder names with spaces stay inside the path: masked rather than shown (here up to the last path in the line).
+        #expect(Doctor.maskingAbsolutePaths("couldn't move /Volumes/My Disk/secret project/a.zip") == "couldn't move …/a.zip")
+        #expect(!Doctor.maskingAbsolutePaths("couldn't move /Volumes/My Disk/secret project/a.zip to /tmp").contains("secret"))
+        #expect(Doctor.maskingAbsolutePaths("~/Library/Rime/x.yaml and https://example.com/v1 and 401/403")
+                == "~/Library/Rime/x.yaml and https://example.com/v1 and 401/403")
+        #expect(Doctor.scrub("/Users/x/Library/a: \"/opt/data/b.txt\"", home: "/Users/x") == "~/Library/a: \"…/b.txt\"")
+    }
+
+    @Test func logSummariesKeepAFixedVocabulary() {
+        let lines = [
+            "E20261015 10:00:01.000 1234 dictionary.cc:56] failed to load /Users/x/Library/Rime/user.dict.yaml for Alice Smith",
+            "update failed: couldn't move /private/var/tmp/Report Q3 2026.zip (NSURLErrorDomain -1009)",
+            "E20261015 10:00:03.000 1234 engine.cc:81] commit error: my bank password is hunter2",
+        ]
+        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x") == [
+            "failed to load ~/Library/Rime/user.dict.yaml for",
+            "update failed: couldn't move …/Report NSURLErrorDomain -1009",
+            "error:",
+        ])
+    }
+
+    @Test func checkForUpdatesIsPickedNotSafe() {
+        #expect(!Doctor.Fix.checkForUpdates.isSafe)
+        let report = Composer.ConfigState.Report(lines: ["a"], fixes: [.checkForUpdates])
+        #expect(report.defaultFixes.isEmpty)
+    }
+
+    @Test func testConnectionOnlyWithSomethingToTest() {
+        var claude = facts { $0.config?.provider = .anthropic }
+        #expect(!Doctor.canTestConnection(claude))
+        claude.keySaved[.anthropic] = true
+        #expect(Doctor.canTestConnection(claude))
+        #expect(Doctor.canTestConnection(facts()))  // Bedrock with credentials found
+        #expect(!Doctor.canTestConnection(facts { $0.awsProfile = .failure(Doctor.ProbeError("no profile")) }))
+        #expect(!Doctor.canTestConnection(facts { $0.config?.provider = .apple; $0.apple = .modelNotReady }))
+        #expect(!Doctor.canTestConnection(facts { $0.config = nil }))
+    }
+
+    @Test func aFixThatOnlyRunsActionsOffersNoUndo() throws {
+        let (c, _) = reported()
+        let preview = try #require(Doctor.fixPreview([.downloadPack(.chinese)], config: .default, environment: AIConfig.Environment()))
+        _ = c.showFixPreview(preview, lines: ["→ Download the Chinese language pack"])
+        _ = c.handleKeyDown(enterKey)
+        _ = c.configApplied("Done")
+        #expect(!c.configState.writesSettings)
+        // ⌘Z isn't @config's here: it never undoes an older change.
+        let z = c.handleKeyDown(k("z", mods: .command))
+        #expect(!z.effects.contains(.undoConfig))
     }
 
     @Test func typographicAndCJKQuotesAreLeftOut() {
         let lines = ["error: couldn’t read “my diary.txt”", "failed: 「我想去医院」 and 『秘密』 and «privé» and ‘mine’"]
         let out = Doctor.summarizeLogLines(lines, home: "/Users/x")
-        #expect(out == ["error: couldn’t read “…”", "failed: 「…」 and 『…』 and «…» and ‘…’"])
+        #expect(out == ["error: couldn’t read", "failed:"])
     }
 
     @Test func probesNeverShowOrSendKeysOrFullPaths() {
@@ -268,7 +327,7 @@ struct DoctorTests {
         let report = Composer.ConfigState.Report(lines: ["a", "b", "c", "d"],
                                                  fixes: [.downloadPack(.korean), .repairConfig([]), nil, .checkForUpdates],
                                                  recommended: [0, 3])
-        #expect(report.defaultFixes == [.checkForUpdates, .repairConfig([])])
+        #expect(report.defaultFixes == [.repairConfig([])])  // Check for Updates opens Settings: picked by its number
     }
 
     @Test func inAnAppWithNoAIOnlyTheQuestionIsRefused() {

@@ -41,8 +41,8 @@ public enum Doctor {
         case downloadPack(Language)
         /// Settings changed through `@config`'s checks and apply/undo.
         case repairConfig([AIConfig.Change])
-        /// The repeated languages taken out of the config file, in place (`removingRepeatedLanguages`): nothing else in it
-        /// changes, keys this version doesn't know included.
+        /// The repeated languages taken out of the config file (`removeRepeatedLanguages`): nothing else in it changes,
+        /// keys this version doesn't know included.
         case resaveConfig
         /// Settings → AI Provider at the key field.
         case openKeyField(Provider)
@@ -50,12 +50,13 @@ public enum Doctor {
         /// "Check for Updates" as in the input menu.
         case checkForUpdates
 
-        /// One that ⏎ applies with the others ("fix all safe ones"): it changes only this app's settings, or checks.
-        /// Opening windows, panes and downloads are picked one by one.
+        /// One that ⏎ applies with the others ("fix all safe ones"): it changes only this app's own settings or input
+        /// source, opening nothing. What opens a window or a pane (Check for Updates opens Settings), or downloads, is
+        /// picked one by one.
         public var isSafe: Bool {
             switch self {
-            case .repairConfig, .resaveConfig, .enableInputMethod, .checkForUpdates: return true
-            case .openPrivacy, .downloadPack, .openKeyField, .openAppleIntelligenceSettings: return false
+            case .repairConfig, .resaveConfig, .enableInputMethod: return true
+            case .openPrivacy, .downloadPack, .openKeyField, .openAppleIntelligenceSettings, .checkForUpdates: return false
             }
         }
     }
@@ -158,7 +159,8 @@ public enum Doctor {
         out += permissions(facts, t)
         if let owner = facts.secureInput {
             out.append(Finding(area: .secureInput, status: .warning, title: t.tr("安全输入开着（\(owner)）", "Secure input is on (\(owner))"),
-                               detail: t.tr("关掉之前不会把文字发给 AI；关掉密码框或那个 App 的安全输入", "nothing goes to the AI until it's off: leave the password field, or that app")))
+                               detail: t.tr("关掉之前不会把文字发给 AI；关掉密码框或那个 App 的安全输入",
+                                            "nothing goes to the AI until it's off: leave the password field, or that app")))
         } else {
             out.append(Finding(area: .secureInput, status: .ok, title: t.tr("安全输入没开", "Secure input is off")))
         }
@@ -169,7 +171,8 @@ public enum Doctor {
             out.append(Finding(area: .recentErrors, status: .ok, title: t.tr("最近的日志里没有错误", "No recent errors in the logs")))
         } else {
             out.append(Finding(area: .recentErrors, status: .warning,
-                               title: t.tr("最近的日志里有 \(facts.recentErrors.count) 个错误", "\(facts.recentErrors.count) recent errors in the logs"),
+                               title: t.tr("最近的日志里有 \(facts.recentErrors.count) 个错误",
+                                           "\(facts.recentErrors.count) recent errors in the logs"),
                                detail: facts.recentErrors.last))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
@@ -194,9 +197,11 @@ public enum Doctor {
         }
         if !im.registered { return problem("输入法没有注册", "The input method isn't registered") }
         if !im.enabled { return problem("输入法没有启用", "The input method isn't enabled") }
-        if !im.listed { return problem("输入法不在你的输入法列表里（⌃空格切换不到它）", "The input method isn't in your input sources (Ctrl-Space doesn't reach it)", .warning) }
+        if !im.listed { return problem("输入法不在你的输入法列表里（⌃空格切换不到它）",
+                                       "The input method isn't in your input sources (Ctrl-Space doesn't reach it)", .warning) }
         if !im.selectable { return problem("输入法现在不能选", "The input method can't be selected now", .warning) }
-        return [Finding(area: .inputMethod, status: .ok, title: t.tr("AllInOneIME \(im.version) 已安装并启用", "AllInOneIME \(im.version) is installed and enabled"),
+        return [Finding(area: .inputMethod, status: .ok,
+                        title: t.tr("AllInOneIME \(im.version) 已安装并启用", "AllInOneIME \(im.version) is installed and enabled"),
                         detail: im.selected ? t.tr("正在使用", "in use now") : nil)]
     }
 
@@ -249,10 +254,12 @@ public enum Doctor {
         if config.provider != .apple, facts.apple != .unsupportedSystem {
             if facts.apple == .available {
                 out.append(Finding(area: .appleIntelligence, status: .ok,
-                                   title: t.tr("Apple 智能可以用（@config 和 @doctor 在本机运行）", "Apple Intelligence is ready (@config and @doctor run on this Mac)")))
+                                   title: t.tr("Apple 智能可以用（@config 和 @doctor 在本机运行）",
+                                               "Apple Intelligence is ready (@config and @doctor run on this Mac)")))
             } else {
                 let fixable = facts.apple == .appleIntelligenceNotEnabled
-                out.append(Finding(area: .appleIntelligence, status: .warning, title: t.tr("Apple 智能不能用", "Apple Intelligence isn't available"),
+                out.append(Finding(area: .appleIntelligence, status: .warning,
+                                   title: t.tr("Apple 智能不能用", "Apple Intelligence isn't available"),
                                    detail: t.appleReason(facts.apple), fix: fixable ? .openAppleIntelligenceSettings : nil))
             }
         }
@@ -277,7 +284,8 @@ public enum Doctor {
                 out.append(Finding(area: .permissions, status: .problem, title: t.tr("麦克风没有允许", "The microphone isn't allowed"),
                                    detail: t.tr("语音输入用不了", "voice input can't work"), fix: .openPrivacy(.microphone)))
             case .notDetermined:
-                out.append(Finding(area: .permissions, status: .ok, title: t.tr("麦克风：第一次说话时会问", "The microphone: asked the first time you dictate")))
+                out.append(Finding(area: .permissions, status: .ok,
+                                   title: t.tr("麦克风：第一次说话时会问", "The microphone: asked the first time you dictate")))
             case .unknown: break
             }
         }
@@ -289,7 +297,8 @@ public enum Doctor {
         }
         let allowed = facts.automation.filter { $0.value == .granted }.keys.sorted()
         if !allowed.isEmpty {
-            out.append(Finding(area: .permissions, status: .ok, title: t.tr("可以控制：", "Allowed to control: ") + allowed.joined(separator: t.tr("、", ", "))))
+            out.append(Finding(area: .permissions, status: .ok,
+                               title: t.tr("可以控制：", "Allowed to control: ") + allowed.joined(separator: t.tr("、", ", "))))
         }
         return out
     }
@@ -302,17 +311,21 @@ public enum Doctor {
             switch facts.packs[language] ?? .missing {
             case .installed: installed.append(name)
             case .downloading:
-                out.append(Finding(area: .languagePacks, status: .warning, title: t.tr("\(name)语言包正在下载", "The \(name) language pack is downloading")))
+                out.append(Finding(area: .languagePacks, status: .warning,
+                                   title: t.tr("\(name)语言包正在下载", "The \(name) language pack is downloading")))
             case .missing:
-                out.append(Finding(area: .languagePacks, status: .problem, title: t.tr("\(name)语言包没有装", "The \(name) language pack isn't installed"),
+                out.append(Finding(area: .languagePacks, status: .problem,
+                                   title: t.tr("\(name)语言包没有装", "The \(name) language pack isn't installed"),
                                    detail: t.tr("装好以前打不了\(name)", "\(name) can't be typed until it is"), fix: .downloadPack(language)))
             case .damaged:
-                out.append(Finding(area: .languagePacks, status: .problem, title: t.tr("\(name)语言包坏了", "The \(name) language pack is damaged"),
+                out.append(Finding(area: .languagePacks, status: .problem,
+                                   title: t.tr("\(name)语言包坏了", "The \(name) language pack is damaged"),
                                    detail: t.tr("可以重新下载", "it can be downloaded again"), fix: .downloadPack(language)))
             }
         }
         if !installed.isEmpty {
-            out.append(Finding(area: .languagePacks, status: .ok, title: t.tr("语言包已安装：", "Language packs installed: ") + installed.joined(separator: t.tr("、", ", "))))
+            out.append(Finding(area: .languagePacks, status: .ok,
+                               title: t.tr("语言包已安装：", "Language packs installed: ") + installed.joined(separator: t.tr("、", ", "))))
         }
         return out
     }
@@ -321,7 +334,8 @@ public enum Doctor {
         var out: [Finding] = []
         if !facts.skippedExtensions.isEmpty {
             out.append(Finding(area: .extensions, status: .warning,
-                               title: t.tr("\(facts.skippedExtensions.count) 个扩展命令没有加载", "\(facts.skippedExtensions.count) extension commands weren't loaded"),
+                               title: t.tr("\(facts.skippedExtensions.count) 个扩展命令没有加载",
+                                           "\(facts.skippedExtensions.count) extension commands weren't loaded"),
                                detail: facts.skippedExtensions.prefix(3).joined(separator: t.tr("；", "; "))))
         }
         if !facts.pluginErrors.isEmpty {
@@ -336,30 +350,39 @@ public enum Doctor {
         let u = facts.updates
         var out: [Finding] = []
         if let available = u.available {
-            out.append(Finding(area: .updates, status: .warning, title: t.tr("有新版本 \(available)（现在是 \(u.version)）", "AllInOneIME \(available) is available (you have \(u.version))"),
+            out.append(Finding(area: .updates, status: .warning,
+                               title: t.tr("有新版本 \(available)（现在是 \(u.version)）",
+                                           "AllInOneIME \(available) is available (you have \(u.version))"),
                                detail: t.tr("可以检查并更新", "check for updates to install it"), fix: .checkForUpdates))
         } else {
             out.append(Finding(area: .updates, status: .ok, title: t.tr("AllInOneIME \(u.version)", "AllInOneIME \(u.version)"),
-                               detail: u.checkEnabled ? t.tr("自动检查更新", "checks for updates automatically") : t.tr("没有自动检查更新", "doesn't check for updates automatically"),
+                               detail: u.checkEnabled ? t.tr("自动检查更新", "checks for updates automatically")
+                                   : t.tr("没有自动检查更新", "doesn't check for updates automatically"),
                                fix: nil))
         }
         if let error = u.lastError {
-            out.append(Finding(area: .updates, status: .warning, title: t.tr("上次更新没有成功", "The last update didn't work"), detail: error, fix: .checkForUpdates))
+            out.append(Finding(area: .updates, status: .warning, title: t.tr("上次更新没有成功", "The last update didn't work"), detail: error,
+                               fix: .checkForUpdates))
         }
         return out
     }
 
+    /// Whether Test Connection can tell anything: the config reads, and the provider has what it needs (the on-device
+    /// model available, the Bedrock profile's credentials found, a key saved or the hosted service signed in to). Without
+    /// it the provider's own row says what is missing, and no second ✗ row is added.
+    public static func canTestConnection(_ facts: Facts) -> Bool {
+        guard let config = facts.config else { return false }
+        switch config.provider {
+        case .apple: return facts.apple == .available
+        case .bedrock: if case .success? = facts.awsProfile { return true } else { return false }
+        case .anthropic, .gemini, .openai, .hosted: return facts.keySaved[config.provider] == true
+        }
+    }
+
     // MARK: - The config file
 
-    /// The keys a config file may have (those this version writes, and the ones it still reads or another version
-    /// writes).
-    public static let knownConfigKeys: Set<String> = {
-        var keys = Set<String>()
-        if let data = try? JSONEncoder().encode(Config.default), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            keys.formUnion(object.keys)
-        }
-        return keys.union(["typeOutSpeed", "appProfiles", "extensionSources"])
-    }()
+    /// The keys a config file may have: `Config`'s coding keys (those it writes, and those it only reads).
+    public static let knownConfigKeys = Set(Config.allKeys)
 
     /// What is wrong with the config file: it can't be read (no automatic fix: it is never replaced), keys this version
     /// doesn't know, values out of range, a language listed twice, more than 5 translation languages. The fixes go
@@ -368,27 +391,33 @@ public enum Doctor {
         let t = Words(chinese: chinese)
         if let error {
             return [Finding(area: .config, status: .problem, title: t.tr("config.json 读不了", "config.json can't be read"),
-                            detail: error + t.tr("（打开设置 → 高级 → 配置文件修正它；不会自动删除）", " (fix it in the file, Settings → Advanced; it's never deleted for you)"))]
+                            detail: error + t.tr("（打开设置 → 高级 → 配置文件修正它；不会自动删除）",
+                                                 " (fix it in the file, Settings → Advanced; it's never deleted for you)"))]
         }
         guard let config else { return [] }
         var out: [Finding] = []
         let raw = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
         let unknown = Set(raw.keys).subtracting(knownConfigKeys).sorted()
         if !unknown.isEmpty {
-            out.append(Finding(area: .config, status: .warning, title: t.tr("config.json 里有不认识的键", "config.json has keys this version doesn't know"),
+            out.append(Finding(area: .config, status: .warning,
+                               title: t.tr("config.json 里有不认识的键", "config.json has keys this version doesn't know"),
                                detail: unknown.prefix(5).joined(separator: ", ") + t.tr("（会被忽略）", " (ignored)")))
         }
         if config.typeOutRate < TypeOut.slowestRate * 0.999 || config.typeOutRate > TypeOut.fastestRate {
             out.append(Finding(area: .config, status: .problem, title: t.tr("打字速度超出范围", "The typing speed is out of range"),
-                               detail: "\(config.typeOutRate)", fix: .repairConfig([.init(key: .setting(.typeOutRate), value: .number(TypeOut.defaultRate))])))
+                               detail: "\(config.typeOutRate)",
+                               fix: .repairConfig([.init(key: .setting(.typeOutRate), value: .number(TypeOut.defaultRate))])))
         }
         if config.maxTokens < 1 || config.timeoutSeconds <= 0 || (config.temperature.map { $0 < 0 || $0 > 2 } ?? false) {
             out.append(Finding(area: .config, status: .problem, title: t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
-                               detail: t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）", "change it in Settings → Advanced (output tokens, timeout, temperature)")))
+                               detail: t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）",
+                                            "change it in Settings → Advanced (output tokens, timeout, temperature)")))
         }
         if config.outputLanguages.count > AIConfig.maxOutputLanguages {
             let kept = config.outputLanguages.prefix(AIConfig.maxOutputLanguages).map { AIConfig.JSONValue.string($0.code) }
-            out.append(Finding(area: .config, status: .problem, title: t.tr("翻译语言超过 \(AIConfig.maxOutputLanguages) 种", "More than \(AIConfig.maxOutputLanguages) translation languages"),
+            out.append(Finding(area: .config, status: .problem,
+                               title: t.tr("翻译语言超过 \(AIConfig.maxOutputLanguages) 种",
+                                           "More than \(AIConfig.maxOutputLanguages) translation languages"),
                                detail: t.tr("留下前 \(AIConfig.maxOutputLanguages) 种", "keep the first \(AIConfig.maxOutputLanguages)"),
                                fix: .repairConfig([.init(key: .setting(.outputLanguages), value: .array(kept))])))
         }
@@ -397,12 +426,11 @@ public enum Doctor {
             return Set(list).count < list.count
         }
         if repeats("outputLanguages") || repeats("inputLanguages") {
-            // Patched in place (nothing else in the file changes); where it can't be, the file is the user's to edit.
-            let patchable = data.map { removingRepeatedLanguages(from: String(decoding: $0, as: UTF8.self)) != nil } ?? false
-            out.append(Finding(area: .config, status: .warning, title: t.tr("config.json 里有重复的语言", "A language is listed twice in config.json"),
-                               detail: patchable ? t.tr("可以只去掉重复的，别的不动", "the repeats can be removed, nothing else changes")
-                                   : t.tr("在 config.json 里删掉重复的（设置 → 高级 → 配置文件）", "remove the repeats in config.json (Settings → Advanced → Config file)"),
-                               fix: patchable ? .resaveConfig : nil))
+            // Only those lists change (`removeRepeatedLanguages`): nothing else in the file.
+            out.append(Finding(area: .config, status: .warning,
+                               title: t.tr("config.json 里有重复的语言", "A language is listed twice in config.json"),
+                               detail: t.tr("可以只去掉重复的，别的不动", "the repeats can be removed, nothing else changes"),
+                               fix: .resaveConfig))
         }
         if out.isEmpty { out.append(Finding(area: .config, status: .ok, title: t.tr("config.json 正常", "config.json is fine"))) }
         return out
@@ -410,9 +438,11 @@ public enum Doctor {
 
     // MARK: - Logs
 
-    /// Error lines of the app's own logs, as `@doctor` may show and send them: the newest `limit`, each its message
-    /// only (no timestamps, no source file), the home folder as "~", quoted text (which may be the user's) left out,
-    /// cut to 120 characters.
+    /// Error lines of the app's own logs, as `@doctor` may show and send them: the newest `limit`, each kept to its
+    /// structure and a fixed vocabulary (`logWords`: "failed", "load", "timed out" …), error codes and names
+    /// (`-1009`, `ENOENT`, `ValidationException`), and paths (`~/…`, other absolute paths as "…/<last component>"); every
+    /// other word, quoted text (straight, typographic, CJK) and timestamps and sources are left out, so none of the user's
+    /// text gets through. At most 120 characters.
     public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
@@ -423,55 +453,91 @@ public enum Doctor {
             var text = line
             // glog: "E20261008 15:45:58.123 1234 file.cc:56] message"
             if let bracket = text.range(of: "] ") { text = String(text[bracket.upperBound...]) }
-            text = text.replacingOccurrences(of: home, with: "~")
-            // Quoted text may be the user's: in straight, typographic and CJK quotes alike.
+            if !home.isEmpty { text = text.replacingOccurrences(of: home, with: "~") }
+            // Quoted text may be the user's: in straight, typographic and CJK quotes alike, gone.
             for (open, close) in quotes {
                 text = text.replacingOccurrences(of: NSRegularExpression.escapedPattern(for: open) + "[^" + close + "]*"
                                                      + NSRegularExpression.escapedPattern(for: close),
-                                                 with: open + "…" + close, options: .regularExpression)
+                                                 with: " ", options: .regularExpression)
             }
-            text = AIConfig.maskingKeys(text, with: "[KEY]")
-            text = text.trimmingCharacters(in: .whitespaces)
-            return text.count > 120 ? String(text.prefix(120)) + "…" : text
+            let kept = text.split(whereSeparator: \.isWhitespace).compactMap { token -> String? in
+                let word = String(token)
+                if word.hasPrefix("~/") { return AIConfig.looksLikeKey(word) ? nil : word }
+                if word.hasPrefix("/") { return maskingAbsolutePaths(word) }
+                let bare = word.trimmingCharacters(in: CharacterSet(charactersIn: ",.;:()[]!?"))
+                guard !bare.isEmpty, isLogCode(bare) || logWords.contains(bare.lowercased().replacingOccurrences(of: "’", with: "'"))
+                else { return nil }
+                return word.hasSuffix(":") ? bare + ":" : bare
+            }
+            let summary = kept.joined(separator: " ")
+            return summary.count > 120 ? String(summary.prefix(120)) + "…" : summary
         }
+    }
+
+    /// The words a log summary keeps (lowercase).
+    static let logWords: Set<String> = [
+        "error", "errors", "failed", "failure", "fail", "fails", "timed", "timeout", "out", "not", "no", "found", "missing",
+        "denied", "permission", "invalid", "corrupt", "corrupted", "damaged", "unreachable", "refused", "connection", "network",
+        "offline", "download", "downloading", "downloaded", "install", "installing", "installed", "update", "updating",
+        "updated", "check", "checking", "signature", "checksum", "verify", "verification", "mismatch", "read", "write",
+        "load", "loading", "loaded", "open", "save", "move", "copy", "remove", "delete", "parse", "deploy", "deployment",
+        "dictionary", "schema", "rime", "librime", "pack", "config", "keychain", "http", "https", "status", "code", "server",
+        "disk", "space", "full", "busy", "cancelled", "canceled", "crash", "crashed", "killed", "lookup", "engine", "helper",
+        "staging", "quit", "restart", "manifest", "unknown", "unsupported", "couldn't", "can't", "cannot", "could", "too",
+        "large", "empty", "to", "for", "from", "of", "in", "request", "response", "model", "provider", "plugin", "extension",
+    ]
+
+    /// An error code or name: a number (`404`, `-1009`, `0x1F`), a constant (`ENOENT`), an error type (`…Error`,
+    /// `…Exception`, `…Domain`).
+    static func isLogCode(_ token: String) -> Bool {
+        token.range(of: #"^(-?\d+|0x[0-9A-Fa-f]+|[A-Z][A-Z0-9_]{2,}|[A-Z][A-Za-z]*(Error|Exception|Domain))$"#,
+                    options: .regularExpression) != nil
     }
 
     /// The quotes whose text `summarizeLogLines` leaves out.
     static let quotes: [(String, String)] = [("\"", "\""), ("“", "”"), ("‘", "’"), ("「", "」"), ("『", "』"), ("«", "»"), ("'", "'")]
 
-    /// `text` as a finding shows it and the model may get it: the home folder as "~", anything that looks like a key
-    /// (`Redaction`'s key detection, whatever the user's hiding settings) as "[KEY]".
+    /// `text` as a finding shows it and the model may get it: the home folder as "~", any other absolute path as
+    /// "…/<last component>" (`maskingAbsolutePaths`), anything that looks like a key (`Redaction`'s key detection, whatever
+    /// the user's hiding settings) as "[KEY]".
     public static func scrub(_ text: String, home: String = NSHomeDirectory()) -> String {
-        AIConfig.maskingKeys(home.isEmpty ? text : text.replacingOccurrences(of: home, with: "~"), with: "[KEY]")
+        let homeless = home.isEmpty ? text : text.replacingOccurrences(of: home, with: "~")
+        return AIConfig.maskingKeys(maskingAbsolutePaths(homeless), with: "[KEY]")
     }
 
-    /// The config file's text with each language listed once in `outputLanguages` and `inputLanguages`, the first of
-    /// each kept, in place: everything else (keys this version doesn't know, the spacing) byte for byte as it was. Nil
-    /// when there is nothing to remove, or the lists can't be patched in place.
-    public static func removingRepeatedLanguages(from text: String) -> String? {
-        var out = text, changed = false
-        for key in ["outputLanguages", "inputLanguages"] {
-            let pattern = "\"" + key + #""\s*:\s*\[[^\]\[{}]*\]"#
-            guard let regex = try? NSRegularExpression(pattern: pattern),
-                  let match = regex.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
-                  let range = Range(match.range, in: out) else { continue }
-            let literal = String(out[range])
-            guard let open = literal.firstIndex(of: "["),
-                  let list = (try? JSONSerialization.jsonObject(with: Data(literal[open...].utf8))) as? [String] else { return nil }
-            var seen = Set<String>()
-            let kept = list.filter { seen.insert($0).inserted }
-            guard kept.count < list.count,
-                  let data = try? JSONSerialization.data(withJSONObject: kept, options: [.withoutEscapingSlashes]) else { continue }
-            out.replaceSubrange(range, with: literal[..<open] + String(decoding: data, as: UTF8.self))
-            changed = true
+    /// An absolute path (not one under ~, not part of a web address or a relative path) as "…/<last component>": a folder
+    /// name may be the user's. Folder names with spaces count as part of the path.
+    static func maskingAbsolutePaths(_ text: String) -> String {
+        let regex = try! NSRegularExpression(pattern: #"(?<![\w~./:\\-])/(?:[^/\n:"“”'‘’「」]+?/)*[^/\s:"“”'‘’「」,;)]+"#)
+        let ns = text as NSString
+        let out = NSMutableString(string: text)
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
+            let path = ns.substring(with: match.range)
+            out.replaceCharacters(in: match.range, with: "…/" + (path.split(separator: "/").last.map(String.init) ?? ""))
         }
-        return changed ? out : nil
+        return out as String
+    }
+
+    /// The repeated languages taken out of `outputLanguages` and `inputLanguages` in the config file at `url`, the first
+    /// of each kept, at the JSON level (`AIConfig.patchingFile`): every other key, one this version doesn't know too,
+    /// stays as it was.
+    public static func removeRepeatedLanguages(at url: URL) throws {
+        try AIConfig.patchingFile(at: url) { file in
+            for key in ["outputLanguages", "inputLanguages"] {
+                guard case let .array(items)? = file[key] else { continue }
+                var seen: [AIConfig.JSONValue] = []
+                for item in items where !seen.contains(item) { seen.append(item) }
+                file[key] = .array(seen)
+            }
+        }
     }
 
     // MARK: - For the model
 
-    /// The findings as the model reads them (English, one per line, each with its id when it has a fix: "F3"): what
-    /// `@doctor <question>` sends, nothing else (no paths beyond ~, no keys, none of the user's text).
+    /// The findings as the model reads them, one per line, each with its id when it has a fix ("F3"): what
+    /// `@doctor <question>` sends, nothing else. In the language they were made in: the controller makes them in English
+    /// for the model (`findings(_:chinese: false)`, in the same order as the panel's). Each line is scrubbed again
+    /// (`scrub`): no paths beyond ~ ("…/<last>" for others), no keys; the user's text was never in them.
     public static func report(_ findings: [Finding], areas: Set<Area>? = nil) -> String {
         findings.enumerated().compactMap { index, finding in
             guard areas?.contains(finding.area) ?? true else { return nil }
@@ -487,7 +553,8 @@ public enum Doctor {
         let fine = findings.count - problems - warnings
         if problems == 0, warnings == 0 { return t.tr("全部正常（\(fine) 项）", "All \(fine) checks are fine") }
         return t.tr("\(problems) 个问题，\(warnings) 个提醒，\(fine) 项正常",
-                    "\(problems) \(problems == 1 ? "problem" : "problems"), \(warnings) \(warnings == 1 ? "warning" : "warnings"), \(fine) fine")
+                    "\(problems) \(problems == 1 ? "problem" : "problems"), "
+                        + "\(warnings) \(warnings == 1 ? "warning" : "warnings"), \(fine) fine")
     }
 
     struct Words {
@@ -499,7 +566,8 @@ public enum Doctor {
             case .available: return tr("可以用", "ready")
             case .unsupportedSystem: return tr("需要 macOS 26", "needs macOS 26")
             case .deviceNotEligible: return tr("这台 Mac 不支持", "not supported on this Mac")
-            case .appleIntelligenceNotEnabled: return tr("在系统设置 → Apple 智能与 Siri 里打开", "turn it on in System Settings → Apple Intelligence & Siri")
+            case .appleIntelligenceNotEnabled: return tr("在系统设置 → Apple 智能与 Siri 里打开",
+                                                         "turn it on in System Settings → Apple Intelligence & Siri")
             case .modelNotReady: return tr("模型还没准备好（可能还在下载）", "the model isn't ready yet (it may still be downloading)")
             }
         }
@@ -519,11 +587,13 @@ extension Doctor {
             }
             switch fix {
             case let .repairConfig(changes):
-                let checked = AIConfig.check(AIConfig.Proposal(changes: changes), config: working, environment: env).rows.filter { !$0.isRefused }
+                let checked = AIConfig.check(AIConfig.Proposal(changes: changes), config: working, environment: env).rows
+                    .filter { !$0.isRefused }
                 AIConfig.apply(checked.compactMap(\.edit), to: &working)
                 rows += checked
             case .resaveConfig:
-                action("去掉 config.json 里重复的语言（别的不动）", "Remove the repeated languages from config.json (nothing else changes)", .resaveConfig)
+                action("去掉 config.json 里重复的语言（别的不动）",
+                       "Remove the repeated languages from config.json (nothing else changes)", .resaveConfig)
             case .enableInputMethod:
                 action("重新启用 AllInOneIME 输入法", "Enable the AllInOneIME input method again", .enableInputMethod)
             case let .openPrivacy(pane):
@@ -543,7 +613,8 @@ extension Doctor {
             case let .openKeyField(provider):
                 let text = AIConfig.Text(chinese: env.chinese)
                 rows.append(AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),
-                                         new: provider == .bedrock ? t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider")
+                                         new: provider == .bedrock ? t.tr("在设置 → AI 服务里看 AWS profile",
+                                                                          "check the AWS profile in Settings → AI Provider")
                                              : text.enterKey(provider), status: .needsKey(provider)))
             }
         }
