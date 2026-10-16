@@ -179,6 +179,25 @@ struct KeyRemovalTests {
         try APIKeys.remove(account: "gemini", in: store)  // none there: nothing to do, no error
     }
 
+    /// Settings says which key is saved by its last 4 characters, kept with it at save time (an attribute: the key isn't
+    /// read to show it); none for a key shorter than 12, nor for one saved before endings were kept.
+    @Test func aSavedKeyKeepsItsLast4ForTheStatus() throws {
+        #expect(APIKeys.ending(of: "sk-test-abcdef-a1b2") == "a1b2")
+        #expect(APIKeys.ending(of: "  sk-test-abcdef-a1b2\n") == "a1b2")
+        #expect(APIKeys.ending(of: "short-a1b2") == nil && APIKeys.ending(of: "12345678901") == nil)
+        #expect(APIKeys.ending(of: "123456789012") == "9012")
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-abcdef-a1b2", account: "openai", label: label, in: store)
+        #expect(APIKeys.keyEnding(account: "openai", in: store) == "a1b2")
+        try APIKeys.save("short-c3d4", account: "openai", label: label, in: store)  // replaced by a short one: no ending
+        #expect(APIKeys.keyEnding(account: "openai", in: store) == nil)
+        #expect(APIKeys.keyEnding(account: "gemini", in: store) == nil)
+        // The attribute as the keychain keeps it: only "ends:" and 4 characters count.
+        #expect(APIKeys.ending(fromAttribute: APIKeys.endingAttribute("a1b2")) == "a1b2")
+        #expect(APIKeys.ending(fromAttribute: APIKeys.endingAttribute(nil)) == nil)
+        #expect(APIKeys.ending(fromAttribute: Data("ends:a1b2c3".utf8)) == nil && APIKeys.ending(fromAttribute: nil) == nil)
+    }
+
     @Test func aSaveReplacesTheKeyInPlace() throws {
         let store = APIKeys.Keychain.inMemory()
         try APIKeys.save("sk-test-one", account: "gemini", label: label, host: "Generativelanguage.googleapis.com", in: store)

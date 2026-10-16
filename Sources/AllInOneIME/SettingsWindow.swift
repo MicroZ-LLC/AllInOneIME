@@ -56,8 +56,10 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var saveError: String?
     @Published private(set) var profiles: [String] = []
     @Published private(set) var testStatus: TestStatus = .idle
-    /// Where the API key of each provider comes from (refreshed when one is saved).
+    /// Where the API key of each provider comes from (refreshed when one is saved), and the last 4 characters kept
+    /// with a saved one (`APIKeys.keyEnding`: the key isn't read).
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
+    @Published private(set) var keyEndings: [Provider: String] = [:]
     @Published private(set) var keyError: String?
     /// The apps that get no typos (`TypoMemory`), as when the window opened or they were forgotten.
     @Published private(set) var typoApps: [String] = TypoMemory.apps
@@ -216,9 +218,10 @@ final class SettingsModel: ObservableObject {
 
     func refreshKeys() {
         let providers = Provider.allCases.filter { $0 != .bedrock }
-        // A preview (the self-test's README images) shows no keys and never asks the user's keychain.
+        // A preview (the self-test's README images) shows no keys, or the sample ones given (`showKeys`), and never asks
+        // the user's keychain.
         guard persists, Self.looksUpKeys else {
-            keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) })
+            if !keysShown { keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) }) }
             return
         }
         keyLookups += 1
@@ -227,13 +230,43 @@ final class SettingsModel: ObservableObject {
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
             let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, lookup($0)) })
+            let endings = Dictionary(uniqueKeysWithValues: providers.compactMap { provider in
+                APIKeys.keyEnding(account: provider.rawValue).map { (provider, $0) }
+            })
             await MainActor.run { [weak self] in
                 // One that started earlier (the window opening) never overwrites a later one's (a key just saved).
                 guard let self, self.keyLookups == generation else { return }
                 self.keySources = sources
+                self.keyEndings = endings
             }
         }
     }
+
+    /// The README images: keys as given (`persists` false: nothing is looked up or saved).
+    func showKeys(_ sources: [Provider: APIKeys.Source], endings: [Provider: String] = [:]) {
+        keySources = sources
+        keyEndings = endings
+        keysShown = true
+    }
+    private var keysShown = false
+
+    /// Whether the provider's key is set, as its row shows it.
+    func keyState(_ provider: Provider) -> KeyState {
+        KeyState(keySources[provider], ending: keyEndings[provider])
+    }
+
+    /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.
+    func saveKeyAndUse(_ key: String, for provider: Provider) {
+        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        saveKey(key, for: provider)
+        guard keyError == nil else { return }
+        config.provider = provider
+        save()
+        if let testRunner { testRunner() } else { runTest() }
+    }
+
+    /// The self-test's stand-in for Test Connection after Save and Use (nil: the real one).
+    var testRunner: (() -> Void)?
 
     /// Stores the provider's API key in the keychain. An empty or blank one does nothing: it never removes the key
     /// saved (that's `removeKey`, after the user confirmed).
@@ -262,13 +295,9 @@ final class SettingsModel: ObservableObject {
         refreshKeys()
     }
 
+    /// "✓ Saved · ends in a1b2", "✓ From $OPENAI_API_KEY", "No API key yet".
     func keyStatus(_ provider: Provider) -> String {
-        switch keySources[provider] {
-        case .keychain?: return tr("已保存在钥匙串里", "Saved in the keychain")
-        case let .environment(name)?: return tr("使用 shell 里的 \(name)", "Using \(name) from your shell")
-        case .none?: return tr("还没有 API key", "No API key yet")
-        case nil: return ""
-        }
+        keyState(provider).text(missing: tr("还没有 API key", "No API key yet"))
     }
 
     /// The settings of an API-key provider as stored (unset fields use the defaults).
@@ -295,6 +324,7 @@ final class SettingsModel: ObservableObject {
 
     /// Where the web search key comes from (nil until looked up), the last save's error, and the test.
     @Published private(set) var searchKeySource: APIKeys.Source?
+    @Published private(set) var searchKeyEnding: String?
     @Published private(set) var searchKeyError: String?
     @Published private(set) var searchTestStatus: TestStatus = .idle
     private var searchTestTask: Task<Void, Never>?
@@ -308,7 +338,11 @@ final class SettingsModel: ObservableObject {
         Task.detached {
             // The first look asks the user's shell for its variables (BRAVE_API_KEY): not on the main thread.
             let source = WebSearch.keySource()
-            await MainActor.run { [weak self] in self?.searchKeySource = source }
+            let ending = APIKeys.keyEnding(account: WebSearch.backend.keyAccount)
+            await MainActor.run { [weak self] in
+                self?.searchKeySource = source
+                self?.searchKeyEnding = ending
+            }
         }
     }
 
@@ -338,14 +372,7 @@ final class SettingsModel: ObservableObject {
         refreshSearchKey()
     }
 
-    var searchKeyStatus: String {
-        switch searchKeySource {
-        case .keychain?: return tr("已保存在钥匙串里", "Saved in the keychain")
-        case let .environment(name)?: return tr("使用 shell 里的 \(name)", "Using \(name) from your shell")
-        case .none?: return tr("还没有 API key", "No API key yet")
-        case nil: return ""
-        }
-    }
+    var searchKeyState: KeyState { KeyState(searchKeySource, ending: searchKeyEnding) }
 
     /// One search with the key as it is kept, to see that it works.
     func testSearch() {
@@ -486,6 +513,8 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var hiddenExtensions: [String: ScriptCommand.Problem] = [:]
     /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
     @Published private(set) var passwordsSaved: Set<String> = []
+    /// Their last 4 characters, where kept ("bundle/name" → "a1b2").
+    @Published private(set) var passwordEndings: [String: String] = [:]
     @Published private(set) var extensionError: String?
 
     /// Reads the folders again; `discover`: Spotlight looks for Raycast script folders first, in the background
@@ -507,6 +536,12 @@ final class SettingsModel: ObservableObject {
                     ? bundle.name + "/" + preference.name : nil
             }
         }) : []
+        passwordEndings = persists ? Dictionary(index.bundles.flatMap { bundle in
+            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
+                APIKeys.keyEnding(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
+                    .map { (bundle.name + "/" + preference.name, $0) }
+            }
+        }, uniquingKeysWith: { first, _ in first }) : [:]
         if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
     }
 
@@ -815,16 +850,12 @@ struct SettingsView: View {
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
     @State private var commandToDelete: Int?
-    /// The API key being typed (a saved key is never shown again: it stays in the keychain).
-    @State private var newKey = ""
-    /// The key field has the focus (`@config` opens the window there when a provider needs a key).
-    @FocusState private var focusedKey: Provider?
-    /// A provider whose key `@config` asked for while another is in use: its key field is shown under the provider's.
-    @State private var keyFor: Provider?
-    @State private var removingKey: Provider?
-    /// The web search key being typed (likewise).
-    @State private var newSearchKey = ""
-    @State private var removingSearchKey = false
+    /// The provider whose key row shows its paste field (Replace…, or `@config` opening Settings at the key).
+    @State private var editingKey: Provider?
+    /// The key sheet: a provider other than the one in use whose key `@config` or `@doctor` asked for.
+    @State private var keySheet: KeySheetRequest?
+    /// The web search key row's paste field.
+    @State private var editingSearchKey = false
     /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
@@ -842,8 +873,12 @@ struct SettingsView: View {
     static let pageKey = "settingsPage"
 
     /// `page`: shown as given and not remembered (the self-test's images); nil: the one shown last.
-    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil) {
+    /// The README images: the key sheet drawn over the page, for this provider (a real sheet isn't in a page's image).
+    private let keySheetShown: Provider?
+
+    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil, keySheetShown: Provider? = nil) {
         self.model = model
+        self.keySheetShown = keySheetShown
         if let inputTab { _inputTab = State(initialValue: inputTab) }
         remembersPage = page == nil
         _page = State(initialValue: page ?? UserDefaults.standard.string(forKey: Self.pageKey).flatMap(SettingsPage.init) ?? .general)
@@ -1237,6 +1272,7 @@ struct SettingsView: View {
                 PreferenceField(preference: preference, value: model.preference(bundle, preference),
                                 saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name),
                                 save: { model.setPreference(bundle, preference, $0) },
+                                ending: model.passwordEndings[bundle.name + "/" + preference.name],
                                 remove: { model.removePassword(bundle, preference) })
                 .padding(.leading, 28)
             }
@@ -1371,9 +1407,6 @@ struct SettingsView: View {
             } else {
                 apiKeySettings(model.config.provider)
             }
-            if let other = keyFor, other != model.config.provider, other.needsKey {
-                ProviderKeyField(model: model, provider: other, focus: $focusedKey)
-            }
             HStack {
                 Button(tr("测试连接", "Test Connection")) { model.runTest() }
                     .disabled(model.testStatus == .running)
@@ -1394,21 +1427,14 @@ struct SettingsView: View {
         if Command.webSearchOffered {
             // The key lives in the keychain, not in the config file: this works even when the file is broken.
             Section {
-                HStack {
-                    SecureField("API key", text: $newSearchKey,
-                                prompt: Text(tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key")))
-                        .onSubmit { saveSearchKey() }
-                    Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
-                    if model.searchKeySource == .keychain {
-                        Button(tr("删除密钥…", "Remove Key…")) { removingSearchKey = true }
-                            .alert(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
-                                   isPresented: $removingSearchKey) {
-                                Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
-                                Button(tr("删除", "Remove"), role: .destructive) { model.removeSearchKey() }
-                            }
-                    }
+                LabeledContent("API key") {
+                    KeyRowContent(state: model.searchKeyState, missing: tr("还没有 API key", "No API key yet"),
+                                  prompt: tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key"),
+                                  removeTitle: tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                  save: { model.saveSearchKey($0) },
+                                  remove: model.searchKeySource == .keychain ? { model.removeSearchKey() } : nil,
+                                  editing: $editingSearchKey)
                 }
-                Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
                 if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
                 HStack {
                     Button(tr("测试", "Test")) { model.testSearch() }
@@ -1747,6 +1773,20 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        settings.overlay {
+            if let keySheetShown {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    KeySheet(model: model, provider: keySheetShown) {}
+                        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
+                        .padding(.top, 70)
+                }
+            }
+        }
+    }
+
+    private var settings: some View {
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
@@ -1832,7 +1872,7 @@ struct SettingsView: View {
         .onChange(of: model.config.awsProfile) { model.save() }
         .onChange(of: model.config.provider) {
             customProviderModel = false
-            newKey = ""
+            editingKey = nil
             model.save()
         }
         .onChange(of: model.config.maxTokens) { model.save() }
@@ -1881,9 +1921,17 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
             page = .provider
-            model.reloadIfChanged()  // the provider @config just set
-            keyFor = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:))
-            DispatchQueue.main.async { focusedKey = keyFor }
+            model.reloadIfChanged()  // what @config just set
+            guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
+            // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page).
+            if provider == model.config.provider {
+                DispatchQueue.main.async { editingKey = provider }
+            } else if provider.needsKey {
+                keySheet = KeySheetRequest(provider: provider)
+            }
+        }
+        .sheet(item: $keySheet) { request in
+            KeySheet(model: model, provider: request.provider) { keySheet = nil }
         }
         .onDisappear { model.save() }
     }
@@ -2195,25 +2243,18 @@ struct SettingsView: View {
                       prompt: Text(tr("例如 ", "e.g. ") + Self.modelExample(provider)))
                 .onSubmit { model.save() }
         }
-        HStack {
-            SecureField("API key", text: $newKey, prompt: Text(tr("粘贴新的 API key", "Paste a new API key")))
-                .focused($focusedKey, equals: provider)
-                .onSubmit { saveKey(provider) }
-            Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
-            if model.keySources[provider] == .keychain {
-                // Removing is a choice of its own, asked again (Cancel is ⏎); an empty field never removes the key.
-                Button(tr("删除密钥…", "Remove Key…")) { removingKey = provider }
-                    .alert(tr("从钥匙串里删除 \(UIText.name(provider)) 的 API key？", "Remove the key for \(UIText.name(provider)) from the keychain?"),
-                           isPresented: Binding(get: { removingKey == provider }, set: { if !$0 { removingKey = nil } })) {
-                        Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
-                        Button(tr("删除", "Remove"), role: .destructive) { model.removeKey(provider) }
-                    } message: {
-                        Text(tr("删除后，要再粘贴一次 key 才能用 \(UIText.name(provider))。",
-                                "To use \(UIText.name(provider)) again, you'll have to paste the key again."))
-                    }
-            }
+        // Whether a key is set, in the row itself: with one, the paste field shows only after Replace….
+        LabeledContent("API key") {
+            KeyRowContent(state: model.keyState(provider), missing: tr("还没有 API key", "No API key yet"),
+                          prompt: tr("粘贴新的 API key", "Paste a new API key"),
+                          removeTitle: tr("从钥匙串里删除 \(UIText.name(provider)) 的 API key？",
+                                          "Remove the key for \(UIText.name(provider)) from the keychain?"),
+                          removeMessage: tr("删除后，要再粘贴一次 key 才能用 \(UIText.name(provider))。",
+                                            "To use \(UIText.name(provider)) again, you'll have to paste the key again."),
+                          save: { model.saveKey($0, for: provider) },
+                          remove: model.keySources[provider] == .keychain ? { model.removeKey(provider) } : nil,
+                          editing: Binding(get: { editingKey == provider }, set: { editingKey = $0 ? provider : nil }))
         }
-        Text(model.keyStatus(provider)).font(.caption).foregroundStyle(.secondary)
         if let error = model.keyError { Text(error).foregroundStyle(.red) }
         TextField(tr("Base URL", "Base URL"), text: providerBinding(provider, \.baseURL),
                   prompt: Text(ProviderSettings.defaults(for: provider).baseURL ?? ""))
@@ -2245,19 +2286,6 @@ struct SettingsView: View {
         settings.model = service.model
         model.setProviderSettings(settings, for: .openai)
         customProviderModel = true
-    }
-
-    /// ⏎ in an empty key field does nothing: an empty key would remove the one saved (that's 删除 / Remove).
-    private func saveKey(_ provider: Provider) {
-        guard !newKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        model.saveKey(newKey, for: provider)
-        newKey = ""
-    }
-
-    private func saveSearchKey() {
-        guard !newSearchKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        model.saveSearchKey(newSearchKey)
-        newSearchKey = ""
     }
 
     static func modelExample(_ provider: Provider) -> String {
@@ -2859,9 +2887,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
 enum SettingsImage {
     @MainActor
-    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, to url: URL,
+    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, keySheet: Provider? = nil, to url: URL,
                        appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
-        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)
@@ -2930,10 +2958,12 @@ private struct PreferenceField: View {
     /// A password: one is in the keychain.
     let saved: Bool
     let save: (String) -> Void
+    /// A saved password's last 4 characters, where kept.
+    var ending: String? = nil
     /// A password's Remove…, once confirmed.
     let remove: () -> Void
     @State private var text = ""
-    @State private var removing = false
+    @State private var editingPassword = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -2947,21 +2977,12 @@ private struct PreferenceField: View {
                 }
                 .labelsHidden().frame(maxWidth: 220)
             case .password:
-                HStack {
-                    SecureField("", text: $text, prompt: Text(saved ? tr("已存在钥匙串里", "Saved in the keychain") : tr("未设置", "Not set")))
-                        .labelsHidden().focused($focused)
-                        .onSubmit { commitPassword() }
-                        .onChange(of: focused) { if !focused { commitPassword() } }
-                        .frame(maxWidth: 220)
-                    if saved {
-                        Button(tr("移除…", "Remove…")) { removing = true }
-                            .alert(tr("从钥匙串里删除「\(preference.title)」？", "Remove “\(preference.title)” from the keychain?"),
-                                   isPresented: $removing) {
-                                Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
-                                Button(tr("删除", "Remove"), role: .destructive) { remove() }
-                            }
-                    }
-                }
+                // As an API key's row: whether it is saved, in the row; the field only after Replace… (or when not set).
+                KeyRowContent(state: saved ? .saved(ending: ending) : .missing, missing: tr("还没有设置", "Not set yet"),
+                              prompt: tr("粘贴", "Paste it"),
+                              removeTitle: tr("从钥匙串里删除「\(preference.title)」？", "Remove “\(preference.title)” from the keychain?"),
+                              save: save, remove: remove, editing: $editingPassword)
+                    .frame(maxWidth: 360)
             case .textfield:
                 TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
                     .labelsHidden().focused($focused)
@@ -2980,10 +3001,4 @@ private struct PreferenceField: View {
         }
     }
 
-    /// A password typed is saved (and the field emptied); an empty or blank field leaves the saved one alone.
-    private func commitPassword() {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        save(text)
-        text = ""
-    }
 }

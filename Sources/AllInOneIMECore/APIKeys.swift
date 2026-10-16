@@ -116,7 +116,7 @@ public enum APIKeys {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw EmptyKey() }
         defer { cache.forget(account) }
-        let status = store.write(account, key, label, host?.lowercased() ?? "")
+        let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key))
         guard status == errSecSuccess else {
             log.error("key not saved: \(account, privacy: .public) (\(status, privacy: .public))")
             throw KeychainError(status: status)
@@ -140,23 +140,47 @@ public enum APIKeys {
         if status == errSecSuccess { log.notice("key removed: \(account, privacy: .public)") }
     }
 
+    /// The last 4 characters of `key`, kept with it as an attribute (not secret) so that Settings can say which key is
+    /// saved ("ends in a1b2") without reading it; none for a key shorter than 12 characters.
+    public static func ending(of key: String) -> String? {
+        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        return key.count >= 12 ? String(key.suffix(4)) : nil
+    }
+
+    /// The ending kept with the key under `account` (`ending(of:)`), from its attributes: the key isn't read. Nil when
+    /// there is no key, or it was saved before endings were kept, or it is short.
+    public static func keyEnding(account: String, in store: Keychain = keychain) -> String? {
+        store.attributes(account)?.ending
+    }
+
     /// A save with nothing to save: an empty field is never a way to remove a key.
     public struct EmptyKey: Error, LocalizedError {
         public init() {}
         public var errorDescription: String? { "Nothing to save: the key is empty" }
     }
 
-    /// One item's attributes, never its key: when it was made and last changed, and its comment (the host it's for).
+    /// One item's attributes, never its key: when it was made and last changed, its comment (the host it's for) and
+    /// the key's last 4 characters (`ending(of:)`), kept in its generic attribute.
     public struct ItemAttributes: Equatable, Sendable {
         public var created: Date?
         public var modified: Date?
         public var comment: String?
+        public var ending: String?
 
-        public init(created: Date?, modified: Date?, comment: String?) {
+        public init(created: Date?, modified: Date?, comment: String?, ending: String? = nil) {
             self.created = created
             self.modified = modified
             self.comment = comment
+            self.ending = ending
         }
+    }
+
+    /// The generic attribute that holds a key's ending: "ends:a1b2" (empty: none).
+    static func endingAttribute(_ ending: String?) -> Data { Data((ending.map { "ends:" + $0 } ?? "").utf8) }
+    static func ending(fromAttribute data: Data?) -> String? {
+        guard let data, let text = String(data: data, encoding: .utf8), text.hasPrefix("ends:") else { return nil }
+        let ending = String(text.dropFirst(5))
+        return ending.count == 4 ? ending : nil
     }
 
     /// The calls `APIKeys` makes on its service's items, by account.
@@ -165,14 +189,14 @@ public enum APIKeys {
         public var attributes: @Sendable (_ account: String) -> ItemAttributes?
         /// The key itself (may make macOS ask for the login password).
         public var read: @Sendable (_ account: String) -> String?
-        /// Sets the key, its label and comment: in place when there is an item, else a new one.
-        public var write: @Sendable (_ account: String, _ key: String, _ label: String, _ comment: String) -> OSStatus
+        /// Sets the key, its label, comment and ending: in place when there is an item, else a new one.
+        public var write: @Sendable (_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?) -> OSStatus
         /// Sets the comment alone.
         public var setComment: @Sendable (_ account: String, _ comment: String) -> OSStatus
         public var delete: @Sendable (_ account: String) -> OSStatus
 
         public init(attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
-                    write: @escaping @Sendable (String, String, String, String) -> OSStatus,
+                    write: @escaping @Sendable (String, String, String, String, String?) -> OSStatus,
                     setComment: @escaping @Sendable (String, String) -> OSStatus, delete: @escaping @Sendable (String) -> OSStatus) {
             self.attributes = attributes
             self.read = read
@@ -192,7 +216,8 @@ public enum APIKeys {
                 else { return nil }
                 return ItemAttributes(created: found[kSecAttrCreationDate as String] as? Date,
                                       modified: found[kSecAttrModificationDate as String] as? Date,
-                                      comment: found[kSecAttrComment as String] as? String)
+                                      comment: found[kSecAttrComment as String] as? String,
+                                      ending: APIKeys.ending(fromAttribute: found[kSecAttrGeneric as String] as? Data))
             },
             read: { account in
                 var query = baseQuery(account: account)
@@ -202,9 +227,10 @@ public enum APIKeys {
                 guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
                 return String(data: data, encoding: .utf8)
             },
-            write: { account, key, label, comment in
+            write: { account, key, label, comment, ending in
                 let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
-                                             kSecAttrComment as String: comment]
+                                             kSecAttrComment as String: comment,
+                                             kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
                 let status = SecItemUpdate(baseQuery(account: account) as CFDictionary, values as CFDictionary)
                 guard status == errSecItemNotFound else { return status }
                 return SecItemAdd(baseQuery(account: account).merging(values) { $1 } as CFDictionary, nil)
@@ -218,20 +244,22 @@ public enum APIKeys {
         public static func inMemory() -> Keychain {
             final class Items: @unchecked Sendable {
                 let lock = NSLock()
-                var items: [String: (key: String, label: String, comment: String, created: Date, modified: Date)] = [:]
+                var items: [String: (key: String, label: String, comment: String, ending: String?, created: Date, modified: Date)] = [:]
             }
             let store = Items()
             return Keychain(
                 attributes: { account in
                     store.lock.withLock {
-                        store.items[account].map { ItemAttributes(created: $0.created, modified: $0.modified, comment: $0.comment) }
+                        store.items[account].map {
+                            ItemAttributes(created: $0.created, modified: $0.modified, comment: $0.comment, ending: $0.ending)
+                        }
                     }
                 },
                 read: { account in store.lock.withLock { store.items[account]?.key } },
-                write: { account, key, label, comment in
+                write: { account, key, label, comment, ending in
                     store.lock.withLock {
                         let now = Date()
-                        store.items[account] = (key, label, comment, store.items[account]?.created ?? now, now)
+                        store.items[account] = (key, label, comment, ending, store.items[account]?.created ?? now, now)
                     }
                     return errSecSuccess
                 },

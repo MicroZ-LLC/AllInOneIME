@@ -212,10 +212,10 @@ struct AIConfigTests {
         #expect(preview.edits == [.flag(.typeOut, true), .model(.anthropic, "claude-sonnet-5-5")] && preview.needsKey == .anthropic)
         #expect(!preview.edits.contains(.provider(.anthropic)) && !preview.rows.contains { $0.text(chinese: false).hasPrefix("AI provider") })
         #expect(preview.rows.last?.text(chinese: false)
-                == "Claude API needs an API key: ⏎ opens Settings to add it (never sent to the AI); once it's saved, choose it there")
+                == "Claude API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there")
         #expect(preview.rows.last?.edit == nil && preview.canApply)
         let zh = try self.preview(#"{"changes": [{"key": "provider", "value": "gemini"}]}"#, env: env(chinese: true)).get()
-        #expect(zh.rows.map { $0.text(chinese: true) } == ["Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），存好后在那里选它"])
+        #expect(zh.rows.map { $0.text(chinese: true) } == ["Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），可以在那里换过去"])
         #expect(zh.edits.isEmpty && zh.needsKey == .gemini)
         var applied = config
         AIConfig.apply(preview.edits, to: &applied)

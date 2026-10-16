@@ -200,7 +200,7 @@ extension SelfTest {
         _ = enter(controller, client)
         _ = waitForPreview()
         let keyless = controller.panelModel().rows.map(\.text)
-        check(keyless == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），存好后在那里选它"],
+        check(keyless == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），可以在那里换过去"],
               "a provider without a key: the row says it's needed, no switch shown (\(keyless))")
         _ = enter(controller, client)
         _ = pump(timeout: 2) { opened.count == 2 }
@@ -243,10 +243,12 @@ extension SelfTest {
         testKeyFieldsKeepKeys(snapshotDirectory: snapshotDirectory)
     }
 
-    /// A key field never removes a key. Settings is opened at a key field as `@config` opens it (the provider in use's,
-    /// and another's), ⏎ goes to the empty field, the focus moves on, the window closes: every key is still there. An
-    /// empty or blank save does nothing; only Remove Key…, confirmed (`removeKey`), removes one, and only that one. The
-    /// keys are in an in-memory keychain: the user's is never touched.
+    /// A key row never removes a key, and says whether there is one. Settings opened at the key of the provider in use
+    /// (as `@config` opens it) shows its paste field; ⏎ on it empty, the focus moved on and the window closed: every key
+    /// is still there. An empty or blank save does nothing; only Remove…, confirmed (`removeKey`), removes one, and only
+    /// that one. Another provider's key opens the key sheet instead (nothing of it on this page): Esc changes nothing,
+    /// Save keeps the key without switching, Save and Use switches and runs Test Connection. In an in-memory keychain:
+    /// the user's is never touched.
     static func testKeyFieldsKeepKeys(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("keyfields-config.json")
         let saved = (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys)
@@ -255,64 +257,118 @@ extension SelfTest {
         defer {
             (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys) = saved
             try? FileManager.default.removeItem(at: url)
-            _ = secureInputGoes()  // the key field's, if it had the focus
+            _ = secureInputGoes()  // a key field's, if it had the focus
         }
-        try? APIKeys.save("sk-selftest-gemini", for: .gemini)
-        try? APIKeys.save("sk-selftest-openai", for: .openai)
+        try? APIKeys.save("sk-selftest-gemini-0001", for: .gemini)
+        try? APIKeys.save("sk-selftest-openai-0002", for: .openai)
         AIConfigSession.keySource = { APIKeys.hasKeychainKey(account: $0.rawValue) ? .keychain : .none }
         SettingsModel.looksUpKeys = true
         var config = Config.default
         config.provider = .gemini
         try? config.write(to: url)
+        func provider() -> Provider { ((try? Config.load(from: url)) ?? .default).provider }
         let model = SettingsModel(configURL: url)
+        var tested = 0
+        model.testRunner = { tested += 1 }
         let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .provider)))
         window.setContentSize(NSSize(width: 880, height: 700))
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 2) { model.keySources[.gemini] == .keychain }
-        func keys() -> [String?] { [store.read("gemini"), store.read("openai")] }
-        let both: [String?] = ["sk-selftest-gemini", "sk-selftest-openai"]
-        func key(_ characters: String, _ code: UInt16) {
+        check(model.keyStatus(.gemini) == tr("✓ 已保存 · 结尾 0001", "✓ Saved · ends in 0001"),
+              "the row says the key is saved, with its last 4 characters (\(model.keyStatus(.gemini)))")
+        func keys() -> [String?] { [store.read("gemini"), store.read("openai"), store.read("anthropic")] }
+        let all: [String?] = ["sk-selftest-gemini-0001", "sk-selftest-openai-0002", nil]
+        /// A key pressed in `target`: its first responder gets it, or, as a key equivalent (Esc, ⌘⏎), the button that has it
+        /// (the window needn't be the key window: the self-test may not be the active app).
+        func key(_ characters: String, _ code: UInt16, _ flags: NSEvent.ModifierFlags = [], in target: NSWindow, equivalent: Bool = false) {
             for type in [NSEvent.EventType.keyDown, .keyUp] {
-                guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                                                   windowNumber: window.windowNumber, context: nil, characters: characters,
-                                                   charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code) else { continue }
-                window.sendEvent(event)
+                guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags,
+                                                   timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: target.windowNumber,
+                                                   context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                                                   isARepeat: false, keyCode: code) else { continue }
+                if !equivalent { target.sendEvent(event) } else if type == .keyDown { _ = target.performKeyEquivalent(with: event) }
             }
             _ = pump(timeout: 0.15) { false }
         }
-        // The provider in use's own field, then @config's field for another provider: ⏎ on it empty, Tab away.
-        var focused: [Provider] = []
-        for provider in [Provider.gemini, .openai] {
-            NotificationCenter.default.post(name: .allInOneIMEFocusAPIKey, object: nil, userInfo: ["provider": provider.rawValue])
-            _ = pump(timeout: 0.6) { false }
-            if window.firstResponder is NSText { focused.append(provider) }  // a field editor: the key field has the focus
-            key("\r", 0x24)
-            key("\t", 0x30)
+        func type(_ text: String, in target: NSWindow) {
+            for character in text { key(String(character), character == "-" ? 0x1B : keyCodes[character] ?? 0, in: target) }
         }
+        /// `@config` asking Settings for `provider`'s key: the sheet once it's up (another provider), else nil.
+        func ask(_ provider: Provider) -> NSWindow? {
+            NotificationCenter.default.post(name: .allInOneIMEFocusAPIKey, object: nil, userInfo: ["provider": provider.rawValue])
+            if provider == .gemini {  // the one in use: its own row
+                _ = pump(timeout: 1) { window.firstResponder is NSText }
+                return nil
+            }
+            _ = pump(timeout: 3) { window.attachedSheet != nil }
+            _ = pump(timeout: 0.5) { false }  // its field focused
+            return window.attachedSheet
+        }
+
+        // The provider in use: its own row, the paste field focused; ⏎ on it empty, then Tab away.
+        _ = ask(.gemini)
+        let focused = window.firstResponder is NSText  // a field editor: the paste field has the focus
+        key("\r", 0x24, in: window)
+        key("\t", 0x30, in: window)
+        check(focused && window.attachedSheet == nil && keys() == all,
+              "the key of the provider in use: its own row's paste field (focused: \(focused)); ⏎ on it empty removes nothing")
+
+        // Another provider: the sheet. ⏎ on it empty saves nothing; Esc closes it and changes nothing.
+        let sheet = ask(.openai)
+        check(sheet != nil && provider() == .gemini, "another provider's key opens the key sheet, the provider stays")
+        if let sheet {
+            key("\r", 0x24, in: sheet)
+            key("\u{1b}", 0x35, in: sheet, equivalent: true)
+            _ = pump(timeout: 2) { window.attachedSheet == nil }
+        }
+        check(sheet != nil && window.attachedSheet == nil && keys() == all && provider() == .gemini, "Esc closes the sheet and changes nothing")
+
+        // Save (⏎): the key kept, no switch.
+        let saving = ask(.anthropic)
+        if let saving {
+            type("sk-selftest-claude-0003", in: saving)
+            key("\r", 0x24, in: saving)
+            _ = pump(timeout: 2) { window.attachedSheet == nil }
+        }
+        check(saving != nil && window.attachedSheet == nil && store.read("anthropic") == "sk-selftest-claude-0003" && provider() == .gemini
+              && tested == 0, "Save keeps the key and doesn't switch (\(provider().rawValue))")
+
+        // Save and Use (⌘⏎): kept, switched to, Test Connection run.
+        let using = ask(.openai)
+        if let using {
+            type("sk-selftest-openai-0004", in: using)
+            key("\r", 0x24, .command, in: using, equivalent: true)
+            _ = pump(timeout: 2) { window.attachedSheet == nil }
+        }
+        check(using != nil && window.attachedSheet == nil && store.read("openai") == "sk-selftest-openai-0004" && provider() == .openai
+              && tested == 1, "Save and Use keeps the key, switches to it and runs Test Connection (\(provider().rawValue), \(tested))")
+        if let open = window.attachedSheet { window.endSheet(open) }  // whatever failed above: not left up
+
         window.close()
         _ = pump(timeout: 0.3) { false }
-        check(keys() == both, "Settings opened at a key field, ⏎ on it empty, the focus moved, the window closed: no key removed "
-              + "(focus reached \(focused.map(\.rawValue)))")
+        let now: [String?] = ["sk-selftest-gemini-0001", "sk-selftest-openai-0004", "sk-selftest-claude-0003"]
+        check(keys() == now, "closing the window removes no key")
         model.saveKey("", for: .gemini)
         model.saveKey("  \n", for: .gemini)
-        check(keys() == both, "an empty or blank key saved leaves the key there")
-        model.saveKey("sk-selftest-new", for: .gemini)
-        check(keys() == ["sk-selftest-new", "sk-selftest-openai"], "a key typed is saved in place")
+        check(keys() == now, "an empty or blank key saved leaves the key there")
         model.removeKey(.gemini)
-        check(keys() == [nil, "sk-selftest-openai"], "Remove Key…, confirmed, removes that key only")
+        check(keys() == [nil, "sk-selftest-openai-0004", "sk-selftest-claude-0003"], "Remove…, confirmed, removes that key only")
     }
 
-    /// Settings → AI Provider says where each key is, from the lookup `@config`'s checks and `@doctor`'s use too (a
-    /// stand-in here: the user's keychain is never asked): a key in the keychain is "Saved in the keychain", one in the
-    /// shell names its variable. The model is the real window's (it looks keys up), on a config of its own.
+    /// Settings → AI Provider says in each key's row whether it is set, from the lookup `@config`'s checks and `@doctor`'s
+    /// use too (a stand-in here: the user's keychain is never asked): a key in the keychain is "✓ Saved · ends in a1b2"
+    /// (its last 4 kept with it, not read), one in the shell names its variable, none is "No API key yet".
     static func testKeyStatus(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("keys-config.json")
-        let saved = (AIConfigSession.keySource, SettingsModel.looksUpKeys)
+        let saved = (AIConfigSession.keySource, SettingsModel.looksUpKeys, APIKeys.keychain)
         defer {
-            (AIConfigSession.keySource, SettingsModel.looksUpKeys) = saved
+            (AIConfigSession.keySource, SettingsModel.looksUpKeys, APIKeys.keychain) = saved
             try? FileManager.default.removeItem(at: url)
         }
+        // The keychain in memory: OpenAI's key saved (its last 4 kept), Claude's in the shell, Gemini's nowhere.
+        APIKeys.keychain = .inMemory()
+        try? APIKeys.save("sk-selftest-openai-a1b2", for: .openai)
         AIConfigSession.keySource = { $0 == .openai ? .keychain : $0 == .anthropic ? .environment("ANTHROPIC_API_KEY") : .none }
         SettingsModel.looksUpKeys = true
         try? Config.default.write(to: url)
@@ -320,8 +376,8 @@ extension SelfTest {
         model.refreshKeys()
         _ = pump(timeout: 3) { !model.keySources.isEmpty }
         let shown = [Provider.openai, .anthropic, .gemini].map(model.keyStatus)
-        check(shown == [tr("已保存在钥匙串里", "Saved in the keychain"), tr("使用 shell 里的 ANTHROPIC_API_KEY", "Using ANTHROPIC_API_KEY from your shell"),
-                        tr("还没有 API key", "No API key yet")], "Settings shows a saved key as saved (\(shown))")
+        check(shown == [tr("✓ 已保存 · 结尾 a1b2", "✓ Saved · ends in a1b2"), tr("✓ 来自 $ANTHROPIC_API_KEY", "✓ From $ANTHROPIC_API_KEY"),
+                        tr("还没有 API key", "No API key yet")], "Settings says in each key's row whether it is set (\(shown))")
         let keyed = AIConfigSession.providersWithKey(AIConfigSession.keySource)
         check(keyed == [.openai, .anthropic], "@config's and @doctor's checks see the same keys (\(keyed))")
     }

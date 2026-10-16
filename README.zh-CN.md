@@ -351,8 +351,8 @@ bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `co
 - **和设置里一样检查：** 不认识的语言、超过 5 种翻译语言、超出范围的值、找不到的 App、语言包没装的语言（「需要韩语语言包（在设置
   → 输入里下载）」）都按行拒绝；绝不会写出无效的配置。
 - **密钥：** 不会换到还没有密钥的服务（钥匙串和 shell 里都没有）：那一行写「Gemini API 需要 API key：⏎ 打开设置去填（不会发给
-  AI），存好后在那里选它」，应用时打开设置 → AI 服务里它的密钥输入框，别的行照常应用。有密钥就换过去，并自动测试连接，结果显示在
-  确认那一行下面。句子里打的密钥在发送前就去掉。
+  AI），可以在那里换过去」，应用时打开设置 → AI 服务，弹出填这个 key 的小窗（保存，或「保存并使用」换过去），别的行照常应用。
+  有密钥就换过去，并自动测试连接，结果显示在确认那一行下面。句子里打的密钥在发送前就去掉。
 - **先用本机：** 这台 Mac 有 Apple 智能（macOS 26）就用它，不管你选的是哪个服务、甚至还没设置好，只能回答允许的设置和值，还能查你的
   App、AWS profile 和语言包。没有的话用你选的服务。请求里只有允许改的设置和它们现在的值（没有密钥，也没有你要隐藏的词），隐藏敏感
   信息照常生效。
@@ -536,6 +536,7 @@ make install
 | 兼容 OpenAI 的服务 | OpenAI 的 `gpt-6-luna`（也可选 `gpt-5.4-mini`）；「常用服务…」里有 DeepSeek、通义千问、Kimi、智谱 GLM、硅基流动、OpenRouter、本机 Ollama，选了会填好 Base URL，再填它的模型 | 那个服务的 key；Base URL 填它的地址，比如 `https://api.deepseek.com/v1`，本机 Ollama 填 `http://localhost:11434/v1` |
 
 - API key 存在系统钥匙串里，不写进配置文件。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
+- API key 那一行直接写有没有 key：「✓ 已保存 · 结尾 a1b2」（最后 4 位，存 key 时一起记下，显示时不用读 key 本身），旁边是「替换…」「删除…」；用 shell 里的写「✓ 来自 $OPENAI_API_KEY」；没有就写「还没有 API key」，直接给出粘贴框。
 - 「思考」默认是 low：输入法每句话都在等，思考越少越快。模型不支持这个参数时选「不设置」。
 - 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
 - 配置文件里对应 `provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`），以及 `anthropic`、`gemini`、`openai` 各自的 `model`、`baseURL`、`effort`、`temperature`（不填就用默认值）。

@@ -412,10 +412,10 @@ cancels, and typing more then ⇧⏎ refines the proposal ("also German"; ⇧⏎
   it can't tell, or a language whose pack isn't installed ("needs the Korean language pack: download it in Settings →
   Input") is refused row by row; an invalid config is never written.
 - **Keys:** it never switches to a provider that has no key (none in the keychain or your shell): the row says "Gemini
-  API needs an API key: ⏎ opens Settings to add it (never sent to the AI); once it's saved, choose it there", and
-  applying opens Settings → AI Provider at that provider's key field, while the other rows still apply. With a key, the
-  provider switches, Test Connection runs and its result shows under the confirmation. A key typed into the sentence is
-  dropped before anything is sent.
+  API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there", and applying
+  opens Settings → AI Provider with a small sheet for that key (Save, or Save and Use to switch to it), while the other
+  rows still apply. With a key, the provider switches, Test Connection runs and its result shows under the confirmation.
+  A key typed into the sentence is dropped before anything is sent.
 - **On this Mac first:** it uses Apple Intelligence whenever this Mac has it (macOS 26), whatever provider you chose and
   even before one is set up, held to the allowed settings and values, with lookups for your apps, AWS profiles and
   language packs. Without it, your provider answers. The request holds only the allowed settings and their current
@@ -612,6 +612,7 @@ You don't need AWS: pick one under "AI Provider" in the settings, paste an API k
 | OpenAI-compatible | OpenAI's `gpt-6-luna` (or `gpt-5.4-mini`); "Common Services…" has DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter and Ollama on this Mac: picking one fills in its base URL, then enter its model | The service's key; set the Base URL to its address, e.g. `https://api.deepseek.com/v1`, or `http://localhost:11434/v1` for Ollama on this Mac |
 
 - API keys are kept in the system keychain, never in the config file. Without one there, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and `OPENAI_API_KEY` from your shell are used.
+- The API key row says whether a key is set: "✓ Saved · ends in a1b2" (its last 4 characters, kept with it so the key itself isn't read to show them) with Replace… and Remove…, "✓ From $OPENAI_API_KEY" for one in your shell, or "No API key yet" with the field to paste it.
 - "Thinking" is low by default: the input method waits on every sentence, and less thinking is faster. Choose "Not set" for models that don't take it.
 - With Claude Opus 5.5 or Sonnet 5.5 chosen, requests carry the Claude API's refusal fallback (`fallbacks: "default"`): when a safety classifier declines, the server retries on another model.
 - In the config file: `provider` (`"bedrock"`, `"anthropic"`, `"gemini"`, `"openai"`), and `model`, `baseURL`, `effort` and `temperature` under `anthropic`, `gemini` and `openai` (unset ones use the defaults).

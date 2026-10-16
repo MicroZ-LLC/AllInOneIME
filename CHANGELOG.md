@@ -21,7 +21,9 @@ English | [中文](CHANGELOG.zh-CN.md)
 - `@translate` no longer refines: type to edit the text and translate again (letters after its results continue the sentence, ⏎ translates it).
 - `@question` no longer makes up live information: asked about the weather, news, prices, scores or anything "today", it says it can't check live data and gives what general guidance it can.
 - Custom commands named `config` or `doctor` are now hidden by the built-in `@config` and `@doctor` (Settings → Custom Commands says so): rename them to keep using them.
-- Removing a saved key is a choice of its own: "Remove Key…" (and an extension password's "Remove…") asks first, with Cancel as the default (⏎); a key field left empty, submitted, closed or filled with spaces never removes a key. Saving and removing a key are logged (which key, never the key itself).
+- Removing a saved key is a choice of its own: "Remove…" asks first, with Cancel as the default (⏎); a key field left empty, submitted, closed or filled with spaces never removes a key. Saving and removing a key are logged (which key, never the key itself).
+- Every key row (AI provider keys, the web search key, extension passwords) says whether a key is set, in the row: "✓ Saved · ends in a1b2" (its last 4 characters, kept with it when saved, so showing them never reads the key; keys saved before show "✓ Saved") with Replace… and Remove…, "✓ From $OPENAI_API_KEY" for a key in your shell, or "No API key yet" in orange with the field to paste one. With a key saved, the paste field appears only after Replace…, so an empty field never stands for a saved key.
+- A key asked for another provider than the one in use (`@config`, `@doctor`) opens a small sheet on Settings → AI Provider: paste it, then Save, or Save and Use to switch to that provider (Test Connection follows); Cancel and Esc change nothing. Nothing about another provider is drawn on the current provider's page any more. `@config`'s row for a provider without a key now ends "you can switch to it there".
 
 ## 0.6.3 (2026-10-15)
 

@@ -171,6 +171,16 @@ enum SettingsPageImages {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
+        // provider: sample states, no keychain asked.
+        let provider = model.config.provider
+        model.showKeys([.openai: .keychain, .anthropic: .none, .gemini: .none], endings: [.openai: "a1b2"])
+        for (shown, sheet, name) in [(Provider.openai, nil, "key-saved"), (.gemini, nil, "key-missing"), (.bedrock, Provider.gemini, "key-sheet")] {
+            model.config.provider = shown
+            SettingsImage.render(model, page: .provider, keySheet: sheet, to: output.appendingPathComponent("settings-provider-\(name).png"),
+                                 appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        }
+        model.config.provider = provider
         // The Input page with each input language's tab picked.
         for language in model.config.inputLanguages {
             SettingsImage.render(model, page: .input, inputTab: language,

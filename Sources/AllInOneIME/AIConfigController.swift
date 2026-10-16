@@ -382,33 +382,3 @@ extension Provider {
     var needsKey: Bool { self == .anthropic || self == .gemini || self == .openai }
 }
 
-/// The key field of a provider other than the one in use, on Settings → AI Provider: `@config` opened it for that
-/// provider ("use Claude with my key"). Saved to the keychain as the provider's own field saves it.
-struct ProviderKeyField: View {
-    @ObservedObject var model: SettingsModel
-    let provider: Provider
-    var focus: FocusState<Provider?>.Binding
-    @State private var key = ""
-
-    var body: some View {
-        LabeledContent(tr("API key（\(UIText.name(provider))）", "API key (\(UIText.name(provider)))")) {
-            HStack {
-                SecureField("API key", text: $key, prompt: Text(tr("粘贴新的 API key", "Paste a new API key")))
-                    .focused(focus, equals: provider)
-                    .onSubmit(save)
-                Button(tr("保存", "Save"), action: save).disabled(key.isEmpty)
-            }
-        }
-        Text(model.keyStatus(provider)).font(.caption).foregroundStyle(.secondary)
-        // `@config` doesn't switch to a provider without a key, and saving one here doesn't either.
-        Text(tr("存好以后，在上面的「服务」里选 \(UIText.name(provider)) 就能用了。",
-                "Once it's saved, choose \(UIText.name(provider)) as the Provider above to use it."))
-            .font(.caption).foregroundStyle(.secondary)
-    }
-
-    private func save() {
-        guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        model.saveKey(key, for: provider)
-        key = ""
-    }
-}

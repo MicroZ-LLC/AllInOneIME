@@ -146,15 +146,15 @@ extension AIConfig {
             return provider == .hosted ? tr("\(name) 需要登录", "\(name) needs a sign-in")
                 : tr("\(name) 需要 API key", "\(name) needs an API key")
         }
-        /// What ⏎ does about it: Settings opens at the key field (the key never goes to the AI). `choose`: the provider
-        /// isn't switched to without a key, and Settings doesn't switch on a save, so the user picks it there.
+        /// What ⏎ does about it: Settings opens to add the key (it never goes to the AI). `choose`: the provider isn't
+        /// switched to without a key; Settings' key sheet can save it and switch ("Save and Use").
         public func addKey(_ provider: Provider, choose: Bool) -> String {
             if provider == .hosted {
                 return choose ? tr("⏎ 打开设置，在那里选它并登录", "⏎ opens Settings: choose it there and sign in")
                     : tr("⏎ 打开设置去登录", "⏎ opens Settings to sign in")
             }
             let add = tr("⏎ 打开设置去填（不会发给 AI）", "⏎ opens Settings to add it (never sent to the AI)")
-            return choose ? add + tr("，存好后在那里选它", "; once it's saved, choose it there") : add
+            return choose ? add + tr("，可以在那里换过去", "; you can switch to it there") : add
         }
         var notValid: String { tr("不是有效的值", "not a valid value") }
         /// A value that looks like a key: refused, never quoted.
