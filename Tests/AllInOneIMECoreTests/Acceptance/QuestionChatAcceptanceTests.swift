@@ -157,7 +157,8 @@ final class QCRig {
     private let commands: [Command]
     private let selection: Composer.Selection?
     private let english: Bool
-    let claudeInstalled: Bool
+    /// The programs on this Mac ("claude", "gemini", "kiro-cli", a custom agent's): which agents are installed.
+    let programs: Set<String>
 
     /// Secure input on: the composer is told, and requests are refused as the controller refuses them.
     var secure = false { didSet { let on = secure; composer.secureInputActive = { on } } }
@@ -171,14 +172,17 @@ final class QCRig {
     private(set) var replaced: [String] = []
     private(set) var copied: [String] = []
     private(set) var opened: [URL] = []
-    private(set) var claudeCode: [String] = []
+    /// The agents started in Terminal with the conversation, in order (Claude Code by either effect).
+    private(set) var launched: [(agent: AgentKind, prompt: String)] = []
+    /// What Claude Code was started with.
+    var claudeCode: [String] { launched.filter { $0.agent == .claude }.map(\.prompt) }
     private(set) var notices: [String] = []
     private(set) var updates: [ConversionUpdate] = []
 
     static let secureMessage = "Secure input is on: nothing was sent"
 
     init(actionKey: ActionKey = .enter, english: Bool = true, selection: Composer.Selection? = nil,
-         commands: [Command] = Command.builtins, claudeInstalled: Bool = true, history: QuestionHistory? = nil,
+         commands: [Command] = Command.builtins, programs: Set<String> = ["claude"], history: QuestionHistory? = nil,
          historyJSON: String? = nil, configure: (inout Config) -> Void = { _ in }) {
         host = "qchat-\(UUID().uuidString.lowercased()).test"
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("qchat-acceptance-\(UUID().uuidString)")
@@ -198,7 +202,7 @@ final class QCRig {
         self.commands = commands
         self.selection = selection
         self.english = english
-        self.claudeInstalled = claudeInstalled
+        self.programs = programs
         composer = Composer(engine: engine, actionKey: actionKey)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         if let history { try? history.write(to: historyURL) }
@@ -213,8 +217,15 @@ final class QCRig {
         if let selection { composer.readSelection = { selection } }
         if english { composer.setInputMode(.english) }
         composer.questionRounds = config.questionRounds
-        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, claudeCode: claudeInstalled)
+        // As the controller does: the choices from the config and the agents whose program is here, @agent's first; a
+        // custom agent named by its program once it has a command.
+        let config = self.config, programs = self.programs
+        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: {
+            ChatHandoff.installed($0, in: config, program: programs.contains)
+        })
         composer.chatMessages = .english
+        composer.messages.agentNames = AgentKind.custom.program(custom: config.agentCommand) == nil
+            ? [:] : [.custom: AgentKind.custom.displayName(custom: config.agentCommand)]
         let on = secure
         composer.secureInputActive = { on }
         let refusal = noAI
@@ -335,7 +346,8 @@ final class QCRig {
             case let .replaceSelection(text, _): replaced.append(text)
             case let .copy(text): copied.append(text)
             case let .openLink(url): opened.append(url)
-            case let .continueInClaudeCode(prompt): claudeCode.append(prompt)
+            case let .continueInClaudeCode(prompt): launched.append((.claude, prompt))
+            case let .continueInAgent(agent, prompt): launched.append((agent, prompt))
             case let .notice(text): notices.append(text)
             default: break
             }
@@ -364,14 +376,21 @@ final class QCRig {
     }
 }
 
-/// Effects that touch the text field or hand the conversation over.
+/// Effects that touch the text field, hand the conversation over or start anything in Terminal.
 func qcLeavesThePanel(_ effects: [Composer.Effect]) -> [Composer.Effect] {
     effects.filter {
         switch $0 {
-        case .commit, .replaceSelection, .typeOut, .copy, .openLink, .continueInClaudeCode, .cancelConversion: return true
+        case .commit, .replaceSelection, .typeOut, .copy, .openLink, .cancelConversion: return true
+        case .continueInClaudeCode, .continueInAgent, .runInTerminal, .launchInTerminal, .startBackgroundAgent: return true
         default: return false
         }
     }
+}
+
+/// ⌘ and the number of `destination` among the choices shown (⌘1 the first).
+func qcCommandKey(for destination: ChatHandoff.Destination, in rig: QCRig) throws -> KeyEvent {
+    let index = try #require(rig.c.handoffChoices.firstIndex(of: destination), "\(destination) not in \(rig.c.handoffChoices)")
+    return KeyEvent(keyCode: 0x12, characters: String(index + 1), charactersIgnoringModifiers: String(index + 1), modifiers: .command)
 }
 
 /// The answer the stub gives to `question` (sent as is).
@@ -821,15 +840,17 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.requestCount == 5)
     }
 
-    /// Coordinator (after review): ⇧⏎ with text at the round limit only shows the choices: nothing is launched, opened
-    /// or copied, the text stays for the hand-off, and ⌘1–⌘5 is needed to pick where it goes.
+    /// Coordinator (after review, unchanged by the agent hand-off): ⇧⏎ with text at the round limit only shows the
+    /// choices: no agent is started, nothing opened or copied, the text stays for the hand-off, and ⌘1–⌘9 is needed to
+    /// pick where it goes.
     @Test func limit_shiftReturnWithTextAtTheLimitOnlyShowsTheChoices() async throws {
-        let rig = QCRig()  // the default choices: Claude Code first
+        // The default choices with two agents installed: @agent's (Claude Code by default) on ⌘1, then Gemini CLI.
+        let rig = QCRig(programs: ["claude", "gemini"])
         await rig.converse(5)
         await rig.type("tell me more")
         let out = await rig.key(qcShiftReturn)
         #expect(qcLeavesThePanel(out).isEmpty, "⇧⏎ at the limit did: \(qcLeavesThePanel(out))")
-        #expect(rig.claudeCode.isEmpty && rig.opened.isEmpty && rig.copied.isEmpty, "⇧⏎ at the limit launched a hand-off")
+        #expect(rig.launched.isEmpty && rig.opened.isEmpty && rig.copied.isEmpty, "⇧⏎ at the limit launched a hand-off")
         #expect(rig.requestCount == 5 && rig.committed.isEmpty)
         #expect(rig.c.isQuestionChat && rig.c.showsHandoff, "the choices should be shown")
         #expect(rig.c.refineText == "tell me more", "the text typed should stay, for the hand-off")
@@ -893,30 +914,39 @@ struct QuestionChatAcceptanceTests {
         config.questionContinueIn = [.gemini, .copy]
         let back = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
         #expect(back.questionRounds == 3 && back.questionContinueIn == [.gemini, .copy])
-        // The names in the spec.
-        let names = try decoded(#"{"questionContinueIn": ["claudeCode","claudeWeb","chatgpt","gemini","copy"]}"#)
-        #expect(names.questionContinueIn == [.claudeCode, .claudeWeb, .chatgpt, .gemini, .copy])
+        // The names in the spec, the agents' too, in the order written; a name this version doesn't know is left out.
+        let names = try decoded(#"{"questionContinueIn": ["kiroCLI","claudeCode","geminiCLI","customAgent","claudeWeb","chatgpt","gemini","copy"]}"#)
+        #expect(names.questionContinueIn == [.kiroCLI, .claudeCode, .geminiCLI, .customAgent, .claudeWeb, .chatgpt, .gemini, .copy])
+        #expect(try decoded(#"{"questionContinueIn": ["geminiCLI","someFutureAgent","copy"]}"#).questionContinueIn == [.geminiCLI, .copy])
+        config.questionContinueIn = [.customAgent, .kiroCLI, .geminiCLI, .claudeCode]
+        let agents = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
+        #expect(agents.questionContinueIn == [.customAgent, .kiroCLI, .geminiCLI, .claudeCode])
+        // `claudeCode` is Claude Code, whatever @agent hands to.
+        var gemini = try decoded(#"{"agent": "gemini", "questionContinueIn": ["claudeCode"]}"#)
+        #expect(gemini.agent == .gemini && gemini.questionContinueIn == [.claudeCode])
+        gemini = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(gemini))
+        #expect(gemini.agent == .gemini && gemini.questionContinueIn == [.claudeCode])
     }
 
     // MARK: Continuing elsewhere
 
-    /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here); ⌘1–⌘5 pick one while they're shown; digits still
+    /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here); ⌘1–⌘9 pick one while they're shown; digits still
     /// pick answers; Esc hides them.
     @Test func handoff_commandReturnOpensTheChoicesAtAnyRound() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
         #expect(!rig.c.showsHandoff)
-        // ⌘1 before they are shown does nothing of the hand-off.
-        await rig.key(qcCommandDigit(4))
-        #expect(rig.copied.isEmpty && rig.opened.isEmpty && rig.claudeCode.isEmpty)
+        // ⌘ and a number before they are shown does nothing of the hand-off.
+        for n in 1...9 { await rig.key(qcCommandDigit(n)) }
+        #expect(rig.copied.isEmpty && rig.opened.isEmpty && rig.launched.isEmpty && rig.c.isQuestionChat)
         await rig.key(qcCommandReturn)
         #expect(rig.c.showsHandoff && rig.requestCount == 1 && rig.committed.isEmpty)
-        #expect(rig.c.handoffChoices == [.claudeCode, .claudeWeb, .chatgpt, .copy])
+        #expect(rig.c.handoffChoices.contains(.copy))
         await rig.key(escKey)
         #expect(!rig.c.showsHandoff && rig.c.isQuestionChat)
         await rig.key(qcCommandReturn)
-        // ⌘4: Copy, the 4th choice.
-        await rig.key(qcCommandDigit(4))
+        // Copy, by its number among the choices.
+        await rig.key(try qcCommandKey(for: .copy, in: rig))
         #expect(rig.copied.count == 1 && rig.committed.isEmpty && !rig.c.isComposing)
 
         // A digit with the choices shown still picks an answer.
@@ -955,16 +985,20 @@ struct QuestionChatAcceptanceTests {
         #expect(later.c.isQuestionChat)
         _ = later.c.receive(ConversionResult(versions: [CandidateLine("A2", isComplete: true)]), isFinal: true, id: id)
         #expect(later.c.chatRound == 2 && later.c.chatRounds.map(\.answer) == [qcAnswer("q1"), "A2"])
-        #expect(later.committed.isEmpty && later.claudeCode.isEmpty && later.opened.isEmpty)
+        #expect(later.committed.isEmpty && later.launched.isEmpty && later.opened.isEmpty)
     }
 
     /// Coordinator (after review): a question about a selection hands off without the `<selected_text>` tags: the
     /// question's line is the question alone, and the selection is a block of its own (once, before the answer). The
-    /// selection in the field is left as it is.
+    /// selection in the field is left as it is. The same for every agent and the web.
     @Test func handoff_aSelectionIsItsOwnBlockWithoutTags() async throws {
         let selected = "Error 404 at the users page"
-        for destination in [ChatHandoff.Destination.copy, .claudeCode, .claudeWeb] {
-            let rig = QCRig(selection: Composer.Selection(text: selected, range: 0..<27)) { $0.questionContinueIn = [destination] }
+        for destination in [ChatHandoff.Destination.copy, .claudeCode, .geminiCLI, .kiroCLI, .customAgent, .claudeWeb] {
+            let rig = QCRig(selection: Composer.Selection(text: selected, range: 0..<27),
+                            programs: ["claude", "gemini", "kiro-cli", "muse"]) {
+                $0.questionContinueIn = [destination]
+                $0.agentCommand = ["muse", "--"]
+            }
             QCStubProtocol.enqueue(rig.host, .answer("The page wasn't found."))
             await rig.pick("q")
             await rig.type("what does this mean")
@@ -975,7 +1009,10 @@ struct QuestionChatAcceptanceTests {
             let text: String
             switch destination {
             case .copy: text = try #require(rig.copied.first, "\(destination)")
-            case .claudeCode: text = try #require(rig.claudeCode.first, "\(destination)")
+            case .claudeCode, .geminiCLI, .kiroCLI, .customAgent:
+                let launch = try #require(rig.launched.first, "\(destination)")
+                #expect(rig.launched.count == 1 && launch.agent == destination.agent, "\(destination): started \(launch.agent)")
+                text = launch.prompt
             default:
                 let url = try #require(rig.opened.first, "\(destination)")
                 text = try #require(url.absoluteString.components(separatedBy: "?q=").last?.removingPercentEncoding)
@@ -1088,42 +1125,199 @@ struct QuestionChatAcceptanceTests {
         }
     }
 
-    /// Coordinator: by default the choices are Claude Code (if installed), Claude on the web, ChatGPT and Copy; Gemini is
-    /// opt-in; Claude Code is never offered when it isn't installed.
-    @Test func handoff_theChoicesClaudeCodeOnlyWhenInstalledAndGeminiOptIn() async throws {
-        #expect(ChatHandoff.defaultChoices(claudeCode: true) == [.claudeCode, .claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.defaultChoices(claudeCode: false) == [.claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.choices(nil, claudeCode: true) == [.claudeCode, .claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.choices(nil, claudeCode: false) == [.claudeWeb, .chatgpt, .copy])
-        #expect(ChatHandoff.choices([.gemini, .claudeCode, .copy], claudeCode: false) == [.gemini, .copy])
-        #expect(ChatHandoff.choices([.chatgpt, .claudeCode], claudeCode: true) == [.chatgpt, .claudeCode])
-        #expect(Config.default.questionContinueIn == nil)
+    /// Every agent's program, and the names of the agents a note may name.
+    static let allPrograms: Set<String> = ["claude", "gemini", "kiro-cli", "muse"]
+    static let agentNames = ["Claude Code", "Gemini CLI", "Kiro CLI", "muse"]
+    static let web: [ChatHandoff.Destination] = [.claudeWeb, .chatgpt, .copy]
 
-        // In the panel: without Claude Code, ⌘1 is Claude on the web, and no Terminal is started.
-        let rig = QCRig(claudeInstalled: false)
-        await rig.ask("what is rust")
-        await rig.key(qcCommandReturn)
-        #expect(!rig.c.handoffChoices.contains(.claudeCode) && !rig.c.handoffChoices.contains(.gemini))
-        await rig.key(qcCommandDigit(1))
-        #expect(rig.claudeCode.isEmpty && rig.opened.first?.host == "claude.ai")
+    /// The choices for `picked` with the agents whose programs are `programs` (a custom agent's command: "muse --").
+    func choices(_ configured: [ChatHandoff.Destination]? = nil, picked: AgentKind, programs: Set<String>,
+                 agentCommand: [String] = ["muse", "--"]) -> [ChatHandoff.Destination] {
+        var config = Config.default
+        config.agent = picked
+        config.agentCommand = agentCommand
+        let fixed = config
+        return ChatHandoff.choices(configured, picked: picked, installed: { ChatHandoff.installed($0, in: fixed, program: programs.contains) })
     }
 
-    /// Coordinator: during secure input, and in an app with no AI, the hand-off is refused (nothing opened or started,
-    /// the conversation still up), except Copy.
+    /// The agent hand-off (spec change, 2026-10-16): by default @agent's agent first (⌘1), then every other installed
+    /// agent in the order Claude Code, Gemini CLI, Kiro CLI, the custom one, then Claude on the web, ChatGPT and Copy.
+    /// Gemini on the web stays opt-in.
+    @Test func handoff_theDefaultChoicesPickedAgentFirstThenTheOtherInstalledAgentsThenTheWeb() async throws {
+        #expect(Config.default.questionContinueIn == nil && Config.default.agent == .claude)
+        let all = Self.allPrograms
+        #expect(choices(picked: .claude, programs: all) == [.claudeCode, .geminiCLI, .kiroCLI, .customAgent] + Self.web)
+        #expect(choices(picked: .gemini, programs: all) == [.geminiCLI, .claudeCode, .kiroCLI, .customAgent] + Self.web)
+        #expect(choices(picked: .kiro, programs: all) == [.kiroCLI, .claudeCode, .geminiCLI, .customAgent] + Self.web)
+        #expect(choices(picked: .custom, programs: all) == [.customAgent, .claudeCode, .geminiCLI, .kiroCLI] + Self.web)
+        #expect(choices(picked: .claude, programs: ["claude"]) == [.claudeCode] + Self.web)
+        #expect(choices(picked: .claude, programs: []) == Self.web)
+        #expect(!choices(picked: .gemini, programs: all).contains(.gemini), "Gemini on the web is opt-in")
+        // The same through the defaults themselves.
+        #expect(ChatHandoff.defaultChoices(picked: .kiro, installed: { $0 == .kiro || $0 == .claude }) == [.kiroCLI, .claudeCode] + Self.web)
+        #expect(ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false }) == Self.web)
+
+        // In the panel: @agent hands to Gemini CLI, Claude Code is installed too.
+        let rig = QCRig(programs: ["claude", "gemini"]) { $0.agent = .gemini }
+        await rig.ask("what is rust")
+        await rig.key(qcCommandReturn)
+        #expect(rig.c.handoffChoices == [.geminiCLI, .claudeCode] + Self.web)
+        await rig.key(qcCommandDigit(1))
+        #expect(rig.launched.map(\.agent) == [.gemini], "⌘1 started \(rig.launched.map(\.agent))")
+    }
+
+    /// The agent hand-off: another agent (Gemini CLI, Kiro CLI, a custom one) gets the conversation as Claude Code does,
+    /// started as @agent starts it, and the note names the agent it opened.
+    @Test func handoff_anotherAgentGetsTheConversationAndTheNoteNamesIt() async throws {
+        for (agent, name) in [(AgentKind.gemini, "Gemini CLI"), (.kiro, "Kiro CLI"), (.custom, "muse")] {
+            let rig = QCRig(programs: Self.allPrograms) {
+                $0.agent = agent
+                $0.agentCommand = ["muse", "--"]
+            }
+            await rig.converse(2)
+            await rig.key(qcCommandReturn)
+            await rig.type("and then")
+            #expect(rig.c.handoffChoices.first == ChatHandoff.Destination(agent: agent))
+            await rig.key(qcCommandDigit(1))
+            let launch = try #require(rig.launched.first, "\(agent): nothing started")
+            #expect(rig.launched.count == 1 && launch.agent == agent, "\(agent): started \(rig.launched.map(\.agent))")
+            #expect(rig.claudeCode.isEmpty, "\(agent): Claude Code was started instead")
+            let prompt = launch.prompt
+            #expect(prompt.contains("**Q:** q1") && prompt.contains("**A:** " + qcAnswer("q2")), "\(agent): \(prompt)")
+            #expect(prompt.contains("Let's continue this discussion") && prompt.hasSuffix("and then"), "\(agent): \(prompt)")
+            #expect(rig.committed.isEmpty && rig.opened.isEmpty && rig.copied.isEmpty && !rig.c.isComposing)
+            // The note: this agent, by name, and no other.
+            let note = try #require(rig.notices.last, "\(agent): no note")
+            #expect(note.contains(name), "\(agent): the note is \(note)")
+            for other in Self.agentNames where other != name { #expect(!note.contains(other), "\(agent): the note is \(note)") }
+        }
+    }
+
+    /// The agent hand-off: `claudeCode` is Claude Code, also while @agent hands to another agent (⌘2 here, or first in
+    /// a configured list), and its note says Claude Code.
+    @Test func handoff_claudeCodeMeansClaudeCodeWhileAnotherAgentIsPicked() async throws {
+        let rig = QCRig(programs: ["claude", "gemini"]) { $0.agent = .gemini }
+        await rig.ask("what is rust")
+        await rig.key(qcCommandReturn)
+        await rig.key(try qcCommandKey(for: .claudeCode, in: rig))
+        #expect(rig.launched.map(\.agent) == [.claude], "started \(rig.launched.map(\.agent))")
+        let note = try #require(rig.notices.last)
+        #expect(note.contains("Claude Code") && !note.contains("Gemini"), "the note is \(note)")
+
+        let configured = QCRig(programs: ["claude", "kiro-cli"]) {
+            $0.agent = .kiro
+            $0.questionContinueIn = [.claudeCode, .copy]
+        }
+        await configured.ask("what is rust")
+        await configured.key(qcCommandReturn)
+        #expect(configured.c.handoffChoices == [.claudeCode, .copy])
+        await configured.key(qcCommandDigit(1))
+        #expect(configured.launched.map(\.agent) == [.claude], "started \(configured.launched.map(\.agent))")
+    }
+
+    /// The agent hand-off: a list configured in Settings keeps its own order (@agent's agent isn't moved first), each
+    /// choice once.
+    @Test func handoff_aConfiguredListKeepsItsOrder() async throws {
+        let all = Self.allPrograms
+        #expect(choices([.copy, .chatgpt, .kiroCLI, .claudeCode], picked: .gemini, programs: all) == [.copy, .chatgpt, .kiroCLI, .claudeCode])
+        #expect(choices([.customAgent, .gemini, .geminiCLI, .claudeWeb], picked: .claude, programs: all)
+                == [.customAgent, .gemini, .geminiCLI, .claudeWeb])
+        #expect(choices([.chatgpt, .kiroCLI, .chatgpt, .kiroCLI], picked: .kiro, programs: all) == [.chatgpt, .kiroCLI])
+
+        let rig = QCRig(programs: all) {
+            $0.agent = .gemini
+            $0.questionContinueIn = [.copy, .chatgpt, .kiroCLI, .claudeCode]
+        }
+        await rig.ask("what is rust")
+        await rig.key(qcCommandReturn)
+        #expect(rig.c.handoffChoices == [.copy, .chatgpt, .kiroCLI, .claudeCode])
+        await rig.key(qcCommandDigit(3))
+        #expect(rig.launched.map(\.agent) == [.kiro], "⌘3 started \(rig.launched.map(\.agent))")
+    }
+
+    /// The agent hand-off: an agent that isn't installed is never offered, configured or not, nor @agent's own; Claude
+    /// Code doesn't stand in for it. A custom agent without a command isn't installed.
+    @Test func handoff_agentsThatArentInstalledStayHidden() async throws {
+        // Configured: only those installed, in their order; nothing put in the place of the others.
+        #expect(choices([.geminiCLI, .kiroCLI, .customAgent, .claudeCode, .copy], picked: .claude, programs: ["kiro-cli"]) == [.kiroCLI, .copy])
+        #expect(choices([.geminiCLI, .copy], picked: .gemini, programs: ["claude"]) == [.copy])
+        #expect(choices([.geminiCLI], picked: .gemini, programs: ["claude"]) == [.copy], "never no choice at all")
+        // By default: @agent's agent missing is left out, the others installed stay in their order.
+        #expect(choices(picked: .gemini, programs: ["claude", "kiro-cli"]) == [.claudeCode, .kiroCLI] + Self.web)
+        #expect(choices(picked: .gemini, programs: []) == Self.web)
+        // A custom agent: with no command, not offered even when it's picked.
+        #expect(choices(picked: .custom, programs: Self.allPrograms, agentCommand: []) == [.claudeCode, .geminiCLI, .kiroCLI] + Self.web)
+        #expect(choices([.customAgent, .copy], picked: .claude, programs: Self.allPrograms, agentCommand: []) == [.copy])
+        // Its program not here: not offered either.
+        #expect(choices(picked: .custom, programs: ["claude"]) == [.claudeCode] + Self.web)
+
+        // In the panel: Gemini CLI picked but missing; ⌘1 is the first installed (Claude Code), and nothing starts Gemini.
+        let rig = QCRig(programs: ["claude"]) { $0.agent = .gemini }
+        await rig.ask("what is rust")
+        await rig.key(qcCommandReturn)
+        #expect(rig.c.handoffChoices == [.claudeCode] + Self.web)
+        for agent in [ChatHandoff.Destination.geminiCLI, .kiroCLI, .customAgent] { #expect(!rig.c.handoffChoices.contains(agent)) }
+        await rig.key(qcCommandDigit(1))
+        #expect(rig.launched.map(\.agent) == [.claude])
+        // And nothing installed: ⌘1 is Claude on the web, no Terminal.
+        let none = QCRig(programs: [])
+        await none.ask("what is rust")
+        await none.key(qcCommandReturn)
+        #expect(none.c.handoffChoices == Self.web)
+        await none.key(qcCommandDigit(1))
+        #expect(none.launched.isEmpty && none.opened.first?.host == "claude.ai")
+    }
+
+    /// The agent hand-off: with more than 5 choices ⌘6–⌘9 pick them too; a number past the last does nothing.
+    @Test func handoff_commandSixToNinePickTheLaterChoices() async throws {
+        let eight: [ChatHandoff.Destination] = [.claudeCode, .geminiCLI, .kiroCLI, .customAgent, .claudeWeb, .chatgpt, .gemini, .copy]
+        func shown(_ list: [ChatHandoff.Destination]? = nil) async -> QCRig {
+            let rig = QCRig(programs: Self.allPrograms) {
+                $0.questionContinueIn = list
+                $0.agentCommand = ["muse", "--"]
+            }
+            await rig.ask("what is rust")
+            await rig.key(qcCommandReturn)
+            return rig
+        }
+        // The default list with every agent installed: 7 choices; ⌘6 ChatGPT, ⌘7 Copy.
+        let six = await shown()
+        #expect(six.c.handoffChoices.count == 7)
+        await six.key(qcCommandDigit(6))
+        #expect(six.opened.first?.host == "chatgpt.com", "⌘6: \(six.opened)")
+        let seven = await shown()
+        await seven.key(qcCommandDigit(7))
+        #expect(seven.copied.count == 1 && seven.opened.isEmpty, "⌘7: \(seven.copied)")
+        // All eight: ⌘7 Gemini on the web, ⌘8 Copy, ⌘9 nothing.
+        let gemini = await shown(eight)
+        #expect(gemini.c.handoffChoices == eight)
+        await gemini.key(qcCommandDigit(7))
+        #expect(gemini.opened.first?.absoluteString == "https://gemini.google.com/app", "⌘7: \(gemini.opened)")
+        let copy = await shown(eight)
+        await copy.key(qcCommandDigit(8))
+        #expect(copy.copied.count == 1 && copy.opened.isEmpty && copy.launched.isEmpty, "⌘8")
+        let nine = await shown(eight)
+        let out = await nine.key(qcCommandDigit(9))
+        #expect(qcLeavesThePanel(out).isEmpty && nine.c.isQuestionChat && nine.c.showsHandoff, "⌘9 with 8 choices: \(out)")
+    }
+
+    /// Coordinator: during secure input, and in an app with no AI, the hand-off is refused (no agent started, nothing
+    /// opened, the conversation still up), except Copy.
     @Test func handoff_refusedInSecureInputAndNoAIAppsExceptCopy() async throws {
         for refusal in ["secure", "noAI"] {
-            let rig = QCRig()
+            let rig = QCRig(programs: Self.allPrograms) { $0.agentCommand = ["muse", "--"] }
             await rig.converse(2)
             if refusal == "secure" { rig.secure = true } else { rig.noAI = "No AI in this app" }
             await rig.key(qcCommandReturn)
-            for n in 1...3 {
-                await rig.key(qcCommandDigit(n))
-                #expect(rig.opened.isEmpty && rig.claudeCode.isEmpty && rig.copied.isEmpty, "\(refusal) ⌘\(n)")
-                #expect(rig.c.isQuestionChat && rig.committed.isEmpty, "\(refusal) ⌘\(n): the conversation should stay up")
+            #expect(rig.c.handoffChoices.count == 7, "\(refusal): \(rig.c.handoffChoices)")
+            for destination in rig.c.handoffChoices where destination != .copy {
+                await rig.key(try qcCommandKey(for: destination, in: rig))
+                #expect(rig.opened.isEmpty && rig.launched.isEmpty && rig.copied.isEmpty, "\(refusal) \(destination)")
+                #expect(rig.c.isQuestionChat && rig.committed.isEmpty, "\(refusal) \(destination): the conversation should stay up")
+                if !rig.c.showsHandoff { await rig.key(qcCommandReturn) }
             }
             #expect(!rig.notices.isEmpty, "\(refusal): nothing said")
-            if !rig.c.showsHandoff { await rig.key(qcCommandReturn) }
-            await rig.key(qcCommandDigit(4))  // Copy
+            await rig.key(try qcCommandKey(for: .copy, in: rig))
             #expect(rig.copied.count == 1 && rig.copied.first?.contains(qcAnswer("q2")) == true, "\(refusal): copy")
             #expect(rig.requestCount == 2)
         }
