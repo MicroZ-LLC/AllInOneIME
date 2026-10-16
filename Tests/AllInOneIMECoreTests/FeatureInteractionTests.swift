@@ -122,7 +122,7 @@ extension RefineTests {
         let (c, _) = results()
         c.aiRefusal = { "No AI in this app" }
         _ = type("shorter", c)
-        #expect(c.handleKeyDown(enterKey).effects == [.showPanel])
+        #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel])
         #expect(!c.isRefining && c.phase == .choosing && c.refineError == "No AI in this app" && c.refineText == "shorter")
         #expect(c.result == first && c.refineHistory.isEmpty)
     }
@@ -138,7 +138,7 @@ extension ComposerTests {
         #expect(requests(c.handleKeyDown(k("3")).effects).isEmpty && c.showsSavedAnswer)
         let again = c.handleKeyDown(k("r")).effects
         #expect(requests(again).isEmpty && again.contains(.notice("No AI in this app")))
-        #expect(c.showsSavedAnswer && c.choices.map(\.text) == ["what is rust", "A language."])
+        #expect(c.showsSavedAnswer && c.choices.map(\.text) == ["A language."])
         let d = questionDraft()
         d.aiRefusal = { "No AI in this app" }
         type("why is the sky blue", d)
@@ -188,13 +188,13 @@ extension FeatureInteractionTests {
         #expect(refined.result.versions.map(\.text) == ["Please email bob@example.com, cc alice@corp.example."])
         #expect(refined.hidden == 2)
 
-        // A command's answer the same way.
+        // An @question conversation's next question the same way (sent as it is: 0.6.4's conversations aren't refines).
         let answer = ConversionResult(versions: [CandidateLine("Write to bob@example.com.")])
         let command = StubAppleModel(answer: ["Write to [EMAIL_1] today."])
         let again = try #require(try await updates(hidingConverter(command).generate(
             .question, input: "how do I reach bob@example.com", turns: [Refinement.Turn(answer: answer, instruction: "add today")])).last)
         let commandRequest = try #require(command.requests.first)
-        #expect(!body(commandRequest).contains("bob@example.com") && commandRequest.prompt == Prompt.refineMessage("add today"))
+        #expect(!body(commandRequest).contains("bob@example.com") && commandRequest.prompt == "add today")
         #expect(commandRequest.examples.map(\.response) == ["Write to [EMAIL_1]."])
         #expect(again.result.versions.map(\.text) == ["Write to bob@example.com today."])
     }
@@ -280,12 +280,15 @@ extension RefineTests {
 
         c.now = { Date(timeIntervalSince1970: 9) }
         _ = type("shorter", c)
-        #expect(started(c.handleKeyDown(enterKey).effects)?.1 == 2)
-        // Nothing is kept while the refined answer streams in; once it's complete, it takes the saved one's place.
+        #expect(started(c.handleKeyDown(shiftEnterKey).effects)?.1 == 2)
+        // Nothing is kept while the next answer streams in; once it's complete, the conversation takes the saved one's
+        // place, whole (0.6.4: a follow-up is the next round of a conversation, kept by its first question).
         let partial = ConversionResult(versions: [CandidateLine("A systems", isComplete: false)])
         #expect(!c.receive(partial, isFinal: false, id: 2).contains { if case .rememberQuestion = $0 { true } else { false } })
-        let refined = QuestionHistory.Entry(question: "what is rust", answer: "A systems language.",
-                                            date: Date(timeIntervalSince1970: 9))
+        let refined = QuestionHistory.Entry(rounds: [
+            QuestionChat.Round(question: "what is rust", answer: "Rust is a systems programming language."),
+            QuestionChat.Round(question: "shorter", answer: "A systems language."),
+        ], date: Date(timeIntervalSince1970: 9))
         let effects = c.receive(ConversionResult(versions: [CandidateLine("A systems language.")]), isFinal: true, id: 2)
         #expect(effects.contains(.rememberQuestion(refined)))
         #expect(c.questionHistory.entries == [refined, older])

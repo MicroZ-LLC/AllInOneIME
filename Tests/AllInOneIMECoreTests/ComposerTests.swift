@@ -1674,12 +1674,13 @@ struct ComposerTests {
         _ = c.handleKeyDown(tab)
         type("nihao", c)
         _ = tapOption(c)
-        #expect(c.choices.map(\.kind) == [.original] && c.highlighted == 1)
+        // An @question conversation (0.6.4): one row per round's answer, the latest selected; no row 0.
+        #expect(c.choices.map(\.kind) == [.answer] && c.highlighted == 0)
         _ = c.receive(ConversionResult(versions: [CandidateLine("你好的意思", isComplete: false)]), isFinal: false, id: 1)
         #expect(c.handleKeyDown(enterKey) == .consumed())  // still streaming
         _ = c.receive(ConversionResult(versions: [CandidateLine("“你好”是问候语。")]), isFinal: true, id: 1)
-        #expect(c.phase == .choosing && c.choices.map(\.kind) == [.original, .answer])
-        #expect(c.choices.first?.text == "你好")  // the question, without "@question"
+        #expect(c.phase == .choosing && c.choices.map(\.kind) == [.answer])
+        #expect(c.chatRounds.first?.question == "你好")  // the question, without "@question"
         #expect(commits(c.handleKeyDown(enterKey)) == ["“你好”是问候语。"])
         // 0 inserts the question; without an answer the request failed.
         let (d, _) = palette("q")

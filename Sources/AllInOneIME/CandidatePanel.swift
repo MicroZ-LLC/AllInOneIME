@@ -69,6 +69,8 @@ final class CandidatePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func show(_ model: CandidateView.Model, anchor: NSRect) {
+        // A conversation grows up to about half the screen it's on, then scrolls (`Model.transcript`).
+        view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
         view.model = model
         let size = view.contentSize
         setFrame(NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size), display: true)
@@ -85,13 +87,8 @@ final class CandidatePanel: NSPanel {
     /// panel's left edge).
     static func origin(for size: NSSize, anchor rawAnchor: NSRect,
                        textInset: CGFloat = CandidateView.Metrics.textInsetX) -> NSPoint {
-        var anchor = rawAnchor
-        // Some clients report an empty rect at the origin; fall back to the mouse position.
-        if anchor.origin == .zero || !anchor.origin.x.isFinite || !anchor.origin.y.isFinite {
-            let mouse = NSEvent.mouseLocation
-            anchor = NSRect(x: mouse.x, y: mouse.y - 18, width: 0, height: 18)
-        }
-        let screen = NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
+        let anchor = usable(rawAnchor)
+        let screen = screen(for: anchor)
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let gap: CGFloat = 4
         var x = anchor.minX - textInset
@@ -100,6 +97,19 @@ final class CandidatePanel: NSPanel {
         x = min(max(x, visible.minX), visible.maxX - size.width)
         y = min(max(y, visible.minY), visible.maxY - size.height)
         return NSPoint(x: x, y: y)
+    }
+
+    /// `anchor`, or where the mouse is when a client reports an empty rect at the origin.
+    static func usable(_ anchor: NSRect) -> NSRect {
+        guard anchor.origin == .zero || !anchor.origin.x.isFinite || !anchor.origin.y.isFinite else { return anchor }
+        let mouse = NSEvent.mouseLocation
+        return NSRect(x: mouse.x, y: mouse.y - 18, width: 0, height: 18)
+    }
+
+    /// The screen the panel goes on for `anchor`.
+    static func screen(for anchor: NSRect) -> NSScreen? {
+        let anchor = usable(anchor)
+        return NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
     }
 }
 
@@ -156,6 +166,9 @@ final class CandidateView: NSView {
         var detail: String?
         /// The rows side by side, as macOS's own panel (`Config.candidateLayout`): the engine's candidates only.
         var horizontal = false
+        /// The rows are a conversation (`QuestionChatPanel`): the panel is no taller than `CandidateView.maxHeight`, the
+        /// rows scrolled to show the last one (or the highlighted one, when it's above).
+        var transcript = false
     }
 
     enum Metrics {
@@ -216,8 +229,21 @@ final class CandidateView: NSView {
     var drawsBackground = true
 
     var model = Model() {
-        didSet { if model != oldValue { relayout() } }
+        didSet {
+            guard model != oldValue else { return }
+            scrolled = nil  // the newest rows (or the highlighted one) come into view again
+            relayout()
+        }
     }
+    /// The tallest a conversation's panel gets (`Model.transcript`); nil: no limit.
+    var maxHeight: CGFloat? {
+        didSet { if maxHeight != oldValue, model.transcript { relayout() } }
+    }
+    /// A conversation's rows taller than fit: how far they are moved up (`rowsShift`), where they're shown
+    /// (`rowsClip`), and how far the wheel moved them from where they'd be (nil: not moved).
+    private var rowsShift: CGFloat = 0
+    private var rowsClip: NSRect?
+    private var scrolled: CGFloat?
 
     /// A row clicked: its index in `model.rows`.
     var onSelect: ((Int) -> Void)?
@@ -271,6 +297,7 @@ final class CandidateView: NSView {
         }
         var cellsWidth: CGFloat = 0
         if horizontal { (y, cellsWidth) = layoutCells(top: y) }
+        let rowsTop = y
         textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : Metrics.textInsetX
         // A column for the icons when any row has one: the text moves right by it.
         let iconColumn = model.rows.contains { $0.icon != nil } ? Metrics.iconSize + Metrics.iconGap : 0
@@ -297,6 +324,7 @@ final class CandidateView: NSView {
                 textFrame: textFrame, labelOrigin: labelOrigin, iconFrame: iconFrame))
             y += size.height + 2 * Metrics.rowInsetY
         }
+        let rowsBottom = y
 
         statusFrame = nil
         let compact = model.rows.isEmpty && model.footer.isEmpty
@@ -321,10 +349,41 @@ final class CandidateView: NSView {
         for i in rowLayouts.indices where !horizontal {
             rowLayouts[i].frame.size.width = width - 2 * p
         }
-        contentSize = NSSize(width: ceil(width), height: ceil(y + p))
+        fitTranscript(height: ceil(y + p), rowsTop: rowsTop, rowsBottom: rowsBottom, width: width)
+        contentSize = NSSize(width: ceil(width), height: min(ceil(y + p), ceil(y + p) - overflow))
         needsDisplay = true
         // Other rows under a pointer that stayed put: the one there now.
         hovered = window.flatMap { $0.isVisible ? row(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
+    }
+
+    /// How much taller than `maxHeight` a conversation's panel would be (its rows scroll instead).
+    private var overflow: CGFloat = 0
+
+    /// A conversation taller than `maxHeight`: its rows are shown between `rowsTop` and what is left above the status
+    /// and footer, moved up to show the last one, or the highlighted one when it is above (an earlier answer picked with
+    /// ↑), or as far as the wheel moved them; the status and the footer move up with the bottom of the panel.
+    private func fitTranscript(height: CGFloat, rowsTop: CGFloat, rowsBottom: CGFloat, width: CGFloat) {
+        rowsShift = 0
+        rowsClip = nil
+        overflow = 0
+        guard model.transcript, let maxHeight, height > maxHeight, rowsBottom > rowsTop else { return }
+        overflow = min(height - maxHeight, rowsBottom - rowsTop - 40)  // a few rows always show
+        guard overflow > 0 else { overflow = 0; return }
+        var shift = overflow
+        if let highlighted = model.highlighted, rowLayouts.indices.contains(highlighted) {
+            shift = min(shift, max(rowLayouts[highlighted].frame.minY - rowsTop, 0))
+        }
+        if let scrolled { shift = min(max(scrolled, 0), overflow) }
+        rowsShift = shift
+        rowsClip = NSRect(x: 0, y: rowsTop, width: width, height: rowsBottom - rowsTop - overflow)
+        for i in rowLayouts.indices {
+            rowLayouts[i].frame.origin.y -= shift
+            rowLayouts[i].textFrame.origin.y -= shift
+            rowLayouts[i].labelOrigin.y -= shift
+            rowLayouts[i].iconFrame?.origin.y -= shift
+        }
+        statusFrame?.origin.y -= overflow
+        footerY -= overflow
     }
 
     /// The candidates side by side (`Model.horizontal`), as many to a line as fit in `maxRowWidth`
@@ -471,6 +530,8 @@ final class CandidateView: NSView {
             header.draw(with: headerFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
 
+        NSGraphicsContext.saveGraphicsState()
+        if let rowsClip { NSBezierPath(rect: rowsClip).addClip() }
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
             let highlighted = index == model.highlighted
             // In a row, the highlight is a pill around the candidate, as in macOS's own panel.
@@ -493,6 +554,7 @@ final class CandidateView: NSView {
                 text.draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
             }
         }
+        NSGraphicsContext.restoreGraphicsState()
 
         if let statusFrame, let status = statusString() {
             status.draw(with: statusFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
@@ -539,6 +601,13 @@ final class CandidateView: NSView {
     // MARK: - Mouse
 
     override func scrollWheel(with event: NSEvent) {
+        // A conversation taller than the panel: its rows scroll here, by the points the wheel or trackpad moved.
+        if rowsClip != nil {
+            let points = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 24
+            scrolled = min(max((scrolled ?? rowsShift) - points, 0), overflow)
+            relayout()
+            return
+        }
         // A row per notch of a wheel; a trackpad adds up its small steps (about a row per 24 points).
         let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 24 : event.scrollingDeltaY
         pendingScroll -= delta  // content up = further down the list
@@ -550,7 +619,7 @@ final class CandidateView: NSView {
 
     /// The row a click at `point` picks (`CandidateLayout.row`).
     private func row(at point: NSPoint) -> Int? {
-        guard bounds.contains(point) else { return nil }
+        guard bounds.contains(point), rowsClip?.contains(point) ?? true else { return nil }
         return CandidateLayout.row(at: point, frames: rowLayouts.map(\.frame), pickable: model.rows.map(\.pickable))
     }
 

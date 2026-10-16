@@ -204,7 +204,8 @@ extension ComposerTests {
         let effects = c.handleKeyDown(k("2")).effects
         #expect(requests(effects).isEmpty && remembered(effects).isEmpty)
         #expect(c.phase == .choosing && c.showsSavedAnswer && c.activeCommand == .question)
-        #expect(c.choices.map(\.text) == ["你好怎么说", "Hello."] && c.highlighted == 1)
+        // Its answer is round 1 of a conversation (0.6.4): the one row, selected.
+        #expect(c.choices.map(\.text) == ["Hello."] && c.highlighted == 0)
         #expect(c.markedText == "question › 你好怎么说" && c.savedAnswerDate == Date(timeIntervalSince1970: 2))
         // ⌘C copies it, ⏎ inserts it, as any answer.
         #expect(c.handleKeyDown(k("c", mods: .command)).effects.first == .copy("Hello."))
@@ -233,17 +234,21 @@ extension ComposerTests {
         let d = questionDraft()
         _ = d.handleKeyDown(upKey)
         #expect(d.questionHighlight == 2)
-        // Typing on a saved answer goes back to the list and types there.
+        // Typing on a saved answer starts the conversation's next question (0.6.4); Esc clears it, then goes back to the
+        // list.
         _ = d.handleKeyDown(enterKey)
         _ = d.handleKeyDown(k("s"))
-        #expect(d.draft == "@question s" && !d.isLevelTwo && d.questionMatches.map(\.question) == ["What is Swift", "what is rust"])
+        #expect(d.isLevelTwo && d.isQuestionChat && d.refineText == "s" && d.showsSavedAnswer)
+        _ = d.handleKeyDown(escKey)
+        _ = d.handleKeyDown(escKey)
+        #expect(d.draft == "@question " && !d.isLevelTwo && d.questionHighlight == 2)
     }
 
     @Test func aClickShowsTheSavedAnswer() {
         let c = questionDraft()
         type("swift", c)
         let effects = c.choose(index: 0)
-        #expect(requests(effects).isEmpty && c.showsSavedAnswer && c.choices.map(\.text) == ["What is Swift", "Also a language."])
+        #expect(requests(effects).isEmpty && c.showsSavedAnswer && c.choices.map(\.text) == ["Also a language."])
         _ = c.handleKeyDown(escKey)
         #expect(c.draft == "@question swift")
     }

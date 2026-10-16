@@ -110,11 +110,13 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Whether the app still has the text being typed (Slack may take it into a mention on its own).
     private var markedWatch = MarkedTextWatch()
     private var conversionTask: Task<Void, Never>?
-    private var lastElapsed: TimeInterval?
-    private var lastFromCache = false
+    var lastElapsed: TimeInterval?
+    var lastFromCache = false
     /// How many values the last request hid from the AI (`Redaction`): the panel says so.
     var lastHidden = 0
-    private var notice: String?
+    /// The last answer's request left out parts of an @question conversation to fit the model (`QuestionChat.fit`).
+    var lastShortened = false
+    var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
     /// A dead key typed before the next key (`DeadKeyComposer`).
@@ -163,6 +165,8 @@ final class AllInOneIMEInputController: IMKInputController {
     var recordOpen: (String) -> Void = { OpenHistoryStore.record($0) }
     /// `@claude`: starts Claude Code in Terminal (the self-test starts nothing).
     var runInTerminal: (String) throws -> Void = { try TerminalLauncher.claude($0) }
+    /// An `@question` conversation going on in Claude Code (`ChatHandoff`; the self-test starts nothing).
+    var continueInClaudeCode: (String) throws -> Void = { try TerminalLauncher.claude(promptFile: $0) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
     var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
     /// `@note`: saves the text to Apple Notes (the self-test saves nothing).
@@ -558,6 +562,7 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
+        applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
         // The Korean and Hindi packs' data, for their input (nil without the pack).
         composer.hangulTables = LanguagePackManager.shared.hangulTables()
@@ -689,6 +694,7 @@ final class AllInOneIMEInputController: IMKInputController {
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
             composer.remembersQuestions = loadSettings().rememberQuestions
+            applyChatSettings(loadSettings())
             composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
         }
         // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
@@ -864,6 +870,14 @@ final class AllInOneIMEInputController: IMKInputController {
                     log.notice("@claude: Terminal session started (\(prompt.count) chars)")
                 } catch {
                     log.error("@claude: could not start Terminal: \(String(describing: error), privacy: .public)")
+                    showNotice(UIText.describe(error), client: target)
+                }
+            case let .continueInClaudeCode(prompt):
+                do {
+                    try continueInClaudeCode(prompt)
+                    log.notice("@question: conversation handed to Claude Code (\(prompt.count) chars)")
+                } catch {
+                    log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
                     showNotice(UIText.describe(error), client: target)
                 }
             case .commandUsed:
@@ -1505,6 +1519,7 @@ final class AllInOneIMEInputController: IMKInputController {
         lastElapsed = nil
         lastFromCache = false
         lastHidden = 0
+        lastShortened = false
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1581,7 +1596,9 @@ final class AllInOneIMEInputController: IMKInputController {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
-        log.notice("conversion \(id) started (refine, step \(refinement.turns.count))")
+        lastShortened = false
+        let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
+        log.notice("conversion \(id) started (\(step, privacy: .public))")
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         var generates = false
         switch refinement.request {
@@ -1606,6 +1623,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 for try await update in inserted {
                     guard let self, !Task.isCancelled else { return }
                     self.lastHidden = update.hidden
+                    self.lastShortened = update.shortened
                     if update.isFinal {
                         self.lastElapsed = update.elapsed
                         self.lastFromCache = update.fromCache
@@ -1722,6 +1740,12 @@ final class AllInOneIMEInputController: IMKInputController {
         panel.owner = self
         panel.onSelect = { [weak self] index in
             guard let self else { return }
+            // A conversation's rows are its questions and answers: a click picks an answer (`chatChoice`).
+            if self.composer.isQuestionChat, !self.composer.refineIsComposing {
+                guard let answer = Self.chatChoice(row: index) else { return }
+                self.perform(self.composer.choose(index: answer), client: nil)
+                return
+            }
             self.perform(self.composer.choose(index: index), client: nil)
         }
         panel.onScroll = { [weak self] steps in
@@ -1884,6 +1908,8 @@ final class AllInOneIMEInputController: IMKInputController {
     func panelModel() -> CandidateView.Model {
         var model = CandidateView.Model()
         let config = loadSettings()
+        // An @question conversation: its questions and answers, the next question's line (QuestionChatPanel.swift).
+        if composer.isQuestionChat, !composer.refineIsComposing { return chatPanelModel() }
         if composer.refineIsComposing {
             // Pinyin of a refine instruction: its candidates, as when typing (the results come back once it's picked).
             let state = composer.engineState
@@ -1892,7 +1918,9 @@ final class AllInOneIMEInputController: IMKInputController {
             }
             model.highlighted = state.highlighted
             model.horizontal = composer.horizontalCandidates
-            model.footer = tr("空格 选词 · ⏎ 按这句修改结果 · Esc 清除拼音", "Space picks · ⏎ refine · Esc clear the pinyin")
+            model.footer = composer.isQuestionChat
+                ? tr("空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音", "Space picks · ⇧⏎ ask · ⏎ insert the answer · Esc clear the pinyin")
+                : tr("空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin")
         } else if composer.isLevelTwo {
             let choices = composer.choices
             model.rows = choices.map { choice in
@@ -2024,14 +2052,15 @@ final class AllInOneIMEInputController: IMKInputController {
                     : command == .reminder
                     ? tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy")
                     : composer.refineLine != nil
-                    ? tr("⏎ 按这句修改结果 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⏎ refine · ⌫ delete · Esc clear · ↑↓ choose")
+                    ? tr("⇧⏎ 修改 · ⏎ 上屏 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⇧⏎ refine · ⏎ insert · ⌫ delete · Esc clear · ↑↓ choose")
                     : composer.canRefine
-                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`); 0 still picks the original.
+                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`), ⇧⏎ sends it; 0 still
+                    // picks the original.
                     ? (composer.refineHistory.isEmpty
-                        ? tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字修改结果 · ⌘C 复制 · Esc 返回",
-                             "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back")
-                        : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字再改 · Esc 上一版",
-                             "Space / ⏎ insert · digits pick · 0 original · type to refine · Esc previous"))
+                        ? tr("打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
+                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+                        : tr("打字后 ⇧⏎ 再改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · Esc 上一版",
+                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Esc previous"))
                     : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
                          "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
                 // A refine that failed: the results before it stay, its instruction back in the line.
