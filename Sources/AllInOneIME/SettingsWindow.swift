@@ -455,12 +455,12 @@ final class SettingsModel: ObservableObject {
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
-        passwordsSaved = !persists ? [] : Set(index.bundles.flatMap { bundle in
+        passwordsSaved = persists ? Set(index.bundles.flatMap { bundle in
             bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
                 APIKeys.hasKeychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
                     ? bundle.name + "/" + preference.name : nil
             }
-        })
+        }) : []
         if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
     }
 

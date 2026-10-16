@@ -144,7 +144,8 @@ public enum APIKeys {
 
     /// The keys read from the keychain in this process, each with its item's stamp: one is read again only when
     /// its item changed (saved again or removed, here or in another app), so a user who allowed the read once
-    /// isn't asked on every request. Reads are one at a time: requests made together ask once.
+    /// isn't asked on every request. An account's reads are one at a time (requests made together ask once);
+    /// another account's never wait for them (a prompt that is up holds up only its own key).
     final class KeyCache: @unchecked Sendable {
         struct Stamp: Equatable {
             var created: Date?
@@ -152,8 +153,11 @@ public enum APIKeys {
         }
 
         private var keys: [String: (stamp: Stamp, key: String)] = [:]
+        /// Bumped by `forget`: a read that started before isn't kept (the key may have been saved meanwhile,
+        /// within the second the stamp tells apart).
+        private var generations: [String: Int] = [:]
+        private var readers: [String: NSLock] = [:]
         private let lock = NSLock()
-        private let reading = NSLock()
 
         /// The key under `account` when its item is still `stamp`, else what `read` reads (kept unless nil);
         /// nil with no item (`stamp` nil).
@@ -163,11 +167,18 @@ public enum APIKeys {
                 return nil
             }
             if let key = kept(account, stamp) { return key }
-            reading.lock()
-            defer { reading.unlock() }
+            let reader = lock.withLock {
+                if let reader = readers[account] { return reader }
+                let reader = NSLock()
+                readers[account] = reader
+                return reader
+            }
+            reader.lock()
+            defer { reader.unlock() }
             if let key = kept(account, stamp) { return key }  // read meanwhile
+            let generation = lock.withLock { generations[account, default: 0] }
             guard let key = read() else { return nil }
-            lock.withLock { keys[account] = (stamp, key) }
+            lock.withLock { if generations[account, default: 0] == generation { keys[account] = (stamp, key) } }
             return key
         }
 
@@ -177,7 +188,10 @@ public enum APIKeys {
         }
 
         func forget(_ account: String) {
-            lock.withLock { keys[account] = nil }
+            lock.withLock {
+                keys[account] = nil
+                generations[account, default: 0] += 1
+            }
         }
 
         private func kept(_ account: String, _ stamp: Stamp) -> String? {

@@ -101,4 +101,52 @@ struct KeyCacheTests {
         }
         #expect(reads.made == 1)
     }
+
+    /// A read held up (a prompt not answered yet) until `release` is signalled, with `started` signalled first.
+    func heldRead(_ reads: Reads, started: DispatchSemaphore, release: DispatchSemaphore) -> @Sendable () -> String? {
+        {
+            started.signal()
+            release.wait()
+            return reads.read()
+        }
+    }
+
+    @Test func aPromptForOneKeyDoesNotHoldUpAnother() {
+        let cache = APIKeys.KeyCache(), held = Reads(), other = Reads()
+        let (started, release, done) = (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0), DispatchSemaphore(value: 0))
+        let read = heldRead(held, started: started, release: release)
+        DispatchQueue.global().async {
+            _ = cache.key("hosted", stamp: saved, read: read)
+            done.signal()
+        }
+        #expect(started.wait(timeout: .now() + 5) == .success)
+        // Another account's key comes while the first's read (its prompt) is still up.
+        let otherDone = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            #expect(cache.key("anthropic", stamp: saved, read: other.read) == "sk-one")
+            otherDone.signal()
+        }
+        #expect(otherDone.wait(timeout: .now() + 2) == .success)
+        release.signal()
+        #expect(done.wait(timeout: .now() + 5) == .success)
+        #expect(held.made == 1 && other.made == 1)
+    }
+
+    @Test func savedDuringAReadTheOldKeyIsNotKept() {
+        // Saved in the settings while a request's read was under way, within the same second (same stamp).
+        let cache = APIKeys.KeyCache(), reads = Reads()
+        let (started, release, done) = (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0), DispatchSemaphore(value: 0))
+        let read = heldRead(reads, started: started, release: release)
+        DispatchQueue.global().async {
+            #expect(cache.key("anthropic", stamp: saved, read: read) == "sk-one")  // that request gets what it read
+            done.signal()
+        }
+        #expect(started.wait(timeout: .now() + 5) == .success)
+        cache.forget("anthropic")  // as `APIKeys.save` does
+        release.signal()
+        #expect(done.wait(timeout: .now() + 5) == .success)
+        reads.value = "sk-new"
+        #expect(cache.key("anthropic", stamp: saved, read: reads.read) == "sk-new")
+        #expect(reads.made == 2)
+    }
 }
