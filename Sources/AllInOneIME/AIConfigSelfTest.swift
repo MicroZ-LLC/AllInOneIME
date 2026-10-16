@@ -145,7 +145,7 @@ extension SelfTest {
         _ = waitForPreview()
         model.answer = #"{"changes": [{"key": "outputLanguages", "value": ["en", "fr", "de"]}]}"#
         type("also german", controller, client)
-        _ = enter(controller, client)
+        _ = shiftEnter(controller, client)  // ⇧⏎ sends the line (⏎ would apply the proposal shown)
         _ = waitForPreview()
         let refined = controller.panelModel().rows.map(\.text)
         check(refined == ["翻译语言：英文、中文 → 英文、法语、德语"] && model.requests == 3 && model.prompts.last == "<refine>also german</refine>",
