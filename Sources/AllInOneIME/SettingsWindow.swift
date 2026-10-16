@@ -985,14 +985,14 @@ struct SettingsView: View {
                 Button(tr("清除（\(model.recentQuestions)）", "Clear (\(model.recentQuestions))")) { model.clearRecentQuestions() }
                     .disabled(model.recentQuestions == 0)
             }
-            // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift).
-            LabeledContent {
-                HStack(spacing: 6) {
-                    // The agents by name (a custom one's from its command).
-                    LanguageChips(items: model.continueChoices,
-                                  name: { AllInOneIMEInputController.shortName($0, custom: model.config.agentCommand) },
-                                  firstNote: tr("默认", "default"),
-                                  reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
+            // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift): the chips under the title,
+            // the card's width for them (every agent installed, the web, Copy), scrolled sideways when there are more.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    titled(tr("对话接着在哪里聊", "Continue a conversation in"),
+                           tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，拖动排序，第一个是默认。对话会发给你选的服务。",
+                              "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there; drag to reorder, the first is the default. The conversation goes to the service you pick."))
+                    Spacer()
                     let missing = model.missingContinueChoices
                     if !missing.isEmpty {
                         Menu(tr("添加…", "Add…")) {
@@ -1005,10 +1005,14 @@ struct SettingsView: View {
                         .fixedSize()
                     }
                 }
-            } label: {
-                titled(tr("对话接着在哪里聊", "Continue a conversation in"),
-                       tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，拖动排序，第一个是默认。对话会发给你选的服务。",
-                          "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there; drag to reorder, the first is the default. The conversation goes to the service you pick."))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    // The agents by name (a custom one's from its command).
+                    LanguageChips(items: model.continueChoices,
+                                  name: { AllInOneIMEInputController.shortName($0, custom: model.config.agentCommand) },
+                                  firstNote: tr("默认", "default"),
+                                  reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
+                        .fixedSize()
+                }
             }
             .disabled(!model.canSave)
         }

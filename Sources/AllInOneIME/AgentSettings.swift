@@ -36,7 +36,7 @@ struct AgentSettingsPage: View {
                 case .gemini, .kiro: EmptyView()
                 }
             } header: {
-                SectionTitle(kind.displayName() + (kind == model.config.agent ? tr(" · @agent 用它", " · used by @agent") : ""),
+                SectionTitle(title(kind) + (kind == model.config.agent ? tr(" · @agent 用它", " · used by @agent") : ""),
                              icon: CommandIcons.agent)
             }
             .disabled(!model.canSave)
@@ -94,7 +94,7 @@ struct AgentSettingsPage: View {
 
     private func installed(_ kind: AgentKind) -> Bool { AgentAvailability.installed(kind, custom: model.config.agentCommand) }
 
-    /// An agent's name in the picker: a custom one without a command is "自定义" / "Custom".
+    /// An agent's name in the picker and its section's title: a custom one without a command is "自定义" / "Custom".
     private func title(_ kind: AgentKind) -> String {
         guard kind == .custom else { return kind.displayName() }
         return kind.program(custom: model.config.agentCommand) == nil
