@@ -291,13 +291,12 @@ func printStatus() -> Int32 {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
             print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
-        } else { do {
-            let resolved = try AWSSharedConfig.load(profile: config.awsProfile)
-            let region = config.region ?? resolved.region ?? "us-east-1"
-            print("aws:         profile \(config.awsProfile), region \(region), credentials found")
-        } catch {
-            print("aws:         ✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
-        } }
+        } else {
+            // Read from the files and the SSO sign-in only: no program run, nothing fetched.
+            let status = AWSCredentialResolver.shared.status(profile: config.awsProfile)
+            let region = config.region ?? status.region ?? "us-east-1"
+            print("aws:         " + (status.isReady ? "profile \(config.awsProfile), region \(region), " : "✗ ") + status.line(chinese: false))
+        }
     } catch {
         print("config:      ✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
     }

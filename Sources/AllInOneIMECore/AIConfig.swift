@@ -300,6 +300,8 @@ public enum AIConfig {
         case downloadPack(Language)
         case openAppleIntelligenceSettings
         case checkForUpdates
+        /// A command put on the clipboard, for Terminal (`Doctor.Fix.copyCommand`).
+        case copyCommand(String)
     }
 
     /// One field of an app's profile; nil: as everywhere.

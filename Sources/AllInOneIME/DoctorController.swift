@@ -21,6 +21,7 @@ enum DoctorSession {
         var config: Result<Config, Error>
         var keySaved: [Provider: Bool]
         var awsProfile: Result<String, Error>?
+        var awsStatus: AWSProfileStatus?
         var automation: [String: Doctor.Facts.Permission]
         var reminders: EKAuthorizationStatus
         var pluginErrors: [String]
@@ -52,10 +53,16 @@ enum DoctorSession {
                 keys[provider] = keyed.contains(provider)
             }
             var profile: Result<String, Error>?
+            var awsStatus: AWSProfileStatus?
             if case let .success(loaded) = config, loaded.provider == .bedrock {
-                profile = Result { try AWSSharedConfig.load(profile: loaded.awsProfile).region ?? "us-east-1" }
+                // The files and the SSO sign-in read, nothing run or fetched: its kind, expiry, a known problem.
+                let status = AWSCredentialResolver.shared.status(profile: loaded.awsProfile)
+                awsStatus = status
+                profile = status.isReady ? .success(status.region ?? "us-east-1")
+                    : .failure(status.problem ?? AWSCredentialError.profileNotFound(status.profile))
             }
-            return Background(configData: data, config: config, keySaved: keys, awsProfile: profile, automation: automation(),
+            return Background(configData: data, config: config, keySaved: keys, awsProfile: profile, awsStatus: awsStatus,
+                              automation: automation(),
                               reminders: EKEventStore.authorizationStatus(for: .reminder),
                               pluginErrors: PluginStore.load().skipped.prefix(5).map { "\($0.folder): \($0.reason)" },
                               recentErrors: recentLogErrors(in: logs))
@@ -68,6 +75,7 @@ enum DoctorSession {
         let config = facts.config ?? .default
         facts.keySaved = read.keySaved
         facts.awsProfile = read.awsProfile.map { $0.mapError { Doctor.ProbeError(UIText.describe($0)) } }
+        facts.awsStatus = read.awsStatus
         facts.apple = AppleModel.system.availability
         facts.accessibility = AXIsProcessTrusted() ? .granted : .denied
         switch VoiceInput.microphoneAccess {
@@ -163,6 +171,9 @@ enum DoctorSession {
         case .checkForUpdates:
             UpdateController.shared.check(userInitiated: true)
             SettingsWindow.shared.show(page: .about)
+        case let .copyCommand(command):
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
         }
     }
 }

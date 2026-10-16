@@ -551,7 +551,8 @@ enum SelfTest {
               "custom commands a built-in hides are marked in the list, the others aren't")
         check(model.profiles.contains(own.awsProfile), "profile picker lists \(own.awsProfile) (\(model.profiles))")
         needing(.bedrock)
-        check(model.credentialStatus == SettingsModel.credentialsFound, "credentials found: \(model.credentialStatus)")
+        model.aws.load(profile: model.config.awsProfile)
+        check(model.credentialsReady, "credentials found: \(model.credentialStatus)")
         needing([])
         let casual = RewriteStyle.named("口语")!
         let wasOn = model.isStyleOn(casual)
@@ -608,7 +609,7 @@ enum SelfTest {
             model.setUILanguage(picked)
             // The profile's line (keys found, where they are) in that language too.
             check(UIText.chinese == (picked == .chinese) && (try? Config.load(from: url))?.uiLanguage == picked
-                  && (model.credentialStatus == SettingsModel.credentialsFound) == bedrockReady,
+                  && model.credentialsReady == bedrockReady,
                   "界面语言 \(picked.rawValue): applies at once and is saved (\(model.credentialStatus))")
         }
         model.setUILanguage(nil)

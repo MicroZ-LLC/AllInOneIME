@@ -46,6 +46,8 @@ public enum Doctor {
         case resaveConfig
         /// Settings → AI Provider at the key field.
         case openKeyField(Provider)
+        /// A command for Terminal on the clipboard (`aws sso login --profile X`): what fixes it needs a person.
+        case copyCommand(String)
         case openAppleIntelligenceSettings
         /// "Check for Updates" as in the input menu.
         case checkForUpdates
@@ -56,7 +58,7 @@ public enum Doctor {
         public var isSafe: Bool {
             switch self {
             case .repairConfig, .resaveConfig, .enableInputMethod: return true
-            case .openPrivacy, .downloadPack, .openKeyField, .openAppleIntelligenceSettings, .checkForUpdates: return false
+            case .openPrivacy, .downloadPack, .openKeyField, .openAppleIntelligenceSettings, .checkForUpdates, .copyCommand: return false
             }
         }
     }
@@ -121,6 +123,8 @@ public enum Doctor {
         public var keySaved: [Provider: Bool] = [:]
         /// Bedrock: the profile's region when its credentials resolve, else why not.
         public var awsProfile: Result<String, ProbeError>?
+        /// Bedrock: the profile's kind, its credentials' expiry and the last refresh's error (`AWSCredentialResolver.status`).
+        public var awsStatus: AWSProfileStatus?
         public var apple: AppleModelAvailability = .unsupportedSystem
         public var connection: Connection = .notRun
         public var accessibility: Permission = .unknown
@@ -225,16 +229,7 @@ public enum Doctor {
                                    fix: fixable ? .openAppleIntelligenceSettings : nil))
             }
         case .bedrock:
-            switch facts.awsProfile {
-            case let .success(region)?:
-                out.append(Finding(area: .provider, status: .ok, title: label,
-                                   detail: t.tr("profile \(config.awsProfile)，区域 \(config.region ?? region)，找到了密钥",
-                                                "profile \(config.awsProfile), region \(config.region ?? region), credentials found")))
-            case let .failure(error)?:
-                out.append(Finding(area: .provider, status: .problem, title: label, detail: error.message, fix: .openKeyField(.bedrock)))
-            case nil:
-                out.append(Finding(area: .provider, status: .ok, title: label))
-            }
+            out += bedrockProfile(facts, config: config, label: label, t)
         case .anthropic, .gemini, .openai, .hosted:
             if facts.keySaved[config.provider] == true {
                 out.append(Finding(area: .provider, status: .ok, title: label,
@@ -270,6 +265,36 @@ public enum Doctor {
             }
         }
         return out
+    }
+
+    /// Bedrock's AWS profile: its kind and when its credentials expire, or what's wrong (an SSO sign-in to renew is
+    /// fixed with its command on the clipboard).
+    static func bedrockProfile(_ facts: Facts, config: Config, label: String, _ t: Words) -> [Finding] {
+        let status = facts.awsStatus
+        let kind = status?.kind.map { " (" + $0.label(chinese: t.chinese) + ")" } ?? ""
+        let fix = status?.fixCommand.map(Fix.copyCommand)
+        switch facts.awsProfile {
+        case let .success(region)?:
+            let expires = status?.expiration.map { date in
+                let time = AWSProfileStatus.time(date, now: Date(), chinese: t.chinese, timeZone: .current)
+                return t.tr("凭证 \(time) 到期", "credentials expire at \(time)")
+            }
+            var out = [Finding(area: .provider, status: .ok, title: label,
+                               detail: t.tr("profile \(config.awsProfile)\(kind)，区域 \(config.region ?? region)，\(expires ?? "找到了密钥")",
+                                            "profile \(config.awsProfile)\(kind), region \(config.region ?? region), \(expires ?? "credentials found")"))]
+            // Credentials still held, but the next refresh will fail (an SSO sign-in that expired), or the last one did.
+            if let problem = status?.problem ?? status?.lastError {
+                out.append(Finding(area: .provider, status: .warning,
+                                   title: t.tr("AWS 凭证下次刷新会失败", "AWS credentials: the next refresh will fail"),
+                                   detail: problem.message(chinese: t.chinese), fix: fix))
+            }
+            return out
+        case let .failure(error)?:
+            let detail = status?.problem.map { $0.message(chinese: t.chinese) } ?? error.message
+            return [Finding(area: .provider, status: .problem, title: label + kind, detail: detail, fix: fix ?? .openKeyField(.bedrock))]
+        case nil:
+            return [Finding(area: .provider, status: .ok, title: label)]
+        }
     }
 
     static func permissions(_ facts: Facts, _ t: Words) -> [Finding] {
@@ -680,6 +705,8 @@ extension Doctor {
                 action("打开系统设置 → Apple 智能与 Siri", "Open System Settings → Apple Intelligence & Siri", .openAppleIntelligenceSettings)
             case .checkForUpdates:
                 action("检查更新", "Check for updates", .checkForUpdates)
+            case let .copyCommand(command):
+                action("复制命令到剪贴板，在终端里运行：\(command)", "Copy the command to run in Terminal: \(command)", .copyCommand(command))
             case let .openKeyField(provider):
                 let text = AIConfig.Text(chinese: env.chinese)
                 // The row `@config` shows for a provider without a key (it is the one in use here: nothing to choose).

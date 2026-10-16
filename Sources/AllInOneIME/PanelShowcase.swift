@@ -131,6 +131,8 @@ enum SettingsPageImages {
         UIText.choice = chinese ? .chinese : .english
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.profileShownAs = "default"  // not the user's own profile name
+        // AWS profiles: samples of every kind in a folder of their own, never the user's ~/.aws (`AWSProfileSamples`).
+        AWSProfileSamples.use(in: model)
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
@@ -181,6 +183,8 @@ enum SettingsPageImages {
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         model.config.provider = provider
+        // Bedrock with a role, an SSO profile, and an SSO sign-in that expired.
+        AWSProfileSamples.render(model, to: output, appearance: dark ? .darkAqua : .aqua)
         // The Input page with each input language's tab picked.
         for language in model.config.inputLanguages {
             SettingsImage.render(model, page: .input, inputTab: language,

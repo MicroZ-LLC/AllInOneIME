@@ -103,6 +103,8 @@ final class SettingsModel: ObservableObject {
     /// Screenshots only: the name shown for the selected AWS profile. README images are public and a
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
     var profileShownAs: String?
+    /// The AWS profiles' kinds and the chosen one's status line (`AWSProfileSettings`).
+    let aws = AWSProfileModel()
 
     /// When the config file was last read or written here: changed since (the input method's menu, an
     /// editor), it is read again before the window shows it (`reloadIfChanged`).
@@ -706,19 +708,14 @@ final class SettingsModel: ObservableObject {
 
     /// Region shown when the field is empty: the profile's own region.
     var profileRegion: String {
-        (try? AWSSharedConfig.load(profile: config.awsProfile).region) ?? "us-east-1"
+        aws.status(for: config.awsProfile)?.region ?? AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
     }
 
-    static var credentialsFound: String { tr("已找到这个 profile 的密钥", "Found the keys for this profile") }
+    /// The profile's kind and when its credentials expire, or what's wrong ("Role via base: credentials expire at 15:30").
+    var credentialStatus: String { aws.line(profile: config.awsProfile) }
 
-    var credentialStatus: String {
-        do {
-            _ = try AWSSharedConfig.load(profile: config.awsProfile)
-            return Self.credentialsFound
-        } catch {
-            return UIText.describe(error)
-        }
-    }
+    /// Whether the profile's credentials can be had, as far as the files tell (`AWSProfileStatus.isReady`).
+    var credentialsReady: Bool { aws.status(for: config.awsProfile)?.isReady == true }
 
     // MARK: Voice
 
@@ -815,8 +812,12 @@ final class SettingsModel: ObservableObject {
         testTask?.cancel()
         testStatus = .running
         let snapshot = config
+        // Bedrock: the profile's credentials fetched again through its whole chain (a program, STS, SSO), not the cached ones.
+        let resolver = aws.resolver
         testTask = Task { [weak self] in
-            let converter = Converter(loadConfig: { snapshot })
+            defer { self?.aws.refresh(profile: snapshot.awsProfile) }
+            let converter = Converter(loadConfig: { snapshot },
+                                      loadCredentials: { try await resolver.resolve(profile: $0, forceRefresh: true) })
             // In the first input language: an English-only user sees an English test.
             let sample = switch snapshot.inputLanguages.first ?? .english {
             case .chinese: "我今天有点不舒服"
@@ -2147,16 +2148,12 @@ struct SettingsView: View {
                       prompt: Text(tr("例如 ", "e.g. ") + "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
                 .onSubmit { model.save() }
         }
-        Picker("AWS Profile", selection: $model.config.awsProfile) {
-            ForEach(model.profiles, id: \.self) { name in
-                Text(name == model.config.awsProfile ? model.profileShownAs ?? name : name).tag(name)
-            }
-        }
+        AWSProfilePicker(selection: $model.config.awsProfile, names: model.profiles, shownAs: model.profileShownAs, aws: model.aws)
         TextField(tr("区域", "Region"), text: regionBinding,
                   prompt: Text(tr("留空用 profile 的区域（\(model.profileRegion)）",
                                   "Empty: the profile's region (\(model.profileRegion))")))
             .onSubmit { model.save() }
-        Text(model.credentialStatus).font(.caption).foregroundStyle(.secondary)
+        AWSProfileStatusRow(profile: model.config.awsProfile, aws: model.aws, shownAs: model.profileShownAs)
     }
 
     /// AllInOneIME Cloud: the Google account, today's free requests, the subscription.

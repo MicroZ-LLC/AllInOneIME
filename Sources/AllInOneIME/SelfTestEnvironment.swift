@@ -62,7 +62,8 @@ extension SelfTest {
         let url = directory.appendingPathComponent("selftest-config.json")
         let written = (try? config.write(to: url)) != nil
         Config.selfTestURL = url
-        bedrockReady = (try? AWSSharedConfig.load(profile: config.awsProfile)) != nil
+        // As far as the files tell (static keys found, an SSO sign-in still good …): nothing run or fetched to know it.
+        bedrockReady = AWSCredentialResolver.shared.status(profile: config.awsProfile).isReady
         check(written, "the self-test's own config: \(url.path) (Bedrock, profile \(config.awsProfile), region "
               + "\(config.region ?? "the profile's"); \(bedrockReady ? "credentials found" : "no credentials: live Bedrock checks skipped"))")
     }
