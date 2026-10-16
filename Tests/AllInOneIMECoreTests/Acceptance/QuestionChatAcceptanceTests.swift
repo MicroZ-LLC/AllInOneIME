@@ -1301,6 +1301,145 @@ struct QuestionChatAcceptanceTests {
         #expect(qcLeavesThePanel(out).isEmpty && nine.c.isQuestionChat && nine.c.showsHandoff, "⌘9 with 8 choices: \(out)")
     }
 
+    // MARK: "@agent's agent" in the list (2026-10-16)
+
+    /// The agents whose programs are `programs`, as `installed` takes them (a custom agent's command: "muse --").
+    func installed(_ programs: Set<String>, agentCommand: [String] = ["muse", "--"]) -> (AgentKind) -> Bool {
+        var config = Config.default
+        config.agentCommand = agentCommand
+        let fixed = config
+        return { ChatHandoff.installed($0, in: fixed, program: programs.contains) }
+    }
+
+    /// The chips Settings shows for `list` (`shownIndices`), and the list after they are edited to `chips`.
+    func edit(_ list: [ChatHandoff.Destination], picked: AgentKind, programs: Set<String>,
+              _ change: ([ChatHandoff.Destination]) -> [ChatHandoff.Destination]) -> [ChatHandoff.Destination] {
+        let shown = ChatHandoff.shownIndices(list, picked: picked, installed: installed(programs))
+        return ChatHandoff.edited(list, shown: shown, to: change(shown.map { list[$0] }))
+    }
+
+    /// "agent" in a list is whatever @agent hands to, in its place, and follows it when the agent picked changes; the
+    /// default list starts with it; a list without it (one configured before) doesn't follow.
+    @Test func handoff_aListWithAtAgentFollowsTheAgentPicked() async throws {
+        #expect(ChatHandoff.defaultList == [.atAgent, .claudeCode, .geminiCLI, .kiroCLI, .customAgent, .claudeWeb, .chatgpt, .copy])
+        let all = Self.allPrograms
+        for agent in AgentKind.allCases {
+            let own = ChatHandoff.Destination(agent: agent)
+            #expect(choices([.copy, .atAgent, .chatgpt], picked: agent, programs: all) == [.copy, own, .chatgpt], "\(agent)")
+            #expect(choices(nil, picked: agent, programs: all) == choices(ChatHandoff.defaultList, picked: agent, programs: all))
+            #expect(choices(nil, picked: agent, programs: all).first == own, "\(agent): ⌘1")
+        }
+        // A list without it stays as it was configured.
+        #expect(choices([.claudeCode, .geminiCLI, .copy], picked: .gemini, programs: all) == [.claudeCode, .geminiCLI, .copy])
+        #expect(choices([.chatgpt, .kiroCLI], picked: .kiro, programs: all) == [.chatgpt, .kiroCLI])
+        // In the config file it's "agent".
+        let decoded = try JSONDecoder().decode(Config.self, from: Data(#"{"questionContinueIn": ["copy", "agent", "chatgpt"]}"#.utf8))
+        #expect(decoded.questionContinueIn == [.copy, .atAgent, .chatgpt])
+        let written = String(decoding: try JSONEncoder().encode(decoded), as: UTF8.self)
+        #expect(written.contains(#""questionContinueIn":["copy","agent","chatgpt"]"#), "\(written)")
+
+        // In the panel: the same configured list, @agent on Kiro CLI, then on Gemini CLI.
+        for (agent, name) in [(AgentKind.kiro, "Kiro CLI"), (.gemini, "Gemini CLI")] {
+            let rig = QCRig(programs: all) {
+                $0.agent = agent
+                $0.questionContinueIn = [.copy, .atAgent, .chatgpt]
+            }
+            await rig.ask("what is rust")
+            await rig.key(qcCommandReturn)
+            #expect(rig.c.handoffChoices == [.copy, ChatHandoff.Destination(agent: agent), .chatgpt], "\(agent)")
+            await rig.key(qcCommandDigit(2))
+            #expect(rig.launched.map(\.agent) == [agent], "\(agent): started \(rig.launched.map(\.agent))")
+            #expect(rig.notices.last?.contains(name) == true, "\(agent): \(rig.notices)")
+        }
+    }
+
+    /// "agent" never makes a choice twice: it stands for the picked agent's own entry, which is left out; it is never a
+    /// choice itself; and only installed agents are offered. Every agent picked, every set installed, a few lists.
+    @Test func handoff_atAgentNeverMakesDuplicates() {
+        #expect(choices([.atAgent, .geminiCLI, .claudeCode, .atAgent], picked: .gemini, programs: Self.allPrograms) == [.geminiCLI, .claudeCode])
+        #expect(choices([.geminiCLI, .chatgpt, .atAgent], picked: .gemini, programs: Self.allPrograms) == [.chatgpt, .geminiCLI])
+        let lists: [[ChatHandoff.Destination]] = [
+            ChatHandoff.defaultList, [.atAgent, .claudeCode, .atAgent, .claudeCode, .copy], [.kiroCLI, .atAgent, .geminiCLI],
+            [.customAgent, .claudeWeb, .atAgent, .customAgent, .gemini, .copy], [.copy, .chatgpt],
+        ]
+        let programs = ["claude", "gemini", "kiro-cli", "muse"]
+        for mask in 0..<16 {
+            let here = Set(programs.indices.filter { mask & (1 << $0) != 0 }.map { programs[$0] })
+            for agent in AgentKind.allCases {
+                for list in lists {
+                    let offered = choices(list, picked: agent, programs: here)
+                    let label = "\(agent), \(here.sorted()), \(list.map(\.rawValue))"
+                    #expect(Set(offered).count == offered.count, "duplicates: \(offered) for \(label)")
+                    #expect(!offered.contains(.atAgent), "\(label)")
+                    #expect(!offered.isEmpty, "\(label)")
+                    for destination in offered { if let kind = destination.agent { #expect(installed(here)(kind), "\(destination) for \(label)") } }
+                    if list.contains(.atAgent), installed(here)(agent) {
+                        #expect(offered.contains(ChatHandoff.Destination(agent: agent)), "the agent picked missing for \(label)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// "agent" with the agent picked not installed: neither it nor that agent's own entry is offered, in the list or in
+    /// the panel (Claude Code doesn't stand in for it).
+    @Test func handoff_atAgentForAMissingAgentIsHidden() async throws {
+        #expect(choices([.atAgent, .geminiCLI, .claudeCode, .copy], picked: .gemini, programs: ["claude"]) == [.claudeCode, .copy])
+        #expect(choices([.atAgent, .copy], picked: .kiro, programs: ["claude", "gemini"]) == [.copy])
+        #expect(choices(nil, picked: .kiro, programs: ["claude"]) == [.claudeCode] + Self.web)
+        // A custom agent without a command isn't installed.
+        #expect(choices([.atAgent, .customAgent, .copy], picked: .custom, programs: Self.allPrograms, agentCommand: []) == [.copy])
+
+        let rig = QCRig(programs: ["claude"]) {
+            $0.agent = .gemini
+            $0.questionContinueIn = [.atAgent, .geminiCLI, .copy]
+        }
+        await rig.ask("what is rust")
+        await rig.key(qcCommandReturn)
+        #expect(rig.c.handoffChoices == [.copy])
+        await rig.key(qcCommandDigit(1))
+        #expect(rig.copied.count == 1 && rig.launched.isEmpty)
+    }
+
+    /// An edit in Settings (a reorder, a chip taken out, one added) keeps the entries not shown now (an agent not
+    /// installed, the agent "agent" stands for) in their places; only the chip taken out goes, with any copy of it;
+    /// one added goes at the end. An agent installed later is then offered where it was.
+    @Test func handoff_editsKeepTheAgentsNotShown() throws {
+        let list = ChatHandoff.defaultList
+        let shown = ChatHandoff.shownIndices(list, picked: .claude, installed: installed(["claude"]))
+        #expect(shown.map { list[$0] } == [.atAgent, .claudeWeb, .chatgpt, .copy])
+        // Nothing changed: the same list.
+        #expect(ChatHandoff.edited(list, shown: shown, to: shown.map { list[$0] }) == list)
+
+        // Reordered: the chips in their new order, the hidden agents still there and in their places.
+        let reordered = edit(list, picked: .claude, programs: ["claude"]) { _ in [.copy, .chatgpt, .atAgent, .claudeWeb] }
+        #expect(reordered == [.copy, .claudeCode, .geminiCLI, .kiroCLI, .customAgent, .chatgpt, .atAgent, .claudeWeb], "\(reordered)")
+        #expect(choices(reordered, picked: .claude, programs: ["claude"]) == [.copy, .chatgpt, .claudeCode, .claudeWeb])
+        // Gemini CLI and Kiro CLI installed later: offered, where they were.
+        #expect(choices(reordered, picked: .claude, programs: ["claude", "gemini", "kiro-cli"])
+                == [.copy, .geminiCLI, .kiroCLI, .chatgpt, .claudeCode, .claudeWeb])
+        // The agent picked changed: "agent" is Gemini CLI now, and Claude Code (which it stood for) is back in its place.
+        #expect(choices(reordered, picked: .gemini, programs: ["claude", "gemini"]) == [.copy, .claudeCode, .chatgpt, .geminiCLI, .claudeWeb])
+
+        // A chip taken out: it goes, with its copies; the hidden agents stay.
+        let twice: [ChatHandoff.Destination] = [.kiroCLI, .chatgpt, .geminiCLI, .copy, .chatgpt]
+        let removed = edit(twice, picked: .claude, programs: []) { $0.filter { $0 != .chatgpt } }
+        #expect(removed == [.kiroCLI, .geminiCLI, .copy], "\(removed)")
+        // One added: at the end.
+        let added = edit([.kiroCLI, .copy, .geminiCLI], picked: .claude, programs: []) { $0 + [.gemini] }
+        #expect(added == [.kiroCLI, .copy, .geminiCLI, .gemini], "\(added)")
+        // Agents not installed keep their exact places through a reorder.
+        let swapped = edit([.kiroCLI, .claudeWeb, .geminiCLI, .copy], picked: .claude, programs: []) { _ in [.copy, .claudeWeb] }
+        #expect(swapped == [.kiroCLI, .copy, .geminiCLI, .claudeWeb], "\(swapped)")
+        #expect(choices(swapped, picked: .claude, programs: ["kiro-cli", "gemini"]) == [.kiroCLI, .copy, .geminiCLI, .claudeWeb])
+
+        // Saved and loaded: the edited list as it is.
+        var config = Config.default
+        config.questionContinueIn = reordered
+        let back = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
+        #expect(back.questionContinueIn == reordered)
+    }
+
     /// Coordinator: during secure input, and in an app with no AI, the hand-off is refused (no agent started, nothing
     /// opened, the conversation still up), except Copy.
     @Test func handoff_refusedInSecureInputAndNoAIAppsExceptCopy() async throws {
