@@ -479,7 +479,7 @@ struct PerAppAcceptanceTests {
             ("@translate @improve hello", "@translate @improve hello"),
             ("@question what is this", "@question what is this"),
             ("@reply thanks a lot", "@reply thanks a lot"),
-            ("@claude fix the bug", "@claude fix the bug"),
+            ("@agent fix the bug", "@agent fix the bug"),
             ("@improve total @calculate 2*3", "@improve total @calculate 2*3"),
         ]
         for (typed, draft) in cases {
@@ -506,9 +506,20 @@ struct PerAppAcceptanceTests {
         let (c, _) = field(Self.bank, config)
         c.claudeInBackground = true
         c.setInputMode(.english)
+        typeKeys("@agent fix the bug", c)
+        let effects = c.handleKeyDown(enterKey).effects
+        #expect(!sendsToAI(effects) && notices(effects).contains(Self.refusalNotice) && c.draft == "@agent fix the bug")
+    }
+
+    /// 0.6.5: `@claude` became `@agent`; "@claude …" is plain text now, not an AI command to refuse.
+    @Test func claudeIsNoLongerAnAICommandToRefuse() {
+        let config = base([Self.bank: AppProfile(noAI: true)])
+        let (c, _) = field(Self.bank, config)
+        c.claudeInBackground = true
+        c.setInputMode(.english)
         typeKeys("@claude fix the bug", c)
         let effects = c.handleKeyDown(enterKey).effects
-        #expect(!sendsToAI(effects) && notices(effects).contains(Self.refusalNotice) && c.draft == "@claude fix the bug")
+        #expect(!sendsToAI(effects) && !notices(effects).contains(Self.refusalNotice), "\(effects)")
     }
 
     @Test func noAIRefusesCommandsOnASelection() {

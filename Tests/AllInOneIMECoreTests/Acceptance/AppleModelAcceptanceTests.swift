@@ -490,9 +490,11 @@ struct AppleModelAcceptanceTests {
     /// old config, so a setting added since is written back with its default:
     /// - the question history (0.6.3/question-history): `rememberQuestions`, on by default;
     /// - hiding sensitive values (the redaction feature): `redaction`, off, with every kind of value picked and no words
-    ///   of the user's own.
+    ///   of the user's own;
+    /// - `@claude` becoming `@agent` (0.6.5/agent): `agent`, Claude Code, and `agentCommand`, no custom agent's command.
     static let addedSince063: [String: [String]] = [
         "config/old": [
+            #","agent":"claude","agentCommand":[]"#,
             #","rememberQuestions":true"#,
             #","redaction":{"cards":true,"customWords":[],"emails":true,"enabled":false,"ips":true,"keys":true,"phones":true}"#,
         ],
