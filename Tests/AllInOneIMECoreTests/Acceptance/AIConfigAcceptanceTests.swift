@@ -716,7 +716,7 @@ struct AIConfigAcceptanceTests {
     // MARK: Provider setup (CHANGE 1)
 
     @Test func prov_providerMustBeOffered() throws {
-        let env = AIC.env(offered: [.bedrock, .anthropic, .gemini, .openai])
+        let env = AIC.env(hasKey: [.anthropic, .gemini, .openai, .hosted], offered: [.bedrock, .anthropic, .gemini, .openai])
         #expect(try AIC.preview([("provider", "anthropic")], env: env).get().edits == [.provider(.anthropic)])
         #expect(try AIC.preview([("provider", "hosted")], env: env) == .failure(.notAllowed))
         #expect(try AIC.preview([("provider", "apple")], env: env) == .failure(.notAllowed))
@@ -974,27 +974,125 @@ struct AIConfigAcceptanceTests {
         #expect(fromFiles == profiles)
     }
 
-    /// A provider that needs a key it hasn't got: a row says the key is entered in Settings (never sent to the AI),
-    /// and applying opens the key field; with the key saved, no such row.
+    /// The English row of a provider without a key, as the spec words it.
+    static func needsKeyLine(_ provider: Provider) -> String {
+        AIConfig.Text(chinese: false).provider(provider)
+            + " needs an API key: ⏎ opens Settings to add it (never sent to the AI); once it's saved, choose it there"
+    }
+
+    /// Spec change (2026-10-15): a provider that needs a key and has none isn't switched to. Its row says so, and ⏎
+    /// opens Settings at its key field; the provider stays as it was; no Test Connection. With the key saved, no such row.
     @Test func prov_needsKeyRowOpensTheKeyField() async throws {
         let preview = try AIC.preview([("provider", "anthropic")], env: AIC.env(hasKey: [])).get()
         #expect(preview.needsKey == .anthropic)
+        #expect(!preview.edits.contains(.provider(.anthropic)))
+        #expect(preview.canApply)
         let row = try #require(preview.rows.first { if case .needsKey = $0.status { return true } else { return false } })
-        #expect(row.text(chinese: false).contains("Settings") && row.text(chinese: false).contains("never sent"))
+        #expect(row.text(chinese: false) == Self.needsKeyLine(.anthropic), "\(row.text(chinese: false))")
         #expect(row.edit == nil)
-        let zh = try AIC.preview([("provider", "anthropic")], env: AIC.env(chinese: true, hasKey: [])).get()
-        #expect(zh.rows.last?.text(chinese: true).contains("设置") == true)
         #expect(try AIC.preview([("provider", "anthropic")], env: AIC.env(hasKey: [.anthropic])).get().needsKey == nil)
         #expect(try AIC.preview([("awsProfile", "work")], env: AIC.env(hasKey: [])).get().needsKey == nil)
 
-        // Through the panel: ⏎ applies the provider, then the key field opens; nothing is inserted.
+        // Through the panel: ⏎ opens the key field; the provider isn't switched; nothing is inserted.
         let rig = try AICRig(env: AIC.env(hasKey: []), apple: AICAppleStub([AIC.answer([("provider", "gemini")])]))
+        let before = try AIC.bytes(rig.url)
         await rig.run("switch to Gemini")
-        #expect(rig.rows.contains { $0.contains("API key") })
+        #expect(rig.rows == [Self.needsKeyLine(.gemini)], "\(rig.rows)")
         let applied = await rig.key(enterKey)
         #expect(rig.openedKeyField == [.gemini])
-        #expect(rig.config.provider == .gemini)
+        #expect(rig.config.provider == .bedrock)
+        #expect(try AIC.bytes(rig.url) == before)
+        #expect(rig.testConnections == 0)
         #expect(aicInsertsNothing(rig.effects) && aicInsertsNothing(applied))
+    }
+
+    /// No key: no switch, for every provider that needs one, in both languages; the other rows still apply.
+    @Test func prov_noKeyNoSwitchTheOtherRowsApply() throws {
+        let env = AIC.env(hasKey: [], offered: [.bedrock, .anthropic, .gemini, .openai, .hosted])
+        for provider in [Provider.anthropic, .gemini, .openai, .hosted] {
+            let changes: [(String, Any)] = [("provider", provider.rawValue), ("candidateLayout", "vertical"), ("typeOut", true)]
+            let preview = try AIC.preview(changes, env: env).get()
+            #expect(preview.needsKey == provider, "\(provider)")
+            #expect(!preview.edits.contains(.provider(provider)), "\(provider) switched to without a key")
+            #expect(preview.edits.contains(.candidateLayout(.vertical)) && preview.edits.contains(.flag(.typeOut, true)))
+            var config = AIC.base
+            AIConfig.apply(preview.edits, to: &config)
+            #expect(config.provider == .bedrock && config.candidateLayout == .vertical && config.typeOut)
+            let rows = preview.rows.filter { if case .needsKey = $0.status { return true } else { return false } }
+            #expect(rows.count == 1, "\(preview.rows)")
+            if provider != .hosted {
+                #expect(rows.first?.text(chinese: false) == Self.needsKeyLine(provider))
+                let zh = try AIC.preview(changes, env: AIC.env(chinese: true, hasKey: [], offered: env.offeredProviders)).get()
+                let line = zh.rows.first { if case .needsKey = $0.status { return true } else { return false } }?.text(chinese: true) ?? ""
+                let name = AIConfig.Text(chinese: true).provider(provider)
+                for part in [name, "需要 API key", "设置", "不会发给 AI"] { #expect(line.contains(part), "\(part) not in \(line)") }
+            }
+        }
+    }
+
+    /// Through the panel: the other changes are written, the provider isn't, the key field opens, no Test Connection.
+    @Test func prov_noKeyAppliesTheRestWithoutTestConnection() async throws {
+        let answer = AIC.answer([("provider", "gemini"), ("candidateLayout", "vertical"), ("outputLanguages", ["en", "fr"])])
+        let rig = try AICRig(env: AIC.env(hasKey: [.anthropic]), apple: AICAppleStub([answer]))
+        await rig.run("switch to Gemini, candidates in a column, English and French")
+        #expect(rig.rows.contains(Self.needsKeyLine(.gemini)), "\(rig.rows)")
+        await rig.key(enterKey)
+        let config = rig.config
+        #expect(config.provider == .bedrock)
+        #expect(config.candidateLayout == .vertical && config.outputLanguages == [.english, OutputLanguage("fr")])
+        #expect(rig.openedKeyField == [.gemini])
+        #expect(rig.testConnections == 0)
+        #expect(aicInsertsNothing(rig.effects))
+    }
+
+    /// With a key, it switches and Test Connection runs, as before. A key in the shell (ANTHROPIC_API_KEY …) counts:
+    /// the app reports it to the checks as a key (`hasKey`), like one in the keychain.
+    @Test func prov_withAKeyItSwitchesAndTestsTheConnection() async throws {
+        for provider in [Provider.gemini, .anthropic, .openai] {
+            let rig = try AICRig(env: AIC.env(hasKey: [provider]), apple: AICAppleStub([AIC.answer([("provider", provider.rawValue)])]))
+            await rig.run("switch provider")
+            #expect(!rig.rows.contains { $0.contains("needs an API key") }, "\(rig.rows)")
+            await rig.key(enterKey)
+            #expect(rig.config.provider == provider)
+            #expect(rig.openedKeyField.isEmpty)
+            #expect(rig.testConnections == 1)
+            #expect(rig.rows.last?.contains("Connection") == true)
+        }
+    }
+
+    // MARK: The key store (spec change, 2026-10-15)
+
+    /// An empty or blank save never removes a key, nor makes one; a save replaces the key there. In memory: the user's
+    /// keychain is never touched.
+    @Test func keys_emptyOrBlankSaveNeverRemovesAKey() throws {
+        let store = APIKeys.Keychain.inMemory()
+        let label = "AllInOneIME: test"
+        try APIKeys.save("sk-test-gemini-one", account: "gemini", label: label, in: store)
+        for blank in ["", " ", "    ", "\n", "\t", " \n\t "] {
+            #expect(throws: (any Error).self) { try APIKeys.save(blank, account: "gemini", label: label, in: store) }
+            #expect(store.read("gemini") == "sk-test-gemini-one", "a save of \(blank.debugDescription) removed the key")
+            #expect(APIKeys.hasKeychainKey(account: "gemini", in: store))
+        }
+        #expect(throws: (any Error).self) { try APIKeys.save("", account: "anthropic", label: label, in: store) }
+        #expect(!APIKeys.hasKeychainKey(account: "anthropic", in: store))
+        try APIKeys.save("sk-test-gemini-two", account: "gemini", label: label, in: store)
+        #expect(store.read("gemini") == "sk-test-gemini-two")
+    }
+
+    /// `remove` removes that account's key only; removing one that isn't there does nothing.
+    @Test func keys_removeRemovesOnlyThatAccount() throws {
+        let store = APIKeys.Keychain.inMemory()
+        let keys = ["gemini": "sk-test-g", "anthropic": "sk-test-a", "openai": "sk-test-o", "hosted": "token-test-h"]
+        for (account, key) in keys { try APIKeys.save(key, account: account, label: "AllInOneIME: \(account)", in: store) }
+        try APIKeys.remove(account: "gemini", in: store)
+        #expect(!APIKeys.hasKeychainKey(account: "gemini", in: store) && store.read("gemini") == nil)
+        for (account, key) in keys where account != "gemini" {
+            #expect(store.read(account) == key, "\(account) went too")
+            #expect(APIKeys.hasKeychainKey(account: account, in: store))
+        }
+        try APIKeys.remove(account: "gemini", in: store)
+        try APIKeys.remove(account: "nothing-here", in: store)
+        #expect(Set(keys.keys.filter { APIKeys.hasKeychainKey(account: $0, in: store) }) == ["anthropic", "openai", "hosted"])
     }
 
     /// Redaction's key detection finds the keys these tests type.
