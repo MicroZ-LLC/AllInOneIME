@@ -873,7 +873,7 @@ struct SettingsView: View {
             // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift).
             LabeledContent {
                 HStack(spacing: 6) {
-                    LanguageChips(items: model.continueChoices, name: AllInOneIMEInputController.name, firstNote: tr("默认", "default"),
+                    LanguageChips(items: model.continueChoices, name: AllInOneIMEInputController.shortName, firstNote: tr("默认", "default"),
                                   reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
                     let missing = model.missingContinueChoices
                     if !missing.isEmpty {

@@ -33,6 +33,17 @@ extension AllInOneIMEInputController {
         }
     }
 
+    /// A destination's short name, for the settings' chips (the web ones are the web's; "Copy" copies it).
+    static func shortName(_ destination: ChatHandoff.Destination) -> String {
+        switch destination {
+        case .claudeCode: return "Claude Code"
+        case .claudeWeb: return "Claude"
+        case .chatgpt: return "ChatGPT"
+        case .gemini: return "Gemini"
+        case .copy: return tr("复制", "Copy")
+        }
+    }
+
     /// The most of an earlier question or answer shown (the latest answer is shown whole, up to `latestLimit`).
     static let earlierLimit = 160
     static let latestLimit = 4000

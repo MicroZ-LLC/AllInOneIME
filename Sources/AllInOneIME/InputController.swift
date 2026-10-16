@@ -1841,7 +1841,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func refineHeader() -> String? {
         let history = composer.refineHistory
-        guard composer.isLevelTwo, !history.isEmpty else { return nil }
+        guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
         let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
         return tr("已修改：", "Refined: ") + steps
     }
@@ -2195,7 +2195,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
         // The refine instruction being typed, as a line of input with its caret, in place of the command's.
-        model.input = composer.refineLine.map { tr("修改 › ", "refine › ") + $0 + "▏" } ?? panelInput()
+        // (An @question conversation's next question while its pinyin is typed.)
+        let line = composer.isQuestionChat ? tr("追问 › ", "question › ") : tr("修改 › ", "refine › ")
+        model.input = composer.refineLine.map { line + $0 + "▏" } ?? panelInput()
         let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
