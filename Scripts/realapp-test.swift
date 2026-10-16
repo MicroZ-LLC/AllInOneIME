@@ -762,6 +762,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         selectionCommands()
         refineResults()
         horizontalAndReport()
+        atAfterAWord()
         recentQuestions()
         questionConversation()
         extensions()
@@ -1079,6 +1080,44 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.5)
         window.makeFirstResponder(textView)
         pump(0.8)
+    }
+
+    /// 6d. "@" right after a word is text (an email address, `ssh user@host`): in English "bob@example.com" goes in as
+    ///     typed, no command list. After a space or at the start "@" opens the list, and → on it leaves the "@" as typed
+    ///     and the key moves the caret on, as before. (A terminal's → only ends the list, the "@" going in after it: the
+    ///     self-test checks that on a fake Ghostty line; this is a text view.)
+    func atAfterAWord() {
+        section("@ after a word, → on a lone @")
+        textView.string = ""
+        guard switchTo(english: true) else {
+            check(false, "the field types English letters, for the address")
+            return
+        }
+        let at = { self.key("@", keyCodes["2"]!, .shift) }
+        type("bob")
+        at()
+        type("example.com")
+        check(waitUntil(2) { self.committed == "bob@example.com" } && marked.isEmpty && !imePanelShown(),
+              "an email address goes in as typed, no command list ('\(committed)', marked '\(marked)')")
+        space()
+        at()
+        check(waitUntil(2) { self.marked == "@" }, "after a space, @ opens the list (marked '\(marked)')")
+        reset()
+        // At the start of "ab" (← ← take the caret there): "@", then → puts the "@" in and moves the caret past "a".
+        textView.string = ""
+        type("ab")
+        key("", 0x7B)  // ←
+        key("", 0x7B)
+        at()
+        check(waitUntil(2) { self.marked == "@" }, "at the start of the text @ opens the list (marked '\(marked)')")
+        key("", 0x7C)  // →
+        check(waitUntil(2) { self.committed == "@ab" && self.marked.isEmpty } && waitUntil(2) { !self.imePanelShown() },
+              "→ leaves the @ as typed and the list closes ('\(committed)')")
+        type("x")
+        check(waitUntil(2) { self.committed == "@axb" }, "…and the caret moved on: x lands after the a ('\(committed)')")
+        reset()
+        textView.string = ""
+        _ = switchTo(english: false)
     }
 
     /// 7a. Hiding sensitive information (`redaction` on in the test's config): `@improve` on a selected sentence with

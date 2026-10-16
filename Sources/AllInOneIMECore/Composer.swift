@@ -54,6 +54,9 @@ public final class Composer {
         case updateMarkedText
         /// Insert text into the document, replacing the marked text.
         case commit(String)
+        /// Insert text once the key being answered is done (`appTakesKeysAfterInsert`): a terminal would send what is
+        /// inserted during the key in the key's place.
+        case commitAfterKey(String)
         /// Insert text in place of the text selected when the draft started (`selection`), which is still selected: by
         /// its range where the field told it, else in place of what is selected.
         case replaceSelection(String, Selection)
@@ -497,6 +500,17 @@ public final class Composer {
     /// The field's selection, asked for when "@" starts a draft (nil: none, or not to be used: the setting, secure
     /// input). Set by the controller; a composer on its own has none.
     public var readSelection: () -> Selection? = { nil }
+    /// The character right before the caret where "@" is typed (nil: none, or not known). Set by the controller, from
+    /// what it typed into the field (a terminal tells nothing); a composer on its own knows none. Right after a word
+    /// (`continuesWord`) the "@" is just text: no command list.
+    public var characterBeforeCaret: () -> Character? = { nil }
+    /// Whether the field's app still acts on a key the input method lets through after inserting text during it, as
+    /// text views do: "@" then → inserts the "@" and the caret moves on. Not in terminals (set by the controller):
+    /// Ghostty sends what is inserted during a key in the key's place (an arrow then goes out without the "@", a
+    /// character key types only the "@"), and nothing for a key pressed while text was marked that inserts nothing.
+    /// There a key that leaves the command list types its character along with the "@…"; a key without one (an arrow)
+    /// ends the list, and the "@…" goes in right after it (`Effect.commitAfterKey`).
+    public var appTakesKeysAfterInsert = true
     /// The most of a selection a command takes as its text, in Characters (a few paragraphs). A longer one isn't sent
     /// anywhere, and only Esc leaves it.
     public static let maxSelectionLength = 5000
@@ -1746,6 +1760,8 @@ public final class Composer {
             if draft.isEmpty {
                 // "@" first: the command palette ("@question …").
                 if event.printableText == "@" {
+                    // Right after a word it's text, as in "bob@example.com" or "ssh user@host": no list.
+                    if let before = characterBeforeCaret(), Self.continuesWord(before) { return .passThrough }
                     // Text selected in the field: the command works on it, written in the panel (the field keeps it selected).
                     selection = readSelection().flatMap { $0.text.isEmpty ? nil : $0 }
                     selectionFits = (selection?.text.count ?? 0) <= Self.maxSelectionLength
@@ -1913,6 +1929,12 @@ public final class Composer {
 
     // MARK: - Command palette
 
+    /// Whether an "@" right after `c` is part of a word, as in an email address or `user@host`, and not a command: an
+    /// ASCII letter or digit, ".", "_" or "-". (Not after Chinese: "谢谢@张三" is a mention.)
+    public static func continuesWord(_ c: Character) -> Bool {
+        c.isASCII && (c.isLetter || c.isNumber || c == "." || c == "_" || c == "-")
+    }
+
     /// Keys while a command name is typed after "@": letters narrow the list, Tab, Space, Return or a
     /// digit pick a command, ↑↓ move, ⌫ edits, Esc removes it. Any other key, or a letter no command
     /// starts with, inserts the "@…" as typed and then acts as usual, so "@name" mentions still reach
@@ -1968,8 +1990,8 @@ public final class Composer {
                 paletteHighlight = 0
                 return .consumed([.updateMarkedText, .showPanel])
             }
-            // …other digits pick from the rows shown.
-            if let n = c.wholeNumberValue, n >= 1, matches.indices.contains(paletteFirstVisible + n - 1) {
+            // …other digits pick from the rows shown (one that numbers none goes in as typed).
+            if let n = c.wholeNumberValue, n >= 1, n <= Self.paletteRows, matches.indices.contains(paletteFirstVisible + n - 1) {
                 return .consumed(complete(matches, at: paletteFirstVisible + n - 1))
             }
         }
@@ -2035,7 +2057,15 @@ public final class Composer {
             }
         }
         let next = handleLevelOne(event)
-        return Response(effects: effects + next.effects, handled: next.handled)
+        // A terminal wouldn't act on the key after the "@…" went in (`appTakesKeysAfterInsert`): a key that types goes in
+        // with it, and one that doesn't (an arrow) only ends the list, the "@…" going in once the key is done.
+        guard !next.handled, !appTakesKeysAfterInsert else { return Response(effects: effects + next.effects, handled: next.handled) }
+        let text = event.printableText
+        let afterKey = effects.flatMap { effect -> [Effect] in
+            guard case let .commit(typed) = effect else { return [effect] }
+            return text.map { [.commit(typed + $0)] } ?? [.updateMarkedText, .commitAfterKey(typed)]
+        }
+        return .consumed(afterKey + next.effects)
     }
 
     private func appendTyped(_ text: String, afterVoice: Bool = false) {

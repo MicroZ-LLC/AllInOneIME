@@ -103,6 +103,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
         composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
+        composer.characterBeforeCaret = { [weak self] in MainActor.assumeIsolated { self?.characterBeforeCaret() } }
         composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
         return composer
     }()
@@ -278,6 +279,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
     /// deleting the selected text (a Shift tap, a focus change).
     private var hasMarkedText = false
+    /// The last character the user typed into this text field (`characterBeforeCaret`).
+    private var lastTyped = LastTyped()
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a
     /// Shift-click or ⌥-click is no tap of the key. The self-test replaces this.
     var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { seconds in
@@ -313,6 +316,7 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
+            lastTyped.forget()
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
@@ -323,6 +327,8 @@ final class AllInOneIMEInputController: IMKInputController {
             applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
             // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
+            // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
+            composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
         }
@@ -381,6 +387,25 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
         selectionReported = target?.selectedRange()
         return Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
+    }
+
+    /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
+    /// typed into the field (`lastTyped`), unless the pointer was used since (a click may have moved the caret). A field
+    /// that tells its text (not a terminal) must have that character there, with nothing selected: what the app did with
+    /// its text meanwhile (cleared it, moved the caret) the input method doesn't see.
+    @MainActor
+    private func characterBeforeCaret() -> Character? {
+        guard let typed = lastTyped.character,
+              !pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
+        let target = keyClient ?? clientOverride ?? client()
+        guard let target, !Self.isTerminal(target) else { return typed }
+        let caret = target.selectedRange()
+        guard caret.location != NSNotFound else { return typed }  // a field that tells no caret
+        guard caret.length == 0, caret.location > 0 else { return nil }  // a selection (a command may work on it), the start
+        guard let before = target.attributedSubstring(from: NSRange(location: caret.location - 1, length: 1))?.string else {
+            return typed  // a field that reads nothing back
+        }
+        return before == String(typed) ? typed : nil
     }
 
     /// Whether the field's selection is no longer what it was when the command started on it (`selectionReported`).
@@ -665,6 +690,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))],
                         client: client)
             }
+            lastTyped.forget()
             return false
         }
         secureNoticeShown = false
@@ -675,6 +701,7 @@ final class AllInOneIMEInputController: IMKInputController {
            markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target)) {
             log.notice("the app took the marked text: starting over")
             perform(composer.appTookMarkedText(), client: client)
+            lastTyped.forget()
             return true
         }
         ensureEngine()
@@ -715,6 +742,8 @@ final class AllInOneIMEInputController: IMKInputController {
         keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
+        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
+        lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         prewarmConfigIfWritten()
         return response.handled
     }
@@ -775,10 +804,21 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
+                lastTyped.forget()  // a key that typed it says so (`handleKeyDown`)
+            case let .commitAfterKey(text):
+                // Once this key is done: a terminal would send what is inserted during it in the key's place.
+                let session = fieldSession
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.fieldSession == session else { return }
+                    self.insert(text, into: target)
+                    self.lastTyped.forget()
+                }
             case let .replaceSelection(text, selection):
                 replaceSelection(text, selection, in: target)
+                lastTyped.forget()
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
+                lastTyped.forget()
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
