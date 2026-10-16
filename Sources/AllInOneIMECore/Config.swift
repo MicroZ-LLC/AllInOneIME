@@ -72,6 +72,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var disabledExtensions: [String]
     /// The bundles' preferences that aren't passwords (those are in the keychain): bundle name → name → value.
     public var extensionPreferences: [String: [String: String]]
+    /// Git repositories extension bundles are installed from (`ExtensionSource`); an enabled one's bundle folder is in
+    /// `extensionFolders`. Empty by default.
+    public var extensionSources: [ExtensionSource]
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
@@ -178,6 +181,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.hiddenExtensionFolders = []
         self.disabledExtensions = []
         self.extensionPreferences = [:]
+        self.extensionSources = []
         self.claudeInBackground = true
         self.rememberQuestions = true
         self.questionRounds = QuestionChat.defaultRounds
@@ -217,6 +221,7 @@ public struct Config: Codable, Equatable, Sendable {
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
+        case extensionSources
         case provider, anthropic, gemini, openai
     }
 
@@ -281,6 +286,7 @@ public struct Config: Codable, Equatable, Sendable {
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
+        extensionSources = ExtensionSource.decodeAll(c, forKey: .extensionSources)
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -365,6 +371,8 @@ public struct Config: Codable, Equatable, Sendable {
         let profiles = appProfiles.filter { !$0.value.isEmpty }
         if !profiles.isEmpty { try c.encode(profiles, forKey: .appProfiles) }
         try c.encode(redaction, forKey: .redaction)
+        // Only once a source is added: a file from before sources doesn't gain an empty key.
+        if !extensionSources.isEmpty { try c.encode(extensionSources, forKey: .extensionSources) }
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

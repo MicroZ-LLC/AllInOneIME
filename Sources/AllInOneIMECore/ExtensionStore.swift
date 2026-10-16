@@ -231,7 +231,8 @@ public enum ExtensionStore {
     }
 
     /// Reads `folders` (not those hidden): each one's bundles (subfolders with `extension.json`) and scripts,
-    /// by name, not deeper (as Raycast does); from a folder found (`Folder.found`), its Raycast scripts only.
+    /// by name, not deeper (as Raycast does); an added folder with an `extension.json` of its own is that one
+    /// bundle; from a folder found (`Folder.found`), its Raycast scripts only.
     /// Symbolic links are followed: a linked folder, script or bundle is read as the one it points to (a link to
     /// nothing is reported). A script or bundle byte for byte the same as one before it, under the same name (a
     /// second checkout of a repository, a copied folder), is left out quietly (`ExtensionIndex.identical`); one
@@ -259,7 +260,9 @@ public enum ExtensionStore {
             return true
         }
         for folder in folders where !folder.hidden {
-            for item in items(in: folder.url) {
+            // An added folder that is a bundle itself (an extension source's, `ExtensionSources`) is read as that bundle.
+            let isBundle = !folder.found && FileManager.default.fileExists(atPath: folder.url.appendingPathComponent(ExtensionBundle.manifestName).path)
+            for item in isBundle ? [(url: folder.url, kind: ItemKind.folder)] : items(in: folder.url) {
                 switch item.kind {
                 case .brokenLink:
                     if !folder.found { skipped.append(Skipped(file: item.url, problem: .brokenLink)) }
