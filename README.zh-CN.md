@@ -34,7 +34,7 @@
 > 从旧版本更新后，AllInOneIME 存在钥匙串里的每个 key，macOS 都会问一次登录密码：输入后点「始终允许」。只从
 > [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com/zh/) 下载。
 
-一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@claude` 交给 Claude Code，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
+一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@agent` 交给 Claude Code、Gemini CLI、Kiro CLI 等编程 agent，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
 
 ![@improve 加拼音，按 ⏎：原文语言的润色和改写](docs/improve.png)
 
@@ -70,7 +70,7 @@
 | `@improve` | 润色：1–3 是原文语言的三种说法，4 起是改写风格（设置里加、拖动排序），0 是原文。不翻译；设置里打开「@improve 同时翻译」就和 `@translate @improve` 一样 |
 | `@translate` | 翻译成你加的语言（设置「翻译」里加、拖动排序），每种一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。`@translate @improve` 写在一起就一次请求同时翻译和改写 |
 | `@question` | 提问，答案出现在候选里，⏎ 或空格上屏，⌘C 复制。接着打字按 ⇧⏎ 就是追问：候选框变成最多 5 轮的对话，聊满后建议到 Claude 或别的 AI 里接着聊。后面不打字时，列出最近 5 个问题（最新的在前）；接着打字就按问题里任何位置的字筛选（不分大小写，中文也行）。按数字、↑↓ 再按 ⏎，或者点一下，马上显示当时保存的答案（不联网），照常上屏或复制；在那里按 ⌘R 重新问一遍，拿新的答案。没有匹配的、或者没选时，⏎ 照常问你打的问题 |
-| `@claude` | 交给 Claude Code：默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看。用的是你本机的 Claude Code（`claude` 命令）和它自己的登录、设置。设置里关掉「@claude 在后台运行，做完通知我」就像以前一样在终端打开。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」 |
+| `@agent` | 交给本机的编程 agent，在设置 → 通用 →「@agent 交给」里选：Claude Code（默认）、Gemini CLI、Kiro CLI，或你自己的命令（你打的字加在最后，作为最后一个参数）。Claude Code 默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看；关掉「@agent 在后台运行，做完通知我」就在终端打开。别的 agent 在终端打开，你打的字是第一句话。各自用自己的登录和设置。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」。（0.6.5 以前叫 `@claude`。） |
 | `@tasks` | 列出后台的 Claude 任务（进行中 / 完成 / 等你确认）和它们最后的回复；⏎ 在终端打开接着聊，⌘C 复制回复 |
 | `@settings` | 直接打开设置窗口（选中就打开，不用再写内容） |
 | `@config` | 用一句话改设置：`@config 翻译成英语和法语`、`@config 微信里用中文`、`@config 候选竖排`。⏎ 列出要改的地方（原来 → 改成），⏎（或 1）全部应用，Esc 取消，接着打字再按 ⇧⏎ 可以再改；⌘Z 或 `@config undo` 撤销。见[用一句话改设置](#用一句话改设置新) |
@@ -100,9 +100,9 @@
 `@` 后面跟的不是命令时，比如 `@张三`、`@john`，`@` 照常上屏，在聊天软件里 @ 人不受影响。
 紧跟着刚打的英文字母、数字、`.`、`_` 或 `-` 打 `@` 时（比如 `bob@example.com`、`ssh user@host`），`@` 就是普通字符，不弹命令列表，哪个 App 里都一样，终端也是。
 列表打开时，按 ← → 或者命令名里不会有的键（`.`、`:`、`/`）会关掉列表，打的字（`@`、`@im`）照原样留下；在终端里 ← → 这时只关掉列表。
-`@question`、`@improve`、`@translate` 只在按执行键时发到你自己的 Bedrock；`@open` 只在本机搜索；`@note`、`@reminder` 只交给本机的「备忘录」和「提醒事项」；`@claude` 用的是你本机装的
-Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前它会照常先问你；没装 Claude Code 时不显示
-`@claude`。`@imessage` 只在本机读通讯录（姓名、电话、邮箱），不经过 AI，由「信息」发出；没有「信息」App 时不显示。
+`@question`、`@improve`、`@translate` 只在按执行键时发到你自己的 Bedrock；`@open` 只在本机搜索；`@note`、`@reminder` 只交给本机的「备忘录」和「提醒事项」；`@agent` 用的是你本机装的
+agent（默认是 Claude Code 的 `claude` 命令）和它自己的账号，改文件、跑命令前它会照常先问你；没装这个 agent 时不显示
+`@agent`。`@imessage` 只在本机读通讯录（姓名、电话、邮箱），不经过 AI，由「信息」发出；没有「信息」App 时不显示。
 
 `@calculate` 在本机计算，不联网：`+ - * /`（也认 `× ÷`）、`^` 或 `**` 乘方、括号、百分号（`50%` 就是 0.5，`200*5%` 是 10；
 跟计算器一样，加减的百分数按前面的数算：`100+10%` 是 110，`100-10%` 是 90），
@@ -116,7 +116,7 @@ Claude Code（`claude` 命令）和它自己的账号，改文件、跑命令前
 命令处理的就是选中的文字，你选好的结果替换它。打字时选中的文字原样留着、一直选中：命令写在候选框里，第一行是你打的字，下一行是
 「对选中的文字：“…”（N 字）」。按 Esc、⇧⏎ 或点到别处，文字都不变；中途改了选区，命令就取消，文字也不变。
 命令后面再写的字，对 `@improve`、`@translate` 是要求（`@translate ja`、`@improve 更正式`），对 `@question` 是关于这段文字的问题
-（`@question 这是什么意思`）。`@open`、`@claude`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、终端命令和脚本扩展不用它：它们只用你打的字，选中的文字不动。
+（`@question 这是什么意思`）。`@open`、`@agent`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、终端命令和脚本扩展不用它：它们只用你打的字，选中的文字不动。
 最多 5000 字；系统安全输入时、终端里不读。哪个 App 里不正常，在设置 →「通用」→「使用选中的文字」里关掉。
 
 ### 修改结果（新）
@@ -287,7 +287,7 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 里面的先运行，结果替换回原文，再交给外面的命令。参数是紧跟的一个代码，后面再跟着的大写代码或数字也算（`@stock AAPL TSLA`、`@stock 600519 700`）；
 小写的普通单词会结束参数（`@stock SNDK is good to buy` 只查 SNDK）。要明确圈定就用「」或引号：`@stock「aapl tsla」`。
 `@calculate` 也能写在句子中间，参数是它后面的整个算式，可以有空格，到别的文字为止：`@reply 总价是 @calculate 23 * 17 元`。
-`@claude` 和终端命令里写的不会先运行，照原样交给它们（打 `@` 也不弹命令列表）。
+`@agent` 和终端命令里写的不会先运行，照原样交给它们（打 `@` 也不弹命令列表）。
 
 ### 执行键
 
@@ -324,7 +324,7 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 | 输入框用哪种输入语言开始 | Slack 里用英文，微信里用拼音 | `inputLanguage` |
 | `@improve` 在那里给哪些改写风格 | 邮件里正式、委婉，Slack 里口语 | `rewriteStyles` |
 | 逐字上屏开还是关 | 聊天 App 里开，邮件里关 | `typeOut` |
-| 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@claude` 和你的提示词命令在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
+| 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@agent` 和你的提示词命令在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
 
 「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选。输入法菜单里的「这个 App：<名字>」可以直接切换正在打字的
 App 的「不用 AI」「逐字上屏」和开始的输入语言。配置里在 `appProfiles` 下，按 bundle ID 写：
@@ -383,7 +383,7 @@ bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `co
 
 - 备忘录：用 `@note` 存的笔记，最新的 5 条；点一条在「备忘录」里打开。
 - 提醒事项：「提醒事项」里 AllInOneIME 列表中还没完成的提醒（`@reminder` 就加在这个列表里），快到期的在前，显示 8 个；点前面的圆圈就勾掉，点标题打开「提醒事项」。
-- Claude 任务：和 `@tasks` 一样，列出后台的 Claude 任务（`@claude` 交出去的），最多 30 个，一次显示 5 个，多了可以滚动，也可以在搜索框里按标题或回复搜；带进度和最后回复的第一行，点一个在终端里打开接着聊。
+- Claude 任务：和 `@tasks` 一样，列出后台的 Claude 任务（`@agent` 交给 Claude Code 的），最多 30 个，一次显示 5 个，多了可以滚动，也可以在搜索框里按标题或回复搜；带进度和最后回复的第一行，点一个在终端里打开接着聊。
 
 一行（笔记、提醒、任务都可以）用触控板两指往左滑，露出「移除」按钮；一直滑到底就直接移除，用鼠标的话右键它。移除只是不在面板里显示：笔记还在「备忘录」里，提醒还在「提醒事项」里（不会被勾完成），任务还在 Claude Code 里。
 
@@ -395,7 +395,7 @@ bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `co
 
 - 笔记：列表是面板自己记的（面板收着时也记），不会启动「备忘录」：只有「备忘录」本来就开着、以前也允许过 AllInOneIME 控制它时，才顺便看一下标题改没改、笔记删没删。
 - 提醒：拉下面板时、每 60 秒、提醒有变化时读 AllInOneIME 列表。面板自己不会让 macOS 弹出权限询问：macOS 还没问过你时显示「允许读取提醒事项」，点了才问；不允许的话显示「打开系统设置」。
-- Claude 任务：面板拉下来时才运行 `claude agents`：拉下、点刷新和用 `@claude` 交出任务时各一次；还有任务没完成时每 15 秒一次，都完成了就不再定时运行。最后的回复读自 Claude Code 在本机的会话记录（`~/.claude/projects`），只读末尾一段，记录没变就不再读。
+- Claude 任务：面板拉下来时才运行 `claude agents`：拉下、点刷新和用 `@agent` 交出任务时各一次；还有任务没完成时每 15 秒一次，都完成了就不再定时运行。最后的回复读自 Claude Code 在本机的会话记录（`~/.claude/projects`），只读末尾一段，记录没变就不再读。
 - 收起时这些都不运行，只记下用 `@note` 存了哪些笔记。
 
 ## 输入和翻译
@@ -599,7 +599,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 
 - 用于 `@improve`、`@translate`、`@question`、你的 prompt 命令和 prompt 插件，以及修改它们的结果（用同样的占位符），所有 AI 服务都一样，
   包括 AllInOneIME 云和 Apple Intelligence。黑话库里含要隐藏内容的词条不发。
-- 它能认出有固定格式的内容；认不出人名和地址，这些请加到自己的词里。`@claude`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。详见「隐私」。
+- 它能认出有固定格式的内容；认不出人名和地址，这些请加到自己的词里。`@agent`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。详见「隐私」。
 - 配置文件里是 `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`。
 
 所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。新加的几项：
@@ -620,6 +620,9 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `fuzzyPinyin` | 模糊音：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 | `useSelection` | @ 命令处理输入框里选中的文字（见「对选中的文字用命令」） | `true` |
 | `checkForUpdates` | 每天在后台看一次有没有新版本；不点就不会安装 | `true` |
+| `agent` | `@agent` 交给哪个编程 agent：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
+| `agentCommand` | 自定义 agent 的命令，你打的字加在最后，例如 `["muse", "--"]` | `[]` |
+| `claudeInBackground` | `@agent` 用 Claude Code 时在后台运行，做完通知你（别的 agent 总在终端打开） | `true` |
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`claudeCode`、`claudeWeb`、`chatgpt`、`gemini`、`copy` | Claude Code（装了的话）、Claude、ChatGPT、复制 |
@@ -632,7 +635,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - `@config` 和 `@doctor <问题>` 按 ⏎ 时会把文字发给模型：这台 Mac 有 Apple 智能就用它（不离开这台 Mac），没有就用你选的服务。`@config` 发出你写的那句话（里面打的密钥先去掉）和允许改的设置现在的值：从不发密钥，也不发你对 AI 隐藏的词（只说有几个）；AWS profile 的名字只在这句话说到 AWS 或 Bedrock 时才发。`@doctor <问题>` 发出你的问题和遮掉敏感内容的检查结果：路径只到 `~`，没有密钥，日志只留固定的短语。两者都和别的请求一样会隐藏敏感信息（如果打开了）。只检查（`@doctor` 后面不打字）时，除了测试连接的那一次请求（服务有密钥或凭证可测时才测）什么都不发。
 - `@question` 对话换个地方接着聊（聊满后按 ⌘1…，或按 ⌘⏎）时，对话连同你打的字发给你选的服务：本机的 Claude Code（Anthropic）、claude.ai、chatgpt.com 或 gemini.google.com，放在网址里或经剪贴板。发过去的是你看到的样子：发给 AI 的请求里隐藏的内容（见下）在里面是原样的，因为是你自己选择发到那里。不选就什么都不发；「复制对话」只是放到剪贴板。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。
-- 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和 prompt 插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；`@claude`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
+- 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和 prompt 插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；`@agent`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
 - 只有在命令里按 ⌃V 或 ⌘V 时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
 - 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字、也不能录音，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。

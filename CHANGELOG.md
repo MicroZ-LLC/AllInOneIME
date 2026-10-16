@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.6.5 (unreleased)
+
+### Changed
+
+- `@claude` is now `@agent`, and it hands the text to the coding agent you pick in Settings → General → "@agent hands it to": Claude Code (the default, as before), Gemini CLI, Kiro CLI, or a command of your own (`agentCommand`, what you typed added as its last argument). Claude Code still runs in the background if you like (`@tasks` lists those tasks); the other agents open in Terminal with what you typed as their first message. An agent that isn't installed isn't offered. The prompt always reaches the agent whole, however long. `@claude` is no longer a command (a command of your own may use the name); how often you used it carries over to `@agent` in the command list. In the config: `agent`, `agentCommand`.
+
 ## 0.6.4 (2026-10-16)
 
 ### Added
