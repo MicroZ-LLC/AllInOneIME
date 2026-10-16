@@ -141,8 +141,22 @@ public enum ProviderError: Error, LocalizedError, Equatable {
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
         case let .refused(p): return p == .apple ? "Apple Intelligence declined this request" : "The \(p.displayName) declined this request"
         case let .invalidResponse(p, detail): return "Couldn't read the \(p.displayName) response: \(detail)"
-        case .signedOut: return "Sign in to AllInOneIME Cloud in the settings"
-        case .quotaExhausted: return "No requests left today: subscribe, or add your own API key in the settings"
+        case .signedOut, .quotaExhausted: return Self.hostedAdvice(self, onDevice: AppleModel.system.availability == .available)
+        }
+    }
+
+    /// What a signed-out or used-up AllInOneIME Cloud says to do (`errorDescription`). With Apple Intelligence on this
+    /// Mac (`onDevice`), `@config use Apple Intelligence` too: `@config` itself runs on it then. Without it, `@config`
+    /// would fail the same way, so only signing in or a key of one's own.
+    public static func hostedAdvice(_ error: ProviderError, onDevice: Bool) -> String? {
+        switch error {
+        case .signedOut:
+            return onDevice ? "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence"
+                : "Sign in to AllInOneIME Cloud in the settings, or add your own API key"
+        case .quotaExhausted:
+            return onDevice ? "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence"
+                : "No requests left today: subscribe, or add your own API key in the settings"
+        default: return nil
         }
     }
 }

@@ -388,10 +388,18 @@ enum UIText {
             case let .refused(p): return tr("\(name(p)) 拒绝了这个请求", "The \(name(p)) declined this request")
             case let .invalidResponse(p, detail):
                 return tr("\(name(p)) 的响应无法解析：\(detail)", "Couldn't read the \(name(p)) response: \(detail)")
-            case .signedOut: return tr("请先在设置里登录 AllInOneIME 云", "Sign in to AllInOneIME Cloud in the settings")
+            // With Apple Intelligence here, @config can switch to it (it runs on it then); without, it would fail the same way.
+            case .signedOut:
+                return AppleModel.system.availability == .available
+                    ? tr("请先在设置里登录 AllInOneIME 云，或者打 @config 用 Apple 智能",
+                         "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence")
+                    : tr("请先在设置里登录 AllInOneIME 云，或者填自己的 API key", "Sign in to AllInOneIME Cloud in the settings, or add your own API key")
             case .quotaExhausted:
-                return tr("今天的免费次数用完了：可以在设置里订阅，或者填自己的 API key",
-                          "No requests left today: subscribe, or add your own API key in the settings")
+                return AppleModel.system.availability == .available
+                    ? tr("今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者打 @config 用 Apple 智能",
+                         "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence")
+                    : tr("今天的免费次数用完了：可以在设置里订阅，或者填自己的 API key",
+                         "No requests left today: subscribe, or add your own API key in the settings")
             }
         }
         if let error = error as? AppleModelError { return describe(error) }
