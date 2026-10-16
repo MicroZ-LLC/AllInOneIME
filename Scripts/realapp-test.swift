@@ -1073,18 +1073,28 @@ final class Harness: NSObject, NSApplicationDelegate {
             guard let self, !Self.typoSentence.hasPrefix(self.committed) else { return }
             self.typoSeen = true
         }
-        command("rttypo")
-        pump(0.5)
-        act()
-        let typed = waitUntil(40) {
-            if self.committed.isEmpty, !self.marked.isEmpty { self.space() }  // ignored until its output is in
-            return self.committed == Self.typoSentence
+        // Until a fix is seen taken in a field, only a wrong letter is tried there (`TypeOut.Typing.probe`): a letter
+        // or space typed twice, or a word typed again, goes in plainly. In about 1 run in 45 of this sentence no slip
+        // is a wrong letter, and none shows: up to three runs (each starts unproven), all typed exactly.
+        var typed = true
+        var runs = 0
+        while runs < 3, !typoSeen {
+            runs += 1
+            textView.string = ""
+            command("rttypo")
+            pump(0.5)
+            act()
+            typed = waitUntil(40) {
+                if self.committed.isEmpty, !self.marked.isEmpty { self.space() }  // ignored until its output is in
+                return self.committed == Self.typoSentence
+            } && marked.isEmpty && typed
+            pump(0.3)
+            reset()
         }
-        pump(0.3)
         NotificationCenter.default.removeObserver(observer)
         check(typed && committed == Self.typoSentence && marked.isEmpty,
               "typed out with typos on, the text is exactly what it printed ('\(committed)')")
-        check(typoSeen, "…with typos in the text view on the way, each taken back")
+        check(typoSeen, "…with typos in the text view on the way, each taken back (\(runs) run\(runs == 1 ? "" : "s"))")
         ime?.synchronize()
         check(!(UserDefaults(suiteName: imeID)?.stringArray(forKey: noTypos) ?? []).contains(me),
               "…and the NSTextView isn't remembered as a field that can't take typos back")
