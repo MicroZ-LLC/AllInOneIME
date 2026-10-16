@@ -277,6 +277,30 @@ status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Exam
 has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
 or a list as you type it), never during secure input, and stop when the input method quits.
 
+#### Extension sources (new)
+
+A bundle can come from a Git repository, yours or your team's, and stay up to date from there. Settings → Custom
+Commands → Extension Sources → **Add from Link…**: paste the repository's address (`git@github.com:you/my-extensions.git`,
+`ssh://…`, `https://…`; optionally a branch, the bundle's folder in the repository, and a tag or commit to pin it to).
+AllInOneIME clones it with **your own git and SSH setup** (keys, agent, ~/.ssh/config, credential helpers), so a
+private repository works as it does in Terminal; the app never asks for or stores a password. The clone goes into
+`~/Library/Application Support/AllInOneIME/Sources/`, never straight into an extensions folder.
+
+- **Review first.** Before anything loads you see the bundle, every command (name, title, description, output), the
+  programs they run, its preferences, and the commit, under the warning "This source isn't signed: it will run
+  programs from <address>". Only **Enable** adds it; Cancel deletes the clone. You review a source once.
+- **Updates are yours to apply.** Once a day (and soon after the input method starts) a source is fetched to see what's
+  new: Settings shows "N updates" with the commits (subject, author, date) and a badge on the page. Nothing changes
+  until you click **Update**, which only fast-forwards and runs no hooks; after a force push it offers **Re-clone**.
+  A source pinned to a tag or commit isn't checked. Turn the daily check off per source (`autoCheck`).
+- **Errors** are git's own words, with "This uses your own git and SSH setup; check that `git ls-remote <url>` works in
+  Terminal", and your own reminder under it if you set one (`authHint` in the config).
+- **Remove** moves the clone to the Trash; the bundle's preferences are kept for next time.
+- From a terminal: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]` (prints the review and enables
+  it), `--update-sources`, `--list-extensions` (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+
+The config keeps them as `extensionSources`; the repository layout is in [docs/extensions.md](docs/extensions.md#10-extension-sources).
+
 ### Plugins
 
 Plugins are ready-made `@` commands for things not everyone needs, like `@stock AAPL 600519 700` for stock quotes.
@@ -656,6 +680,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.
+- Extension sources: git runs on your Mac, as you, only for the sources you added: a fetch once a day for those that
+  check by themselves (none for a pinned one), and when you click Check Now, Update or Re-clone. It talks only to the
+  repository's host, signed in by your own git and SSH setup; nothing you type goes with it.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
 ## Development

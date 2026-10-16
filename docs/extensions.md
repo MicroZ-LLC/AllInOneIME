@@ -28,7 +28,8 @@ Extensions are read from folders:
 
 - `~/.config/allinoneime/extensions/` (in the list from the start),
 - folders added under Settings → Custom Commands → Script Extensions → Add Folder…,
-- folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden).
+- folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden),
+- bundles installed from a Git repository: extension sources (§10).
 
 A folder you add (and the first one) is read whole, as below. From a folder Spotlight found, only its Raycast Script
 Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
@@ -44,7 +45,8 @@ In each folder:
 
 - **A single script** is a file in the folder with metadata (§2). Files whose name contains `.template.`, and hidden
   files, are left out. Subfolders aren't read, except bundles.
-- **A bundle** is a subfolder with an `extension.json` (§6): its commands, and settings they share.
+- **A bundle** is a subfolder with an `extension.json` (§6): its commands, and settings they share. A folder added
+  that has an `extension.json` itself is that one bundle (this is how an extension source's bundle is loaded).
 - **Symbolic links** are followed: a linked folder, script or bundle is read as what it points to. A link to nothing
   is listed in Settings as such.
 
@@ -307,3 +309,78 @@ Raycast's keys are read as they are, and mean:
 | `hiddenExtensionFolders` | `[]` | found folders not used |
 | `disabledExtensions` | `[]` | commands (ids) and bundles (names) turned off |
 | `extensionPreferences` | `{}` | bundle → preference → value (not passwords) |
+| `extensionSources` | `[]` | Git repositories bundles are installed from (§10) |
+
+## 10. Extension sources
+
+A bundle can be installed from a Git repository and updated from there: Settings → Custom Commands → Extension
+Sources → Add from Link…, or `AllInOneIME --add-source <url>`.
+
+**The repository.** Any layout, as long as the bundle is a folder with its `extension.json` (§6) and the scripts it
+names:
+
+```
+my-extensions/                 the repository
+├── README.md
+└── extensions/team/           the bundle ("path": "extensions/team")
+    ├── extension.json
+    ├── standup.sh
+    └── lib/common.sh
+```
+
+With no `path`, the folder holding an `extension.json` is found (the root, or one up to four levels down; not inside
+hidden folders or `node_modules`); when there are several, Settings lists them to pick from and `--add-source` asks
+for `--path`. A source is one bundle, and an address is one source: bundles meant to be used together go in one
+bundle, others in a repository of their own.
+
+**The config.**
+
+```json
+"extensionSources": [
+  { "url": "git@github.com:you/my-extensions.git", "path": "extensions/team", "branch": "main", "pin": null,
+    "autoCheck": true, "authHint": "Optional: your own reminder of how to sign in, shown under a git error" }
+]
+```
+
+| Key | Meaning |
+|---|---|
+| `url` | `ssh://…`, `git@host:path`, `https://…`, or `file://…` (a repository on this Mac). `http://` isn't used |
+| `path` | the bundle's folder in the repository (none: found as above) |
+| `branch` | the branch followed (none: the repository's default) |
+| `pin` | a tag or commit the clone stays on; `null` follows the branch. A pinned source isn't checked for updates |
+| `autoCheck` | `true` (default): checked once a day and about 30 s after the input method starts |
+| `authHint` | shown under a git error |
+
+**What happens.**
+
+- **Git.** `/usr/bin/git` (Xcode's or the command line tools'; without them, a clear error instead of the installer)
+  runs as you, with your login shell's PATH and SSH agent, so your keys, `~/.ssh/config` and credential helpers sign in;
+  the app never sees a password. Never interactively: `GIT_TERMINAL_PROMPT=0`, ssh with `-o BatchMode=yes` added to
+  your own ssh command (`GIT_SSH_COMMAND` or `core.sshCommand`), standard input closed, 60 seconds a call, hooks off
+  (`-c core.hooksPath=/dev/null`) for every call.
+- **Adding.** A shallow clone (`--depth 1`, the one branch, no tags; the pin fetched and checked out) into a temporary
+  folder, moved into place as `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of
+  the address). Nothing of it loads until you've seen the review (the bundle, each command's name, title,
+  description and output, the programs it runs, its preferences, the address and commit) and clicked Enable, which
+  adds the bundle's folder to `extensionFolders`. Cancel deletes the clone. A command whose name is taken follows §7,
+  and the review says so.
+- **Trust** is per source and address: once enabled, its updates don't need another review.
+- **Checking** (`autoCheck`, or Check Now): `git fetch` of the branch (100 commits deep), and the commits after the
+  clone's listed (subject, author, date). Nothing changes.
+- **Update** (only when you click it, or `--update-sources`): fetched again, then the clone is moved to the new commit
+  if it follows the clone's (a fast-forward; never a merge). If the history was rewritten (a force push, or more than
+  100 new commits), Re-clone replaces the clone instead. The loader reads the changed files as for any folder (§1).
+- **Removing** moves the clone to the Trash and takes the source and its folder out of the config; the bundle's
+  `extensionPreferences` (and passwords in the keychain) stay, so adding it back restores them.
+- **State.** What's known of each clone (trusted, its branch and commit, the last check and error, what's new) is in
+  `sources.json` next to the clones. The command line writes it too; a running input method reads it again.
+
+**Command line** (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`):
+
+| | |
+|---|---|
+| `--add-source URL [--path P] [--branch B] [--pin REF]` | clone, print the review, enable (running it is the consent); non-zero on any error |
+| `--update-sources` | check and fast-forward every enabled source that isn't pinned; print what changed |
+| `--list-extensions` | the loaded commands (name, output, source or folder), those turned off or hidden, and the files left out |
+
+There is no signature on a source: it runs what its repository holds, as you. Add only repositories you trust.
