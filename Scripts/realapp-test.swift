@@ -133,7 +133,7 @@ let keyCodes: [Character: UInt16] = [
     "c": 0x08, "v": 0x09, "b": 0x0B, "q": 0x0C, "w": 0x0D, "e": 0x0E, "r": 0x0F, "y": 0x10,
     "t": 0x11, "1": 0x12, "2": 0x13, "3": 0x14, "4": 0x15, "6": 0x16, "5": 0x17, "9": 0x19,
     "7": 0x1A, "8": 0x1C, "0": 0x1D, "o": 0x1F, "u": 0x20, "i": 0x22, "p": 0x23, "l": 0x25,
-    "j": 0x26, "k": 0x28, "n": 0x2D, "m": 0x2E, ",": 0x2B, ".": 0x2F,
+    "j": 0x26, "k": 0x28, "n": 0x2D, "m": 0x2E, ",": 0x2B, ".": 0x2F, " ": 0x31,
 ]
 let spaceCode: UInt16 = 0x31, returnCode: UInt16 = 0x24, escapeCode: UInt16 = 0x35, tabCode: UInt16 = 0x30
 let deleteCode: UInt16 = 0x33, leftShiftCode: UInt16 = 0x38, leftOptionCode: UInt16 = 0x3A
@@ -294,8 +294,18 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.04)
     }
 
+    /// Types `text` key by key (a space with the Space key). A character with no key in `keyCodes` is a bug in the test:
+    /// it fails the run (key code 0 would have typed an "a" in its place, as it did for the spaces of "candidates in a row").
     func type(_ text: String) {
-        for ch in text { key(String(ch), keyCodes[ch] ?? 0) }
+        for ch in text {
+            guard let code = keyCodes[ch] else {
+                print("✗ type(\"\(text)\"): no key for '\(ch)' in keyCodes")
+                fflush(stdout)
+                failures += 1
+                continue
+            }
+            key(String(ch), code)
+        }
     }
 
     func space(_ flags: NSEvent.ModifierFlags = []) { key(" ", spaceCode, flags) }
