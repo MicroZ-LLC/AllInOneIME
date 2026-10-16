@@ -50,7 +50,7 @@
 | `@`（在句子開頭） | 開啟指令清單：最近最常用的排在前面，一次 5 個，可用 ↑↓、滾輪或觸控式軌跡板捲動；或輸入字母來尋找（完整輸入的名稱優先，其次是以這些字母開頭的名稱，再其次是包含它們的）。按 ⏎、Tab、Space 或數字鍵選定 |
 | ⏎ | 執行指令。拼音尚未選定時也可以：會先選定，就像按 Space 一樣 |
 | Space、⏎／數字鍵 | 結果出現後：插入反白的／對應編號的那一項；0 是原文。後續內容只打了一半時按 ⏎ 也會插入（打的內容會捨棄） |
-| ⇧⏎ | AI 結果出現後又輸入了後續內容時：把它送出（`@question` 對話的下一個問題，或修改要求）。正在輸入指令時，或 AI 結果出現後什麼都沒輸入時：照你輸入的原樣插入，連同 `@command`。在其他結果上（`@open`、提醒事項…）插入反白的那一列，和 ⏎ 一樣。在 @config 和 @doctor 的結果上，什麼都沒輸入時按 ⇧⏎ 不做任何事 |
+| ⇧⏎ | AI 結果出現後又輸入了後續內容時：把它送出（`@question` 對話的下一個問題，或修改要求）。正在輸入指令時，或 AI 結果出現後什麼都沒輸入時：照你輸入的原樣插入，連同 `@command`。在其他結果上（`@open`、提醒事項…）插入反白的那一列，和 ⏎ 一樣。在 `@config` 和 `@doctor` 的結果上，什麼都沒輸入時按 ⇧⏎ 不做任何事 |
 | ⌘C | 拷貝反白的結果（`@open` 則是路徑）；候選視窗保持開啟 |
 | ⌃V | 在指令中（例如 `@improve ` 之後）：把剪貼簿的文字接在你輸入的內容後面，而不是貼到 App 裡。多行會合併成一行，每次最多 2000 個字元（`@note` 會保留換行，最多 20000 個）。在任何 App 中都可用；沒有指令時，按鍵照常送到 App |
 | ⌘V | 和 ⌃V 一樣，但有些 App 會自行處理 ⌘V（Ghostty、iTerm2、Terminal 等終端機，以及 Notes），照常貼到 App 裡；在這些 App 中請用 ⌃V |
@@ -120,7 +120,7 @@
 `@question` 後面沒有輸入任何內容時，會列出你最近的 5 個問題，最新的在前，並註明提問時間（「3 hours ago」）。接著輸入就能篩選：每個字詞出現在問題中任何位置都算，不分大小寫（不含空格的中文也可以）。按數字鍵、↑↓ 再按 ⏎，或按一下，會立刻顯示該問題已儲存的答案，不需連網：Space 或 ⏎ 插入，⌘C 拷貝，⌘R 重新提問以取得新的答案（對話則是重新提出最後一個問題），Esc 回到清單。已儲存的對話會顯示所有輪次：接著輸入就能繼續聊。沒有符合的項目，或沒有選取任何項目時，⏎ 會提出你輸入的問題。同一個問題有了新答案，或對話又繼續聊下去，就會取代已儲存的那個。
 
 - 它們只存放在這台 Mac 上（見「隱私」）：處於安全輸入狀態時不存，對選取文字提出的問題一律不存。
-- Settings → General →「Remember recent questions」（記住最近的問題）可以關閉此功能並刪除它們（設定檔中的 `rememberQuestions`）；「Clear (N)」（清除）會刪除它們。在設定中關閉會刪除已儲存的問題；用 @config 關閉則會保留它們（Settings → General → Clear 會刪除它們）。
+- Settings → General →「Remember recent questions」（記住最近的問題）可以關閉此功能（設定檔中的 `rememberQuestions`）；在那裡關閉時也會刪除它們。透過 `@config` 關閉時則會保留它們，讓還原時能完全回到原本的狀態（它的預覽會說明這點）；「Clear (N)」（清除）會刪除它們。
 
 ### 備忘錄與提醒事項
 
@@ -446,7 +446,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 ## 隱私
 
 - 打字（英文和拼音）以及 `@calculate` 的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。修改結果（在結果出現後輸入要求，再按 ⇧⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求；追問（⇧⏎）則會連同到目前為止的對話一起送出。
-- `@config` 和 `@doctor <question>` 會把文字送給你的 AI 模型，優先使用裝置上的模型：@config 只送出允許清單中的目前設定（絕不包含金鑰或自訂的詞），@doctor 送出遮蔽過的檢查結果；單獨執行檢查時只送出 Test Connection 的請求。
+- `@config` 和 `@doctor <question>` 會在你按 ⏎ 時把文字送給模型：只要這台 Mac 能用 Apple Intelligence 就用它（不會有任何內容離開 Mac），否則用你的供應商。`@config` 會送出你的句子（句子中輸入的金鑰會先去除），以及它可以修改的那些設定的目前值：絕不包含金鑰，也不包含你對 AI 隱藏的詞（只送出有幾個），AWS 設定檔的名稱也只在句子與 AWS 或 Bedrock 有關時才送出。`@doctor <question>` 會送出你的問題和遮蔽過的檢查結果：路徑只到 `~` 為止、沒有金鑰、記錄檔的內容改為固定的說法。隱藏敏感資訊對兩者都適用，和其他請求一樣。單獨執行檢查時（`@doctor` 後面什麼都不接），除了 Test Connection 的請求之外什麼都不送出，而且只在供應商有金鑰或憑證可測試時才送。
 - 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上的 Claude Code（Anthropic）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
 - 使用 AllInOneIME Cloud 時，句子會經由開發者的伺服器送到模型供應商（目前經由 OpenRouter）：伺服器只保留計數，絕不保留文字。登入只會保留你的電子郵件地址。
 - 隱藏敏感資訊（Settings → AI Provider → Privacy，預設關閉）：任何請求送出之前（`@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，所有供應商皆然，包括 AllInOneIME Cloud），電子郵件地址、電話號碼、付款卡號（經 Luhn 檢查）、API 金鑰和權杖（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和很長的隨機字串）、IP 位址以及你自己的字詞（代號、名字）會先在 Mac 上換成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 這類預留位置；同一個值使用同一個預留位置。模型的結果在顯示或插入之前會換回真實內容，候選視窗會顯示「2 items hidden from the AI」。模型把預留位置改得無法辨認的結果，會照原樣顯示並標上「⚠ placeholder changed」。術語表中含有被隱藏內容的項目不會送出。每一類都能個別關閉。全形寫法（`zhang＠example.com`、`１３８…`）也找得到，值或片語中間換行也可以。它能辨識有固定格式的值，例如電子郵件、號碼和金鑰；無法辨識人名或地址（請把它們加為你自己的字詞），也無法辨識其他字母系統中外形相似的字母。只適用於送往你的 AI 服務的請求；`@claude`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。設定檔中為 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
@@ -457,7 +457,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 - `@reportissue`（以及「Report an Issue…」）本身不傳送任何內容：它在瀏覽器中開啟 GitHub 的新 issue 頁面，附上你輸入的標題，以及上面列出的版本、語言、供應商種類和數量，這些會先顯示在候選視窗中。除非你在那裡按一下 Submit，否則不會有任何內容送到 GitHub。
 - `@open` 只在這台 Mac 上搜尋。它會記住你用它開啟過的項目（最近 200 個），存放在輸入法自己的偏好設定中（不在 config.json 中），以便把它們排在前面。
 - 為了 Settings → Apps 中的「Add App…」，輸入法會在它自己的偏好設定中保留你最近打過字的 12 個 App 的 bundle ID；關於它們的其他資訊一概不保留。
-- `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。Settings → General →「Remember recent questions」可以關閉此功能並刪除它們（設定檔中的 `rememberQuestions`）；「Clear」會刪除它們。
+- `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。在 Settings → General 關閉「Remember recent questions」也會刪除它們；透過 `@config` 關閉（設定檔中的 `rememberQuestions`）則會保留，以便能完全還原。「Clear」會刪除它們。
 - 為了列出你的備忘錄，選單列面板會在輸入法自己的偏好設定中，保存最近 30 則用 `@note` 儲存的備忘錄的 ID 和第一行（最多 80 個字元），面板關閉時也一樣。
 - `@py` 和 `@js` 只在你按下執行鍵時才執行，而且只執行你自己輸入或貼上的程式碼：AI 的答案和其他指令的輸出絕不會被當作程式碼執行。`@py` 使用你 Mac 上的 `python3`，它能像在 Terminal 中一樣讀寫檔案和連上網路；`@js` 在獨立的行程中執行，無法讀取檔案、連上網路或執行其他程式。兩者都不會在安全輸入期間執行。
 - 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
