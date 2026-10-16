@@ -73,11 +73,11 @@ final class RequestLog: @unchecked Sendable {
     private var partial = ""
 
     /// Streaming (it stops by itself after a few minutes, should the test end without stopping it); nil if it can't.
-    static func start() -> RequestLog? {
+    static func start(prefix: String = "conversion ") -> RequestLog? {
         let log = RequestLog()
         log.process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
         log.process.arguments = ["stream", "--style", "compact", "--timeout", "3m", "--predicate",
-                                 "subsystem == \"\(imeID)\" AND eventMessage BEGINSWITH \"conversion \""]
+                                 "subsystem == \"\(imeID)\" AND eventMessage BEGINSWITH \"\(prefix)\""]
         let pipe = Pipe()
         log.process.standardOutput = pipe
         log.process.standardError = FileHandle.nullDevice
@@ -111,6 +111,11 @@ final class RequestLog: @unchecked Sendable {
         guard let range = line.range(of: "] conversion ") else { return nil }
         let rest = line[range.upperBound...], digits = rest.prefix(while: \.isNumber)
         return rest.dropFirst(digits.count).hasPrefix(" \(word)") ? Int(digits) : nil
+    }
+
+    /// The lines after `mark` holding `text`.
+    func lines(after mark: Int, containing text: String) -> [String] {
+        lock.withLock { lines.dropFirst(mark).filter { $0.contains(text) } }
     }
 
     func stop() {
@@ -341,7 +346,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // Safety net if something hangs. TIS may only be used on the main thread, so the input
         // source is restored afterwards by `RealTest --restore-input-source` (run by make).
-        DispatchQueue.global().asyncAfter(deadline: .now() + 300) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 360) {
             print("✗ watchdog: test took too long")
             print("REALTEST FAILED (timeout)")
             fflush(stdout)
@@ -628,6 +633,8 @@ final class Harness: NSObject, NSApplicationDelegate {
         extensions()
         perAppSettings()
         redaction()
+        aiConfig()
+        doctor()
         frenchAndKorean()
         finish()
     }
@@ -1143,6 +1150,80 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { self.marked == "a" }, "without them, the field starts in pinyin again (marked: \(marked))")
         reset()
         textView.string = ""
+    }
+
+    /// 7d. `@config` (live: the on-device model if this Mac has it, else the configured provider): "candidates in a row"
+    ///     shows its preview, ⏎ applies it to the config file (the test's config has them in a column) and nothing is
+    ///     inserted; ⌘Z on the confirmation puts the column back (else `@config undo`). The config is the test's own,
+    ///     restored after like every section's.
+    func aiConfig() {
+        print("— @config: candidates in a row, and undo (live)")
+        guard setConfig({ $0["candidateLayout"] = "vertical" }) else {
+            check(false, "config file readable, to lay the candidates out in a column first")
+            return
+        }
+        reset()
+        textView.string = ""
+        func layout() -> String? { configValue("candidateLayout") as? String }
+        tapShift()  // English: the sentence is typed as letters
+        command("conf")
+        type("candidates in a row")
+        check(waitUntil(2) { self.marked == "config › candidates in a row" }, "@config drafted (\(marked))")
+        let started = Date()
+        act()
+        // ⏎ while the request runs does nothing; once the preview is up it applies it.
+        let applied = waitUntil(45) {
+            if layout() != "horizontal" { self.enter(); self.pump(1.5) }
+            return layout() == "horizontal"
+        }
+        check(applied && committed.isEmpty,
+              String(format: "the preview, then ⏎ writes candidateLayout = horizontal after %.1fs; nothing inserted ('%@')",
+                     Date().timeIntervalSince(started), committed))
+        guard applied else {
+            reset()
+            tapShift()
+            return
+        }
+        key("z", keyCodes["z"]!, .command)
+        var undone = waitUntil(5) { layout() == "vertical" }
+        if !undone {
+            note("⌘Z found the confirmation closed: @config undo instead")
+            reset()
+            command("conf")
+            type("undo")
+            act()
+            undone = waitUntil(5) { layout() == "vertical" }
+        }
+        check(undone && committed.isEmpty && marked.isEmpty, "undo puts the column back (\(layout() ?? "-")), nothing inserted")
+        reset()
+        textView.string = ""
+        tapShift()  // back to Chinese
+    }
+
+    /// 7e. `@doctor`: its checks run on this Mac (nothing sent) and find the input method installed and enabled (✓, read
+    ///     from its log: the panel can't be read from outside); nothing is inserted, Esc closes it.
+    func doctor() {
+        print("— @doctor: the input method is fine")
+        reset()
+        textView.string = ""
+        let requests = RequestLog.start(prefix: "doctor ")
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
+        tapShift()  // English
+        command("doc")
+        check(waitUntil(2) { self.marked == "doctor › " }, "@doctor drafted (\(marked))")
+        let mark = requests?.count ?? 0
+        act()
+        let done = waitUntil(30) { !(requests?.lines(after: mark, containing: " done: ").isEmpty ?? true) }
+        let line = requests?.lines(after: mark, containing: " done: ").first ?? ""
+        check(done && line.contains("inputMethod=ok") && committed.isEmpty,
+              "@doctor shows ✓ for the input method, nothing inserted (\(line.components(separatedBy: "] ").last ?? "no log"))")
+        requests?.stop()
+        escape()
+        pump(0.3)
+        check(marked.isEmpty && committed.isEmpty, "Esc closes it")
+        reset()
+        textView.string = ""
+        tapShift()  // back to Chinese
     }
 
     /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
