@@ -30,6 +30,12 @@ let usage = """
                         download, verify and install the update as About's Update button does; with
                         --target-dir, into DIR/Input Methods and DIR/Applications (a test install:
                         nothing is registered, the user's apps are left alone)
+      --add-source URL [--path FOLDER] [--branch BRANCH] [--pin TAG-OR-COMMIT]
+                        clone an extension source (ssh://, git@host:, https://, file://) with your
+                        git, print what it holds and runs, and enable it (running this is the consent)
+      --update-sources  fetch every extension source that isn't pinned, fast-forward it, print what changed
+      --list-extensions list the extensions' commands (name, output, source or folder) and those left out
+                        (these three also take --config FILE and --sources-dir DIR, for tests)
     """
 
 func printError(_ message: String) {
@@ -150,6 +156,8 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
     // What the last update did, and a look for the next one if a day has passed (in the background).
     MainActor.assumeIsolated { UpdateController.shared.start() }
+    // Extension sources: checked about 30 s from now, then once a day, if they check by themselves (only ever noted).
+    MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }
@@ -462,6 +470,12 @@ case "--check-update":
     exit(UpdateCommands.check(Array(arguments.dropFirst())))
 case "--install-update":
     exit(UpdateCommands.install(Array(arguments.dropFirst())))
+case "--add-source":
+    exit(ExtensionSourceCommands.add(Array(arguments.dropFirst())))
+case "--update-sources":
+    exit(ExtensionSourceCommands.update(Array(arguments.dropFirst())))
+case "--list-extensions":
+    exit(ExtensionSourceCommands.list(Array(arguments.dropFirst())))
 case "--apply-update":
     // The updater's helper (`UpdateHelper`), started by the input method on an update it staged.
     exit(UpdateHelper.run(Array(arguments.dropFirst())))

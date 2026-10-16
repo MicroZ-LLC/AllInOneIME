@@ -779,6 +779,8 @@ struct SettingsView: View {
     @State private var inputTab: Language = .chinese
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
     @ObservedObject private var packs = LanguagePackManager.shared
+    /// The extension sources' new commits: a badge on the Custom Commands page.
+    @ObservedObject private var extensionSources = ExtensionSourceController.shared
     /// The pack of an input language just removed: the dialog offers to delete it too.
     @State private var packToRemove: LanguagePack?
     /// A pack the user asked to delete from its language's card (asked first, with its size).
@@ -1492,6 +1494,7 @@ struct SettingsView: View {
                             }
                         }
                         .padding(.vertical, 3)
+                        .badge(item == .commands ? extensionSources.updateCount(for: model.config.extensionSources) : 0)
                         .tag(item)
                     }
                 }
@@ -1710,6 +1713,7 @@ struct SettingsView: View {
                     jargonSection
                 case .commands:
                     commandsSection
+                    ExtensionSourcesSection(model: model)
                     extensionsSection
                 case .plugins:
                     pluginsSection
@@ -2774,7 +2778,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
-        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
+        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"

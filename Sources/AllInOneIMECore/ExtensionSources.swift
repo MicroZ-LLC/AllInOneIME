@@ -299,7 +299,7 @@ public enum ExtensionSources {
 
     /// A folder's path as the load list is compared: "~" expanded, no trailing "/" (not resolved on disk: a folder
     /// gone compares the same).
-    static func comparable(_ path: String) -> String {
+    public static func comparable(_ path: String) -> String {
         var path = (path as NSString).expandingTildeInPath
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
         return path
