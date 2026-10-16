@@ -120,7 +120,8 @@ enum ExtensionSourceCommands {
                                                     path: path, url: source.url, commit: staged.status.commit,
                                                     commitDate: staged.status.commitDate, config: others, plugins: PluginStore.load().0,
                                                     found: LiveExtensions.found, repository: staged.folder)
-            review.summary.forEach { print($0) }
+            UIText.choice = .english
+            review.summary(describe: { UIText.describe($0, file: $1) }).forEach { print($0) }
             guard review.bundle != nil else {
                 manager.discard(staged)
                 printError("✗ the bundle can't be loaded: not enabled")
@@ -131,14 +132,21 @@ enum ExtensionSourceCommands {
             config = try Config.load(from: options.configURL)
             var all = ExtensionSourceStatus.load(from: manager.statusFile)
             ExtensionSources.quarantine(&config, statuses: all, root: options.root)
-            let installed = try manager.install(staged)
-            ExtensionSources.enable(source, in: &config, root: options.root)
-            try config.write(to: options.configURL)
+            let installed: ExtensionSourceManager.Clone
+            do {
+                installed = try manager.install(staged)
+            } catch {
+                manager.discard(staged)
+                throw error
+            }
+            // Trusted first, then in the load list: the load list never names a folder the statuses don't vouch for.
             var trusted = installed.status
             trusted.trusted = true
             all = ExtensionSourceStatus.load(from: manager.statusFile)
             all[source.url] = trusted
             try manager.save(all)
+            ExtensionSources.enable(source, in: &config, root: options.root)
+            try config.write(to: options.configURL)
             ExtensionSourceController.postChanged()
             print("enabled:     \(ExtensionSources.loadPath(for: source, root: options.root))")
             return 0
@@ -219,11 +227,10 @@ enum ExtensionSourceCommands {
         }
         UIText.choice = .english
         let plugins = PluginStore.load().0
-        // As the input method loads them: an extension source's folder only once it's reviewed.
+        // As the input method loads them: an extension source's folder only once it's reviewed, and only as its bundle.
         let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))
         let unreviewed = Set(ExtensionSources.untrustedFolders(in: config, statuses: statuses, root: options.root).map(ExtensionSources.comparable))
-        let index = ExtensionStore.load(ExtensionStore.folders(config, found: LiveExtensions.found)
-            .filter { !unreviewed.contains(ExtensionSources.comparable($0.path)) })
+        let index = ExtensionStore.load(ExtensionSources.loadFolders(config, found: LiveExtensions.found, statuses: statuses, root: options.root))
         let enabled = index.enabled(config.disabledExtensions)
         let names = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
             .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })

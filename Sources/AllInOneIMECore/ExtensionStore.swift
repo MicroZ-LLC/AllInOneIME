@@ -195,11 +195,15 @@ public enum ExtensionStore {
         /// scripts, no broken links reported).
         public var found: Bool
         public var hidden: Bool
+        /// Only ever the one bundle it is (an extension source's folder, or one being reviewed): an `extension.json` that
+        /// isn't a valid bundle's is reported, and its scripts aren't read as single scripts instead.
+        public var bundleOnly: Bool
 
-        public init(path: String, found: Bool, hidden: Bool = false) {
+        public init(path: String, found: Bool, hidden: Bool = false, bundleOnly: Bool = false) {
             self.path = path
             self.found = found
             self.hidden = hidden
+            self.bundleOnly = bundleOnly
         }
 
         public var url: URL { URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true) }
@@ -261,10 +265,16 @@ public enum ExtensionStore {
         }
         for folder in folders where !folder.hidden {
             // An added folder that is a bundle itself (an extension source's, `ExtensionSources`) is read as that bundle;
-            // one whose extension.json isn't a bundle's (another tool's file, a broken one) is read as a folder, as before.
-            let isBundle = !folder.found && read(folder.url.appendingPathComponent(ExtensionBundle.manifestName))?.json.map {
+            // one whose extension.json isn't a bundle's (another tool's file, a broken one) is read as a folder, as before,
+            // unless it is only ever a bundle (`bundleOnly`): then what's wrong with it is reported.
+            let manifest = folder.url.appendingPathComponent(ExtensionBundle.manifestName)
+            if folder.bundleOnly, !folder.found, read(manifest)?.json == nil {
+                skipped.append(Skipped(file: manifest, problem: .missing(ExtensionBundle.manifestName)))
+                continue
+            }
+            let isBundle = !folder.found && (folder.bundleOnly || read(manifest)?.json.map {
                 if case .success = ExtensionBundle.read($0, folder: folder.url) { return true } else { return false }
-            } == true
+            } == true)
             for item in isBundle ? [(url: folder.url, kind: ItemKind.folder)] : items(in: folder.url) {
                 switch item.kind {
                 case .brokenLink:

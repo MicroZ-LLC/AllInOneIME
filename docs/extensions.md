@@ -384,13 +384,17 @@ bundle, others in a repository of their own.
   100 new commits), Update is refused: Re-clone stages a new clone and shows the review (from a terminal,
   `--add-source` again). The loader reads the changed files as for any folder (§1).
 - **Pin.** Changing the pin checks that ref out first, and the config keeps it only when that worked; Unpin goes back to
-  the branch's newest commit (a fast-forward, as Update).
+  the branch's newest commit (a fast-forward, as Update). When the pinned commit is further back than a check fetches,
+  Unpin clones the branch anew and shows the review; the pin is cleared only on Enable.
 - **Removing** moves the clone to the Trash and takes the source and its folder out of the config; the bundle's
   `extensionPreferences` (and passwords in the keychain) stay, so adding it back restores them.
 - **State.** What's known of each clone (trusted, its branch and commit, the last check and error, what's new) is in
   `sources.json` next to the clones. The command line writes it too; a running input method reads it again. An entry it
   can't read is skipped; a file that isn't JSON is moved aside as `sources.json.bad-<date>`, never overwritten. Left-over
-  staging and temporary folders are removed when the input method starts.
+  staging and temporary folders an hour old are removed when the input method starts (a younger one may be in use).
+- **A source's folder is only ever its bundle.** If its `extension.json` isn't a valid bundle (no `name`, say), the review
+  and Settings say what's wrong, and its other scripts aren't loaded as single scripts instead (§1's fallback is for
+  folders you add yourself).
 
 **Command line** (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`):
 

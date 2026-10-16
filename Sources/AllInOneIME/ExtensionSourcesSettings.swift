@@ -239,7 +239,14 @@ struct ExtensionSourcesSection: View {
         let pin = pin.flatMap { $0.isEmpty ? nil : $0 }
         actionError = nil
         Task {
-            if let error = await sources.pin(source, to: pin) {
+            let error = await sources.pin(source, to: pin)
+            if pin == nil, case ExtensionSourceError.notFastForward? = error {
+                // The pinned commit isn't in the branch's recent history: the branch is cloned anew and reviewed; the pin
+                // is cleared in the config only when that's enabled.
+                var following = source
+                following.pin = nil
+                adding = ExtensionSourceSheet.Start(source: following, cloneNow: true)
+            } else if let error {
                 actionError = tr("没有改固定：", "The pin wasn't changed: ") + ExtensionSourceText.describe(error)
             } else {
                 change(source) { $0.pin = pin }
@@ -463,6 +470,7 @@ struct ExtensionSourceSheet: View {
         do {
             try sources.install(staged)
         } catch {
+            sources.discard(staged)
             step = .failed(ExtensionSourceText.describe(error))
             return
         }

@@ -323,15 +323,31 @@ public enum ExtensionSources {
     public static func bundleFolder(for source: ExtensionSource, root: URL = directory) -> URL {
         let clone = cloneFolder(for: source.url, root: root)
         let parts = (source.path ?? "").split(separator: "/").filter { $0 != "." }
+        // A path that climbs out ("..") names no folder of the clone: a hidden name that never exists, so nothing loads.
+        if parts.contains("..") { return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true) }
         return parts.isEmpty ? clone : clone.appendingPathComponent(parts.joined(separator: "/"), isDirectory: true)
     }
 
-    /// A folder's path as the load list is compared: "~" expanded, no trailing "/" (not resolved on disk: a folder
-    /// gone compares the same).
+    /// A folder's path as the load list is compared: "~" expanded, standardized, its existing part's links resolved,
+    /// no trailing "/", in lower case on a volume that doesn't tell case apart (a folder gone compares the same as before).
     public static func comparable(_ path: String) -> String {
-        var path = (path as NSString).expandingTildeInPath
+        var path = ((path as NSString).expandingTildeInPath as NSString).standardizingPath
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
-        return path
+        // Its existing part with links resolved (/var → /private/var), the rest as written; on a volume that doesn't tell
+        // case apart, in lower case.
+        var existing = path, rest: [String] = []
+        while existing.count > 1, !FileManager.default.fileExists(atPath: existing) {
+            rest.insert((existing as NSString).lastPathComponent, at: 0)
+            existing = (existing as NSString).deletingLastPathComponent
+        }
+        if let real = realpath(existing, nil) {
+            existing = String(cString: real)
+            free(real)
+        }
+        let resolved = rest.reduce(existing) { ($0 as NSString).appendingPathComponent($1) }
+        let caseSensitive = (try? URL(fileURLWithPath: existing).resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?
+            .volumeSupportsCaseSensitiveNames ?? true
+        return caseSensitive ? resolved : resolved.lowercased()
     }
 
     /// The bundle's folder as `Config.extensionFolders` has it ("~/…").
@@ -538,6 +554,21 @@ public enum ExtensionSources {
         }
     }
 
+    /// The folders extensions are loaded from (`ExtensionStore.folders`) as the input method loads them: less
+    /// `untrustedFolders`, and those of the sources folder read only as the one bundle each is (`Folder.bundleOnly`).
+    public static func loadFolders(_ config: Config, found: [String], statuses: [String: ExtensionSourceStatus],
+                                   root: URL = directory) -> [ExtensionStore.Folder] {
+        let base = comparable(root.path)
+        let untrusted = Set(untrustedFolders(in: config, statuses: statuses, root: root).map(comparable))
+        return ExtensionStore.folders(config, found: found).compactMap { folder in
+            let path = comparable(folder.path)
+            guard !untrusted.contains(path) else { return nil }
+            var folder = folder
+            if path.hasPrefix(base + "/") { folder.bundleOnly = true }
+            return folder
+        }
+    }
+
     /// Takes `untrustedFolders` out of the load list; returns them.
     @discardableResult
     public static func quarantine(_ config: inout Config, statuses: [String: ExtensionSourceStatus], root: URL = directory) -> [String] {
@@ -599,7 +630,8 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         let folder = bundleFolder.standardizedFileURL
         let prefix = folder.path + "/"
         var folders = ExtensionStore.folders(config, found: found).filter { $0.url.standardizedFileURL.path != folder.path }
-        folders.append(ExtensionStore.Folder(path: folder.path, found: false))
+        // Only ever the bundle it is: a manifest that isn't valid says why, and its scripts aren't listed as commands.
+        folders.append(ExtensionStore.Folder(path: folder.path, found: false, bundleOnly: true))
         let index = ExtensionStore.load(folders, cache: ExtensionCache())
         let bundle = index.bundles.first { $0.folder.standardizedFileURL.path == folder.path }
         let mine = index.skipped.filter { $0.file.standardizedFileURL.path.hasPrefix(prefix) }
@@ -620,8 +652,11 @@ public struct ExtensionSourceReview: Equatable, Sendable {
                                      commands: commands, skipped: bundle == nil ? [] : mine)
     }
 
-    /// The review as text, for `--add-source`.
-    public var summary: [String] {
+    /// The review as text, for `--add-source`, a problem in Swift's own words (`summary(describe:)` says it in a person's).
+    public var summary: [String] { summary(describe: { problem, _ in "\(problem)" }) }
+
+    /// The review as text, each problem as `describe` says it.
+    public func summary(describe: (ScriptCommand.Problem, URL) -> String) -> [String] {
         var lines: [String] = []
         lines.append("source:      \(url)" + (path.isEmpty ? "" : " (\(path))"))
         if let commit {
@@ -629,13 +664,16 @@ public struct ExtensionSourceReview: Equatable, Sendable {
             lines.append("commit:      \(commit.prefix(7))\(date)")
         }
         lines.append("WARNING:     This source isn't signed: it will run programs from \(url).")
-        if let problem { lines.append("bundle:      can't be loaded: \(problem)") }
+        if let problem {
+            let manifest = URL(fileURLWithPath: path.isEmpty ? ExtensionBundle.manifestName : path + "/" + ExtensionBundle.manifestName)
+            lines.append("bundle:      can't be loaded: " + describe(problem, manifest))
+        }
         if let bundle {
             lines.append("bundle:      \(bundle.name) — \(bundle.title)" + (bundle.version.map { " \($0)" } ?? "") + (bundle.author.map { " by \($0)" } ?? ""))
             if let description = bundle.description { lines.append("             \(description)") }
         }
         for command in commands {
-            let hidden = command.hidden.map { "  [hidden: \($0)]" } ?? ""
+            let hidden = command.hidden.map { "  [hidden: " + describe($0, URL(fileURLWithPath: command.program)) + "]" } ?? ""
             lines.append("command:     @\(command.name) — \(command.title) (\(command.output.rawValue)\(command.background ? ", background" : ""))\(hidden)")
             if let description = command.description { lines.append("             \(description)") }
             lines.append("  runs:      \(command.program)")
@@ -644,7 +682,7 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         for preference in preferences {
             lines.append("preference:  \(preference.name) (\(preference.kind.rawValue)\(preference.required ? ", required" : ""))")
         }
-        for skipped in skipped { lines.append("skipped:     \(skipped.file.lastPathComponent): \(skipped.problem)") }
+        for skipped in skipped { lines.append("skipped:     \(skipped.file.lastPathComponent): " + describe(skipped.problem, skipped.file)) }
         return lines
     }
 }
@@ -738,12 +776,22 @@ public struct ExtensionSourceManager: Sendable {
         try install(try await stage(source))
     }
 
-    /// Leftovers of an interrupted add, update or re-clone (staging, ".tmp-", ".old-" folders): removed.
-    public func removeLeftovers() {
+    /// Leftovers of an interrupted add, update or re-clone (staged clones, ".tmp-", ".old-" folders) at least `age`
+    /// old: removed. A younger one may be in use (a review open, `--add-source` running).
+    public func removeLeftovers(olderThan age: TimeInterval = 3600) {
         let fm = FileManager.default
-        guard let names = try? fm.contentsOfDirectory(atPath: root.path) else { return }
-        for name in names where name == ".staging" || name.hasPrefix(".tmp-") || name.hasPrefix(".old-") {
-            try? fm.removeItem(at: root.appendingPathComponent(name))
+        func old(_ url: URL) -> Bool {
+            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            return date.map { now().timeIntervalSince($0) >= age } ?? true
+        }
+        for name in (try? fm.contentsOfDirectory(atPath: stagingFolder.path)) ?? [] {
+            let staged = stagingFolder.appendingPathComponent(name)
+            if old(staged) { try? fm.removeItem(at: staged) }
+        }
+        removeStagingIfEmpty()
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where name.hasPrefix(".tmp-") || name.hasPrefix(".old-") {
+            let leftover = root.appendingPathComponent(name)
+            if old(leftover) { try? fm.removeItem(at: leftover) }
         }
     }
 
@@ -990,10 +1038,12 @@ public struct ProcessGitRunner: GitRunning {
         }
         let exited = DispatchSemaphore(value: 0)
         let exit = ExitStatus()
+        let child = pid
         DispatchQueue.global(qos: .utility).async {
             var status: Int32 = 0
-            while waitpid(pid, &status, 0) == -1, errno == EINTR {}
-            exit.set(status)
+            var result = waitpid(child, &status, 0)
+            while result == -1, errno == EINTR { result = waitpid(child, &status, 0) }
+            if result == -1 { exit.fail(errno) } else { exit.set(status) }
             exited.signal()
         }
         if exited.wait(timeout: .now() + timeout) == .timedOut {
@@ -1008,6 +1058,9 @@ public struct ProcessGitRunner: GitRunning {
         }
         _ = reading.wait(timeout: .now() + 5)
         let (output, errors) = captured.get()
+        if let failure = exit.failure() {
+            throw ExtensionSourceError.git("Couldn't wait for \(executable.lastPathComponent): \(String(cString: strerror(failure)))")
+        }
         let raw = exit.get()
         let status = (raw & 0x7f) == 0 ? (raw >> 8) & 0xff : 128 + (raw & 0x7f)
         return GitResult(status: status, output: String(decoding: output, as: UTF8.self), errors: String(decoding: errors, as: UTF8.self))
@@ -1021,10 +1074,14 @@ public struct ProcessGitRunner: GitRunning {
         func get() -> (Data, Data) { lock.withLock { (output, errors) } }
     }
 
+    /// How it ended: its wait status, or the error waiting for it gave (errno).
     private final class ExitStatus: @unchecked Sendable {
         private let lock = NSLock()
         private var value: Int32 = 0
+        private var error: Int32?
         func set(_ status: Int32) { lock.withLock { value = status } }
+        func fail(_ code: Int32) { lock.withLock { error = code } }
         func get() -> Int32 { lock.withLock { value } }
+        func failure() -> Int32? { lock.withLock { error } }
     }
 }

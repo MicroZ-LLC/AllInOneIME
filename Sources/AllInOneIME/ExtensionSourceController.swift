@@ -130,7 +130,8 @@ final class ExtensionSourceController: ObservableObject {
     @discardableResult
     func perform(_ source: ExtensionSource,
                  _ work: @escaping @Sendable (ExtensionSourceManager, ExtensionSourceStatus) async throws -> ExtensionSourceStatus) async -> Error? {
-        guard !busy.contains(source.url), let status = statuses[source.url] else { return nil }
+        guard !busy.contains(source.url) else { return SourceBusy() }
+        guard let status = statuses[source.url] else { return ExtensionSourceError.notTrusted }
         busy.insert(source.url)
         defer { busy.remove(source.url) }
         let manager = await manager()
@@ -169,8 +170,8 @@ final class ExtensionSourceController: ObservableObject {
         if let pin {
             return await perform(source) { try await $0.pin(source, to: pin, $1) }
         }
-        var following = source
-        following.pin = nil
+        let following = ExtensionSource(url: source.url, path: source.path, branch: source.branch, pin: nil,
+                                        autoCheck: source.autoCheck, authHint: source.authHint)
         return await perform(following) { try await $0.update(following, $1) }
     }
 
@@ -223,26 +224,38 @@ final class ExtensionSourceController: ObservableObject {
     }
 }
 
-/// What `LiveExtensions` loads: the config's folders less those of the sources folder that aren't a trusted source's
-/// bundle (`ExtensionSources.untrustedFolders`). sources.json is read again only when it changed (one stat a call).
+/// Another git job for this source is under way (Pin, Update, a check): nothing was done.
+struct SourceBusy: LocalizedError {
+    var errorDescription: String? { tr("这个来源正在处理别的事，稍后再试。", "This source is busy with something else; try again in a moment.") }
+}
+
+/// What `LiveExtensions` loads (`ExtensionSources.loadFolders`): the config's folders less those of the sources folder
+/// that aren't a trusted source's bundle, a source's folder read only as its one bundle. sources.json is read again only
+/// when it changed (one stat a call), and the folders worked out again only when something they come from changed.
 /// Main thread only, as `LiveExtensions`.
 enum ExtensionSourceGate {
-    nonisolated(unsafe) private static var cached: (url: URL, date: Date?, statuses: [String: ExtensionSourceStatus])?
+    nonisolated(unsafe) private static var cachedStatuses: (url: URL, date: Date?, statuses: [String: ExtensionSourceStatus])?
+    nonisolated(unsafe) private static var cachedFolders: (key: [String], folders: [ExtensionStore.Folder])?
     /// The sources folder (`ExtensionSourceController.root`, which sets it).
     nonisolated(unsafe) static var root = ExtensionSources.directory
 
     static func folders(_ config: Config, found: [String]) -> [ExtensionStore.Folder] {
-        let all = ExtensionStore.folders(config, found: found)
-        let blocked = Set(ExtensionSources.untrustedFolders(in: config, statuses: statuses(root), root: root).map(ExtensionSources.comparable))
-        return blocked.isEmpty ? all : all.filter { !blocked.contains(ExtensionSources.comparable($0.path)) }
+        let statuses = statuses(root)
+        let key = [root.path, String(describing: cachedStatuses?.date), String(config.findRaycastScripts)]
+            + config.extensionFolders + ["|"] + config.hiddenExtensionFolders + ["|"] + found
+            + config.extensionSources.map { $0.url + "\u{0}" + ($0.path ?? "") }
+        if let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
+        let folders = ExtensionSources.loadFolders(config, found: found, statuses: statuses, root: root)
+        cachedFolders = (key, folders)
+        return folders
     }
 
     private static func statuses(_ root: URL) -> [String: ExtensionSourceStatus] {
         let file = root.appendingPathComponent(ExtensionSources.statusFileName)
         let date = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
-        if let cached, cached.url == file, cached.date == date { return cached.statuses }
+        if let cachedStatuses, cachedStatuses.url == file, cachedStatuses.date == date { return cachedStatuses.statuses }
         let statuses = ExtensionSourceStatus.load(from: file)
-        cached = (file, date, statuses)
+        cachedStatuses = (file, date, statuses)
         return statuses
     }
 }

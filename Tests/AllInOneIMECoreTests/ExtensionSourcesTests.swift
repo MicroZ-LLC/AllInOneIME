@@ -689,10 +689,96 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
     @Test func leftoversRemoved() throws {
         let fixture = try GitFixture()
         let manager = fixture.manager()
-        for name in [".staging/x-1", ".tmp-x-2", ".old-x-3", "kept-1a2b3c4d"] {
-            try FileManager.default.createDirectory(at: fixture.sources.appendingPathComponent(name), withIntermediateDirectories: true)
+        let old = Date().addingTimeInterval(-2 * 3600)
+        for name in [".staging/x-1", ".tmp-x-2", ".old-x-3", "kept-1a2b3c4d", ".staging/in-use-4", ".tmp-in-use-5"] {
+            let folder = fixture.sources.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            if !name.contains("in-use") { try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: folder.path) }
         }
         manager.removeLeftovers()
-        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.sources.path) == ["kept-1a2b3c4d"])
+        // Only those an hour old: a younger one may be a review still open, or --add-source at work.
+        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: fixture.sources.path)) == [".staging", "kept-1a2b3c4d", ".tmp-in-use-5"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: manager.stagingFolder.path) == ["in-use-4"])
+    }
+}
+
+// MARK: - Follow-ups of the sign-off review
+
+@Suite(.serialized) struct ExtensionSourceFollowUpTests {
+    /// A pin further back than a check fetches: Unpin can't fast-forward (Settings then re-clones the branch for a review).
+    @Test func unpinFromFarBack() async throws {
+        let fixture = try GitFixture()
+        try fixture.bundle()
+        let first = try fixture.commit("First")
+        for index in 1...(ExtensionSources.fetchDepth + 5) {
+            try GitFixture.git(["commit", "-q", "--allow-empty", "-m", "Step \(index)"], in: fixture.work)
+        }
+        try GitFixture.git(["push", "-q", "origin", "main"], in: fixture.work)
+        let manager = fixture.manager()
+        var source = ExtensionSource(url: fixture.url)
+        var status = try await manager.clone(source).status
+        status.trusted = true
+        status = try await manager.pin(source, to: first, status)
+        #expect(status.commit == first)
+        source.pin = nil
+        await #expect(throws: ExtensionSourceError.notFastForward) { _ = try await manager.update(source, status) }
+        #expect(try GitFixture.git(["rev-parse", "HEAD"], in: ExtensionSources.cloneFolder(for: fixture.url, root: fixture.sources)) == first,
+                "the clone stays on the pin")
+    }
+
+    /// A bundle under review, or a source's folder, whose extension.json is valid JSON but not a bundle: what's wrong is
+    /// said, and its loose scripts aren't taken for its commands.
+    @Test func invalidManifestOfABundleOnly() throws {
+        let folder = ScriptFolder()
+        folder.add("extension.json", #"{"schemaVersion": 1, "commands": [{"script": "a.sh"}]}"#)
+        folder.add("a.sh", script(["title A"]))
+        folder.add("loose.sh", script(["title Loose"]))
+        var config = Config.default
+        config.extensionFolders = []
+        let review = ExtensionSourceReview.make(bundleFolder: folder.url, path: "", url: "file:///r.git", commit: nil, commitDate: nil,
+                                                config: config)
+        #expect(review.bundle == nil && review.problem == .badBundle(.badName) && review.commands.isEmpty)
+        #expect(review.summary(describe: { problem, _ in "described \(problem)" }).contains("bundle:      can't be loaded: described badBundle(AllInOneIMECore.ScriptCommand.BundleProblem.badName)"))
+        // The same folder added by hand still falls back to a plain folder.
+        #expect(ExtensionStore.load([ExtensionStore.Folder(path: folder.url.path, found: false)]).commands.map(\.name).sorted() == ["a", "loose"])
+        let only = ExtensionStore.load([ExtensionStore.Folder(path: folder.url.path, found: false, bundleOnly: true)])
+        #expect(only.commands.isEmpty && only.skipped.map(\.problem) == [.badBundle(.badName)])
+        // No extension.json at all: said too.
+        let empty = ScriptFolder()
+        empty.add("loose.sh", script())
+        let none = ExtensionStore.load([ExtensionStore.Folder(path: empty.url.path, found: false, bundleOnly: true)])
+        #expect(none.commands.isEmpty && none.skipped.map(\.problem) == [.missing("extension.json")])
+    }
+
+    /// Folders of the sources folder load only as their bundle, and only when trusted.
+    @Test func loadFoldersMarksSourceFolders() {
+        let root = URL(fileURLWithPath: "/tmp/Sources-\(UUID().uuidString)")
+        let source = ExtensionSource(url: "file:///r.git", path: "ext")
+        var config = Config.default
+        config.extensionFolders = ["/tmp/mine"]
+        ExtensionSources.enable(source, in: &config, root: root)
+        let trusted = [source.url: ExtensionSourceStatus(url: source.url, trusted: true)]
+        let folders = ExtensionSources.loadFolders(config, found: [], statuses: trusted, root: root)
+        #expect(folders.map(\.bundleOnly) == [false, true])
+        #expect(ExtensionSources.loadFolders(config, found: [], statuses: [:], root: root).map(\.path) == ["/tmp/mine"])
+    }
+
+    /// The gate compares where folders really are: links resolved, and case as the volume treats it.
+    @Test func comparablePaths() {
+        #expect(ExtensionSources.comparable("/tmp/x-\(UUID().uuidString)/a/../b/") .hasPrefix("/private/tmp/"))
+        let id = UUID().uuidString
+        let caseSensitive = (try? URL(fileURLWithPath: "/tmp").resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?
+            .volumeSupportsCaseSensitiveNames ?? true
+        #expect((ExtensionSources.comparable("/private/tmp/Sources-\(id)/X") == ExtensionSources.comparable("/tmp/sources-\(id)/x")) == !caseSensitive)
+        // A trusted source's folder written another way is still that folder; a path out of the clone names none.
+        let root = URL(fileURLWithPath: "/tmp/Sources-\(id)")
+        let source = ExtensionSource(url: "file:///r.git", path: "ext")
+        var config = Config.default
+        config.extensionFolders = ["/private/tmp/Sources-\(id)/" + ExtensionSources.folderName(for: source.url) + "/./ext/"]
+        config.extensionSources = [source]
+        #expect(ExtensionSources.isEnabled(source, in: config, root: root))
+        #expect(ExtensionSources.untrustedFolders(in: config, statuses: [source.url: ExtensionSourceStatus(url: source.url, trusted: true)], root: root).isEmpty)
+        let climbing = ExtensionSource(url: "file:///r.git", path: "ext/../../elsewhere")
+        #expect(ExtensionSources.bundleFolder(for: climbing, root: root).lastPathComponent == ".invalid-bundle-path")
     }
 }
