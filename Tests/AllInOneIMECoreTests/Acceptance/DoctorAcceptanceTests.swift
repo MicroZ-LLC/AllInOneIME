@@ -486,6 +486,24 @@ struct DoctorAcceptanceTests {
         }
     }
 
+    /// CHANGE 2: on @doctor's findings and its fixes' preview, ⇧⏎ with nothing typed does nothing.
+    @Test func fix_shiftEnterWithNothingTypedDoesNothing() async throws {
+        let rig = try DocRig(Doc.broken)
+        await rig.run()
+        let findings = rig.rows
+        let onFindings = await rig.key(acceptanceShiftReturn)
+        #expect(Doc.fixesPreviewed(onFindings).isEmpty && !onFindings.contains { Doc.isEdit($0) })
+        #expect(rig.c.phase == .choosing && rig.rows == findings)
+        await rig.key(enterKey)  // the safe fixes' preview
+        let preview = rig.rows
+        let before = try AIC.bytes(rig.url)
+        let onPreview = await rig.key(acceptanceShiftReturn)
+        #expect(!onPreview.contains { Doc.isEdit($0) })
+        #expect(rig.rows == preview)
+        #expect(try AIC.bytes(rig.url) == before)
+        #expect(aicInsertsNothing(rig.effects))
+    }
+
     /// A finding's number picks its fix, unsafe ones too, into the same preview.
     @Test func fix_digitPicksOneFix() async throws {
         let rig = try DocRig(Doc.broken)
@@ -657,7 +675,9 @@ struct DoctorAcceptanceTests {
         // On the device.
         let apple = AICAppleStub([#"{"explanation": "x"}"#])
         _ = try await Doc.doctorService(apple).ask("why", findings: findings, config: facts.config!)
-        #expect(!(apple.calls.first?.text ?? "").contains(home), "a full path went to the model")
+        let sent = apple.calls.first?.text ?? ""
+        #expect(!sent.isEmpty)
+        #expect(!sent.contains(home), "a full path went to the model")
         // On the configured provider.
         let host = AIC.host()
         AICHTTPStub.enqueue(host, #"{"explanation": "x"}"#)

@@ -591,7 +591,8 @@ struct AIConfigAcceptanceTests {
     @Test func allow_secretInTheNoteNeverDisplayed() throws {
         let proposal = try AIConfig.parse(AIC.answer([("candidateLayout", "vertical")], note: "Saved your key \(AIC.claudeKey)"))
         let preview = try AIConfig.preview(proposal, config: AIC.base, environment: AIC.env()).get()
-        #expect(!(preview.note ?? "").contains(AIC.claudeKey))
+        let note = preview.note ?? ""
+        #expect(!note.contains(AIC.claudeKey))
     }
 
     // MARK: Validation
@@ -830,7 +831,7 @@ struct AIConfigAcceptanceTests {
         await rig.run("candidates in a column")
         #expect(rig.c.phase == .choosing)
         await rig.type("also use Claude with \(AIC.claudeKey)")
-        await rig.key(enterKey)
+        await rig.key(acceptanceShiftReturn)  // ⇧⏎ sends the refine (CHANGE 2)
         #expect(apple.calls.count == 2)
         for call in apple.calls { #expect(!call.text.contains(AIC.claudeKey), "the refine sent the key") }
     }
@@ -931,8 +932,17 @@ struct AIConfigAcceptanceTests {
         #expect(groups.count == AppleModelAcceptanceTests.golden063.count)
         for (name, text) in groups {
             let golden = try #require(AppleModelAcceptanceTests.golden063[name], "no golden for \(name)")
+            // 0.6.4's live-data rule is in @question's requests only, once each (`AcceptanceLiveRule`); in any other
+            // request it would make it differ.
             var compared = text
+            if name.hasSuffix("/commands") {
+                let questions = AcceptanceGolden.commands().map { $0.1 == .question }
+                let requests = text.components(separatedBy: "\n----\n")
+                #expect(requests.count == questions.count, "\(name)")
+                compared = zip(requests, questions).map { AcceptanceLiveRule.strip($0, question: $1) }.joined(separator: "\n----\n")
+            }
             for added in AppleModelAcceptanceTests.addedSince063[name] ?? [] {
+                #expect(text.components(separatedBy: added).count == 2, "\(name) lacks \(added)")
                 compared = compared.replacingOccurrences(of: added, with: "")
             }
             #expect(AcceptanceGolden.sha256(compared) == golden, "\(name) differs from 0.6.3")
@@ -1077,8 +1087,8 @@ struct AIConfigAcceptanceTests {
         #expect(aicInsertsNothing(rig.effects))
     }
 
-    /// Typing more refines the proposal: the model gets its answer and the instruction, the new preview replaces the
-    /// old one, and ⏎ applies the refined one.
+    /// Typing more refines the proposal: ⇧⏎ sends it (CHANGE 2 of spec-question-chat.md), the model gets its answer and
+    /// the instruction, the new preview replaces the old one, and ⏎ applies the refined one.
     @Test func flow_typingRefines() async throws {
         let first = AIC.answer([("outputLanguages", ["en", "fr"])])
         let second = AIC.answer([("outputLanguages", ["en", "fr", "de"])])
@@ -1087,7 +1097,7 @@ struct AIConfigAcceptanceTests {
         await rig.run("output languages English and French")
         #expect(rig.rows.count == 1 && rig.rows[0].contains("English, French"))
         await rig.type("also German")
-        await rig.key(enterKey)
+        await rig.key(acceptanceShiftReturn)
         #expect(apple.calls.count == 2)
         let refine = try #require(apple.calls.last)
         #expect(refine.text.contains("also German") && refine.text.contains(#"["en","fr"]"#))
@@ -1095,6 +1105,40 @@ struct AIConfigAcceptanceTests {
         await rig.key(enterKey)
         #expect(rig.config.outputLanguages == ["en", "fr", "de"].map(OutputLanguage.init))
         #expect(aicInsertsNothing(rig.effects))
+    }
+
+    /// CHANGE 2: ⏎ with a refine line typed applies the proposal shown and drops the line; nothing more is asked.
+    @Test func flow_enterWithARefineLineAppliesTheProposalShown() async throws {
+        let apple = AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"])]), AIC.answer([("outputLanguages", ["en", "fr", "de"])])])
+        let rig = try AICRig(apple: apple)
+        await rig.run("output languages English and French")
+        let shown = try #require(rig.previews.last)
+        await rig.type("also German")
+        #expect(rig.c.refineLine == "also German")
+        let effects = await rig.key(enterKey)
+        #expect(effects.contains(.applyConfig(shown)))
+        #expect(!effects.contains { if case .startRefine = $0 { return true } else { return false } })
+        #expect(apple.calls.count == 1)
+        #expect(rig.config.outputLanguages == [.english, OutputLanguage("fr")])
+        #expect(rig.c.refineLine == nil && rig.c.refineText.isEmpty)
+        #expect(rig.rows == [AIConfig.Text(chinese: false).applied(1)])
+        #expect(aicInsertsNothing(rig.effects))
+    }
+
+    /// CHANGE 2: on @config's results, ⇧⏎ with nothing typed does nothing: nothing applied, sent or inserted.
+    @Test func flow_shiftEnterWithNothingTypedDoesNothing() async throws {
+        let apple = AICAppleStub([AIC.answer([("candidateLayout", "vertical")])])
+        let rig = try AICRig(apple: apple)
+        await rig.run("candidates in a column")
+        let before = try AIC.bytes(rig.url)
+        let rows = rig.rows
+        let effects = await rig.key(acceptanceShiftReturn)
+        #expect(!effects.contains { if case .applyConfig = $0 { return true } else { return false } })
+        #expect(!effects.contains { if case .startRefine = $0 { return true } else { return false } })
+        #expect(aicInsertsNothing(effects))
+        #expect(rig.c.phase == .choosing && rig.rows == rows)
+        #expect(apple.calls.count == 1)
+        #expect(try AIC.bytes(rig.url) == before)
     }
 
     /// ⌘Z on the confirmation undoes exactly what was applied: the file is as it was, byte for byte.
