@@ -173,7 +173,7 @@ public enum Doctor {
             out.append(Finding(area: .recentErrors, status: .warning,
                                title: t.tr("最近的日志里有 \(facts.recentErrors.count) 个错误",
                                            "\(facts.recentErrors.count) recent errors in the logs"),
-                               detail: facts.recentErrors.last))
+                               detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
         out = out.map { finding in
@@ -438,60 +438,104 @@ public enum Doctor {
 
     // MARK: - Logs
 
-    /// Error lines of the app's own logs, as `@doctor` may show and send them: the newest `limit`, each kept to its
-    /// structure and a fixed vocabulary (`logWords`: "failed", "load", "timed out" …), error codes and names
-    /// (`-1009`, `ENOENT`, `ValidationException`), and paths (`~/…`, other absolute paths as "…/<last component>"); every
-    /// other word, quoted text (straight, typographic, CJK) and timestamps and sources are left out, so none of the user's
-    /// text gets through. At most 120 characters.
+    /// Error lines of the app's own logs, as `@doctor` may show and send them: the newest `limit`, each as a fixed phrase
+    /// for the event it records ("update check failed (network)", "Rime dictionary failed to load: ~/Library/Rime/…",
+    /// "plugin weather failed to load"), with a reason from a fixed list or an error code or domain; never a word of the
+    /// line's own text. Lines no known event matches are counted on one last line ("2 other log lines").
     public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
             return line.hasPrefix("E") && line.count > 1 && line.dropFirst().first?.isNumber == true
-                || lower.contains("error") || lower.contains("failed")
+                || lower.contains("error") || lower.contains("failed") || line.hasPrefix("✗")
         }
-        return errors.suffix(limit).map { line in
-            var text = line
-            // glog: "E20261008 15:45:58.123 1234 file.cc:56] message"
-            if let bracket = text.range(of: "] ") { text = String(text[bracket.upperBound...]) }
-            if !home.isEmpty { text = text.replacingOccurrences(of: home, with: "~") }
-            // Quoted text may be the user's: in straight, typographic and CJK quotes alike, gone.
-            for (open, close) in quotes {
-                text = text.replacingOccurrences(of: NSRegularExpression.escapedPattern(for: open) + "[^" + close + "]*"
-                                                     + NSRegularExpression.escapedPattern(for: close),
-                                                 with: " ", options: .regularExpression)
+        var out: [String] = [], others = 0
+        for line in errors.suffix(limit) {
+            guard let event = logEvent(line, home: home) else {
+                others += 1
+                continue
             }
-            let kept = text.split(whereSeparator: \.isWhitespace).compactMap { token -> String? in
-                let word = String(token)
-                if word.hasPrefix("~/") { return AIConfig.looksLikeKey(word) ? nil : word }
-                if word.hasPrefix("/") { return maskingAbsolutePaths(word) }
-                let bare = word.trimmingCharacters(in: CharacterSet(charactersIn: ",.;:()[]!?"))
-                guard !bare.isEmpty, isLogCode(bare) || logWords.contains(bare.lowercased().replacingOccurrences(of: "’", with: "'"))
-                else { return nil }
-                return word.hasSuffix(":") ? bare + ":" : bare
-            }
-            let summary = kept.joined(separator: " ")
-            return summary.count > 120 ? String(summary.prefix(120)) + "…" : summary
+            out.append(event.count > 120 ? String(event.prefix(120)) + "…" : event)
         }
+        if others > 0 { out.append(others == 1 ? "1 other log line" : "\(others) other log lines") }
+        return out
     }
 
-    /// The words a log summary keeps (lowercase).
-    static let logWords: Set<String> = [
-        "error", "errors", "failed", "failure", "fail", "fails", "timed", "timeout", "out", "not", "no", "found", "missing",
-        "denied", "permission", "invalid", "corrupt", "corrupted", "damaged", "unreachable", "refused", "connection", "network",
-        "offline", "download", "downloading", "downloaded", "install", "installing", "installed", "update", "updating",
-        "updated", "check", "checking", "signature", "checksum", "verify", "verification", "mismatch", "read", "write",
-        "load", "loading", "loaded", "open", "save", "move", "copy", "remove", "delete", "parse", "deploy", "deployment",
-        "dictionary", "schema", "rime", "librime", "pack", "config", "keychain", "http", "https", "status", "code", "server",
-        "disk", "space", "full", "busy", "cancelled", "canceled", "crash", "crashed", "killed", "lookup", "engine", "helper",
-        "staging", "quit", "restart", "manifest", "unknown", "unsupported", "couldn't", "can't", "cannot", "could", "too",
-        "large", "empty", "to", "for", "from", "of", "in", "request", "response", "model", "provider", "plugin", "extension",
-    ]
+    /// The phrase for the event `line` records, or nil when it is none the app knows.
+    static func logEvent(_ line: String, home: String) -> String? {
+        var text = line
+        // Quoted text may be the user's: in straight, typographic and CJK quotes alike, gone before anything is read.
+        for (open, close) in quotes {
+            text = text.replacingOccurrences(of: NSRegularExpression.escapedPattern(for: open) + "[^" + close + "]*"
+                                                 + NSRegularExpression.escapedPattern(for: close),
+                                             with: " ", options: .regularExpression)
+        }
+        if !home.isEmpty { text = text.replacingOccurrences(of: home, with: "~") }
+        let reason = logReason(text).map { " (\($0))" } ?? ""
+        // librime (glog): "E20261008 15:45:58.123 1234 dictionary.cc:56] message".
+        if let glog = text.range(of: #"^E\d{8} [^\]]*\] "#, options: .regularExpression) {
+            let source = text[glog].range(of: #"[A-Za-z_]+(?=\.(cc|cpp|h):\d+\])"#, options: .regularExpression)
+                .map { String(text[glog][$0]) }
+            let message = text[glog.upperBound...].lowercased()
+            if message.contains("lookup") { return "Rime lookup failed" + reason }
+            if message.contains("deploy") || source == "deployer" || source == "deployment_tasks" {
+                return "Rime deployment failed" + reason
+            }
+            let dictionary = ["dict", "table", "prism", "schema", ".yaml", ".bin"].contains { message.contains($0) }
+                || ["dictionary", "table", "prism", "schema", "config"].contains(source ?? "")
+            if message.contains("load"), dictionary {
+                // A path under the home folder is the Rime folder's: it says which file.
+                let path = String(text[glog.upperBound...]).split(whereSeparator: \.isWhitespace).first { $0.hasPrefix("~/") }
+                return "Rime dictionary failed to load" + (path.map { ": " + $0 } ?? reason)
+            }
+            let components: Set<String> = ["engine", "dictionary", "deployer", "schema", "switcher", "table", "prism", "user_db", "levers"]
+            return "error in Rime" + (source.map { components.contains($0) ? " (\($0))" : "" } ?? "")
+        }
+        let lower = text.lowercased()
+        func has(_ words: String...) -> Bool { words.contains { lower.contains($0) } }
+        if has("update check") { return "update check failed" + reason }
+        if has("rolling back") || lower.hasPrefix("✗") || has("update") && has("install", "move", "stag", "helper", "register", "swap") {
+            return "update failed to install" + reason
+        }
+        if has("download") { return (has("pack") ? "language pack download failed" : "download failed") + reason }
+        if has("plugin") {
+            // Its name, when it looks like one (letters, digits, - _ .), never anything else from the line.
+            let name = text.range(of: #"(?i)plugin[ :]+([a-z0-9][a-z0-9._-]{0,31})\b"#, options: .regularExpression)
+                .flatMap { range -> String? in
+                    let word = text[range].split(whereSeparator: { $0 == " " || $0 == ":" }).last.map(String.init)
+                    return word.flatMap { ["failed", "error", "can't", "couldn't", "is", "was"].contains($0.lowercased()) ? nil : $0 }
+                }
+            return (name.map { "plugin \($0) failed to load" } ?? "a plugin failed to load") + reason
+        }
+        if has("extension", "script") { return "an extension failed to run" + reason }
+        if has("keychain") { return "keychain access failed" + reason }
+        if has("config.json", "config file") { return "config.json couldn't be read" + reason }
+        if has("bedrock", "anthropic", "gemini", "openai", "provider", "request") { return "AI request failed" + reason }
+        return nil
+    }
 
-    /// An error code or name: a number (`404`, `-1009`, `0x1F`), a constant (`ENOENT`), an error type (`…Error`,
-    /// `…Exception`, `…Domain`).
-    static func isLogCode(_ token: String) -> Bool {
-        token.range(of: #"^(-?\d+|0x[0-9A-Fa-f]+|[A-Z][A-Z0-9_]{2,}|[A-Z][A-Za-z]*(Error|Exception|Domain))$"#,
-                    options: .regularExpression) != nil
+    /// Why an event failed, from a fixed list, or the error code or domain the line names; nil when it says neither.
+    static func logReason(_ text: String) -> String? {
+        let lower = text.lowercased()
+        func code(_ pattern: String) -> String? { text.range(of: pattern, options: .regularExpression).map { String(text[$0]) } }
+        let urlCode = code(#"-10(0[0-9]|1[0-9]|20)\b"#)
+        if lower.contains("timed out") || lower.contains("timeout") || urlCode == "-1001" { return "timed out" }
+        if lower.contains("offline") || lower.contains("not connected") || lower.contains("network") || lower.contains("could not connect")
+            || lower.contains("cannot find host") || urlCode != nil || lower.contains("nsurlerrordomain") {
+            return "network" + (urlCode.map { ", \($0)" } ?? "")
+        }
+        if lower.contains("signature") { return "signature" }
+        if lower.contains("checksum") || lower.contains("sha256") || lower.contains("mismatch") { return "checksum" }
+        if lower.contains("permission") || lower.contains("denied") || lower.contains("not permitted") || text.contains("EACCES") {
+            return "permission"
+        }
+        if lower.contains("no space") || lower.contains("disk full") || text.contains("ENOSPC") { return "disk full" }
+        if lower.contains("not found") || lower.contains("no such file") || text.contains("ENOENT") { return "not found" }
+        if lower.contains("http") || lower.contains("status"), let status = code(#"\b[1-5][0-9][0-9]\b"#) { return "HTTP \(status)" }
+        if let name = code(#"\b[A-Z][A-Za-z]*(Exception|ErrorDomain)\b"#) {
+            return name + (code(#"(?<=\s)-?\d{1,6}\b"#).map { " \($0)" } ?? "")
+        }
+        if let constant = code(#"\bE[A-Z]{3,}\b"#) { return constant }
+        return nil
     }
 
     /// The quotes whose text `summarizeLogLines` leaves out.
@@ -506,9 +550,12 @@ public enum Doctor {
     }
 
     /// An absolute path (not one under ~, not part of a web address or a relative path) as "…/<last component>": a folder
-    /// name may be the user's. Folder names with spaces count as part of the path.
+    /// name may be the user's. A folder's name may hold spaces (it ends before a "/"); the last component's only before a
+    /// word that doesn't start in lowercase ("Report Q3 2026.zip"), so the text after a path ("… to /tmp") stays.
     static func maskingAbsolutePaths(_ text: String) -> String {
-        let regex = try! NSRegularExpression(pattern: #"(?<![\w~./:\\-])/(?:[^/\n:"“”'‘’「」]+?/)*[^/\s:"“”'‘’「」,;)]+"#)
+        let folder = #"[^/\n:"“”'‘’「」]*[^/\s:"“”'‘’「」]"#
+        let last = #"[^/\s:"“”'‘’「」,;()]+(?:[ \t](?![a-z])[^/\s:"“”'‘’「」,;()]+)*"#
+        let regex = try! NSRegularExpression(pattern: #"(?<![\w~./:\\-])/(?:\#(folder)/)*\#(last)"#)
         let ns = text as NSString
         let out = NSMutableString(string: text)
         for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {

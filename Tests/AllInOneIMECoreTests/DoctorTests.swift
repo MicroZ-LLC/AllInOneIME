@@ -113,7 +113,7 @@ struct DoctorTests {
             "2026-10-12 update check failed: \"my secret sentence\" was not sent",
         ]
         let summary = Doctor.summarizeLogLines(lines, home: "/Users/alice")
-        #expect(summary == ["Error loading ~/Library/Rime/custom.yaml", "update check failed: not"])
+        #expect(summary == ["Rime dictionary failed to load: ~/Library/Rime/custom.yaml", "update check failed"])
         let findings = Doctor.findings(facts { $0.recentErrors = summary }, chinese: false)
         #expect(findings.contains { $0.area == .recentErrors && $0.status == .warning })
     }
@@ -251,25 +251,39 @@ struct DoctorTests {
     }
 
     @Test func absolutePathsAreMasked() {
-        // Folder names with spaces stay inside the path: masked rather than shown (here up to the last path in the line).
-        #expect(Doctor.maskingAbsolutePaths("couldn't move /Volumes/My Disk/secret project/a.zip") == "couldn't move …/a.zip")
-        #expect(!Doctor.maskingAbsolutePaths("couldn't move /Volumes/My Disk/secret project/a.zip to /tmp").contains("secret"))
+        // Folder names with spaces stay inside the path; the words after it don't.
+        #expect(Doctor.maskingAbsolutePaths("couldn't move /Volumes/My Disk/secret project/a.zip to /tmp") == "couldn't move …/a.zip to …/tmp")
+        #expect(Doctor.maskingAbsolutePaths("move /private/var/tmp/Report Q3 2026.zip (NSURLErrorDomain -1009) failed")
+                == "move …/Report Q3 2026.zip (NSURLErrorDomain -1009) failed")
+        #expect(Doctor.maskingAbsolutePaths("/opt/data/b.txt: not found, try again") == "…/b.txt: not found, try again")
         #expect(Doctor.maskingAbsolutePaths("~/Library/Rime/x.yaml and https://example.com/v1 and 401/403")
                 == "~/Library/Rime/x.yaml and https://example.com/v1 and 401/403")
         #expect(Doctor.scrub("/Users/x/Library/a: \"/opt/data/b.txt\"", home: "/Users/x") == "~/Library/a: \"…/b.txt\"")
     }
 
-    @Test func logSummariesKeepAFixedVocabulary() {
+    @Test func logSummariesArePhrasesPerEvent() {
         let lines = [
             "E20261015 10:00:01.000 1234 dictionary.cc:56] failed to load /Users/x/Library/Rime/user.dict.yaml for Alice Smith",
             "update failed: couldn't move /private/var/tmp/Report Q3 2026.zip (NSURLErrorDomain -1009)",
             "E20261015 10:00:03.000 1234 engine.cc:81] commit error: my bank password is hunter2",
+            "plugin weather failed to load: manifest.json can't be read",
+            "2026-10-15 update check failed: the signature didn't verify",
+            "something weird happened: error 42 in Alice's notes",
+            "E20261015 10:00:05.000 1234 engine.cc:90] lookup failed for 「我想去医院」",
         ]
-        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x") == [
-            "failed to load ~/Library/Rime/user.dict.yaml for",
-            "update failed: couldn't move …/Report NSURLErrorDomain -1009",
-            "error:",
+        #expect(Doctor.summarizeLogLines(lines, home: "/Users/x", limit: 10) == [
+            "Rime dictionary failed to load: ~/Library/Rime/user.dict.yaml",
+            "update failed to install (network, -1009)",
+            "error in Rime (engine)",
+            "plugin weather failed to load",
+            "update check failed (signature)",
+            "Rime lookup failed",
+            "1 other log line",
         ])
+        // Never a stray word of the line: a line no event matches is only counted.
+        #expect(Doctor.summarizeLogLines(["commit failed: hunter2 was not sent"], home: "/Users/x") == ["1 other log line"])
+        #expect(Doctor.summarizeLogLines(["update check failed: The request timed out. (NSURLErrorDomain -1001)"], home: "")
+                == ["update check failed (timed out)"])
     }
 
     @Test func checkForUpdatesIsPickedNotSafe() {
@@ -304,7 +318,7 @@ struct DoctorTests {
     @Test func typographicAndCJKQuotesAreLeftOut() {
         let lines = ["error: couldn’t read “my diary.txt”", "failed: 「我想去医院」 and 『秘密』 and «privé» and ‘mine’"]
         let out = Doctor.summarizeLogLines(lines, home: "/Users/x")
-        #expect(out == ["error: couldn’t read", "failed:"])
+        #expect(out == ["2 other log lines"])
     }
 
     @Test func probesNeverShowOrSendKeysOrFullPaths() {
