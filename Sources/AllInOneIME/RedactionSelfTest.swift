@@ -91,7 +91,7 @@ extension SelfTest {
         check(controller.lastHidden == 2 && model.detail?.hasPrefix(RedactionPanel.hiddenLine(2)) == true
               && !model.rows.contains { $0.comment.contains(RedactionPanel.changed) },
               "the panel says what was hidden, quietly (\(model.detail ?? "-"))")
-        snapshot("redaction", in: snapshotDirectory)
+        readmeSnapshot("redaction", controller, client, in: snapshotDirectory)
         // A placeholder the model changed past telling: the row as written, marked.
         var choices = controller.composer.choices
         if let row = choices.firstIndex(where: { $0.kind == .version }) {

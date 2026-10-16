@@ -97,6 +97,29 @@ extension SelfTest {
         question()
         check(controller.panelModel().rows.isEmpty && controller.composer.questionMatches.isEmpty, "with the setting off there's no list")
         controller.commitComposition(client)
+
+        // The release notes' image: a few made-up questions kept over a week, in each interface's language.
+        settings.rememberQuestions = true
+        func listed(_ entries: [(question: String, answer: String, ago: TimeInterval)], english: Bool, name: String) {
+            QuestionHistoryStore.clear()
+            for entry in entries.reversed() {  // newest first
+                QuestionHistoryStore.record(QuestionHistory.Entry(question: entry.question, answer: entry.answer,
+                                                                  date: Date().addingTimeInterval(-entry.ago)))
+            }
+            settings.uiLanguage = english ? .english : .chinese
+            controller.applySettings()
+            question()
+            check(controller.panelModel().rows.count == entries.count, "\(name): \(entries.count) recent questions listed")
+            snapshot(name, in: snapshotDirectory)
+            try? Data(client.marked.utf8).write(to: snapshotDirectory.appendingPathComponent("\(name).marked.txt"))
+            controller.commitComposition(client)
+        }
+        listed([("东京现在几点", "东京现在是下午 3 点（UTC+9）。", 120), ("一公里等于多少英里", "约 0.62 英里。", 3600),
+                ("怎么用 git 撤销上一次提交", "git reset --soft HEAD~1", 86400), ("光速是多少", "约 30 万公里每秒。", 2 * 86400),
+                ("三文鱼要煎多久", "中火每面 3–4 分钟。", 5 * 86400)], english: false, name: "question-recent-list")
+        listed([("what time is it in Tokyo", "It's 3 PM in Tokyo (UTC+9).", 120), ("how many miles in a kilometer", "About 0.62 miles.", 3600),
+                ("how do I undo the last git commit", "git reset --soft HEAD~1", 86400), ("speed of light", "About 300,000 km per second.", 2 * 86400),
+                ("how long to pan-fry salmon", "3–4 minutes a side over medium heat.", 5 * 86400)], english: true, name: "question-recent-list-en")
         QuestionHistoryStore.clear()
     }
 }

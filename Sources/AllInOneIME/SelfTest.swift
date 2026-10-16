@@ -666,7 +666,7 @@ enum SelfTest {
     /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⏎ asks again with
     /// the results as context; the new versions are shorter, the header names the step, Esc goes back to the results
     /// before it, secure input refuses a refine like any request, and a pick inserts the refined text.
-    static func testRefine(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+    static func testRefine(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         print("— refine the results: shorter (live Bedrock)")
         func versions() -> [String] { controller.composer.choices.filter { $0.kind == .version }.map(\.text) }
         func average(_ lines: [String]) -> Double { lines.isEmpty ? 0 : Double(lines.map(\.count).reduce(0, +)) / Double(lines.count) }
@@ -687,6 +687,7 @@ enum SelfTest {
         check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
               "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
         check(typing.footer.hasPrefix("⏎ 按这句修改结果"), "the footer says ⏎ refines (\(typing.footer))")
+        readmeSnapshot("refine-typing", controller, client, in: snapshotDirectory)  // release notes
         check(enter(controller, client) && controller.composer.isRefining, "⏎ runs the refine")
         if finishConversion(controller, "refine: shorter") {
             let after = versions()
@@ -694,6 +695,7 @@ enum SelfTest {
                   String(format: "the refined versions are shorter (%.0f → %.0f characters on average)", average(before), average(after)))
             let header = controller.panelModel().header ?? ""
             check(header == "已修改：shorter", "the header names the step (\(header))")
+            readmeSnapshot("refine", controller, client, in: snapshotDirectory)  // release notes
             check(controller.panelModel().footer.contains("Esc 上一版"), "the footer offers the step back (\(controller.panelModel().footer))")
             // Esc: the results before it, as they were.
             _ = escape(controller, client)
@@ -1750,7 +1752,7 @@ enum SelfTest {
         let caretX = client.caretRect.minX, textX = panel.frame.minX + panel.view.textInset
         check(panel.isVisible && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
               "under the caret, the first candidate's text at the caret (\(Int(textX)) / \(Int(caretX)))")
-        snapshot("1b-pinyin-horizontal", in: snapshotDirectory)
+        readmeSnapshot("1b-pinyin-horizontal", controller, client, in: snapshotDirectory)
         snapshot("1b-pinyin-horizontal-dark", in: snapshotDirectory, appearance: .darkAqua)
         arrow(VirtualKey.right)
         arrow(VirtualKey.right)
@@ -2844,7 +2846,7 @@ enum SelfTest {
         _ = space(controller, client)
         check(client.inserted.last == choices[1].text, "Space commits the highlighted English")
 
-        testRefine(controller, client)
+        testRefine(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— typing more in level two continues the sentence")
         improve(controller, client)
