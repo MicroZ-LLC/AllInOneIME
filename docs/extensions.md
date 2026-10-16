@@ -128,7 +128,7 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 | Variable | Value |
 |---|---|
 | `ALLINONEIME_PROTOCOL` | `1` |
-| `ALLINONEIME_VERSION` | the app's version, like `0.6.2` |
+| `ALLINONEIME_VERSION` | the app's version, like `0.6.3` |
 | `ALLINONEIME_LANGUAGE` | the interface language: `en` or `zh` |
 | `ALLINONEIME_INPUT_LANGUAGE` | the language being typed: `en`, `zh`, `fr`, `ko` or `hi` |
 | `ALLINONEIME_APP` | the bundle id of the app being typed in |
@@ -154,6 +154,10 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 - One process per command at a time: a newer query stops the one before.
 - Nothing runs while secure input is on (a password field, the lock screen).
 - An extension doesn't run inside another command's text (`@question … @flights …` leaves it as text).
+- It gets the text as typed. With text selected in the field, it doesn't use the selection: its arguments are what's
+  typed after its name, and the selection stays as it is. "Hide sensitive information before sending" (Settings → AI
+  Provider → Privacy) applies to requests to the AI only, not to what an extension gets. An app set to "No AI in this
+  app" (Settings → Apps) still runs extensions: they aren't the AI.
 - Color codes and other terminal escapes are removed from what it prints.
 
 **Exit status.** Non-zero is a failure: the last line of standard error with words in it (else of standard output)

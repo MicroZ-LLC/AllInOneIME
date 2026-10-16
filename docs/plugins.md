@@ -1,7 +1,8 @@
 # Plugins: plan
 
-@ commands come in three tiers: **built-in** (`@improve`, `@question`, `@claude`, `@open`, `@read`, `@note`,
-`@reminder`, `@calculate`, `@py`, `@js`, `@search`, `@tasks`, `@settings`, `@imessage`), **plugins** installed from the plugin library (what not everyone
+@ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@claude`, `@open`, `@note`,
+`@reminder`, `@calculate`, `@py`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`; `@read` and `@search` are
+built but not offered yet, their names still taken), **plugins** installed from the plugin library (what not everyone
 wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands). When names clash: built-in >
 plugin > custom, so a plugin named like a built-in command never shows up.
 
@@ -44,8 +45,9 @@ browser. Nothing is inserted; the draft is cleared, as when `@open` opens someth
   x.com"); `script` and `hosts` aren't used.
 - The text is percent-encoded as a query value: everything but `A–Z a–z 0–9 - . _ ~` as UTF-8, a space as `%20`
   (not `+`), a newline as `%0A`. At most 4000 characters (longer: an error, and the draft stays).
-- Nothing after the command: like any command, the action key takes the clipboard's text (with none, it asks
-  for some); the page never opens empty from the input method.
+- Nothing after the command: like any command, the action key only says to write something (paste the clipboard's
+  text into the command with ⌃V, or ⌘V outside terminals); the page never opens empty from the input method. With
+  text selected in the field, the selection is the text.
 - Not a command inside a text (it fetches nothing), but it can be the outer one: `@x 今天 @stock AAPL 涨了` runs
   `@stock` first and opens the link with its output in the text.
 - Refused during secure input, like every command.
@@ -73,6 +75,9 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 - At most 8 requests a run, 1 MB a response, 5 s a request; the run itself ends after `timeoutSeconds` (≤ 20).
 - No file system, processes, environment, timers or clipboard: a bare `JSContext` has none of them.
 - Secure input (password fields) refuses plugins like any command.
+- The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings → AI Provider →
+  Privacy) covers requests to the AI, so a `prompt` plugin, but not what a script or link plugin sends. Likewise an
+  app set to "No AI in this app" (Settings → Apps) refuses `prompt` plugins and still runs script and link plugins.
 
 ## The library (milestone 2, done)
 
