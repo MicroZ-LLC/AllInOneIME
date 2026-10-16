@@ -56,7 +56,7 @@
 | ⌘V | 和 ⌃V 一樣，但有些 App 會自行處理 ⌘V（Ghostty、iTerm2、Terminal 等終端機，以及 Notes），照常貼到 App 裡；在這些 App 中請用 ⌃V |
 | Esc、⌫ | 回到句子繼續編輯；結果出現後輸入標點或數字就是接著寫。修改結果後：回到修改前的那一版 |
 | AI 結果出現後輸入字母 | 後續內容：`@question` 之後是下一個問題（見[對話](#與-question-對話新)），`@improve` 或提示詞指令之後是修改要求，例如 `shorter`（見[修改結果](#修改結果新)）；按 ⇧⏎ 送出。`@translate` 之後輸入字母是接著寫這個句子，按 ⏎ 重新翻譯 |
-| ⌘⏎、⌘1–⌘5 | 在 `@question` 對話中：列出可以接著聊的地方（Claude Code 或你為 `@agent` 選的其他 agent、Claude、ChatGPT、Gemini，或拷貝對話）；⌘1、⌘2… 選一個 |
+| ⌘⏎、⌘1–⌘9 | 在 `@question` 對話中：列出可以接著聊的地方（已安裝的程式設計 agent，`@agent` 所交給的那個排在最前；Claude、ChatGPT、Gemini；或拷貝對話）；⌘1、⌘2… 選一個 |
 | 按一下某一列 | 在候選視窗中：選取這一列，和按它的數字鍵一樣（字詞、清單中的指令、結果、`@open` 找到的檔案、收件人、擴充功能列出的列）；指標下方的那一列會反白。文字欄位保持焦點 |
 | 輕按 Shift | 有多種輸入語言時：依序切換到下一種（英文 → 中文 → 法文 → …，然後回到第一種） |
 | 按住右側 ⌥ | 說話，放開即停止。以你正在輸入的語言辨識（英文、中文、法文、韓文或印地文）。在指令中，文字會接在指令後面；否則直接插入 |
@@ -68,7 +68,7 @@
 | `@improve` | 潤飾：1–3 是用句子本身語言寫的三個版本，4 之後是改寫風格（在設定中加入並排序），0 是原文。不會翻譯；開啟「@improve also translates」（@improve 同時翻譯）時，效果等同 `@translate @improve` |
 | `@translate` | 翻譯成你加入的語言（設定 →「Translate」，拖曳可調整順序），每種一行；只有一種語言時提供三個版本；句子本身的語言會略過。`@translate @improve` 一起使用時，一次請求就能翻譯並改寫 |
 | `@question` | 提出問題；答案會出現在候選中，按 ⏎ 或 Space 插入，⌘C 拷貝。接著輸入並按 ⇧⏎ 就是追問：候選視窗會變成最多 5 輪的對話，之後建議到 Claude 或其他 AI 接著聊。後面沒有輸入任何內容時，會列出你最近的 5 個問題，最新的在前；接著輸入就能篩選（問題中任何位置的字詞，不分大小寫，中文也可以）。按數字鍵、↑↓ 再按 ⏎，或按一下，會立刻顯示該問題已儲存的答案，不需連網，照常插入或拷貝；在那裡按 ⌘R 會重新提問以取得新的答案。沒有符合的項目，或沒有選取任何項目時，⏎ 會提出你輸入的問題 |
-| `@agent` | 把任務交給你 Mac 上的程式設計 agent，在 Settings → General →「@agent hands it to」（@agent 交給）中選擇：Claude Code（預設）、Gemini CLI、Kiro CLI，或你自己的指令（你輸入的內容會作為最後一個引數加在後面）。Claude Code 預設在背景執行，完成時會發出通知（按一下通知即可在 Terminal 中打開該工作階段繼續），也可以用 `@tasks` 查看；關閉「@agent runs in the background and notifies me」（@agent 在背景執行並在完成時通知我）就會改在 Terminal 中打開。其他 agent 會在 Terminal 中打開，你輸入的內容就是第一則訊息。每個 agent 都使用自己的登入和設定。第一次打開 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「好」。（0.6.4 之前叫 `@claude`。） |
+| `@agent` | 把任務交給你 Mac 上的程式設計 agent，在 Settings → Agent 中選擇：Claude Code（預設）、Gemini CLI、Kiro CLI，或你自己的指令（你輸入的內容會作為最後一個引數加在後面）。這一頁也會顯示每個 agent 是否已安裝、如何啟動。Claude Code 預設在背景執行，完成時會發出通知（按一下通知即可在 Terminal 中打開該工作階段繼續），也可以用 `@tasks` 查看；關閉那裡 Claude Code 下方的「Runs in the background and notifies me」（在背景執行並在完成時通知我）就會改在 Terminal 中打開。其他 agent 會在 Terminal 中打開，你輸入的內容就是第一則訊息。每個 agent 都使用自己的登入和設定。第一次打開 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「好」。（0.6.4 之前叫 `@claude`。） |
 | `@tasks` | 列出背景中的 Claude 任務（進行中／已完成／等你回應），以及它們最後的回覆；按 ⏎ 在 Terminal 中開啟，⌘C 拷貝回覆 |
 | `@settings` | 立即開啟設定視窗（選取它就夠了） |
 | `@config` | 依你的描述修改設定：`@config output languages English and French`、`@config use Chinese in WeChat`、`@config candidates in a column`。按 ⏎ 顯示要改的地方（原本 → 改為）；⏎（或 1）套用，Esc 取消，接著輸入再按 ⇧⏎ 可以再調整；⌘Z 或 `@config undo` 會還原。見[用描述的方式修改設定](#用描述的方式修改設定新) |
@@ -108,12 +108,12 @@
 
 5 輪之後（設定檔中的 `questionRounds`，2–10），下一個問題的那一行會變成「5 rounds in: continue in Claude or another AI」（已聊 5 輪：到 Claude 或其他 AI 接著聊），選項依 ⌘1、⌘2… 編號；任何一輪按 ⌘⏎ 都能顯示這些選項（答案還在出現時按它不做任何事，也絕不會傳給 App）。這時你輸入的內容就是到那邊的第一則訊息；只有 ⌘1、⌘2… 會送出它（⇧⏎ 不再提問，也不打開任何東西）。對選取文字提出的問題會把那段文字一起帶過去，作為獨立的引用區塊。可選的有：
 
-- **`@agent` 所交給的 agent**，顯示它的名稱（預設是 Claude Code，也可以是在 Settings → General 中選的 Gemini CLI、Kiro CLI 或你自己的指令；已安裝時才有）：在 Terminal 中開啟一個互動式工作階段，開頭是這段對話和「Let's continue this discussion」。
+- 這台 Mac 上**已安裝的程式設計 agent**，各自顯示名稱：`@agent` 所交給的那個排在最前（⌘1），接著是其他的（Claude Code、Gemini CLI、Kiro CLI、Settings → Agent 中你自己的指令）。每個都會在 Terminal 中開啟一個互動式工作階段，啟動方式和 `@agent` 相同，開頭是這段對話和「Let's continue this discussion」。沒有安裝的不會顯示。
 - 網頁版 **Claude** 或 **ChatGPT**，對話已經填好（太長時會放到剪貼簿：貼上即可）。
 - 網頁版 **Gemini**，對話在剪貼簿中，貼上即可。
 - **Copy the conversation**（拷貝對話），Markdown 格式（**Q:** / **A:**）。
 
-要列出哪些、依什麼順序（第一個為預設）：Settings → General →「Continue a conversation in」（對話接著在哪裡聊；設定檔中的 `questionContinueIn`）。使用這台 Mac 的 Apple Intelligence 時，長對話放不進它很小的上下文：會先縮短最早的答案，再略去最早的幾輪，候選視窗會顯示「earlier rounds shortened」（前面幾輪已縮短）。對話會以第一個問題存在最近的問題中，選取它就會顯示各輪內容，讓你接著聊。
+要列出哪些、依什麼順序（第一個為預設）：Settings → General →「Continue a conversation in」（對話接著在哪裡聊；設定檔中的 `questionContinueIn`）；超過 5 個時，用 ⌘6…⌘9 選擇其餘的。那裡的「@agent's agent」（@agent 的 agent）就是 Settings → Agent 中所選的那個 agent，並顯示它的名稱；目前沒有安裝的 agent，在你編輯清單時仍會保留原本的位置。使用這台 Mac 的 Apple Intelligence 時，長對話放不進它很小的上下文：會先縮短最早的答案，再略去最早的幾輪，候選視窗會顯示「earlier rounds shortened」（前面幾輪已縮短）。對話會以第一個問題存在最近的問題中，選取它就會顯示各輪內容，讓你接著聊。
 
 ### 最近的問題（新）
 
@@ -369,7 +369,7 @@ make install
 
 ## 設定 AI
 
-翻譯和改寫使用你自己的 AI 供應商，費用由你的帳號支付：預設是你 AWS 帳號中的 Amazon Bedrock，也可以用 Claude API、Gemini 或與 OpenAI 相容的服務（見下方「其他 AI 供應商」）。
+翻譯和改寫會送到你在 Settings → AI Provider 中選擇的 AI 供應商。新安裝時預設使用 AllInOneIME Cloud：登入即可，每天有 20 次免費請求。在支援 Apple Intelligence 的 Mac 上，也可以改在這台 Mac 上執行，不需要帳號（見下方「這台 Mac 上的 Apple Intelligence」）。也可以使用你自己的供應商，費用由你的帳號支付：你 AWS 帳號中的 Amazon Bedrock、Claude API、Gemini 或與 OpenAI 相容的服務（見下方「其他 AI 供應商」）。
 
 ### Amazon Bedrock
 
@@ -459,12 +459,12 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | `fuzzyPinyin` | 模糊拼音配對：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 | `useSelection` | @ 指令處理欄位中選取的文字（見「對選取的文字使用指令」） | `true` |
 | `checkForUpdates` | 每天在背景檢查一次新版本；你沒按下之前不會安裝任何東西 | `true` |
-| `agent` | `@agent` 要把文字交給哪個程式設計 agent：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
+| `agent` | `@agent` 要把文字交給哪個程式設計 agent（Settings → Agent）：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
 | `agentCommand` | 自訂 agent 的指令，你輸入的內容會作為最後一個引數加在後面，例如 `["muse", "--"]` | `[]` |
 | `claudeInBackground` | `@agent` 使用 Claude Code 時在背景執行，完成時通知你（其他 agent 一律在 Terminal 中打開） | `true` |
 | `rememberQuestions` | 在這台 Mac 上保留你最近 5 個 `@question` 問題和答案，列在 `@question` 下方（見「最近的問題」） | `true` |
 | `questionRounds` | `@question` 對話在候選視窗中進行幾輪後，建議到別處接著聊，2–10 | `5` |
-| `questionContinueIn` | `@question` 對話可以在哪裡接著聊，依序排列，第一個為預設：`claudeCode`（`@agent` 所交給的 agent）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `@agent` 的 agent（若已安裝）、Claude、ChatGPT、拷貝 |
+| `questionContinueIn` | `@question` 對話可以在哪裡接著聊，依序排列，第一個為預設：`agent`（`@agent` 所交給的那個，取代該 agent 自己的項目）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各個 agent，已安裝才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、其他已安裝的 agent、Claude、ChatGPT、拷貝 |
 | `appProfiles` | 單一 App 的設定，依 bundle ID，每一項都是選擇性的：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（見「依 App 設定」） | `{}` |
 | `redaction` | 對 AI 隱藏敏感資訊（見「隱私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；每種偵測（`emails`、`phones`、`cards`、`keys`、`ips`）除非設為 `false`，否則都開啟 | `enabled: false` |
 
@@ -472,7 +472,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 
 - 打字（英文和拼音）以及 `@calculate` 的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。修改結果（在結果出現後輸入要求，再按 ⇧⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求；追問（⇧⏎）則會連同到目前為止的對話一起送出。
 - `@config` 和 `@doctor <question>` 會在你按 ⏎ 時把文字送給模型：只要這台 Mac 能用 Apple Intelligence 就用它（不會有任何內容離開 Mac），否則用你的供應商。`@config` 會送出你的句子（句子中輸入的金鑰會先去除），以及它可以修改的那些設定的目前值：絕不包含金鑰，也不包含你對 AI 隱藏的詞（只送出有幾個），AWS 設定檔的名稱也只在句子與 AWS 或 Bedrock 有關時才送出。`@doctor <question>` 會送出你的問題和遮蔽過的檢查結果：路徑只到 `~` 為止、沒有金鑰、記錄檔的內容改為固定的說法。隱藏敏感資訊對兩者都適用，和其他請求一樣。單獨執行檢查時（`@doctor` 後面什麼都不接），除了 Test Connection 的請求之外什麼都不送出，而且只在供應商有金鑰或憑證可測試時才送。
-- 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上 `@agent` 所交給的 agent（預設是 Anthropic 的 Claude Code）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
+- 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上的程式設計 agent（Claude Code、Gemini CLI、Kiro CLI 或你自己的，各自使用自己的帳號和服務）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
 - 使用 AllInOneIME Cloud 時，句子會經由開發者的伺服器送到模型供應商（目前經由 OpenRouter）：伺服器只保留計數，絕不保留文字。登入只會保留你的電子郵件地址。
 - 隱藏敏感資訊（Settings → AI Provider → Privacy，預設關閉）：任何請求送出之前（`@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，所有供應商皆然，包括 AllInOneIME Cloud），電子郵件地址、電話號碼、付款卡號（經 Luhn 檢查）、API 金鑰和權杖（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和很長的隨機字串）、IP 位址以及你自己的字詞（代號、名字）會先在 Mac 上換成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 這類預留位置；同一個值使用同一個預留位置。模型的結果在顯示或插入之前會換回真實內容，候選視窗會顯示「2 items hidden from the AI」。模型把預留位置改得無法辨認的結果，會照原樣顯示並標上「⚠ placeholder changed」。術語表中含有被隱藏內容的項目不會送出。每一類都能個別關閉。全形寫法（`zhang＠example.com`、`１３８…`）也找得到，值或片語中間換行也可以。它能辨識有固定格式的值，例如電子郵件、號碼和金鑰；無法辨識人名或地址（請把它們加為你自己的字詞），也無法辨識其他字母系統中外形相似的字母。只適用於送往你的 AI 服務的請求；`@agent`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。設定檔中為 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 只有在你按住右側 ⌥ 時才會錄音，並在 Mac 上辨識；辨識出的文字只有在上述指令中、你按下執行鍵時才會送出。

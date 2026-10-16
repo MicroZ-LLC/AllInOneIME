@@ -56,7 +56,7 @@
 | ⌘V | ⌃V와 같지만, ⌘V를 직접 처리하는 앱(Ghostty, iTerm2, Terminal 같은 터미널과 Notes)에서는 평소처럼 앱에 붙여 넣습니다. 그런 앱에서는 ⌃V를 쓰세요 |
 | Esc, ⌫ | 문장으로 돌아가 계속 편집합니다. 결과가 나온 뒤 문장 부호나 숫자를 입력하면 문장을 이어 씁니다. 다듬은 뒤에는: 그 전의 결과로 돌아갑니다 |
 | AI 결과가 나온 뒤 입력하는 글자 | 후속 입력입니다. `@question` 뒤에서는 다음 질문([대화](#question으로-대화하기-신규) 참고), `@improve`나 프롬프트 명령어 뒤에서는 `shorter` 같은 지시([결과 다듬기](#결과-다듬기-신규) 참고)이며, ⇧⏎로 보냅니다. `@translate` 뒤에서는 글자가 문장을 이어 쓰고, ⏎를 누르면 다시 번역합니다 |
-| ⌘⏎, ⌘1–⌘5 | `@question` 대화에서: 이어서 할 수 있는 곳(Claude Code 또는 `@agent`용으로 고른 다른 에이전트, Claude, ChatGPT, Gemini, 또는 복사)을 보여 줍니다. ⌘1, ⌘2 …로 하나를 고릅니다 |
+| ⌘⏎, ⌘1–⌘9 | `@question` 대화에서: 이어서 할 수 있는 곳(설치된 코딩 에이전트, `@agent`가 넘기는 에이전트가 먼저; Claude, ChatGPT, Gemini; 또는 복사)을 보여 줍니다. ⌘1, ⌘2 …로 하나를 고릅니다 |
 | 행 클릭 | 후보 패널에서: 그 행의 숫자 키를 누른 것처럼 선택합니다(단어, 목록의 명령어, 결과, `@open` 파일, 받는 사람, 확장의 행). 포인터 아래의 행이 강조됩니다. 텍스트 필드는 포커스를 유지합니다 |
 | Shift 가볍게 누르기 | 입력 언어가 둘 이상일 때: 순서대로 다음 언어로 바꿉니다(영어 → 중국어 → 프랑스어 → …, 그다음 다시 처음으로) |
 | 오른쪽 ⌥ 누르고 있기 | 말하고, 떼면 멈춥니다. 입력 중인 언어(영어, 중국어, 프랑스어, 한국어, 힌디어)로 인식합니다. 명령어 안에서는 텍스트가 그 뒤에 들어가고, 그렇지 않으면 바로 삽입됩니다 |
@@ -68,7 +68,7 @@
 | `@improve` | 다듬기: 1–3은 문장 원래 언어로 된 세 가지 버전, 4부터는 다시 쓰기 스타일(설정에서 추가하고 순서를 정함), 0은 원문입니다. 번역은 하지 않습니다. "@improve also translates"(@improve에서도 번역)를 켜면 `@translate @improve`처럼 작동합니다 |
 | `@translate` | 추가한 언어로 번역합니다(설정 → "Translate", 드래그로 순서 변경). 언어마다 한 줄이며, 언어가 하나뿐이면 세 가지 버전입니다. 문장 원래 언어는 건너뜁니다. `@translate @improve`를 함께 쓰면 한 번의 요청으로 번역과 다시 쓰기를 합니다 |
 | `@question` | 질문합니다. 답은 후보에 나타나며, ⏎ 또는 Space로 삽입하고 ⌘C로 복사합니다. 계속 입력하고 ⇧⏎를 누르면 후속 질문을 합니다. 패널이 최대 5회차의 대화가 되고, 그다음에는 Claude나 다른 AI에서 이어 가자고 제안합니다. 뒤에 아무것도 입력하지 않으면 최근 질문 5개를 최신순으로 보여 줍니다. 입력하면 범위가 좁혀집니다(질문 안 어디에 있는 단어든, 대소문자 구분 없이, 중국어도). 숫자 키, ↑↓ 후 ⏎, 또는 클릭하면 그 질문의 저장된 답을 오프라인으로 바로 보여 주며, 평소처럼 삽입하거나 복사할 수 있습니다. 거기서 ⌘R을 누르면 다시 질문해 새 답을 받습니다. 일치하는 것이 없거나 아무것도 고르지 않으면 ⏎는 입력한 내용을 질문합니다 |
-| `@agent` | 작업을 Mac의 코딩 에이전트에 넘깁니다. 에이전트는 Settings → General → "@agent hands it to"(@agent가 넘길 곳)에서 고릅니다: Claude Code(기본값), Gemini CLI, Kiro CLI, 또는 직접 만든 명령(입력한 내용이 마지막 인수로 붙습니다). Claude Code는 기본적으로 백그라운드에서 실행되며 끝나면 알림을 보내고(알림을 클릭하면 Terminal에서 세션을 열어 이어 갈 수 있음), `@tasks`에서도 볼 수 있습니다. "@agent runs in the background and notifies me"(@agent를 백그라운드에서 실행하고 끝나면 알림)를 끄면 Terminal에서 엽니다. 다른 에이전트는 Terminal에서 열리며, 입력한 내용이 첫 메시지가 됩니다. 각 에이전트는 자체 로그인과 설정을 씁니다. 처음 Terminal을 열 때 macOS가 AllInOneIME가 Terminal을 제어해도 되는지 묻습니다. "확인"을 클릭하세요. (0.6.4 이전에는 `@claude`였습니다.) |
+| `@agent` | 작업을 Mac의 코딩 에이전트에 넘깁니다. 에이전트는 Settings → Agent에서 고릅니다: Claude Code(기본값), Gemini CLI, Kiro CLI, 또는 직접 만든 명령(입력한 내용이 마지막 인수로 붙습니다). 이 페이지에는 각 에이전트가 설치되어 있는지, 어떻게 시작하는지도 표시됩니다. Claude Code는 기본적으로 백그라운드에서 실행되며 끝나면 알림을 보내고(알림을 클릭하면 Terminal에서 세션을 열어 이어 갈 수 있음), `@tasks`에서도 볼 수 있습니다. 그 페이지의 Claude Code 아래에 있는 "Runs in the background and notifies me"(백그라운드에서 실행하고 끝나면 알림)를 끄면 Terminal에서 엽니다. 다른 에이전트는 Terminal에서 열리며, 입력한 내용이 첫 메시지가 됩니다. 각 에이전트는 자체 로그인과 설정을 씁니다. 처음 Terminal을 열 때 macOS가 AllInOneIME가 Terminal을 제어해도 되는지 묻습니다. "확인"을 클릭하세요. (0.6.4 이전에는 `@claude`였습니다.) |
 | `@tasks` | 백그라운드 Claude 작업(진행 중 / 완료 / 응답 대기)과 각각의 마지막 답장을 나열합니다. ⏎는 Terminal에서 열고, ⌘C는 답장을 복사합니다 |
 | `@settings` | 설정 창을 바로 엽니다(고르기만 하면 됩니다) |
 | `@config` | 말로 설명한 대로 설정을 바꿉니다: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎를 누르면 바뀌는 내용을 이전 → 이후로 보여 주고, ⏎(또는 1)로 적용, Esc로 취소, 더 입력하고 ⇧⏎를 누르면 다시 다듬습니다. ⌘Z 또는 `@config undo`로 되돌립니다. [말로 설정 바꾸기](#말로-설정-바꾸기-신규) 참고 |
@@ -108,12 +108,12 @@
 
 5회차가 지나면(설정 파일의 `questionRounds`, 2–10) 다음 질문 줄이 "5 rounds in: continue in Claude or another AI"(5회차 진행: Claude나 다른 AI에서 이어 가기)로 바뀌고, 선택지에 ⌘1, ⌘2 … 번호가 붙습니다. ⌘⏎를 누르면 어느 회차에서든 선택지를 볼 수 있습니다(답이 아직 들어오는 중이면 아무것도 하지 않으며, 앱으로 전달되지도 않습니다). 이때 입력하는 내용은 그곳에서의 첫 메시지가 되며, ⌘1, ⌘2 …만 그것을 보냅니다(⇧⏎는 더 이상 질문하지 않고 아무것도 열지 않습니다). 선택한 텍스트에 대한 질문은 그 텍스트를 별도의 인용 블록으로 함께 가져갑니다. 선택지:
 
-- **`@agent`가 넘기는 에이전트**, 그 이름으로 표시됨(기본값은 Claude Code, 또는 Settings → General에서 고른 Gemini CLI, Kiro CLI나 직접 만든 명령), 설치되어 있을 때: Terminal에서 대화형 세션을 열고, 대화 내용과 "Let's continue this discussion"으로 시작합니다.
+- 이 Mac에 **설치된 코딩 에이전트**, 각각 그 이름으로 표시됨: `@agent`가 넘기는 에이전트가 먼저(⌘1), 그다음 나머지(Claude Code, Gemini CLI, Kiro CLI, Settings → Agent에서 정한 직접 만든 명령). 각각 Terminal에서 대화형 세션을 열고, `@agent`가 시작하는 방식대로 시작해 대화 내용과 "Let's continue this discussion"으로 시작합니다. 설치되지 않은 것은 표시되지 않습니다.
 - 웹의 **Claude** 또는 **ChatGPT**, 대화가 채워진 상태로 열립니다(긴 대화는 클립보드로 가니 붙여 넣으세요).
 - 웹의 **Gemini**, 대화는 클립보드에 있으니 붙여 넣습니다.
 - **Copy the conversation**(대화 복사), Markdown 형식(**Q:** / **A:**)입니다.
 
-어떤 것을 어떤 순서로 보여 줄지(첫 번째가 기본값): Settings → General → "Continue a conversation in"(대화를 이어 갈 곳, 설정 파일의 `questionContinueIn`). 이 Mac의 Apple Intelligence를 쓰면 긴 대화는 작은 컨텍스트에 다 들어가지 않습니다. 가장 오래된 답부터 줄이고, 그다음 가장 오래된 회차를 빼며, 패널에 "earlier rounds shortened"(이전 회차 줄임)라고 표시합니다. 대화는 첫 질문으로 최근 질문에 저장되며, 고르면 이어 갈 수 있도록 각 회차가 표시됩니다.
+어떤 것을 어떤 순서로 보여 줄지(첫 번째가 기본값): Settings → General → "Continue a conversation in"(대화를 이어 갈 곳, 설정 파일의 `questionContinueIn`). 5개를 넘으면 나머지는 ⌘6 … ⌘9로 고릅니다. 거기의 "@agent's agent"(@agent의 에이전트)는 Settings → Agent에서 고른 에이전트이며, 그 이름으로 표시됩니다. 지금 설치되어 있지 않은 에이전트도 목록을 편집할 때 제자리를 유지합니다. 이 Mac의 Apple Intelligence를 쓰면 긴 대화는 작은 컨텍스트에 다 들어가지 않습니다. 가장 오래된 답부터 줄이고, 그다음 가장 오래된 회차를 빼며, 패널에 "earlier rounds shortened"(이전 회차 줄임)라고 표시합니다. 대화는 첫 질문으로 최근 질문에 저장되며, 고르면 이어 갈 수 있도록 각 회차가 표시됩니다.
 
 ### 최근 질문 (신규)
 
@@ -369,7 +369,7 @@ make install
 
 ## AI 설정
 
-번역과 다시 쓰기에는 여러분의 AI 제공업체를 사용하며, 비용은 여러분의 계정에 청구됩니다. 기본값은 AWS 계정의 Amazon Bedrock이며, Claude API, Gemini, OpenAI 호환 서비스도 쓸 수 있습니다(아래 "기타 AI 제공업체" 참고).
+번역과 다시 쓰기는 Settings → AI Provider에서 고른 AI 제공업체로 갑니다. 새로 설치하면 AllInOneIME Cloud로 시작합니다. 로그인하면 하루 20번의 무료 요청을 쓸 수 있습니다. Apple Intelligence를 지원하는 Mac에서는 대신 이 Mac에서, 계정 없이 실행할 수도 있습니다(아래 "이 Mac의 Apple Intelligence" 참고). 또는 비용을 여러분의 계정으로 내고 자신의 제공업체를 쓸 수 있습니다: AWS 계정의 Amazon Bedrock, Claude API, Gemini, OpenAI 호환 서비스(아래 "기타 AI 제공업체" 참고).
 
 ### Amazon Bedrock
 
@@ -459,12 +459,12 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 | `fuzzyPinyin` | 퍼지 병음 쌍: `["z-zh", "n-l", "in-ing"]`(z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
 | `useSelection` | @ 명령어가 필드에서 선택한 텍스트를 대상으로 동작 ("선택한 텍스트에서" 참고) | `true` |
 | `checkForUpdates` | 하루에 한 번 백그라운드에서 새 버전을 찾음. 클릭하기 전에는 아무것도 설치하지 않음 | `true` |
-| `agent` | `@agent`가 텍스트를 넘기는 코딩 에이전트: `claude`(Claude Code), `gemini`(Gemini CLI), `kiro`(Kiro CLI) 또는 `custom` | `claude` |
+| `agent` | `@agent`가 텍스트를 넘기는 코딩 에이전트(Settings → Agent): `claude`(Claude Code), `gemini`(Gemini CLI), `kiro`(Kiro CLI) 또는 `custom` | `claude` |
 | `agentCommand` | 직접 만든 에이전트의 명령. 입력한 내용이 마지막 인수로 붙음. 예: `["muse", "--"]` | `[]` |
 | `claudeInBackground` | Claude Code를 쓰는 `@agent`를 백그라운드에서 실행하고 끝나면 알림(다른 에이전트는 항상 Terminal에서 열림) | `true` |
 | `rememberQuestions` | 최근 `@question` 질문 5개와 답을 이 Mac에 보관하고 `@question` 아래에 표시 ("최근 질문" 참고) | `true` |
 | `questionRounds` | `@question` 대화가 다른 곳에서 이어 가자고 제안하기 전까지 패널에서 진행하는 회차 수, 2–10 | `5` |
-| `questionContinueIn` | `@question` 대화를 이어 갈 수 있는 곳, 순서대로, 첫 번째가 기본값: `claudeCode`(`@agent`가 넘기는 에이전트), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `@agent`의 에이전트(설치된 경우), Claude, ChatGPT, 복사 |
+| `questionContinueIn` | `@question` 대화를 이어 갈 수 있는 곳, 순서대로, 첫 번째가 기본값: `agent`(`@agent`가 넘기는 에이전트, 그 에이전트 자신의 항목 대신), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent`(각 에이전트, 설치된 경우에만), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, 설치된 다른 에이전트, Claude, ChatGPT, 복사 |
 | `appProfiles` | 앱 하나의 설정, 번들 ID별, 모두 선택 사항: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` ("앱별 설정" 참고) | `{}` |
 | `redaction` | 민감한 정보를 AI에게 숨김 (개인정보 보호 참고): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`. 각 감지기(`emails`, `phones`, `cards`, `keys`, `ips`)는 `false`로 두지 않는 한 켜져 있음 | `enabled: false` |
 
@@ -472,7 +472,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 
 - 타이핑(영어와 병음)과 `@calculate` 계산은 전적으로 로컬에서 이루어집니다. `@improve`, `@translate`, `@question`에서 실행 키를 눌렀을 때만 그 문장이 여러분이 고른 AI 제공업체(여러분의 Bedrock, 또는 키를 추가한 서비스)로 전송됩니다. "Jargon"을 체크하고 Jargon 목록을 설정했다면 목록도 함께 전송됩니다. 결과 다듬기(결과 뒤에 입력한 지시와 ⇧⏎)는 표시된 결과와 지시를 붙여 같은 요청을 다시 보냅니다. 후속 질문(⇧⏎)은 지금까지의 대화를 함께 보냅니다.
 - `@config`와 `@doctor <question>`은 ⏎를 누르면 모델로 텍스트를 보냅니다. 이 Mac에서 Apple Intelligence를 쓸 수 있으면 언제나 그것을 쓰고(아무것도 Mac 밖으로 나가지 않음), 아니면 사용자의 제공업체를 씁니다. `@config`는 사용자의 문장(그 안에 입력한 키는 먼저 제거됨)과 바꿀 수 있는 설정들의 현재 값을 보냅니다. 키나 AI에게 숨기는 단어는 절대 보내지 않으며(그 개수만 보냄), AWS 프로필 이름은 문장이 AWS나 Bedrock에 관한 것일 때만 보냅니다. `@doctor <question>`은 질문과 함께 가려진 점검 결과를 보냅니다. `~` 너머의 경로나 키는 없고, 로그 줄은 정해진 문구로 바뀝니다. 민감한 정보 숨기기는 다른 요청과 마찬가지로 둘 다에 적용됩니다. 점검만 할 때(뒤에 아무것도 없는 `@doctor`)는 Test Connection 요청 말고는 아무것도 보내지 않으며, 그것도 제공업체에 테스트할 키나 자격 증명이 있을 때만입니다.
-- `@question` 대화를 다른 곳에서 이어 가면(마지막 회차 뒤의 ⌘1 …, 또는 ⌘⏎) 대화가 입력한 내용과 함께, 고른 서비스로 웹 주소나 클립보드를 통해 전송됩니다: 이 Mac에서 `@agent`가 넘기는 에이전트(기본값은 Anthropic의 Claude Code), claude.ai, chatgpt.com, gemini.google.com. 대화는 보이던 그대로 전송됩니다. AI 요청에서 숨겼던 값(아래 참고)도 그대로 들어 있는데, 그곳으로 보내기로 한 것이 사용자이기 때문입니다. 하나를 고르기 전까지는 아무 데로도 전송되지 않습니다. "Copy the conversation"은 클립보드에 넣기만 합니다.
+- `@question` 대화를 다른 곳에서 이어 가면(마지막 회차 뒤의 ⌘1 …, 또는 ⌘⏎) 대화가 입력한 내용과 함께, 고른 서비스로 웹 주소나 클립보드를 통해 전송됩니다: 이 Mac의 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI 또는 직접 만든 것, 각자 자신의 계정과 서비스를 씀), claude.ai, chatgpt.com, gemini.google.com. 대화는 보이던 그대로 전송됩니다. AI 요청에서 숨겼던 값(아래 참고)도 그대로 들어 있는데, 그곳으로 보내기로 한 것이 사용자이기 때문입니다. 하나를 고르기 전까지는 아무 데로도 전송되지 않습니다. "Copy the conversation"은 클립보드에 넣기만 합니다.
 - AllInOneIME Cloud를 쓰면 문장은 개발자의 서버를 거쳐 모델 제공업체로 갑니다(현재는 OpenRouter를 거침). 서버는 횟수만 보관하며, 텍스트는 절대 보관하지 않습니다. 로그인 시에는 이메일 주소만 보관합니다.
 - 민감한 정보 숨기기(Settings → AI Provider → Privacy, 기본값은 끔): 어떤 요청이든 나가기 전에(`@improve`, `@translate`, `@question`, 사용자의 프롬프트 명령어와 프롬프트 플러그인, AllInOneIME Cloud를 포함한 모든 제공업체), 이메일 주소, 전화번호, 결제 카드 번호(Luhn 검사), API 키와 토큰(`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…`, 긴 무작위 문자열), IP 주소, 직접 등록한 단어(코드명, 이름)를 Mac에서 `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]` 같은 자리 표시자로 바꿉니다. 같은 값에는 같은 자리 표시자가 붙습니다. 모델의 결과는 표시하거나 삽입하기 전에 실제 값을 되돌려 받으며, 패널에는 "2 items hidden from the AI"라고 표시됩니다. 모델이 자리 표시자를 알아볼 수 없을 만큼 바꾼 결과는 쓰인 그대로 보여 주고 "⚠ placeholder changed"로 표시합니다. 숨긴 값이 들어 있는 Jargon 용어 목록 항목은 보내지 않습니다. 종류마다 끌 수 있습니다. 전각 형태(`zhang＠example.com`, `１３８…`)도 찾아내며, 값이나 구절이 줄바꿈으로 나뉘어 있어도 됩니다. 이메일, 번호, 키처럼 형식이 있는 값은 알아보지만, 이름이나 주소(직접 등록한 단어로 추가하세요), 다른 문자 체계의 비슷하게 생긴 글자는 알아보지 못합니다. 사용자의 AI 서비스로 가는 요청에 적용됩니다. `@agent`, 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 설정 파일에서는 `redaction`(`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`)입니다.
 - 음성은 오른쪽 ⌥를 누르고 있는 동안에만 녹음되며 Mac에서 인식됩니다. 인식된 텍스트는 위의 명령어에서 실행 키를 눌렀을 때만 전송됩니다.
