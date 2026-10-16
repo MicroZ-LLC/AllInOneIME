@@ -109,9 +109,9 @@ final class AllInOneIMEInputController: IMKInputController {
     private var session: RimeSession?
     /// Whether the app still has the text being typed (Slack may take it into a mention on its own).
     private var markedWatch = MarkedTextWatch()
-    private var conversionTask: Task<Void, Never>?
-    private var lastElapsed: TimeInterval?
-    private var lastFromCache = false
+    var conversionTask: Task<Void, Never>?
+    var lastElapsed: TimeInterval?
+    var lastFromCache = false
     /// How many values the last request hid from the AI (`Redaction`): the panel says so.
     var lastHidden = 0
     private var notice: String?
@@ -778,6 +778,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
             case let .startCommand(command, input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
+                if command.kind == .config {
+                    startConfigRequest(input, turns: [], id: id)
+                    break
+                }
                 startConversion(input, id: id, command: command)
             case let .startRefine(refinement, id):
                 // Sent to the model like the request it refines: refused during secure input the same way.
@@ -888,6 +892,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 // Read here by the real clock (NSDataDetector and the parser's own rules), quick enough for
                 // a keystroke. Nothing leaves the Mac, so secure input doesn't hold it back either.
                 perform(composer.receiveReminder(parseReminder(input), id: id), client: target)
+            case let .applyConfig(preview):
+                applyConfig(preview)
+            case .undoConfig:
+                undoConfig()
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1589,6 +1597,8 @@ final class AllInOneIMEInputController: IMKInputController {
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
                                                  improveTranslates: loadSettings().improveTranslates)
             stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
+        case let .command(command, input) where command.kind == .config:
+            return startConfigRequest(input, turns: refinement.turns, id: id)
         case let .command(command, input):
             stream = converter.generate(command, input: input, app: appID, turns: refinement.turns)
             generates = true
@@ -1744,7 +1754,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// user has to act on (a permission), up longer; `lasting`: up this long instead, unless another notice
     /// replaces it first (a save under way, until its outcome).
     @MainActor
-    private func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false, lasting: TimeInterval? = nil) {
+    func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false, lasting: TimeInterval? = nil) {
         let client = client ?? clientOverride ?? self.client()
         notice = text
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
@@ -1806,6 +1816,7 @@ final class AllInOneIMEInputController: IMKInputController {
             return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
         }
         // A command with nothing after it yet: what to do (the action key alone only hints).
+        if composer.sentText.isEmpty, command.kind == .config { return configHint }
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
@@ -1973,6 +1984,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .translating:
                 let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
+                    : command?.kind == .config ? tr("AI 正在理解要改的设置…", "Working out the settings…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
                     ?? (command?.kind == .run ? tr("运行中…", "Running…")
@@ -1993,6 +2005,8 @@ final class AllInOneIMEInputController: IMKInputController {
                     : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
                                                "Refining… · type the next step meanwhile · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
+            case .choosing where command?.kind == .config:
+                configPanel(&model)
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
             case .choosing where command?.kind == .report:
@@ -2043,7 +2057,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 model.status = .error(message)
                 model.highlighted = nil  // Space retries; nothing is selected
                 // A reminder without anything to be reminded of: write it in.
-                model.footer = command == .reminder ? tr("Esc 返回修改", "Esc back to edit")
+                model.footer = command == .reminder || command?.kind == .config ? tr("Esc 返回修改", "Esc back to edit")
                     : composer.actionKey == .enter
                     ? tr("空格 / ⏎ 重试 · 0 原文 · Esc 返回", "Space / ⏎ retry · 0 original · Esc back")
                     : tr("空格 重试 · ⏎ 上屏原文 · Esc 返回", "Space retry · ⏎ insert original · Esc back")

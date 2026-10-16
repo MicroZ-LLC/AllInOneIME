@@ -152,5 +152,5 @@ extension Command {
     /// Sends its text to a model: @improve, @translate, @question, a custom prompt command, editing a selection, and
     /// @claude (Claude Code). Refused in an app with no AI (`AppProfile.noAI`); the others (@open, @note, a program,
     /// a script, a link …) work.
-    public var usesAI: Bool { kind == .convert || kind == .generate || self == .claude }
+    public var usesAI: Bool { kind == .convert || kind == .generate || self == .claude || kind == .config }
 }

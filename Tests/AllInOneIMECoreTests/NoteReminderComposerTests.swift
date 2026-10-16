@@ -40,7 +40,7 @@ extension ComposerTests {
         let all = palette().0
         #expect(Array(all.paletteVisible) == [.improve, .translate, .question, .claude, .open])
         #expect(all.paletteMatches.contains(.note) && all.paletteMatches.contains(.reminder))
-        #expect(palette("n").0.paletteMatches == [.note, .translate, .question, .open, .reminder, .settings])  // then names containing "n"
+        #expect(palette("n").0.paletteMatches == [.note, .translate, .question, .open, .reminder, .settings, .config])  // then names containing "n"
         #expect(palette("no").0.paletteMatches == [.note])
         #expect(palette("rem").0.paletteMatches == [.reminder])
         #expect(palette("r").0.paletteMatches == [.read, .reminder, .reportIssue, .improve, .translate, .webSearch])  // starting with "r" first

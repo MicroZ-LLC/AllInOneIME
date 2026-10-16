@@ -757,6 +757,8 @@ struct SettingsView: View {
     @State private var commandToDelete: Int?
     /// The API key being typed (a saved key is never shown again: it stays in the keychain).
     @State private var newKey = ""
+    /// The key field has the focus (`@config` opens the window there when a provider needs a key).
+    @FocusState private var keyFieldFocused: Bool
     @State private var removingKey: Provider?
     /// The web search key being typed (likewise).
     @State private var newSearchKey = ""
@@ -1789,6 +1791,11 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
             model.reloadIfChanged()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { _ in
+            page = .provider
+            model.reloadIfChanged()  // the provider @config just set
+            keyFieldFocused = true
+        }
         .onDisappear { model.save() }
     }
 
@@ -2101,6 +2108,7 @@ struct SettingsView: View {
         }
         HStack {
             SecureField("API key", text: $newKey, prompt: Text(tr("粘贴新的 API key", "Paste a new API key")))
+                .focused($keyFieldFocused)
                 .onSubmit { saveKey(provider) }
             Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
             if model.keySources[provider] == .keychain {

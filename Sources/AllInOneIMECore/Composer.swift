@@ -132,6 +132,10 @@ public final class Composer {
         case stopVoice(id: Int)
         /// Stop recording and discard the result.
         case cancelVoice(id: Int)
+        /// `@config`: apply the changes shown (`AIConfig.Preview`), and say when it's done (`configApplied`).
+        case applyConfig(AIConfig.Preview)
+        /// `@config undo`, or ⌘Z on the confirmation: put back the last changes `@config` made.
+        case undoConfig
     }
 
     public struct Response: Equatable, Sendable {
@@ -399,6 +403,8 @@ public final class Composer {
     public private(set) var pendingReminder: ReminderDraft?
     /// The issue `@reportissue` shows before it opens the page (its title and `IssueReport.lines`).
     public private(set) var pendingIssue: IssueReport?
+    /// `@config`'s previews and what applying them said (`receiveConfig`, `configApplied`).
+    public private(set) var configState = ConfigState()
     /// What a report says about this Mac and the settings (`IssueReport.Diagnostics`), read by the controller when
     /// `@reportissue` runs.
     public var issueDiagnostics: () -> IssueReport.Diagnostics = {
@@ -797,6 +803,8 @@ public final class Composer {
             return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
         case .report?:
             return pendingIssue.map { [Choice(label: "⏎", kind: .issue($0.url), text: $0.title, isComplete: true)] } ?? []
+        case .config?:
+            return configChoices
         case .convert?, .terminal?, .settings?, .note?, nil:
             break
         }
@@ -838,7 +846,7 @@ public final class Composer {
             } ?? 0
         }
         if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
-            || activeCommand?.kind == .message || activeCommand?.kind == .report { return 0 }
+            || activeCommand?.kind == .message || activeCommand?.kind == .report || activeCommand?.kind == .config { return 0 }
         if case .translating = phase { return 1 }
         // The first version, answer or translation (`@translate` into several languages has no versions).
         if let i = all.firstIndex(where: {
@@ -885,7 +893,7 @@ public final class Composer {
         guard command.script == nil else { return false }
         switch command.kind {
         case .convert, .generate, .run, .link, .note: return true
-        case .terminal, .search, .agents, .settings, .reminder, .message, .report: return false
+        case .terminal, .search, .agents, .settings, .reminder, .message, .report, .config: return false
         }
     }
 
@@ -933,7 +941,7 @@ public final class Composer {
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.kind == .report || command.isCode || command.script != nil
+            || command.kind == .report || command.kind == .config || command.isCode || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -1307,6 +1315,9 @@ public final class Composer {
         if modifiers == .command, event.keyCode == VirtualKey.left || event.keyCode == VirtualKey.right,
            !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil {
             return .consumed(moveCursor(event))
+        }
+        if modifiers == .command, event.charactersIgnoringModifiers.lowercased() == "z", let response = undoConfigKey() {
+            return response
         }
         if modifiers.contains(.command) {
             // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
@@ -2258,6 +2269,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleRefineKey(event) { return response }
+        if activeCommand?.kind == .config, let response = handleConfigKey(event) { return response }
         switch event.keyCode {
         case VirtualKey.space:
             // A message is sent by ⏎ (or the action key), never by a Space typed on the way; nor is an issue opened.
@@ -2475,6 +2487,7 @@ public final class Composer {
         if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
         // A report needs no title: it can be written on GitHub.
         if let command = parsed?.command, command.kind == .report { return startReport(command, title: input) }
+        if let command = parsed?.command, command.kind == .config { return startConfig(command, input: typed) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if parsed?.command.usesAI == true, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
@@ -2921,6 +2934,7 @@ public final class Composer {
     private func acceptInLevelTwo() -> [Effect] {
         // A refine instruction typed: the action key runs it (on an empty line it inserts, as before).
         if typesRefine, !refineText.isEmpty || engineState.isComposing { return runRefine() }
+        if activeCommand?.kind == .config { return configActionKey() }
         if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
         return commitChoice(at: highlighted)
     }
@@ -2934,6 +2948,7 @@ public final class Composer {
         searchResults = []
         pendingReminder = nil
         pendingIssue = nil
+        configState = ConfigState()
         activeCommand = nil
         highlightOverride = nil
         // From a saved answer: back to the list it was picked from.
@@ -3027,6 +3042,7 @@ public final class Composer {
         searchResults = []
         pendingReminder = nil
         pendingIssue = nil
+        configState = ConfigState()
         activeCommand = nil
         recalled = nil
         paletteHighlight = 0
@@ -3155,5 +3171,156 @@ extension Composer {
         let entry = QuestionHistory.Entry(question: question, answer: answer.text, date: now())
         questionHistory.record(entry)
         return [.rememberQuestion(entry)]
+    }
+}
+
+// MARK: - @config
+
+extension Composer {
+    /// What `@config` shows: the preview of each answer (by its text: Esc after a refine goes back to the answer before it,
+    /// and to its preview), and once applied, the confirmation and what Test Connection said.
+    public struct ConfigState: Equatable, Sendable {
+        public struct Shown: Equatable, Sendable {
+            public var preview: AIConfig.Preview
+            /// Its rows as the panel shows them, in the interface language.
+            public var lines: [String]
+        }
+
+        var previews: [String: Shown] = [:]
+        /// The changes went to the controller to apply: keys wait for `configApplied`.
+        public internal(set) var applying = false
+        /// "Changed 2 settings": the changes are applied (⌘Z undoes them while it's up).
+        public internal(set) var applied: String?
+        /// A line under it: Test Connection running, or what it said.
+        public internal(set) var status: String?
+
+        public init() {}
+    }
+
+    /// The preview shown now, if any.
+    public var configPreview: ConfigState.Shown? {
+        guard activeCommand?.kind == .config, configState.applied == nil else { return nil }
+        return configState.previews[result.versions.first?.text ?? ""]
+    }
+
+    /// `@config`'s rows: each change of the preview (refused parts too), never picked one by one (⏎ or 1 applies them all);
+    /// once applied, the confirmation.
+    var configChoices: [Choice] {
+        if let applied = configState.applied {
+            return ([applied] + [configState.status].compactMap { $0 }).map { Choice(label: "", kind: .shown, text: $0, isComplete: true) }
+        }
+        return configPreview?.lines.map { Choice(label: "", kind: .shown, text: $0, isComplete: true) } ?? []
+    }
+
+    /// `@config <what you want>`: the request (`.startCommand`), its answer back via `receiveConfig`. With nothing after it
+    /// the action key does nothing (the hint under the draft says what to write); "undo" (撤销) puts back the last changes.
+    /// Nothing is sent from an app with no AI.
+    private func startConfig(_ command: Command, input: String) -> Response {
+        guard !input.isEmpty else { return .consumed() }
+        if ["undo", "撤销", "撤回"].contains(input.lowercased()) {
+            return .consumed(finish(committing: "") + [.undoConfig, used(command)])
+        }
+        if let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
+        requestCounter += 1
+        phase = .translating(id: requestCounter)
+        result = .empty
+        searchResults = []
+        highlightOverride = nil
+        configState = ConfigState()
+        activeCommand = command
+        // Typing after the preview refines it ("also German"): the same request with the conversation after it.
+        refineRequest = .command(command, input: input)
+        return .consumed([.startCommand(command, input: input, id: requestCounter), .updateMarkedText, .showPanel, used(command)])
+    }
+
+    /// The preview of the answer `answer` to request `id`, its rows as shown (`lines`). A refine's replaces the one before.
+    public func receiveConfig(_ preview: AIConfig.Preview, lines: [String], answer: String, id: Int) -> [Effect] {
+        guard phase == .translating(id: id), activeCommand?.kind == .config else { return [] }
+        result = ConversionResult(versions: [CandidateLine(answer)])
+        configState.previews[answer] = ConfigState.Shown(preview: preview, lines: lines)
+        if id == refineID { refineID = nil }
+        phase = .choosing
+        return [.showPanel]
+    }
+
+    /// The changes are applied: `line` says so, ⌘Z undoes them while it's up; any other key closes it.
+    public func configApplied(_ line: String) -> [Effect] {
+        guard activeCommand?.kind == .config, configState.applying else { return [] }
+        resetRefine()
+        configState.applying = false
+        configState.applied = line
+        phase = .choosing
+        return [.showPanel]
+    }
+
+    /// The line under the confirmation (Test Connection's progress or result); nothing once it's gone.
+    public func configStatus(_ line: String?) -> [Effect] {
+        guard activeCommand?.kind == .config, configState.applied != nil else { return [] }
+        configState.status = line
+        return [.showPanel]
+    }
+
+    /// The changes couldn't be written (`message`): nothing changed; ⏎ or Esc goes back to the text.
+    public func configNotApplied(_ message: String) -> [Effect] {
+        guard activeCommand?.kind == .config, configState.applying else { return [] }
+        configState.applying = false
+        resetRefine()
+        phase = .failed(message)
+        return [.showPanel]
+    }
+
+    /// Keys on `@config`'s preview and confirmation (a refine line being typed has had them first). Nil: as for any results.
+    private func handleConfigKey(_ event: KeyEvent) -> Response? {
+        let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
+        let isSpace = event.keyCode == VirtualKey.space
+        if configState.applied != nil {
+            // The confirmation: closes with Esc, ⏎ or Space; another key closes it and is typed as usual.
+            if isReturn || isSpace || event.keyCode == VirtualKey.escape || event.keyCode == VirtualKey.delete {
+                return .consumed(finish(committing: ""))
+            }
+            guard event.printableText != nil else { return .consumed() }
+            let closed = finish(committing: "")
+            return .consumed(closed + handleLevelOne(event).effects)
+        }
+        if configState.applying { return .consumed() }
+        switch phase {
+        case .failed:
+            // Nothing is ever inserted: ⏎ and Space go back to the text, like Esc.
+            if isReturn || isSpace { return .consumed(backToDraft()) }
+            return nil
+        case .choosing:
+            if isReturn || event.printableText == "1" || isSpace && actionKey == .space { return .consumed(configActionKey()) }
+            if event.keyCode == VirtualKey.escape || event.keyCode == VirtualKey.delete { return nil }
+            // Rows aren't picked one by one, nor inserted.
+            return .consumed()
+        case .translating, .idle, .drafting:
+            return nil
+        }
+    }
+
+    /// `@config` given up from outside (a key typed into it opens Settings instead): nothing is inserted.
+    public func endConfig() -> [Effect] {
+        guard activeCommand?.kind == .config || draftCommand?.kind == .config else { return [] }
+        return finish(committing: "")
+    }
+
+    /// The action key (⏎, 1) on `@config`: the preview applied, the confirmation closed, a failure back to the text.
+    private func configActionKey() -> [Effect] {
+        if configState.applied != nil { return finish(committing: "") }
+        if configState.applying { return [] }
+        switch phase {
+        case .failed: return backToDraft()
+        case .choosing:
+            guard let preview = configPreview?.preview, preview.canApply else { return [] }
+            configState.applying = true
+            return [.applyConfig(preview), .showPanel]
+        case .translating, .idle, .drafting: return []
+        }
+    }
+
+    /// ⌘Z while `@config`'s confirmation is up: the changes are put back (`.undoConfig`), and it closes.
+    private func undoConfigKey() -> Response? {
+        guard activeCommand?.kind == .config, configState.applied != nil else { return nil }
+        return .consumed(finish(committing: "") + [.undoConfig])
     }
 }
