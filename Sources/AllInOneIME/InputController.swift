@@ -659,7 +659,9 @@ final class AllInOneIMEInputController: IMKInputController {
         let base = UIText.chinese ? Composer.Messages.chinese : .english
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
-        composer.messages.agentNames = [.custom: AgentKind.custom.displayName(custom: agentCommand)]
+        // Only once it has a command: otherwise the messages stay the language's own.
+        composer.messages.agentNames = AgentKind.custom.program(custom: agentCommand) == nil
+            ? [:] : [.custom: AgentKind.custom.displayName(custom: agentCommand)]
     }
 
     /// Whether the agent changed since its program was last checked (`setCommands`).
