@@ -2979,6 +2979,8 @@ private struct PreferenceField: View {
     /// A password's Remove…, once confirmed.
     let remove: () -> Void
     @State private var text = ""
+    /// The text field was edited since it last showed `value`.
+    @State private var edited = false
     @State private var editingPassword = false
     @FocusState private var focused: Bool
 
@@ -3000,11 +3002,14 @@ private struct PreferenceField: View {
                               save: save, remove: remove, editing: $editingPassword)
                     .frame(maxWidth: 360)
             case .textfield:
-                TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
+                // Saved only when edited here; not being edited, it follows the value (read again after a write elsewhere).
+                TextField("", text: Binding(get: { text }, set: { if $0 != text { text = $0; edited = true } }),
+                          prompt: preference.defaultValue.map { Text($0) })
                     .labelsHidden().focused($focused)
-                    .onSubmit { if text != value { save(text) } }  // ⏎ on it unchanged writes nothing
-                    .onChange(of: focused) { if !focused, text != value { save(text) } }
+                    .onSubmit(commitText)
+                    .onChange(of: focused) { if !focused { commitText() } }
                     .onAppear { text = value }
+                    .onChange(of: value) { if !edited { text = value } }
                     .frame(maxWidth: 220)
             }
         } label: {
@@ -3017,4 +3022,10 @@ private struct PreferenceField: View {
         }
     }
 
+    /// The text field's edit, if there was one and it changed the value: saved.
+    private func commitText() {
+        guard edited else { return }
+        edited = false
+        if text != value { save(text) }
+    }
 }

@@ -5,8 +5,13 @@ import SwiftUI
 /// each kind on its own switch, and the user's own words.
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
-    /// The words field as typed; saved on Return and when the page goes (`RedactionSettings.words`).
+    /// The words field as typed; saved on Return and when the page goes (`RedactionSettings.words`), only if it was edited
+    /// here, and then on top of the list as it is by then: a word added meanwhile elsewhere (`@config`, a hand edit) stays.
+    /// Not being edited, it follows the list.
     @State private var words = ""
+    @State private var edited = false
+    /// The list the field last showed: what an edit took out of it, or put in, is measured against it.
+    @State private var shown: [String] = []
 
     var body: some View {
         Section {
@@ -22,7 +27,8 @@ struct PrivacySection: View {
                 Toggle(tr("API 密钥和令牌", "API keys and tokens"), isOn: $model.config.redaction.keys)
                 Toggle(tr("IP 地址", "IP addresses"), isOn: $model.config.redaction.ips)
                 LabeledContent {
-                    TextField("", text: $words, prompt: Text(tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")))
+                    TextField("", text: Binding(get: { words }, set: { if $0 != words { words = $0; edited = true } }),
+                              prompt: Text(tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")))
                         .onSubmit(saveWords)
                         .frame(minWidth: 240)
                 } label: {
@@ -40,15 +46,31 @@ struct PrivacySection: View {
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
-        .onAppear { words = model.config.redaction.customWords.joined(separator: ", ") }
+        .onAppear { show(model.config.redaction.customWords) }
         .onDisappear(perform: saveWords)
+        // The list read again (written by @config, by hand): shown, unless the field is being edited.
+        .onChange(of: model.config.redaction.customWords) { if !edited { show(model.config.redaction.customWords) } }
         .onChange(of: model.config.redaction) { model.save() }
     }
 
-    private func saveWords() {
-        let list = RedactionSettings.words(from: words)
+    private func show(_ list: [String]) {
         words = list.joined(separator: ", ")
-        if list != model.config.redaction.customWords { model.config.redaction.customWords = list }
+        shown = list
+        edited = false
+    }
+
+    /// The field's edit, if there was one, applied to the list as it is now: the words taken out of the field go, the
+    /// words put in are added; the others, a word added elsewhere since included, stay.
+    private func saveWords() {
+        guard edited else { return }
+        let typed = RedactionSettings.words(from: words)
+        let removed = Set(shown).subtracting(typed)
+        var list = model.config.redaction.customWords.filter { !removed.contains($0) }
+        for word in typed where !list.contains(word) { list.append(word) }
+        show(list)
+        guard list != model.config.redaction.customWords else { return }
+        model.config.redaction.customWords = list
+        model.save()  // here: leaving the page, this section's onChange is gone with it
     }
 
     private func titled(_ title: String, _ note: String) -> some View {

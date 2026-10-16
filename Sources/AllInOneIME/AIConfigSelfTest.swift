@@ -242,6 +242,7 @@ extension SelfTest {
         testKeyStatus(snapshotDirectory: snapshotDirectory)
         testKeyFieldsKeepKeys(snapshotDirectory: snapshotDirectory)
         testSettingsWritesNothingUnasked(snapshotDirectory: snapshotDirectory)
+        testFieldsFollowOutsideWrites(snapshotDirectory: snapshotDirectory)
     }
 
     /// A key row never removes a key, and says whether there is one. Settings opened at the key of the provider in use
