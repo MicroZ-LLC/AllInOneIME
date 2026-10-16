@@ -616,8 +616,9 @@ it has is used, in the AWS CLI's order (a profile with both `role_arn` and keys 
 | Static keys | the same keys in `~/.aws/config` | read again for each request |
 
 With the profile "default" (or none chosen), the keys in your shell come first, as the AWS CLI takes them:
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` (the region from `AWS_REGION` when the profile has
-none). A profile you name is never mixed with them.
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. A profile you name is never mixed with them.
+`AWS_REGION` (or `AWS_DEFAULT_REGION`) in your shell wins over a profile's `region`, as in the AWS CLI; the Region field
+in Settings wins over both.
 
 - **Automatic:** credentials that expire are kept in memory (never written to disk) and fetched again 5 minutes before
   they do; with less than 10 minutes left, a request uses them and fetches new ones in the background, so typing doesn't
@@ -629,6 +630,10 @@ none). A profile you name is never mixed with them.
   copy), and AllInOneIME picks the new sign-in up by itself.
 - **Not supported:** `mfa_serial` (an input method can't ask you for an MFA code: use `credential_process` or SSO, or let
   your CLI cache credentials), `credential_source = Ec2InstanceMetadata` or `EcsContainer` (not on a Mac), and web identity.
+- **Known limits:** only PATH and the AWS file variables (`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`) come from
+  your login shell, for `credential_process` too (not the rest of its environment). AllInOneIME doesn't renew
+  `sso_session` tokens (the CLI's refresh token isn't used: the SSO cache is only read), so when the cached token lapses,
+  run `aws sso login` (the AWS CLI also renews it whenever you use it).
 - **Settings → AI Provider** lists every profile with its kind ("dev — Role via base") and says of the chosen one when
   its credentials expire ("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") or what to do.
   Test Connection fetches fresh credentials through the whole chain; `@doctor` reports the same.

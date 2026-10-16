@@ -539,7 +539,8 @@ AWS CLI 不用问你就能用的 profile 都可以，来自 `~/.aws/config` 和 
 | 固定密钥 | `~/.aws/config` 里的同样几个密钥 | 每次请求都重新读 |
 
 profile 是「default」（或者没选）时，和 AWS CLI 一样先用 shell 里的密钥：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、
-`AWS_SESSION_TOKEN`（profile 没写区域时用 `AWS_REGION`）。选了别的 profile 时从不用它们。
+`AWS_SESSION_TOKEN`。选了别的 profile 时从不用它们。shell 里的 `AWS_REGION`（或 `AWS_DEFAULT_REGION`）和 AWS CLI 一样优先于
+profile 的 `region`；设置里填的「区域」又优先于这两者。
 
 - **自动：** 会过期的凭证只放在内存里（从不写到磁盘），到期前 5 分钟重新取；剩不到 10 分钟时，请求先用现有的，同时在后台取新的，
   打字不用等。同时来的请求只等同一次刷新。Bedrock 回答凭证过期（`ExpiredTokenException` 等）时，重新取一次凭证，请求再发一次。
@@ -548,8 +549,11 @@ profile 是「default」（或者没选）时，和 AWS CLI 一样先用 shell �
   `@doctor` 可以把命令复制下来），登录好后 AllInOneIME 自己会用上新的登录。
 - **不支持：** `mfa_serial`（输入法没法问你要 MFA 验证码：请改用 `credential_process` 或 SSO，或者先用 AWS CLI 缓存好凭证）、
   `credential_source = Ec2InstanceMetadata` 或 `EcsContainer`（Mac 上没有），以及 web identity。
+- **已知限制：** 从登录 shell 只取 PATH 和 AWS 文件的变量（`AWS_CONFIG_FILE`、`AWS_SHARED_CREDENTIALS_FILE`），`credential_process`
+  也一样（不带 shell 里的其他环境变量）。AllInOneIME 不会续期 `sso_session` 的令牌（不用 AWS CLI 的 refresh token：SSO 缓存只读不写），
+  所以缓存的令牌过期后要运行 `aws sso login`（平时用 AWS CLI 时它也会自己续期）。
 - **设置 → AI 服务** 列出每个 profile 和它的种类（「dev — 通过 base 的角色」），并说明选中的那个的凭证什么时候到期（「通过 base 的角色：
-  凭证 15:30 到期」「SSO（登录到 18:00）」）或者该怎么做。「测试连接」会顺着整条链重新取凭证；`@doctor` 也会报告同样的内容。
+  凭证 15:30 到期」「SSO（登录有效至 18:00）」）或者该怎么做。「测试连接」会顺着整条链重新取凭证；`@doctor` 也会报告同样的内容。
 - 只有请求或「测试连接」需要凭证时，才会运行程序、向 AWS 要凭证（`sts.<区域>.amazonaws.com`、`portal.sso.<区域>.amazonaws.com`）：
   列出 profile 时不会，`@config` 也不会。
 
