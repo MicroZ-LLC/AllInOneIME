@@ -100,7 +100,7 @@ struct PluginTests {
         let custom = [CustomCommand(name: "stock", type: .run, argv: ["x"]), CustomCommand(name: "bc", type: .run, argv: ["bc"])]
         let catalog = Command.catalog(custom, plugins: [stock, tone, open])
         #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "note", "reminder", "calculate", "py", "js", "tasks",
-                                        "settings", "config", "imessage", "reportissue", "stock", "tone", "bc"])
+                                        "settings", "config", "doctor", "imessage", "reportissue", "stock", "tone", "bc"])
         let stockCommand = try #require(catalog.first { $0.name == "stock" })
         #expect(stockCommand.kind == .run && stockCommand.plugin == stock && stockCommand.custom == nil)  // not the custom one
         #expect(stockCommand.typesLatin && stockCommand.program == nil)  // never hidden for a missing program

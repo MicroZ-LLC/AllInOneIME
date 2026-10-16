@@ -218,6 +218,8 @@ extension AllInOneIMEInputController {
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             applySettings()
         }
+        // @doctor's fixes besides the settings: a pack downloaded, a pane opened, the input method enabled again.
+        for action in preview.actions { DoctorSession.perform(action) }
         if let provider = preview.needsKey {
             // The key is entered in Settings, never here: the panel closes as the window opens.
             perform(composer.endConfig(), client: nil)
@@ -225,7 +227,9 @@ extension AllInOneIMEInputController {
             if !preview.edits.isEmpty { showNotice(text.applied(preview.edits.count) + tr("。⌘Z 不行了，用 @config undo 撤销", ". Undo with @config undo"), client: nil) }
             return
         }
-        perform(composer.configApplied(text.applied(preview.edits.count)), client: nil)
+        let done = preview.edits.isEmpty ? tr("已完成：", "Done: ") + preview.rows.filter { $0.action != nil }.map(\.label).joined(separator: tr("；", "; "))
+            : text.applied(preview.edits.count)
+        perform(composer.configApplied(done), client: nil)
         guard preview.changesProvider else { return }
         perform(composer.configStatus(tr("正在测试连接…", "Testing the connection…")), client: nil)
         let url = AIConfigSession.url
@@ -264,6 +268,12 @@ extension AllInOneIMEInputController {
 }
 
 extension AllInOneIMEInputController {
+    /// Under "@doctor " with nothing after it: what ⏎ does, and that a question can be asked.
+    var doctorHint: String {
+        tr("⏎ 检查设置（只在这台 Mac 上）；也可以问：@doctor 为什么翻译不了",
+           "⏎ checks the setup (on this Mac only); or ask: @doctor why doesn't translate work")
+    }
+
     /// Under "@config " with nothing after it yet: what can be written.
     var configHint: String {
         tr("说说想怎么改设置，比如：翻译成英语和法语 · 微信里用中文 · 候选竖排",

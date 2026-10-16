@@ -136,6 +136,8 @@ public final class Composer {
         case applyConfig(AIConfig.Preview)
         /// `@config undo`, or ⌘Z on the confirmation: put back the last changes `@config` made.
         case undoConfig
+        /// `@doctor`: the preview of these fixes (`showFixPreview`).
+        case previewFixes([Doctor.Fix])
     }
 
     public struct Response: Equatable, Sendable {
@@ -803,7 +805,7 @@ public final class Composer {
             return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
         case .report?:
             return pendingIssue.map { [Choice(label: "⏎", kind: .issue($0.url), text: $0.title, isComplete: true)] } ?? []
-        case .config?:
+        case .config?, .doctor?:
             return configChoices
         case .convert?, .terminal?, .settings?, .note?, nil:
             break
@@ -846,7 +848,7 @@ public final class Composer {
             } ?? 0
         }
         if activeCommand?.kind == .search || activeCommand?.kind == .agents || activeCommand?.kind == .reminder
-            || activeCommand?.kind == .message || activeCommand?.kind == .report || activeCommand?.kind == .config { return 0 }
+            || activeCommand?.kind == .message || activeCommand?.kind == .report || inConfigFlow { return 0 }
         if case .translating = phase { return 1 }
         // The first version, answer or translation (`@translate` into several languages has no versions).
         if let i = all.firstIndex(where: {
@@ -893,7 +895,7 @@ public final class Composer {
         guard command.script == nil else { return false }
         switch command.kind {
         case .convert, .generate, .run, .link, .note: return true
-        case .terminal, .search, .agents, .settings, .reminder, .message, .report, .config: return false
+        case .terminal, .search, .agents, .settings, .reminder, .message, .report, .config, .doctor: return false
         }
     }
 
@@ -941,7 +943,7 @@ public final class Composer {
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.kind == .report || command.kind == .config || command.isCode || command.script != nil
+            || command.kind == .report || command.kind == .config || command.kind == .doctor || command.isCode || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -2269,7 +2271,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleRefineKey(event) { return response }
-        if activeCommand?.kind == .config, let response = handleConfigKey(event) { return response }
+        if inConfigFlow, let response = handleConfigKey(event) { return response }
         switch event.keyCode {
         case VirtualKey.space:
             // A message is sent by ⏎ (or the action key), never by a Space typed on the way; nor is an issue opened.
@@ -2487,7 +2489,7 @@ public final class Composer {
         if let command = parsed?.command, let script = command.script { return startScript(command, script, input: input) }
         // A report needs no title: it can be written on GitHub.
         if let command = parsed?.command, command.kind == .report { return startReport(command, title: input) }
-        if let command = parsed?.command, command.kind == .config { return startConfig(command, input: typed) }
+        if let command = parsed?.command, command.kind == .config || command.kind == .doctor { return startConfig(command, input: typed) }
         // Nothing after the command: a hint (the clipboard's text comes in with ⌃V or ⌘V).
         guard !input.isEmpty else { return .consumed([.notice(messages.typeAfterCommand)]) }
         if parsed?.command.usesAI == true, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
@@ -2934,7 +2936,7 @@ public final class Composer {
     private func acceptInLevelTwo() -> [Effect] {
         // A refine instruction typed: the action key runs it (on an empty line it inserts, as before).
         if typesRefine, !refineText.isEmpty || engineState.isComposing { return runRefine() }
-        if activeCommand?.kind == .config { return configActionKey() }
+        if inConfigFlow { return configActionKey() }
         if case .failed = phase { return activeCommand?.kind == .reminder ? backToDraft() : startAction().effects }
         return commitChoice(at: highlighted)
     }
@@ -2972,6 +2974,7 @@ public final class Composer {
     }
 
     private func commitChoice(at index: Int) -> [Effect] {
+        if inConfigFlow { return chooseConfigRow(index) }
         let all = choices
         guard all.indices.contains(index), all[index].isComplete else { return [] }
         if case let .issue(url) = all[index].kind, let command = activeCommand {
@@ -3174,19 +3177,55 @@ extension Composer {
     }
 }
 
-// MARK: - @config
+// MARK: - @config and @doctor
 
 extension Composer {
-    /// What `@config` shows: the preview of each answer (by its text: Esc after a refine goes back to the answer before it,
-    /// and to its preview), and once applied, the confirmation and what Test Connection said.
+    /// What `@config` (and `@doctor`) show: the preview of each answer (by its text: Esc after a refine goes back to the
+    /// answer before it, and to its preview), `@doctor`'s findings and the preview of the fixes picked, and once applied,
+    /// the confirmation and what Test Connection said.
     public struct ConfigState: Equatable, Sendable {
         public struct Shown: Equatable, Sendable {
             public var preview: AIConfig.Preview
             /// Its rows as the panel shows them, in the interface language.
             public var lines: [String]
+
+            public init(preview: AIConfig.Preview, lines: [String]) {
+                self.preview = preview
+                self.lines = lines
+            }
+        }
+
+        /// `@doctor`'s findings as shown: a line each, the fix of each (nil: none), the fixes the model named for the
+        /// question, its explanation, and whether all checks are in.
+        public struct Report: Equatable, Sendable {
+            public var lines: [String]
+            public var fixes: [Doctor.Fix?]
+            public var recommended: [Int]
+            public var explanation: String?
+            public var summary: String
+            public var isFinal: Bool
+
+            public init(lines: [String], fixes: [Doctor.Fix?], recommended: [Int] = [], explanation: String? = nil, summary: String = "",
+                        isFinal: Bool = true) {
+                self.lines = lines
+                self.fixes = fixes
+                self.recommended = recommended
+                self.explanation = explanation
+                self.summary = summary
+                self.isFinal = isFinal
+            }
+
+            /// The fixes ⏎ applies: the ones the model named, else every safe one.
+            public var defaultFixes: [Doctor.Fix] {
+                let named = recommended.compactMap { fixes.indices.contains($0) ? fixes[$0] : nil }
+                return named.isEmpty ? fixes.compactMap { $0 }.filter(\.isSafe) : named
+            }
         }
 
         var previews: [String: Shown] = [:]
+        public internal(set) var report: Report?
+        /// `@doctor`: the preview of the fixes picked (Esc goes back to the findings).
+        public internal(set) var fixPreview: Shown?
         /// The changes went to the controller to apply: keys wait for `configApplied`.
         public internal(set) var applying = false
         /// "Changed 2 settings": the changes are applied (⌘Z undoes them while it's up).
@@ -3197,30 +3236,42 @@ extension Composer {
         public init() {}
     }
 
+    /// `@config` or `@doctor` is in level two: its keys and rows are these.
+    var inConfigFlow: Bool { activeCommand?.kind == .config || activeCommand?.kind == .doctor }
+
     /// The preview shown now, if any.
     public var configPreview: ConfigState.Shown? {
-        guard activeCommand?.kind == .config, configState.applied == nil else { return nil }
+        guard inConfigFlow, configState.applied == nil else { return nil }
+        if activeCommand?.kind == .doctor { return configState.fixPreview }
         return configState.previews[result.versions.first?.text ?? ""]
     }
 
-    /// `@config`'s rows: each change of the preview (refused parts too), never picked one by one (⏎ or 1 applies them all);
-    /// once applied, the confirmation.
+    /// The rows: each change of the preview (refused parts too), never picked one by one (⏎ or 1 applies them all);
+    /// `@doctor`'s findings, those with a fix numbered; once applied, the confirmation.
     var configChoices: [Choice] {
         if let applied = configState.applied {
             return ([applied] + [configState.status].compactMap { $0 }).map { Choice(label: "", kind: .shown, text: $0, isComplete: true) }
         }
-        return configPreview?.lines.map { Choice(label: "", kind: .shown, text: $0, isComplete: true) } ?? []
+        if let preview = configPreview { return preview.lines.map { Choice(label: "", kind: .shown, text: $0, isComplete: true) } }
+        guard activeCommand?.kind == .doctor, let report = configState.report else { return [] }
+        var number = 0
+        return zip(report.lines, report.fixes).map { line, fix in
+            guard fix != nil, number < 9 else { return Choice(label: "", kind: .shown, text: line, isComplete: true) }
+            number += 1
+            return Choice(label: String(number), kind: .shown, text: line, isComplete: true)
+        }
     }
 
     /// `@config <what you want>`: the request (`.startCommand`), its answer back via `receiveConfig`. With nothing after it
     /// the action key does nothing (the hint under the draft says what to write); "undo" (撤销) puts back the last changes.
     /// Nothing is sent from an app with no AI.
     private func startConfig(_ command: Command, input: String) -> Response {
-        guard !input.isEmpty else { return .consumed() }
-        if ["undo", "撤销", "撤回"].contains(input.lowercased()) {
+        guard !input.isEmpty || command.kind == .doctor else { return .consumed() }
+        if command.kind == .config, ["undo", "撤销", "撤回"].contains(input.lowercased()) {
             return .consumed(finish(committing: "") + [.undoConfig, used(command)])
         }
-        if let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
+        // `@doctor` alone sends nothing: its checks run on this Mac.
+        if command.kind == .config || !input.isEmpty, let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
         requestCounter += 1
         phase = .translating(id: requestCounter)
         result = .empty
@@ -3228,8 +3279,8 @@ extension Composer {
         highlightOverride = nil
         configState = ConfigState()
         activeCommand = command
-        // Typing after the preview refines it ("also German"): the same request with the conversation after it.
-        refineRequest = .command(command, input: input)
+        // Typing after @config's preview refines it ("also German"): the same request with the conversation after it.
+        refineRequest = command.kind == .config ? .command(command, input: input) : nil
         return .consumed([.startCommand(command, input: input, id: requestCounter), .updateMarkedText, .showPanel, used(command)])
     }
 
@@ -3243,9 +3294,24 @@ extension Composer {
         return [.showPanel]
     }
 
+    /// `@doctor`'s findings for request `id`: as they come in (a long check still running), then all of them (`isFinal`).
+    public func receiveDoctor(_ report: ConfigState.Report, id: Int) -> [Effect] {
+        guard phase == .translating(id: id), activeCommand?.kind == .doctor else { return [] }
+        configState.report = report
+        if report.isFinal { phase = .choosing }
+        return [.showPanel]
+    }
+
+    /// The preview of the fixes picked on `@doctor`'s findings (`.previewFixes`): ⏎ applies it as `@config`'s.
+    public func showFixPreview(_ preview: AIConfig.Preview, lines: [String]) -> [Effect] {
+        guard activeCommand?.kind == .doctor, phase == .choosing, configState.applied == nil else { return [] }
+        configState.fixPreview = ConfigState.Shown(preview: preview, lines: lines)
+        return [.showPanel]
+    }
+
     /// The changes are applied: `line` says so, ⌘Z undoes them while it's up; any other key closes it.
     public func configApplied(_ line: String) -> [Effect] {
-        guard activeCommand?.kind == .config, configState.applying else { return [] }
+        guard inConfigFlow, configState.applying else { return [] }
         resetRefine()
         configState.applying = false
         configState.applied = line
@@ -3255,29 +3321,35 @@ extension Composer {
 
     /// The line under the confirmation (Test Connection's progress or result); nothing once it's gone.
     public func configStatus(_ line: String?) -> [Effect] {
-        guard activeCommand?.kind == .config, configState.applied != nil else { return [] }
+        guard inConfigFlow, configState.applied != nil else { return [] }
         configState.status = line
         return [.showPanel]
     }
 
     /// The changes couldn't be written (`message`): nothing changed; ⏎ or Esc goes back to the text.
     public func configNotApplied(_ message: String) -> [Effect] {
-        guard activeCommand?.kind == .config, configState.applying else { return [] }
+        guard inConfigFlow, configState.applying else { return [] }
         configState.applying = false
         resetRefine()
         phase = .failed(message)
         return [.showPanel]
     }
 
-    /// Keys on `@config`'s preview and confirmation (a refine line being typed has had them first). Nil: as for any results.
+    /// `@config` or `@doctor` given up from outside (a key typed into it opens Settings instead): nothing is inserted.
+    public func endConfig() -> [Effect] {
+        guard inConfigFlow || draftCommand?.kind == .config || draftCommand?.kind == .doctor else { return [] }
+        return finish(committing: "")
+    }
+
+    /// Keys on the preview, the findings and the confirmation (a refine line being typed has had them first). Nil: as for
+    /// any results.
     private func handleConfigKey(_ event: KeyEvent) -> Response? {
         let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
         let isSpace = event.keyCode == VirtualKey.space
+        let isBack = event.keyCode == VirtualKey.escape || event.keyCode == VirtualKey.delete
         if configState.applied != nil {
             // The confirmation: closes with Esc, ⏎ or Space; another key closes it and is typed as usual.
-            if isReturn || isSpace || event.keyCode == VirtualKey.escape || event.keyCode == VirtualKey.delete {
-                return .consumed(finish(committing: ""))
-            }
+            if isReturn || isSpace || isBack { return .consumed(finish(committing: "")) }
             guard event.printableText != nil else { return .consumed() }
             let closed = finish(committing: "")
             return .consumed(closed + handleLevelOne(event).effects)
@@ -3289,8 +3361,17 @@ extension Composer {
             if isReturn || isSpace { return .consumed(backToDraft()) }
             return nil
         case .choosing:
-            if isReturn || event.printableText == "1" || isSpace && actionKey == .space { return .consumed(configActionKey()) }
-            if event.keyCode == VirtualKey.escape || event.keyCode == VirtualKey.delete { return nil }
+            if isReturn || isSpace && actionKey == .space { return .consumed(configActionKey()) }
+            if activeCommand?.kind == .doctor, isBack {
+                guard configState.fixPreview != nil else { return .consumed(finish(committing: "")) }  // the findings: closed
+                configState.fixPreview = nil  // back to the findings
+                return .consumed([.showPanel])
+            }
+            if let digit = event.printableText, digit.count == 1, digit.first?.isNumber == true {
+                if configPreview != nil { return .consumed(digit == "1" ? configActionKey() : []) }
+                return .consumed(chooseFinding(label: digit))
+            }
+            if isBack { return nil }
             // Rows aren't picked one by one, nor inserted.
             return .consumed()
         case .translating, .idle, .drafting:
@@ -3298,29 +3379,44 @@ extension Composer {
         }
     }
 
-    /// `@config` given up from outside (a key typed into it opens Settings instead): nothing is inserted.
-    public func endConfig() -> [Effect] {
-        guard activeCommand?.kind == .config || draftCommand?.kind == .config else { return [] }
-        return finish(committing: "")
-    }
-
-    /// The action key (⏎, 1) on `@config`: the preview applied, the confirmation closed, a failure back to the text.
+    /// The action key (⏎, 1) on `@config` / `@doctor`: the preview applied, the confirmation closed, a failure back to the
+    /// text; on the findings, the default fixes previewed (none: the panel closes).
     private func configActionKey() -> [Effect] {
         if configState.applied != nil { return finish(committing: "") }
         if configState.applying { return [] }
         switch phase {
         case .failed: return backToDraft()
         case .choosing:
-            guard let preview = configPreview?.preview, preview.canApply else { return [] }
-            configState.applying = true
-            return [.applyConfig(preview), .showPanel]
+            if let preview = configPreview?.preview {
+                guard preview.canApply else { return [] }
+                configState.applying = true
+                return [.applyConfig(preview), .showPanel]
+            }
+            guard activeCommand?.kind == .doctor, let report = configState.report else { return [] }
+            let fixes = report.defaultFixes
+            return fixes.isEmpty ? finish(committing: "") : [.previewFixes(fixes)]
         case .translating, .idle, .drafting: return []
         }
     }
 
-    /// ⌘Z while `@config`'s confirmation is up: the changes are put back (`.undoConfig`), and it closes.
+    /// A finding picked by its number (a digit, a click): the preview of its fix.
+    private func chooseFinding(label: String) -> [Effect] {
+        guard let report = configState.report, let index = configChoices.firstIndex(where: { $0.label == label }),
+              report.fixes.indices.contains(index), let fix = report.fixes[index] else { return [] }
+        return [.previewFixes([fix])]
+    }
+
+    /// A row clicked on `@config` / `@doctor` (`commitChoice`): a finding's fix previewed; nothing is ever inserted.
+    func chooseConfigRow(_ index: Int) -> [Effect] {
+        guard configPreview == nil, configState.applied == nil else { return [] }
+        let all = configChoices
+        guard all.indices.contains(index), !all[index].label.isEmpty else { return [] }
+        return chooseFinding(label: all[index].label)
+    }
+
+    /// ⌘Z while the confirmation is up: the changes are put back (`.undoConfig`), and it closes.
     private func undoConfigKey() -> Response? {
-        guard activeCommand?.kind == .config, configState.applied != nil else { return nil }
+        guard inConfigFlow, configState.applied != nil else { return nil }
         return .consumed(finish(committing: "") + [.undoConfig])
     }
 }

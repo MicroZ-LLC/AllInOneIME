@@ -777,6 +777,12 @@ final class AllInOneIMEInputController: IMKInputController {
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
                 startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
             case let .startCommand(command, input, id):
+                // @doctor's checks stay on this Mac; only a question goes to the AI.
+                if command.kind == .doctor {
+                    if !input.isEmpty, refusedForSecureInput(id: id, client: target) { break }
+                    startDoctor(input, id: id)
+                    break
+                }
                 if refusedForSecureInput(id: id, client: target) { break }
                 if command.kind == .config {
                     startConfigRequest(input, turns: [], id: id)
@@ -896,6 +902,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyConfig(preview)
             case .undoConfig:
                 undoConfig()
+            case let .previewFixes(fixes):
+                previewFixes(fixes)
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1817,6 +1825,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         // A command with nothing after it yet: what to do (the action key alone only hints).
         if composer.sentText.isEmpty, command.kind == .config { return configHint }
+        if composer.sentText.isEmpty, command.kind == .doctor { return doctorHint }
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
@@ -1981,10 +1990,13 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = composer.highlighted
             let command = composer.activeCommand
             switch composer.phase {
+            case .translating where command?.kind == .doctor:
+                doctorPanel(&model)
             case .translating:
                 let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command?.kind == .config ? tr("AI 正在理解要改的设置…", "Working out the settings…")
+                    : command?.kind == .doctor ? tr("正在检查…", "Checking…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
                     ?? (command?.kind == .run ? tr("运行中…", "Running…")
@@ -2005,8 +2017,9 @@ final class AllInOneIMEInputController: IMKInputController {
                     : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
                                                "Refining… · type the next step meanwhile · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
-            case .choosing where command?.kind == .config:
+            case .choosing where command?.kind == .config || command?.kind == .doctor:
                 configPanel(&model)
+                doctorPanel(&model)
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
             case .choosing where command?.kind == .report:

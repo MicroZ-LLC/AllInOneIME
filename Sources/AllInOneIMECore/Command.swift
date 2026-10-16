@@ -45,6 +45,8 @@ public struct Command: Hashable, Sendable {
         /// Settings changed by describing them (`@config`, `AIConfig`): the changes are shown to confirm, then applied;
         /// nothing is inserted.
         case config
+        /// The setup checked on this Mac (`@doctor`, `Doctor`), with fixes through `@config`'s preview; nothing is inserted.
+        case doctor
     }
 
     init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil) {
@@ -102,6 +104,9 @@ public struct Command: Hashable, Sendable {
     /// Change settings by describing them (`AIConfig`): `@config output languages English and French`.
     public static let config = Command(name: "config", kind: .config)
 
+    /// Check the setup and fix what can be fixed (`Doctor`): `@doctor`, or `@doctor why doesn't translate work`.
+    public static let doctor = Command(name: "doctor", kind: .doctor)
+
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
@@ -116,7 +121,7 @@ public struct Command: Hashable, Sendable {
     public static let edit = Command(name: "edit", kind: .generate)
 
     public static let builtins: [Command] = [.improve, .translate, .question, .claude, .open, .read, .note, .reminder, .calc,
-                                             .py, .js, .webSearch, .tasks, .settings, .config, .imessage, .reportIssue]
+                                             .py, .js, .webSearch, .tasks, .settings, .config, .doctor, .imessage, .reportIssue]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
     /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and
