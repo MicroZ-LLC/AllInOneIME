@@ -30,7 +30,8 @@
 </div>
 
 > [!NOTE]
-> AllInOneIME 还没有经过 Apple 公证：第一次打开时，在 系统设置 → 隐私与安全性 里点「仍要打开」。只从
+> 从 0.6.3 起，AllInOneIME 用 Developer ID 签名并经过 Apple 公证：不用再去 系统设置 → 隐私与安全性 里放行。
+> 从旧版本更新后，AllInOneIME 存在钥匙串里的每个 key，macOS 都会问一次登录密码：输入后点「始终允许」。只从
 > [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com/zh/) 下载。
 
 一个 macOS 输入法。句子开头打 `@` 就是命令，写完按 ⏎ 执行：`@improve` 让 AI 润色、给几种改写，`@translate` 翻译成你选的语言，`@question` 提问，`@claude` 交给 Claude Code，`@open` 找文件、App 或打开网址。也可以按住右 ⌥ 说话。不打 `@` 时，按键照常交给 App。它还能打中文（拼音，基于 Rime 和雾凇拼音）、法语、韩语（韩文）和印地语（用拉丁字母打出天城文），也能把你自己的脚本变成 @ 命令。
@@ -67,7 +68,7 @@
 | `@improve` | 润色：1–3 是原文语言的三种说法，4 起是改写风格（设置里加、拖动排序），0 是原文。不翻译；设置里打开「@improve 同时翻译」就和 `@translate @improve` 一样 |
 | `@translate` | 翻译成你加的语言（设置「翻译」里加、拖动排序），每种一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。`@translate @improve` 写在一起就一次请求同时翻译和改写 |
 | `@question` | 提问，答案出现在候选里，⏎ 或空格上屏，⌘C 复制。后面不打字时，列出最近 5 个问题（最新的在前）；接着打字就按问题里任何位置的字筛选（不分大小写，中文也行）。按数字、↑↓ 再按 ⏎，或者点一下，马上显示当时保存的答案（不联网），照常上屏或复制；在那里按 R 重新问一遍，拿新的答案。没有匹配的、或者没选时，⏎ 照常问你打的问题 |
-| `@claude` | 交给 Claude Code：默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看。用的是你本机的 Claude Code（`claude` 命令）和它自己的登录、设置。设置里关掉「@claude 在后台运行」就像以前一样在终端打开。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」 |
+| `@claude` | 交给 Claude Code：默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看。用的是你本机的 Claude Code（`claude` 命令）和它自己的登录、设置。设置里关掉「@claude 在后台运行，做完通知我」就像以前一样在终端打开。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」 |
 | `@tasks` | 列出后台的 Claude 任务（进行中 / 完成 / 等你确认）和它们最后的回复；⏎ 在终端打开接着聊，⌘C 复制回复 |
 | `@settings` | 直接打开设置窗口（选中就打开，不用再写内容） |
 | `@open` | 边打边列出匹配的文件、文件夹和 App（聚焦搜索）。可以写几个关键词，用空格隔开：每个都要在路径里，至少一个在名字里（常用文件夹的中文名也算：`下载 pdf` 找下载文件夹里的 PDF）。App 也能用中文名找（计算器、系统设置；先单按 Shift 切到中文再打），访达和常用文件夹也是（下载、桌面、文稿），中文界面里也显示中文名。用 `@open` 打开过的排在最前，然后是 App、这些文件夹和最近用过、改过的文件；按名字只找到两个以内、也没有 App 或这些文件夹时，再按内容找主目录里的文件，这些标着「内容」；全是这种时，⏎ 先列出来让你选，不直接打开第一个。打网址（`github.com`、`localhost:3000`、`https://…`）时第一条是「在浏览器中打开」，不按内容找；有文件正好叫这个名字（比如 `MANIFEST.in`）时，它排在最前。以 `~/`、`/` 开头就是路径，Tab 补全，进文件夹；⏎ 打开，⌘C 复制路径 |
@@ -244,7 +245,7 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 ### 逐字上屏
 
 在设置 →「通用」里打开「逐字上屏」（配置里的 `typeOut`），命令的结果就像人打字一样一个字一个字打进 App，而不是一下子全部上屏；
-打拼音选词还是马上上屏。滑块调速度，从 6 秒一个字到每秒 40 个字（`typeOutRate`）；「忽快忽慢」一阵快一阵慢（`typeOutVaries`）。
+打拼音选词还是马上上屏。滑块调速度，从 6 秒一个字到每秒 40 个字（`typeOutRate`）；「忽快忽慢（像真人打字）」一阵快一阵慢（`typeOutVaries`）。
 按 Esc 停在那里，按别的键把剩下的一次打完。
 
 「偶尔打错再改」（`typeOutMistakes`）更像真人：偶尔按到旁边的键，最多过三个字母才发现，删掉重打；一个字母或空格多打了一次再删掉；
@@ -270,7 +271,7 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 | 输入框用哪种输入语言开始 | Slack 里用英文，微信里用拼音 | `inputLanguage` |
 | `@improve` 在那里给哪些改写风格 | 邮件里正式、委婉，Slack 里口语 | `rewriteStyles` |
 | 逐字上屏开还是关 | 聊天 App 里开，邮件里关 | `typeOut` |
-| 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@claude` 在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
+| 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@claude` 和你的提示词命令在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
 
 「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选。输入法菜单里的「这个 App：<名字>」可以直接切换正在打字的
 App 的「不用 AI」「逐字上屏」和开始的输入语言。配置里在 `appProfiles` 下，按 bundle ID 写：
@@ -377,9 +378,8 @@ two-way door：可以随时撤回的决定
 1. 从 [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) 下载 `AllInOneIME-<版本>.dmg`（只从这里下载），双击打开。
 2. 双击里面的「安装 AllInOneIME」，点「安装」。输入法装到 `~/Library/Input Methods`，
    「AllInOneIME 设置」装到 `~/Applications`（英文系统里叫 AllInOneIME Settings）。只装给当前用户，不需要管理员密码。
-3. 安装包还没有经过 Apple 公证，macOS 验证不了它是谁做的，第一次打开时会说无法验证「安装 AllInOneIME」：
-   点「完成」（macOS 14 上是「取消」），打开 系统设置 → 隐私与安全性，在页面下方点「仍要打开」，再确认一次。
-   每个新版本的安装程序都要这样放行一次。
+3. 安装程序用 Developer ID 签名并经过 Apple 公证，第一次打开时 macOS 只会问要不要打开这个从互联网下载的 App：点「打开」。
+   （0.6.3 以前的版本没有公证，每个版本都要在 系统设置 → 隐私与安全性 里点「仍要打开」放行一次。）
 
 装好后 AllInOneIME 已经启用，也在你的输入法列表里，用 Ctrl+空格 切换
 （🌐 键要在 系统设置 → 键盘 里把「按下 🌐 键时」设成「更改输入法」才会切换）。
@@ -394,6 +394,10 @@ Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再
 中途出错就换回原来的版本。AllInOneIME 每天在后台自己看一次（在「关于」里关掉「自动检查更新」就不看）；不点就不会安装。
 0.6.3 起才有这个功能；更旧的版本，或者你更喜欢的话，用新版的 DMG 直接装在上面，不用先卸载。
 升级前看一下 [更新日志](CHANGELOG.zh-CN.md)，里面有每个版本的变化和升级须知。
+
+从旧版本更新到 0.6.3：0.6.3 是第一个用 Developer ID 签名的版本，钥匙串还认不出它就是当初存 key 的那个 App。
+它第一次用到自己存的每个 key（API key、AllInOneIME 云的登录、扩展的密码）时，macOS 会问登录密码：输入后点「始终允许」。
+之后不会再问，以后更新也不会。Amazon Bedrock 的密钥在 `~/.aws/credentials` 里，不受影响。
 
 以前装过 AI 拼音（AIPinyin）的话，直接安装就行：旧的 AIPinyin.app 和「AI 拼音设置」会被删掉，
 输入法列表里那一项会换成新名字，不用重新添加。设置、黑话库和学到的词第一次启动时搬到新目录
@@ -467,9 +471,9 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | IP 地址 | `203.0.113.42`、`2001:db8::1` | `ips` |
 | 你自己加的词，不分大小写 | 项目代号（比如 `Project Atlas`）、名字 | `customWords` |
 
-- 用于 `@improve`、`@translate`、`@question`、你的 prompt 命令和插件，以及修改它们的结果（用同样的占位符），所有 AI 服务都一样，
+- 用于 `@improve`、`@translate`、`@question`、你的 prompt 命令和 prompt 插件，以及修改它们的结果（用同样的占位符），所有 AI 服务都一样，
   包括 AllInOneIME 云和 Apple Intelligence。黑话库里含要隐藏内容的词条不发。
-- 它能认出有固定格式的内容；认不出人名和地址，这些请加到自己的词里。`@claude`、`@search` 和脚本扩展照原样发送文字。详见「隐私」。
+- 它能认出有固定格式的内容；认不出人名和地址，这些请加到自己的词里。`@claude`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。详见「隐私」。
 - 配置文件里是 `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`。
 
 所有设置都存在 `~/.config/allinoneime/config.json`，改完后，下一次翻译就会用上新设置，不用重启。新加的几项：
@@ -488,6 +492,8 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
 | `candidateLayout` | 拼音和印地语的候选词：`"vertical"`（竖排）或 `"horizontal"`（横排；← → 选词，↑↓ 翻页） | `"horizontal"` |
 | `fuzzyPinyin` | 模糊音：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
+| `useSelection` | @ 命令处理输入框里选中的文字（见「对选中的文字用命令」） | `true` |
+| `checkForUpdates` | 每天在后台看一次有没有新版本；不点就不会安装 | `true` |
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
@@ -496,7 +502,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 
 - 打拼音和 `@calculate` 计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。修改结果（结果出来后打要求再按 ⏎）时，同样的请求连同显示的结果和你的要求再发一次。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。
-- 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；@claude、@search 和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
+- 发送前隐藏敏感信息（设置 → AI 服务 → 隐私，默认关）：任何请求发出前（`@improve`、`@translate`、`@question`、你的 prompt 命令和 prompt 插件，所有 AI 服务包括 AllInOneIME 云），邮箱、电话号码、银行卡号（做 Luhn 校验）、API 密钥和令牌（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和长串随机字符）、IP 地址和你自己加的词（项目代号、名字）先在本机换成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 这样的占位符，同一个值用同一个占位符。模型的结果在显示和上屏前换回真实内容，候选框里说一句「已对 AI 隐藏 2 项」。模型把占位符改得认不出来时，那一行照原样显示，标上「⚠ 占位符被改动」。黑话库里含被隐藏内容的词条不发。每一类都能单独关掉。全角写法（`zhang＠example.com`、`１３８…`）也认得出，值或词组中间换了行也行。它能认出有固定格式的内容，比如邮箱、号码和密钥；认不出人名和地址（这些请加到自己的词里），也认不出别的字母表里长得像的字母。只用于发给你的 AI 服务的请求；`@claude`、从网站取数据（`@stock`）或打开网站（`@x`）的插件和脚本扩展照原样发送文字。配置文件里是 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
 - 只有在命令里按 ⌃V 或 ⌘V 时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
 - 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字、也不能录音，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
@@ -536,7 +542,8 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 发布新版本（应用内更新读 https://allinoneime.com/update.json，用发布专用的密钥签名）：
 
 1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致）和更新日志。
-2. `make dmg`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
+2. `make dmg NOTARY_PROFILE=<profile>`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
+   App 和磁盘映像用钥匙串里的 Developer ID Application 证书签名，磁盘映像再用这个 `xcrun notarytool` 钥匙串配置公证并装订（staple）。
 3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update.json`
    （版本、build 号和最低 macOS 从 App 里读，下载地址、大小、SHA-256、更新说明的地址和摘要），再用登录钥匙串里的密钥

@@ -30,9 +30,10 @@ No copying into a chat window, no switching apps. Your own AI provider, your own
 </div>
 
 > [!NOTE]
-> AllInOneIME isn't notarized by Apple yet: the first time, allow it in System Settings → Privacy & Security → Open
-> Anyway. Download it only from [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) or
-> [allinoneime.com](https://allinoneime.com).
+> From 0.6.3 on, AllInOneIME is signed with a Developer ID and notarized by Apple: no more allowing it in System
+> Settings → Privacy & Security. After updating from an earlier version, macOS asks once for your login password for
+> each key AllInOneIME saved in the keychain: enter it and click "Always Allow". Download AllInOneIME only from
+> [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) or [allinoneime.com](https://allinoneime.com).
 
 A macOS input method with AI commands in every text field. Start a sentence with `@` and press ⏎ when done:
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
@@ -73,7 +74,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
 | `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
 | `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
-| `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
+| `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background and notifies me" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
@@ -278,8 +279,9 @@ they get it first.
 
 Turn on "Type results out" under Settings → General (`typeOut` in the config) and a command's result is typed into the
 app character by character, like a person typing, instead of going in at once; pinyin picks still go in at once. The
-slider sets the pace, from 6 seconds a character to 40 a second (`typeOutRate`), and "Speed up and slow down" types in
-bursts of changing pace (`typeOutVaries`). Esc stops it where it is; any other key types the rest at once.
+slider sets the pace, from 6 seconds a character to 40 a second (`typeOutRate`), and "Speed up and slow down (like a
+person)" types in bursts of changing pace (`typeOutVaries`). Esc stops it where it is; any other key types the rest at
+once.
 
 "Make occasional typos and fix them" (`typeOutMistakes`) makes it look even more like a person: now and then the key
 next to the right one, noticed up to three letters later, deleted and typed again; a letter or a space typed twice and
@@ -310,7 +312,7 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | The input language its text fields start in | Slack in English, WeChat in pinyin | `inputLanguage` |
 | The rewrite styles `@improve` offers there | Mail formal and tactful, Slack casual | `rewriteStyles` |
 | Type results out, or not | on in a chat app, off in Mail | `typeOut` |
-| No AI in this app | `@improve`, `@translate`, `@question`, `@claude` send nothing there and say so; typing and the other commands work | `noAI` |
+| No AI in this app | `@improve`, `@translate`, `@question`, `@claude` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
 quick switches for the app you're typing in (No AI, Type Results Out, the language it starts in). In the config they're
@@ -418,9 +420,9 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
 1. Download `AllInOneIME-<version>.dmg` from [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) (only from there) and open it.
 2. Double-click "Install AllInOneIME" in it and click Install. The input method goes into `~/Library/Input Methods`
    and "AllInOneIME Settings" into `~/Applications`. For this user only; no administrator password needed.
-3. The installer isn't notarized by Apple yet, so macOS can't verify who made it, and the first time it says it can't verify "Install AllInOneIME":
-   click Done (Cancel on macOS 14), open System Settings → Privacy & Security, click Open Anyway near the bottom, and confirm.
-   Each new version's installer needs this once.
+3. The installer is signed with a Developer ID and notarized by Apple, so the first time macOS only asks whether to open
+   an app downloaded from the internet: click Open. (Versions before 0.6.3 weren't notarized: each had to be allowed
+   once in System Settings → Privacy & Security → Open Anyway.)
 
 After that, AllInOneIME is enabled and in your input sources; switch to it with Ctrl+Space
 (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings → Keyboard).
@@ -437,6 +439,12 @@ if anything goes wrong the version you had is put back. AllInOneIME looks once a
 with "Check for updates automatically" under About); nothing is installed until you click. This works from 0.6.3 on; to update
 an older version, or if you prefer, install the new version's disk image over it, without uninstalling first.
 Before upgrading, read the [changelog](CHANGELOG.md): it has each version's changes and upgrade notes.
+
+Updating to 0.6.3 from an earlier version: 0.6.3 is the first version signed with a Developer ID, so the keychain
+doesn't yet know it as the app that saved your keys. The first time it needs each key it saved (an API key, the
+AllInOneIME Cloud sign-in, an extension's password), macOS asks for your login password: enter it and click "Always
+Allow". It doesn't ask again, also after later updates. Amazon Bedrock's keys are in `~/.aws/credentials`, which
+isn't affected.
 
 If you had AIPinyin installed (AllInOneIME's earlier name), just install: the old AIPinyin.app and its settings launcher are removed,
 and the entry in your input sources gets the new name, with no need to add it again. Settings, the jargon list and learned words move to the new folders
@@ -512,11 +520,12 @@ hidden from the AI". Each kind can be turned off:
 | IP addresses | `203.0.113.42`, `2001:db8::1` | `ips` |
 | Your own words, in any case | a codename such as `Project Atlas`, a name | `customWords` |
 
-- It applies to `@improve`, `@translate`, `@question`, your prompt commands and plugins, and refining their results
+- It applies to `@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, and refining their results
   (the same placeholders), with every provider, including AllInOneIME Cloud and Apple Intelligence. Jargon list entries
   holding a value to hide aren't sent.
 - It recognizes formatted values; it can't recognize names or addresses, so add those as your own words. `@claude`,
-  `@search` and script extensions send text as typed. More under Privacy.
+  plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. More
+  under Privacy.
 - In the config: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
 
 All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. The newer keys:
@@ -535,6 +544,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 | `candidateLayout` | Pinyin and Hindi candidates: `"vertical"` (one under the other) or `"horizontal"` (side by side; ← → choose, ↑↓ turn the page) | `"horizontal"` |
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
+| `useSelection` | @ commands work on the text selected in the field (see On the selected text) | `true` |
+| `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
@@ -543,7 +554,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 - Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⏎) sends the same request again with the results shown and your instruction.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
-- Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; @claude, @search and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
+- Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@claude`, plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text and can't record: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
@@ -592,8 +603,10 @@ the signature, then the archive's size and SHA-256. To try a pack from a local s
 Releasing a version (the in-app updater reads https://allinoneime.com/update.json, signed with the releases' own key):
 
 1. Bump the version (`AppVersion.swift` and the three Info.plists; `AppVersionTests` checks they agree) and the changelogs.
-2. `make dmg`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and `build/AllInOneIME-<version>-update.zip`
-   (both apps, as the disk image's installer carries them).
+2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and
+   `build/AllInOneIME-<version>-update.zip` (both apps, as the disk image's installer carries them). The apps and the
+   image are signed with the Developer ID Application certificate in the keychain, and the image is notarized with
+   that `xcrun notarytool` keychain profile and stapled.
 3. Upload both to the GitHub release `v<version>` and publish it.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
    `site/public/update.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
