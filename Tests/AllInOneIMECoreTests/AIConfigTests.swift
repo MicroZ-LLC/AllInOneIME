@@ -642,4 +642,16 @@ struct AIConfigTests {
         #expect(d.refineLine == "also")
         #expect(d.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
     }
+
+    @Test func typedHostsMatchExactly() throws {
+        let hosts = AIConfig.typedHosts("use my server at https://user@MyLLM.example.com:8443/v1, or api.example.com.mine.dev. 用llm.corp.example作为地址")
+        #expect(hosts == ["myllm.example.com", "api.example.com.mine.dev", "llm.corp.example"])
+        #expect(!hosts.contains("llm.example.com") && !hosts.contains("api.example.com"))
+        var typed = env()
+        typed.typedText = "point it at https://myllm.example.com/v1"
+        #expect(try rows(#"{"changes": [{"key": "openai.baseURL", "value": "https://llm.example.com/v1"}]}"#, env: typed).first?.isRefused == true)
+        typed.typedText = "point it at LLM.example.com."
+        #expect(try rows(#"{"changes": [{"key": "openai.baseURL", "value": "https://llm.example.com/v1"}]}"#, env: typed).first?.edit
+                == .baseURL("https://llm.example.com/v1"))
+    }
 }

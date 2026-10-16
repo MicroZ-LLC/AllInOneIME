@@ -46,6 +46,35 @@ extension AIConfig {
         "open.bigmodel.cn", "api.siliconflow.cn", "openrouter.ai",
     ]
 
+    /// The hosts in what the user typed: those of web addresses ("https://llm.example.com/v1") and bare host names
+    /// ("llm.example.com"), lowercased, without a trailing dot. A proposed base URL's host must be one of them exactly:
+    /// "llm.example.com" isn't in "myllm.example.com", nor "api.example.com" in "api.example.com.mine.dev".
+    public static func typedHosts(_ text: String) -> Set<String> {
+        var hosts = Set<String>()
+        let ns = text as NSString
+        let all = NSRange(location: 0, length: ns.length)
+        // Web addresses, their host as URLComponents reads it (after any user name, before a port or path).
+        let urls = try! NSRegularExpression(pattern: #"[A-Za-z][A-Za-z0-9+.-]*://[^\s"'<>()\[\]]+"#)
+        for match in urls.matches(in: text, range: all) {
+            if let host = URLComponents(string: ns.substring(with: match.range))?.host, !host.isEmpty {
+                hosts.insert(normalizedHost(host))
+            }
+        }
+        // Bare names: labels of letters, digits and "-" joined by dots, ending in a top-level domain, ASCII only (Chinese
+        // text right next to it doesn't make it part of a word).
+        let label = #"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"#
+        let names = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9.-])(?:\#(label)\.)+[A-Za-z]{2,63}\.?(?![A-Za-z0-9-])"#)
+        for match in names.matches(in: text, range: all) { hosts.insert(normalizedHost(ns.substring(with: match.range))) }
+        return hosts
+    }
+
+    /// A host as compared: lowercased, without a trailing dot.
+    static func normalizedHost(_ host: String) -> String {
+        var host = host.lowercased()
+        while host.hasSuffix(".") { host.removeLast() }
+        return host
+    }
+
     /// At most this many words are added to the hidden ones in one go, each one line of at most `maxWordLength`.
     public static let maxWordsAdded = 20
     public static let maxWordLength = 64
@@ -430,7 +459,7 @@ extension AIConfig {
                       !host.isEmpty, parsed.user == nil, parsed.password == nil else { return refused(text.httpsOnly) }
                 // Where the key will go: an address the user typed, or one of the services Settings offers; never one the
                 // model made up.
-                guard env.knownHosts.contains(host) || env.typedText.lowercased().contains(host) else {
+                guard env.knownHosts.contains(host) || typedHosts(env.typedText).contains(normalizedHost(host)) else {
                     return refused(text.typeAddress)
                 }
             }
