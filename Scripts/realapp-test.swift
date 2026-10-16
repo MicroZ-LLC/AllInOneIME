@@ -1085,7 +1085,8 @@ final class Harness: NSObject, NSApplicationDelegate {
     /// 6d. "@" right after a word is text (an email address, `ssh user@host`): in English "bob@example.com" goes in as
     ///     typed, no command list. After a space or at the start "@" opens the list, and → on it leaves the "@" as typed
     ///     and the key moves the caret on, as before. (A terminal's → only ends the list, the "@" going in after it: the
-    ///     self-test checks that on a fake Ghostty line; this is a text view.)
+    ///     self-test checks that on a fake Ghostty line; this is a text view.) The address is typed once no panel of the
+    ///     input method is up, and the list is watched for from the "@" on, key by key.
     func atAfterAWord() {
         section("@ after a word, → on a lone @")
         textView.string = ""
@@ -1094,11 +1095,30 @@ final class Harness: NSObject, NSApplicationDelegate {
             return
         }
         let at = { self.key("@", keyCodes["2"]!, .shift) }
+        // Every panel of the input method down first: the Shift's mode notice (英 / English, about 1.3 s) was still up
+        // when the address had been typed, and read as the list.
+        check(waitUntil(5) { !self.imePanelShown() }, "no input method panel up before the address")
+        // The list must never show: watched between "@" and the next key, and after each key after it.
+        var listShown = false, markedSeen = ""
+        func watch(_ seconds: TimeInterval) {
+            let until = Date().addingTimeInterval(seconds)
+            repeat {
+                listShown = listShown || imePanelShown()
+                if markedSeen.isEmpty { markedSeen = marked }
+                pump(0.02)
+            } while Date() < until
+        }
         type("bob")
         at()
-        type("example.com")
-        check(waitUntil(2) { self.committed == "bob@example.com" } && marked.isEmpty && !imePanelShown(),
-              "an email address goes in as typed, no command list ('\(committed)', marked '\(marked)')")
+        watch(0.4)
+        let afterAt = committed
+        for ch in "example.com" {
+            type(String(ch))
+            watch(0.05)
+        }
+        check(waitUntil(2) { self.committed == "bob@example.com" } && marked.isEmpty && !listShown && markedSeen.isEmpty,
+              "an email address goes in as typed, the list never shown ('\(committed)', '\(afterAt)' after the @; "
+                + "marked '\(marked)'\(markedSeen.isEmpty ? "" : ", '\(markedSeen)' on the way")\(listShown ? ", a panel shown" : ""))")
         space()
         at()
         check(waitUntil(2) { self.marked == "@" }, "after a space, @ opens the list (marked '\(marked)')")
@@ -1329,7 +1349,9 @@ final class Harness: NSObject, NSApplicationDelegate {
     ///     shows its preview, ⏎ applies it to the config file (the test's config has them in a column) and nothing is
     ///     inserted; ⌘Z on the confirmation puts the column back (else `@config undo`). The config is the test's own.
     ///     English is asked of the field before the sentence is typed, and a draft that isn't exactly the sentence is
-    ///     given up unsent; ⏎ stops once the changes are applied (the input method's log) or the preview is gone.
+    ///     given up unsent; ⏎ only once the preview is up (the input method's log), then once. When the on-device model
+    ///     makes nothing of the sentence ("notUnderstood"), it is asked once more, plainly ("candidate layout horizontal"),
+    ///     and the check says so; a second notUnderstood fails.
     func aiConfig() {
         section("@config: candidates in a row, and undo (live)")
         guard setConfig({ $0["candidateLayout"] = "vertical" }) else {
@@ -1346,39 +1368,61 @@ final class Harness: NSObject, NSApplicationDelegate {
             return
         }
         defer { _ = switchTo(english: wasEnglish ?? false) }
-        command("conf")
-        type("candidates in a row")
-        // Anything else in the draft (a letter lost, pinyin) would be sent as it is: give the section up instead.
-        let drafted = waitUntil(2) { self.marked == "config › candidates in a row" }
-        check(drafted, "@config drafted (\(marked))")
-        guard drafted else {
-            reset()
-            textView.string = ""
-            return
-        }
         let requests = RequestLog.start(prefix: "@config")
         _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
         defer { requests?.stop() }
-        let mark = requests?.count ?? 0
-        let started = Date()
-        act()
-        // ⏎ only once the preview's rows are shown (the input method logs "@config N: … rows"), or it says why there are
-        // none ("@config N: no preview (…)"), within 60 s: the on-device model may take a while to load the first time.
-        // ⏎ while it's pending does nothing. Then ⏎ once applies it, and the input method logs "changes applied".
-        func logged(_ text: String) -> String? { requests?.lines(after: mark, containing: text).first }
-        guard requests != nil else {
+        guard let requests else {
             check(false, "@config: the input method's log can't be read, so the preview can't be waited for")
             reset()
             textView.string = ""
             return
         }
+        // Where the lines of the request sent last start (`ask`).
+        var mark = requests.count
+        func logged(_ text: String) -> String? { requests.lines(after: mark, containing: text).first }
         // Or it failed ("@config N failed: …", "@config N: the answer wasn't readable"): no use waiting the 60 s out.
         func noPreview() -> String? { logged(": no preview") ?? logged(" failed: ") ?? logged("wasn't readable") }
-        let answered = waitUntil(60) { logged(" rows, ") != nil || noPreview() != nil }
+        func shown(_ line: String?) -> String { (line ?? "no answer within 60 s").components(separatedBy: "] ").last ?? "-" }
+        /// "@config <sentence>" drafted and sent; then the preview's rows (the input method logs "@config N: … rows"), or
+        /// why there are none ("@config N: no preview (…)"), waited for up to 60 s: the on-device model may take a while to
+        /// load the first time. ⏎ while it's pending does nothing. False: the draft wasn't exactly the sentence (✗, and
+        /// nothing sent: anything else, a letter lost or pinyin, would be sent as it is).
+        func ask(_ sentence: String) -> Bool {
+            command("conf")
+            type(sentence)
+            let drafted = waitUntil(2) { self.marked == "config › " + sentence }
+            check(drafted, "@config drafted (\(marked))")
+            guard drafted else { return false }
+            mark = requests.count
+            act()
+            _ = waitUntil(60) { logged(" rows, ") != nil || noPreview() != nil }
+            return true
+        }
+        let started = Date()
+        guard ask("candidates in a row") else {
+            reset()
+            textView.string = ""
+            return
+        }
+        // The small on-device model now and then makes nothing of the sentence ("notUnderstood"): once, the same request
+        // said plainly. A second notUnderstood fails like any other answer without a preview.
+        var retried: String?
+        if logged(" rows, ") == nil, let first = noPreview(), first.contains("notUnderstood") {
+            retried = shown(first)
+            note("@config made nothing of \"candidates in a row\" (\(retried ?? "-")): once more, as \"candidate layout horizontal\"")
+            reset()
+            textView.string = ""
+            guard ask("candidate layout horizontal") else {
+                reset()
+                textView.string = ""
+                return
+            }
+        }
         let previewed = logged(" rows, ")
-        check(answered && previewed != nil,
-              String(format: "@config shows its preview after %.1fs (%@)", Date().timeIntervalSince(started),
-                     (previewed ?? noPreview() ?? "no answer within 60 s").components(separatedBy: "] ").last ?? "-"))
+        check(previewed != nil,
+              String(format: "@config shows its preview after %.1fs (%@)%@", Date().timeIntervalSince(started),
+                     shown(previewed ?? noPreview()),
+                     retried.map { ", on the second try, \"candidate layout horizontal\" (the first: \($0))" } ?? ""))
         guard previewed != nil else {
             reset()
             textView.string = ""
