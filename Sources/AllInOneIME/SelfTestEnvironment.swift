@@ -123,7 +123,7 @@ extension SelfTest {
             print("SELFTEST PASSED: \(counts)")
         } else if checkedWithNeeds == 0 {
             print("Everything that composes in the field or asks the AI was skipped (\(reasons)): this run doesn't show the input method works.")
-            print("SELFTEST SKIPPED: \(counts)")
+            print("SELFTEST SKIPPED: \(counts) (\(reasons))")
         } else {
             print("SELFTEST INCOMPLETE: \(counts) (\(reasons))")
         }

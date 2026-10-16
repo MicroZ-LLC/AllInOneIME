@@ -456,7 +456,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             print("REALTEST PASSED: \(counts)")
         } else if checkedInSections == 0 {
             print("Everything that types through the input method was skipped (\(reasons)): this run doesn't show it works.")
-            print("REALTEST SKIPPED: \(counts)")
+            print("REALTEST SKIPPED: \(counts) (\(reasons))")
         } else {
             print("REALTEST INCOMPLETE: \(counts) (\(reasons))")
         }
