@@ -13,7 +13,7 @@
 // recent-questions.png   @question with nothing after it: the recent questions (made-up ones)
 // selection.png @improve on the selected text, with an email and a phone number hidden from the AI
 // question-chat.png   an @question conversation: two rounds, the next question's line on top (canned answers)
-// question-chat-handoff.png   after the last round: where to go on (Claude Code, Claude, ChatGPT, a copy)
+// question-chat-handoff.png   after the last round: where to go on (the agents installed, Claude, ChatGPT, a copy)
 // config.png    @config: the changes it would make, old → new (a canned answer)
 // doctor.png    @doctor: the checks, problems first (made-up findings)
 // panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
@@ -227,8 +227,8 @@ try composite([
          marked: marked("question-chat", "question › what is rust"), panel: load("question-chat")),
 ], to: "question-chat.png")
 try composite([
-    Step(caption: tr("聊满后：⌘1 Claude Code、⌘2 Claude、⌘3 ChatGPT 里接着聊",
-                     "After the last round: go on in Claude Code (⌘1), Claude (⌘2) or ChatGPT (⌘3)"),
+    Step(caption: tr("聊满后：⌘1、⌘2… 在装了的 agent、Claude 或 ChatGPT 里接着聊",
+                     "After the last round: ⌘1, ⌘2 … go on in the agents installed, Claude or ChatGPT"),
          marked: marked("question-chat-handoff", "question › what is rust"), panel: load("question-chat-handoff")),
 ], to: "question-chat-handoff.png")
 try composite([
