@@ -62,6 +62,13 @@ public final class AIConfigService: Sendable {
     /// Whether the request would go to the on-device model now.
     public var onDevice: Bool { client.apple.availability == .available }
 
+    /// Gets the on-device model ready (it loads in a few seconds the first time): called as `@config` or `@doctor` is
+    /// written, so the request that follows doesn't wait for it. Nothing is sent.
+    public func prewarm() {
+        guard onDevice, let guided = client.apple as? any AppleGuidedBackend else { return }
+        guided.prewarm()
+    }
+
     /// The answer for `sentence` (keys already dropped), or with `turns`, the revised one after them. Throws the
     /// provider's error (no key, the network …), or `AppleModelError.unavailable` when the user's provider is the
     /// on-device model and it can't be used.
@@ -163,11 +170,21 @@ public struct GuidedTool: Sendable {
 /// An on-device model that can be held to a schema and given tools (guided generation): the answer is JSON.
 public protocol AppleGuidedBackend: AppleModelBackend {
     func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String
+    /// Loads the model ahead of a request (nothing is sent).
+    func prewarm()
+}
+
+extension AppleGuidedBackend {
+    public func prewarm() {}
 }
 
 #if canImport(FoundationModels)
 @available(macOS 26, *)
 extension FoundationModelsBackend: AppleGuidedBackend {
+    func prewarm() {
+        LanguageModelSession(model: SystemLanguageModel.default).prewarm()
+    }
+
     func respond(to request: AppleModelRequest, schema: GuidedSchema, tools: [GuidedTool]) async throws -> String {
         do {
             let generation = try GenerationSchema(root: GuidedSchemaBuilder().dynamic(schema), dependencies: [])

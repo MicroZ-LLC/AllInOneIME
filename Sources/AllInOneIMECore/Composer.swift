@@ -3435,7 +3435,11 @@ extension Composer {
             if isBack { return nil }
             // Rows aren't picked one by one, nor inserted.
             return .consumed()
-        case .translating, .idle, .drafting:
+        case .translating:
+            // A request (or a refine, or @doctor's question) still on its way: ⏎ does nothing, never sends it again; Esc
+            // still cancels (as for any results).
+            return isReturn ? .consumed() : nil
+        case .idle, .drafting:
             return nil
         }
     }

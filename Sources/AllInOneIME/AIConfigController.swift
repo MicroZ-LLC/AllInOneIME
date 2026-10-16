@@ -32,6 +32,18 @@ enum AIConfigSession {
             NotificationCenter.default.post(name: .allInOneIMEFocusAPIKey, object: nil, userInfo: ["provider": provider.rawValue])
         }
     }
+    private static var prewarmed: Date?
+
+    /// As `@config` or `@doctor` is written ("@co" in the list, or picked): the on-device model loaded and the checks'
+    /// view of this Mac (the apps, the keychain's attributes) read ahead, at most once a minute, so the request that
+    /// follows doesn't wait for them. Nothing is sent.
+    static func prewarmIfDue() {
+        guard prewarmed.map({ Date().timeIntervalSince($0) > 60 }) ?? true else { return }
+        prewarmed = Date()
+        service.prewarm()
+        Task { @MainActor in _ = await environment("") }
+    }
+
     /// Test Connection, as Settings runs it, on the config file as it is now: what it said, and whether it worked.
     static var testConnection: (URL) async -> (ok: Bool, line: String) = { url in await runSettingsTest(url) }
 
@@ -147,6 +159,15 @@ enum AIConfigSession {
 }
 
 extension AllInOneIMEInputController {
+    /// Gets `@config` and `@doctor` ready while they are written: "@co", "@do" in the list, or the command picked.
+    @MainActor
+    func prewarmConfigIfWritten() {
+        let query = composer.paletteQuery?.lowercased() ?? ""
+        let writing = query.count >= 2 && ("config".hasPrefix(query) || "doctor".hasPrefix(query))
+        guard writing || composer.draftCommand?.kind == .config || composer.draftCommand?.kind == .doctor else { return }
+        AIConfigSession.prewarmIfDue()
+    }
+
     /// The request for `@config <input>` (or a refine of its answer, `turns`): a key typed into it never goes out; the
     /// answer becomes the preview, or the one line that says why there is none.
     @MainActor
@@ -222,6 +243,8 @@ extension AllInOneIMEInputController {
                     client: nil)
         case let .failure(failure):
             _ = text
+            // Said in the log too (no rows to show): what the real-app test waits for, and what a report needs.
+            log.notice("@config \(id): no preview (\(String(describing: failure), privacy: .public))")
             let line = AIConfig.failureLine(failure, proposal: proposal, config: loadSettings(), environment: env)
             perform(composer.fail(line, id: id), client: nil)
         }

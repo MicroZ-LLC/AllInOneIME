@@ -715,6 +715,7 @@ final class AllInOneIMEInputController: IMKInputController {
         keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
+        prewarmConfigIfWritten()
         return response.handled
     }
 

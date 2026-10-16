@@ -757,4 +757,37 @@ struct AIConfigTests {
         _ = try AIConfig.undo(applied, at: url)
         #expect(try Data(contentsOf: url) == before)
     }
+
+    @Test func returnWhileARequestIsPendingDoesNothing() throws {
+        // @config sent, its answer not in yet: ⏎ and ⇧⏎ do nothing (never send it again), Esc cancels.
+        let c = drafted("candidates in a row")
+        #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.config, input: "candidates in a row", id: 1))
+        for _ in 0..<3 {
+            let again = c.handleKeyDown(enterKey)
+            #expect(again.handled && again.effects.isEmpty && c.phase == .translating(id: 1))
+            let shifted = c.handleKeyDown(shiftEnter)
+            #expect(shifted.handled && shifted.effects.isEmpty && c.phase == .translating(id: 1))
+        }
+        #expect(c.handleKeyDown(escKey).effects.contains(.cancelConversion) && c.phase == .drafting)
+        // A refine on its way: the same.
+        let (d, _) = try previewed()
+        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
+        let sent = d.handleKeyDown(shiftEnter).effects
+        #expect(sent.contains { if case .startRefine = $0 { return true } else { return false } } && d.isRefining)
+        for key in [enterKey, shiftEnter] {
+            let effects = d.handleKeyDown(key).effects
+            #expect(!effects.contains { if case .startRefine = $0 { return true } else { return false } }, "\(effects)")
+            #expect(!effects.contains { if case .startCommand = $0 { return true } else { return false } } && d.isRefining)
+        }
+        // @doctor's question on its way: the same.
+        let doctor = Composer(engine: FakeEngine(), actionKey: .enter)
+        doctor.setInputMode(.english)
+        _ = doctor.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        for ch in "doc" { _ = doctor.handleKeyDown(k(String(ch))) }
+        _ = doctor.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        for ch in "why" { _ = doctor.handleKeyDown(k(String(ch))) }
+        #expect(doctor.handleKeyDown(enterKey).effects.first == .startCommand(.doctor, input: "why", id: 1))
+        #expect(doctor.handleKeyDown(enterKey).effects.isEmpty && doctor.handleKeyDown(shiftEnter).effects.isEmpty)
+        #expect(doctor.phase == .translating(id: 1))
+    }
 }
