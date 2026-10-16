@@ -24,8 +24,8 @@ struct SuggestedModel: Identifiable, Hashable {
             ]
         case .gemini:
             return [SuggestedModel(id: "gemini-3.8-flash", title: "Gemini 3.8 Flash", note: tr("默认", "Default"))]
-        case .hosted:
-            return []  // the service picks the model
+        case .hosted, .apple:
+            return []  // the service (the system) picks the model
         case .openai:
             // OpenAI's own; for another service (DeepSeek, Qwen, Ollama, …), "Custom…" and its base URL.
             return [
@@ -59,6 +59,26 @@ final class SettingsModel: ObservableObject {
     /// Where the API key of each provider comes from (refreshed when one is saved).
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
     @Published private(set) var keyError: String?
+    /// The apps that get no typos (`TypoMemory`), as when the window opened or they were forgotten.
+    @Published private(set) var typoApps: [String] = TypoMemory.apps
+
+    func forgetTypoApps() {
+        TypoMemory.forget()
+        typoApps = TypoMemory.apps
+    }
+
+    /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.
+    @Published private(set) var recentQuestions = QuestionHistoryStore.history.entries.count
+
+    func clearRecentQuestions() {
+        QuestionHistoryStore.clear()
+        recentQuestions = 0
+    }
+
+    /// Questions asked since the window opened.
+    func refreshRecentQuestions() {
+        recentQuestions = QuestionHistoryStore.history.entries.count
+    }
 
     enum TestStatus: Equatable {
         case idle
@@ -184,6 +204,11 @@ final class SettingsModel: ObservableObject {
 
     func refreshKeys() {
         let providers = Provider.allCases.filter { $0 != .bedrock }
+        // A preview (the self-test's README images) shows no keys and never asks the user's keychain.
+        guard persists else {
+            keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) })
+            return
+        }
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
             let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.source($0)) })
@@ -219,7 +244,7 @@ final class SettingsModel: ObservableObject {
         case .anthropic: return config.anthropic
         case .gemini: return config.gemini
         case .openai: return config.openai
-        case .bedrock, .hosted: return ProviderSettings()
+        case .bedrock, .hosted, .apple: return ProviderSettings()
         }
     }
 
@@ -228,7 +253,7 @@ final class SettingsModel: ObservableObject {
         case .anthropic: config.anthropic = settings
         case .gemini: config.gemini = settings
         case .openai: config.openai = settings
-        case .bedrock, .hosted: return
+        case .bedrock, .hosted, .apple: return
         }
         save()
     }
@@ -306,7 +331,8 @@ final class SettingsModel: ObservableObject {
     private let presenter = AuthPresenter()
 
     func refreshAccount() {
-        guard HostedService.isConfigured else { return }
+        // A preview shows no account: the user's session token stays in the keychain.
+        guard persists, HostedService.isConfigured else { return }
         Task { [weak self] in
             do {
                 let account = try await HostedAccount.current()
@@ -428,12 +454,13 @@ final class SettingsModel: ObservableObject {
             .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
-        passwordsSaved = Set(index.bundles.flatMap { bundle in
+        // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
+        passwordsSaved = persists ? Set(index.bundles.flatMap { bundle in
             bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
-                APIKeys.keychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name)) == nil
-                    ? nil : bundle.name + "/" + preference.name
+                APIKeys.hasKeychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
+                    ? bundle.name + "/" + preference.name : nil
             }
-        })
+        }) : []
         if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
     }
 
@@ -800,10 +827,48 @@ struct SettingsView: View {
                     }
                 }
                 Toggle(tr("忽快忽慢（像真人打字）", "Speed up and slow down (like a person)"), isOn: $model.config.typeOutVaries)
+                // Typos fixed at once (`TypeOut.plan`): the text still ends up exactly the result.
+                Toggle(isOn: $model.config.typeOutMistakes) {
+                    titled(tr("偶尔打错再改", "Make occasional typos and fix them"),
+                           tr("偶尔按到旁边的键、多打一个字母或空格，或者一个词打了又删掉重打，马上就改回来，打完的文字一字不差。代码、网址和数字里打错马上就改；终端里不打错。",
+                              "Now and then a neighboring key, a doubled letter or space, or a word typed again, fixed on the way: typed to the end, the text is exactly the result. In code, addresses and numbers fixed at once; never in a terminal."))
+                }
+                // Apps whose fields didn't take a typo back get none again; forgotten, they're tried once more.
+                HStack {
+                    Text(model.typoApps.isEmpty ? tr("每个 App 都能打错再改。", "Every app can make typos and fix them.")
+                         : tr("这些 App 里不再打错：", "No typos in: ") + model.typoApps.joined(separator: ", "))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Spacer()
+                    Button(tr("忘掉改不回来的 App（\(model.typoApps.count)）", "Forget apps where typos couldn't be fixed (\(model.typoApps.count))")) {
+                        model.forgetTypoApps()
+                    }
+                    .disabled(model.typoApps.isEmpty)
+                }
             }
             Toggle(isOn: $model.config.claudeInBackground) {
                 titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
                        tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk."))
+            }
+            // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
+            Toggle(isOn: $model.config.useSelection) {
+                titled(tr("使用选中的文字", "Use the selected text"),
+                       tr("先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
+                          "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."))
+            }
+            // The recent @questions (`QuestionHistory`): kept only on this Mac; off forgets them too.
+            Toggle(isOn: $model.config.rememberQuestions) {
+                titled(tr("记住最近的问题", "Remember recent questions"),
+                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
+                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
+            }
+            .disabled(!model.canSave)
+            HStack {
+                Text(model.recentQuestions == 0 ? tr("没有保存的问题。", "No questions saved.")
+                     : tr("保存了 \(model.recentQuestions) 个问题。", "\(model.recentQuestions) saved \(model.recentQuestions == 1 ? "question" : "questions")."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(tr("清除（\(model.recentQuestions)）", "Clear (\(model.recentQuestions))")) { model.clearRecentQuestions() }
+                    .disabled(model.recentQuestions == 0)
             }
         }
     }
@@ -865,6 +930,22 @@ struct SettingsView: View {
                        model.config.inputLanguages.count > 1
                        ? tr("单按 Shift 切换；点一个看它的设置", "Tap Shift to switch; click one for its settings")
                        : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
+            }
+            // The candidates of a word being typed (pinyin, Hindi) in a column, or in a row like macOS's own panel.
+            LabeledContent {
+                Picker("", selection: $model.config.candidateLayout) {
+                    Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
+                    Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                .disabled(!model.canSave)
+            } label: {
+                titled(tr("候选排列", "Candidate layout"),
+                       model.config.candidateLayout == .horizontal
+                       ? tr("选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): side by side (the default), like the system's own input methods; ← → choose, ↑↓ or - = turn the page. The @ list and results stay vertical. From the next text field.")
+                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。@ 命令列表和结果总是竖排。在下一个输入框生效。",
+                            "For picking words (pinyin, Hindi): one under the other; ↑↓ choose, - = turn the page. The @ list and results are always vertical. From the next text field."))
             }
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
         } header: {
@@ -1028,6 +1109,14 @@ struct SettingsView: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
+            // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
+            if !model.extensionIndex.identical.isEmpty {
+                let identical = model.extensionIndex.identical
+                Label(tr("跳过了 \(identical.count) 个完全相同的副本", identical.count == 1 ? "Skipped 1 identical copy" : "Skipped \(identical.count) identical copies"),
+                      systemImage: "doc.on.doc")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
+            }
             if model.extensionIndex.commands.isEmpty, model.skippedExtensions.isEmpty {
                 Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
                         "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above."))
@@ -1183,13 +1272,15 @@ struct SettingsView: View {
         Section {
             Picker(tr("服务", "Provider"), selection: $model.config.provider) {
                 ForEach(Provider.offered, id: \.self) { provider in
-                    Text(UIText.name(provider)).tag(provider)
+                    providerItem(provider)
                 }
             }
             if model.config.provider == .bedrock {
                 bedrockSettings
             } else if model.config.provider == .hosted {
                 hostedSettings
+            } else if model.config.provider == .apple {
+                appleSettings
             } else {
                 apiKeySettings(model.config.provider)
             }
@@ -1257,7 +1348,7 @@ struct SettingsView: View {
             Stepper(value: $model.config.maxTokens, in: 200...4000, step: 100) {
                 Text(tr("最多输出 \(model.config.maxTokens) tokens", "Up to \(model.config.maxTokens) output tokens"))
             }
-            if model.config.provider == .bedrock {
+            if model.config.provider == .bedrock || model.config.provider == .apple {
                 Toggle(tr("发送 temperature（有的模型不支持，报错时关掉）",
                           "Send temperature (some models don't support it; turn it off if requests fail)"),
                        isOn: temperatureOn)
@@ -1494,8 +1585,8 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// The version, who makes it, where to read more.
-    private var aboutSection: some View {
+    /// The version, its updates, who makes it, where to read more.
+    @ViewBuilder private var aboutSection: some View {
         Section {
             VStack(spacing: 10) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
@@ -1509,6 +1600,9 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
+        }
+        UpdateSection(updates: .shared, model: model)
+        Section {
             LabeledContent(tr("网站", "Website")) { Link("allinoneime.com", destination: URL(string: "https://allinoneime.com")!) }
             LabeledContent(tr("使用说明", "Documentation")) { Link("Wiki", destination: URL(string: "https://allinoneime.com/docs")!) }
             LabeledContent(tr("更新日志", "What's new")) {
@@ -1516,6 +1610,14 @@ struct SettingsView: View {
             }
             LabeledContent(tr("源代码", "Source code")) {
                 Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+            }
+            // GitHub's page for a new issue, with the versions and settings that help; `@reportissue` does the same.
+            LabeledContent {
+                Button(tr("报告问题…", "Report an Issue…")) { IssueReporting.open(config: model.config) }
+            } label: {
+                titled(tr("反馈", "Feedback"),
+                       tr("在浏览器里打开 GitHub 的新问题页，附上版本、语言和设置的种类，不含你打的字、路径、密钥和命令名；你看过再提交。",
+                          "Opens a new GitHub issue in the browser with the versions, languages and kinds of settings, never your text, paths, keys or command names; you submit it."))
             }
         }
     }
@@ -1581,8 +1683,10 @@ struct SettingsView: View {
                 case .provider:
                     providerSection
                     requestSection
+                    PrivacySection(model: model)
                 case .advanced: filesSection
                 case .about: aboutSection
+                case .apps: AppProfilesSection(model: model)
                 }
             }
             .formStyle(.grouped)
@@ -1649,9 +1753,16 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
+        .onChange(of: model.config.useSelection) { model.save() }
+        .onChange(of: model.config.rememberQuestions) {
+            model.save()
+            if !model.config.rememberQuestions { model.clearRecentQuestions() }
+        }
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
+        .onChange(of: model.config.typeOutMistakes) { model.save() }
+        .onChange(of: model.config.candidateLayout) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)
@@ -1670,6 +1781,7 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+            model.refreshRecentQuestions()
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
             if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
@@ -1938,6 +2050,37 @@ struct SettingsView: View {
         if let error = model.accountError { Text(error).foregroundStyle(.red) }
     }
 
+    /// A provider in the picker: Apple Intelligence greyed out, with the reason, on a Mac where it can't be used.
+    @ViewBuilder
+    private func providerItem(_ provider: Provider) -> some View {
+        let apple = provider == .apple ? AppleModel.system.availability : .available
+        Text(UIText.name(provider) + (apple == .available ? "" : tr("（", " (") + UIText.reason(apple) + tr("）", ")")))
+            .tag(provider)
+            .disabled(apple != .available)
+    }
+
+    /// Apple Intelligence on this Mac: whether it can be used, and where to turn it on.
+    @ViewBuilder
+    private var appleSettings: some View {
+        let availability = AppleModel.system.availability
+        if availability == .available {
+            Text(tr("✓ 这台 Mac 上可以使用", "✓ Ready on this Mac")).foregroundStyle(.green)
+        } else {
+            Text(UIText.describe(AppleModelError.unavailable(availability))).foregroundStyle(.orange)
+            if availability != .deviceNotEligible, availability != .unsupportedSystem {
+                Button(tr("打开「Apple 智能与 Siri」设置…", "Open Apple Intelligence & Siri Settings…")) {
+                    NSWorkspace.shared.open(AppleModel.settingsURL)
+                }
+            }
+        }
+        let context = "\(AppleModel.system.contextSize / 1024)K"
+        Text(tr("用这台 Mac 自带的模型（macOS 26 起）：不用 API key，不花钱，文字不离开这台 Mac。模型较小：上下文约 \(context) tokens，"
+                    + "支持的语言少一些，效果不如云端的模型。",
+                "Uses the model built into this Mac (macOS 26 and later): no API key, no cost, and nothing leaves the Mac. "
+                    + "It is a small model: about \(context) tokens of context, fewer languages, and results below the cloud models'."))
+            .font(.caption).foregroundStyle(.secondary)
+    }
+
     /// An API-key provider: the model, the key (kept in the keychain), the base URL and the effort.
     @ViewBuilder
     private func apiKeySettings(_ provider: Provider) -> some View {
@@ -2020,7 +2163,7 @@ struct SettingsView: View {
         case .anthropic: return "claude-sonnet-5-5"
         case .gemini: return "gemini-3.8-flash"
         case .openai: return "deepseek-chat"
-        case .hosted: return ""
+        case .hosted, .apple: return ""
         case .bedrock: return "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         }
     }
@@ -2198,6 +2341,9 @@ final class SettingsWindow {
 
     /// After the window's language changed.
     func updateTitle() { window?.title = Self.title }
+
+    /// Whether the window is open (an update opens it again once the input method restarts).
+    var isVisible: Bool { window?.isVisible == true }
 
     /// Shows the window on `page` (already open: it turns to it).
     func show(page: SettingsPage) {
@@ -2529,7 +2675,7 @@ struct IconTile: View {
 }
 
 /// A section heading with its icon.
-private struct SectionTitle: View {
+struct SectionTitle: View {
     let title: String
     let icon: CandidateView.Icon
 
@@ -2547,11 +2693,11 @@ private struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, input, writing, commands, plugins, voice, provider, advanced, about
+    case general, input, writing, commands, plugins, voice, provider, advanced, about, apps
 
     var id: String { rawValue }
 
-    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice], [.commands, .plugins, .provider], [.advanced, .about]]
+    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
@@ -2564,6 +2710,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .provider: return tr("AI 服务", "AI Provider")
         case .advanced: return tr("高级", "Advanced")
         case .about: return tr("关于", "About")
+        case .apps: return tr("按 App 设置", "Apps")
         }
     }
 
@@ -2578,21 +2725,23 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .provider: return CommandIcons.provider
         case .advanced: return CommandIcons.advanced
         case .about: return CandidateView.Icon(symbol: "info", color: .systemBlue)
+        case .apps: return CandidateView.Icon(symbol: "square.grid.2x2.fill", color: .systemIndigo)
         }
     }
 
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed 逐字上屏 打字速度 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english"
-        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除"
+        case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout 服务 模型 密钥 测试连接 模型参数 超时 温度"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
-        case .about: return "about version website github license 关于 版本 网站"
+        case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
+        case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉"
         }
     }
 

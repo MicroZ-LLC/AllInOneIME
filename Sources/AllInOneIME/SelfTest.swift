@@ -8,17 +8,32 @@ import SwiftUI
 
 /// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
 /// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
-/// which deletes it).
+/// which deletes it), and goes where the selection was (`insertionPoint`).
 final class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
     var inserted: [String] = []
     var document = ""
     var selection: NSRange?
+    /// Inserts that replaced a range of the document (`replacementRange`), as a typo is taken back.
+    var replacements = 0
+    /// False: like a field that knows no ranges, it tells no caret and reads nothing back.
+    var knowsRanges = true
+    /// True: like a field that reads back but ignores `replacementRange`, everything goes in at the end.
+    var ignoresRanges = false
+    /// Empty text with a replacement range never arrives, as through the input method connection (an NSTextView
+    /// in the real-app test got none of them).
+    var dropsEmptyReplacements = true
+
+    /// Where marked and inserted text goes once selected text was typed over: where it was (nil: at the end).
+    var insertionPoint: Int?
+    /// `insertionPoint`, or the end of the document.
+    private var point: Int { min(insertionPoint ?? .max, (document as NSString).length) }
 
     private func replaceSelection() {
         guard marked.isEmpty, let range = selection else { return }
         document = (document as NSString).replacingCharacters(in: range, with: "")
+        if range.length > 0 { insertionPoint = range.location }
         selection = nil
     }
     /// Screen rect of the caret line, used to position the candidate panel.
@@ -31,9 +46,24 @@ final class FakeTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = Self.plain(string)
+        if s.isEmpty, replacementRange.location != NSNotFound, dropsEmptyReplacements { return }
+        if knowsRanges, !ignoresRanges, marked.isEmpty, replacementRange.location != NSNotFound,
+           NSMaxRange(replacementRange) <= (document as NSString).length {
+            document = (document as NSString).replacingCharacters(in: replacementRange, with: s)
+            inserted.append(s)
+            replacements += 1
+            selection = nil
+            return
+        }
         replaceSelection()
         inserted.append(s)
-        document += s
+        if insertionPoint != nil {
+            let at = point
+            document = (document as NSString).replacingCharacters(in: NSRange(location: at, length: 0), with: s)
+            insertionPoint = at + (s as NSString).length
+        } else {
+            document += s
+        }
         marked = ""
     }
 
@@ -43,15 +73,21 @@ final class FakeTextClient: NSObject, IMKTextInput {
         markedSelection = selectionRange
     }
 
-    func selectedRange() -> NSRange { selection ?? NSRange(location: (document as NSString).length, length: 0) }
+    func selectedRange() -> NSRange {
+        guard knowsRanges else { return NSRange(location: NSNotFound, length: NSNotFound) }
+        return selection ?? NSRange(location: point, length: 0)
+    }
 
     func markedRange() -> NSRange {
         marked.isEmpty
             ? NSRange(location: NSNotFound, length: 0)
-            : NSRange(location: (document as NSString).length, length: (marked as NSString).length)
+            : NSRange(location: point, length: (marked as NSString).length)
     }
 
-    func attributedSubstring(from range: NSRange) -> NSAttributedString! { nil }
+    func attributedSubstring(from range: NSRange) -> NSAttributedString! {
+        guard knowsRanges, range.location != NSNotFound, NSMaxRange(range) <= (document as NSString).length else { return nil }
+        return NSAttributedString(string: (document as NSString).substring(with: range))
+    }
     func length() -> Int { (document as NSString).length }
 
     func characterIndex(
@@ -220,7 +256,7 @@ enum SelfTest {
     static func testSelectionKept(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         print("— Selected text left alone")
         let (document, inserted) = (client.document, client.inserted)
-        defer { (client.document, client.inserted, client.selection) = (document, inserted, nil) }
+        defer { (client.document, client.inserted, client.selection, client.insertionPoint) = (document, inserted, nil, nil) }
         let latin = controller.composer.engineState.isAsciiMode
         client.document = "hello world"
         client.selection = NSRange(location: 6, length: 5)
@@ -241,6 +277,139 @@ enum SelfTest {
         check(!client.document.contains("world") && client.selection == nil,
               "typing replaces the selection (\(client.document)|\(client.marked))")
         _ = escape(controller, client)
+    }
+
+    /// Commands on the selected text (`Composer.selection`). The fake field models a selection as NSTextView does
+    /// (marked text would take its place). "@" reads it, and the command is written in the panel: nothing is marked in
+    /// the field, which keeps its text and its selection through pinyin, Esc, ⇧⏎, the field left and secure input; a
+    /// selection moved meanwhile gives the command up; the setting off, or secure input on, it isn't read (marked as
+    /// before). A result picked replaces exactly the selection, by its range, and where the field ignores ranges, as
+    /// the selected text (`@calculate` here; `@improve` live on Bedrock).
+    static func testCommandsOnSelection(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        print("— commands on the selected text")
+        let (document, inserted, secureBefore) = (client.document, client.inserted, controller.secureInputActive)
+        defer {
+            (client.document, client.inserted, client.selection, client.insertionPoint, client.ignoresRanges) = (document, inserted, nil, nil, false)
+            controller.secureInputActive = secureBefore
+        }
+        let text = "Dear team, this sentance have a error. Thanks!"
+        let part = "this sentance have a error."
+        let range = (text as NSString).range(of: part)
+        func select(_ document: String = text, _ selected: NSRange? = nil) {
+            controller.commitComposition(client)
+            (client.document, client.selection, client.insertionPoint, client.marked) = (document, selected ?? range, nil, "")
+        }
+        /// The field as it was, its selection still selected, nothing marked.
+        func untouched(_ document: String = text, _ selected: NSRange? = nil) -> Bool {
+            client.document == document && client.selection == (selected ?? range) && client.marked.isEmpty
+        }
+        func command(_ letters: String) {
+            press(controller, client, "@", code: 0x13, flags: .shift)
+            type(letters, controller, client)
+            press(controller, client, "\t", code: VirtualKey.tab)
+        }
+        // The fake field itself: marked text where the selection was, then the text inserted there.
+        select()
+        client.setMarkedText("x", selectionRange: NSRange(location: 1, length: 0), replacementRange: AllInOneIMEInputController.notFound)
+        let markedAt = client.markedRange().location
+        client.insertText("y", replacementRange: AllInOneIMEInputController.notFound)
+        check(markedAt == range.location && client.document == "Dear team, y Thanks!",
+              "the fake field models a selection: marked text takes its place, the text goes in there ('\(client.document)')")
+
+        select()
+        command("i")
+        let model = controller.panelModel()
+        check(controller.composer.draft == "@improve " && controller.composer.draftInPanel && untouched(),
+              "\"@improve\" on the selection: nothing marked, the text and its selection untouched ('\(client.document)', marked '\(client.marked)')")
+        check(model.input == "improve › ▏" && (model.header ?? "").contains(part) && (model.header ?? "").contains("27"),
+              "the panel shows the command as typed, then the selection (\(model.input ?? "-") / \(model.header ?? "-"))")
+        // Pinyin in the command's text: in the panel's input line, its candidates below; Space picks.
+        type("nihao", controller, client)
+        let pinyin = controller.panelModel()
+        check(untouched() && pinyin.input?.hasPrefix("improve › ") == true && pinyin.input?.contains("ni") == true
+              && pinyin.rows.contains { $0.text == "你好" },
+              "pinyin is shown in the panel's input line with its candidates, not in the field (\(pinyin.input ?? "-"))")
+        _ = space(controller, client)
+        check(controller.composer.draft == "@improve 你好" && untouched(), "Space picks 你好 into the command (\(controller.composer.draft))")
+        _ = escape(controller, client)
+        check(untouched() && controller.composer.phase == .idle && !controller.composer.draftInPanel,
+              "Esc gives it up: the field and its selection as they were ('\(client.document)')")
+
+        select()
+        command("i")
+        let insertedBefore = client.inserted.count
+        _ = shiftEnter(controller, client)
+        check(untouched() && client.inserted.count == insertedBefore, "⇧⏎ inserts nothing: no @improve over the selection")
+
+        select()
+        command("i")
+        controller.commitComposition(client)
+        check(untouched() && client.inserted.count == insertedBefore, "the field left: nothing goes in")
+        select()
+        command("i")
+        controller.perform(controller.composer.commitAsTyped(), client: client)
+        check(untouched() && client.inserted.count == insertedBefore, "secure input turning on: nothing goes in")
+
+        // The selection moved meanwhile (a click): the command is given up, and the key acts as usual (pinyin).
+        select()
+        command("i")
+        client.selection = NSRange(location: 0, length: 4)
+        type("a", controller, client)
+        check(!controller.composer.draftInPanel && controller.composer.draft.isEmpty && client.marked == "a",
+              "a selection moved meanwhile gives the command up; the key then types as usual (marked '\(client.marked)')")
+        _ = escape(controller, client)
+
+        // Never read during secure input, nor with the setting off: "@" is marked over it as before.
+        select()
+        controller.secureInputActive = { true }
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil && client.marked == "@", "not read while secure input is on (marked '\(client.marked)')")
+        controller.secureInputActive = secureBefore
+        _ = escape(controller, client)
+        select()
+        settings.useSelection = false
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil && client.marked == "@", "not read with \"Use the selected text\" off")
+        settings.useSelection = true
+        _ = escape(controller, client)
+
+        // A result replaces exactly the selection: by its range, and where the field ignores ranges, as the selected text.
+        for ignores in [false, true] {
+            let sum = "Total: 6*7 apples"
+            select(sum, (sum as NSString).range(of: "6*7"))
+            client.ignoresRanges = ignores
+            let replacementsBefore = client.replacements
+            command("calcu")
+            _ = enter(controller, client)
+            _ = pump(timeout: 5) { controller.composer.phase == .choosing }
+            _ = enter(controller, client)
+            check(client.document == "Total: 42 apples" && client.marked.isEmpty
+                  && (client.replacements > replacementsBefore) == !ignores,
+                  "@calculate on \"6*7\" selected: 42 replaces it \(ignores ? "where the field ignores ranges" : "by its range") ('\(client.document)')")
+            client.ignoresRanges = false
+        }
+
+        // @improve on it (live Bedrock): row 0 is the selection; the version picked replaces only it.
+        select()
+        command("i")
+        _ = enter(controller, client)
+        if finishConversion(controller, "@improve on the selection") {
+            check(controller.composer.choices.first?.text == part && untouched(), "row 0 is the selection; the field still untouched")
+            let picked = controller.composer.choices[controller.composer.highlighted].text
+            _ = enter(controller, client)
+            check(client.document == "Dear team, " + picked + " Thanks!" && picked != part && client.marked.isEmpty,
+                  "the version picked replaces the selection, the rest unchanged ('\(client.document)')")
+        }
+        // Esc in level two goes back to the command, Esc again gives it up: the field as it was.
+        select()
+        command("i")
+        _ = enter(controller, client)
+        _ = escape(controller, client)
+        check(controller.composer.draft == "@improve " && !controller.composer.isLevelTwo && untouched(),
+              "Esc in level two goes back to the command (\(controller.composer.draft))")
+        _ = escape(controller, client)
+        check(untouched() && controller.composer.phase == .idle, "Esc again: the field and its selection as they were")
+        controller.commitComposition(client)
     }
 
     /// Shift pressed and released on its own.
@@ -285,6 +454,31 @@ enum SelfTest {
             host.cacheDisplay(in: host.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("settings-switched-to-english.png"))
         }
+    }
+
+    /// The candidate layout's picker (Input page) saves as soon as it changes, like the other settings: the input
+    /// method reads it from the file when a text field becomes active. On a copy of the config, in `directory`.
+    static func testCandidateLayoutSaves(in directory: URL) {
+        let url = directory.appendingPathComponent("layout-config.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var config = (try? Config.load()) ?? .default
+        config.candidateLayout = .vertical
+        try? config.write(to: url)
+        let model = SettingsModel(configURL: url)
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.alphaValue = 0
+        window.contentView = host
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        _ = pump(timeout: 0.5) { false }
+        model.config.candidateLayout = .horizontal  // as the segmented control sets it
+        let saved = pump(timeout: 2) { (try? Config.load(from: url))?.candidateLayout == .horizontal }
+        check(saved, "the candidate layout is saved as soon as it changes (\((try? Config.load(from: url))?.candidateLayout.rawValue ?? "-"))")
+        model.config.candidateLayout = .vertical
+        let back = pump(timeout: 2) { (try? Config.load(from: url))?.candidateLayout == .vertical }
+        check(back, "and back")
     }
 
     static func testLanguageDrag() {
@@ -430,6 +624,7 @@ enum SelfTest {
         UIText.choice = pickedBefore
         testLanguageDrag()
         testLanguageSwitchRedraws(in: snapshotDirectory)
+        testCandidateLayoutSaves(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
         // A config file that doesn't parse is shown as an error and never overwritten.
@@ -466,6 +661,68 @@ enum SelfTest {
         check(controller.composer.phase == .choosing, String(format: "\(what) finished in %.2fs", Date().timeIntervalSince(started)))
         for choice in controller.composer.choices { print("  \(choice.label) \(choice.text)\(choice.kind.isRewrite ? "  [\(choice.kind)]" : "")") }
         return controller.composer.phase == .choosing
+    }
+
+    /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⏎ asks again with
+    /// the results as context; the new versions are shorter, the header names the step, Esc goes back to the results
+    /// before it, secure input refuses a refine like any request, and a pick inserts the refined text.
+    static func testRefine(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        print("— refine the results: shorter (live Bedrock)")
+        func versions() -> [String] { controller.composer.choices.filter { $0.kind == .version }.map(\.text) }
+        func average(_ lines: [String]) -> Double { lines.isEmpty ? 0 : Double(lines.map(\.count).reduce(0, +)) / Double(lines.count) }
+        tapShift(controller, client)  // English: the sentence and the instruction are typed as letters
+        improve(controller, client)
+        let sentence = "i wanted to let you know that the meeting we planned for tomorrow morning has been moved to "
+            + "three in the afternoon because the big room was not available and several people could not join earlier"
+        type(sentence, controller, client)
+        _ = act(controller, client)
+        guard finishConversion(controller, "@improve on a long sentence") else {
+            controller.commitComposition(client)
+            tapShift(controller, client)
+            return
+        }
+        let before = versions(), beforeResult = controller.composer.result
+        type("shorter", controller, client)
+        let typing = controller.panelModel()
+        check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
+              "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
+        check(typing.footer.hasPrefix("⏎ 按这句修改结果"), "the footer says ⏎ refines (\(typing.footer))")
+        readmeSnapshot("refine-typing", controller, client, in: snapshotDirectory)  // release notes
+        check(enter(controller, client) && controller.composer.isRefining, "⏎ runs the refine")
+        if finishConversion(controller, "refine: shorter") {
+            let after = versions()
+            check(after.count >= 2 && average(after) < average(before),
+                  String(format: "the refined versions are shorter (%.0f → %.0f characters on average)", average(before), average(after)))
+            let header = controller.panelModel().header ?? ""
+            check(header == "已修改：shorter", "the header names the step (\(header))")
+            readmeSnapshot("refine", controller, client, in: snapshotDirectory)  // release notes
+            check(controller.panelModel().footer.contains("Esc 上一版"), "the footer offers the step back (\(controller.panelModel().footer))")
+            // Esc: the results before it, as they were.
+            _ = escape(controller, client)
+            check(controller.composer.result == beforeResult && controller.composer.refineHistory.isEmpty
+                  && controller.composer.phase == .choosing, "Esc goes back to the results before the refine")
+            // The same refine again comes from the cache.
+            type("shorter", controller, client)
+            _ = enter(controller, client)
+            _ = pump(timeout: 2) { controller.composer.phase == .choosing }
+            check(controller.composer.phase == .choosing && versions() == after, "the same refine again is answered from the cache")
+            // Secure input refuses a refine like any request: the results stay, the instruction comes back.
+            controller.secureInputActive = { true }
+            type("warmer", controller, client)
+            _ = enter(controller, client)
+            let refusal = controller.composer.refineError ?? ""
+            check(refusal.contains("安全输入") && versions() == after && controller.composer.refineText == "warmer"
+                  && controller.panelModel().status == .error(refusal), "secure input refuses the refine (\(refusal))")
+            controller.secureInputActive = { false }
+            _ = escape(controller, client)  // clears the line
+            let first = controller.composer.choices[controller.composer.highlighted].text
+            _ = press(controller, client, "1", code: 0x12)
+            check(client.inserted.last == first && client.marked.isEmpty && !controller.composer.isComposing,
+                  "1 inserts the refined version: \(client.inserted.last ?? "")")
+        }
+        controller.commitComposition(client)
+        tapShift(controller, client)  // back to Chinese
+        _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the 中 (Chinese mode) notice
     }
 
     /// @improve with English typed in English mode → English polish (and English rewrites, incl. jargon,
@@ -1323,6 +1580,49 @@ enum SelfTest {
 
     /// `@imessage` with stand-ins for Contacts and Messages: nothing is read from the address book and
     /// nothing is sent.
+    /// `@reportissue`: ⏎ shows what the page will hold (versions, kinds, counts: nothing of the user's), Esc goes back
+    /// to the title, ⏎ ⏎ opens GitHub's new-issue page with it (recorded here, never opened); nothing is inserted.
+    static func testReportIssue(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        print("— @reportissue (nothing opened)")
+        _ = pump(timeout: 8) { controller.panelModel().detail == nil }  // a notice from before: not in the image
+        var opened: [String] = []
+        let saved = controller.openItem
+        controller.openItem = { opened.append($0) }
+        controller.setCommands(Command.catalog([]), recheck: true)
+        controller.composer.commands = Command.catalog([])
+        controller.composer.setInputMode(.english)
+        defer {
+            controller.openItem = saved
+            controller.commitComposition(client)
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        let inserted = client.inserted.count
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        type("reporti", controller, client)
+        press(controller, client, "\t", code: VirtualKey.tab)
+        type("panel stuck", controller, client)
+        check(client.marked == "reportissue › panel stuck", "@reporti Tab picks @reportissue, the title after it (\(client.marked))")
+        _ = enter(controller, client)
+        let model = controller.panelModel()
+        var shown = ""
+        if case let .hint(text) = model.status { shown = text }
+        check(controller.composer.phase == .choosing && opened.isEmpty && model.rows.first?.text == "panel stuck",
+              "⏎ shows the issue first, nothing opened (\(model.rows.map(\.text)))")
+        check(shown.contains("AllInOneIME: \(AppVersion.string)") && shown.contains("macOS: ") && shown.contains("Input languages: ")
+              && shown.contains("Custom commands: "), "the panel lists what goes with it (\(shown.split(separator: "\n").count) lines)")
+        check(!shown.contains(NSHomeDirectory()) && (NSUserName().count < 4 || !shown.contains(NSUserName())), "no home folder or user name in it")
+        check(shown.contains("Hide sensitive info: on") || shown.contains("Hide sensitive info: off"), "it says whether sensitive info is hidden, nothing more")
+        snapshot("report-issue", in: snapshotDirectory)
+        _ = escape(controller, client)
+        check(client.marked == "reportissue › panel stuck" && opened.isEmpty, "Esc goes back to the title (\(client.marked))")
+        _ = enter(controller, client)
+        _ = enter(controller, client)
+        let url = opened.first ?? ""
+        check(opened.count == 1 && url.hasPrefix(IssueReport.newIssueAddress + "?title=panel%20stuck&body=") && url.count <= IssueReport.maxURLLength,
+              "⏎ ⏎ opens GitHub's new-issue page with the title (\(url.prefix(90))…, \(url.count) characters)")
+        check(client.inserted.count == inserted && client.marked.isEmpty, "nothing is typed into the text field")
+    }
+
     static func testIMessage(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         print("— @imessage (stand-in contacts and sender)")
         let sender = StandInSender()
@@ -1425,6 +1725,66 @@ enum SelfTest {
         check(client.inserted == insertedBefore, "nothing went into the text field")
     }
 
+    /// The candidates in a row (`candidateLayout`): the panel is a line of cells under the caret, ← → move the
+    /// highlight and ↑↓ turn the page; in a column, → stays librime's (the cursor in the pinyin). Nothing is picked,
+    /// so nothing is learned.
+    static func testHorizontalCandidates(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
+        print("— candidates in a row")
+        let panel = CandidatePanel.shared
+        func arrow(_ code: UInt16) { press(controller, client, "", code: code) }
+        type("nihao", controller, client)
+        arrow(VirtualKey.right)
+        check(controller.composer.engineState.highlighted == 0 && !controller.panelModel().horizontal,
+              "in a column, → doesn't move the highlight (highlighted \(controller.composer.engineState.highlighted))")
+        let columnSize = panel.view.contentSize
+        _ = escape(controller, client)
+        settings.candidateLayout = .horizontal
+        controller.applySettings()
+        defer {
+            _ = escape(controller, client)
+            settings.candidateLayout = .vertical
+            controller.applySettings()
+        }
+        type("nihao", controller, client)
+        let size = panel.view.contentSize
+        check(controller.panelModel().horizontal && size.width > size.height && size.height < columnSize.height,
+              "the candidates are in a row (\(Int(size.width))×\(Int(size.height)); a column: \(Int(columnSize.width))×\(Int(columnSize.height)))")
+        let caretX = client.caretRect.minX, textX = panel.frame.minX + panel.view.textInset
+        check(panel.isVisible && abs(textX - caretX) < 1 && panel.frame.maxY <= client.caretRect.minY,
+              "under the caret, the first candidate's text at the caret (\(Int(textX)) / \(Int(caretX)))")
+        readmeSnapshot("1b-pinyin-horizontal", controller, client, in: snapshotDirectory)
+        snapshot("1b-pinyin-horizontal-dark", in: snapshotDirectory, appearance: .darkAqua)
+        arrow(VirtualKey.right)
+        arrow(VirtualKey.right)
+        check(controller.composer.engineState.highlighted == 2, "→ → highlight the third (\(controller.composer.engineState.highlighted))")
+        arrow(VirtualKey.left)
+        check(controller.composer.engineState.highlighted == 1, "← back to the second (\(controller.composer.engineState.highlighted))")
+        let first = controller.composer.engineState.candidates.first?.text
+        arrow(VirtualKey.down)
+        check(controller.composer.engineState.pageNumber == 1 && controller.composer.engineState.candidates.first?.text != first,
+              "↓ turns the page (page \(controller.composer.engineState.pageNumber + 1))")
+        arrow(VirtualKey.up)
+        check(controller.composer.engineState.pageNumber == 0, "↑ turns it back (page \(controller.composer.engineState.pageNumber + 1))")
+        check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao" && client.inserted.last != first,
+              "nothing was picked on the way (\(client.marked))")
+
+        // A long candidate is cut with "…", its cell no wider than what's left of it.
+        let long = String(repeating: "这是一个很长很长的句子", count: 6)
+        let fitted = CandidateView.fitted(NSAttributedString(string: long, attributes: [.font: CandidateView.Fonts.candidate]),
+                                          width: CandidateView.Metrics.maxCellTextWidth)
+        let width = fitted.size().width
+        check(fitted.string.hasSuffix("…") && width <= CandidateView.Metrics.maxCellTextWidth
+              && width > CandidateView.Metrics.maxCellTextWidth - CandidateView.Fonts.candidate.pointSize * 2,
+              "a long candidate is cut to fit, no gap after the … (\(Int(width)) of \(Int(CandidateView.Metrics.maxCellTextWidth)) pt)")
+        panel.show(CandidateView.Model(rows: ["你好", long, "拟好"].enumerated().map {
+            CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+        }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
+        snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
+        // The setting is on the Input page (with the input languages), and the search finds it there.
+        check(SettingsPage.input.matches("candidate layout") && SettingsPage.input.matches("横排") && !SettingsPage.general.matches("横排"),
+              "searching for the candidate layout finds the Input page, not General")
+    }
+
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).
     static func scrolledHeight(_ view: NSView) -> CGFloat? {
         if let scroll = view as? NSScrollView, let document = scroll.documentView { return document.frame.height }
@@ -1459,7 +1819,7 @@ enum SelfTest {
             controller.composer.setInputMode(settings.defaultInput)
         }
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([Language.english])
         settings.setOrder([OutputLanguage.english])
         settings.uiLanguage = .english
@@ -1497,7 +1857,7 @@ enum SelfTest {
         }
         let languages = ["es", "fr", "de"].map(OutputLanguage.init)
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([Language.english])
         settings.setOrder(languages)
         settings.uiLanguage = .english
@@ -1595,6 +1955,116 @@ enum SelfTest {
     /// candidates (@py and @js from their child processes), output with several lines goes in as printed
     /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
     /// search key is a stand-in: the user's keychain is never read here.
+    /// Typed out with typos fixed on the way (`Config.typeOutMistakes`): the field ends up with exactly the text,
+    /// each typo taken back by its range. Esc or another key while a typo is in the field leaves none behind. No
+    /// typos in a terminal, nor in a field that tells no caret. Seeded "random" numbers, short pauses.
+    static func testTypos(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, clear: () -> Void) {
+        let (mistakesBefore, sleepBefore, documentBefore) = (settings.typeOutMistakes, controller.typeOutSleep, client.document)
+        settings.typeOutMistakes = true
+        controller.applySettings()
+        // The apps remembered for not keeping a fix: the self-test's own (the user's stay as they are).
+        let memoryBefore = TypoMemory.defaults
+        let suite = "com.aipinyin.selftest.typos"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        TypoMemory.defaults = UserDefaults(suiteName: suite) ?? .standard
+        defer {
+            settings.typeOutMistakes = mistakesBefore
+            controller.applySettings()
+            (controller.typeOutSleep, controller.typeOutRandom) = (sleepBefore, nil)
+            (client.document, client.selection, client.bundleIDOverride, client.knowsRanges, client.ignoresRanges) = (documentBefore, nil, nil, true, false)
+            TypoMemory.defaults = memoryBefore
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+        }
+        let text = "Thanks for the quick reply, I will look into it tomorrow morning and get back to you. "
+            + "See https://example.com/docs or write to ops@example.com, order 1042. 好的，明天下午三点见！"
+        func seeded(_ seed: UInt64) -> () -> Double {
+            var state = seed &* 0x9E37_79B9_7F4A_7C15
+            return {
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                return Double(state >> 11) / Double(UInt64(1) << 53)
+            }
+        }
+        /// Types `text` out after "Re: " in the field; how many typos were taken back.
+        func typeOut(_ text: String, until stop: (() -> Bool)? = nil) -> Int {
+            (client.document, client.selection, client.replacements) = ("Re: ", nil, 0)
+            controller.perform([.typeOut(text)], client: client)
+            _ = pump(timeout: 20) { !controller.isTypingOut || stop?() == true }
+            return client.replacements
+        }
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 2_000_000) }
+        var fixed: [Int] = []
+        var exact = true
+        for seed in UInt64(1)...4 {
+            controller.typeOutRandom = seeded(seed)
+            fixed.append(typeOut(text))
+            exact = exact && client.document == "Re: " + text
+        }
+        check(exact && fixed.reduce(0, +) > 0, "typed out with typos fixed on the way: the text exact (\(fixed) taken back)")
+
+        // A typo in the field when typing stops: taken out first. "Random" 0: one wherever one may be.
+        controller.typeOutRandom = { 0.001 }
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 30_000_000) }
+        let intended = "Re: " + text
+        let typo = { !intended.hasPrefix(client.document) }
+        let caught = typeOut(text, until: typo) == 0 && typo()
+        _ = escape(controller, client)
+        check(caught && !controller.isTypingOut && intended.hasPrefix(client.document) && client.document.count > 4,
+              "Esc while a typo is in the field takes it out and stops there ('\(client.document)')")
+        if typeOut(text, until: typo) == 0, typo() {
+            press(controller, client, "a", code: keyCodes["a"] ?? 0)  // the typo out, the rest at once, then the key
+            check(!controller.isTypingOut && client.document.hasPrefix(intended),
+                  "another key while a typo is in the field: it's taken out and the rest typed (\(client.document.count - intended.count) more)")
+            clear()
+        } else {
+            check(false, "a typo to stop at")
+        }
+
+        // The caret moved while a typo is in the field (a click): the typo is taken out where it was typed, the
+        // rest typed plainly; every character there once.
+        if typeOut(text, until: typo) == 0, typo() {
+            client.selection = NSRange(location: 4, length: 0)
+            _ = pump(timeout: 20) { !controller.isTypingOut }
+            check(client.document.sorted() == intended.sorted() && client.replacements > 0,
+                  "the caret moved while a typo is in the field: it's taken out, every character there once ('\(client.document)')")
+        } else {
+            check(false, "a typo to move the caret at")
+        }
+
+        // A field that reads back but ignores replacement ranges: the typo can't be taken back, so it stays (one
+        // character off at most, nothing more added), and its app is remembered: no typos there the next time.
+        controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 1_000_000) }
+        (client.bundleIDOverride, client.ignoresRanges) = ("com.example.ignores-ranges", true)
+        controller.typeOutRandom = seeded(1)
+        _ = typeOut(text)
+        let firstRun = client.document
+        let remembered = TypoMemory.contains( "com.example.ignores-ranges")
+        check(oneEditApart(firstRun, intended) && remembered && !TypoMemory.remember(""),
+              "a field ignoring replacement ranges: one typo stays at most, its app remembered (\(remembered)): '\(firstRun)'")
+        _ = typeOut(text)
+        check(client.document == intended, "…the next time, no typos there: the text exact")
+        TypoMemory.forget()
+        check(TypoMemory.apps.isEmpty, "…until forgotten (Settings → General); never an app without a bundle identifier")
+        (client.bundleIDOverride, client.ignoresRanges) = (nil, false)
+
+        // No typos where they couldn't be taken back.
+        client.bundleIDOverride = "com.mitchellh.ghostty"
+        let inTerminal = typeOut(text)
+        check(inTerminal == 0 && client.document == intended, "no typos in a terminal (\(inTerminal) taken back)")
+        client.bundleIDOverride = nil
+        client.knowsRanges = false
+        let noRanges = typeOut(text)
+        check(noRanges == 0 && client.document == intended, "no typos in a field that tells no caret (\(noRanges) taken back)")
+    }
+
+    /// Whether `a` and `b` are the same, or one character substituted, added or left out.
+    static func oneEditApart(_ a: String, _ b: String) -> Bool {
+        let (x, y) = (Array(a), Array(b))
+        if x == y { return true }
+        let prefix = zip(x, y).prefix { $0 == $1 }.count
+        let suffix = zip(x.reversed(), y.reversed()).prefix { $0 == $1 }.count
+        return max(x.count, y.count) - min(prefix + suffix, min(x.count, y.count)) <= 1
+    }
+
     /// An answer with line breaks (code) in a terminal: they go in as a paste, which the shell or Claude Code
     /// takes as text, not as Return; typed out, the characters are typed and each line break pasted. Without
     /// that (no Accessibility permission) on one line. A live @question; the paste is recorded here.
@@ -1725,8 +2195,8 @@ enum SelfTest {
 
         // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
         // another key types the rest at once. Short pauses here.
-        let (typedBefore, sleepBefore) = (settings.typeOut, controller.typeOutSleep)
-        settings.typeOut = true
+        let (typedBefore, mistakesBefore, sleepBefore) = (settings.typeOut, settings.typeOutMistakes, controller.typeOutSleep)
+        (settings.typeOut, settings.typeOutMistakes) = (true, false)  // one character at a time, no typos (`testTypos` has those)
         controller.applySettings()
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 40_000_000) }
         func typedOut(_ text: String) -> Bool {
@@ -1764,7 +2234,8 @@ enum SelfTest {
             check(!controller.isTypingOut && typed.hasPrefix("1099511627776"), "another key types the rest at once (\(typed))")
             clear()
         }
-        settings.typeOut = typedBefore
+        testTypos(controller, client, clear: clear)
+        (settings.typeOut, settings.typeOutMistakes) = (typedBefore, mistakesBefore)
         controller.applySettings()
         controller.typeOutSleep = sleepBefore
 
@@ -1869,6 +2340,15 @@ enum SelfTest {
         index.generation = 1_000_000  // another than the empty one's: the command list is built again for it
         check(index.commands.map(\.name) == ["stgreet", "sthello", "stlist", "stneeds", "stwait", "stquiet"] && index.skipped.isEmpty,
               "extensions read from a folder: the bundle's first, Raycast's last (\(index.commands.map(\.name)), \(index.skipped.count) skipped)")
+        // A copy of the folder found by Spotlight (another checkout): only its Raycast script is read, and that is
+        // a copy of one loaded, left out without a warning.
+        let copy = folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + "-copy")
+        try? FileManager.default.copyItem(at: folder, to: copy)
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let withCopy = ExtensionStore.load([.init(path: folder.path, found: false), .init(path: copy.path, found: true)])
+        check(withCopy.commands == index.commands && withCopy.bundles == index.bundles && withCopy.skipped.isEmpty
+              && withCopy.identical.map(\.path) == [copy.appendingPathComponent("stquiet.sh").path],
+              "a found copy of the folder adds nothing and warns of nothing (\(withCopy.identical.map(\.lastPathComponent)), \(withCopy.skipped.count) skipped)")
         controller.loadExtensions = { _, _ in index }
         controller.composer.setInputMode(.english)  // the texts below are typed as letters
 
@@ -1951,6 +2431,9 @@ enum SelfTest {
 
     static func run(snapshotDirectory: URL) -> Int32 {
         _ = NSApplication.shared
+        // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
+        QuestionHistoryStore.url = snapshotDirectory.appendingPathComponent("recent-questions.json")
+        QuestionHistoryStore.clear()  // none left from a run before
         // Voice tests play audio files; the microphone and its permission prompt are never used.
         AllInOneIMEInputController.microphoneAllowed = false
         try? FileManager.default.createDirectory(at: snapshotDirectory, withIntermediateDirectories: true)
@@ -2012,16 +2495,18 @@ enum SelfTest {
         controller.canPasteInTerminal = { false }
         controller.pasteInTerminal = { _ in }
         controller.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
+        controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
+        controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions), whatever the user added.
         // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
         // English only), and the user's back afterwards.
         let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
         settings.setOrder([Language.chinese, .english])  // pinyin, whatever the user's own default input is
         settings.uiLanguage = .chinese
@@ -2070,7 +2555,7 @@ enum SelfTest {
         // The real config (model, styles, credentials) with the new options pinned to known values;
         // sections below change `settings` and the controller follows (nothing is written to disk).
         settings = (try? Config.load()) ?? .default
-        settings.typeOut = false
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])  // Shift switches
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
@@ -2078,6 +2563,9 @@ enum SelfTest {
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
         settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
+        // In a column (horizontal is the default): the checks and README images below read the candidates one under
+        // the other; `testHorizontalCandidates` tries the row.
+        settings.candidateLayout = .vertical
         controller.loadSettings = { SelfTest.settings }
         controller.converter = liveConverter
         // README images read the same on every Mac: times with the 24-hour clock, whatever this one uses.
@@ -2238,6 +2726,14 @@ enum SelfTest {
         snapshot("1-pinyin", in: snapshotDirectory)
         check(escape(controller, client) && client.marked.isEmpty && !controller.composer.isComposing, "Esc cancels the pinyin")
 
+        // A click on a row (the panel's own handler, as its mouseDown calls it) picks it, as its digit would. On
+        // today's date ("rq", rime-ice's Lua): a word picked would be learned, and move up in the checks below.
+        type("rq", controller, client)
+        let clicked = controller.composer.engineState.candidates.dropFirst().first?.text ?? "-"
+        panel.onSelect?(1)
+        check(client.inserted.last == clicked && client.marked.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
+        testHorizontalCandidates(controller, client, snapshotDirectory: snapshotDirectory)
+
         type("rq", controller, client)
         let year = String(Calendar(identifier: .gregorian).component(.year, from: Date()))
         let dates = controller.composer.engineState.candidates.map(\.text)
@@ -2350,6 +2846,8 @@ enum SelfTest {
         _ = space(controller, client)
         check(client.inserted.last == choices[1].text, "Space commits the highlighted English")
 
+        testRefine(controller, client, snapshotDirectory: snapshotDirectory)
+
         print("— typing more in level two continues the sentence")
         improve(controller, client)
         type("nihao", controller, client)
@@ -2426,7 +2924,7 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         let english = controller.panelModel()
         let styleNames = english.rows.dropFirst().map { $0.comment.components(separatedBy: " · ")[0] }
-        check(english.footer == "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back"
+        check(english.footer == "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back"
               && english.rows.first?.comment == "original" && !styleNames.joined().containsHan,
               "English results panel: \(english.footer) | \(english.rows.map(\.comment))")
         snapshot("9-english-ui", in: snapshotDirectory)
@@ -2452,7 +2950,13 @@ enum SelfTest {
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
         testToolCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
+        testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
+        testCommandsOnSelection(controller, client)
+        testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
+        testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
+        testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
 
         print("— error display")
         controller.converter = Converter(loadConfig: {
@@ -2486,6 +2990,7 @@ enum SelfTest {
         let menu = controller.menu()
         let menuTitles = menu?.items.map(\.title) ?? []
         check(menuTitles.count > 2 && menuTitles[2].hasPrefix("模型："), "menu shows the model right after 设置… (\(menuTitles.prefix(3)))")
+        check(menuTitles.suffix(2) == ["报告问题…", "检查更新…"], "the menu ends with 报告问题… and 检查更新… (\(menuTitles.suffix(2)))")
         // The styles sit in a submenu, whose title names the ones that are on.
         let stylesItem = menu?.items.first { $0.title.hasPrefix("改写风格：") }
         let styleItems = stylesItem?.submenu?.items.filter { $0.action == #selector(AllInOneIMEInputController.toggleStyle(_:)) } ?? []
@@ -2531,6 +3036,7 @@ enum SelfTest {
               "input languages toggle; the last one stays on")
         testFloatingPanel(controller, snapshotDirectory: snapshotDirectory)
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
+        testUpdates(controller, snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 
         print(failures == 0 ? "SELFTEST PASSED" : "SELFTEST FAILED (\(failures))")

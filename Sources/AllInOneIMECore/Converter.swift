@@ -10,6 +10,8 @@ public struct ConversionUpdate: Equatable, Sendable {
     /// Seconds until the first text delta arrived (nil until then, and for cache hits).
     public var firstTokenLatency: TimeInterval?
     public var fromCache: Bool
+    /// How many values were hidden from the AI in the request (`Redaction`); 0 when none or hiding is off.
+    public var hidden: Int = 0
 }
 
 /// Turns typed input into streamed `ConversionUpdate`s using the configured provider (`ChatClient`).
@@ -32,21 +34,25 @@ public final class Converter: Sendable {
         loadConfig: @escaping ConfigLoader = { try Config.load() },
         loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
-        loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) }
+        loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
+        appleModel: any AppleModelBackend = AppleModel.system
     ) {
-        self.client = ChatClient(bedrock: client)
+        self.client = ChatClient(bedrock: client, apple: appleModel)
         self.loadConfig = loadConfig
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey
         self.loadJargon = loadJargon
     }
 
-    /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request.
-    public func convert(_ input: String, mode: WritingMode = .both) -> AsyncThrowingStream<ConversionUpdate, Error> {
+    /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request. `app`: the bundle id of the app it's
+    /// typed in, whose profile may have its own rewrite styles, or no AI (`AppProfile`). With `turns`, a follow-up on
+    /// results already shown (`Refinement`): the same lines again, revised as the last instruction asks.
+    public func convert(_ input: String, mode: WritingMode = .both, app: String? = nil,
+                        turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.run(input, mode: mode, continuation: continuation)
+                    try await self.run(input, mode: mode, app: app, turns: turns, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -56,27 +62,37 @@ public final class Converter: Sendable {
         }
     }
 
-    private func run(_ input: String, mode: WritingMode, continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
+    private func run(_ input: String, mode: WritingMode, app: String?, turns: [Refinement.Turn], continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
             let d = ContinuousClock.now - started
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
 
-        let config = try loadConfig()
+        let config = try Self.settings(try loadConfig(), app: app)
+        // Sensitive values hidden from the model (`Redaction`), put back in what it writes. A refine's turns (the
+        // answers shown, the instructions) are hidden after the text, so its values keep the placeholders they had.
+        var redaction = Redaction(config.redaction)
+        let sent = redaction?.hide(input) ?? input
+        let lastMessage = Self.hideTurns(turns, with: &redaction) ?? sent
+        let hidden = redaction?.count ?? 0
         let plan = WritingPlan.make(mode, text: input, config: config)
         let output = plan.versions
-        let jargon = plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : []
+        let jargon = (plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : [])
+            .filter { redaction?.allows($0) ?? true }
         let jargonKey = jargon.isEmpty ? "" : "j\(JargonLibrary.fingerprint(jargon))|"
         let key = "\(config.activeModel)|\(Prompt.version)|\(plan.key)|\(jargonKey)\(input)"
+            + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(),
-                firstTokenLatency: nil, fromCache: true))
+                firstTokenLatency: nil, fromCache: true, hidden: hidden))
             return
         }
 
-        let stream = client.stream(Prompt.request(for: input, mode: mode, config: config, jargon: jargon), config: config,
+        let request = turns.isEmpty ? Prompt.request(for: input, mode: mode, config: config, jargon: jargon)
+            : Prompt.refineRequest(for: input, mode: mode, config: config, jargon: jargon, turns: turns)
+        let stream = client.stream(redaction?.protect(request, sent: lastMessage) ?? request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
 
         var text = ""
@@ -85,39 +101,51 @@ public final class Converter: Sendable {
         var lastResult = ConversionResult.empty
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            guard case let .textDelta(delta) = event else { continue }
+            if case let .textDelta(delta) = event {
+                text += delta
+            } else if case let .textReplaced(whole) = event {
+                text = whole
+            } else {
+                continue
+            }
             if firstToken == nil { firstToken = elapsed() }
-            text += delta
             // Far more than 3 sentences plus the rewrites; treat the rest as truncated.
             if text.utf8.count > Self.maxOutputBytes {
                 stopReason = "max_tokens"
                 break
             }
-            let result = CandidateParser.parse(text, isFinal: false, output: output, translations: plan.translations)
+            let parsed = CandidateParser.parse(text, isFinal: false, output: output, translations: plan.translations)
+            let result = redaction?.restore(parsed) ?? parsed
             // Most deltas only extend a line; skip updates that don't change what is shown.
             guard result != lastResult else { continue }
             lastResult = result
             continuation.yield(ConversionUpdate(
                 result: result, rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
         }
         try Task.checkCancellation()
 
-        let final = Self.finalResult(text, stopReason: stopReason, output: output, translations: plan.translations)
+        let parsed = Self.finalResult(text, stopReason: stopReason, output: output, translations: plan.translations)
+        let final = redaction?.restore(parsed) ?? parsed
         if !final.isEmpty, stopReason != "max_tokens" {
             cache.withLock { $0.set(key, final) }
         }
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(),
-            firstTokenLatency: firstToken, fromCache: false))
+            firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
     }
 
-    /// Runs a `.generate` command: the answer streams in as the single version of the result.
-    public func generate(_ command: Command, input: String) -> AsyncThrowingStream<ConversionUpdate, Error> {
+    /// Runs a `.generate` command: the answer streams in as the single version of the result (`app` as for `convert`).
+    /// `fresh`: asked again even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new
+    /// one is kept instead. With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again,
+    /// revised as the last instruction asks.
+    public func generate(_ command: Command, input: String, app: String? = nil, fresh: Bool = false,
+                         turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runCommand(command, input: input, continuation: continuation)
+                    try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
+                                              continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -127,45 +155,77 @@ public final class Converter: Sendable {
         }
     }
 
-    private func runCommand(_ command: Command, input: String,
+    private func runCommand(_ command: Command, input: String, app: String?, fresh: Bool = false, turns: [Refinement.Turn],
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
             let d = ContinuousClock.now - started
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
-        let config = try loadConfig()
+        let config = try Self.settings(try loadConfig(), app: app)
+        // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
+        // a refine's turns (as for `convert`).
+        var redaction = Redaction(config.redaction)
+        let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
+        let lastMessage = Self.hideTurns(turns, with: &redaction) ?? sent
+        let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
-        if let hit = cache.withLock({ $0.get(key) }) {
+            + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
+        if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
-                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true))
+                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden))
             return
         }
-        let stream = client.stream(Prompt.commandRequest(command, input: input, config: config), config: config,
+        let request = turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config)
+            : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
+        let stream = client.stream(redaction?.protect(request, sent: lastMessage) ?? request, config: config,
                                    loadCredentials: loadCredentials, loadKey: loadKey)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
-            ConversionResult(versions: [CandidateLine(Self.lines(text), isComplete: complete)])
+            let lines = Self.lines(text)
+            return ConversionResult(versions: [CandidateLine(redaction?.restore(lines, complete: complete) ?? lines, isComplete: complete)])
         }
         var text = ""
         var firstToken: TimeInterval?
         var stopReason: String?
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            guard case let .textDelta(delta) = event else { continue }
+            if case let .textDelta(delta) = event {
+                text += delta
+            } else if case let .textReplaced(whole) = event {
+                text = whole
+            } else {
+                continue
+            }
             if firstToken == nil { firstToken = elapsed() }
-            text += delta
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
         }
         try Task.checkCancellation()
         // Cut off at the token limit, the text still reads as an answer: keep it, but don't cache it.
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
         if !final.isEmpty, stopReason != "max_tokens" { cache.withLock { $0.set(key, final) } }
         continuation.yield(ConversionUpdate(
-            result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false))
+            result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
+            hidden: hidden))
+    }
+
+    /// A refine's turns hidden (`Redaction.hide`) after the request's own texts, in the order sent: each answer's lines,
+    /// then its instruction. A value already hidden keeps its placeholder; a new one (in an instruction) gets the next.
+    /// The last message as it is sent (the last instruction, hidden), or nil when there are no turns or hiding is off.
+    static func hideTurns(_ turns: [Refinement.Turn], with redaction: inout Redaction?) -> String? {
+        guard !turns.isEmpty, redaction != nil else { return nil }
+        let texts = turns.flatMap { Prompt.answerLines($0.answer) + [$0.instruction] }
+        let sent = redaction!.hide(texts)
+        return sent.last.map(Prompt.refineMessage)
+    }
+
+    /// `config` as it applies in `app` (`Config.applying`); nothing is sent from an app with no AI.
+    static func settings(_ config: Config, app: String?) throws -> Config {
+        guard config.allowsAI(in: app) else { throw AppProfile.Refusal.noAI }
+        return config.applying(app: app)
     }
 
     /// Model text as one line that is safe to insert anywhere, including a terminal: controls and

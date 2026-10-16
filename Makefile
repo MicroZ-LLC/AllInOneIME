@@ -4,11 +4,15 @@ BUILD_DIR     := build
 APP           := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR   := $(HOME)/Library/Input Methods
 INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
-# Any identity substring codesign accepts; falls back to ad-hoc signing if not found.
+# Any part of a codesigning identity's name, or its SHA-1 hash; falls back to ad-hoc signing if none matches.
+# If several match (two Apple Development certificates, say), the first `security find-identity -v` lists.
 SIGN_IDENTITY ?= Apple Development
+# That certificate as "HASH NAME" (Scripts/sign-identity.sh), looked up once; signed with by its hash, since
+# codesign refuses a name several match.
+SIGN_CERT = $(eval SIGN_CERT := $(shell Scripts/sign-identity.sh '$(SIGN_IDENTITY)'))$(SIGN_CERT)
+SIGN_HASH = $(firstword $(SIGN_CERT))
 # Developer ID signatures get a secure timestamp (from Apple, over the network): notarization needs it.
-# Goes by the certificate SIGN_IDENTITY picks, so a hash works too.
-TIMESTAMP = $(shell security find-identity -v -p codesigning | grep -F -- '$(SIGN_IDENTITY)' | grep -q 'Developer ID' && echo --timestamp)
+TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=
 SWIFT_BUILD = swift build -c $(CONFIG) $(foreach arch,$(ARCHS),--arch $(arch))
@@ -41,7 +45,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg update-zip update-manifest update-test test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -96,11 +100,11 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
 	# @claude, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
 	# (@imessage); the installer and `make dmg` ship this same build.
-	if security find-identity -v -p codesigning | grep -qF "$(SIGN_IDENTITY)"; then \
-		codesign --force --options runtime $(TIMESTAMP) --sign "$(SIGN_IDENTITY)" "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \
+	if [ -n "$(SIGN_HASH)" ]; then \
+		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \
 			"$(APP)/Contents/Frameworks/librime.1.dylib" && \
 		codesign --force --options runtime $(TIMESTAMP) --entitlements Resources/AllInOneIME.entitlements \
-			--sign "$(SIGN_IDENTITY)" "$(APP)"; \
+			--sign $(SIGN_HASH) "$(APP)"; \
 	else \
 		echo "warning: no '$(SIGN_IDENTITY)' signing identity; ad-hoc signing without hardened runtime"; \
 		codesign --force --sign - "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib "$(APP)/Contents/Frameworks/librime.1.dylib" && \
@@ -151,8 +155,8 @@ settings-app: Resources/AppIcon.icns
 		cp "Resources/Settings-$$lang.lproj/InfoPlist.strings" "$(SETTINGS_APP)/Contents/Resources/$$lang.lproj/"; \
 	done
 	printf 'APPL????' > "$(SETTINGS_APP)/Contents/PkgInfo"
-	if security find-identity -v -p codesigning | grep -qF "$(SIGN_IDENTITY)"; then \
-		codesign --force --options runtime $(TIMESTAMP) --sign "$(SIGN_IDENTITY)" "$(SETTINGS_APP)"; \
+	if [ -n "$(SIGN_HASH)" ]; then \
+		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(SETTINGS_APP)"; \
 	else \
 		codesign --force --sign - "$(SETTINGS_APP)"; \
 	fi
@@ -183,8 +187,8 @@ installer-app: app settings-app
 	mv "$(APP)" "$(SETTINGS_APP)" "$(PAYLOAD_DIR)/"
 	ditto -c -k --norsrc --noextattr --noacl --zlibCompressionLevel 0 "$(PAYLOAD_DIR)" "$(INSTALLER_APP)/Contents/Resources/Payload.zip"
 	rm -rf "$(PAYLOAD_DIR)"
-	if security find-identity -v -p codesigning | grep -qF "$(SIGN_IDENTITY)"; then \
-		codesign --force --options runtime $(TIMESTAMP) --sign "$(SIGN_IDENTITY)" "$(INSTALLER_APP)"; \
+	if [ -n "$(SIGN_HASH)" ]; then \
+		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(INSTALLER_APP)"; \
 	else \
 		codesign --force --sign - "$(INSTALLER_APP)"; \
 	fi
@@ -205,6 +209,41 @@ NOTARY_PROFILE ?=
 dmg:
 	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)"
 	Scripts/make-dmg.sh "$(INSTALLER_APP)" "$(DMG)" "$(APP_NAME) $(VERSION)" "$(DIST_IDENTITY)" "$(NOTARY_PROFILE)"
+	$(MAKE) update-zip
+
+# The in-app update (Settings → About → Update): build/AllInOneIME-<version>-update.zip, the same two apps as the
+# disk image's installer (its Payload.zip), compressed for the download. A release asset next to the disk image;
+# `make update-manifest` signs its manifest. Unpacked for a moment to compress it, then removed: build/ keeps no
+# second AllInOneIME.app.
+UPDATE_ZIP := $(BUILD_DIR)/$(APP_NAME)-$(VERSION)-update.zip
+
+update-zip:
+	@test -f "$(INSTALLER_APP)/Contents/Resources/Payload.zip" || { echo "error: no $(INSTALLER_APP); run make dmg"; exit 1; }
+	rm -rf "$(PAYLOAD_DIR)" "$(UPDATE_ZIP)" && mkdir -p "$(PAYLOAD_DIR)"
+	ditto -x -k "$(INSTALLER_APP)/Contents/Resources/Payload.zip" "$(PAYLOAD_DIR)"
+	ditto -c -k --norsrc --noextattr --noacl "$(PAYLOAD_DIR)" "$(UPDATE_ZIP)"
+	rm -rf "$(PAYLOAD_DIR)"
+	@echo "Built $(UPDATE_ZIP) ($$(du -h "$(UPDATE_ZIP)" | cut -f1 | tr -d ' '))"
+
+# site/public/update.json and update.json.sig: the update manifest (Scripts/build-update-manifest.swift), signed with
+# the releases' key from the login keychain, for the update archive as uploaded to the v<version> release on GitHub.
+# Its summary, in a sentence or two each: make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"
+# Deploy the site afterwards (site/: npx wrangler@4 deploy); the apps check it once a day.
+RELEASE_DOWNLOADS := https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v$(VERSION)
+UPDATE_SUMMARY_EN ?=
+UPDATE_SUMMARY_ZH ?=
+
+# The updater end to end against a temporary install and a test server on 127.0.0.1 (Scripts/test-update.sh):
+# never the installed app, nothing registered.
+update-test: app settings-app
+	Scripts/test-update.sh "$(BUILD_DIR)"
+
+update-manifest:
+	@test -f "$(UPDATE_ZIP)" || { echo "error: no $(UPDATE_ZIP); run make dmg"; exit 1; }
+	swift Scripts/build-update-manifest.swift --out site/public --zip "$(UPDATE_ZIP)" \
+		--url "$(RELEASE_DOWNLOADS)/$(notdir $(UPDATE_ZIP))" \
+		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
+		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
 test: deps
 	swift test
@@ -251,6 +290,12 @@ install: app settings-app
 	"$(LSREGISTER)" -f "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app"
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --register
 	@pkill -x $(LEGACY_APP_NAME) || true
+	# Started again here, not left to macOS: it starts an input method when a text field connects to it, and the
+	# fields already connected to the one stopped above may not until the focus or the input source changes (keys
+	# go nowhere meanwhile). In the background (-g); it is the installed copy (the build was moved there).
+	@pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null || open -g "$(INSTALLED_APP)"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null && break; sleep 0.5; done; \
+		pid=$$(pgrep -x -U "$$(id -u)" $(APP_NAME)) && echo "running:     pid $$pid" || echo "warning: $(APP_NAME) isn't running; switch to it once (Ctrl+Space)"
 
 uninstall:
 	-"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --disable
@@ -273,8 +318,8 @@ screenshots: selftest
 	swift Scripts/make-readme-images.swift "$(OUT)" docs/en en
 
 # The menu bar panel on screen, frosted glass over a colorful window (an offscreen render can't blur):
-# docs/panel-glass.png, docs/panel-swipe.png (a row swiped open) and docs/candidates-glass.png (the
-# candidate panel), and docs/en/ in English. Shows
+# docs/panel-glass.png, docs/panel-swipe.png (a row swiped open), docs/candidates-glass.png (the
+# candidate panel) and docs/candidates-horizontal.png (in a row), and docs/en/ in English. Shows
 # windows for a few seconds; needs the screen unlocked.
 panel-images: app
 	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs/en

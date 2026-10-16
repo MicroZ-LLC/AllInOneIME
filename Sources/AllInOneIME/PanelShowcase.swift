@@ -5,7 +5,8 @@ import SwiftUI
 /// `AllInOneIME --showcase OUT-DIR [dark] [zh]`: the menu bar panel as it looks on screen, for the release
 /// notes and the wiki. The real panel with the self-test's sample data (English; `zh`: Chinese) drops down over a
 /// colorful window, so its frosted glass has something to blur, and is captured with `screencapture`:
-/// `panel.png` as it opens, `panel-swipe.png` with a task swiped open to its Remove button. An
+/// `panel.png` as it opens, `panel-swipe.png` with a task swiped open to its Remove button, and the candidate
+/// panel under a line being typed: `candidates.png` in a column, `candidates-horizontal.png` in a row. An
 /// offscreen render can't show the glass (nothing is behind it). Needs the screen unlocked; the windows
 /// are up for about four seconds. Nothing real is read: Notes, Reminders and Claude Code are stand-ins.
 @MainActor
@@ -60,11 +61,25 @@ enum PanelShowcase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
             MainActor.assumeIsolated {
                 capture("candidates.png")
+                // The same in a row (`candidateLayout`), the second highlighted as → would.
+                let rows = (chinese ? ["我们", "我门", "握们", "沃们", "卧"] : ["we", "well", "were", "went", "west"]).enumerated().map {
+                    CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+                }
+                let line = NSRect(x: backdrop.minX + 60, y: backdrop.maxY - 150, width: 2, height: 20)
+                CandidatePanel.shared.show(CandidateView.Model(rows: rows, highlighted: 1,
+                                                               footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands",
+                                                               detail: chinese ? "第 1 页" : "page 1", horizontal: true),
+                                           anchor: line)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.6) {
+            MainActor.assumeIsolated {
+                capture("candidates-horizontal.png")
                 CandidatePanel.shared.hide()
                 panel.show(below: anchor)
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.2) {
             MainActor.assumeIsolated {
                 if case let .list(rows) = panel.tasks, let row = rows.first { panel.showSwiped(.task(row.id)) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -106,10 +121,10 @@ enum PanelShowcase {
 }
 
 /// `AllInOneIME --settings-image OUT-DIR [zh] [dark]`: every page of the settings window drawn offscreen,
-/// `settings-<page>.png`, from the config file as it is (nothing is saved).
+/// `settings-<page>.png`, from the config file as it is (nothing is saved), with sample apps and hidden words.
 @MainActor
 enum SettingsPageImages {
-    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil) -> Never {
+    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -119,10 +134,33 @@ enum SettingsPageImages {
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
-        // Public examples rather than the user's own folders, when given (`extensions=<folder>`).
+        // Settings → Apps with sample apps, never the user's own (the images go into docs and release notes).
+        model.config.appProfiles = AppProfileSamples.profiles
+        // Hiding sensitive information shown on, with its switches and sample words, never the user's own.
+        model.config.redaction = RedactionSettings(enabled: true, customWords: ["Project Atlas", "Phoenix"])
+        // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
+        // the first as added, any others as if Spotlight had found them).
         if let extensions {
-            model.config.extensionFolders = [ExtensionStore.abbreviated((extensions as NSString).expandingTildeInPath)]
-            model.config.findRaycastScripts = false
+            let paths = extensions.split(separator: ",").map { ExtensionStore.abbreviated((String($0) as NSString).expandingTildeInPath) }
+            model.config.extensionFolders = Array(paths.prefix(1))
+            model.config.findRaycastScripts = paths.count > 1
+            model.config.hiddenExtensionFolders = []
+            LiveExtensions.shownFound = Array(paths.dropFirst())
+        }
+        // The Updates card in a state of its own (nothing is checked or downloaded).
+        if let update {
+            let updates = UpdateController.shared
+            updates.lastChecked = Date().addingTimeInterval(-2 * 3600)
+            updates.updatesInPlace = true  // as the installed copy shows it (Update, not Download)
+            switch update {
+            case "available": updates.state = .available(.sample())
+            case "downloading": updates.state = .downloading(.sample(), 0.42)
+            case "failed": updates.state = .failed(UpdateText.describe(UpdateError.hashMismatch), .sample())
+            case "updated":
+                updates.state = .upToDate
+                updates.lastResult = UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true)
+            default: updates.state = .upToDate
+            }
         }
         for page in SettingsPage.allCases {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),

@@ -113,36 +113,18 @@ enum Installer {
         let legacy = legacyApps.filter(exists)
         if !legacy.isEmpty { _ = try? run(lsregister, ["-u"] + legacy.map(\.path)) }
         // The old apps are moved aside first, so a failure on the way puts them back instead of
-        // leaving no input method at all.
-        let aside = staging.appendingPathComponent("previous", isDirectory: true)
-        try manager.createDirectory(at: aside, withIntermediateDirectories: false)
-        var movedAside: [(from: URL, to: URL)] = []
-        var placed: [URL] = []
+        // leaving no input method at all (the in-app updater swaps them the same way).
+        let swap: BundleSwap
         do {
-            for (index, app) in ([inputMethod, settingsApp] + legacy).enumerated() where exists(app) {
-                let parked = aside.appendingPathComponent("\(index)-\(app.lastPathComponent)")
-                try manager.moveItem(at: app, to: parked)
-                movedAside.append((app, parked))
-            }
-            for item in incoming {
-                try manager.moveItem(at: item.app, to: item.to)
-                placed.append(item.to)
-            }
-        } catch {
-            for app in placed { try? manager.removeItem(at: app) }
-            var restored = true
-            for item in movedAside.reversed() where (try? manager.moveItem(at: item.to, to: item.from)) == nil {
-                restored = false
-            }
-            guard restored else {
-                keepStaging = true
-                throw Failure.notRestored(error.localizedDescription, folder: aside.path)
-            }
-            throw error
+            swap = try BundleSwap.perform(placing: incoming.map { ($0.app, $0.to) }, replacing: [inputMethod, settingsApp] + legacy,
+                                          aside: staging.appendingPathComponent("previous", isDirectory: true))
+        } catch let BundleSwap.Failure.notRestored(reason, folder) {
+            keepStaging = true
+            throw Failure.notRestored(reason, folder: folder)
         }
-        adoptChinesePack(from: movedAside.map(\.to))
+        adoptChinesePack(from: swap.movedAside.map(\.to))
         // No second copy (same bundle ID) for macOS to find while the new one registers.
-        try? manager.removeItem(at: aside)
+        swap.commit()
         // In case macOS started the old copy again in between: from now on it starts the new one.
         stopInputMethod()
         _ = try? run(lsregister, ["-f", inputMethod.path, settingsApp.path])
@@ -253,43 +235,17 @@ enum Installer {
 
     // MARK: Helpers
 
-    static func removeQuarantine(_ app: URL) {
-        removexattr(app.path, "com.apple.quarantine", XATTR_NOFOLLOW)
-        let items = FileManager.default.enumerator(at: app, includingPropertiesForKeys: nil)
-        while let item = items?.nextObject() as? URL {
-            removexattr(item.path, "com.apple.quarantine", XATTR_NOFOLLOW)
-        }
-    }
-
-    /// The team that signed this installer; nil when it's ad-hoc signed.
-    static let ownTeamID: String? = {
-        var code: SecCode?
-        var staticCode: SecStaticCode?
-        var info: CFDictionary?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
-              SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-              SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess
-        else { return nil }
-        return (info as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String
-    }()
+    static func removeQuarantine(_ app: URL) { CodeSignature.removeQuarantine(app) }
 
     /// The unpacked app is intact (every architecture, nested code included) and is the expected
     /// one: its bundle ID, and when this installer is signed by a team, signed by the same team.
     /// Who made an ad-hoc signed app can't be checked; that's what notarization is for.
     static func checkSignature(_ app: URL, identifier: String) throws {
-        var text = "identifier \"\(identifier)\""
-        if let team = ownTeamID {
-            text += " and anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
+        do {
+            try CodeSignature.check(app, identifier: identifier, team: CodeSignature.ownTeamID)
+        } catch let failure as CodeSignature.Failure {
+            throw Failure.signature(failure.app, failure.status)
         }
-        var requirement: SecRequirement?
-        var code: SecStaticCode?
-        var status = SecRequirementCreateWithString(text as CFString, [], &requirement)
-        if status == errSecSuccess { status = SecStaticCodeCreateWithPath(app as CFURL, [], &code) }
-        if status == errSecSuccess, let code {
-            let flags = SecCSFlags(rawValue: UInt32(kSecCSCheckAllArchitectures | kSecCSCheckNestedCode | kSecCSStrictValidate))
-            status = SecStaticCodeCheckValidity(code, flags, requirement)
-        }
-        guard status == errSecSuccess else { throw Failure.signature(app.lastPathComponent, status) }
     }
 
     static let uid = String(getuid())

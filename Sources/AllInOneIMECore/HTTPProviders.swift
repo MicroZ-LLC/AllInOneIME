@@ -102,8 +102,8 @@ public enum HTTPProviders {
                 "inferenceConfig": ["maxTokens": maxTokens],
             ]
             if let t = body.inferenceConfig.temperature { json["inferenceConfig"] = ["maxTokens": maxTokens, "temperature": t] }
-        case .bedrock:
-            throw ProviderError.invalidResponse(provider, "Bedrock requests are signed by BedrockClient")
+        case .bedrock, .apple:
+            throw ProviderError.invalidResponse(provider, "not an HTTP provider")
         }
         if provider != .gemini, provider != .hosted, let t = settings.temperature { json["temperature"] = t }
         guard let url = URL(string: base + path), let scheme = url.scheme?.lowercased(), ["https", "http"].contains(scheme),
@@ -171,7 +171,7 @@ public enum HTTPProviders {
             if let text = object["text"] as? String { return [.textDelta(text)] }
             if let stop = object["stop"] as? String { return [.messageStop(reason: stop)] }
             return []
-        case .bedrock:
+        case .bedrock, .apple:
             return []
         }
     }

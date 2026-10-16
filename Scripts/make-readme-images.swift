@@ -8,6 +8,10 @@
 // voice.png     dictation (hold right ⌥) after a command
 // commands.png  the @ command palette → @question's answer
 // open.png      @open: Spotlight as you type, and a path listing a folder (only macOS's own apps)
+// candidates-horizontal.png   pinyin candidates side by side (the default layout)
+// refine.png    refining the results: an instruction typed under them → the refined results
+// recent-questions.png   @question with nothing after it: the recent questions (made-up ones)
+// selection.png @improve on the selected text, with an email and a phone number hidden from the AI
 // panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
 import AppKit
 
@@ -64,7 +68,12 @@ struct Step {
     let caption: String
     let marked: String
     let panel: NSBitmapImageRep
+    /// The text line's text is selected in the field (a command on the selection), not the input method's marked text.
+    var selected = false
 }
+
+/// A long text line cut to fit above its panel.
+func cut(_ line: String, _ length: Int = 60) -> String { line.count > length ? String(line.prefix(length)) + "…" : line }
 
 /// Steps side by side: caption, a text line with the input method's inline (underlined) text, and
 /// the candidate panel just below the line, as on screen.
@@ -99,13 +108,19 @@ func composite(_ steps: [Step], to name: String) throws {
             NSBezierPath(roundedRect: field, xRadius: 8, yRadius: 8).fill()
             NSColor(white: 0.82, alpha: 1).setStroke()
             NSBezierPath(roundedRect: field.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8).stroke()
+            let markedWidth = (step.marked as NSString).size(withAttributes: [.font: fieldFont]).width
+            if step.selected {
+                NSColor(calibratedRed: 0.70, green: 0.84, blue: 1, alpha: 1).setFill()
+                NSRect(x: field.minX + 11, y: field.minY + 8, width: markedWidth + 2, height: 23).fill()
+            }
             NSAttributedString(string: step.marked, attributes: [
                 .font: fieldFont, .foregroundColor: NSColor.black,
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .underlineStyle: step.selected ? 0 : NSUnderlineStyle.single.rawValue,
             ]).draw(at: NSPoint(x: field.minX + 12, y: field.minY + 9))
-            NSColor.controlAccentColor.setFill()
-            NSRect(x: field.minX + 12 + (step.marked as NSString).size(withAttributes: [.font: fieldFont]).width + 2,
-                   y: field.minY + 9, width: 2, height: 21).fill()
+            if !step.selected {
+                NSColor.controlAccentColor.setFill()
+                NSRect(x: field.minX + 12 + markedWidth + 2, y: field.minY + 9, width: 2, height: 21).fill()
+            }
             // Source-over: drawn as is (copy), the panel's rounded corners would punch holes in the image.
             step.panel.draw(in: NSRect(x: x, y: field.minY - 6 - size.height, width: size.width, height: size.height),
                             from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
@@ -179,9 +194,32 @@ try composite([
          marked: "open › /System/Applications/", panel: load("12b-open-path")),
 ], to: "open.png")
 
+// 0.6.3's release notes.
+try composite([
+    Step(caption: tr("打拼音：候选词横排，← → 选，↑↓ 翻页", "Type pinyin: candidates side by side, ← → choose, ↑↓ turn the page"),
+         marked: marked("1b-pinyin-horizontal", "ni hao"), panel: load("1b-pinyin-horizontal")),
+], to: "candidates-horizontal.png")
+try composite([
+    Step(caption: tr("① 结果出来后，直接打要怎么改", "① With the results up, type what to change"),
+         marked: cut(marked("refine-typing", "improve › i wanted to let you know")), panel: load("refine-typing")),
+    Step(caption: tr("② 按 ⏎：同一个面板里换成改过的结果", "② Press ⏎: the refined results, in the same panel"),
+         marked: cut(marked("refine", "improve › i wanted to let you know")), panel: load("refine")),
+], to: "refine.png")
+try composite([
+    Step(caption: tr("只打 @question：最近问过的问题，选一个直接看答案", "Type @question alone: your recent questions; pick one to see its answer"),
+         marked: "question › ", panel: load("question-recent-list")),
+], to: "recent-questions.png")
+let selectedText = "pls tell bob.tester@example.com the meeting moved, or call 555-123-4567 tomorow"
+try composite([
+    Step(caption: tr("选中文字，打 @improve 按 ⏎：改写选中的文字，邮箱和电话不发给 AI",
+                     "Select text, type @improve, ⏎: rewrites of the selection; the email and number never reach the AI"),
+         marked: cut(selectedText, 90), panel: load("redaction"), selected: true),
+], to: "selection.png")
+
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
 for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
-print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png")
+print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
+      + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png")

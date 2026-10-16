@@ -30,6 +30,16 @@ Extensions are read from folders:
 - folders added under Settings → Custom Commands → Script Extensions → Add Folder…,
 - folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden).
 
+A folder you add (and the first one) is read whole, as below. From a folder Spotlight found, only its Raycast Script
+Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
+anything that holds a Raycast script (a second checkout of a repository, a backup). To use all of such a folder, add
+it. Each search replaces the folders found before, so one removed, or no longer holding a Raycast script, drops out of
+the list.
+
+A script, or a bundle, that is byte for byte the same as one read before it under the same name (its `extension.json`
+and the scripts it lists, for a bundle) is a copy: it's left out quietly, and Settings says only "Skipped N identical
+copies". A different script or bundle under a name already taken is listed as left out, and why (§7).
+
 In each folder:
 
 - **A single script** is a file in the folder with metadata (§2). Files whose name contains `.template.`, and hidden
@@ -40,7 +50,7 @@ In each folder:
 
 The index of what the folders hold is kept in memory and rebuilt in the background when a text field becomes active
 or the settings change; a file is read again only when its size, modification date or permissions changed, and only
-its metadata and first line are kept. Nothing is scanned, read from the keychain or run while a key is being handled,
+its metadata, first line and SHA-256 (to tell copies apart) are kept. Nothing is scanned, read from the keychain or run while a key is being handled,
 and the command list stays fast with a thousand extensions.
 
 ## 2. Metadata
@@ -118,7 +128,7 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 | Variable | Value |
 |---|---|
 | `ALLINONEIME_PROTOCOL` | `1` |
-| `ALLINONEIME_VERSION` | the app's version, like `0.6.2` |
+| `ALLINONEIME_VERSION` | the app's version, like `0.6.3` |
 | `ALLINONEIME_LANGUAGE` | the interface language: `en` or `zh` |
 | `ALLINONEIME_INPUT_LANGUAGE` | the language being typed: `en`, `zh`, `fr`, `ko` or `hi` |
 | `ALLINONEIME_APP` | the bundle id of the app being typed in |
@@ -144,6 +154,10 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 - One process per command at a time: a newer query stops the one before.
 - Nothing runs while secure input is on (a password field, the lock screen).
 - An extension doesn't run inside another command's text (`@question … @flights …` leaves it as text).
+- It gets the text as typed. With text selected in the field, it doesn't use the selection: its arguments are what's
+  typed after its name, and the selection stays as it is. "Hide sensitive information before sending" (Settings → AI
+  Provider → Privacy) applies to requests to the AI only, not to what an extension gets. An app set to "No AI in this
+  app" (Settings → Apps) still runs extensions: they aren't the AI.
 - Color codes and other terminal escapes are removed from what it prints.
 
 **Exit status.** Non-zero is a failure: the last line of standard error with words in it (else of standard output)

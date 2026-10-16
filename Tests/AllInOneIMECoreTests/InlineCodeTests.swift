@@ -83,7 +83,7 @@ struct InlineCodeTests {
         let c = Composer(engine: engine)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        typeKeys("rep", c)
+        typeKeys("repl", c)
         _ = c.handleKeyDown(tab)
         typeKeys("nihao", c)
         _ = c.handleKeyDown(spaceKey)

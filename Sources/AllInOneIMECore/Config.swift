@@ -75,6 +75,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// `@claude` runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal).
     public var claudeInBackground: Bool
+    /// `@question` keeps the last few questions and answers on this Mac (`QuestionHistory`) and lists them when nothing
+    /// is typed after it. On by default.
+    public var rememberQuestions: Bool
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
@@ -84,10 +87,28 @@ public struct Config: Codable, Equatable, Sendable {
     public var keyboardLayouts: [String: String]
     /// A command's result is typed into the document character by character, like a person typing
     /// (pinyin picks still go in at once), at `typeOutRate` characters a second (1/6: 6 s a character),
-    /// in bursts of changing pace when `typeOutVaries`.
+    /// in bursts of changing pace when `typeOutVaries`, with an occasional typo fixed on the way when
+    /// `typeOutMistakes` (`TypeOut.plan`; typed to the end, the text is exactly the result).
     public var typeOut: Bool
     public var typeOutRate: Double
     public var typeOutVaries: Bool
+    public var typeOutMistakes: Bool
+    /// How the candidates of a word being typed (pinyin, Hindi) are laid out: in a row like macOS's own panel (the
+    /// default, also for a file from before the setting), or in a column. The other lists (commands, results) are
+    /// always a column.
+    public var candidateLayout: CandidateArrangement
+    /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
+    /// installed when the user clicks Update. On by default.
+    public var checkForUpdates: Bool
+    /// An @ command started with text selected in the field works on that text, which stays selected and as it is
+    /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
+    /// the setting): off for an app where it misbehaves.
+    public var useSelection: Bool
+    /// Settings for single apps, by bundle id (`AppProfile`): the input language a field starts in, the rewrite
+    /// styles, typing out, no AI. Empty by default.
+    public var appProfiles: [String: AppProfile]
+    /// Emails, numbers, keys and the user's own words hidden from the AI before a request is sent (`Redaction`). Off by default.
+    public var redaction: RedactionSettings
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -97,6 +118,7 @@ public struct Config: Codable, Equatable, Sendable {
         case .gemini: return gemini.resolved(for: .gemini)
         case .openai: return openai.resolved(for: .openai)
         case .hosted: return ProviderSettings().resolved(for: .hosted)
+        case .apple: return ProviderSettings().resolved(for: .apple)
         }
     }
 
@@ -151,12 +173,19 @@ public struct Config: Codable, Equatable, Sendable {
         self.disabledExtensions = []
         self.extensionPreferences = [:]
         self.claudeInBackground = true
+        self.rememberQuestions = true
         self.menuBarIcon = true
         self.fuzzyPinyin = []
         self.keyboardLayouts = [:]
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
         self.typeOutVaries = false
+        self.typeOutMistakes = false
+        self.candidateLayout = .horizontal
+        self.checkForUpdates = true
+        self.useSelection = true
+        self.appProfiles = [:]
+        self.redaction = RedactionSettings()
         normalizeLanguages()
     }
 
@@ -175,7 +204,10 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutSpeed, fuzzyPinyin, keyboardLayouts
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
+        case checkForUpdates, useSelection, appProfiles
+        case rememberQuestions
+        case redaction
         case provider, anthropic, gemini, openai
     }
 
@@ -216,6 +248,7 @@ public struct Config: Codable, Equatable, Sendable {
         extensionPreferences = try c.decodeIfPresent([String: [String: String]].self, forKey: .extensionPreferences)
             ?? d.extensionPreferences
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
+        rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
@@ -225,6 +258,13 @@ public struct Config: Codable, Equatable, Sendable {
         let olderRate: Double? = ["slow": 8, "normal": 16, "fast": 32, "random": 16][older ?? ""]
         typeOutRate = try c.decodeIfPresent(Double.self, forKey: .typeOutRate) ?? olderRate ?? d.typeOutRate
         typeOutVaries = try c.decodeIfPresent(Bool.self, forKey: .typeOutVaries) ?? (older == "random")
+        typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
+        // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
+        candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
+        checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
+        useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
+        appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
+        redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -291,12 +331,21 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(disabledExtensions, forKey: .disabledExtensions)
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
+        try c.encode(rememberQuestions, forKey: .rememberQuestions)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         try c.encode(keyboardLayouts, forKey: .keyboardLayouts)
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
+        try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
+        try c.encode(candidateLayout, forKey: .candidateLayout)
+        try c.encode(checkForUpdates, forKey: .checkForUpdates)
+        try c.encode(useSelection, forKey: .useSelection)
+        // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
+        let profiles = appProfiles.filter { !$0.value.isEmpty }
+        if !profiles.isEmpty { try c.encode(profiles, forKey: .appProfiles) }
+        try c.encode(redaction, forKey: .redaction)
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)
@@ -345,6 +394,14 @@ public struct Config: Codable, Equatable, Sendable {
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(self).write(to: url, options: .atomic)
     }
+}
+
+/// The candidate panel's layout for a word being typed (`Config.candidateLayout`).
+public enum CandidateArrangement: String, Codable, CaseIterable, Sendable {
+    /// One under the other, numbered on the left (↑↓ move, -/= turn the page): what 0.6.2 and earlier showed.
+    case vertical
+    /// Side by side, as macOS's own panel (← → move, ↑↓ or -/= turn the page): the default.
+    case horizontal
 }
 
 public enum ConfigError: Error, LocalizedError, Equatable {

@@ -32,7 +32,7 @@
 *這是英文 README 的翻譯；兩者有出入時，以英文版為準。*
 
 > [!NOTE]
-> AllInOneIME 尚未經過 Apple 公證：第一次使用時，請在 System Settings → Privacy & Security → Open Anyway（系統設定 → 隱私權與安全性 → 強制打開）中允許它。只從 [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com) 下載。
+> 從 0.6.3 起，AllInOneIME 以 Developer ID 簽署並經過 Apple 公證：不必再到 System Settings → Privacy & Security（系統設定 → 隱私權與安全性）中允許它。從較舊的版本更新後，對 AllInOneIME 存在鑰匙圈中的每把金鑰，macOS 都會詢問一次你的登入密碼：輸入後按一下「Always Allow」（永遠允許）。只從 [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 或 [allinoneime.com](https://allinoneime.com) 下載 AllInOneIME。
 
 一款在每個文字欄位都能使用 AI 指令的 macOS 輸入法。在句子開頭輸入 `@`，寫完後按 ⏎：`@improve` 潤飾你寫的內容並提供幾種改寫，`@translate` 把它翻譯成你選的語言，`@question` 提出問題，`@claude` 把它交給 Claude Code，`@open` 尋找檔案和 App，或開啟網址。你也可以按住右側 ⌥ 說話。不以 `@` 開頭時，按鍵照常送到 App。它也能輸入中文（拼音，以 Rime 和 rime-ice 為基礎）、法文、韓文（諺文）和印地文（以拉丁字母輸入天城文），並能把你自己的腳本當作 @ 指令執行。
 
@@ -47,13 +47,15 @@
 | 按鍵 | 作用 |
 |---|---|
 | 輸入拼音，Space／數字鍵 | 中文模式下：選詞，和一般拼音輸入法一樣 |
-| `@`（在句子開頭） | 開啟指令清單：最近最常用的排在前面，一次 5 個，可用 ↑↓、滾輪或觸控式軌跡板捲動；或輸入字母來尋找（名稱以這些字母開頭的優先，其次是包含它們的）。按 ⏎、Tab、Space 或數字鍵選定 |
+| `@`（在句子開頭） | 開啟指令清單：最近最常用的排在前面，一次 5 個，可用 ↑↓、滾輪或觸控式軌跡板捲動；或輸入字母來尋找（完整輸入的名稱優先，其次是以這些字母開頭的名稱，再其次是包含它們的）。按 ⏎、Tab、Space 或數字鍵選定 |
 | ⏎ | 執行指令。拼音尚未選定時也可以：會先選定，就像按 Space 一樣 |
 | Space、⏎／數字鍵 | 結果出現後：插入反白的／對應編號的那一項；0 是原文 |
 | ⌘C | 拷貝反白的結果（`@open` 則是路徑）；候選視窗保持開啟 |
 | ⌃V | 在指令中（例如 `@improve ` 之後）：把剪貼簿的文字接在你輸入的內容後面，而不是貼到 App 裡。多行會合併成一行，每次最多 2000 個字元（`@note` 會保留換行，最多 20000 個）。在任何 App 中都可用；沒有指令時，按鍵照常送到 App |
 | ⌘V | 和 ⌃V 一樣，但有些 App 會自行處理 ⌘V（Ghostty、iTerm2、Terminal 等終端機，以及 Notes），照常貼到 App 裡；在這些 App 中請用 ⌃V |
-| Esc、⌫ | 回到句子繼續編輯；直接打字就是接著寫 |
+| Esc、⌫ | 回到句子繼續編輯；結果出現後輸入標點或數字就是接著寫。修改結果後：回到修改前的那一版 |
+| AI 結果出現後輸入字母 | 一句後續要求，例如 `shorter`：按 ⏎ 依要求修改結果（見[修改結果](#修改結果新)） |
+| 按一下某一列 | 在候選視窗中：選取這一列，和按它的數字鍵一樣（字詞、清單中的指令、結果、`@open` 找到的檔案、收件人、擴充功能列出的列）；指標下方的那一列會反白。文字欄位保持焦點 |
 | 輕按 Shift | 有多種輸入語言時：依序切換到下一種（英文 → 中文 → 法文 → …，然後回到第一種） |
 | 按住右側 ⌥ | 說話，放開即停止。以你正在輸入的語言辨識（英文、中文、法文、韓文或印地文）。在指令中，文字會接在指令後面；否則直接插入 |
 
@@ -63,8 +65,8 @@
 |---|---|
 | `@improve` | 潤飾：1–3 是用句子本身語言寫的三個版本，4 之後是改寫風格（在設定中加入並排序），0 是原文。不會翻譯；開啟「@improve also translates」（@improve 同時翻譯）時，效果等同 `@translate @improve` |
 | `@translate` | 翻譯成你加入的語言（設定 →「Translate」，拖曳可調整順序），每種一行；只有一種語言時提供三個版本；句子本身的語言會略過。`@translate @improve` 一起使用時，一次請求就能翻譯並改寫 |
-| `@question` | 提出問題；答案出現在候選中，按 ⏎ 或 Space 插入，⌘C 拷貝 |
-| `@claude` | 把任務交給 Claude Code：預設在背景執行，完成時會發出通知（按一下通知，即可在 Terminal 中開啟該工作階段繼續），或用 `@tasks` 查看。它使用你自己的 Claude Code（`claude` 指令），以及它自己的登入和設定。在設定中關閉「@claude runs in the background」（@claude 在背景執行），就會像以前一樣在 Terminal 中開啟。第一次開啟 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「OK」（好） |
+| `@question` | 提出問題；答案會出現在候選中，按 ⏎ 或 Space 插入，⌘C 拷貝。後面沒有輸入任何內容時，會列出你最近的 5 個問題，最新的在前；接著輸入就能篩選（問題中任何位置的字詞，不分大小寫，中文也可以）。按數字鍵、↑↓ 再按 ⏎，或按一下，會立刻顯示該問題已儲存的答案，不需連網，照常插入或拷貝；在那裡按 R 會重新提問以取得新的答案。沒有符合的項目，或沒有選取任何項目時，⏎ 會提出你輸入的問題 |
+| `@claude` | 把任務交給 Claude Code：預設在背景執行，完成時會發出通知（按一下通知，即可在 Terminal 中開啟該工作階段繼續），或用 `@tasks` 查看。它使用你自己的 Claude Code（`claude` 指令），以及它自己的登入和設定。在設定中關閉「@claude runs in the background and notifies me」（@claude 在背景執行並在完成時通知我），就會像以前一樣在 Terminal 中開啟。第一次開啟 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「OK」（好） |
 | `@tasks` | 列出背景中的 Claude 任務（進行中／已完成／等你回應），以及它們最後的回覆；按 ⏎ 在 Terminal 中開啟，⌘C 拷貝回覆 |
 | `@settings` | 立即開啟設定視窗（選取它就夠了） |
 | `@open` | 邊輸入邊列出符合的檔案、資料夾和 App（Spotlight）。可以輸入多個關鍵字，以空格分隔：每個都必須出現在路徑中，且至少一個出現在名稱中（標準資料夾的名稱也適用於其中的項目：`downloads pdf` 會找到 Downloads（下載項目）中的 PDF）。App 和標準資料夾也能用中文名稱找到，中文介面下也以中文名稱顯示。用 `@open` 開啟過的項目排最前面，接著是 App 和那些資料夾，然後是最近使用或修改過的檔案；若名稱只找到兩個以下的檔案，且沒有符合的 App 或那些資料夾，也會依內容搜尋你個人專屬資料夾中的檔案，這些列標示為「content」（內容）；若沒有其他結果，按 ⏎ 會列出它們讓你挑選，而不是直接開啟第一個。輸入網址時（`github.com`、`localhost:3000`、`https://…`），第一列是「open in the browser」（在瀏覽器中開啟），且不搜尋內容；名稱與其完全相同的檔案（例如 `MANIFEST.in`）排在最前面。以 `~/` 或 `/` 開頭的文字是路徑：Tab 會補全並進入資料夾；⏎ 開啟，⌘C 拷貝路徑 |
@@ -73,6 +75,7 @@
 | `@calculate` | 在這台 Mac 上計算；結果出現在候選中，按 ⏎ 或 Space 插入：`@calculate 23*17` → `391`。也能在句子中使用：`@reply the total is @calculate 23*17 dollars` |
 | `@py` | 執行一行 Python（Mac 上的 `python3`）並插入結果：程式碼最後一個運算式的值，例如 `@py 2**100`、`@py import math; math.sqrt(2)`，否則就是它印出的內容。沒有 `python3` 時不提供（Xcode 的命令列工具內含） |
 | `@js` | 執行一行 JavaScript 並同樣插入結果：最後一個運算式的值，或 `console.log` 印出的內容，例如 `@js [1, 2, 3].map(x => x * 2)`。它使用 macOS 內建的 JavaScriptCore，不需要安裝任何東西；它無法讀取檔案、連上網路或執行其他程式 |
+| `@reportissue` | 回報問題：在瀏覽器中開啟 GitHub 的新 issue 頁面，把指令後面輸入的內容當作標題，並附上「What happened / What you expected」（發生了什麼／你預期的結果）讓你填寫。它會加上 App 和 macOS 的版本、Mac 的架構、介面與輸入語言、已安裝的語言包、AI 供應商的種類（若是公開模型則附上模型名稱，否則寫「custom」）、執行鍵，以及你有幾個自訂指令、外掛程式和擴充功能，但絕不包含它們的名稱、你的文字、路徑或金鑰。按 ⏎（或你的執行鍵）會先在候選視窗中顯示這些內容；再按一次 ⏎，或按一下那一列，才會開啟網頁，你在那裡看過後按一下 Submit（使用你的 GitHub 帳號）；Esc 返回。輸入選單（「Report an Issue…」）和 Settings → About 中也有 |
 | `@imessage` | 傳送 iMessage：輸入姓名、電話號碼或電子郵件（中文姓名也可以用拼音，全拼或首字母皆可），在候選視窗中選擇收件人（最近傳過訊息的排在前面；完整的號碼或地址也可以），然後寫訊息（其中的指令如 `@stock AAPL` 會先執行）。按 ⏎ 會在視窗中顯示「Send to Alex (…): message」，再按一次 ⏎ 送出，Esc 返回編輯；不會在文字欄位中輸入任何內容。第一次使用時，macOS 會詢問是否允許 AllInOneIME 取用 Contacts（聯絡人）及控制 Messages（訊息）：兩個都按一下「OK」 |
 
 範例：`@q` ⏎，輸入 `what is quantum computing`，⏎。`@note books to read: The Three-Body Problem` ⏎ 會儲存一則備忘錄。`@reminder call Bob tomorrow at 3pm` ⏎，確認它解析出的時間，再按一次 ⏎ 加入。選定指令後，也可以按住右側 ⌥ 說話。在中文模式下，`@open` 和 `@calculate` 會暫時切換為英文字母，完成後再回到中文。
@@ -86,6 +89,21 @@
 `@` 後面接的不是指令時（例如 `@john`），`@` 會照常插入，所以在聊天 App 中 @ 提及別人仍然可用。`@question`、`@improve` 和 `@translate` 只在你按下執行鍵時才送到你自己的 Bedrock；`@open` 只在這台 Mac 上搜尋；`@note` 和 `@reminder` 只送到這台 Mac 上的 Notes 和 Reminders；`@claude` 使用安裝在你 Mac 上的 Claude Code（`claude` 指令）及其自己的帳號，並且和平常一樣，在修改檔案或執行指令前會先詢問你。沒有安裝 Claude Code 時，不提供 `@claude`。`@imessage` 只讀取這台 Mac 上的 Contacts（姓名、電話號碼、電子郵件），絕不經過 AI，訊息由 Messages 傳送；沒有 Messages App 時不提供。
 
 `@calculate` 在這台 Mac 上離線計算：`+ - * /`（也可用 `× ÷`）、`^` 或 `**` 表示次方、括號、百分比（`50%` 是 0.5，`200*5%` 是 10；和計算機一樣，加上或減去的百分比是相對於前面的數：`100+10%` 是 110，`100-10%` 是 90）、函式 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`（`log` 以 10 為底，角度單位為弧度，`round(x, 2)` 保留兩位小數），以及常數 `pi`（`π`）和 `e`。全形數字和符號也能用。運算以十進位精確計算，所以 `0.1+0.2` 是 `0.3`；結果最多 15 位有效數字，38 位以內的整數會完整寫出（`2^100` → `1267650600228229401496703205376`）。
+
+### 對選取的文字使用指令（新）
+
+在任何 App 中選取一段文字（Notes 裡的一句話、Mail 裡的一段），輸入 `@improve`、`@translate`、`@question` 或其他處理文字的指令，然後按 ⏎：指令會處理選取的文字，你挑選的結果會取代它。你輸入時，選取的文字保持原樣、維持選取狀態：指令寫在候選視窗中，第一行是你輸入的內容，下一行是「On the selection: “…” (N characters)」（針對選取範圍：N 個字元）。按 Esc、⇧⏎ 或按一下別處，文字都保持原樣；途中改變選取範圍也一樣，而且會取消指令。指令後面輸入的文字，對 `@improve` 和 `@translate` 是要求（`@translate ja`、`@improve more formal`），對 `@question` 則是關於這段選取文字的問題（`@question what does this mean`）。`@open`、`@claude`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、終端機指令和腳本擴充功能不使用它：它們只用你輸入的內容，選取的文字保持原樣。最多 5000 個字元；處於安全輸入狀態時或在終端機中絕不讀取。若在某個 App 中運作不正常，請到 Settings → General →「Use the selected text」（使用選取的文字）關閉。
+
+### 修改結果（新）
+
+`@improve`、`@translate`、`@question` 或提示詞指令的結果出現時，直接輸入想怎麼改，例如 `shorter`、`warmer`、`more formal`、`add a joke`、`in Japanese` 或 `用更口语的说法`（可以打拼音，輕按 Shift 切換語言），然後按 ⏎：結果會連同你的要求再次送給 AI，新的結果在同一個候選視窗中取代舊的。想改幾次都可以；候選視窗最上面一行列出修改過的步驟（「Refined: shorter · more formal」），你隨時都能照常選取某一列。輸入一個字母就開始寫要求（在候選視窗頂端顯示為「refine › …」）；要求還是空的時候，數字鍵、Space 和 ⏎ 照常選取。結果全部出現後才能修改：第一批結果還在陸續出現時輸入，和以前一樣是接著寫這個句子。修改進行中也可以先輸入下一個要求；修改會繼續進行，結果出來後按 ⏎ 就執行下一個。Esc 會先清除要求，再退回上一步、回到最後一次修改之前的結果（修改進行中則是停止它），然後回到句子；在空白行上按 ⌫ 也會以同樣方式退回。對選取的文字使用時，你挑選的結果仍然只會取代選取的文字，在那之前文字保持不動。修改失敗（或在安全輸入狀態時被拒絕）時，結果保持原樣，要求也還在，按 ⏎ 可再試一次。對同樣的結果做同樣的修改，會直接用快取回答。
+
+### 最近的問題（新）
+
+`@question` 後面沒有輸入任何內容時，會列出你最近的 5 個問題，最新的在前，並註明提問時間（「3 hours ago」）。接著輸入就能篩選：每個字詞出現在問題中任何位置都算，不分大小寫（不含空格的中文也可以）。按數字鍵、↑↓ 再按 ⏎，或按一下，會立刻顯示該問題已儲存的答案，不需連網：Space 或 ⏎ 插入，⌘C 拷貝，0 顯示問題，R 重新提問以取得新的答案，Esc 回到清單。沒有符合的項目，或沒有選取任何項目時，⏎ 會提出你輸入的問題。同一個問題有了新答案（重新提問或修改後），就會取代已儲存的那個。
+
+- 它們只存放在這台 Mac 上（見「隱私」）：處於安全輸入狀態時不存，對選取文字提出的問題一律不存。
+- Settings → General →「Remember recent questions」（記住最近的問題）可以關閉此功能並刪除它們（設定檔中的 `rememberQuestions`）；「Clear (N)」（清除）會刪除它們。
 
 ### 備忘錄與提醒事項
 
@@ -163,6 +181,32 @@ Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent`
 
 預設為 ⏎；可在設定的「Action key」（執行鍵）下更改（設定檔中的 `actionKey`）：⏎、「Tap ⌥」（輕按 ⌥，左右皆可：按下後立刻放開；按住右側 ⌥ 仍是用來說話）、⌥Space，或 Space（選好字詞後再按一次 Space；英文模式下按兩次）。無論執行鍵設為什麼，@ 指令也都能用 ⏎ 執行。如果 ⌥Space 已經是 Alfred、Raycast 之類工具的快速鍵，會先被它們接收。
 
+### 逐字輸入結果
+
+在 Settings → General 中開啟「Type results out」（逐字輸入結果）（設定檔中的 `typeOut`），指令的結果就會像真人打字一樣一個字元一個字元地輸入到 App 中，而不是一次全部插入；拼音選字仍然一次插入。滑桿調整速度，從每個字元 6 秒到每秒 40 個字元（`typeOutRate`）；「Speed up and slow down (like a person)」（像真人一樣忽快忽慢）會以速度變化的短促節奏輸入（`typeOutVaries`）。Esc 會停在目前位置；按其他任何鍵會一次輸入剩下的部分。
+
+「Make occasional typos and fix them」（偶爾打錯再修正，`typeOutMistakes`）讓它看起來更像真人：偶爾按到正確按鍵旁邊的鍵，最多三個字母後才發現，刪掉再重打；一個字母或空格打了兩次再刪掉；或一個短字打了、刪掉再重打。每 100 個字元有幾處，絕不會兩處挨在一起，也絕不會出現在一行的開頭。在程式碼、網址、電子郵件地址和數字中，打錯只會是錯的字母或數字，並立刻修正（絕不會打錯括號、引號或空格，編輯器會針對這些自動配對或縮排）。打錯的字母是你的鍵盤配置（QWERTY、AZERTY、QWERTZ…）上相鄰的鍵。中文、日文和韓文只會「猶豫」（打兩個字元、刪掉再重打），絕不會打出錯字。
+
+在能收回打錯的欄位中（Apple 的文字檢視，例如 TextEdit 和 Notes、瀏覽器、大多數編輯器）：打到最後，或按其他鍵一次輸入剩下的部分，文字就和結果完全相同；在打錯的當下按 Esc（或離開欄位），會先把打錯的部分刪掉，因此欄位中是結果開頭的一段，一字不差。若打錯的字還在畫面上時游標移動了（按了一下），打錯的部分會在原處刪掉，剩下的部分不再打錯。
+
+在終端機中絕不打錯，在不告訴輸入法游標位置的 App 中也不會。每次第一處打錯都是簡單的一種（一個錯的字母，一次修正），直到該欄位表現出能收回打錯；打錯的字還在畫面上時，輸入法會在每按一個鍵之前核對欄位中是否是它打的內容。忽略替換位置的欄位無法收回打錯：在那裡第一處打錯會留下，最後的文字差一個字元（按 Esc 或其他鍵之後也一樣），而且這個 App 之後不再打錯。Settings → General 會在打錯開關下方列出這些 App；「Forget apps where typos couldn't be fixed」（忘記無法修正打錯的 App）讓它們再試一次。
+
+### 依 App 設定（新）
+
+Settings → Apps 可以為某個 App 提供自己的設定，每一項都是選擇性的；App 沒有設定的項目會沿用適用於所有 App 的設定：
+
+| 設定 | 例如 | 設定檔中 |
+| --- | --- | --- |
+| 它的文字欄位一開始使用的輸入語言 | Slack 用英文，WeChat 用拼音 | `inputLanguage` |
+| `@improve` 在那裡提供的改寫風格 | Mail 正式且委婉，Slack 口語 | `rewriteStyles` |
+| 是否逐字輸入結果 | 聊天 App 中開啟，Mail 中關閉 | `typeOut` |
+| 這個 App 中不使用 AI | `@improve`、`@translate`、`@question`、`@claude` 和你的提示詞指令在那裡不送出任何內容，並會提示；打字和其他指令照常運作 | `noAI` |
+
+「Add App…」（加入 App）會列出你最近打過字的 App，或在 /Applications 中挑選一個。輸入選單中的「This App: <名稱>」提供正在打字的 App 的快速開關（No AI、Type Results Out、一開始的語言）。設定檔中它們位於 `appProfiles` 之下，依 bundle ID 區分：`"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`。bundle ID 比對時不分大小寫（`com.apple.Mail` 就是 Mail 的 `com.apple.mail`）。`@reportissue` 只計算設定了內容的 App 數量，絕不寫出它們的名稱。
+
+- 一開始的語言和預設輸入語言的運作方式一樣：文字欄位啟用時採用它，之後用 Shift 切換的語言會在該 App 的欄位中保持，直到設定改變為止。
+- 開啟 No AI 時，AI 指令仍然留在 @ 清單中；執行時會顯示提示，並保留你寫的內容。你自己的終端機指令（`"type": "terminal"`）執行的是程式而不是 AI，所以在那裡照樣能用。
+
 ## 選單列面板
 
 <img src="../en/panel-swipe.png" width="520" alt="選單列面板：毛玻璃質感，備忘錄、提醒事項和 Claude 任務顯示在卡片上；向左滑動的一列顯示出「Remove」按鈕">
@@ -195,6 +239,7 @@ Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent`
   - 無論是哪種語言，指令名稱、`@open` 的文字和程式碼（`@py`、`@js`）都以字母輸入；指令結束後會切回原本的語言。
   - `@improve` 會讓韓文、印地文或法文的句子維持原本的語言，`@translate` 則把它翻譯成你的語言（當法文是你的輸入語言之一時，會把法文和英文區分開來）。
 - **Language packs**（語言包）：App 內建英文（以及法文，法文只需要 macOS 的鍵盤配置）。中文、韓文和印地文是加入時才下載的語言包：加入中文（拼音）時會下載它的詞庫（約 34 MB，解壓縮後 125 MB）並顯示進度列，下載完成後拼音立即可用，不需要重新啟動；韓文的語言包（它的按鍵表，以及字母如何組成音節）和印地文的語言包（它的字母和常用字）只有幾 KB。語言包只包含資料（詞庫、表格和綱要，絕無程式碼），列在經過簽署的索引中，使用前會核對 SHA-256，和外掛程式一樣。每種語言的卡片會顯示它的語言包（版本、大小、來源），並附有「Delete…」（刪除…）；移除語言時會詢問是否一併刪除它的語言包。從 0.6.1 或更早版本更新時，中文不需要下載：安裝程式會保留舊版本附帶的詞庫。
+- **候選排列**：選字時，拼音和印地文的候選字詞預設橫向並排（Horizontal），就像系統內建的輸入法：← → 選取，↑↓（或 - =）翻頁。想要上下排列（↑↓ 選取），請在 Input 頁面、輸入語言下方選擇 Vertical。@ 指令清單和結果一律直向排列。
 - **Fuzzy pinyin**（模糊拼音，搭配中文輸入）：你分不清的音，兩種打法都可以，例如 z ↔ zh、n ↔ l、in ↔ ing。在「Input」（輸入）頁面的輸入語言列中選擇中文（拼音），開啟「Fuzzy pinyin」並選擇要配對的音；詞庫會在一兩秒內重新部署。它會在 Rime 使用者資料夾中寫入 `rime_ice.custom.yaml`，而且絕不會覆寫你自己放在那裡的檔案。
 - **Translate (@translate)**（翻譯）：加入要翻譯成的語言（西班牙文、法文、德文、日文、韓文、中文、印地文、孟加拉文、坦米爾文及其他主要印度語言…），並拖曳排序。以拉丁字母輸入的印地文（「aap kaise ho」）會以天城文傳回。`@translate` 依這個順序，每種語言寫一行（只有一種時提供三個版本）；句子本身的語言會略過。新安裝時，會翻譯成 Mac 偏好語言中第一個不是英文的語言；如果只有英文，`@translate` 會開啟這個頁面讓你加入語言。
 - **Keyboard layouts**（鍵盤配置）：法文以它卡片上選擇的配置輸入（設定檔中的 `keyboardLayouts`）。其他語言在輸入法之下，macOS 會沿用你最後使用的拉丁字母配置（AZERTY、QWERTZ、西班牙文、美式國際…），所以你可以照常打字，`@` 也在你的配置原本的位置，靜音鍵在指令的文字中同樣能組字（⌥E 再按 E → é，^ 再按 e → ê）。沒有拉丁字母的配置（俄文、印地文 InScript）無法在輸入法之下使用：請用 ⌃Space 切換過去，或把文字貼上（⌃V）或聽寫進指令中。
@@ -248,13 +293,15 @@ two-way door = a decision you can undo at any time
 
 1. 從 [Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest) 下載 `AllInOneIME-<version>.dmg`（只從那裡下載）並打開它。
 2. 按兩下其中的「Install AllInOneIME」，再按一下「Install」（安裝）。輸入法會安裝到 `~/Library/Input Methods`，「AllInOneIME Settings」則安裝到 `~/Applications`。只為目前的使用者安裝；不需要管理者密碼。
-3. 安裝程式尚未經過 Apple 公證，所以 macOS 無法驗證是誰製作的，第一次會說它無法驗證「Install AllInOneIME」：按一下「Done」（完成；macOS 14 上是「Cancel」，取消），打開 System Settings → Privacy & Security（系統設定 → 隱私權與安全性），按一下底部附近的「Open Anyway」（強制打開），然後確認。每個新版本的安裝程式都需要這樣做一次。
+3. 安裝程式以 Developer ID 簽署並經過 Apple 公證，所以第一次時 macOS 只會詢問是否要打開從網際網路下載的 App：按一下「打開」。（0.6.3 之前的版本沒有公證：每個版本都要在 系統設定 → 隱私權與安全性 → 強制打開 中允許一次。）
 
 完成後，AllInOneIME 就已啟用並出現在你的輸入方式中；用 Ctrl+Space 切換到它（只有在 System Settings → Keyboard（系統設定 → 鍵盤）中把「Press 🌐 key to」設為「Change Input Source」時，🌐 鍵才會切換）。如果安裝程式要你手動加入，代表這台 Mac 不允許程式啟用它，請自己加入一次：System Settings → Keyboard → Text Input → Input Sources → Edit… → +（左下角）→ English → AllInOneIME（在它設定的「Input」下加入中文後，它也能輸入拼音）。
 
 如果用 Ctrl+Space 切換不到 AllInOneIME，或過一陣子又切回 U.S.，請再執行一次安裝程式：它會把 AllInOneIME 重新加回你的輸入方式。
 
-更新時，直接從新版本的磁碟映像檔再安裝一次即可，不需要先解除安裝；設定、Jargon 術語表和學到的詞都會保留。升級前，請先閱讀[更新紀錄](../../CHANGELOG.md)：其中有每個版本的變更和升級注意事項。
+更新：Settings → About → Check for Updates（檢查更新）。有新版本時，About 會告訴你（選單列面板中也有一行），並附上新功能；「Update to <version>」（更新到 <版本>）會下載它、以 AllInOneIME 發佈金鑰簽署的更新資訊核對、安裝，然後重新啟動輸入法。你的設定、語言包、學到的字詞和擴充功能都會保留，若中途出錯，會換回你原本的版本。AllInOneIME 每天會在背景自行檢查一次（可在 About 中用「Check for updates automatically」關閉）；你沒按下之前不會安裝任何東西。此功能從 0.6.3 起才有；要更新更舊的版本，或者你偏好這樣做，請直接把新版本的磁碟映像檔安裝在上面，不必先解除安裝。升級前請先閱讀[更新日誌](../../CHANGELOG.md)：其中有每個版本的變更和升級須知。
+
+從較舊的版本更新到 0.6.3：0.6.3 是第一個以 Developer ID 簽署的版本，所以鑰匙圈還認不出它就是當初儲存你金鑰的那個 App。它第一次用到自己儲存的每把金鑰時（API 金鑰、AllInOneIME Cloud 的登入、擴充功能的密碼），macOS 會詢問你的登入密碼：輸入後按一下「Always Allow」（永遠允許）。之後不會再詢問，以後更新也不會。Amazon Bedrock 的金鑰在 `~/.aws/credentials` 中，不受影響。
 
 如果你裝過 AIPinyin（AllInOneIME 先前的名稱），直接安裝即可：舊的 AIPinyin.app 及其設定啟動器會被移除，輸入方式中的項目會換成新名稱，不需要重新加入。設定、Jargon 術語表和學到的詞會在第一次啟動時移到新的資料夾（`~/.config/allinoneime` 等），每個舊資料夾都會留下一個指向新資料夾的連結。
 
@@ -299,6 +346,31 @@ make install
 - 選擇 Claude Opus 5.5 或 Sonnet 5.5 時，請求會帶有 Claude API 的拒絕備援（`fallbacks: "default"`）：安全分類器拒絕時，伺服器會改用另一個模型重試。
 - 設定檔中：`provider`（`"bedrock"`、`"anthropic"`、`"gemini"`、`"openai"`），以及 `anthropic`、`gemini` 和 `openai` 下的 `model`、`baseURL`、`effort` 和 `temperature`（未設定的使用預設值）。
 
+### 這台 Mac 上的 Apple Intelligence（macOS 26）
+
+在支援 Apple Intelligence 的 Mac 上（Apple 晶片、macOS 26 或以上，並已在 系統設定 → Apple Intelligence 與 Siri 中開啟），在「AI Provider」中選擇「Apple Intelligence (on this Mac)」：不需金鑰、不花錢，而且你輸入的內容不會離開這台 Mac。它使用 macOS 內建的模型（Foundation Models 框架），指令和回答格式與其他供應商相同，但只附上以句子本身語言撰寫的範例（小模型太容易照著範例的語言回答）。
+
+- 它是小模型：上下文約 4K tokens（macOS 27 上為 8K），所以太長的段落可能放不下，支援的語言也較少（英文、中文、日文、韓文、法文、德文、西班牙文和另外幾種；不支援印地文）。遇到這兩種情況時它會直接說明。它的結果不如雲端模型，`@question` 對事實和程式碼的回答也常常出錯。
+- 無法使用時，它在清單中顯示為灰色並附上原因（這台 Mac 不支援、未開啟、模型尚未就緒），設定中有連結可前往 系統設定 → Apple Intelligence 與 Siri。macOS 26 之前不會列出。
+- 「Model Settings」中的「Output tokens」、temperature 和逾時都適用於它。設定檔中為 `"provider": "apple"`。
+
+### 隱藏敏感資訊（新）
+
+Settings → AI Provider → Privacy →「Hide sensitive information before sending」（傳送前隱藏敏感資訊，預設關閉）：請求送給 AI 之前，它在你的文字中找到的內容會先在 Mac 上換成 `[EMAIL_1]` 這類預留位置（同一個值用同一個預留位置），結果在顯示或插入之前會換回真實內容。候選視窗會顯示「2 items hidden from the AI」（已對 AI 隱藏 2 項）。每一類都能個別關閉：
+
+| 類別 | 例如 | 設定檔中 |
+| --- | --- | --- |
+| 電子郵件地址 | `bob@example.com` | `emails` |
+| 電話號碼 | `+1 (555) 123-4567`、`138 0013 8000` | `phones` |
+| 付款卡號（經 Luhn 檢查） | `4111 1111 1111 1111` | `cards` |
+| API 金鑰和權杖 | `sk-` 或 `ghp_` 這類已知前綴、很長的隨機字串 | `keys` |
+| IP 位址 | `203.0.113.42`、`2001:db8::1` | `ips` |
+| 你自己的字詞，不分大小寫 | 像 `Project Atlas` 這樣的代號、一個名字 | `customWords` |
+
+- 它適用於 `@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，以及修改它們的結果（使用同樣的預留位置），所有供應商都一樣，包括 AllInOneIME Cloud 和 Apple Intelligence。術語表中含有要隱藏內容的項目不會送出。
+- 它能辨識有固定格式的值；無法辨識人名或地址，請把它們加為你自己的字詞。`@claude`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。詳見「隱私」。
+- 設定檔中：`"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`。
+
 所有設定都存放在 `~/.config/allinoneime/config.json`；變更後，下一次翻譯就會使用新設定，不需要重新啟動。較新的鍵：
 
 | 鍵 | 作用 | 預設值 |
@@ -313,19 +385,30 @@ make install
 | `rewriteStyles` | 改寫風格：`polish`、`concise`、`formal`、`casual`、`tactful`、`jargon`，例如 `["polish", "concise", "jargon"]` | Polish、Concise、Formal |
 | `jargonFile` | 你自己的 Jargon 術語表檔案 | `null`（即 `~/.config/allinoneime/jargon.txt`） |
 | `menuBarIcon` | 選單列圖像及其下拉面板 | `true` |
+| `candidateLayout` | 拼音和印地文的候選字詞：`"vertical"`（上下排列）或 `"horizontal"`（橫向並排；← → 選取，↑↓ 翻頁） | `"horizontal"` |
 | `fuzzyPinyin` | 模糊拼音配對：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
+| `useSelection` | @ 指令處理欄位中選取的文字（見「對選取的文字使用指令」） | `true` |
+| `checkForUpdates` | 每天在背景檢查一次新版本；你沒按下之前不會安裝任何東西 | `true` |
+| `rememberQuestions` | 在這台 Mac 上保留你最近 5 個 `@question` 問題和答案，列在 `@question` 下方（見「最近的問題」） | `true` |
+| `appProfiles` | 單一 App 的設定，依 bundle ID，每一項都是選擇性的：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（見「依 App 設定」） | `{}` |
+| `redaction` | 對 AI 隱藏敏感資訊（見「隱私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；每種偵測（`emails`、`phones`、`cards`、`keys`、`ips`）除非設為 `false`，否則都開啟 | `enabled: false` |
 
 ## 隱私
 
-- 打字（英文和拼音）以及 `@calculate` 的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。
+- 打字（英文和拼音）以及 `@calculate` 的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。 修改結果（在結果出現後輸入要求，再按 ⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求。
 - 使用 AllInOneIME Cloud 時，句子會經由開發者的伺服器送到模型供應商（目前經由 OpenRouter）：伺服器只保留計數，絕不保留文字。登入只會保留你的電子郵件地址。
+- 隱藏敏感資訊（Settings → AI Provider → Privacy，預設關閉）：任何請求送出之前（`@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，所有供應商皆然，包括 AllInOneIME Cloud），電子郵件地址、電話號碼、付款卡號（經 Luhn 檢查）、API 金鑰和權杖（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和很長的隨機字串）、IP 位址以及你自己的字詞（代號、名字）會先在 Mac 上換成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 這類預留位置；同一個值使用同一個預留位置。模型的結果在顯示或插入之前會換回真實內容，候選視窗會顯示「2 items hidden from the AI」。模型把預留位置改得無法辨認的結果，會照原樣顯示並標上「⚠ placeholder changed」。術語表中含有被隱藏內容的項目不會送出。每一類都能個別關閉。全形寫法（`zhang＠example.com`、`１３８…`）也找得到，值或片語中間換行也可以。它能辨識有固定格式的值，例如電子郵件、號碼和金鑰；無法辨識人名或地址（請把它們加為你自己的字詞），也無法辨識其他字母系統中外形相似的字母。只適用於送往你的 AI 服務的請求；`@claude`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。設定檔中為 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
 - 只有在你按住右側 ⌥ 時才會錄音，並在 Mac 上辨識；辨識出的文字只有在上述指令中、你按下執行鍵時才會送出。
 - 輸入法只在你於指令中按 ⌃V 或 ⌘V 時讀取剪貼簿文字一次；密碼管理工具標示為隱藏的內容不會被讀取。文字會先顯示在指令中，同樣只在你按下執行鍵時才會送出。較新的 macOS 版本會詢問是否允許 AllInOneIME 讀取剪貼簿：請允許。若不想每次都被詢問，請在 System Settings → Privacy & Security 中把 AllInOneIME 的貼上權限設為一律允許。
 - 在密碼欄位中，macOS 會切換到它自己的鍵盤（U.S. 或 ABC），離開時再切回來。只要你正在輸入的 App 處於安全輸入狀態，AllInOneIME 就不會組字，也無法錄音：按鍵照原樣輸入。而且當系統處於安全輸入狀態時（密碼欄位、Terminal 的 Secure Keyboard Entry（安全鍵盤輸入）等），不會有任何內容送到 AI。
 - `@note` 和 `@reminder` 不經過 AI：AllInOneIME 只把文字交給這台 Mac 上的 Notes 和 Reminders，提醒事項的時間也在 Mac 上解析（這些 App 是否把它同步到你的其他裝置，取決於它們的帳號，例如 iCloud）。因此它們在安全輸入期間也能使用。
+- `@reportissue`（以及「Report an Issue…」）本身不傳送任何內容：它在瀏覽器中開啟 GitHub 的新 issue 頁面，附上你輸入的標題，以及上面列出的版本、語言、供應商種類和數量，這些會先顯示在候選視窗中。除非你在那裡按一下 Submit，否則不會有任何內容送到 GitHub。
 - `@open` 只在這台 Mac 上搜尋。它會記住你用它開啟過的項目（最近 200 個），存放在輸入法自己的偏好設定中（不在 config.json 中），以便把它們排在前面。
+- 為了 Settings → Apps 中的「Add App…」，輸入法會在它自己的偏好設定中保留你最近打過字的 12 個 App 的 bundle ID；關於它們的其他資訊一概不保留。
+- `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。Settings → General →「Remember recent questions」可以關閉此功能並刪除它們（設定檔中的 `rememberQuestions`）；「Clear」會刪除它們。
 - 為了列出你的備忘錄，選單列面板會在輸入法自己的偏好設定中，保存最近 30 則用 `@note` 儲存的備忘錄的 ID 和第一行（最多 80 個字元），面板關閉時也一樣。
 - `@py` 和 `@js` 只在你按下執行鍵時才執行，而且只執行你自己輸入或貼上的程式碼：AI 的答案和其他指令的輸出絕不會被當作程式碼執行。`@py` 使用你 Mac 上的 `python3`，它能像在 Terminal 中一樣讀寫檔案和連上網路；`@js` 在獨立的行程中執行，無法讀取檔案、連上網路或執行其他程式。兩者都不會在安全輸入期間執行。
+- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
 - 記錄檔不會記錄你輸入的內容。對於每個第三方輸入法，macOS 都會警告「The developer can access anything you type with this input source」（開發者可以取用你使用此輸入方式輸入的任何內容）；這是系統的通用警告。
 
 ## 開發
@@ -339,7 +422,8 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized)
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
 程式碼結構：
@@ -351,6 +435,16 @@ make dmg          # the release installer, build/AllInOneIME-<version>.dmg (univ
 - `Sources/AllInOneIMEInstaller`：磁碟映像檔中的「Install AllInOneIME」：安裝、更新和解除安裝
 
 語言包有自己的程式庫，與外掛程式分開：儲存庫 [MicroZ-LLC/AllInOneIME-languages](https://github.com/MicroZ-LLC/AllInOneIME-languages)，透過 https://languages.allinoneime.com/ 提供，並以它們自己的金鑰簽署。`make pack` 建置封存檔；它會以發行資產的形式發佈在那裡（發行版本 `zh-pinyin-<version>`、`ko-hangul-<version>`、`hi-phonetic-<version>`），`swift Scripts/build-packs-index.swift <languages repo> build/packs/*.tar.xz.json` 會在那裡寫入 `packs.json`，並用鑰匙圈中語言包的金鑰（`allinoneime-languages-signing`）簽署成 `packs.json.sig`。App 會讀取 <https://languages.allinoneime.com/packs.json>，檢查簽章，再檢查封存檔的大小和 SHA-256。要從本機伺服器試用語言包：`--test-key` 會以測試金鑰簽署，再執行 `AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`。
+
+發佈新版本（App 內的更新程式會讀取 https://allinoneime.com/update.json，以發佈專用的金鑰簽署）：
+
+1. 提高版本號（`AppVersion.swift` 和三個 Info.plist；`AppVersionTests` 會檢查它們是否一致）並更新更新日誌。
+2. `make dmg NOTARY_PROFILE=<profile>`：產生 `build/AllInOneIME-<version>.dmg` 及其 `.sha256`，以及 `build/AllInOneIME-<version>-update.zip`（兩個 App，和磁碟映像檔中的安裝程式所帶的一樣）。App 和映像檔會以鑰匙圈中的 Developer ID Application 憑證簽署，映像檔再以該 `xcrun notarytool` 鑰匙圈設定檔進行公證並裝訂（staple）。
+3. 把兩者上傳到 GitHub 的 `v<version>` release 並發佈。
+4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一兩句）：寫出 `site/public/update.json`（從 App 讀取的版本、build 和最低 macOS 版本，檔案的位址、大小和 SHA-256，發佈說明的位址和摘要），並用登入鑰匙圈中的金鑰（`allinoneime-releases-signing`；macOS 可能會詢問是否允許存取）簽署成 `update.json.sig`。兩個檔案都要提交。
+5. 等 release 的檔案可以下載後，再部署網站（`cd site && npx wrangler@4 deploy`）：App 每天檢查一次，`AllInOneIME --check-update` 會顯示它們看到的內容。
+
+App 在讀取 manifest 之前，會先用內建的公鑰核對它的簽章，絕不安裝不比現在新的版本，只透過 https 從 allinoneime.com 或本儲存庫的 GitHub release 檔案下載，而且只有在封存檔的大小和 SHA-256 與 manifest 相符、兩個 App 的 bundle ID、版本和程式碼簽章都通過檢查、新的輸入法能啟動時，才會安裝。之後輸入法會把工作交給自己的執行檔擔任輔助程式（`--apply-update`），它會等輸入法結束，像安裝程式一樣替換 App（舊的先移到一旁，出錯就放回去），再註冊新的。要用本機伺服器試試：`make update-test`，或使用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再執行 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`。
 
 Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 用它來記住已加入的輸入方式和麥克風權限，所以更改它就得重新加入輸入法並再次授予權限。
 

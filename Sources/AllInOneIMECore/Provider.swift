@@ -12,10 +12,16 @@ public enum Provider: String, Codable, CaseIterable, Sendable {
     case openai
     /// The developer's own service (`HostedService`): sign in with Google, free requests each day.
     case hosted
+    /// Apple's on-device model (`AppleModel`, macOS 26): no key, nothing leaves the Mac.
+    case apple
 
-    /// The providers the settings offer (the hosted one once it is set up).
-    public static var offered: [Provider] {
+    /// The providers the settings offer (the hosted one once it is set up; Apple's on macOS 26 and later, greyed out
+    /// with the reason when it can't be used).
+    public static var offered: [Provider] { offered(apple: AppleModel.system.availability) }
+
+    static func offered(apple: AppleModelAvailability) -> [Provider] {
         [.bedrock, .anthropic, .gemini, .openai] + (HostedService.isConfigured ? [.hosted] : [])
+            + (apple.isOffered ? [.apple] : [])
     }
 
     public var displayName: String {
@@ -25,13 +31,14 @@ public enum Provider: String, Codable, CaseIterable, Sendable {
         case .gemini: return "Gemini API"
         case .openai: return "OpenAI-compatible API"
         case .hosted: return "AllInOneIME Cloud"
+        case .apple: return "Apple Intelligence (on this Mac)"
         }
     }
 
     /// Environment variables (of the user's login shell) that hold the API key when the keychain has none.
     public var keyVariables: [String] {
         switch self {
-        case .bedrock, .hosted: return []
+        case .bedrock, .hosted, .apple: return []
         case .anthropic: return ["ANTHROPIC_API_KEY"]
         case .gemini: return ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
         case .openai: return ["OPENAI_API_KEY"]
@@ -75,6 +82,9 @@ public struct ProviderSettings: Codable, Equatable, Sendable {
         case .openai:
             // OpenAI's most efficient model; another service's model is typed in with its base URL.
             return ProviderSettings(model: "gpt-6-luna", baseURL: "https://api.openai.com/v1", effort: "")
+        case .apple:
+            // The system's model, nothing to choose.
+            return ProviderSettings(model: AppleModel.modelName, effort: "")
         }
     }
 
@@ -129,7 +139,7 @@ public enum ProviderError: Error, LocalizedError, Equatable {
             return "The \(p.displayName) API key was saved for \(saved), not this base URL: save the key again for it"
         case let .http(p, status, type, message): return "\(p.displayName) \(type ?? "HTTP \(status)"): \(message)"
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
-        case let .refused(p): return "The \(p.displayName) declined this request"
+        case let .refused(p): return p == .apple ? "Apple Intelligence declined this request" : "The \(p.displayName) declined this request"
         case let .invalidResponse(p, detail): return "Couldn't read the \(p.displayName) response: \(detail)"
         case .signedOut: return "Sign in to AllInOneIME Cloud in the settings"
         case .quotaExhausted: return "No requests left today: subscribe, or add your own API key in the settings"
@@ -141,10 +151,13 @@ public enum ProviderError: Error, LocalizedError, Equatable {
 /// (`BedrockStreamEvent`): text deltas, then the stop reason ("max_tokens" when cut off).
 public struct ChatClient: Sendable {
     public let bedrock: BedrockClient
+    /// The on-device model (`Provider.apple`).
+    public let apple: any AppleModelBackend
     public var session: URLSession { bedrock.session }
 
-    public init(bedrock: BedrockClient = BedrockClient()) {
+    public init(bedrock: BedrockClient = BedrockClient(), apple: any AppleModelBackend = AppleModel.system) {
         self.bedrock = bedrock
+        self.apple = apple
     }
 
     public typealias CredentialLoader = @Sendable (_ profile: String) throws -> AWSSharedConfig.Resolved
@@ -171,6 +184,9 @@ public struct ChatClient: Sendable {
                                                             maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,
                                                             timeout: config.timeoutSeconds)
                 return SSEStream.events(request, provider: provider, session: session)
+            case .apple:
+                return AppleModel.stream(body, backend: apple, maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,
+                                         timeout: config.timeoutSeconds)
             }
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }

@@ -102,6 +102,8 @@ final class AllInOneIMEInputController: IMKInputController {
     lazy var composer: Composer = {
         let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
+        composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
+        composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
         return composer
     }()
     private var session: RimeSession?
@@ -110,6 +112,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var conversionTask: Task<Void, Never>?
     private var lastElapsed: TimeInterval?
     private var lastFromCache = false
+    /// How many values the last request hid from the AI (`Redaction`): the panel says so.
+    var lastHidden = 0
     private var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
@@ -121,6 +125,17 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The command usage as kept, and keeping it (the self-test leaves the user's alone).
     var loadCommandUsage: () -> CommandUsage = { CommandUsageStore.usage }
     var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
+    /// The recent `@question`s as kept, and keeping one (the self-test leaves the user's alone).
+    var loadQuestionHistory: () -> QuestionHistory = { QuestionHistoryStore.history }
+    var recordQuestion: (QuestionHistory.Entry) -> Void = { QuestionHistoryStore.record($0) }
+    /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
+    private var keyClient: IMKTextInput?
+    /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
+    /// self-test: it would reach the user's own frontmost app.
+    var selectionByAccessibility = true
+    /// What the field said was selected when a command started on its selection (`selectedRange()`, as it reported it):
+    /// a key finding it changed (a click, the app's own keys) gives the command up (`Composer.selectionMoved`).
+    private var selectionReported: NSRange?
     /// Whether secure event input is on anywhere; no text is sent to the model then.
     /// (The self-test replaces this to exercise both states.)
     var secureInputActive: () -> Bool = { SecureInput.isOn }
@@ -129,6 +144,12 @@ final class AllInOneIMEInputController: IMKInputController {
     var clientOverride: IMKTextInput?
     /// The settings the controller follows (the self-test supplies its own).
     var loadSettings: () -> Config = { LiveConfig.current }
+    /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
+    var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
+    /// The bundle id of the app being typed in (its `AppProfile`), as the field of the key, else the client, says it.
+    private var appID: String? { (keyClient ?? clientOverride ?? client())?.bundleIdentifier() }
+    /// The app of the text field that became active last (for what's shown on every key, without asking it again).
+    private var activeApp: String?
     /// `@open`: finds files and apps, what it opened before first (`loadOpenHistory`), and opens the one
     /// picked, which `recordOpen` keeps. The self-test opens nothing and keeps its history in memory.
     var searchFiles: @MainActor (_ query: String, _ history: OpenHistory) async -> [SearchResult] = {
@@ -291,11 +312,15 @@ final class AllInOneIMEInputController: IMKInputController {
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
-            ensureEngine()
-            applySettings()
-            // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             let app = (sender as? IMKTextInput)?.bundleIdentifier()
+            activeApp = app
+            if let app { recordApp(app) }
+            ensureEngine()
+            applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+            // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
+            // Once a day at most, in the background: comparing two dates here, never on a keystroke.
+            UpdateController.shared.checkIfDue()
         }
     }
 
@@ -308,13 +333,18 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Typing a result out
 
-    /// `Config.typeOutRate`, `typeOutVaries`: how fast (the self-test waits less).
+    /// `Config.typeOutRate`, `typeOutVaries`, `typeOutMistakes`: how fast, and with typos fixed on the way
+    /// (the self-test waits less, and picks the slips).
     var typeOutRate = TypeOut.defaultRate
     var typeOutVaries = false
+    var typeOutMistakes = false
     var typeOutSleep: @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
+    var typeOutRandom: (() -> Double)?
     private var typingTask: Task<Void, Never>?
-    private var typingRest: [Character] = []
-    private var typingClient: IMKTextInput?
+    /// The plan being typed, and the field it goes into (`TypeOut.Typist`: it keeps the field right while a typo is in it).
+    private var typist = TypeOut.Typist([], start: 0)
+    private var typingField: TypingField?
+    private var typingClient: IMKTextInput? { typingField?.client }
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
 
@@ -336,40 +366,106 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Types `text` into `client` character by character, like a person typing (`TypeOut.delays`).
+    /// The selected text of the field a draft starts in (`Composer.readSelection`): with the setting on (`useSelection`),
+    /// never during secure input, nor in a terminal (its selection is no text being edited: what goes back would be typed
+    /// at the prompt). Only how it was read and how long it is are logged.
+    @MainActor
+    private func readSelection() -> Composer.Selection? {
+        let target = keyClient ?? clientOverride ?? client()
+        guard loadSettings().useSelection, !secureInputActive(), !Self.isTerminal(target),
+              let read = SelectedText.read(from: target, accessibility: selectionByAccessibility) else { return nil }
+        log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
+        selectionReported = target?.selectedRange()
+        return Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
+    }
+
+    /// Whether the field's selection is no longer what it was when the command started on it (`selectionReported`).
+    @MainActor
+    private func selectionChanged(in client: IMKTextInput?) -> Bool {
+        guard composer.draftInPanel, let reported = selectionReported, let client else { return false }
+        return client.selectedRange() != reported
+    }
+
+    /// A result in place of the selection the command worked on (`Composer.Effect.replaceSelection`): by its range, which
+    /// the text input protocol has fields honor; one that ignores it still has the text selected, and an insert replaces
+    /// what is selected.
+    @MainActor
+    private func replaceSelection(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput?) {
+        guard let client else { return }
+        let range = selection.range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound
+        client.insertText(text, replacementRange: range)
+        log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
+    }
+
+    /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
+    /// occasional typo fixed on the way (`typeOutMistakes`) where the field can take one back.
+    ///
+    /// A typo is taken back by replacing its range: `insertText` with a `replacementRange`, which the text input
+    /// protocol has every text field honor (NSTextView, WebKit, Chromium and Electron do). Only in a field that
+    /// says where its caret is, right where the text typed so far ends, and reads that text back as typed
+    /// (`attributedSubstring`); while a typo is in the field, and after each fix, that's checked before every step
+    /// (`TypeOut.Typist`). Never in a terminal (keys go to a shell). An app that doesn't keep a fix as asked is
+    /// remembered (`TypoMemory`) and gets no typos again. (A ⌫ posted as a key would need the Accessibility
+    /// permission and could reach the app after the next character: never here.)
     @MainActor
     private func typeOut(_ text: String, into client: IMKTextInput) {
         stopTyping(insertingRest: true)
-        typingRest = Array(text)
-        typingClient = client
-        typingPastes = text.contains("\n") && Self.isTerminal(client) && canPasteInTerminal()
-        let delays = TypeOut.delays(for: text, rate: typeOutRate, varies: typeOutVaries)
+        let field = TypingField(client, pastesLineBreaks: text.contains("\n") && Self.isTerminal(client) && canPasteInTerminal())
+        typingField = field
+        typingPastes = field.pastesLineBreaks
+        let caret = field.caret
+        let app = client.bundleIdentifier() ?? ""
+        let mistakes = typeOutMistakes && !Self.isTerminal(client) && !TypoMemory.contains(app) && caret != nil
+        // Wrong letters from the keys next to the right one on the keyboard the keys come from (AZERTY, QWERTZ …).
+        let layout = appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current()
+        let keyboard = layout.map(TypeOut.Keyboard.init(layout:)) ?? .qwerty
+        let random = typeOutRandom ?? { Double.random(in: 0..<1) }
+        typist = TypeOut.Typist(TypeOut.plan(for: text, rate: typeOutRate, varies: typeOutVaries, mistakes: mistakes,
+                                             keyboard: keyboard, random: random), start: caret ?? 0, length: field.length)
         let sleep = typeOutSleep
-        log.notice("typing out \(text.count) characters")
+        log.notice("typing out \(text.count) characters (\(self.typist.typing.runs.filter(\.isSlip).count) typos to fix)")
         typingTask = Task { @MainActor [weak self] in
-            for delay in delays {
-                await sleep(delay)
-                guard let self, !Task.isCancelled, let client = self.typingClient, !self.typingRest.isEmpty else { return }
-                let character = self.typingRest.removeFirst()
-                if character == "\n", self.typingPastes {
+            var waited = false
+            while true {
+                if !waited, let delay = self?.typist.nextDelay { await sleep(delay) }
+                guard let self, !Task.isCancelled, let field = self.typingField else { return }
+                let progress = self.typist.step(in: field)
+                self.rememberFailure(app)
+                if progress == .done { break }
+                waited = progress == .waiting
+                if waited { await sleep(0.05) }  // the field catching up (Chromium tells its caret late)
+                while field.lineBreaks > 0 {
+                    field.lineBreaks -= 1
                     await self.pasteInTerminal("\n")
-                } else {
-                    client.insertText(String(character), replacementRange: Self.notFound)
                 }
             }
-            self?.typingTask = nil
-            self?.typingClient = nil
+            guard let self, !Task.isCancelled else { return }
+            self.typingTask = nil
+            self.typingField = nil
         }
     }
 
-    /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed.
+    /// Remembers `app` when its field didn't take a typo's fix (`TypoMemory`): no typos there again.
+    @MainActor
+    private func rememberFailure(_ app: String) {
+        guard typist.fieldFailed, TypoMemory.remember(app) else { return }
+        log.error("typing out: \(app, privacy: .public) didn't take a typo's fix (\(self.typist.failure ?? "", privacy: .public)); no typos there again")
+    }
+
+    /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed. Either way a typo still
+    /// in the field is taken out first, where it was typed, so it holds the text, or its start.
     @MainActor
     func stopTyping(insertingRest: Bool) {
         guard let task = typingTask else { return }
         task.cancel()
-        if insertingRest, !typingRest.isEmpty { insert(String(typingRest), into: typingClient) }
+        if let field = typingField {
+            // Checked like any fix, waiting a little in between for a field that tells its text late.
+            let rest = typist.stop(insertingRest: insertingRest, in: field, wait: { usleep(20_000) })
+            rememberFailure(field.client.bundleIdentifier() ?? "")
+            if !rest.isEmpty { insert(rest, into: field.client) }
+        }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
-        (typingTask, typingRest, typingClient, typingPastes) = (nil, [], nil, false)
+        (typingTask, typist, typingField, typingPastes) = (nil, TypeOut.Typist([], start: 0), nil, false)
     }
 
     /// Whether a result is being typed out now (the self-test).
@@ -386,7 +482,7 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     override func composedString(_ sender: Any!) -> Any! {
-        composer.markedText
+        composer.draftInPanel ? "" : composer.markedText  // a command on the selection is in the panel, not the field
     }
 
     override func inputControllerWillClose() {
@@ -436,14 +532,26 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Takes over the current settings: voice key, action key, and the default input mode (applied to
     /// new sessions, and again when the setting changes; a Shift toggle otherwise sticks).
+    /// `app`: the bundle id of the field's app (else the client's), whose profile may start it in another language
+    /// and type results out or not (`AppProfile`).
     @MainActor
-    func applySettings() {
+    func applySettings(app: String? = nil) {
         let config = loadSettings()
+        let app = app ?? appID
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
         composer.claudeInBackground = config.claudeInBackground
-        composer.typesResults = config.typeOut
-        (typeOutRate, typeOutVaries) = (config.typeOutRate, config.typeOutVaries)
+        composer.typesResults = config.applying(app: app).typeOut
+        composer.horizontalCandidates = config.candidateLayout == .horizontal
+        composer.outputLanguages = config.outputLanguages
+        // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
+        composer.issueDiagnostics = { [weak self] in
+            guard let self else { return IssueReporting.current(config: LiveConfig.current) }
+            let config = self.loadSettings()
+            return IssueReporting.diagnostics(config: config, plugins: LivePlugins.current().count,
+                                              extensions: self.loadExtensions(config, false).commands.count)
+        }
+        (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
         setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
@@ -455,7 +563,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.hangulTables = LanguagePackManager.shared.hangulTables()
         composer.hindiTables = LanguagePackManager.shared.hindiTables()
         let languages = LanguagePackManager.shared.usable(config.inputLanguages)
-        let defaultInput = languages.contains(config.defaultInput) ? config.defaultInput : languages[0]
+        let defaultInput = config.startingInput(in: app, among: languages)
         composer.inputLanguages = languages
         // With one input language, a field is always in it (it may have been switched before it was the only one).
         let onlyOne = languages.count == 1
@@ -528,7 +636,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 return true
             }
             // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
-            let pastesRest = typingPastes && typingRest.contains("\n")
+            let pastesRest = typingPastes && typist.rest.contains("\n")
             stopTyping(insertingRest: true)
             if pastesRest { return true }
         }
@@ -557,7 +665,8 @@ final class AllInOneIMEInputController: IMKInputController {
         secureNoticeShown = false
         // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than
         // show the draft again, doubled. This key is dropped, so ⏎ doesn't send half a sentence.
-        if composer.isComposing, let target,
+        // (A command on the selection marks nothing in the field: there's nothing for the app to take.)
+        if composer.isComposing, !composer.draftInPanel, let target,
            markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target)) {
             log.notice("the app took the marked text: starting over")
             perform(composer.appTookMarkedText(), client: client)
@@ -579,6 +688,8 @@ final class AllInOneIMEInputController: IMKInputController {
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
             composer.claudeInBackground = loadSettings().claudeInBackground
+            composer.remembersQuestions = loadSettings().rememberQuestions
+            composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
         }
         // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
         if composer.pendingAccent == nil { deadKeys.reset() }
@@ -587,7 +698,15 @@ final class AllInOneIMEInputController: IMKInputController {
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
             in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
+        // The selection a command is written on changed (a click, the app's own keys): the command is given up, and
+        // the key acts as it would.
+        if selectionChanged(in: target) {
+            log.notice("the selection changed while a command was written on it: given up")
+            perform(composer.selectionMoved(), client: client)
+        }
+        keyClient = client
         let response = composer.handleKeyDown(key)
+        keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
         return response.handled
@@ -649,6 +768,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
+            case let .replaceSelection(text, selection):
+                replaceSelection(text, selection, in: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
             case let .startConversion(input, id):
@@ -658,6 +779,13 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .startCommand(command, input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 startConversion(input, id: id, command: command)
+            case let .startRefine(refinement, id):
+                // Sent to the model like the request it refines: refused during secure input the same way.
+                if refusedForSecureInput(id: id, client: target) { break }
+                startRefine(refinement, id: id)
+            case let .reask(command, input, id):
+                if refusedForSecureInput(id: id, client: target) { break }
+                startConversion(input, id: id, command: command, fresh: true)
             case let .startPlan(outer, plan, id):
                 // Inner commands run programs or reach the network: refused during secure input like any.
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
@@ -740,6 +868,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .commandUsed:
                 saveCommandUsage(composer.commandUsage)
+            case let .rememberQuestion(entry):
+                // Kept only on this Mac, never while secure input is on (the composer checks too).
+                guard loadSettings().rememberQuestions, !secureInputActive() else { break }
+                recordQuestion(entry)
             case let .launchInTerminal(argv):
                 do {
                     try launchInTerminal(argv)
@@ -856,6 +988,7 @@ final class AllInOneIMEInputController: IMKInputController {
         scriptRun = nil
         lastElapsed = nil
         lastFromCache = false
+        lastHidden = 0
         log.notice("conversion \(id) started (an extension, \(arguments.count) arguments)")
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1288,7 +1421,8 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     private func updateMarkedText(_ client: IMKTextInput?) {
-        guard let client else { return }
+        // A command on the selection is written in the panel: the field keeps its selection, nothing marked over it.
+        guard let client, !composer.draftInPanel else { return }
         let text = composer.markedText
         guard !text.isEmpty else {
             // Nothing of ours is marked: leave the document (and any selection in it) alone.
@@ -1354,14 +1488,23 @@ final class AllInOneIMEInputController: IMKInputController {
         return config.outputLanguages.contains { $0 != own }
     }
 
+    /// The notice of an AI command in an app with no AI (`AppProfile.noAI`), read when the command starts; nil: AI may run.
+    @MainActor
+    private func aiRefusal() -> String? {
+        guard !loadSettings().allowsAI(in: appID) else { return nil }
+        log.notice("AI command refused: no AI in this app")
+        return AppProfileText.refusal
+    }
+
     /// Opens the settings window on `page` (the self-test records it instead).
     var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
 
     @MainActor
-    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil) {
+    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false) {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
+        lastHidden = 0
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1384,6 +1527,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
         let improveTranslates = loadSettings().improveTranslates
+        // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
+        let app = appID
         // A terminal runs each line it is given: there @search's list, and any command's output, goes in
         // as one line.
         let terminal = Self.isTerminal(clientOverride ?? client())
@@ -1403,9 +1548,9 @@ final class AllInOneIMEInputController: IMKInputController {
             // @improve, @translate, or both written together: one request (`WritingMode`).
             if command == nil || command?.kind == .convert {
                 let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
-                return converter.convert(text, mode: mode)
+                return converter.convert(text, mode: mode, app: app)
             }
-            return command.map { converter.generate($0, input: input) } ?? converter.convert(input)
+            return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan, !plan.isEmpty {
@@ -1424,11 +1569,43 @@ final class AllInOneIMEInputController: IMKInputController {
         // A terminal runs each line it is given: a program's output goes in as one line there, and so does
         // an answer with line breaks (code) unless they can go in as a paste (`insert`, `TerminalPaste`).
         let oneLine = terminal && (command?.kind == .run || (command?.kind == .generate && !canPasteInTerminal()))
-        let inserted = oneLine ? Self.oneLine(stream) : stream
+        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
+    }
+
+    /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"): the same
+    /// request as before (`WritingMode` from the command, as `startConversion` works it out), with the conversation
+    /// after it. The new results replace the shown ones as they stream in (`Composer.receive`). In the app's settings
+    /// (`AppProfile`): its rewrite styles, and nothing sent where it has no AI.
+    @MainActor
+    private func startRefine(_ refinement: Refinement, id: Int) {
+        conversionTask?.cancel()
+        lastElapsed = nil
+        lastFromCache = false
+        log.notice("conversion \(id) started (refine, step \(refinement.turns.count))")
+        let stream: AsyncThrowingStream<ConversionUpdate, Error>
+        var generates = false
+        switch refinement.request {
+        case let .writing(command, input):
+            let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
+                                                 improveTranslates: loadSettings().improveTranslates)
+            stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
+        case let .command(command, input):
+            stream = converter.generate(command, input: input, app: appID, turns: refinement.turns)
+            generates = true
+        }
+        // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
+        let oneLine = generates && Self.isTerminal(clientOverride ?? client()) && !canPasteInTerminal()
+        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
+    }
+
+    /// Hands `stream`'s updates for request `id` to the composer, and its error if it fails.
+    @MainActor
+    private func consume(_ inserted: AsyncThrowingStream<ConversionUpdate, Error>, id: Int) {
         conversionTask = Task { @MainActor [weak self] in
             do {
                 for try await update in inserted {
                     guard let self, !Task.isCancelled else { return }
+                    self.lastHidden = update.hidden
                     if update.isFinal {
                         self.lastElapsed = update.elapsed
                         self.lastFromCache = update.fromCache
@@ -1525,6 +1702,11 @@ final class AllInOneIMEInputController: IMKInputController {
 
     @MainActor
     private func anchor(_ client: IMKTextInput) -> NSRect {
+        // A command on the selection: under the selection's last line (nothing is marked to go by).
+        if let range = composer.selection?.range, !range.isEmpty {
+            let rect = client.firstRect(forCharacterRange: NSRange(location: range.upperBound - 1, length: 1), actualRange: nil)
+            if rect != .zero { return rect }
+        }
         var lineRect = NSRect.zero
         _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
         return lineRect
@@ -1615,11 +1797,64 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
+        // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
+        if let selected = composer.selectionInUse {
+            if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
+                return "\(how) → " + tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
+            }
+            let text = composer.sentText.isEmpty ? selected : composer.sentText
+            return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
+        }
         // A command with nothing after it yet: what to do (the action key alone only hints).
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
         return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
+    }
+
+    /// The instructions the results shown were refined with, oldest first ("Refined: shorter · more formal"); Esc goes
+    /// back one. Nil before any.
+    @MainActor
+    func refineHeader() -> String? {
+        let history = composer.refineHistory
+        guard composer.isLevelTwo, !history.isEmpty else { return nil }
+        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
+        return tr("已修改：", "Refined: ") + steps
+    }
+
+    /// The line under the command being written on the selection (`Composer.selection`): what it works on, with its
+    /// start and length; or that the command doesn't use it, or that it's too long (either way it's left as it is).
+    @MainActor
+    func selectionHeader() -> String? {
+        guard let selection = composer.selection?.text else { return nil }
+        let count = selection.count
+        if composer.selectionTooLong {
+            return tr("选中的文字太长（\(count) 字，最多 \(Composer.maxSelectionLength) 字），命令不用它",
+                      "The selection is too long (\(count) characters, \(Composer.maxSelectionLength) at most): not used")
+        }
+        if let command = composer.draftCommand, !Composer.usesSelection(command) {
+            return tr("@\(command.name) 不用选中的文字，它保持原样", "@\(command.name) doesn't use the selection; it stays as it is")
+        }
+        return tr("对选中的文字：“\(Self.selectionPreview(selection))”（\(count) 字）",
+                  "On the selection: “\(Self.selectionPreview(selection))” (\(count) characters)")
+    }
+
+    /// The command being written on the selection, for the panel's input line: as it would be marked, with its caret
+    /// (`Composer.markedCursor`) while it's written.
+    @MainActor
+    func panelInput() -> String? {
+        guard composer.draftInPanel else { return nil }
+        let text = composer.markedText
+        guard !composer.isLevelTwo else { return text }
+        let at = min(max(composer.markedCursor, 0), text.count)
+        return String(text.prefix(at)) + "▏" + String(text.dropFirst(at))
+    }
+
+    /// The start of a selection on one line, for the panel: its first `limit` characters, line breaks shown as "↵".
+    static func selectionPreview(_ text: String, limit: Int = 60) -> String {
+        let line = text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline).joined(separator: " ↵ ")
+            .trimmingCharacters(in: .whitespaces)
+        return line.count > limit ? String(line.prefix(limit)) + "…" : line
     }
 
     /// A long answer as the panel shows it (the whole text is inserted).
@@ -1639,11 +1874,26 @@ final class AllInOneIMEInputController: IMKInputController {
                 result.matchedContent ? tr("内容", "content") + " · " + place : place)
     }
 
+    /// Whether a list row can be picked (a click, the pointer over it): not a row of information.
+    private static func picks(_ choice: Composer.Choice) -> Bool {
+        if case let .item(item) = choice.kind { return item.valid }
+        return true
+    }
+
     @MainActor
     func panelModel() -> CandidateView.Model {
         var model = CandidateView.Model()
         let config = loadSettings()
-        if composer.isLevelTwo {
+        if composer.refineIsComposing {
+            // Pinyin of a refine instruction: its candidates, as when typing (the results come back once it's picked).
+            let state = composer.engineState
+            model.rows = state.candidates.map {
+                CandidateView.Row(label: $0.label, text: $0.text, comment: $0.comment, style: .candidate)
+            }
+            model.highlighted = state.highlighted
+            model.horizontal = composer.horizontalCandidates
+            model.footer = tr("空格 选词 · ⏎ 按这句修改结果 · Esc 清除拼音", "Space picks · ⏎ refine · Esc clear the pinyin")
+        } else if composer.isLevelTwo {
             let choices = composer.choices
             model.rows = choices.map { choice in
                 // Long rows (a pasted paragraph and its versions) are shortened here; the full text goes in.
@@ -1674,12 +1924,12 @@ final class AllInOneIMEInputController: IMKInputController {
                                              comment: choice.detail.map { Self.preview($0) } ?? UIText.answerLabel(composer.activeCommand),
                                              style: .translation, isComplete: choice.isComplete)
                 case .shown:
-                    // What a `show` script printed: shown as it comes, never inserted.
+                    // What a `show` script printed: shown as it comes, never inserted (nor clicked).
                     return CandidateView.Row(label: "", text: Self.preview(choice.text), comment: choice.detail.map { Self.preview($0) } ?? "",
-                                             style: .candidate)
-                case .item:
+                                             style: .candidate, pickable: false)
+                case let .item(item):
                     return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate)
+                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate, pickable: item.valid)
                 case let .file(path) where path.hasPrefix(SearchResult.agentPrefix):
                     // A background task: its last reply, shortened.
                     let reply = composer.searchResults.first { $0.path == path }?.detail ?? ""
@@ -1705,13 +1955,23 @@ final class AllInOneIMEInputController: IMKInputController {
                     // To confirm: what to be reminded of, and when as read from the text (「明天 15:00」).
                     return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
                                              comment: UIText.when(reminder), style: .candidate)
+                case .issue:
+                    // To confirm: the issue's title (none: written on GitHub); what goes with it is the status below.
+                    return CandidateView.Row(label: choice.label,
+                                             text: choice.text.isEmpty ? tr("（标题在 GitHub 上写）", "(write the title on GitHub)") : choice.text,
+                                             comment: tr("在 GitHub 上新建问题", "new issue on GitHub"), style: .translation,
+                                             icon: composer.activeCommand.map(CommandIcons.icon(for:)))
                 }
+            }
+            // Only rows a click picks light up under the pointer (not one still coming in).
+            for (index, choice) in choices.enumerated() where model.rows.indices.contains(index) {
+                model.rows[index].pickable = Composer.picks(choice)
             }
             model.highlighted = composer.highlighted
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = config.language(of: composer.sentText).matches(config.outputLanguage)
+                let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
@@ -1721,18 +1981,36 @@ final class AllInOneIMEInputController: IMKInputController {
                     : command == .tasks ? tr("读取后台任务…", "Reading the background tasks…")
                     : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
                     : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…"))
-                model.status = choices.count <= 1 ? .loading(loading) : .none
+                let refining = composer.refineHistory.last.map {
+                    tr("按「\(Self.preview($0, limit: 40))」修改中…", "Refining: \(Self.preview($0, limit: 40))…")
+                }
+                model.status = choices.count <= 1 ? .loading(composer.isRefining ? refining ?? loading : loading) : .none
                 model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
                     : command?.script?.output == .show
                     ? tr("运行中… · ⌘C 复制 · Esc 停止 · 离开输入框后在后台继续", "Running… · ⌘C copy · Esc stop · goes on in the background if you leave")
                     : command?.script != nil ? tr("运行中… · Esc 停止", "Running… · Esc stop")
+                    : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
+                                               "Refining… · type the next step meanwhile · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
+            case .choosing where command?.kind == .report:
+                // Everything the page will hold besides the title, before it opens.
+                if let issue = composer.pendingIssue {
+                    model.status = .hint(tr("会一起填进去（不含你打的其他字、路径、密钥和命令名）：",
+                                            "Also filled in (no other text you typed, no paths, keys or command names):")
+                                         + "\n" + issue.lines.map { "· " + $0 }.joined(separator: "\n"))
+                }
+                model.footer = tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
+            case .choosing where composer.showsSavedAnswer:
+                // A recent question's answer as it was saved (nothing was asked): R asks again for a fresh one.
+                model.footer = tr("空格 / ⏎ 上屏 · R 重新问 · 0 问题 · ⌘C 复制 · Esc 返回",
+                                  "Space / ⏎ insert · R re-ask · 0 question · ⌘C copy · Esc back")
+                model.detail = composer.savedAnswerDate.map { tr("保存于", "saved ") + UIText.ago($0) }
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
                 model.footer = command?.script?.output == .show && !picks
@@ -1745,8 +2023,19 @@ final class AllInOneIMEInputController: IMKInputController {
                     ? tr("空格 / ⏎ 打开 · 数字选择 · ⌘C 复制路径 · Esc 返回", "Space / ⏎ open · digits pick · ⌘C copy path · Esc back")
                     : command == .reminder
                     ? tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy")
+                    : composer.refineLine != nil
+                    ? tr("⏎ 按这句修改结果 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⏎ refine · ⌫ delete · Esc clear · ↑↓ choose")
+                    : composer.canRefine
+                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`); 0 still picks the original.
+                    ? (composer.refineHistory.isEmpty
+                        ? tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字修改结果 · ⌘C 复制 · Esc 返回",
+                             "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back")
+                        : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字再改 · Esc 上一版",
+                             "Space / ⏎ insert · digits pick · 0 original · type to refine · Esc previous"))
                     : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
                          "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+                // A refine that failed: the results before it stay, its instruction back in the line.
+                if let error = composer.refineError { model.status = .error(error) }
                 if command != .open && command != .reminder {
                     model.detail = lastFromCache ? tr("缓存", "cached") : lastElapsed.map { String(format: "%.1fs", $0) }
                 }
@@ -1761,6 +2050,8 @@ final class AllInOneIMEInputController: IMKInputController {
             case .idle, .drafting:
                 break
             }
+            // A saved @question answer was sent nowhere now: what the last request hid isn't about it.
+            RedactionPanel.annotate(&model, choices: choices, hidden: composer.showsSavedAnswer ? 0 : lastHidden, phase: composer.phase)
         } else if composer.voice != .off {
             let heard = composer.voice.text
             if case .listening = composer.voice {
@@ -1785,6 +2076,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 CandidateView.Row(label: $0.label, text: $0.text, comment: $0.comment, style: .candidate)
             }
             model.highlighted = state.highlighted
+            // A word's candidates in a row, as macOS's own panel, if set so (every other list is a column); as the
+            // composer takes the arrow keys, from the settings the text field was given.
+            model.horizontal = composer.horizontalCandidates
             let key = composer.actionKey
             if let command = composer.draftCommand {
                 // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
@@ -1818,7 +2112,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let choices = Composer.itemChoicesForPanel(list.items)
             model.rows = choices.map {
                 CandidateView.Row(label: $0.label, text: Self.preview($0.text), comment: $0.detail.map { Self.preview($0) } ?? "",
-                                  style: $0.label.isEmpty ? .original : .candidate)
+                                  style: $0.label.isEmpty ? .original : .candidate, pickable: Self.picks($0))
             }
             model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
             if list.items.isEmpty { model.status = .hint(tr("没有结果", "No results")) }
@@ -1848,11 +2142,33 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = found.isEmpty ? nil : composer.recipientHighlight
             if let note = composer.recipientNote { model.status = .hint(note) }
             model.footer = tr("⏎ / Tab 选择收件人 · ↑↓ · Esc 取消", "⏎ / Tab pick the recipient · ↑↓ · Esc cancel")
+        } else if !composer.questionMatches.isEmpty {
+            // "@question " and nothing (or a few words) after it: the recent questions with them, newest first; one picked
+            // shows its saved answer.
+            let digits = composer.questionDigitsPick, key = UIText.name(composer.actionKey)
+            model.rows = composer.questionMatches.enumerated().map { index, entry in
+                CandidateView.Row(label: digits ? String(index + 1) : "", text: Self.preview(entry.question.replacingOccurrences(of: "\n", with: " ")),
+                                  comment: UIText.ago(entry.date), style: .candidate)
+            }
+            model.highlighted = composer.questionHighlight
+            model.status = .hint(composer.sentText.isEmpty
+                                 ? tr("最近问过的：选一个看当时的答案，或者写新问题", "Recently asked: pick one to see its answer again, or write a new question")
+                                 : draftHint(config: config.applying(app: activeApp)))
+            model.footer = composer.questionHighlight != nil
+                ? tr("\(key) 看保存的答案 · ↑↓ 选择 · Esc 清除", "\(key) show the saved answer · ↑↓ choose · Esc clear")
+                : digits ? tr("数字 / ↑↓ 选一个看答案 · ⌃V 粘贴 · Esc 清除", "Digits / ↑↓ pick one to see its answer · ⌃V paste · Esc clear")
+                : tr("\(key) 问这个新问题 · ↑↓ 选一个看答案 · Esc 清除", "\(key) ask it · ↑↓ pick one to see its answer · Esc clear")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
-            model.status = .hint(draftHint(config: config))
-            model.footer = tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
+            model.status = .hint(draftHint(config: config.applying(app: activeApp)))
+            model.footer = composer.selection != nil
+                ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
+                : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
+        // The refine instruction being typed, as a line of input with its caret, in place of the command's.
+        model.input = composer.refineLine.map { tr("修改 › ", "refine › ") + $0 + "▏" } ?? panelInput()
+        let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
+        model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
         return model
     }
@@ -1948,6 +2264,8 @@ final class AllInOneIMEInputController: IMKInputController {
         improveTranslates.state = current.improveTranslates ? .on : .off
         improveTranslates.isEnabled = config != nil
         menu.addItem(improveTranslates)
+        // The app being typed in: no AI, typing out, the language it starts in (`AppProfile`).
+        if let appItem = appMenuItem(config: config, app: activeApp ?? appID) { menu.addItem(appItem) }
         menu.addItem(.separator())
         let rimeDir = NSMenuItem(title: tr("打开 Rime 用户目录", "Open Rime User Folder"), action: #selector(openRimeDirectory(_:)),
                                  keyEquivalent: "")
@@ -1956,6 +2274,17 @@ final class AllInOneIMEInputController: IMKInputController {
         let deploy = NSMenuItem(title: tr("重新部署词库", "Redeploy Dictionaries"), action: #selector(redeploy(_:)), keyEquivalent: "")
         deploy.target = self
         menu.addItem(deploy)
+        menu.addItem(.separator())
+        // GitHub's page for a new issue, with the versions and settings that help (`IssueReport`).
+        let report = NSMenuItem(title: tr("报告问题…", "Report an Issue…"), action: #selector(reportIssue(_:)), keyEquivalent: "")
+        report.target = self
+        menu.addItem(report)
+        // Settings → About, checking there (or, with a new version known, offering it).
+        let newer = UpdateController.shared.available?.version
+        let update = NSMenuItem(title: newer.map { tr("更新到 \($0)…", "Update to \($0)…") } ?? tr("检查更新…", "Check for Updates…"),
+                                action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        update.target = self
+        menu.addItem(update)
         return menu
     }
 
@@ -2068,6 +2397,25 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
+    /// The input menu's "Check for Updates…": Settings → About, which checks (or shows the update already found).
+    @objc func checkForUpdates(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
+            SettingsWindow.shared.show(page: .about)
+            if UpdateController.shared.available == nil { UpdateController.shared.check(userInitiated: true) }
+        }
+    }
+
+    /// The input menu's "Report an Issue…": the new-issue page in the browser (the browser takes the focus).
+    @objc func reportIssue(_ sender: Any?) {
+        MainActor.assumeIsolated {
+            perform(composer.commitAll(), client: nil)
+            let config = loadSettings()
+            NSWorkspace.shared.open(IssueReport(title: "", diagnostics: IssueReporting.diagnostics(
+                config: config, plugins: LivePlugins.current().count, extensions: loadExtensions(config, false).commands.count)).url)
+        }
+    }
+
     @objc func openRimeDirectory(_ sender: Any?) {
         MainActor.assumeIsolated {
             if let dir = RimeService.shared.userDataDir { NSWorkspace.shared.open(dir) }
@@ -2099,4 +2447,35 @@ final class AllInOneIMEInputController: IMKInputController {
             NSWorkspace.shared.open(url)
         }
     }
+}
+
+/// The text field a result is typed into, for `TypeOut.Typist`. Into a terminal, line breaks are counted for
+/// pasting (`TerminalPaste`), not typed.
+final class TypingField: TypeOut.Field {
+    let client: IMKTextInput
+    let pastesLineBreaks: Bool
+    var lineBreaks = 0
+
+    init(_ client: IMKTextInput, pastesLineBreaks: Bool) {
+        self.client = client
+        self.pastesLineBreaks = pastesLineBreaks
+    }
+
+    var caret: Int? {
+        let range = client.selectedRange()
+        return range.location != NSNotFound && range.length == 0 ? range.location : nil
+    }
+
+    var length: Int? {
+        let length = client.length()
+        return length >= 0 && length != NSNotFound ? length : nil
+    }
+
+    func read(_ range: NSRange) -> String? { client.attributedSubstring(from: range)?.string }
+
+    func type(_ text: String) {
+        if pastesLineBreaks, text == "\n" { lineBreaks += 1 } else { client.insertText(text, replacementRange: AllInOneIMEInputController.notFound) }
+    }
+
+    func replace(_ range: NSRange, with text: String) { client.insertText(text, replacementRange: range) }
 }

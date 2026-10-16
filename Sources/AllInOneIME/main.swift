@@ -22,6 +22,14 @@ let usage = """
       --adopt-pack DATA [VERSION]
                         install the Chinese pack from a Rime data folder (ThirdParty/rime-data, or an
                         older app's Contents/SharedSupport/rime) without downloading
+      --version         print this bundle's version
+      --check-update [--manifest-url URL] [--key BASE64]
+                        check for a new version as Settings → About does (signed update.json); plain
+                        http is allowed to this Mac only, for a test server
+      --install-update [--manifest-url URL] [--key BASE64] [--target-dir DIR] [--detach]
+                        download, verify and install the update as About's Update button does; with
+                        --target-dir, into DIR/Input Methods and DIR/Applications (a test install:
+                        nothing is registered, the user's apps are left alone)
     """
 
 func printError(_ message: String) {
@@ -140,6 +148,8 @@ func runServer(showSettings: Bool = false) -> Never {
     }
     // librime on the Chinese pack if it's installed; an upgraded user who had Chinese gets it downloaded.
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
+    // What the last update did, and a look for the next one if a day has passed (in the background).
+    MainActor.assumeIsolated { UpdateController.shared.start() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }
@@ -269,8 +279,10 @@ func printStatus() -> Int32 {
         print("config:      \(Config.defaultURL.path)")
         print("provider:    \(config.provider.displayName)")
         print("model:       \(config.settings(for: config.provider).model ?? "-")")
-        if config.provider != .bedrock {
-            print("api key:     \(APIKeys.load(config.provider) == nil ? "✗ none" : "found")")
+        if config.provider == .apple {
+            print("apple model: \(AppleModel.system.availability.rawValue)")
+        } else if config.provider != .bedrock {
+            print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
         } else { do {
             let resolved = try AWSSharedConfig.load(profile: config.awsProfile)
             let region = config.region ?? resolved.region ?? "us-east-1"
@@ -391,6 +403,12 @@ if arguments.first == InlineCode.javaScriptHostOption {
     exit(InlineCode.runJavaScriptHost())
 }
 
+// The bundle's version, and nothing else: the updater checks with it that a new input method starts.
+if arguments.first == "--version" {
+    print(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? AppVersion.string)
+    exit(0)
+}
+
 // Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.
 for (path, outcome) in LegacyData.migrate() where outcome != .nothingToMove {
     switch outcome {
@@ -428,15 +446,25 @@ case "--showcase":
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
     MainActor.assumeIsolated {
-        // `extensions=<folder>`: the Custom Commands page shows that folder's extensions instead of the user's.
+        // `extensions=<folder>[,<found folder>…]`: the Custom Commands page shows those folders' extensions instead of
+        // the user's (the first as added, the others as found by Spotlight).
         let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
+        // `update=available|current|downloading|failed`: the About page's Updates card in that state.
+        let update = arguments.first { $0.hasPrefix("update=") }.map { String($0.dropFirst("update=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
-                               extensions: extensions)
+                               extensions: extensions, update: update)
     }
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
 case "--adopt-pack":
     exit(adoptPack(Array(arguments.dropFirst())))
+case "--check-update":
+    exit(UpdateCommands.check(Array(arguments.dropFirst())))
+case "--install-update":
+    exit(UpdateCommands.install(Array(arguments.dropFirst())))
+case "--apply-update":
+    // The updater's helper (`UpdateHelper`), started by the input method on an update it staged.
+    exit(UpdateHelper.run(Array(arguments.dropFirst())))
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)

@@ -1,3 +1,4 @@
+import AllInOneIMECore
 import AppKit
 
 /// Borderless, non-activating floating panel shown under the insertion point.
@@ -33,6 +34,8 @@ final class CandidatePanel: NSPanel {
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        // The pointer over a row highlights it (`CandidateView.hovered`), the panel never being key.
+        acceptsMouseMovedEvents = true
         view.drawsBackground = false
         contentView = Self.glass(around: view)
     }
@@ -68,7 +71,7 @@ final class CandidatePanel: NSPanel {
     func show(_ model: CandidateView.Model, anchor: NSRect) {
         view.model = model
         let size = view.contentSize
-        setFrame(NSRect(origin: Self.origin(for: size, anchor: anchor), size: size), display: true)
+        setFrame(NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size), display: true)
         if !isVisible { orderFrontRegardless() }
         invalidateShadow()
     }
@@ -78,8 +81,10 @@ final class CandidatePanel: NSPanel {
     }
 
     /// Places the panel's top-left just below the line rect, flipping above when there is no room,
-    /// and keeps it on the anchor's screen.
-    static func origin(for size: NSSize, anchor rawAnchor: NSRect) -> NSPoint {
+    /// and keeps it on the anchor's screen. The first candidate's text starts under the caret (`textInset` from the
+    /// panel's left edge).
+    static func origin(for size: NSSize, anchor rawAnchor: NSRect,
+                       textInset: CGFloat = CandidateView.Metrics.textInsetX) -> NSPoint {
         var anchor = rawAnchor
         // Some clients report an empty rect at the origin; fall back to the mouse position.
         if anchor.origin == .zero || !anchor.origin.x.isFinite || !anchor.origin.y.isFinite {
@@ -89,7 +94,7 @@ final class CandidatePanel: NSPanel {
         let screen = NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let gap: CGFloat = 4
-        var x = anchor.minX - CandidateView.Metrics.textInsetX
+        var x = anchor.minX - textInset
         var y = anchor.minY - gap - size.height
         if y < visible.minY { y = anchor.maxY + gap }
         x = min(max(x, visible.minX), visible.maxX - size.width)
@@ -117,6 +122,9 @@ final class CandidateView: NSView {
         var isComplete: Bool = true
         /// A symbol in a colored rounded square before the text, like the icons of iOS Settings.
         var icon: Icon? = nil
+        /// A click picks it and the pointer over it highlights it (`onSelect`); not a line a script printed or a
+        /// list's information, which nothing picks.
+        var pickable = true
     }
 
     /// An SF Symbol, drawn white on `color`.
@@ -139,8 +147,15 @@ final class CandidateView: NSView {
         var rows: [Row] = []
         var highlighted: Int?
         var status: Status = .none
+        /// The command being written, as a line of input with its caret (▏), first: it isn't marked in the field (a
+        /// command on the selected text).
+        var input: String?
+        /// A line above the rows: what the panel works on (the text selected in the field).
+        var header: String?
         var footer = ""
         var detail: String?
+        /// The rows side by side, as macOS's own panel (`Config.candidateLayout`): the engine's candidates only.
+        var horizontal = false
     }
 
     enum Metrics {
@@ -158,6 +173,12 @@ final class CandidateView: NSView {
         static let iconGap: CGFloat = 8
         /// Distance from the panel's left edge to where candidate text starts.
         static let textInsetX: CGFloat = padding + rowInsetX + labelWidth + labelGap
+        /// Candidates in a row (`Model.horizontal`): the number closer to its word, the cells apart, the widest a
+        /// line gets before the next candidates go on another, and the most of a long candidate shown.
+        static let cellLabelGap: CGFloat = 4
+        static let cellSpacing: CGFloat = 2
+        static let maxRowWidth: CGFloat = 600
+        static let maxCellTextWidth: CGFloat = 280
     }
 
     enum Fonts {
@@ -198,13 +219,22 @@ final class CandidateView: NSView {
         didSet { if model != oldValue { relayout() } }
     }
 
+    /// A row clicked: its index in `model.rows`.
     var onSelect: ((Int) -> Void)?
     var onScroll: ((Int) -> Void)?
+    /// The row under the pointer, drawn lightly highlighted: what a click would pick.
+    private(set) var hovered: Int? {
+        didSet { if hovered != oldValue { needsDisplay = true } }
+    }
     /// Scrolling not yet a whole row (a trackpad's small steps add up).
     private var pendingScroll: CGFloat = 0
     private(set) var contentSize = NSSize(width: Metrics.minWidth, height: 40)
+    /// Where the first candidate's text starts, from the left edge: under the caret (`CandidatePanel.origin`).
+    private(set) var textInset = Metrics.textInsetX
     private var rowLayouts: [RowLayout] = []
     private var statusFrame: NSRect?
+    private var headerFrame: NSRect?
+    private var inputFrame: NSRect?
     private var footerY: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
@@ -224,9 +254,27 @@ final class CandidateView: NSView {
         var y = p
         var widest: CGFloat = 0
         rowLayouts = []
+        let horizontal = model.horizontal && !model.rows.isEmpty
+        inputFrame = nil
+        if let input = inputString() {
+            let size = Self.measure(input, minHeight: 0)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
+            y += size.height + 2 * Metrics.rowInsetY
+        }
+        headerFrame = nil
+        if let header = headerString() {
+            let size = Self.measure(header, minHeight: 0)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - Metrics.textInsetX)
+            headerFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
+            y += size.height + 2 * Metrics.rowInsetY
+        }
+        var cellsWidth: CGFloat = 0
+        if horizontal { (y, cellsWidth) = layoutCells(top: y) }
+        textInset = horizontal ? rowLayouts.first?.textFrame.minX ?? Metrics.textInsetX : Metrics.textInsetX
         // A column for the icons when any row has one: the text moves right by it.
         let iconColumn = model.rows.contains { $0.icon != nil } ? Metrics.iconSize + Metrics.iconGap : 0
-        for row in model.rows {
+        for row in model.rows where !horizontal {
             let (_, text) = strings(for: row, highlighted: false)
             let font = Fonts.text(for: row.style)
             let size = Self.measure(text, minHeight: max(ceil(font.ascender - font.descender + font.leading),
@@ -260,7 +308,9 @@ final class CandidateView: NSView {
             y += size.height + 2 * Metrics.rowInsetY
         }
 
-        var width = max(compact ? 0 : Metrics.minWidth, Metrics.textInsetX + widest + Metrics.rowInsetX + p)
+        // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
+        var width = horizontal ? max(cellsWidth, widest > 0 ? Metrics.textInsetX + widest + Metrics.rowInsetX + p : 0)
+            : max(compact ? 0 : Metrics.minWidth, Metrics.textInsetX + widest + Metrics.rowInsetX + p)
         if !model.footer.isEmpty {
             let footer = footerStrings()
             let footerWidth = footer.left.size().width + (footer.right.map { $0.size().width + 16 } ?? 0)
@@ -268,11 +318,68 @@ final class CandidateView: NSView {
             footerY = y + Metrics.footerGap
             y = footerY + 1 + Metrics.footerGap + ceil(footer.left.size().height)
         }
-        for i in rowLayouts.indices {
+        for i in rowLayouts.indices where !horizontal {
             rowLayouts[i].frame.size.width = width - 2 * p
         }
         contentSize = NSSize(width: ceil(width), height: ceil(y + p))
         needsDisplay = true
+        // Other rows under a pointer that stayed put: the one there now.
+        hovered = window.flatMap { $0.isVisible ? row(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
+    }
+
+    /// The candidates side by side (`Model.horizontal`), as many to a line as fit in `maxRowWidth`
+    /// (`CandidateLayout.flow`): each a cell with its number and word, one line, a long one cut short with "…".
+    /// The y below them, and the panel width they need.
+    private func layoutCells(top: CGFloat) -> (bottom: CGFloat, width: CGFloat) {
+        let p = Metrics.padding
+        let font = Fonts.candidate
+        let lineHeight = ceil(font.ascender - font.descender + font.leading)
+        var labelWidths: [CGFloat] = [], textWidths: [CGFloat] = []
+        for row in model.rows {
+            let (label, text) = strings(for: row, highlighted: false)
+            labelWidths.append(row.label.isEmpty ? 0 : max(ceil(label.size().width), Metrics.labelWidth) + Metrics.cellLabelGap)
+            // A long one cut to fit, its cell as wide as what's left of it (no gap after the "…").
+            textWidths.append(ceil(Self.fitted(text, width: Metrics.maxCellTextWidth).size().width) + 1)
+        }
+        let sizes = zip(labelWidths, textWidths).map {
+            CGSize(width: Metrics.rowInsetX * 2 + $0 + $1, height: lineHeight + 2 * Metrics.rowInsetY)
+        }
+        let frames = CandidateLayout.flow(sizes, spacing: Metrics.cellSpacing, lineSpacing: Metrics.cellSpacing,
+                                          maxWidth: Metrics.maxRowWidth - 2 * p)
+        for (index, cell) in frames.enumerated() {
+            let frame = cell.offsetBy(dx: p, dy: top)
+            let textFrame = NSRect(x: frame.minX + Metrics.rowInsetX + labelWidths[index], y: frame.minY + Metrics.rowInsetY,
+                                   width: textWidths[index], height: lineHeight)
+            let labelOrigin = NSPoint(x: frame.minX + Metrics.rowInsetX, y: textFrame.minY + (font.ascender - Fonts.label.ascender))
+            rowLayouts.append(RowLayout(frame: frame, textFrame: textFrame, labelOrigin: labelOrigin, iconFrame: nil))
+        }
+        return (top + (frames.map(\.maxY).max() ?? 0), (frames.map(\.maxX).max() ?? 0) + 2 * p)
+    }
+
+    /// `text` on one line no wider than `width`: as it is, or its longest start that fits with "…" after it (whole
+    /// characters, so an emoji or a Hangul syllable isn't split).
+    static func fitted(_ text: NSAttributedString, width: CGFloat) -> NSAttributedString {
+        guard text.length > 0, ceil(text.size().width) > width else { return text }
+        let string = text.string as NSString
+        var ends: [Int] = [0]  // where each character ends, in UTF-16
+        string.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: .byComposedCharacterSequences) {
+            _, range, _, _ in ends.append(range.upperBound)
+        }
+        func cut(_ end: Int) -> NSAttributedString {
+            // Not "word …": the space before the "…" goes.
+            var end = end
+            while end > 0, let scalar = Unicode.Scalar(string.character(at: end - 1)), CharacterSet.whitespaces.contains(scalar) { end -= 1 }
+            let out = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: 0, length: end)))
+            out.append(NSAttributedString(string: "…", attributes: text.attributes(at: max(end - 1, 0), effectiveRange: nil)))
+            return out
+        }
+        // The most characters that fit with the "…" (none at least).
+        var low = 0, high = ends.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if ceil(cut(ends[mid]).size().width) <= width { low = mid } else { high = mid - 1 }
+        }
+        return cut(ends[low])
     }
 
     private static func measure(_ text: NSAttributedString, minHeight: CGFloat) -> NSSize {
@@ -302,6 +409,16 @@ final class CandidateView: NSView {
             text.append(NSAttributedString(string: glued, attributes: [.font: Fonts.comment, .foregroundColor: color]))
         }
         return (label, text)
+    }
+
+    private func inputString() -> NSAttributedString? {
+        model.input.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+    }
+
+    private func headerString() -> NSAttributedString? {
+        model.header.map {
+            NSAttributedString(string: $0, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
+        }
     }
 
     private func statusString() -> NSAttributedString? {
@@ -343,16 +460,38 @@ final class CandidateView: NSView {
             shape.stroke()
         }
 
+        if let inputFrame, let input = inputString() {
+            input.draw(with: inputFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            // Under it, a line as under a text being typed.
+            NSColor.separatorColor.setFill()
+            let inset = Metrics.padding + Metrics.rowInsetX
+            NSRect(x: inset, y: inputFrame.maxY + Metrics.rowInsetY - 1, width: bounds.width - 2 * inset, height: 1).fill()
+        }
+        if let headerFrame, let header = headerString() {
+            header.draw(with: headerFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+        }
+
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
             let highlighted = index == model.highlighted
+            // In a row, the highlight is a pill around the candidate, as in macOS's own panel.
+            let radius = model.horizontal ? layout.frame.height / 2 : Metrics.rowRadius
+            if index == hovered, !highlighted {
+                NSColor.selectedContentBackgroundColor.withAlphaComponent(0.18).setFill()
+                NSBezierPath(roundedRect: layout.frame, xRadius: radius, yRadius: radius).fill()
+            }
             if highlighted {
                 NSColor.selectedContentBackgroundColor.setFill()
-                NSBezierPath(roundedRect: layout.frame, xRadius: Metrics.rowRadius, yRadius: Metrics.rowRadius).fill()
+                NSBezierPath(roundedRect: layout.frame, xRadius: radius, yRadius: radius).fill()
             }
             let (label, text) = strings(for: model.rows[index], highlighted: highlighted)
             label.draw(at: layout.labelOrigin)
             if let icon = model.rows[index].icon, let frame = layout.iconFrame { Self.draw(icon, in: frame) }
-            text.draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            // A candidate in a row keeps to its one line, cut short with "…" (as measured: `layoutCells`).
+            if model.horizontal {
+                Self.fitted(text, width: Metrics.maxCellTextWidth).draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            } else {
+                text.draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            }
         }
 
         if let statusFrame, let status = statusString() {
@@ -409,11 +548,28 @@ final class CandidateView: NSView {
         onScroll?(rows)
     }
 
+    /// The row a click at `point` picks (`CandidateLayout.row`).
+    private func row(at point: NSPoint) -> Int? {
+        guard bounds.contains(point) else { return nil }
+        return CandidateLayout.row(at: point, frames: rowLayouts.map(\.frame), pickable: model.rows.map(\.pickable))
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        // Always: the panel is never key, and the input method's app is never active.
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self))
+    }
+
+    override func mouseMoved(with event: NSEvent) { hovered = row(at: convert(event.locationInWindow, from: nil)) }
+    override func mouseEntered(with event: NSEvent) { hovered = row(at: convert(event.locationInWindow, from: nil)) }
+    override func mouseExited(with event: NSEvent) { hovered = nil }
+
+    /// A click picks the row as its digit would (`Composer.choose`); the text field keeps the focus, the panel
+    /// being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if let index = rowLayouts.firstIndex(where: { $0.frame.contains(point) }) {
-            onSelect?(index)
-        }
+        if let index = row(at: convert(event.locationInWindow, from: nil)) { onSelect?(index) }
     }
 }
 

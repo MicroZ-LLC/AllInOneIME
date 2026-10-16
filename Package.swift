@@ -13,7 +13,11 @@ let package = Package(
     ],
     targets: [
         // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps.
-        .target(name: "AllInOneIMECore"),
+        // FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14.
+        .target(
+            name: "AllInOneIMECore",
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"])]
+        ),
 
         // librime's C API; header and dylib come from ThirdParty/librime.
         .systemLibrary(name: "CRime", path: "Sources/CRime"),

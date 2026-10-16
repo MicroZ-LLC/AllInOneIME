@@ -9,6 +9,9 @@
 // Run with: make realtest
 import AppKit
 import Carbon
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 let imeID = "com.aipinyin.inputmethod.AIPinyin"
 
@@ -57,6 +60,61 @@ func imePanelFrames() -> [NSRect] {
         else { return nil }
         // CGWindow bounds are top-left based; flip to Cocoa's bottom-left origin.
         return NSRect(x: rect.minX, y: screenHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+}
+
+/// The input method's own log of its AI requests as it is written (`log stream`): "conversion 12 started (…)", then
+/// "conversion 12 done in 1.20s cache=false" once all its results are in, which the panel doesn't show from outside
+/// (its frames can stay the same while a rewrite is still being written, or be complete at once from the cache).
+final class RequestLog: @unchecked Sendable {
+    private let process = Process()
+    private let lock = NSLock()
+    private var lines: [String] = []
+    private var partial = ""
+
+    /// Streaming (it stops by itself after a few minutes, should the test end without stopping it); nil if it can't.
+    static func start() -> RequestLog? {
+        let log = RequestLog()
+        log.process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
+        log.process.arguments = ["stream", "--style", "compact", "--timeout", "3m", "--predicate",
+                                 "subsystem == \"\(imeID)\" AND eventMessage BEGINSWITH \"conversion \""]
+        let pipe = Pipe()
+        log.process.standardOutput = pipe
+        log.process.standardError = FileHandle.nullDevice
+        pipe.fileHandleForReading.readabilityHandler = { [weak log] handle in
+            let data = handle.availableData
+            if data.isEmpty { handle.readabilityHandler = nil; return }  // it stopped
+            guard let log, let text = String(data: data, encoding: .utf8) else { return }
+            log.lock.withLock {
+                let parts = (log.partial + text).components(separatedBy: "\n")
+                log.partial = parts.last ?? ""
+                log.lines += parts.dropLast()
+            }
+        }
+        do { try log.process.run() } catch { return nil }
+        return log
+    }
+
+    /// Lines so far (the first is `log stream`'s own header, once it streams).
+    var count: Int { lock.withLock { lines.count } }
+
+    /// The first request started after line `mark`, once it is done: whether it came from the cache (nil until then).
+    func done(after mark: Int) -> (id: Int, cached: Bool)? {
+        let new = lock.withLock { Array(lines.dropFirst(mark)) }
+        guard let id = new.lazy.compactMap({ Self.request($0, "started") }).first,
+              let line = new.first(where: { Self.request($0, "done") == id }) else { return nil }
+        return (id, line.contains("cache=true"))
+    }
+
+    /// The request id in "conversion 12 <word> …".
+    private static func request(_ line: String, _ word: String) -> Int? {
+        guard let range = line.range(of: "] conversion ") else { return nil }
+        let rest = line[range.upperBound...], digits = rest.prefix(while: \.isNumber)
+        return rest.dropFirst(digits.count).hasPrefix(" \(word)") ? Int(digits) : nil
+    }
+
+    func stop() {
+        if process.isRunning { process.terminate() }
     }
 }
 
@@ -283,7 +341,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // Safety net if something hangs. TIS may only be used on the main thread, so the input
         // source is restored afterwards by `RealTest --restore-input-source` (run by make).
-        DispatchQueue.global().asyncAfter(deadline: .now() + 240) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 300) {
             print("✗ watchdog: test took too long")
             print("REALTEST FAILED (timeout)")
             fflush(stdout)
@@ -295,6 +353,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     func finish() -> Never {
         reset()
         restoreConfig()
+        restoreQuestions()
         if let extensionFolder { try? FileManager.default.removeItem(at: extensionFolder) }
         if let originalSource {
             selectInputSource(originalSource)
@@ -361,6 +420,8 @@ final class Harness: NSObject, NSApplicationDelegate {
             $0["outputLanguage"] = "en"
             $0["extensionFolders"] = [String]()
             $0["findRaycastScripts"] = false
+            // In a column (horizontal is the default): the panel checks below expect it; `horizontalAndReport` tries the row.
+            $0["candidateLayout"] = "vertical"
         }, "config file readable, to set the test's languages")
 
         guard let context = textView.inputContext else {
@@ -559,17 +620,378 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(2) { !self.marked.isEmpty }, "after Shift again, pinyin input is back (marked: \(marked))")
         reset()
 
+        appleModel()
+        selectionCommands()
+        refineResults()
+        horizontalAndReport()
+        recentQuestions()
         extensions()
+        perAppSettings()
+        redaction()
         frenchAndKorean()
         finish()
+    }
+
+    /// 6a. Commands on the selected text: part of the text in the text view selected, "@improve" is written in the
+    ///     candidate panel while the text view stays as it was, the part still selected (pinyin too); Esc (in the draft,
+    ///     and after level two) and ⇧Return leave it so; the action key works on it, and the first version picked
+    ///     replaces exactly the selection (live Bedrock). A selection moved meanwhile gives the command up.
+    func selectionCommands() {
+        print("— commands on the selected text (live Bedrock)")
+        let text = "Dear team, this sentance have a error. Thanks!"
+        let part = "this sentance have a error."
+        let range = (text as NSString).range(of: part)
+        /// The candidate panel is up (one of the input method's windows, not the menu bar icon).
+        func panelShown() -> Bool {
+            let top = NSScreen.screens.first.map { $0.frame.maxY - 40 } ?? .greatestFiniteMagnitude
+            return imePanelFrames().contains { $0.maxY < top }
+        }
+        func select() {
+            reset()
+            // A command still written in the panel (a check failed): nothing marked for `reset` to see.
+            if panelShown() { escape(); escape() }
+            textView.string = text
+            textView.setSelectedRange(range)
+            pump(0.2)
+        }
+        /// The text view as it was, the part still selected, nothing marked.
+        func untouched() -> Bool { textView.string == text && textView.selectedRange() == range && !textView.hasMarkedText() }
+        select()
+        command("i")
+        pump(0.4)
+        check(untouched() && panelShown(),
+              "@improve on part of the text: the text view unchanged, the part still selected, the command in the panel")
+        escape()
+        check(waitUntil(2) { untouched() }, "Esc: the text and its selection as they were ('\(textView.string)', \(textView.selectedRange()))")
+
+        select()
+        command("i")
+        type("nihao")
+        pump(0.3)
+        check(untouched() && panelShown(), "pinyin in the command's text: in the panel, the text view still untouched")
+        space()
+        escape()
+        check(waitUntil(2) { untouched() }, "Space picks 你好 into the command, Esc gives it up: as it was")
+
+        select()
+        command("i")
+        asTyped()
+        check(waitUntil(2) { untouched() }, "⇧Return inserts nothing: no @improve over the selection ('\(textView.string)')")
+
+        select()
+        command("i")
+        act()
+        pump(0.5)
+        escape()
+        check(waitUntil(2) { untouched() && panelShown() }, "Esc in level two goes back to the command, the text untouched")
+        escape()
+        check(waitUntil(2) { untouched() }, "Esc again: the text and its selection as they were")
+
+        select()
+        command("i")
+        let started = Date()
+        act()
+        let picked = waitUntil(25) {
+            if self.textView.string == text { self.space() }  // ignored until the first version is complete
+            return self.textView.string != text
+        }
+        let result = textView.string
+        let middle = result.hasPrefix("Dear team, ") && result.hasSuffix(" Thanks!") ? String(result.dropFirst(11).dropLast(8)) : ""
+        check(picked && !middle.isEmpty && middle != part && Self.looksEnglish(middle) && !result.contains("improve")
+              && !textView.hasMarkedText(),
+              String(format: "the first version replaces exactly the selection, after %.1fs: '%@'", Date().timeIntervalSince(started), result))
+
+        // The selection moved while the command is written (a click): it's given up, and the key types as usual.
+        select()
+        command("i")
+        textView.setSelectedRange(NSRange(location: 0, length: 4))
+        pump(0.2)
+        type("a")
+        check(waitUntil(2) { self.marked == "a" && self.committed == String(text.dropFirst(4)) },
+              "a selection moved meanwhile gives the command up; the next key types as usual ('\(committed)' + '\(marked)')")
+        reset()
+        textView.string = ""
+    }
+
+    /// 6a'. Refining the results: @improve a long English sentence and, once all its results are in (the input
+    ///     method's log says so, `RequestLog`), pick row 1 (V1); the same sentence again (the cache answers at once,
+    ///     all in), "shorter" typed while the results are up and ⏎ asks again with them as context; the draft stays as
+    ///     it was (the letters went to the refine line, not the sentence), and 1 inserts the refined version, which is
+    ///     shorter than V1 (live Bedrock).
+    func refineResults() {
+        print("— refine the results: shorter (live Bedrock)")
+        reset()
+        textView.string = ""
+        tapShift()  // English: the sentence and the instruction are typed as letters
+        let words = ["i", "wanted", "to", "let", "you", "know", "that", "the", "meeting", "we", "planned", "for", "tomorrow",
+                     "morning", "has", "been", "moved", "to", "the", "afternoon", "because", "the", "big", "room", "was", "not",
+                     "free", "and", "several", "people", "could", "not", "join", "that", "early"]
+        let sentence = words.joined(separator: " ")
+        /// "@improve" and the sentence, marked as typed.
+        func draft() -> Bool {
+            command("i")
+            for word in words {
+                type(word)
+                space()
+            }
+            return waitUntil(2) { self.marked == "improve › " + sentence + " " }
+        }
+        /// The panel's frames stay the same for `quiet` seconds, within `timeout`.
+        func settled(_ timeout: TimeInterval, quiet: TimeInterval = 1) -> Bool {
+            var last = imePanelFrames(), since = Date()
+            return waitUntil(timeout) {
+                let now = imePanelFrames()
+                if now != last { last = now; since = Date() }
+                return !now.isEmpty && Date().timeIntervalSince(since) >= quiet
+            }
+        }
+        /// The request the action key starts, once all its results are in (from the cache or not; nil: not within
+        /// `timeout`). Without the input method's log: the panel unchanged for a few seconds (a rewrite only shows once
+        /// it is complete, so it can stay the same for a second while one is still being written).
+        let requests = RequestLog.start()
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
+        func actUntilAllIn(_ timeout: TimeInterval) -> Bool? {
+            let mark = requests?.count ?? 0
+            act()
+            guard let requests else { return settled(timeout, quiet: 3) ? false : nil }
+            var done: (id: Int, cached: Bool)?
+            _ = waitUntil(timeout) { done = requests.done(after: mark); return done != nil }
+            pump(0.3)  // its last rows shown
+            return done?.cached
+        }
+        /// The end of the section, also when it gives up: no log, nothing marked (the text view can't have its text
+        /// taken away under the marked text), Chinese again.
+        func endSection() {
+            requests?.stop()
+            reset()
+            textView.string = ""
+            tapShift()  // back to Chinese
+        }
+        check(draft(), "sentence drafted in English (\(marked))")
+        // All the results first: V1 inserted while the rest still streams stops the request, and nothing is kept for
+        // the same sentence again (from an earlier run of the test, it may be kept already).
+        let firstIn = actUntilAllIn(40)
+        let improved = firstIn != nil && waitUntil(5) {
+            if self.committed.isEmpty { self.space() }
+            return !self.committed.isEmpty
+        }
+        let first = committed, kept = firstIn == true ? " (from the cache)" : ""
+        check(improved && Self.looksEnglish(first) && marked.isEmpty,
+              "@improve inserts its first version, once all its results are in\(kept): '\(first)'")
+        guard improved, marked.isEmpty else { return endSection() }
+        textView.string = ""
+        check(draft(), "the same sentence again")
+        // From the cache: all in at once. A live request (nothing kept) would still be streaming, and the letters
+        // typed next would go to the sentence.
+        let started = Date()
+        let againIn = actUntilAllIn(10)
+        check(requests == nil ? againIn != nil : againIn == true,
+              String(format: "its results are all in at once, from the cache (%.1fs%@)", Date().timeIntervalSince(started),
+                     requests == nil ? "; no log of the input method's: only the panel settled" : ""))
+        requests?.stop()
+        type("shorter")
+        pump(0.3)
+        check(marked == "improve › " + sentence + " ", "'shorter' goes to the refine line: the sentence is as it was (\(marked))")
+        enter()
+        let refining = Date()
+        let picked = waitUntil(25) {
+            if self.committed.isEmpty { self.key("1", keyCodes["1"]!); self.pump(0.3) }  // ignored until row 1 is complete
+            return !self.committed.isEmpty
+        }
+        let refined = committed
+        check(picked && Self.looksEnglish(refined) && marked.isEmpty && refined != first && refined.count < first.count,
+              String(format: "⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
+                     Date().timeIntervalSince(refining), refined, refined.count, first.count))
+        endSection()
+    }
+
+    /// 5b. Apple Intelligence on this Mac (`provider: "apple"`), where its model is available: @improve on English and on
+    ///     pinyin with the on-device model, through the installed input method; then the user's provider again.
+    func appleModel() {
+        var available = false
+        #if canImport(FoundationModels)
+        if #available(macOS 26, *) { available = SystemLanguageModel.default.isAvailable }
+        #endif
+        print("— Apple Intelligence on this Mac (on-device model)")
+        guard available else {
+            note("skipped: Apple Intelligence isn't available on this Mac")
+            return
+        }
+        let provider = configValue("provider")
+        guard setConfig({ $0["provider"] = "apple" }) else {
+            check(false, "config file readable, to choose Apple Intelligence")
+            return
+        }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+
+        textView.string = ""
+        tapShift()
+        command("i")
+        let words = ["i", "think", "we", "should", "moved", "the", "meeting", "to", "next", "week"]
+        for word in words {
+            type(word)
+            space()
+        }
+        check(waitUntil(2) { self.marked == "improve › " + words.joined(separator: " ") + " " }, "sentence drafted (\(marked))")
+        var started = Date()
+        act()
+        let polished = waitUntil(20) {
+            if self.committed.isEmpty { self.space() }  // ignored until the first version is complete
+            return !self.committed.isEmpty
+        }
+        check(polished && Self.looksEnglish(committed) && committed != words.joined(separator: " ") && marked.isEmpty,
+              String(format: "on-device @improve: Space inserts a polished English version after %.1fs: '%@'",
+                     Date().timeIntervalSince(started), committed))
+        reset()
+        textView.string = ""
+        tapShift()
+
+        command("i")
+        type("mingtiankaihuiwokenengyaochidao")
+        _ = waitUntil(3) { self.marked != "improve › " }
+        confirmAll()
+        check(waitUntil(3) { Self.hasHan(self.afterCommand) && !Self.hasLatinLetter(self.afterCommand) },
+              "sentence confirmed (marked: \(marked))")
+        started = Date()
+        act()
+        let chinese = waitUntil(20) {
+            if self.committed.isEmpty { self.space() }
+            return !self.committed.isEmpty
+        }
+        check(chinese && Self.hasHan(committed) && marked.isEmpty,
+              String(format: "on-device @improve on pinyin: a Chinese version after %.1fs: '%@'",
+                     Date().timeIntervalSince(started), committed))
+        reset()
+        textView.string = ""
+        _ = setConfig { $0["provider"] = provider }  // none: removed again
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+    }
+
+    /// 6b. Candidates in a row (`candidateLayout`): the panel is one line (shorter than the same candidates in a column,
+    ///     under 120 pt, wider than tall), and → moves the highlight, so Space inserts the second candidate. On today's date ("rq", rime-ice's Lua), so no word is learned in the user's
+    ///     dictionary. Then `@reportissue`: the action key shows what the page would hold, and Esc goes back; the page
+    ///     is never opened (⏎ isn't pressed on it).
+    func horizontalAndReport() {
+        print("— candidates in a row, @reportissue's preview")
+        // The same candidates in a column first (the test's config leaves the layout as the user has it: set it).
+        _ = setConfig { $0["candidateLayout"] = "vertical" }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("rq")
+        _ = waitUntil(2) { !imePanelFrames().isEmpty }
+        let column = imePanelFrames().first
+        reset()
+        textView.string = ""
+        guard setConfig({ $0["candidateLayout"] = "horizontal" }) else {
+            check(false, "config file readable, to lay the candidates out in a row")
+            return
+        }
+        // The text field again: the input method reads the layout when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("rq")
+        _ = waitUntil(2) { !imePanelFrames().isEmpty }
+        if let panel = imePanelFrames().first {
+            // A line of cells and the footer: shorter than two rows of a column (under 120 pt), wider than tall, and
+            // shorter than the same candidates in a column.
+            check(panel.width > panel.height && panel.height < 120 && column.map { panel.height < $0.height } != false,
+                  "the candidates are in a row (panel \(panel.integral); in a column \(column.map { "\($0.integral)" } ?? "-"))")
+        } else {
+            note("candidate panel not on screen (expected while the screen is locked)")
+        }
+        key("", 0x7C)  // →
+        space()
+        check(waitUntil(2) { self.committed.contains("/") && self.marked.isEmpty },
+              "→ then Space inserts the second candidate, today's date with slashes ('\(committed)')")
+        reset()
+        textView.string = ""
+
+        // @reportissue: the action key shows the issue first; Esc goes back to it, a second Esc clears it.
+        command("reporti")
+        check(waitUntil(2) { self.marked == "reportissue › " }, "@reporti Tab picks @reportissue (\(marked))")
+        let before = imePanelFrames().first?.height ?? 0
+        act()
+        pump(0.6)
+        let after = imePanelFrames().first?.height ?? 0
+        check(marked == "reportissue › " && committed.isEmpty && (before == 0 || after > before),
+              "the action key shows what the issue holds, nothing opened or typed (panel \(Int(before)) → \(Int(after)) high)")
+        escape()
+        check(waitUntil(2) { self.marked == "reportissue › " }, "Esc goes back to the title (\(marked))")
+        escape()
+        check(waitUntil(2) { self.marked.isEmpty && self.committed.isEmpty }, "Esc again clears it ('\(committed)')")
+        reset()
+        textView.string = ""
+        _ = setConfig { $0["candidateLayout"] = "vertical" }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+    }
+
+    /// 7a. Hiding sensitive information (`redaction` on in the test's config): `@improve` on a selected sentence with
+    ///     an email and a phone number (live). The version picked replaces it with the real values in it, no
+    ///     placeholder left ("[EMAIL_1]" is what the model saw).
+    func redaction() {
+        print("— hiding sensitive information from the AI (live)")
+        let before = configValue("redaction")
+        guard setConfig({ $0["redaction"] = ["enabled": true] }) else {
+            check(false, "config file readable, to turn on hiding sensitive information")
+            return
+        }
+        defer { _ = setConfig { $0["redaction"] = before } }
+        // The text field again: the input method reads the settings when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        let email = "rt.tester@example.com", phone = "555-123-4567"
+        let text = "pls tell \(email) the meeting moved, or call \(phone) tomorow"
+        reset()
+        textView.string = text
+        textView.setSelectedRange(NSRange(location: 0, length: (text as NSString).length))
+        pump(0.2)
+        command("i")
+        let started = Date()
+        act()
+        let picked = waitUntil(25) {
+            if self.textView.string == text { self.space() }  // ignored until the first version is complete
+            return self.textView.string != text
+        }
+        let result = textView.string
+        check(picked && result.contains(email) && result.contains(phone) && !result.contains("[EMAIL") && !result.contains("[PHONE")
+              && !result.contains("improve") && !textView.hasMarkedText(),
+              String(format: "the version picked has the real email and number back, after %.1fs: '%@'", Date().timeIntervalSince(started), result))
+        reset()
+        textView.string = ""
     }
 
     /// The script extensions made for the test (in a temporary folder), removed when it ends.
     var extensionFolder: URL?
 
+    /// What `@rttypo` prints, typed out with typos (`typeOutMistakes`): long enough for a few.
+    static let typoSentence = "Thanks for the quick reply, I will look into the report tomorrow morning and write back "
+        + "before lunch. The team has been busy with the release this week, but this one matters, so we will make "
+        + "time for it and keep you posted on what we find."
+
+    /// Whether the text view held other than the start of `typoSentence` while it was typed out (a typo).
+    var typoSeen = false
+
     /// 7. Script extensions from a temporary folder the test's config points at (no network, no model): a list shows
     ///    its rows as the command is picked and the action key inserts the one highlighted; a command that takes no
-    ///    input is only completed by Tab and runs on the action key; what it prints is inserted.
+    ///    input is only completed by Tab and runs on the action key; what it prints is inserted, or typed out with
+    ///    typos fixed on the way.
     func extensions() {
         print("— script extensions (a temporary folder)")
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-realtest-\(UUID().uuidString)")
@@ -578,6 +1000,7 @@ final class Harness: NSObject, NSApplicationDelegate {
             "rtlist.sh": "# @allinoneime.output list\n# @allinoneime.input optional\n"
                 + #"printf '{"items": [{"title": "Row one", "arg": "rt-row-one"}, {"title": "Row two", "arg": "rt-row-two"}]}\n'"#,
             "rtecho.sh": "# @allinoneime.input none\necho rt-insert-ok",
+            "rttypo.sh": "# @allinoneime.input none\necho '\(Self.typoSentence)'",
         ]
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -622,6 +1045,102 @@ final class Harness: NSObject, NSApplicationDelegate {
             return self.committed == "rt-insert-ok"
         }
         check(inserted && marked.isEmpty, "the action key runs it, and what it printed is inserted ('\(committed)')")
+        reset()
+        textView.string = ""
+        typedOutWithTypos()
+    }
+
+    /// 7b. Typed out with typos fixed on the way (`typeOutMistakes`), at the fastest pace: the input method takes each
+    ///     typo back by its range in this NSTextView, and the text ends up exactly what the script printed.
+    func typedOutWithTypos() {
+        guard setConfig({ $0["typeOut"] = true; $0["typeOutRate"] = 40; $0["typeOutMistakes"] = true }) else {
+            check(false, "config file readable, to type results out with typos")
+            return
+        }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        typoSeen = false
+        // This app forgotten among those that couldn't take a typo back (a failed run before would keep typos off).
+        let ime = UserDefaults(suiteName: imeID)
+        let noTypos = "typeOutNoTyposApps"
+        let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
+        ime?.set((ime?.stringArray(forKey: noTypos) ?? []).filter { $0 != me }, forKey: noTypos)
+        let observer = NotificationCenter.default.addObserver(forName: NSText.didChangeNotification, object: textView,
+                                                              queue: nil) { [weak self] _ in
+            guard let self, !Self.typoSentence.hasPrefix(self.committed) else { return }
+            self.typoSeen = true
+        }
+        // Until a fix is seen taken in a field, only a wrong letter is tried there (`TypeOut.Typing.probe`): a letter
+        // or space typed twice, or a word typed again, goes in plainly. In about 1 run in 45 of this sentence no slip
+        // is a wrong letter, and none shows: up to three runs (each starts unproven), all typed exactly.
+        var typed = true
+        var runs = 0
+        while runs < 3, !typoSeen {
+            runs += 1
+            textView.string = ""
+            command("rttypo")
+            pump(0.5)
+            act()
+            typed = waitUntil(40) {
+                if self.committed.isEmpty, !self.marked.isEmpty { self.space() }  // ignored until its output is in
+                return self.committed == Self.typoSentence
+            } && marked.isEmpty && typed
+            pump(0.3)
+            reset()
+        }
+        NotificationCenter.default.removeObserver(observer)
+        check(typed && committed == Self.typoSentence && marked.isEmpty,
+              "typed out with typos on, the text is exactly what it printed ('\(committed)')")
+        check(typoSeen, "…with typos in the text view on the way, each taken back (\(runs) run\(runs == 1 ? "" : "s"))")
+        ime?.synchronize()
+        check(!(UserDefaults(suiteName: imeID)?.stringArray(forKey: noTypos) ?? []).contains(me),
+              "…and the NSTextView isn't remembered as a field that can't take typos back")
+        reset()
+        textView.string = ""
+        _ = setConfig { $0["typeOut"] = false; $0["typeOutMistakes"] = false }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+    }
+
+    /// 7c. Settings for this app (`appProfiles`, by this harness's bundle id): its text field starts in English though
+    ///     Chinese is the default, and @improve sends nothing (no AI), its draft kept; without them, pinyin again.
+    func perAppSettings() {
+        print("— per-app settings (this app: English, no AI)")
+        let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
+        guard setConfig({ $0["appProfiles"] = [me: ["inputLanguage": "en", "noAI": true]] }) else {
+            check(false, "config file readable, to give this app its own settings")
+            return
+        }
+        // The text field again: the input method applies the app's starting language when a field becomes active.
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        textView.string = ""
+        type("hi")
+        check(waitUntil(2) { self.committed == "hi" && self.marked.isEmpty }, "this app's field starts in English ('\(committed)')")
+        textView.string = ""
+        command("i")
+        type("hello")
+        check(waitUntil(2) { self.afterCommand == "hello" }, "@improve with its text (\(marked))")
+        act()
+        pump(2)
+        check(marked == "improve › hello" && committed.isEmpty,
+              "the action key sends nothing to the AI here: the draft stays, nothing inserted (\(marked))")
+        reset()
+        textView.string = ""
+        guard setConfig({ $0["appProfiles"] = [String: Any]() }) else { return }
+        window.makeFirstResponder(nil)
+        pump(0.5)
+        window.makeFirstResponder(textView)
+        pump(0.8)
+        type("a")
+        check(waitUntil(2) { self.marked == "a" }, "without them, the field starts in pinyin again (marked: \(marked))")
         reset()
         textView.string = ""
     }
@@ -697,6 +1216,74 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("q")
         check(waitUntil(2) { self.committed == "q" }, "Shift again: English, the system's layout ('\(committed)')")
         restoreConfig()
+    }
+
+    /// 6c. `@question`'s recent questions (live Bedrock): a question asked is kept in the file; "@question " lists it,
+    ///     1 shows its saved answer at once (nothing is asked) and Space inserts the same text; R asks it again for a fresh
+    ///     answer, which takes its place. The user's own recent questions are put back afterwards (the input method reads
+    ///     the file again once it changed).
+    func recentQuestions() {
+        print("— @question: recent questions (live Bedrock)")
+        _ = setConfig { $0["rememberQuestions"] = true }
+        savedQuestions = (try? Data(contentsOf: Self.questionsURL)) ?? Data()  // empty: there was no file
+        try? FileManager.default.removeItem(at: Self.questionsURL)
+        defer { restoreQuestions() }
+        func kept() -> String { (try? Data(contentsOf: Self.questionsURL)).map { String(decoding: $0, as: UTF8.self) } ?? "" }
+        /// Space until the answer is in (ignored until it is complete).
+        func insertAnswer(_ timeout: TimeInterval) -> Bool {
+            waitUntil(timeout) {
+                if self.committed.isEmpty { self.space() }
+                return !self.committed.isEmpty
+            }
+        }
+        reset()
+        textView.string = ""
+        command("q")
+        type("yijiayidengyuji")  // 一加一等于几: what is one plus one
+        act()
+        let asked = insertAnswer(25)
+        let answer = committed
+        check(asked && Self.hasHan(answer) && marked.isEmpty, "@question answers, Space inserts it: '\(answer.prefix(40))'")
+        check(waitUntil(2) { kept().contains("一加一等于几") }, "the question and its answer are kept in recent-questions.json")
+
+        textView.string = ""
+        command("q")
+        pump(0.3)
+        key("1", keyCodes["1"]!)
+        let started = Date()
+        let shown = insertAnswer(3)
+        check(shown && committed == answer && marked.isEmpty,
+              String(format: "1 shows the saved answer at once (%.1fs), Space inserts the same text ('%@')",
+                     Date().timeIntervalSince(started), String(committed.prefix(40))))
+
+        textView.string = ""
+        command("q")
+        pump(0.3)
+        key("1", keyCodes["1"]!)
+        pump(0.3)
+        let before = kept()
+        key("r", keyCodes["r"]!)
+        let again = insertAnswer(25)
+        check(again && Self.hasHan(committed) && marked.isEmpty, "R asks again, Space inserts the fresh answer: '\(committed.prefix(40))'")
+        check(waitUntil(2) { kept() != before } && kept().components(separatedBy: "\"question\"").count == 2,
+              "the fresh answer takes the old one's place (one question kept)")
+        reset()
+        textView.string = ""
+    }
+
+    /// The user's recent questions while the test asks its own (`recentQuestions`): empty when there was no file.
+    var savedQuestions: Data?
+    static let questionsURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/AllInOneIME/recent-questions.json")
+
+    func restoreQuestions() {
+        guard let saved = savedQuestions else { return }
+        if saved.isEmpty {
+            try? FileManager.default.removeItem(at: Self.questionsURL)
+        } else if (try? saved.write(to: Self.questionsURL, options: .atomic)) != nil {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: Self.questionsURL.path)
+        }
+        savedQuestions = nil
     }
 
     /// The user's config, kept while the test changes it (`restoreConfig`; a backup file too).
