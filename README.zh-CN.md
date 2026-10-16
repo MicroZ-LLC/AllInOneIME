@@ -625,6 +625,8 @@ make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通�
 make update-test  # 应用内更新的端到端测试：临时的安装目录、127.0.0.1 上的测试服务器、测试密钥（不碰装好的 App）
 ```
 
+`make selftest` 和 `make realtest` 不受你的设置影响。自测用它自己的配置（Amazon Bedrock，AWS profile 和区域取自你的配置，其余都是默认值）；真实 App 测试运行时把服务商设成 Bedrock，结束后换回你的。当时测不了的会跳过，不算失败：没有这个 profile 的 Bedrock 密钥时的在线检查，以及安全输入开着时（屏幕锁着、正在输密码）要打字的检查。最后一行列出通过、失败和跳过的数目；只有失败才算没通过，有跳过时结尾是 INCOMPLETE，什么打字的都没跑时是 SKIPPED（屏幕锁着时开始的真实 App 测试是 BLOCKED），不会是 PASSED。
+
 代码结构：
 
 - `Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit

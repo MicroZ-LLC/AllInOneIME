@@ -706,6 +706,8 @@ make dmg          # the release installer, build/AllInOneIME-<version>.dmg (univ
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
+`make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, and anything typed while secure input is on (the screen locked, a password field). The last line counts passed, failed and skipped checks; only failures fail the run, and a run with skips ends in INCOMPLETE, or SKIPPED when nothing that types ran (BLOCKED: the real-app test started on a locked screen), never PASSED.
+
 Code layout:
 
 - `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
