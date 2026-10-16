@@ -346,9 +346,11 @@ public enum ShellEnvironment {
 
     /// The variables the input method reads from the user's shell: PATH, the providers' API keys
     /// (`Provider.keyVariables`) and the web search key (`WebSearch.backend`), for a key that is set
-    /// there instead of in the keychain, and the SSH agent and ssh command git uses (`ExtensionSources.gitEnvironment`).
+    /// there instead of in the keychain, the SSH agent and ssh command git uses (`ExtensionSources.gitEnvironment`), and
+    /// the AWS variables Bedrock's credentials may come from (`AWSEnvironment`).
     public static let login: [String: String] = loginValues(["PATH"] + Provider.allCases.flatMap(\.keyVariables)
-                                                                + WebSearch.backend.keyVariables + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"])
+                                                                + WebSearch.backend.keyVariables + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"]
+                                                                + AWSEnvironment.variables)
 
     /// `names` as the user's interactive login shell sets them up (unset ones are left out); empty if
     /// the shell couldn't be read in 3 seconds.
