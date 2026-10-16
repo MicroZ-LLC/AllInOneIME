@@ -3018,6 +3018,7 @@ enum SelfTest {
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
+        testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(controller, client, snapshotDirectory: snapshotDirectory)

@@ -89,7 +89,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// 5 by default, 2–10. Only in the file.
     public var questionRounds: Int
     /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
-    /// default choices (`ChatHandoff.defaultChoices`).
+    /// default list (`ChatHandoff.defaultList`). `agent` (`.atAgent`) in it is whatever `@agent` hands to.
     public var questionContinueIn: [ChatHandoff.Destination]?
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool

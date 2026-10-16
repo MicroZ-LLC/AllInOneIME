@@ -690,6 +690,47 @@ struct QuestionChatTests {
         #expect(ChatHandoff.choices(nil, picked: .claude, installed: { $0 == .claude }) == [.claudeCode, .claudeWeb, .chatgpt, .copy])
     }
 
+    /// "@agent's agent" (`agent` in the config) follows the agent picked: that agent's own entry in its place, which it
+    /// then stands for (not listed twice). The default list starts with it; a list without it keeps its agents as they are.
+    @Test func atAgentFollowsTheAgentPicked() throws {
+        let all: (AgentKind) -> Bool = { _ in true }
+        #expect(ChatHandoff.defaultList.first == .atAgent)
+        let list: [ChatHandoff.Destination] = [.chatgpt, .atAgent, .geminiCLI, .claudeCode, .copy]
+        #expect(ChatHandoff.choices(list, picked: .gemini, installed: all) == [.chatgpt, .geminiCLI, .claudeCode, .copy])
+        #expect(ChatHandoff.choices(list, picked: .claude, installed: all) == [.chatgpt, .claudeCode, .geminiCLI, .copy])
+        #expect(ChatHandoff.choices(list, picked: .kiro, installed: all) == [.chatgpt, .kiroCLI, .geminiCLI, .claudeCode, .copy])
+        // @agent's agent not installed: neither it nor its own entry.
+        #expect(ChatHandoff.choices(list, picked: .gemini, installed: { $0 != .gemini }) == [.chatgpt, .claudeCode, .copy])
+        #expect(ChatHandoff.choices([.atAgent, .atAgent, .copy], picked: .kiro, installed: all) == [.kiroCLI, .copy])
+        #expect(ChatHandoff.choices([.claudeCode, .copy], picked: .gemini, installed: all) == [.claudeCode, .copy])
+        #expect(ChatHandoff.choices(nil, picked: .kiro, installed: all)
+                == [.kiroCLI, .claudeCode, .geminiCLI, .customAgent, .claudeWeb, .chatgpt, .copy])
+        // In the config: "agent".
+        let decoded = try JSONDecoder().decode(Config.self, from: Data(#"{"questionContinueIn":["agent","copy"]}"#.utf8))
+        #expect(decoded.questionContinueIn == [.atAgent, .copy])
+        #expect(String(decoding: try JSONEncoder().encode(decoded), as: UTF8.self).contains(#""questionContinueIn":["agent","copy"]"#))
+    }
+
+    /// An edit of the list in Settings keeps the entries not offered now (an agent not installed, the one "@agent's
+    /// agent" stands for) where they were; only an entry taken out goes, and an entry added goes at the end.
+    @Test func anEditKeepsTheEntriesNotShownInTheirPlaces() {
+        let list: [ChatHandoff.Destination] = [.atAgent, .claudeCode, .kiroCLI, .geminiCLI, .chatgpt, .copy]
+        let shown = ChatHandoff.shownIndices(list, picked: .gemini, installed: { $0 != .kiro })  // Kiro CLI missing for now
+        #expect(shown.map { list[$0] } == [.atAgent, .claudeCode, .chatgpt, .copy])
+        #expect(ChatHandoff.edited(list, shown: shown, to: [.copy, .atAgent, .claudeCode, .chatgpt])
+                == [.copy, .atAgent, .kiroCLI, .geminiCLI, .claudeCode, .chatgpt])
+        #expect(ChatHandoff.edited(list, shown: shown, to: [.atAgent, .chatgpt, .copy]) == [.atAgent, .kiroCLI, .geminiCLI, .chatgpt, .copy])
+        #expect(ChatHandoff.edited(list, shown: shown, to: [.atAgent, .claudeCode, .chatgpt, .copy, .gemini]) == list + [.gemini])
+        // Taken out, @agent's agent: Gemini CLI's own entry is offered again, where it was.
+        let without = ChatHandoff.edited(list, shown: shown, to: [.claudeCode, .chatgpt, .copy])
+        #expect(without == [.claudeCode, .kiroCLI, .geminiCLI, .chatgpt, .copy])
+        #expect(ChatHandoff.choices(without, picked: .gemini, installed: { _ in true }) == without)
+        // A copy of an entry taken out goes with it.
+        let twice: [ChatHandoff.Destination] = [.chatgpt, .kiroCLI, .chatgpt, .copy]
+        let offered = ChatHandoff.shownIndices(twice, picked: .claude, installed: { _ in true })
+        #expect(ChatHandoff.edited(twice, shown: offered, to: [.kiroCLI, .copy]) == [.kiroCLI, .copy])
+    }
+
     /// Whether an agent can be offered: its program found; a custom one's as typed (trimmed), never without a command.
     @Test func anAgentIsOfferedWhenItsProgramIsFound() {
         var config = Config.default
@@ -702,7 +743,7 @@ struct QuestionChatTests {
         #expect(ChatHandoff.installed(.custom, in: config, program: { looked.append($0); return true }) && looked == ["/opt/bin/muse"])
         // Each agent's choice, and back.
         for kind in AgentKind.allCases { #expect(ChatHandoff.Destination(agent: kind).agent == kind) }
-        #expect([ChatHandoff.Destination.claudeWeb, .chatgpt, .gemini, .copy].allSatisfy { $0.agent == nil })
+        #expect([ChatHandoff.Destination.atAgent, .claudeWeb, .chatgpt, .gemini, .copy].allSatisfy { $0.agent == nil })
     }
 
     @Test func theTextAndWhereItGoes() {

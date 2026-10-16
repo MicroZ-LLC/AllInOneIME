@@ -21,10 +21,10 @@ extension AllInOneIMEInputController {
     static func chatChoice(row: Int) -> Int? { row % 2 == 1 ? row / 2 : nil }
 
     /// A destination's name in the panel and the settings: an agent by its name ("Claude Code", "Gemini CLI" …; the custom
-    /// one's from `custom`, its command).
-    static func name(_ destination: ChatHandoff.Destination, custom: [String] = []) -> String {
+    /// one's from `custom`, its command), `.atAgent` by `picked`'s ("@agent's agent (Gemini CLI)").
+    static func name(_ destination: ChatHandoff.Destination, picked: AgentKind = .claude, custom: [String] = []) -> String {
         switch destination {
-        case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return shortName(destination, custom: custom)
+        case .atAgent, .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return shortName(destination, picked: picked, custom: custom)
         case .claudeWeb: return tr("Claude 网页版", "Claude (web)")
         case .chatgpt: return tr("ChatGPT 网页版", "ChatGPT (web)")
         case .gemini: return tr("Gemini 网页版", "Gemini (web)")
@@ -34,8 +34,11 @@ extension AllInOneIMEInputController {
 
     /// A destination's short name, for the panel's choices and the settings' chips (the agent by its name, the web ones
     /// are the web's; "Copy" copies the conversation).
-    static func shortName(_ destination: ChatHandoff.Destination, custom: [String] = []) -> String {
+    static func shortName(_ destination: ChatHandoff.Destination, picked: AgentKind = .claude, custom: [String] = []) -> String {
         switch destination {
+        case .atAgent:
+            let name = picked.displayName(custom: custom)
+            return tr("@agent 的 agent（\(name)）", "@agent's agent (\(name))")
         case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return destination.agent?.displayName(custom: custom) ?? ""
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"
@@ -80,7 +83,7 @@ extension AllInOneIMEInputController {
         let typed = composer.refineLine.map { $0 + "▏" } ?? "▏"
         if composer.showsHandoff {
             // Up to 4 on a line; more (the agents installed, the web …), 3 a line, so the panel stays as wide.
-            let labels = composer.handoffChoices.enumerated().map { "⌘\($0.offset + 1) " + Self.shortName($0.element, custom: agentCommand) }
+            let labels = composer.handoffChoices.enumerated().map { "⌘\($0.offset + 1) " + Self.shortName($0.element, picked: agent, custom: agentCommand) }
             let perLine = labels.count <= 4 ? 4 : 3
             let choices = stride(from: 0, to: labels.count, by: perLine)
                 .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n")

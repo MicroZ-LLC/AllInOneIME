@@ -997,7 +997,8 @@ struct SettingsView: View {
                     if !missing.isEmpty {
                         Menu(tr("添加…", "Add…")) {
                             ForEach(missing, id: \.self) { destination in
-                                Button(AllInOneIMEInputController.name(destination, custom: model.config.agentCommand)) {
+                                Button(AllInOneIMEInputController.name(destination, picked: model.config.agent,
+                                                                       custom: model.config.agentCommand)) {
                                     model.addContinueIn(destination)
                                 }
                             }
@@ -1006,9 +1007,9 @@ struct SettingsView: View {
                     }
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
-                    // The agents by name (a custom one's from its command).
+                    // The agents by name (a custom one's from its command), `.atAgent` by @agent's.
                     LanguageChips(items: model.continueChoices,
-                                  name: { AllInOneIMEInputController.shortName($0, custom: model.config.agentCommand) },
+                                  name: { AllInOneIMEInputController.shortName($0, picked: model.config.agent, custom: model.config.agentCommand) },
                                   firstNote: tr("默认", "default"),
                                   reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
                         .fixedSize()

@@ -123,6 +123,9 @@ enum AgentAvailability {
     /// Looked up again from now on (the Settings window opens).
     static func forget() { found = [:] }
 
+    /// The self-test's: `program` taken as installed or not, until `forget`.
+    static func pretend(_ program: String, installed: Bool) { found[program] = installed }
+
     static func installed(_ kind: AgentKind, custom: [String]) -> Bool {
         kind.program(custom: custom).map(installed(program:)) ?? false
     }
