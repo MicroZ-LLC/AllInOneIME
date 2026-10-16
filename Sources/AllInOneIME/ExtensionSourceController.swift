@@ -11,6 +11,9 @@ import AppKit
 // - The sources themselves, and their bundles' folders in the load list, are in the config: Settings changes them through
 //   its model (Enable, Remove, the pin), the command line in the file; the input method follows the file
 //   (`LiveConfig`, `LiveExtensions`).
+// - Only reviewed code loads: a folder of the sources folder in the load list that isn't a trusted source's bundle (a
+//   config copied from another Mac, a lost sources.json) is left out by `LiveExtensions` (`ExtensionSourceGate`) and taken
+//   out of the config at launch and when Settings shows the page. Clones for a review wait in staging until Enable.
 
 /// Main thread.
 @MainActor
@@ -23,7 +26,9 @@ final class ExtensionSourceController: ObservableObject {
     @Published private(set) var busy: Set<String> = []
 
     /// Where the clones are, and the git that's run (the self-test passes its own folder and git).
-    var root = ExtensionSources.directory
+    var root = ExtensionSources.directory {
+        didSet { ExtensionSourceGate.root = root }
+    }
     var git: (any GitRunning)?
     /// Where a removed source's clone goes: the Trash (the self-test deletes its own instead).
     var trashItem: @Sendable (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
@@ -54,6 +59,7 @@ final class ExtensionSourceController: ObservableObject {
         if read != statuses { statuses = read }
     }
 
+    /// The statuses as the file has them now (`reload`) are the ones changed: what the command line wrote meanwhile stays.
     /// Sets (or drops) a source's status and keeps it.
     func setStatus(_ status: ExtensionSourceStatus?, for url: String) {
         statuses[url] = status
@@ -87,9 +93,12 @@ final class ExtensionSourceController: ObservableObject {
         statuses = shown
     }
 
-    /// At launch: the statuses, a check of the sources that check by themselves about 30 s later, then once a day.
+    /// At launch: leftovers of an interrupted add or re-clone removed, unreviewed folders out of the load list, the
+    /// statuses, a check of the sources that check by themselves about 30 s later, then once a day.
     func start() {
+        plainManager.removeLeftovers()
         reload()
+        quarantineConfigFile()
         DistributedNotificationCenter.default().addObserver(forName: Self.changedNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
                 ExtensionSourceController.shared.reload()
@@ -154,45 +163,87 @@ final class ExtensionSourceController: ObservableObject {
         await perform(source) { try await $0.update(source, $1) }
     }
 
-    func reclone(_ source: ExtensionSource) async {
-        await perform(source) { try await $0.reclone(source, $1) }
-    }
-
-    /// Checks out `pin` (nil: back to following the branch, then checked).
-    func pin(_ source: ExtensionSource, to pin: String?) async {
+    /// Checks out `pin`, or with nil goes back to the branch's newest commit (a fast-forward, as Update). Returns the
+    /// error, if any: the caller saves the new pin in the config only when there's none.
+    func pin(_ source: ExtensionSource, to pin: String?) async -> Error? {
         if let pin {
-            await perform(source) { try await $0.pin(source, to: pin, $1) }
-        } else {
-            var following = source
-            following.pin = nil
-            await check(following)
+            return await perform(source) { try await $0.pin(source, to: pin, $1) }
         }
+        var following = source
+        following.pin = nil
+        return await perform(following) { try await $0.update(following, $1) }
     }
 
-    /// Clones a source to review it (not trusted, nothing loaded). Its status is kept only once it's enabled.
-    func cloneForReview(_ source: ExtensionSource) async throws -> ExtensionSourceManager.Clone {
+    /// Clones a source into staging for the review (not trusted, not in place, nothing loaded).
+    func stageForReview(_ source: ExtensionSource) async throws -> ExtensionSourceManager.Clone {
         busy.insert(source.url)
         defer { busy.remove(source.url) }
-        return try await manager().clone(source)
+        return try await manager().stage(source)
     }
 
-    /// Enable, after the review: trusted from now on, with this address.
-    func trust(_ clone: ExtensionSourceManager.Clone) {
-        var status = clone.status
+    /// Enable, after the review: the staged clone in place, trusted from now on with this address (the statuses read
+    /// again first: the command line may have written meanwhile).
+    func install(_ staged: ExtensionSourceManager.Clone) throws {
+        let installed = try plainManager.install(staged)
+        reload()
+        var status = installed.status
         status.trusted = true
         setStatus(status, for: status.url)
     }
 
-    /// Cancel in the review: the clone is deleted.
-    func discard(_ source: ExtensionSource) {
-        plainManager.discard(source)
+    /// Cancel in the review: the staged clone is deleted (never the one in place).
+    func discard(_ staged: ExtensionSourceManager.Clone) {
+        plainManager.discard(staged)
     }
 
-    /// Remove: the clone to the Trash, its status dropped (the config is the caller's).
-    func remove(_ source: ExtensionSource) throws {
-        try plainManager.trash(source)
+    /// Remove: the clone to the Trash, its status dropped (the config is the caller's). The status goes even when the
+    /// Trash refuses; that error is returned for the caller to say.
+    func remove(_ source: ExtensionSource) -> Error? {
+        var failure: Error?
+        do {
+            try plainManager.trash(source)
+        } catch {
+            failure = error
+            log.error("extension source: couldn't move the clone to the Trash: \(String(describing: error), privacy: .public)")
+        }
         reload()
         setStatus(nil, for: source.url)
+        return failure
+    }
+
+    // MARK: Only reviewed code
+
+    /// The config file without the unreviewed folders of the sources folder in its load list (written only if it had any).
+    func quarantineConfigFile(_ url: URL = Config.defaultURL) {
+        guard var config = try? Config.load(from: url) else { return }
+        let removed = ExtensionSources.quarantine(&config, statuses: statuses, root: root)
+        guard !removed.isEmpty else { return }
+        try? config.write(to: url)
+        log.notice("extension sources: \(removed.count) unreviewed folder(s) taken out of the load list")
+    }
+}
+
+/// What `LiveExtensions` loads: the config's folders less those of the sources folder that aren't a trusted source's
+/// bundle (`ExtensionSources.untrustedFolders`). sources.json is read again only when it changed (one stat a call).
+/// Main thread only, as `LiveExtensions`.
+enum ExtensionSourceGate {
+    nonisolated(unsafe) private static var cached: (url: URL, date: Date?, statuses: [String: ExtensionSourceStatus])?
+    /// The sources folder (`ExtensionSourceController.root`, which sets it).
+    nonisolated(unsafe) static var root = ExtensionSources.directory
+
+    static func folders(_ config: Config, found: [String]) -> [ExtensionStore.Folder] {
+        let all = ExtensionStore.folders(config, found: found)
+        let blocked = Set(ExtensionSources.untrustedFolders(in: config, statuses: statuses(root), root: root).map(ExtensionSources.comparable))
+        return blocked.isEmpty ? all : all.filter { !blocked.contains(ExtensionSources.comparable($0.path)) }
+    }
+
+    private static func statuses(_ root: URL) -> [String: ExtensionSourceStatus] {
+        let file = root.appendingPathComponent(ExtensionSources.statusFileName)
+        let date = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
+        if let cached, cached.url == file, cached.date == date { return cached.statuses }
+        let statuses = ExtensionSourceStatus.load(from: file)
+        cached = (file, date, statuses)
+        return statuses
     }
 }
 
@@ -238,7 +289,13 @@ enum ExtensionSourceText {
         case .notAdded: return tr("没有这个来源。", "No such source is added.")
         case .notTrusted: return tr("还没有检查并启用。", "Not reviewed and enabled yet.")
         case .notFastForward:
-            return tr("仓库的历史变了（强制推送），不能直接更新：请重新克隆。", "The repository's history changed (a force push), so it can't simply update: re-clone it.")
+            return tr("仓库的历史变了（强制推送），不能直接更新：重新克隆，并重新检查一遍。",
+                      "The repository's history changed (a force push), so it can't simply update: re-clone it and review it again.")
+        case let .invalidRef(ref): return tr("不是有效的分支、标签或提交名：\(ref)", "Not a valid branch, tag or commit name: \(ref)")
+        case .credentialsInURL:
+            return tr("地址里不要写用户名、密码或令牌：交给 git 的凭据助手保存（git help credential）。",
+                      "Don't put a user name, password or token in the address: let git's credential helper keep them (git help credential).")
+        case let .outsideClone(path): return tr("\(path) 指向仓库外面。", "\(path) leads out of the repository.")
         }
     }
 }

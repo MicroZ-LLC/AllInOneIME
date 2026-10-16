@@ -936,6 +936,7 @@ struct FloatingPanelView: View {
     @ObservedObject var panel: FloatingPanel
     /// A new version, as one quiet line at the top (`UpdateController`).
     @ObservedObject var updates: UpdateController = .shared
+    @ObservedObject var extensionSources: ExtensionSourceController = .shared
     @Environment(\.colorScheme) private var scheme
 
     private static let cornerRadius: CGFloat = 14
@@ -1028,6 +1029,7 @@ struct FloatingPanelView: View {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
             if let update = updates.available { updateNotice(update) }
+            ExtensionSourceNotice(sources: extensionSources) { panel.click { SettingsWindow.shared.show(page: .commands) } }
             section(tr("备忘录", "Notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
             section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .claude)) { tasks }

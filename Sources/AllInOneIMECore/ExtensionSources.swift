@@ -143,11 +143,28 @@ public struct ExtensionSourceStatus: Codable, Equatable, Sendable {
     public var shortCommit: String? { commit.map { String($0.prefix(7)) } }
 
     /// The statuses in `file` (none when it's missing or can't be read), by address.
+    /// Entry by entry: one that can't be read (a field a later version changed) is left out, not the others. A file that
+    /// isn't a JSON object at all is moved aside (`sources.json.bad-<date>`), never overwritten, and reads as empty.
     public static func load(from file: URL) -> [String: ExtensionSourceStatus] {
         guard let data = try? Data(contentsOf: file) else { return [:] }
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let aside = file.deletingLastPathComponent()
+                .appendingPathComponent(file.lastPathComponent + ".bad-" + formatter.string(from: Date()))
+            try? FileManager.default.moveItem(at: file, to: aside)
+            return [:]
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([String: ExtensionSourceStatus].self, from: data)) ?? [:]
+        var statuses: [String: ExtensionSourceStatus] = [:]
+        for (url, entry) in object {
+            guard let entryData = try? JSONSerialization.data(withJSONObject: entry),
+                  let status = try? decoder.decode(ExtensionSourceStatus.self, from: entryData) else { continue }
+            statuses[url] = status
+        }
+        return statuses
     }
 
     public static func save(_ statuses: [String: ExtensionSourceStatus], to file: URL) throws {
@@ -177,8 +194,14 @@ public enum ExtensionSourceError: Error, LocalizedError, Equatable, Sendable {
     case notAdded
     /// Not reviewed and enabled yet: `--add-source` or Settings first.
     case notTrusted
-    /// The new commits don't follow the clone's (a force push): Re-clone.
+    /// The new commits don't follow the clone's (a force push): Re-clone, which shows the review again.
     case notFastForward
+    /// A branch, tag or commit that isn't one (or could be read as an option).
+    case invalidRef(String)
+    /// A user name or token in an https address.
+    case credentialsInURL
+    /// The bundle folder leads out of the repository (a symbolic link).
+    case outsideClone(String)
 
     public var errorDescription: String? {
         switch self {
@@ -192,7 +215,11 @@ public enum ExtensionSourceError: Error, LocalizedError, Equatable, Sendable {
         case .alreadyAdded: return "This source is already added"
         case .notAdded: return "No such source is added"
         case .notTrusted: return "Not reviewed and enabled yet"
-        case .notFastForward: return "The repository's history changed (a force push): re-clone it"
+        case .notFastForward: return "The repository's history changed (a force push): re-clone it, and review it again"
+        case let .invalidRef(ref): return "Not a branch, tag or commit name: \(ref)"
+        case .credentialsInURL:
+            return "Don't put a user name, password or token in the address: git's credential helper keeps them (git help credential)"
+        case let .outsideClone(path): return "\(path) leads out of the repository"
         }
     }
 }
@@ -249,6 +276,8 @@ public enum ExtensionSources {
             guard let parsed = URL(string: url), let host = parsed.host, !host.isEmpty, parsed.path.count > 1 else {
                 throw ExtensionSourceError.invalidURL(url)
             }
+            // A name or token in an https address would be kept in the config in the clear: git's credential helper keeps it.
+            if lower.hasPrefix("https://"), parsed.user != nil || parsed.password != nil { throw ExtensionSourceError.credentialsInURL }
             return url
         }
         if lower.hasPrefix("file://") {
@@ -313,10 +342,12 @@ public enum ExtensionSources {
     // MARK: Git
 
     /// The environment git runs in: the input method's own with the login shell's PATH (`base`: `ShellEnvironment
-    /// .current`), the login shell's SSH agent if it has one (`login`), no prompts (`GIT_TERMINAL_PROMPT=0`), and ssh in
-    /// batch mode added to the user's own ssh command (their `GIT_SSH_COMMAND`, else `core.sshCommand`, else ssh), so a
-    /// key that needs a passphrase fails instead of asking. Variables that would point git at another repository are
-    /// dropped.
+    /// .current`), the login shell's SSH agent and ssh command if it sets them (`login`), and nothing that could wait for
+    /// an answer: no terminal prompts (`GIT_TERMINAL_PROMPT=0`), no askpass program (`SSH_ASKPASS_REQUIRE=never`). git
+    /// runs without a controlling terminal and with stdin closed (`ProcessGitRunner`), so ssh can't ask for a host key or a
+    /// password either; it fails, and the timeout ends anything else. The user's own ssh command (`GIT_SSH_COMMAND`,
+    /// `core.sshCommand`, `GIT_SSH`) is left exactly as it is (`sshCommand` is no longer used). Only ssh, https and file
+    /// transports are allowed (`GIT_ALLOW_PROTOCOL`), and variables that would point git at another repository are dropped.
     public static func gitEnvironment(base: [String: String], login: [String: String] = [:],
                                       sshCommand: String? = nil) -> [String: String] {
         var env = base
@@ -324,17 +355,29 @@ public enum ExtensionSources {
             env[key] = nil
         }
         if let agent = login["SSH_AUTH_SOCK"], !agent.isEmpty { env["SSH_AUTH_SOCK"] = agent }
+        if env["GIT_SSH_COMMAND"]?.isEmpty != false, let own = login["GIT_SSH_COMMAND"], !own.isEmpty { env["GIT_SSH_COMMAND"] = own }
         if env["HOME"]?.isEmpty != false { env["HOME"] = NSHomeDirectory() }
         env["GIT_TERMINAL_PROMPT"] = "0"
-        let own = [env["GIT_SSH_COMMAND"], login["GIT_SSH_COMMAND"], sshCommand].compactMap { $0 }.first { !$0.isEmpty }
-        // GIT_SSH names a program, to which no option can be added: left as the user has it.
-        if own != nil || env["GIT_SSH"]?.isEmpty != false {
-            env["GIT_SSH_COMMAND"] = (own ?? "ssh") + " -o BatchMode=yes"
-        }
+        env["SSH_ASKPASS_REQUIRE"] = "never"
+        env["GIT_ALLOW_PROTOCOL"] = "ssh:https:file"
         return env
     }
 
-    /// `git clone`: shallow, the one branch (`branch`, else the default), no tags, into `folder`.
+    /// A branch, tag or commit as given (config, Settings, a pin, the repository's own default branch): what git itself
+    /// takes for a branch name (`git check-ref-format --branch`, `ExtensionSourceManager.checkRef`), and never anything
+    /// git could read as an option. This part needs no git: not empty, no leading "-", no spaces or control characters,
+    /// none of `~^:?*[\`, no "..", "@{", "//", a leading or trailing "/" or "." or a ".lock" ending.
+    public static func isPlausibleRef(_ ref: String) -> Bool {
+        guard !ref.isEmpty, ref.count <= 255, !ref.hasPrefix("-"), !ref.hasPrefix("/"), !ref.hasSuffix("/"), !ref.hasPrefix("."),
+              !ref.hasSuffix("."), !ref.hasSuffix(".lock"), !ref.contains(".."), !ref.contains("@{"), !ref.contains("//"), ref != "@"
+        else { return false }
+        return ref.unicodeScalars.allSatisfy { scalar in
+            scalar.value > 32 && scalar.value != 127 && !"~^:?*[\\".unicodeScalars.contains(scalar)
+        }
+    }
+
+    /// `git clone`: shallow, the one branch (`branch`, else the default; checked first, and git takes the word after
+    /// `--branch` as its value whatever it is), no tags, the address after `--`, into `folder`.
     public static func cloneArguments(url: String, branch: String?, into folder: URL) -> [String] {
         noHooks + ["clone", "--depth", "1", "--single-branch", "--no-tags"] + (branch.map { ["--branch", $0] } ?? [])
             + ["--", url, folder.path]
@@ -342,12 +385,12 @@ public enum ExtensionSources {
 
     /// `git fetch` of `ref` (a branch, a tag or a commit; "HEAD": the default branch) from origin, `depth` deep.
     public static func fetchArguments(_ ref: String, depth: Int) -> [String] {
-        noHooks + ["fetch", "--depth", String(depth), "--no-tags", "origin", ref]
+        noHooks + ["fetch", "--depth", String(depth), "--no-tags", "--end-of-options", "origin", ref]
     }
 
     /// `git log` of `range`, one line a commit: sha, author, date, subject, split by a unit separator.
     public static func logArguments(_ range: String, limit: Int = 100) -> [String] {
-        noHooks + ["log", "-n", String(limit), "--format=%H%x1f%an%x1f%aI%x1f%s", range]
+        noHooks + ["log", "-n", String(limit), "--format=%H%x1f%an%x1f%aI%x1f%s", "--end-of-options", range]
     }
 
     /// The commits `logArguments` printed (lines that don't parse are left out).
@@ -421,10 +464,12 @@ public enum ExtensionSources {
     /// The bundle path to use in `clone`: `path` if it has an `extension.json`, else the only folder that has one.
     public static func resolveBundlePath(_ path: String?, in clone: URL) throws -> String {
         if let path, !path.isEmpty {
-            let cleaned = path.split(separator: "/").joined(separator: "/")
+            let cleaned = path.split(separator: "/").filter { $0 != "." }.joined(separator: "/")
             guard !cleaned.split(separator: "/").contains(".."),
                   FileManager.default.fileExists(atPath: clone.appendingPathComponent(cleaned).appendingPathComponent(ExtensionBundle.manifestName).path)
             else { throw ExtensionSourceError.noBundle(path) }
+            // A folder that is (or goes through) a link out of the repository isn't the repository's.
+            guard isInside(clone.appendingPathComponent(cleaned), clone) else { throw ExtensionSourceError.outsideClone(cleaned) }
             return cleaned
         }
         let found = bundleFolders(in: clone)
@@ -433,6 +478,13 @@ public enum ExtensionSources {
         case 1: return found[0]
         default: throw ExtensionSourceError.severalBundles(found)
         }
+    }
+
+    /// Whether `url`, its links followed, is `folder` or inside it (its links followed too).
+    public static func isInside(_ url: URL, _ folder: URL) -> Bool {
+        let base = folder.resolvingSymlinksInPath().standardizedFileURL.path
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        return path == base || path.hasPrefix(base.hasSuffix("/") ? base : base + "/")
     }
 
     // MARK: Schedule
@@ -473,6 +525,27 @@ public enum ExtensionSources {
         config.extensionFolders.removeAll { comparable($0) == full }
     }
 
+    /// The load list's folders inside the sources folder (`root`) that aren't a trusted source's bundle: a config copied
+    /// from another Mac, a lost sources.json, a folder added by hand. Their code was never reviewed here: they aren't
+    /// loaded (`quarantine`, and the input method's own check before it loads extensions).
+    public static func untrustedFolders(in config: Config, statuses: [String: ExtensionSourceStatus], root: URL = directory) -> [String] {
+        let base = comparable(root.path)
+        let trusted = Set(config.extensionSources.filter { isTrusted($0, statuses[$0.url]) }
+            .map { comparable(bundleFolder(for: $0, root: root).path) })
+        return config.extensionFolders.filter { path in
+            let full = comparable(path)
+            return (full == base || full.hasPrefix(base + "/")) && !trusted.contains(full)
+        }
+    }
+
+    /// Takes `untrustedFolders` out of the load list; returns them.
+    @discardableResult
+    public static func quarantine(_ config: inout Config, statuses: [String: ExtensionSourceStatus], root: URL = directory) -> [String] {
+        let untrusted = untrustedFolders(in: config, statuses: statuses, root: root)
+        if !untrusted.isEmpty { config.extensionFolders.removeAll { untrusted.contains($0) } }
+        return untrusted
+    }
+
     /// Whether the source's bundle is in the load list.
     public static func isEnabled(_ source: ExtensionSource, in config: Config, root: URL = directory) -> Bool {
         let full = comparable(bundleFolder(for: source, root: root).path)
@@ -494,6 +567,9 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         public var program: String
         /// Why it won't be offered (another command has its name), nil when it will.
         public var hidden: ScriptCommand.Problem?
+        /// Its script is a symbolic link out of the repository (to where it leads): it would run a file the review
+        /// can't vouch for.
+        public var leavesRepository: String? = nil
     }
 
     public var url: String
@@ -516,9 +592,10 @@ public struct ExtensionSourceReview: Equatable, Sendable {
     }
 
     /// The bundle in `bundleFolder` as it would load next to what `config` loads now (`found`: the Raycast folders
-    /// Spotlight found; `plugins`: the installed plugins).
+    /// Spotlight found; `plugins`: the installed plugins). `repository`: the clone, to flag a script that is a link out of
+    /// it (nil: out of the bundle's folder).
     public static func make(bundleFolder: URL, path: String, url: String, commit: String?, commitDate: Date?, config: Config,
-                            plugins: [InstalledPlugin] = [], found: [String] = []) -> ExtensionSourceReview {
+                            plugins: [InstalledPlugin] = [], found: [String] = [], repository: URL? = nil) -> ExtensionSourceReview {
         let folder = bundleFolder.standardizedFileURL
         let prefix = folder.path + "/"
         var folders = ExtensionStore.folders(config, found: found).filter { $0.url.standardizedFileURL.path != folder.path }
@@ -534,8 +611,10 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         let commands = index.commands.filter { $0.file.standardizedFileURL.path.hasPrefix(prefix) }.map { command in
             let program = command.launch.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 }.joined(separator: " ")
             let off = bundle.map { config.disabledExtensions.contains($0.name) } == true || config.disabledExtensions.contains(command.id)
+            let outside = ExtensionSources.isInside(command.file, repository ?? folder) ? nil : command.file.resolvingSymlinksInPath().path
             return Command(name: command.name, title: command.title, description: command.description, output: command.output,
-                           background: command.background, program: program, hidden: off ? nil : hidden[command.id])
+                           background: command.background, program: program, hidden: off ? nil : hidden[command.id],
+                           leavesRepository: outside)
         }
         return ExtensionSourceReview(url: url, commit: commit, commitDate: commitDate, path: path, bundle: bundle, problem: problem,
                                      commands: commands, skipped: bundle == nil ? [] : mine)
@@ -560,6 +639,7 @@ public struct ExtensionSourceReview: Equatable, Sendable {
             lines.append("command:     @\(command.name) — \(command.title) (\(command.output.rawValue)\(command.background ? ", background" : ""))\(hidden)")
             if let description = command.description { lines.append("             \(description)") }
             lines.append("  runs:      \(command.program)")
+            if let target = command.leavesRepository { lines.append("  WARNING:   its script is a link out of the repository, to \(target)") }
         }
         for preference in preferences {
             lines.append("preference:  \(preference.name) (\(preference.kind.rawValue)\(preference.required ? ", required" : ""))")
@@ -569,8 +649,10 @@ public struct ExtensionSourceReview: Equatable, Sendable {
     }
 }
 
-/// The git work on the clones: cloning, checking, updating, pinning, re-cloning, removing. Every call goes through
-/// `git` (the real one, or a test's).
+/// The git work on the clones: cloning (into staging, then into place), checking, updating, pinning, re-cloning,
+/// removing. Every call goes through `git` (the real one, or a test's). Every branch, tag or commit is checked before git
+/// sees it (`checkRef`), and passed after `--end-of-options` (or as an option's own value): a name like
+/// `--upload-pack=…`, in the config or as a repository's default branch, is refused, never run.
 public struct ExtensionSourceManager: Sendable {
     public var root: URL
     public var git: any GitRunning
@@ -587,41 +669,87 @@ public struct ExtensionSourceManager: Sendable {
     }
 
     public var statusFile: URL { root.appendingPathComponent(ExtensionSources.statusFileName) }
+    /// Where clones wait for their review: hidden, never in the load list.
+    public var stagingFolder: URL { root.appendingPathComponent(".staging", isDirectory: true) }
 
     /// The statuses as kept, and keeping them.
     public func statuses() -> [String: ExtensionSourceStatus] { ExtensionSourceStatus.load(from: statusFile) }
     public func save(_ statuses: [String: ExtensionSourceStatus]) throws { try ExtensionSourceStatus.save(statuses, to: statusFile) }
 
-    /// A clone made for adding: where it is, what it found, and the bundle paths in it.
+    /// A clone: where it is (in staging, waiting for the review, or in place), what it found, and the bundle paths in it.
     public struct Clone: Equatable, Sendable {
         public var folder: URL
         public var status: ExtensionSourceStatus
         public var bundles: [String]
     }
 
-    /// Clones `source` (shallow; its pin checked out) into a temporary folder, then moves it into place as the source's
-    /// folder (one left from before, never enabled, is replaced). Not trusted, not enabled: nothing in it is loaded.
-    public func clone(_ source: ExtensionSource) async throws -> Clone {
+    /// Clones `source` (shallow; its pin checked out) into a folder of its own in staging (`stagingFolder`), for the
+    /// review: nothing there is in the load list, and nothing in place is touched. `install` puts it in place (Enable);
+    /// `discard` deletes it (Cancel).
+    public func stage(_ source: ExtensionSource) async throws -> Clone {
         let url = try ExtensionSources.validate(source.url)
+        if let branch = source.branch { try await checkRef(branch) }
+        if let pin = source.pin { try await checkRef(pin) }
         let fm = FileManager.default
-        try fm.createDirectory(at: root, withIntermediateDirectories: true)
-        let destination = ExtensionSources.cloneFolder(for: url, root: root)
-        let temporary = root.appendingPathComponent(".tmp-\(destination.lastPathComponent)-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try fm.createDirectory(at: stagingFolder, withIntermediateDirectories: true)
+        let folder = stagingFolder.appendingPathComponent("\(ExtensionSources.folderName(for: url))-\(UUID().uuidString.prefix(8))", isDirectory: true)
         do {
-            try await call(ExtensionSources.cloneArguments(url: url, branch: source.branch, into: temporary), in: root)
-            if let pin = source.pin { try await checkout(pin, in: temporary) }
+            try await call(ExtensionSources.cloneArguments(url: url, branch: source.branch, into: folder), in: root)
+            if let pin = source.pin { try await checkout(pin, in: folder) }
             var status = ExtensionSourceStatus(url: url, checked: now())
-            let branch = try await call(ExtensionSources.noHooks + ["rev-parse", "--abbrev-ref", "HEAD"], in: temporary).output
+            let branch = try await call(ExtensionSources.noHooks + ["rev-parse", "--abbrev-ref", "HEAD"], in: folder).output
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            status.branch = branch == "HEAD" || branch.isEmpty ? source.branch : branch
-            (status.commit, status.commitDate) = try await currentCommit(of: temporary)
-            let bundles = ExtensionSources.bundleFolders(in: temporary)
-            if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-            try fm.moveItem(at: temporary, to: destination)
-            return Clone(folder: destination, status: status, bundles: bundles)
+            if branch == "HEAD" || branch.isEmpty {
+                status.branch = source.branch
+            } else {
+                // The repository's own default branch is a name its owner chose: checked like any other.
+                try await checkRef(branch)
+                status.branch = branch
+            }
+            (status.commit, status.commitDate) = try await currentCommit(of: folder)
+            return Clone(folder: folder, status: status, bundles: ExtensionSources.bundleFolders(in: folder))
         } catch {
-            try? fm.removeItem(at: temporary)
+            try? fm.removeItem(at: folder)
+            removeStagingIfEmpty()
             throw error
+        }
+    }
+
+    /// Enable: the staged clone takes the source's place, in one step (an atomic swap with the one there, which is then
+    /// deleted; a crash between leaves either the old or the new folder in place, never none).
+    public func install(_ staged: Clone) throws -> Clone {
+        let destination = ExtensionSources.cloneFolder(for: staged.status.url, root: root)
+        try PluginLibrary.moveIntoPlace(staged.folder, destination)
+        removeStagingIfEmpty()
+        return Clone(folder: destination, status: staged.status, bundles: staged.bundles)
+    }
+
+    /// Cancel: a staged clone is deleted. Only ever a folder in staging; the one in place is never touched.
+    public func discard(_ staged: Clone) {
+        guard ExtensionSources.isInside(staged.folder, stagingFolder), staged.folder.standardizedFileURL != stagingFolder.standardizedFileURL
+        else { return }
+        try? FileManager.default.removeItem(at: staged.folder)
+        removeStagingIfEmpty()
+    }
+
+    /// Clones `source` and puts it in place at once (`stage`, then `install`): for a source already reviewed, and tests.
+    /// Settings and `--add-source` stage, review, and install only on Enable.
+    public func clone(_ source: ExtensionSource) async throws -> Clone {
+        try install(try await stage(source))
+    }
+
+    /// Leftovers of an interrupted add, update or re-clone (staging, ".tmp-", ".old-" folders): removed.
+    public func removeLeftovers() {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: root.path) else { return }
+        for name in names where name == ".staging" || name.hasPrefix(".tmp-") || name.hasPrefix(".old-") {
+            try? fm.removeItem(at: root.appendingPathComponent(name))
+        }
+    }
+
+    private func removeStagingIfEmpty() {
+        if (try? FileManager.default.contentsOfDirectory(atPath: stagingFolder.path))?.isEmpty == true {
+            try? FileManager.default.removeItem(at: stagingFolder)
         }
     }
 
@@ -647,7 +775,8 @@ public struct ExtensionSourceManager: Sendable {
     }
 
     /// Update: fetches again and fast-forwards the clone to the branch (a reset to it, once it's known to follow the
-    /// clone's commit; no merge, no hooks). Throws `.notFastForward` after a force push.
+    /// clone's commit; no merge, no hooks). Throws `.notFastForward` after a force push. Also how a pinned clone goes
+    /// back to the branch when the pin is taken off.
     public func update(_ source: ExtensionSource, _ status: ExtensionSourceStatus) async throws -> ExtensionSourceStatus {
         var status = status
         let folder = ExtensionSources.cloneFolder(for: source.url, root: root)
@@ -657,7 +786,7 @@ public struct ExtensionSourceManager: Sendable {
                 status.fastForward = false
                 throw ExtensionSourceError.notFastForward
             }
-            try await call(ExtensionSources.noHooks + ["reset", "-q", "--hard", remote], in: folder)
+            try await call(ExtensionSources.noHooks + ["reset", "-q", "--hard", "--end-of-options", remote], in: folder)
         }
         (status.commit, status.commitDate) = try await currentCommit(of: folder)
         status.updates = []
@@ -668,25 +797,19 @@ public struct ExtensionSourceManager: Sendable {
         return status
     }
 
-    /// Re-clone (after a force push): a new clone replaces the old one, which goes only once the new one is in place.
-    /// The source stays trusted.
+    /// Re-clone: a new clone (staged) replaces the one in place in one step, once it's complete and has the bundle; a
+    /// failure leaves the old one as it was. The status keeps its trust as given: the app shows the review first (after a
+    /// force push the new history needs one) and only then calls this, or stages and installs itself.
     public func reclone(_ source: ExtensionSource, _ status: ExtensionSourceStatus) async throws -> ExtensionSourceStatus {
-        let fm = FileManager.default
-        let destination = ExtensionSources.cloneFolder(for: source.url, root: root)
-        let old = root.appendingPathComponent(".old-\(destination.lastPathComponent)-\(UUID().uuidString.prefix(8))", isDirectory: true)
-        if fm.fileExists(atPath: destination.path) { try fm.moveItem(at: destination, to: old) }
+        let staged = try await stage(source)
         do {
-            let clone = try await clone(source)
-            _ = try ExtensionSources.resolveBundlePath(source.path, in: clone.folder)
-            try? fm.removeItem(at: old)
-            var fresh = clone.status
+            _ = try ExtensionSources.resolveBundlePath(source.path, in: staged.folder)
+            let installed = try install(staged)
+            var fresh = installed.status
             fresh.trusted = status.trusted
             return fresh
         } catch {
-            if fm.fileExists(atPath: old.path) {
-                try? fm.removeItem(at: destination)
-                try? fm.moveItem(at: old, to: destination)
-            }
+            discard(staged)
             throw error
         }
     }
@@ -695,6 +818,7 @@ public struct ExtensionSourceManager: Sendable {
     public func pin(_ source: ExtensionSource, to pin: String, _ status: ExtensionSourceStatus) async throws -> ExtensionSourceStatus {
         var status = status
         let folder = ExtensionSources.cloneFolder(for: source.url, root: root)
+        try await checkRef(pin)
         try await checkout(pin, in: folder)
         (status.commit, status.commitDate) = try await currentCommit(of: folder)
         status.updates = []
@@ -711,9 +835,18 @@ public struct ExtensionSourceManager: Sendable {
         try trashItem(folder)
     }
 
-    /// Deletes a clone that was never enabled (Cancel in the review).
+    /// Deletes the source's clone in place. For a clone that was never enabled; the app itself only ever discards staged
+    /// clones (`discard(_: Clone)`), never a folder in the load list.
     public func discard(_ source: ExtensionSource) {
         try? FileManager.default.removeItem(at: ExtensionSources.cloneFolder(for: source.url, root: root))
+    }
+
+    /// Throws `.invalidRef` unless `ref` is a name git takes for a branch (`git check-ref-format --branch`), after the
+    /// checks that need no git (`ExtensionSources.isPlausibleRef`: never one starting with "-").
+    public func checkRef(_ ref: String) async throws {
+        guard ExtensionSources.isPlausibleRef(ref) else { throw ExtensionSourceError.invalidRef(ref) }
+        let result = try await git.run(ExtensionSources.noHooks + ["check-ref-format", "--branch", ref], in: nil)
+        guard result.status == 0 else { throw ExtensionSourceError.invalidRef(ref) }
     }
 
     // MARK: Git calls
@@ -721,6 +854,7 @@ public struct ExtensionSourceManager: Sendable {
     /// The branch's newest commit, fetched, and the clone's.
     private func fetch(_ source: ExtensionSource, _ status: ExtensionSourceStatus, in folder: URL) async throws -> (remote: String, head: String) {
         let ref = source.branch ?? status.branch ?? "HEAD"
+        if ref != "HEAD" { try await checkRef(ref) }
         try await call(ExtensionSources.fetchArguments(ref, depth: ExtensionSources.fetchDepth), in: folder)
         let remote = try await revision("FETCH_HEAD^{commit}", in: folder)
         let head = try await revision("HEAD", in: folder)
@@ -730,14 +864,14 @@ public struct ExtensionSourceManager: Sendable {
     /// Checks out `ref` (a tag, a branch or a commit), fetched first; a commit the server won't send on its own is
     /// fetched with the whole history.
     private func checkout(_ ref: String, in folder: URL) async throws {
-        guard !ref.hasPrefix("-"), !ref.contains(where: \.isWhitespace) else { throw ExtensionSourceError.git("Not a tag or commit: \(ref)") }
+        try await checkRef(ref)
         do {
             try await call(ExtensionSources.fetchArguments(ref, depth: 1), in: folder)
-            try await call(ExtensionSources.noHooks + ["checkout", "-q", "--detach", "FETCH_HEAD^{commit}"], in: folder)
+            try await call(ExtensionSources.noHooks + ["checkout", "-q", "--detach", "--end-of-options", "FETCH_HEAD^{commit}"], in: folder)
         } catch let error as ExtensionSourceError where ref.count >= 7 && ref.allSatisfy(\.isHexDigit) {
             guard case .git = error else { throw error }
-            try await call(ExtensionSources.noHooks + ["fetch", "--unshallow", "--no-tags", "origin"], in: folder)
-            try await call(ExtensionSources.noHooks + ["checkout", "-q", "--detach", ref + "^{commit}"], in: folder)
+            try await call(ExtensionSources.noHooks + ["fetch", "--unshallow", "--no-tags", "--end-of-options", "origin"], in: folder)
+            try await call(ExtensionSources.noHooks + ["checkout", "-q", "--detach", "--end-of-options", ref + "^{commit}"], in: folder)
         }
     }
 
@@ -754,7 +888,7 @@ public struct ExtensionSourceManager: Sendable {
     }
 
     private func isAncestor(_ commit: String, of descendant: String, in folder: URL) async throws -> Bool {
-        let result = try await git.run(ExtensionSources.noHooks + ["merge-base", "--is-ancestor", commit, descendant], in: folder)
+        let result = try await git.run(ExtensionSources.noHooks + ["merge-base", "--is-ancestor", "--end-of-options", commit, descendant], in: folder)
         return result.status == 0
     }
 
@@ -767,8 +901,10 @@ public struct ExtensionSourceManager: Sendable {
     }
 }
 
-/// The real git: /usr/bin/git (which runs the one of Xcode or the command line tools), with stdin closed, in
-/// `environment` (`ExtensionSources.gitEnvironment`), stopped after `timeout` with what it started.
+/// The real git: /usr/bin/git (which runs the one of Xcode or the command line tools), in `environment`
+/// (`ExtensionSources.gitEnvironment`), started in a session of its own: no controlling terminal (ssh can't ask for a
+/// host key or a password, even when the command line runs it from Terminal), stdin closed, and stopped after `timeout`
+/// with everything it started (its process group).
 public struct ProcessGitRunner: GitRunning {
     public var executable: URL
     public var environment: [String: String]
@@ -785,16 +921,10 @@ public struct ProcessGitRunner: GitRunning {
         self.developerFolders = developerFolders
     }
 
-    /// The user's git: the login shell's environment, their agent, and their own ssh command (`core.sshCommand`) with
-    /// batch mode. Slow the first time (the login shell is read): off the main thread.
+    /// The user's git: the login shell's environment and SSH agent. Slow the first time (the login shell is read): off
+    /// the main thread.
     public static func user() async -> ProcessGitRunner {
-        let base = ShellEnvironment.current
-        let plain = ProcessGitRunner(environment: ExtensionSources.gitEnvironment(base: base, login: ShellEnvironment.login))
-        let configured = try? await plain.run(["config", "--get", "core.sshCommand"], in: nil)
-        let ssh = configured.flatMap { $0.status == 0 ? $0.output.trimmingCharacters(in: .whitespacesAndNewlines) : nil }
-        var runner = plain
-        runner.environment = ExtensionSources.gitEnvironment(base: base, login: ShellEnvironment.login, sshCommand: ssh.flatMap { $0.isEmpty ? nil : $0 })
-        return runner
+        ProcessGitRunner(environment: ExtensionSources.gitEnvironment(base: ShellEnvironment.current, login: ShellEnvironment.login))
     }
 
     public func run(_ arguments: [String], in directory: URL?) async throws -> GitResult {
@@ -805,23 +935,49 @@ public struct ProcessGitRunner: GitRunning {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 continuation.resume(with: Result {
-                    try Self.runNow(executable, arguments, directory: directory, environment: environment, timeout: timeout)
+                    try Self.runNow(executable, arguments, directory: directory ?? FileManager.default.homeDirectoryForCurrentUser,
+                                    environment: environment, timeout: timeout)
                 })
             }
         }
     }
 
-    private static func runNow(_ executable: URL, _ arguments: [String], directory: URL?, environment: [String: String],
+    private static func runNow(_ executable: URL, _ arguments: [String], directory: URL, environment: [String: String],
                                timeout: TimeInterval) throws -> GitResult {
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = arguments
-        process.environment = environment
-        process.currentDirectoryURL = directory ?? FileManager.default.homeDirectoryForCurrentUser
-        process.standardInput = FileHandle.nullDevice
         let out = Pipe(), err = Pipe()
-        process.standardOutput = out
-        process.standardError = err
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        // A new session: no controlling terminal, and a process group of its own to stop. Every signal back to its
+        // default and none blocked: the input method ignores SIGTERM and SIGPIPE, and git, inheriting that, would wait
+        // forever at exit for an upload-pack its SIGTERM can't stop. Only stdin, stdout and stderr are passed on.
+        var defaults = sigset_t()
+        sigfillset(&defaults)
+        posix_spawnattr_setsigdefault(&attributes, &defaults)
+        var none = sigset_t()
+        sigemptyset(&none)
+        posix_spawnattr_setsigmask(&attributes, &none)
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_CLOEXEC_DEFAULT))
+        var files: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&files)
+        defer { posix_spawn_file_actions_destroy(&files) }
+        posix_spawn_file_actions_addopen(&files, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_adddup2(&files, out.fileHandleForWriting.fileDescriptor, 1)
+        posix_spawn_file_actions_adddup2(&files, err.fileHandleForWriting.fileDescriptor, 2)
+        posix_spawn_file_actions_addchdir_np(&files, directory.path)
+        let argv: [UnsafeMutablePointer<CChar>?] = ([executable.path] + arguments).map { strdup($0) } + [nil]
+        let envp: [UnsafeMutablePointer<CChar>?] = environment.map { strdup($0.key + "=" + $0.value) } + [nil]
+        defer {
+            argv.forEach { free($0) }
+            envp.forEach { free($0) }
+        }
+        var pid: pid_t = 0
+        let spawned = posix_spawn(&pid, executable.path, &files, &attributes, argv, envp)
+        try? out.fileHandleForWriting.close()
+        try? err.fileHandleForWriting.close()
+        guard spawned == 0 else {
+            throw ExtensionSourceError.git("Can't start \(executable.path): \(String(cString: strerror(spawned)))")
+        }
         let reading = DispatchGroup()
         let captured = Captured()
         for (pipe, isError) in [(out, false), (err, true)] {
@@ -833,25 +989,28 @@ public struct ProcessGitRunner: GitRunning {
             }
         }
         let exited = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exited.signal() }
-        do {
-            try process.run()
-        } catch {
-            throw ExtensionSourceError.git("Can't start \(executable.path): \(error.localizedDescription)")
+        let exit = ExitStatus()
+        DispatchQueue.global(qos: .utility).async {
+            var status: Int32 = 0
+            while waitpid(pid, &status, 0) == -1, errno == EINTR {}
+            exit.set(status)
+            exited.signal()
         }
         if exited.wait(timeout: .now() + timeout) == .timedOut {
-            // Its whole group (ssh it started too).
-            let group = process.processIdentifier
-            kill(-group, SIGTERM)
-            process.terminate()
-            if exited.wait(timeout: .now() + 1) == .timedOut { kill(-group, SIGKILL); kill(group, SIGKILL) }
+            // Its whole group (ssh and whatever else it started).
+            kill(-pid, SIGTERM)
+            if exited.wait(timeout: .now() + 1) == .timedOut {
+                kill(-pid, SIGKILL)
+                _ = exited.wait(timeout: .now() + 1)
+            }
             _ = reading.wait(timeout: .now() + 1)
             throw ExtensionSourceError.timedOut(timeout)
         }
         _ = reading.wait(timeout: .now() + 5)
         let (output, errors) = captured.get()
-        return GitResult(status: process.terminationStatus, output: String(decoding: output, as: UTF8.self),
-                         errors: String(decoding: errors, as: UTF8.self))
+        let raw = exit.get()
+        let status = (raw & 0x7f) == 0 ? (raw >> 8) & 0xff : 128 + (raw & 0x7f)
+        return GitResult(status: status, output: String(decoding: output, as: UTF8.self), errors: String(decoding: errors, as: UTF8.self))
     }
 
     /// What the two pipes held, read on two threads.
@@ -860,5 +1019,12 @@ public struct ProcessGitRunner: GitRunning {
         private var output = Data(), errors = Data()
         func set(_ data: Data, error: Bool) { lock.withLock { if error { errors = data } else { output = data } } }
         func get() -> (Data, Data) { lock.withLock { (output, errors) } }
+    }
+
+    private final class ExitStatus: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Int32 = 0
+        func set(_ status: Int32) { lock.withLock { value = status } }
+        func get() -> Int32 { lock.withLock { value } }
     }
 }

@@ -142,6 +142,7 @@ enum SettingsPageImages {
         model.config.extensionSources = ExtensionSourceSamples.sources
         for source in model.config.extensionSources { ExtensionSources.enable(source, in: &model.config) }
         ExtensionSourceController.shared.show(ExtensionSourceSamples.statuses())
+        ExtensionSourcesSection.shownLoaded = ExtensionSourceSamples.loaded
         // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
         // the first as added, any others as if Spotlight had found them).
         if let extensions {

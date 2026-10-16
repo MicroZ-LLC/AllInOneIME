@@ -148,16 +148,16 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
     @Test func environment() {
         let base = ["PATH": "/usr/bin", "HOME": "/Users/me", "GIT_DIR": "/elsewhere", "SSH_AUTH_SOCK": "/launchd/agent"]
         var env = ExtensionSources.gitEnvironment(base: base)
-        #expect(env["GIT_TERMINAL_PROMPT"] == "0" && env["GIT_SSH_COMMAND"] == "ssh -o BatchMode=yes")
+        #expect(env["GIT_TERMINAL_PROMPT"] == "0" && env["SSH_ASKPASS_REQUIRE"] == "never" && env["GIT_ALLOW_PROTOCOL"] == "ssh:https:file")
         #expect(env["GIT_DIR"] == nil && env["HOME"] == "/Users/me" && env["SSH_AUTH_SOCK"] == "/launchd/agent" && env["PATH"] == "/usr/bin")
-        // The login shell's agent wins; the user's own ssh command keeps its options, batch mode added.
+        // No ssh command of ours: the user's own stays exactly as it is, or there is none.
+        #expect(env["GIT_SSH_COMMAND"] == nil)
         env = ExtensionSources.gitEnvironment(base: base, login: ["SSH_AUTH_SOCK": "/shell/agent"], sshCommand: "ssh -i ~/.ssh/work")
-        #expect(env["SSH_AUTH_SOCK"] == "/shell/agent" && env["GIT_SSH_COMMAND"] == "ssh -i ~/.ssh/work -o BatchMode=yes")
-        env = ExtensionSources.gitEnvironment(base: base.merging(["GIT_SSH_COMMAND": "ssh -v"]) { $1 }, sshCommand: "ignored")
-        #expect(env["GIT_SSH_COMMAND"] == "ssh -v -o BatchMode=yes")
+        #expect(env["SSH_AUTH_SOCK"] == "/shell/agent" && env["GIT_SSH_COMMAND"] == nil)
+        env = ExtensionSources.gitEnvironment(base: base.merging(["GIT_SSH_COMMAND": "ssh -v"]) { $1 })
+        #expect(env["GIT_SSH_COMMAND"] == "ssh -v")
         env = ExtensionSources.gitEnvironment(base: base, login: ["GIT_SSH_COMMAND": "ssh -F ~/.ssh/other"])
-        #expect(env["GIT_SSH_COMMAND"] == "ssh -F ~/.ssh/other -o BatchMode=yes")
-        // GIT_SSH (a program) is left alone.
+        #expect(env["GIT_SSH_COMMAND"] == "ssh -F ~/.ssh/other")
         env = ExtensionSources.gitEnvironment(base: base.merging(["GIT_SSH": "/usr/local/bin/myssh"]) { $1 })
         #expect(env["GIT_SSH_COMMAND"] == nil && env["GIT_SSH"] == "/usr/local/bin/myssh")
         #expect(ExtensionSources.gitEnvironment(base: [:])["HOME"] == NSHomeDirectory())
@@ -169,8 +169,18 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
                 == ["-c", "core.hooksPath=/dev/null", "clone", "--depth", "1", "--single-branch", "--no-tags", "--", "git@h:a/b.git", "/tmp/x"])
         #expect(ExtensionSources.cloneArguments(url: "git@h:a/b.git", branch: "dev", into: folder).contains("--branch"))
         #expect(ExtensionSources.fetchArguments("main", depth: 100)
-                == ["-c", "core.hooksPath=/dev/null", "fetch", "--depth", "100", "--no-tags", "origin", "main"])
-        #expect(ExtensionSources.logArguments("a..b").last == "a..b")
+                == ["-c", "core.hooksPath=/dev/null", "fetch", "--depth", "100", "--no-tags", "--end-of-options", "origin", "main"])
+        #expect(Array(ExtensionSources.logArguments("a..b").suffix(2)) == ["--end-of-options", "a..b"])
+    }
+
+    @Test func refs() {
+        for ref in ["main", "release/1.2", "v1.2.0", "0123456789abcdef", "feature_x-y", "HEAD"] {
+            #expect(ExtensionSources.isPlausibleRef(ref), "\(ref)")
+        }
+        for ref in ["", "-x", "--upload-pack=touch${IFS}PWNED;false", "a..b", "a b", "a\tb", "a~1", "a^", "a:b", "a?", "a*", "a[b",
+                    "a\\b", "@{-1}", "/main", "main/", ".hidden", "a.lock", "a//b", "@", "x\u{7F}"] {
+            #expect(!ExtensionSources.isPlausibleRef(ref), "\(ref)")
+        }
     }
 
     @Test func log() {
@@ -473,5 +483,216 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         #expect(!FileManager.default.fileExists(atPath: ExtensionSources.cloneFolder(for: missing.url, root: fixture.sources).path))
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.sources.path).filter { $0.hasPrefix(".tmp") }.isEmpty)
         await #expect(throws: ExtensionSourceError.notHTTPS) { try await manager.clone(ExtensionSource(url: "http://example.com/x.git")) }
+    }
+}
+
+// MARK: - Safety (the sign-off review's findings)
+
+@Suite(.serialized) struct ExtensionSourceSafetyTests {
+    /// A repository whose default branch is named like an option: the PoC (`--upload-pack=…` ran a command on fetch). Its
+    /// name is refused when the clone reads it, before any fetch; nothing runs.
+    @Test func optionNamedDefaultBranchRunsNothing() async throws {
+        let fixture = try GitFixture()
+        try fixture.bundle()
+        try fixture.commit("First")
+        let marker = fixture.root.appendingPathComponent("PWNED")
+        let evil = "--upload-pack=touch${IFS}\(marker.path);false"
+        try GitFixture.git(["update-ref", "refs/heads/" + evil, "HEAD"], in: fixture.bare)
+        try GitFixture.git(["symbolic-ref", "HEAD", "refs/heads/" + evil], in: fixture.bare)
+        // The PoC is real: a fetch that takes the name as an option runs the command.
+        let probe = fixture.root.appendingPathComponent("probe")
+        try GitFixture.git(["clone", "-q", "--", fixture.url, probe.path], in: fixture.root)
+        _ = try? GitFixture.git(["fetch", "origin", evil], in: probe)
+        #expect(FileManager.default.fileExists(atPath: marker.path), "the PoC itself works (else this test proves nothing)")
+        try FileManager.default.removeItem(at: marker)
+
+        let recorder = GitRecorder()
+        let manager = fixture.manager(recorder: recorder)
+        do {
+            _ = try await manager.stage(ExtensionSource(url: fixture.url))
+            Issue.record("a repository with an option-named default branch was accepted")
+        } catch {
+            #expect(error as? ExtensionSourceError == .invalidRef(evil), "\(error)")
+        }
+        #expect(!FileManager.default.fileExists(atPath: marker.path), "nothing ran")
+        #expect(!recorder.calls.contains { $0.contains("fetch") }, "no fetch with it")
+        #expect((try? FileManager.default.contentsOfDirectory(atPath: fixture.sources.path))?.filter { !$0.hasPrefix(".") }.isEmpty ?? true)
+
+        // Given as the branch or the pin, or found in sources.json: refused before git sees it.
+        for source in [ExtensionSource(url: fixture.url, branch: evil), ExtensionSource(url: fixture.url, pin: evil)] {
+            await #expect(throws: ExtensionSourceError.invalidRef(evil)) { _ = try await manager.stage(source) }
+        }
+        let status = ExtensionSourceStatus(url: fixture.url, trusted: true, branch: evil)
+        await #expect(throws: ExtensionSourceError.invalidRef(evil)) { _ = try await manager.check(ExtensionSource(url: fixture.url), status) }
+        await #expect(throws: ExtensionSourceError.invalidRef(evil)) {
+            _ = try await manager.pin(ExtensionSource(url: fixture.url), to: evil, status)
+        }
+        #expect(!FileManager.default.fileExists(atPath: marker.path), "nothing ran")
+        // git's own rule too: a name that passes the quick check but not git's.
+        await #expect(throws: ExtensionSourceError.invalidRef("a.lock/b")) { try await manager.checkRef("a.lock/b") }
+    }
+
+    /// The review's clone waits in staging: nothing is in place until Enable, and Cancel never touches what's in place.
+    @Test func stagingNeverTouchesWhatIsInPlace() async throws {
+        let fixture = try GitFixture()
+        try fixture.bundle(text: "first")
+        let first = try fixture.commit("First")
+        let manager = fixture.manager()
+        let source = ExtensionSource(url: fixture.url)
+        let place = ExtensionSources.cloneFolder(for: fixture.url, root: fixture.sources)
+
+        let staged = try await manager.stage(source)
+        #expect(staged.folder.path.hasPrefix(manager.stagingFolder.path) && !FileManager.default.fileExists(atPath: place.path))
+        manager.discard(staged)
+        #expect(!FileManager.default.fileExists(atPath: staged.folder.path) && !FileManager.default.fileExists(atPath: manager.stagingFolder.path))
+
+        // In place (enabled), then a new version staged and cancelled: the one in place is as it was.
+        _ = try await manager.clone(source)
+        try fixture.bundle(text: "second")
+        let second = try fixture.commit("Second")
+        let again = try await manager.stage(source)
+        #expect(again.status.commit == second)
+        manager.discard(again)
+        #expect(try GitFixture.git(["rev-parse", "HEAD"], in: place) == first)
+        #expect(try String(contentsOf: place.appendingPathComponent("hello.sh"), encoding: .utf8).contains("first"))
+        // Discarding something that isn't in staging does nothing.
+        manager.discard(ExtensionSourceManager.Clone(folder: place, status: ExtensionSourceStatus(url: fixture.url), bundles: []))
+        #expect(FileManager.default.fileExists(atPath: place.path))
+
+        // Enable after a review: swapped in, in one step.
+        let reviewed = try await manager.stage(source)
+        _ = try manager.install(reviewed)
+        #expect(try GitFixture.git(["rev-parse", "HEAD"], in: place) == second)
+        #expect(!FileManager.default.fileExists(atPath: manager.stagingFolder.path))
+    }
+
+    @Test func unreviewedFoldersAreTakenOut() {
+        let root = URL(fileURLWithPath: "/Users/me/Library/Application Support/AllInOneIME/Sources")
+        let trusted = ExtensionSource(url: "git@github.com:you/a.git")
+        let copied = ExtensionSource(url: "git@github.com:you/b.git", path: "ext")
+        var config = Config.default
+        config.extensionFolders = ["~/my-scripts"]
+        ExtensionSources.enable(trusted, in: &config, root: root)
+        ExtensionSources.enable(copied, in: &config, root: root)
+        config.extensionFolders.append(root.appendingPathComponent("stray/x").path)
+        let statuses = [trusted.url: ExtensionSourceStatus(url: trusted.url, trusted: true),
+                        copied.url: ExtensionSourceStatus(url: copied.url, trusted: false)]
+        let untrusted = ExtensionSources.untrustedFolders(in: config, statuses: statuses, root: root)
+        #expect(untrusted == [ExtensionSources.loadPath(for: copied, root: root), root.appendingPathComponent("stray/x").path])
+        var quarantined = config
+        #expect(ExtensionSources.quarantine(&quarantined, statuses: statuses, root: root) == untrusted)
+        #expect(quarantined.extensionFolders == ["~/my-scripts", ExtensionSources.loadPath(for: trusted, root: root)])
+        // A lost sources.json: nothing of the sources folder stays.
+        var lost = config
+        ExtensionSources.quarantine(&lost, statuses: [:], root: root)
+        #expect(lost.extensionFolders == ["~/my-scripts"])
+    }
+
+    @Test func statusFileRobust() throws {
+        let fixture = try GitFixture()
+        let file = fixture.root.appendingPathComponent("sources.json")
+        // One entry a later version wrote differently: the others still read.
+        try Data(#"{"a": {"url": "a", "trusted": true, "updates": [], "fastForward": true}, "b": {"url": 3}}"#.utf8).write(to: file)
+        #expect(Array(ExtensionSourceStatus.load(from: file).keys) == ["a"])
+        // Not JSON at all: moved aside, never overwritten.
+        try Data("{ broken".utf8).write(to: file)
+        #expect(ExtensionSourceStatus.load(from: file).isEmpty)
+        let names = try FileManager.default.contentsOfDirectory(atPath: fixture.root.path)
+        let aside = try #require(names.first { $0.hasPrefix("sources.json.bad-") })
+        #expect(!names.contains("sources.json"))
+        #expect(try String(contentsOf: fixture.root.appendingPathComponent(aside), encoding: .utf8) == "{ broken")
+    }
+
+    @Test func unpinGoesBackToTheBranch() async throws {
+        let fixture = try GitFixture()
+        try fixture.bundle()
+        let first = try fixture.commit("One")
+        try fixture.bundle(text: "two")
+        let second = try fixture.commit("Two")
+        let manager = fixture.manager()
+        var source = ExtensionSource(url: fixture.url)
+        var status = try await manager.clone(source).status
+        status.trusted = true
+        status = try await manager.pin(source, to: first, status)
+        #expect(status.commit == first)
+        // A pin that isn't there: an error, the clone where it was.
+        await #expect(throws: ExtensionSourceError.self) { _ = try await manager.pin(source, to: "v9", status) }
+        #expect(try GitFixture.git(["rev-parse", "HEAD"], in: ExtensionSources.cloneFolder(for: fixture.url, root: fixture.sources)) == first)
+        source.pin = nil
+        status = try await manager.update(source, status)
+        #expect(status.commit == second)
+    }
+
+    /// An added folder whose extension.json isn't a bundle's is read as a folder, as before.
+    @Test func foreignManifestFallsBack() {
+        let folder = ScriptFolder()
+        folder.add("extension.json", #"{"name": "Another tool's file", "version": 2}"#)
+        folder.add("hello.sh", script(["title Hello"]))
+        let index = folder.load()
+        #expect(index.bundles.isEmpty && index.commands.map(\.name) == ["hello"])
+    }
+
+    @Test func symbolicLinksOutOfTheClone() throws {
+        let clone = ScriptFolder(), outside = ScriptFolder()
+        outside.add("extension.json", #"{"schemaVersion": 1, "name": "away", "commands": [{"script": "a.sh", "name": "away"}]}"#)
+        outside.add("a.sh", script())
+        try FileManager.default.createSymbolicLink(at: clone.url.appendingPathComponent("linked"), withDestinationURL: outside.url)
+        #expect(throws: ExtensionSourceError.outsideClone("linked")) { try ExtensionSources.resolveBundlePath("linked", in: clone.url) }
+        #expect(ExtensionSources.bundleFolders(in: clone.url).isEmpty)
+
+        // A script of the bundle that is a link out of the repository: flagged in the review.
+        let elsewhere = outside.add("payload.sh", script())
+        clone.add("extension.json", #"{"schemaVersion": 1, "name": "tools", "commands": [{"script": "run.sh", "name": "runner"}]}"#)
+        try FileManager.default.createSymbolicLink(at: clone.url.appendingPathComponent("run.sh"), withDestinationURL: elsewhere)
+        var config = Config.default
+        config.extensionFolders = []
+        let review = ExtensionSourceReview.make(bundleFolder: clone.url, path: "", url: "file:///r.git", commit: nil, commitDate: nil,
+                                                config: config, repository: clone.url)
+        #expect(review.commands.first?.leavesRepository == elsewhere.resolvingSymlinksInPath().path)
+        #expect(review.summary.contains { $0.contains("link out of the repository") })
+    }
+
+    /// git runs with no controlling terminal: ssh couldn't ask for a host key or a password even from Terminal (run under
+    /// `script` to have one), and stdin is closed.
+    @Test func noControllingTerminal() async throws {
+        let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"], timeout: 10)
+        let result = try await runner.run(["-c", "if (exec 3</dev/tty) 2>/dev/null; then echo tty; else echo no-tty; fi; ps -o tty= -p $$"], in: nil)
+        let lines = result.output.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        #expect(lines.first == "no-tty", "\(result.output)")
+        #expect(lines.last == "??", "no terminal: \(result.output)")
+        // The exit status comes through, and what it started is in its own group, stopped with it at the timeout.
+        #expect(try await runner.run(["-c", "exit 3"], in: nil).status == 3)
+        let quick = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"], timeout: 0.5)
+        let started = Date()
+        await #expect(throws: ExtensionSourceError.timedOut(0.5)) { _ = try await quick.run(["-c", "sleep 30 & sleep 30; wait"], in: nil) }
+        #expect(Date().timeIntervalSince(started) < 10)
+    }
+
+    /// git starts with every signal at its default, whatever this process ignores (the input method ignores SIGTERM and
+    /// SIGPIPE): else git, at exit, waits forever for an upload-pack its SIGTERM can't stop (a fetch of a missing ref did).
+    @Test func signalsReset() async throws {
+        let before = signal(SIGTERM, SIG_IGN)
+        defer { signal(SIGTERM, before) }
+        let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"], timeout: 10)
+        let started = Date()
+        let result = try await runner.run(["-c", "kill -TERM $$; sleep 5; echo survived"], in: nil)
+        #expect(result.status == 128 + SIGTERM && !result.output.contains("survived"), "\(result)")
+        #expect(Date().timeIntervalSince(started) < 4)
+    }
+
+    @Test func credentialsInAddresses() {
+        #expect(throws: ExtensionSourceError.credentialsInURL) { try ExtensionSources.validate("https://me:secret@git.example.com/x.git") }
+        #expect(throws: ExtensionSourceError.credentialsInURL) { try ExtensionSources.validate("https://TOKEN@git.example.com/x.git") }
+        #expect((try? ExtensionSources.validate("ssh://git@git.example.com/x.git")) == "ssh://git@git.example.com/x.git")
+    }
+
+    @Test func leftoversRemoved() throws {
+        let fixture = try GitFixture()
+        let manager = fixture.manager()
+        for name in [".staging/x-1", ".tmp-x-2", ".old-x-3", "kept-1a2b3c4d"] {
+            try FileManager.default.createDirectory(at: fixture.sources.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        manager.removeLeftovers()
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.sources.path) == ["kept-1a2b3c4d"])
     }
 }

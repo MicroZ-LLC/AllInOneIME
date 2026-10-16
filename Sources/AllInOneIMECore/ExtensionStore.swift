@@ -260,8 +260,11 @@ public enum ExtensionStore {
             return true
         }
         for folder in folders where !folder.hidden {
-            // An added folder that is a bundle itself (an extension source's, `ExtensionSources`) is read as that bundle.
-            let isBundle = !folder.found && FileManager.default.fileExists(atPath: folder.url.appendingPathComponent(ExtensionBundle.manifestName).path)
+            // An added folder that is a bundle itself (an extension source's, `ExtensionSources`) is read as that bundle;
+            // one whose extension.json isn't a bundle's (another tool's file, a broken one) is read as a folder, as before.
+            let isBundle = !folder.found && read(folder.url.appendingPathComponent(ExtensionBundle.manifestName))?.json.map {
+                if case .success = ExtensionBundle.read($0, folder: folder.url) { return true } else { return false }
+            } == true
             for item in isBundle ? [(url: folder.url, kind: ItemKind.folder)] : items(in: folder.url) {
                 switch item.kind {
                 case .brokenLink:

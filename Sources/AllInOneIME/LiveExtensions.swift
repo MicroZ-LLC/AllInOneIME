@@ -1,7 +1,8 @@
 import AllInOneIMECore
 import Foundation
 
-/// The script extensions the command list offers (`ExtensionStore`, docs/extensions.md). The index is rebuilt
+/// The script extensions the command list offers (`ExtensionStore`, docs/extensions.md; only reviewed extension sources:
+/// `ExtensionSourceGate`). The index is rebuilt
 /// in the background, when a text field becomes active and when the settings name other folders, reading only
 /// the files that changed (`ExtensionCache`); a keystroke only ever reads the last one. The folders Spotlight
 /// finds holding Raycast scripts are looked for in the background too, at most every few minutes
@@ -19,14 +20,14 @@ enum LiveExtensions {
     /// The index as last built. `rescan`: build it again in the background (a text field became active);
     /// it is rebuilt too when `config` names other folders. `done` runs once a rebuild it started is in.
     static func current(_ config: Config, rescan: Bool = false, done: (() -> Void)? = nil) -> ExtensionIndex {
-        let folders = ExtensionStore.folders(config, found: found)
+        let folders = ExtensionSourceGate.folders(config, found: found)
         if rescan || folders != indexed { rebuild(folders, done: done) }
         return index
     }
 
     /// The index built now, on this thread (the settings window, which shows what is there at once).
     static func load(_ config: Config) -> ExtensionIndex {
-        let folders = ExtensionStore.folders(config, found: found)
+        let folders = ExtensionSourceGate.folders(config, found: found)
         var built = ExtensionStore.load(folders, cache: cache)
         built.generation = built == index ? index.generation : index.generation &+ 1
         index = built
@@ -57,7 +58,7 @@ enum LiveExtensions {
                 rebuilding = false
                 if rebuildAgain {
                     rebuildAgain = false
-                    rebuild(ExtensionStore.folders(LiveConfig.current, found: found), done: nil)
+                    rebuild(ExtensionSourceGate.folders(LiveConfig.current, found: found), done: nil)
                     return
                 }
                 let done = waiting

@@ -12,6 +12,8 @@ struct ExtensionSourcesSection: View {
     @State private var removing: ExtensionSource?
     @State private var pinning: ExtensionSource?
     @State private var pinText = ""
+    /// What went wrong with the last Remove, Pin or Unpin, said under the sources.
+    @State private var actionError: String?
 
     var body: some View {
         Section {
@@ -20,6 +22,9 @@ struct ExtensionSourcesSection: View {
                 Text(tr("还没有来源。来源是一个 Git 仓库里的扩展包：用你自己的 git 和 SSH 设置克隆，检查之后才启用，有新提交时由你点「更新」。",
                         "No sources yet. A source is an extension bundle in a Git repository: cloned with your own git and SSH setup, enabled only after you've reviewed it, and updated when you click Update."))
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            if let actionError {
+                Label(actionError, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
             Button(tr("从链接添加…", "Add from Link…")) { adding = ExtensionSourceSheet.Start(source: ExtensionSource(url: ""), cloneNow: false) }
         } header: {
@@ -54,7 +59,11 @@ struct ExtensionSourcesSection: View {
         } message: {
             Text(tr("固定后停在这个版本，不再检查更新。", "It stays at that version and isn't checked for updates."))
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in sources.reload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            sources.reload()
+            quarantine()
+        }
+        .onAppear { quarantine() }
         // The command line (or the file) may have changed the load list: the extensions are read again.
         .onChange(of: model.config.extensionFolders) { model.refreshExtensions() }
     }
@@ -73,6 +82,7 @@ struct ExtensionSourcesSection: View {
                     Text(title(of: source))
                     Text(source.url).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     Text(detail(source, status, trusted: trusted, enabled: enabled)).font(.caption).foregroundStyle(.secondary)
+                    Text(loaded(source, trusted: trusted, enabled: enabled)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if busy { ProgressView().controlSize(.small) }
@@ -94,10 +104,11 @@ struct ExtensionSourcesSection: View {
                     if status.fastForward {
                         Button(tr("更新", "Update")) { Task { await sources.update(source); model.refreshExtensions() } }.disabled(busy)
                     } else {
-                        Button(tr("重新克隆", "Re-clone")) { Task { await sources.reclone(source); model.refreshExtensions() } }.disabled(busy)
+                        // A force push: the new history is reviewed like a new source before it replaces the clone.
+                        Button(tr("重新克隆…", "Re-clone…")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }.disabled(busy)
                     }
                 }
-                if trusted { menu(source, status) }
+                if trusted { menu(source, status).disabled(busy) }
             }
             if let status, trusted, source.pin == nil, !status.updates.isEmpty { commitLog(status) }
             if let error = status?.error {
@@ -115,6 +126,32 @@ struct ExtensionSourcesSection: View {
     private func title(of source: ExtensionSource) -> String {
         let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
         return model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }?.title ?? source.repositoryName
+    }
+
+    /// The settings' images: the sample sources' commands, shown as loaded (their clones aren't on this Mac).
+    static var shownLoaded: [String: [String]]?
+
+    /// What of the source actually loads now: its commands, or why none do.
+    private func loaded(_ source: ExtensionSource, trusted: Bool, enabled: Bool) -> String {
+        if let shown = Self.shownLoaded?[source.url] { return tr("已加载：", "Loaded: ") + shown.joined(separator: " ") }
+        let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
+        let names = model.extensionIndex.commands.filter { ExtensionSources.comparable($0.extensionDirectory.path) == folder }
+            .map { "@" + (model.extensionNames[$0.id] ?? $0.name) }
+        if !names.isEmpty { return tr("已加载：", "Loaded: ") + names.joined(separator: " ") }
+        if !trusted { return tr("没有加载：还没检查过", "Nothing loaded: not reviewed yet") }
+        if !enabled { return tr("没有加载：不在加载列表里", "Nothing loaded: not in the load list") }
+        if !FileManager.default.fileExists(atPath: folder) { return tr("没有加载：克隆不在了，请重新克隆", "Nothing loaded: the clone is missing; re-clone it") }
+        if let problem = model.skippedExtensions.first(where: { ExtensionSources.comparable($0.file.deletingLastPathComponent().path) == folder }) {
+            return tr("没有加载：", "Nothing loaded: ") + UIText.describe(problem.problem, file: problem.file)
+        }
+        return tr("没有加载：扩展包里没有能用的命令", "Nothing loaded: the bundle has no usable commands")
+    }
+
+    /// Folders of the sources folder in the load list that aren't a reviewed source's bundle: taken out, and saved.
+    private func quarantine() {
+        guard model.canSave, !ExtensionSources.quarantine(&model.config, statuses: sources.statuses, root: sources.root).isEmpty else { return }
+        model.save()
+        model.refreshExtensions()
     }
 
     /// "a1b2c3d · 2 hr ago · main · checked 5 min ago", or why it isn't loaded.
@@ -174,7 +211,7 @@ struct ExtensionSourcesSection: View {
                 pinText = source.pin ?? ""
                 pinning = source
             }
-            Button(tr("重新克隆", "Re-clone")) { Task { await sources.reclone(source); model.refreshExtensions() } }
+            Button(tr("重新克隆…", "Re-clone…")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }
             Button(tr("在访达中显示", "Show in Finder")) {
                 NSWorkspace.shared.activateFileViewerSelecting([ExtensionSources.bundleFolder(for: source, root: sources.root)])
             }
@@ -196,21 +233,26 @@ struct ExtensionSourcesSection: View {
         model.save()
     }
 
-    /// A new pin (nil: follow the branch again): saved, then the clone checked out at it (or checked).
+    /// A new pin (nil: back to the branch's newest commit): the clone checked out first, and the pin saved only when
+    /// that worked.
     private func setPin(_ source: ExtensionSource, _ pin: String?) {
         let pin = pin.flatMap { $0.isEmpty ? nil : $0 }
-        change(source) { $0.pin = pin }
+        actionError = nil
         Task {
-            await sources.pin(source, to: pin)
+            if let error = await sources.pin(source, to: pin) {
+                actionError = tr("没有改固定：", "The pin wasn't changed: ") + ExtensionSourceText.describe(error)
+            } else {
+                change(source) { $0.pin = pin }
+            }
             model.refreshExtensions()
         }
     }
 
     private func remove(_ source: ExtensionSource) {
-        do {
-            try sources.remove(source)
-        } catch {
-            log.error("extension source: couldn't move the clone to the Trash: \(String(describing: error), privacy: .public)")
+        actionError = sources.remove(source).map { error in
+            tr("来源已移除，但克隆没能移到废纸篓（\(error.localizedDescription)），它还在 ",
+               "The source is removed, but its clone couldn't go to the Trash (\(error.localizedDescription)); it's still at ")
+                + ExtensionStore.abbreviated(ExtensionSources.cloneFolder(for: source.url, root: sources.root).path)
         }
         ExtensionSources.remove(source, from: &model.config, root: sources.root)
         model.save()
@@ -248,6 +290,7 @@ struct ExtensionSourceSheet: View {
     @State private var path: String
     @State private var pin: String
     @State private var step: Step = .form
+    @State private var cancelled = CancelFlag()
 
     init(model: SettingsModel, start: Start, step: Step = .form) {
         self.model = model
@@ -291,7 +334,7 @@ struct ExtensionSourceSheet: View {
             content
             HStack {
                 if case let .failed(message) = step {
-                    Text(message).foregroundStyle(.red).font(.callout).lineLimit(3).textSelection(.enabled)
+                    Text(message).foregroundStyle(.red).font(.callout).lineLimit(ExtensionSources.maxMessageLines).textSelection(.enabled)
                 } else if let problem {
                     Text(problem).foregroundStyle(.red).font(.callout)
                 }
@@ -375,50 +418,75 @@ struct ExtensionSourceSheet: View {
 
     private func clone() async {
         step = .cloning
+        let token = cancelled
         do {
-            let clone = try await sources.cloneForReview(source)
-            if let path = source.path {
-                review(clone, path: try ExtensionSources.resolveBundlePath(path, in: clone.folder))
-            } else if clone.bundles.count > 1 {
-                step = .pick(clone)
-            } else {
-                review(clone, path: try ExtensionSources.resolveBundlePath(nil, in: clone.folder))
+            let staged = try await sources.stageForReview(source)
+            // Cancelled while git was at work: the result goes as soon as it's there.
+            guard !token.value else {
+                sources.discard(staged)
+                return
+            }
+            do {
+                if let path = source.path {
+                    review(staged, path: try ExtensionSources.resolveBundlePath(path, in: staged.folder))
+                } else if staged.bundles.count > 1 {
+                    step = .pick(staged)
+                } else {
+                    review(staged, path: try ExtensionSources.resolveBundlePath(nil, in: staged.folder))
+                }
+            } catch {
+                sources.discard(staged)
+                throw error
             }
         } catch {
-            // A clone that can't be used (no bundle in it) goes, unless it's a trusted source's.
-            if !ExtensionSources.isTrusted(source, sources.statuses[source.url]) { sources.discard(source) }
+            guard !token.value else { return }
             step = .failed(ExtensionSourceText.describe(error))
         }
     }
 
-    private func review(_ clone: ExtensionSourceManager.Clone, path: String) {
-        var picked = source
-        picked.path = path.isEmpty ? nil : path
-        let review = ExtensionSourceReview.make(bundleFolder: ExtensionSources.bundleFolder(for: picked, root: sources.root), path: path,
-                                                url: clone.status.url, commit: clone.status.commit, commitDate: clone.status.commitDate,
-                                                config: model.config, plugins: model.plugins, found: LiveExtensions.found)
-        step = .review(clone, review)
+    private func review(_ staged: ExtensionSourceManager.Clone, path: String) {
+        let folder = path.isEmpty ? staged.folder : staged.folder.appendingPathComponent(path, isDirectory: true)
+        // Next to what loads now, less this source's own folder (a re-clone replaces it).
+        var others = model.config
+        let own = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
+        others.extensionFolders.removeAll { ExtensionSources.comparable($0) == own }
+        let review = ExtensionSourceReview.make(bundleFolder: folder, path: path, url: staged.status.url, commit: staged.status.commit,
+                                                commitDate: staged.status.commitDate, config: others, plugins: model.plugins,
+                                                found: LiveExtensions.found, repository: staged.folder)
+        step = .review(staged, review)
     }
 
-    private func enable(_ clone: ExtensionSourceManager.Clone, _ review: ExtensionSourceReview) {
+    /// Enable: the staged clone takes the source's place, trusted; the bundle's folder in the load list.
+    private func enable(_ staged: ExtensionSourceManager.Clone, _ review: ExtensionSourceReview) {
         var enabled = source
         enabled.path = review.path.isEmpty ? nil : review.path
+        do {
+            try sources.install(staged)
+        } catch {
+            step = .failed(ExtensionSourceText.describe(error))
+            return
+        }
         ExtensionSources.enable(enabled, in: &model.config, root: sources.root)
         model.save()
-        sources.trust(clone)
         model.refreshExtensions()
         dismiss()
     }
 
+    /// Cancel: a staged clone is deleted (the one in place, if any, is left as it is); a clone still under way is
+    /// deleted when it's done.
     private func cancel() {
+        cancelled.value = true
         switch step {
-        case .pick, .review:
-            // A source the config already has keeps its clone only once trusted; a new one's clone goes.
-            if !ExtensionSources.isTrusted(source, sources.statuses[source.url]) { sources.discard(source) }
+        case let .pick(staged), let .review(staged, _): sources.discard(staged)
         default: break
         }
         dismiss()
     }
+}
+
+/// Set when the sheet is cancelled; a clone that finishes later reads it.
+final class CancelFlag {
+    var value = false
 }
 
 /// The review itself: the warning, the bundle, its commands and what they run, its preferences, where it's from.
@@ -448,7 +516,8 @@ struct ExtensionSourceReviewView: View {
                         if let description = bundle.description { Text(description).font(.callout) }
                     }
                 } else {
-                    Label(tr("这个扩展包加载不了：", "This bundle can't be loaded: ") + (review.problem.map { "\($0)" } ?? ""),
+                    Label(tr("这个扩展包加载不了：", "This bundle can't be loaded: ")
+                          + (review.problem.map { UIText.describe($0, file: URL(fileURLWithPath: review.path.isEmpty ? ExtensionBundle.manifestName : review.path + "/" + ExtensionBundle.manifestName)) } ?? ""),
                           systemImage: "xmark.octagon").foregroundStyle(.red)
                 }
             } header: {
@@ -468,6 +537,11 @@ struct ExtensionSourceReviewView: View {
                         if let hidden = command.hidden {
                             Label(UIText.describe(hidden, file: URL(fileURLWithPath: command.program)), systemImage: "eye.slash")
                                 .font(.caption).foregroundStyle(.secondary)
+                        }
+                        if let target = command.leavesRepository {
+                            Label(tr("它的脚本是指向仓库外面的链接：\(target)", "Its script is a link out of the repository: \(target)"),
+                                  systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption).foregroundStyle(.orange)
                         }
                     }
                     .opacity(command.hidden == nil ? 1 : 0.6)
@@ -501,6 +575,32 @@ struct ExtensionSourceReviewView: View {
         case .show: return tr("显示", "shows")
         case .list: return tr("列表", "lists")
         case .silent: return tr("静默", "silent")
+        }
+    }
+}
+
+/// The menu bar panel's quiet line when extension sources have new commits ("Extension sources: 3 updates"), like the
+/// app's own update line; a click opens Settings → Custom Commands. Nothing when there are none.
+struct ExtensionSourceNotice: View {
+    @ObservedObject var sources: ExtensionSourceController
+    /// The sources of the config as it is now (the self-test passes its own).
+    var configured: () -> [ExtensionSource] = { LiveConfig.current.extensionSources }
+    let open: () -> Void
+
+    var body: some View {
+        let count = sources.updateCount(for: configured())
+        if count > 0 {
+            Button(action: open) {
+                HStack(spacing: 6) {
+                    Image(systemName: "shippingbox.circle.fill").foregroundStyle(Color.accentColor)
+                    Text(tr("扩展来源：", "Extension sources: ") + ExtensionSourceText.updates(count)).font(.system(size: 12)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(tr("查看…", "Review…")).font(.system(size: 12)).foregroundStyle(Color.accentColor)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(tr("打开设置里的「自定义命令」", "Opens Settings → Custom Commands"))
         }
     }
 }
