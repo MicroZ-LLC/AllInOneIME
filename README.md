@@ -107,6 +107,9 @@ Not the other way round: the code of `@py` and `@js` always runs exactly as you 
 
 When `@` isn't followed by a command, as in `@john`, the `@` is inserted as usual, so @-mentioning
 people in chat apps still works.
+Typed right after a letter, a digit, `.`, `_` or `-`, as in `bob@example.com` or `ssh user@host`, `@` is just text: no
+list opens, in every app, terminals included. With the list open, ← → or a key that can't go on a command's name (`.`, `:`,
+`/`) close it and leave what you typed (`@`, `@im`) as it is; in a terminal ← → then only close the list.
 `@question`, `@improve` and `@translate` send to your own Bedrock only when you press the action key; `@open` searches only on this
 Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@claude` uses the Claude Code installed on your Mac (the `claude` command) and its own account, and it asks you
 first, as usual, before changing files or running commands. Without Claude Code installed, `@claude` isn't offered.

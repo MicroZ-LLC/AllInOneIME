@@ -30,6 +30,9 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Fixed
 
 - Bedrock with a role, SSO or `credential_process` profile no longer needs temporary keys copied into `~/.aws/credentials` and refreshed by hand: such profiles were refused before ("only static access keys are supported"), and now their credentials are fetched and renewed automatically.
+- `@` typed right after a letter, a digit, `.`, `_` or `-` is just text: `bob@example.com` and `ssh user@host` type as usual, with no command list, in every app, terminals included.
+- In a terminal (Ghostty), → or ← on a lone `@` no longer makes it vanish, and `.`, `:`, Space or a letter typed after it is no longer lost: the `@` stays as typed and the list closes (the arrow then only closes the list).
+- A digit after `@` that numbers none of the five rows shown (0, 6–9) goes in as typed instead of picking a command that isn't shown.
 
 ## 0.6.3 (2026-10-15)
 
