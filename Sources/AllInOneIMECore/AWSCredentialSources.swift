@@ -23,20 +23,21 @@ public enum AWSCredentialProcess {
 
     /// `command` as arguments, the way Python's `shlex.split` (POSIX) does it for the AWS CLI: spaces, tabs and line breaks
     /// separate words; '…' keeps everything as it is; "…" keeps everything but \" and \\; a backslash outside quotes keeps
-    /// the next character. Nothing is expanded (no `~`, `$VAR` or globs) and nothing runs in a shell.
+    /// the next character. Nothing is expanded (no `~`, `$VAR` or globs) and nothing runs in a shell. Read scalar by
+    /// scalar, as Python reads code points: a quote followed by a combining mark is still a quote.
     public static func arguments(_ command: String) throws -> [String] {
-        var out: [String] = [], word = "", inWord = false
-        var quote: Character?
-        let characters = Array(command)
+        var out: [String] = [], word = String.UnicodeScalarView(), inWord = false
+        var quote: Unicode.Scalar?
+        let scalars = Array(command.unicodeScalars)
         var index = 0
-        while index < characters.count {
-            let c = characters[index]
+        while index < scalars.count {
+            let c = scalars[index]
             if let open = quote {
                 if c == open {
                     quote = nil
-                } else if open == "\"", c == "\\", index + 1 < characters.count, characters[index + 1] == "\"" || characters[index + 1] == "\\" {
+                } else if open == "\"", c == "\\", index + 1 < scalars.count, scalars[index + 1] == "\"" || scalars[index + 1] == "\\" {
                     index += 1
-                    word.append(characters[index])
+                    word.append(scalars[index])
                 } else {
                     word.append(c)
                 }
@@ -44,13 +45,13 @@ public enum AWSCredentialProcess {
                 quote = c
                 inWord = true
             } else if c == "\\" {
-                guard index + 1 < characters.count else { throw SplitError.trailingBackslash }
+                guard index + 1 < scalars.count else { throw SplitError.trailingBackslash }
                 index += 1
-                word.append(characters[index])
+                word.append(scalars[index])
                 inWord = true
             } else if c == " " || c == "\t" || c == "\n" || c == "\r" {
-                if inWord { out.append(word) }
-                word = ""
+                if inWord { out.append(String(word)) }
+                word = String.UnicodeScalarView()
                 inWord = false
             } else {
                 word.append(c)
@@ -59,7 +60,7 @@ public enum AWSCredentialProcess {
             index += 1
         }
         if quote != nil { throw SplitError.unclosedQuote }
-        if inWord { out.append(word) }
+        if inWord { out.append(String(word)) }
         guard let first = out.first, !first.isEmpty else { throw SplitError.empty }
         return out
     }
@@ -104,17 +105,37 @@ public enum AWSCredentialProcess {
     }
 }
 
-/// Times as AWS writes them: ISO 8601 with or without fractional seconds, `Z` or an offset, or the AWS CLI's older
-/// "2026-10-16T22:30:00UTC".
+/// Times as AWS and credential programs write them: "2026-10-16T22:30:00Z", with fractional seconds (any number of
+/// digits), `z`, an offset ("+00:00", "+0000", "-07:00"), the AWS CLI's older "UTC", or none (UTC, as botocore reads
+/// it); a space for the "T" too.
 enum AWSTime {
+    private static let pattern = try! NSRegularExpression(
+        pattern: #"^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|z|UTC|[+-]\d{2}:?\d{2})?$"#)
+
     static func parse(_ text: String) -> Date? {
-        var string = text.trimmingCharacters(in: .whitespaces)
-        if string.hasSuffix("UTC") { string = String(string.dropLast(3)) + "Z" }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return plain.date(from: string) ?? fractional.date(from: string)
+        let string = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ns = string as NSString
+        guard let match = pattern.firstMatch(in: string, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        func group(_ index: Int) -> String? {
+            let range = match.range(at: index)
+            return range.location == NSNotFound ? nil : ns.substring(with: range)
+        }
+        var parts = DateComponents()
+        (parts.year, parts.month, parts.day) = (Int(group(1)!), Int(group(2)!), Int(group(3)!))
+        (parts.hour, parts.minute, parts.second) = (Int(group(4)!), Int(group(5)!), Int(group(6)!))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        guard let month = parts.month, (1...12).contains(month), let day = parts.day, (1...31).contains(day),
+              let hour = parts.hour, hour < 24, let minute = parts.minute, minute < 60, let second = parts.second, second <= 60,
+              let base = calendar.date(from: parts), calendar.component(.day, from: base) == day else { return nil }
+        let fraction = group(7).flatMap { Double("0" + $0) } ?? 0
+        var offset = 0
+        if let zone = group(8), zone.hasPrefix("+") || zone.hasPrefix("-") {
+            let digits = zone.dropFirst().replacingOccurrences(of: ":", with: "")
+            guard let hours = Int(digits.prefix(2)), let minutes = Int(digits.suffix(2)), hours < 24, minutes < 60 else { return nil }
+            offset = (hours * 3600 + minutes * 60) * (zone.hasPrefix("-") ? -1 : 1)
+        }
+        return base.addingTimeInterval(fraction - Double(offset))
     }
 }
 
@@ -214,9 +235,13 @@ final class XMLFields: NSObject, XMLParserDelegate {
 /// `GetRoleCredentials`.
 public enum AWSSSO {
     /// A cached sign-in: its token (never shown) and when it expires.
-    public struct Token: Sendable {
+    public struct Token: Sendable, CustomStringConvertible, CustomDebugStringConvertible {
         public var accessToken: String
         public var expiresAt: Date
+
+        /// Printed or logged, only when it expires: never the token.
+        public var description: String { "AWSSSO.Token(expires \(ISO8601DateFormatter().string(from: expiresAt)))" }
+        public var debugDescription: String { description }
     }
 
     /// `<folder>/<SHA-1 of the session name or start URL>.json`, as the AWS CLI names it.
@@ -317,8 +342,24 @@ public enum AWSProcessError: Error, Equatable, Sendable {
 public enum AWSProcessRunner {
     static let maxOutput = 1 << 20
 
+    /// The program as the AWS CLI finds it: a name without "/" on `path`, else the path itself (relative to `directory`),
+    /// with nothing expanded (no `~`). Nil when it isn't there or can't be run.
+    public static func resolve(_ program: String, path: String?, directory: URL) -> URL? {
+        let fm = FileManager.default
+        if program.contains("/") {
+            let url = program.hasPrefix("/") ? URL(fileURLWithPath: program) : directory.appendingPathComponent(program)
+            return fm.isExecutableFile(atPath: url.path) ? url : nil
+        }
+        for folder in (path ?? "").split(separator: ":") where !folder.isEmpty {
+            let candidate = URL(fileURLWithPath: String(folder)).appendingPathComponent(program)
+            if fm.isExecutableFile(atPath: candidate.path) { return candidate }
+        }
+        return nil
+    }
+
     public static func run(_ request: AWSProcessRequest) async throws -> AWSProcessResult {
-        guard let program = request.arguments.first, let url = CommandRunner.resolve(program, path: request.environment["PATH"]) else {
+        guard let program = request.arguments.first,
+              let url = resolve(program, path: request.environment["PATH"], directory: request.directory) else {
             throw AWSProcessError.notFound(request.arguments.first ?? "")
         }
         let run = Run()

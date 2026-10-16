@@ -275,18 +275,23 @@ public enum Doctor {
         let fix = status?.fixCommand.map(Fix.copyCommand)
         switch facts.awsProfile {
         case let .success(region)?:
-            let expires = status?.expiration.map { date in
-                let time = AWSProfileStatus.time(date, now: Date(), chinese: t.chinese, timeZone: .current)
-                return t.tr("凭证 \(time) 到期", "credentials expire at \(time)")
-            }
+            // A profile whose credentials are fetched says so as the status line does ("credentials expire at 15:30",
+            // "assumed when a request needs it"); static keys and the environment's as before.
+            let held = status.flatMap { $0.kind?.refreshes == true ? $0.credentials(chinese: t.chinese) : nil }
+                ?? t.tr("找到了密钥", "credentials found")
             var out = [Finding(area: .provider, status: .ok, title: label,
-                               detail: t.tr("profile \(config.awsProfile)\(kind)，区域 \(config.region ?? region)，\(expires ?? "找到了密钥")",
-                                            "profile \(config.awsProfile)\(kind), region \(config.region ?? region), \(expires ?? "credentials found")"))]
-            // Credentials still held, but the next refresh will fail (an SSO sign-in that expired), or the last one did.
-            if let problem = status?.problem ?? status?.lastError {
+                               detail: t.tr("profile \(config.awsProfile)\(kind)，区域 \(config.region ?? region)，\(held)",
+                                            "profile \(config.awsProfile)\(kind), region \(config.region ?? region), \(held)"))]
+            // Credentials still held, but the next refresh will fail (an SSO sign-in that expired); or the last one failed.
+            if let problem = status?.problem {
                 out.append(Finding(area: .provider, status: .warning,
                                    title: t.tr("AWS 凭证下次刷新会失败", "AWS credentials: the next refresh will fail"),
-                                   detail: problem.message(chinese: t.chinese), fix: fix))
+                                   detail: problem.message(chinese: t.chinese), fix: problem.fixCommand.map(Fix.copyCommand)))
+            }
+            if let failed = status?.lastError, failed != status?.problem {
+                out.append(Finding(area: .provider, status: .warning,
+                                   title: t.tr("AWS 凭证上次刷新失败", "AWS credentials: the last refresh failed"),
+                                   detail: failed.message(chinese: t.chinese), fix: failed.fixCommand.map(Fix.copyCommand)))
             }
             return out
         case let .failure(error)?:

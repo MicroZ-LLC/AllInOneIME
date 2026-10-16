@@ -195,6 +195,9 @@ struct AWSCredentialProcessTests {
         ("q 'it''s'", ["q", "its"]),
         ("tab\tsep\nline", ["tab", "sep", "line"]),
         (#"keeps $HOME and ~ and *"#, ["keeps", "$HOME", "and", "~", "and", "*"]),
+        ("my-creds '\u{301}abc'", ["my-creds", "\u{301}abc"]),
+        ("my-creds caf\u{E9} \u{4E2D}\u{6587} \u{1F600}", ["my-creds", "caf\u{E9}", "\u{4E2D}\u{6587}", "\u{1F600}"]),
+        ("my-creds \"e\u{301}\"x", ["my-creds", "e\u{301}x"]),
     ] as [(String, [String])])
     func splitsLikeTheAWSCLI(command: String, expected: [String]) throws {
         #expect(try AWSCredentialProcess.arguments(command) == expected)
@@ -335,11 +338,31 @@ struct AWSSTSAndSSOTests {
         }
     }
 
-    @Test func readsTheCLIsTimesIncludingTheOldUTCSuffix() {
+    @Test func readsTheCLIsTimesIncludingTheOldUTCSuffix() throws {
         #expect(AWSTime.parse("2026-10-16T18:00:00Z")?.timeIntervalSince1970 == 1_792_173_600)
         #expect(AWSTime.parse("2026-10-16T18:00:00UTC")?.timeIntervalSince1970 == 1_792_173_600)
         #expect(AWSTime.parse("2026-10-16T20:00:00+02:00")?.timeIntervalSince1970 == 1_792_173_600)
         #expect(AWSTime.parse("soon") == nil)
+        // No time zone is UTC (as botocore reads it); a space for the "T"; +0000; z; any number of fractional digits.
+        for text in ["2026-10-16T18:00:00", "2026-10-16 18:00:00", "2026-10-16 18:00:00Z", "2026-10-16T18:00:00+0000",
+                     "2026-10-16T18:00:00z", " 2026-10-16T18:00:00Z\n", "2026-10-16T11:00:00-07:00"] {
+            #expect(AWSTime.parse(text)?.timeIntervalSince1970 == 1_792_173_600, "\(text)")
+        }
+        #expect(abs((AWSTime.parse("2026-10-16T18:00:00.123456789Z")?.timeIntervalSince1970 ?? 0) - 1_792_173_600.123456789) < 1e-5)
+        #expect(AWSTime.parse("2026-10-16T18:00:00.5")?.timeIntervalSince1970 == 1_792_173_600.5)
+        for bad in ["2026-13-01T00:00:00Z", "2026-02-30T00:00:00Z", "2026-10-16T25:00:00Z", "2026-10-16", "2026-10-16T18:00Z"] {
+            #expect(AWSTime.parse(bad) == nil, "\(bad)")
+        }
+        // A program's Expiration without a zone.
+        let parsed = try AWSCredentialProcess.parse(Data(#"{"Version":1,"AccessKeyId":"A","SecretAccessKey":"S","Expiration":"2026-10-16 18:00:00"}"#.utf8))
+        #expect(parsed.expiration?.timeIntervalSince1970 == 1_792_173_600)
+    }
+
+    @Test func ssoTokensNeverPrintTheirToken() {
+        let token = AWSSSO.Token(accessToken: "eyJ-secret-token", expiresAt: Date(timeIntervalSince1970: 1_792_173_600))
+        for text in ["\(token)", String(reflecting: token), "\([token])"] {
+            #expect(!text.contains("eyJ-secret-token") && text.contains("2026-10-16T18:00:00Z"), "\(text)")
+        }
     }
 
     @Test func credentialsNeverPrintTheirSecrets() {
@@ -404,7 +427,9 @@ struct AWSCredentialResolverTests {
         let regionOnly = try AWSCTHome(config: "[default]\nregion = sa-east-1\n")
         defer { regionOnly.remove() }
         let fromEnvironment = try await AWSCT.resolver(regionOnly, environment: env).resolve(profile: "default")
-        #expect(fromEnvironment.kind == .environment && fromEnvironment.region == "sa-east-1")
+        #expect(fromEnvironment.kind == .environment && fromEnvironment.region == "ca-central-1", "AWS_REGION wins, as in the CLI")
+        #expect(try await AWSCT.resolver(regionOnly, environment: ["AWS_ACCESS_KEY_ID": "AKIAENV", "AWS_SECRET_ACCESS_KEY": "e"])
+            .resolve(profile: "default").region == "sa-east-1")
         await #expect(throws: AWSCredentialError.noCredentials(profile: "default")) { try await AWSCT.resolver(regionOnly).resolve(profile: "default") }
         await #expect(throws: AWSCredentialError.profileNotFound("default")) { try await AWSCT.resolver(none).resolve(profile: "") }
     }
@@ -684,6 +709,130 @@ struct AWSCredentialResolverTests {
         #expect(resolver.status(profile: "c").problem == .sourceProfileLoop(["c", "d", "c"]))
     }
 
+    /// Two roles naming each other, asked for at the same time: both fail at once with the loop (neither waits for the
+    /// other's fetch).
+    @Test func aMutualLoopRequestedAtOnceFailsInsteadOfHanging() async throws {
+        let home = try AWSCTHome(config: """
+            [profile a]
+            role_arn = arn:aws:iam::1:role/a
+            source_profile = b
+            [profile b]
+            role_arn = arn:aws:iam::1:role/b
+            source_profile = a
+            [profile top]
+            role_arn = arn:aws:iam::1:role/top
+            source_profile = a
+            """)
+        defer { home.remove() }
+        let http = AWSCTHTTP()
+        // Reading the environment takes a moment, so the requests overlap.
+        let resolver = AWSCredentialResolver(context: AWSCredentialContext(
+            environment: { Thread.sleep(forTimeInterval: 0.05); return [:] }, files: home.files, processEnvironment: { [:] }, send: http.send))
+        let outcomes = OSAllocatedUnfairLock(initialState: [String: String]())
+        for profile in ["a", "b", "top", "a", "b"] {
+            Task.detached {
+                let outcome: String
+                do { outcome = try await resolver.resolve(profile: profile).credentials.accessKeyId } catch { outcome = "\(error)" }
+                outcomes.withLock { $0[profile, default: ""] += outcome + ";" }
+            }
+        }
+        let deadline = Date().addingTimeInterval(10)
+        while outcomes.withLock({ $0.values.reduce(0) { $0 + $1.split(separator: ";").count } }) < 5, Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let seen = outcomes.withLock { $0 }
+        #expect(seen["a"] == "\(AWSCredentialError.sourceProfileLoop(["a", "b", "a"]));\(AWSCredentialError.sourceProfileLoop(["a", "b", "a"]));",
+                "\(seen)")
+        #expect(seen["b"] == "\(AWSCredentialError.sourceProfileLoop(["b", "a", "b"]));\(AWSCredentialError.sourceProfileLoop(["b", "a", "b"]));",
+                "\(seen)")
+        #expect(seen["top"] == "\(AWSCredentialError.sourceProfileLoop(["a", "b", "a"]));", "\(seen)")
+        #expect(http.requests.isEmpty && resolver.fetchCount(profile: "a") == 0 && resolver.fetchCount(profile: "b") == 0)
+    }
+
+    @Test func awsRegionWinsOverTheProfilesRegionAsInTheCLI() async throws {
+        let home = try AWSCTHome(config: """
+            [profile keys]
+            region = eu-west-1
+            [profile dev]
+            role_arn = arn:aws:iam::1:role/r
+            source_profile = keys
+            region = eu-west-1
+            """, credentials: "[keys]\naws_access_key_id = AKIAKEYS\naws_secret_access_key = k\n")
+        defer { home.remove() }
+        let http = AWSCTHTTP()
+        http.on("sts.ap-south-1.amazonaws.com", .init(status: 200, body: AWSCT.assumeRoleXML("ASIAROLE", expiration: Date().addingTimeInterval(3600))))
+        let resolver = AWSCT.resolver(home, http: http, environment: ["AWS_REGION": "ap-south-1", "AWS_DEFAULT_REGION": "us-east-2"])
+        #expect(try await resolver.resolve(profile: "keys").region == "ap-south-1")
+        let role = try await resolver.resolve(profile: "dev")
+        #expect(role.region == "ap-south-1" && http.requests.first?.url?.host == "sts.ap-south-1.amazonaws.com", "STS there too")
+        #expect(resolver.status(profile: "keys").region == "ap-south-1" && resolver.region(profile: "keys") == "ap-south-1")
+        #expect(try await AWSCT.resolver(home, environment: ["AWS_DEFAULT_REGION": "us-east-2"]).resolve(profile: "keys").region == "us-east-2")
+        #expect(try await AWSCT.resolver(home).resolve(profile: "keys").region == "eu-west-1")
+        #expect(AWSSharedConfig.region(profile: "keys", environment: ["HOME": home.root.path, "AWS_CONFIG_FILE": home.files.config.path,
+                                                                      "AWS_REGION": "ap-south-1"]) == "ap-south-1")
+    }
+
+    @Test func theProgramPathIsntExpandedLikeAShellWould() async throws {
+        let home = try AWSCTHome()
+        defer { home.remove() }
+        let script = try home.script("my-creds", #"printf '{"Version": 1, "AccessKeyId": "ASIATILDE", "SecretAccessKey": "s"}'"#)
+        let folder = URL(fileURLWithPath: script).deletingLastPathComponent()
+        #expect(AWSProcessRunner.resolve("~/my-creds", path: "/usr/bin:/bin", directory: folder) == nil, "~ is a folder name, as for the CLI")
+        #expect(AWSProcessRunner.resolve(script, path: nil, directory: folder)?.path == script)
+        #expect(AWSProcessRunner.resolve("./my-creds", path: nil, directory: folder) != nil, "relative to the home folder it runs in")
+        #expect(AWSProcessRunner.resolve("my-creds", path: folder.path, directory: URL(fileURLWithPath: "/")) != nil)
+        try home.write(config: "[profile dev]\ncredential_process = ~/my-creds\n", credentials: "")
+        let resolver = AWSCredentialResolver(context: AWSCredentialContext(environment: ["HOME": home.root.path]))
+        await #expect(throws: AWSCredentialError.processNotFound(profile: "dev", program: "my-creds")) { try await resolver.resolve(profile: "dev") }
+        #expect(resolver.status(profile: "dev").problem == .processNotFound(profile: "dev", program: "my-creds"))
+    }
+
+    @Test func doctorSaysWhenCredentialsWillBeFetchedAndALastRefreshThatFailed() async throws {
+        let home = try AWSCTHome(config: "[profile dev]\nrole_arn = arn:aws:iam::1:role/r\nsource_profile = keys\n[profile proc]\ncredential_process = /bin/echo\n",
+                                 credentials: "[keys]\naws_access_key_id = AKIAKEYS\naws_secret_access_key = k\n")
+        defer { home.remove() }
+        // @doctor tells the time by the real clock.
+        let clock = AWSCTClock(Date()), http = AWSCTHTTP()
+        http.on("sts.us-east-1.amazonaws.com", .init(status: 200, body: AWSCT.assumeRoleXML("ASIAROLE", expiration: clock.now.addingTimeInterval(3600))),
+                .init(status: 403, body: AWSCT.stsError("AccessDenied", "Not allowed any more")))
+        let resolver = AWSCT.resolver(home, clock: clock, http: http)
+        func rows(_ profile: String) -> [Doctor.Finding] {
+            var facts = Doctor.Facts()
+            var config = Config.default
+            config.provider = .bedrock
+            config.awsProfile = profile
+            facts.config = config
+            facts.awsStatus = resolver.status(profile: profile)
+            facts.awsProfile = .success("us-east-1")
+            return Doctor.findings(facts, chinese: false).filter { $0.area == .provider }
+        }
+        #expect(rows("dev").map(\.status) == [.ok] && rows("dev")[0].detail?.hasSuffix("assumed when a request needs it") == true, "\(rows("dev"))")
+        #expect(rows("proc")[0].detail?.hasSuffix("runs when a request needs credentials") == true)
+        #expect(rows("keys")[0].detail?.hasSuffix("credentials found") == true, "static keys as before")
+        _ = try await resolver.resolve(profile: "dev")
+        #expect(rows("dev")[0].detail?.contains("credentials expire at") == true)
+        // A refresh that failed while the credentials still hold.
+        await #expect(throws: AWSCredentialError.self) { try await resolver.resolve(profile: "dev", forceRefresh: true) }
+        let after = rows("dev")  // problems and warnings first
+        let failed = try #require(after.first { $0.title == "AWS credentials: the last refresh failed" }, "\(after)")
+        #expect(failed.status == .warning && failed.detail?.contains("Not allowed any more") == true)
+        #expect(after.map(\.status).sorted() == [.warning, .ok] && after.contains { $0.detail?.contains("credentials expire at") == true })
+    }
+
+    @Test func theStatusLineIsReadAgainAtTheNextChange() {
+        let now = Date(timeIntervalSince1970: 1_792_173_600)
+        var status = AWSProfileStatus(profile: "dev")
+        #expect(status.secondsUntilChange(now: now) == 60, "at least every minute")
+        status.hasCredentials = true
+        status.expiration = now.addingTimeInterval(20)
+        #expect(status.secondsUntilChange(now: now) == 20.5, "when the credentials expire")
+        status.signedInUntil = now.addingTimeInterval(5)
+        #expect(status.secondsUntilChange(now: now) == 5.5, "when the sign-in ends")
+        status.signedInUntil = now.addingTimeInterval(-5)
+        status.expiration = now.addingTimeInterval(0.1)
+        #expect(status.secondsUntilChange(now: now) == 1, "never sooner than a second")
+    }
+
     /// botocore's order within a named profile: role_arn, SSO, the credentials file's keys, credential_process, the config
     /// file's keys.
     @Test func withinAProfileTheAWSCLIsOrder() async throws {
@@ -919,7 +1068,7 @@ struct AWSCredentialResolverTests {
         defer { home.remove() }
         let clock = AWSCTClock(), http = AWSCTHTTP()
         try home.signIn("my-sso", expiresAt: clock.now.addingTimeInterval(3600))
-        http.on("portal.sso.us-east-1.amazonaws.com", .init(status: 403, body: #"{"message":"No access"}"#, headers: ["x-amzn-ErrorType": "ForbiddenException:"]),
+        http.on("portal.sso.us-east-1.amazonaws.com", .init(status: 403, body: #"{"message":"No access"}"#, headers: ["x-amzn-ErrorType": "ForbiddenException"]),
                 .init(status: 200, body: "<html>maintenance</html>"))
         let resolver = AWSCT.resolver(home, clock: clock, http: http)
         await #expect(throws: AWSCredentialError.ssoFailed(profile: "sso-dev", status: 403, message: "ForbiddenException: No access")) {
@@ -1009,7 +1158,7 @@ struct AWSCredentialResolverTests {
         _ = try await resolver.resolve(profile: "role")
         #expect(line("role") == "Role via sso (signed in until 22:00): credentials expire at 19:30")
         #expect(line("sso") == "SSO (signed in until 22:00): credentials expire at 19:00")
-        #expect(line("sso", chinese: true) == "SSO（登录到 22:00）：凭证 19:00 到期")
+        #expect(line("sso", chinese: true) == "SSO（登录有效至 22:00）：凭证 19:00 到期")
         // Signed out meanwhile: the cached credentials still work; the line says what to run.
         try home.signIn("s", expiresAt: clock.now.addingTimeInterval(-1))
         let status = resolver.status(profile: "role")
@@ -1068,7 +1217,7 @@ final class AWSRetryStub: URLProtocol, @unchecked Sendable {
 struct BedrockCredentialRetryTests {
     static func expired(_ type: String = "ExpiredTokenException", status: Int = 403,
                         message: String = "The security token included in the request is expired") -> AWSRetryStub.Answer {
-        .init(status: status, headers: ["x-amzn-ErrorType": "\(type):http://internal.amazon.com/coral/com.amazon.coral.service/"],
+        .init(status: status, headers: ["x-amzn-ErrorType": type],
               body: Data(#"{"message":"\#(message)"}"#.utf8))
     }
 

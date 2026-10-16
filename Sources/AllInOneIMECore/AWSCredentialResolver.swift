@@ -55,10 +55,17 @@ public struct AWSCredentialContext: Sendable {
             return environment
         },
         send: { request in
-            let (data, response) = try await liveSession.data(for: request)
+            // Never redirected: the request carries a signature or the SSO token, for that host only.
+            let (data, response) = try await liveSession.data(for: request, delegate: NoRedirects())
             guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
             return (data, http)
         })
+
+    /// Refuses every redirect: the 3xx answer itself is returned (and read as a failure).
+    private final class NoRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                        newRequest request: URLRequest) async -> URLRequest? { nil }
+    }
 
     private static let liveSession: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -110,32 +117,50 @@ public struct AWSProfileStatus: Equatable, Sendable {
         }
         var label = kind.label(chinese: chinese)
         if let until = signedInUntil, until > now {
-            label += tr("（登录到 \(Self.time(until, now: now, chinese: true, timeZone: timeZone))）",
+            label += tr("（登录有效至 \(Self.time(until, now: now, chinese: true, timeZone: timeZone))）",
                         " (signed in until \(Self.time(until, now: now, chinese: false, timeZone: timeZone)))")
         }
         var detail: String
         if let expiration, hasCredentials, expiration > now {
-            detail = tr("凭证 \(Self.time(expiration, now: now, chinese: true, timeZone: timeZone)) 到期",
-                        "credentials expire at \(Self.time(expiration, now: now, chinese: false, timeZone: timeZone))")
+            detail = credentials(chinese: chinese, now: now, timeZone: timeZone)
             if let problem { detail += tr("；", "; ") + problem.message(chinese: chinese) }
         } else if let problem {
             detail = problem.message(chinese: chinese)
         } else {
-            switch kind {
-            case .staticKeys: detail = tr("已找到这个 profile 的密钥", "found the keys for this profile")
-            case .environment: detail = tr("已找到 shell 里的 AWS_ACCESS_KEY_ID", "found AWS_ACCESS_KEY_ID in your shell")
-            case .credentialProcess:
-                detail = hasCredentials ? tr("凭证一直用到 AWS 不再接受", "credentials kept until AWS stops taking them")
-                    : tr("需要凭证时才运行", "runs when a request needs credentials")
-            case .role: detail = tr("需要时才切换角色", "assumed when a request needs it")
-            case .sso: detail = tr("需要时才取凭证", "credentials fetched when a request needs them")
-            case .noCredentials: detail = AWSCredentialError.noCredentials(profile: profile).message(chinese: chinese)
-            }
+            detail = credentials(chinese: chinese, now: now, timeZone: timeZone)
         }
         if let lastError, lastError != problem {
             detail += tr("；上次刷新失败：", "; the last refresh failed: ") + lastError.shortMessage(chinese: chinese)
         }
         return label + separator + detail
+    }
+
+    /// The credentials held, as the status line and `@doctor` say it: "credentials expire at 15:30", "found the keys for
+    /// this profile", or, nothing fetched yet, when they will be ("assumed when a request needs it").
+    public func credentials(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+        func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+        if let expiration, hasCredentials, expiration > now {
+            return tr("凭证 \(Self.time(expiration, now: now, chinese: true, timeZone: timeZone)) 到期",
+                      "credentials expire at \(Self.time(expiration, now: now, chinese: false, timeZone: timeZone))")
+        }
+        switch kind {
+        case .staticKeys?: return tr("已找到这个 profile 的密钥", "found the keys for this profile")
+        case .environment?: return tr("已找到 shell 里的 AWS_ACCESS_KEY_ID", "found AWS_ACCESS_KEY_ID in your shell")
+        case .credentialProcess?:
+            return hasCredentials ? tr("凭证一直用到 AWS 不再接受", "credentials kept until AWS stops taking them")
+                : tr("需要凭证时才运行", "runs when a request needs credentials")
+        case .role?: return tr("需要时才切换角色", "assumed when a request needs it")
+        case .sso?: return tr("需要时才取凭证", "credentials fetched when a request needs them")
+        case .noCredentials?, nil: return AWSCredentialError.noCredentials(profile: profile).message(chinese: chinese)
+        }
+    }
+
+    /// Seconds until the line may read otherwise: the credentials' expiry, the end of the sign-in, or a minute, whichever
+    /// comes first (at least a second); the settings read the status again then.
+    public func secondsUntilChange(now: Date = Date()) -> TimeInterval {
+        let next = [hasCredentials ? expiration : nil, signedInUntil].compactMap { $0 }.filter { $0 > now }
+            .map { $0.timeIntervalSince(now) + 0.5 }.min() ?? 60
+        return max(1, min(60, next))
     }
 
     /// "15:30" today, else "Oct 17 15:30" ("10月17日 15:30").
@@ -267,6 +292,8 @@ public final class AWSCredentialResolver: Sendable {
         case let .staticKeys(keys), let .environment(keys):
             return (Fetched(credentials: keys, expiration: nil), plan, region, name)
         case .process, .role, .sso:
+            // A loop of source profiles found now, from the files: fetched, its roles would wait for each other.
+            if let loop = Self.sourceLoop(name, plan: plan, chain: chain, files: files, environment: environment) { throw loop }
             // A source resolved otherwise than the profile itself (a role's own keys…) is cached apart from it.
             let key = asSource && (try? AWSProfilePlan.make(name, files: files, environment: environment)) != plan ? name + " (source)" : name
             let fingerprint = AWSProfilePlan.fingerprint(name, files: files)
@@ -277,11 +304,25 @@ public final class AWSCredentialResolver: Sendable {
         }
     }
 
-    /// The profile's own region, else (keys from the environment) `AWS_REGION` or `AWS_DEFAULT_REGION`.
+    /// `AWS_REGION` or `AWS_DEFAULT_REGION` when set, else the profile's own region (as the AWS CLI picks it).
     static func region(_ name: String, plan: AWSProfilePlan?, files: AWSProfileFiles, environment: [String: String]) -> String? {
-        if let region = files.region(name) { return region }
-        if case .environment? = plan { return AWSEnvironment.region(environment) }
-        return files.contains(name) ? nil : AWSEnvironment.region(environment)
+        AWSEnvironment.region(environment) ?? files.region(name)
+    }
+
+    /// The loop in a role's chain of source profiles (each as a source, `AWSProfilePlan.make(asSource:)`), or nil. A role
+    /// naming itself with keys of its own isn't one.
+    static func sourceLoop(_ name: String, plan: AWSProfilePlan, chain: [String], files: AWSProfileFiles,
+                           environment: [String: String]) -> AWSCredentialError? {
+        var chain = chain + [name], plan = plan
+        while case let .role(role) = plan, case let .profile(source) = role.source {
+            if let start = chain.firstIndex(of: source), !(source == chain.last && files.hasStaticKeys(source)) {
+                return .sourceProfileLoop(Array(chain[start...]) + [source])
+            }
+            guard let next = try? AWSProfilePlan.make(source, files: files, environment: environment, asSource: true) else { return nil }
+            chain.append(source)
+            plan = next
+        }
+        return nil
     }
 
     private enum Next: Sendable {
@@ -587,7 +628,7 @@ public final class AWSCredentialResolver: Sendable {
         case let .process(command):
             do {
                 let arguments = try AWSCredentialProcess.arguments(command)
-                if CommandRunner.resolve(arguments[0], path: context.processEnvironment()["PATH"]) == nil {
+                if AWSProcessRunner.resolve(arguments[0], path: context.processEnvironment()["PATH"], directory: context.locations.home) == nil {
                     return (.processNotFound(profile: profile, program: URL(fileURLWithPath: arguments[0]).lastPathComponent), nil)
                 }
                 return (nil, nil)

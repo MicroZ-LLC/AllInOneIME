@@ -232,7 +232,7 @@ enum AWSProfilePlan: Equatable, Sendable {
         var sessionName: String?
         var externalId: String?
         var durationSeconds: Int?
-        /// The role profile's region: STS is asked there (else us-east-1).
+        /// `AWS_REGION` (or `AWS_DEFAULT_REGION`), else the role profile's region: STS is asked there (else us-east-1).
         var region: String?
     }
 
@@ -295,7 +295,7 @@ enum AWSProfilePlan: Equatable, Sendable {
                 duration = seconds
             }
             return .role(Role(roleArn: roleArn, source: source, sessionName: value("role_session_name"), externalId: value("external_id"),
-                              durationSeconds: duration, region: files.region(name)))
+                              durationSeconds: duration, region: AWSEnvironment.region(environment) ?? files.region(name)))
         }
         // 2. SSO: a profile with an account or a role name for it.
         if value("sso_account_id") != nil || value("sso_role_name") != nil {

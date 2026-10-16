@@ -76,8 +76,10 @@ public enum AWSSharedConfig {
         return AWSProfileFiles(credentials: files.credentials, config: files.config).names
     }
 
-    /// The profile's region in the shared files (none read but the files: no program, no network).
+    /// The profile's region: `AWS_REGION` or `AWS_DEFAULT_REGION` when set, else the shared files' (none read but the
+    /// files: no program, no network).
     public static func region(profile: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        if let region = AWSEnvironment.region(environment) { return region }
         let files = sharedFiles(environment)
         let name = profile.trimmingCharacters(in: .whitespaces)
         return AWSProfileFiles(credentials: files.credentials, config: files.config).region(name.isEmpty ? "default" : name)
