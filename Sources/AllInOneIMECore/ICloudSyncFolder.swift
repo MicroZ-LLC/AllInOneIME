@@ -134,14 +134,21 @@ public struct ICloudSyncFolder: Sendable {
     }
 
     /// Whether iCloud has `file` downloaded: true for a file that isn't in iCloud at all (a temporary folder).
+    /// (iCloud Drive is Apple's: elsewhere no file is in it.)
     static func isDownloaded(_ file: URL) -> Bool {
+        #if canImport(Darwin)
         guard let values = try? file.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
               values.isUbiquitousItem == true, let status = values.ubiquitousItemDownloadingStatus else { return true }
         return status == .current
+        #else
+        return true
+        #endif
     }
 
     static func startDownloading(_ file: URL) {
+        #if canImport(Darwin)
         try? FileManager.default.startDownloadingUbiquitousItem(at: file)
+        #endif
     }
 }
 

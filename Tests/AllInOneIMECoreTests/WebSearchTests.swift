@@ -61,9 +61,12 @@ final class SearchStub: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
         }
+        // (Apple's URLSession only: corelibs' stops the process at a stub's redirect, and delivers the 3xx as it is.)
+        #if canImport(Darwin)
         if (300..<400).contains(reply.status), let location = reply.headers["Location"].flatMap(URL.init(string:)) {
             client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: location), redirectResponse: response)
         }
+        #endif
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: reply.body)
         client?.urlProtocolDidFinishLoading(self)

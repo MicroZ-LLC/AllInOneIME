@@ -3,6 +3,9 @@ import AllInOneIMECore
 import AllInOneIMEMac
 #endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 let usage = """
     usage: allinoneime-cli [options] <sentence>
@@ -144,7 +147,7 @@ func dumpRawResponse(_ input: String, config: Config, to path: String) async thr
     let request = try BedrockClient.makeRequest(
         Prompt.request(for: input, config: config), modelId: config.modelId, region: region,
         credentials: resolved.credentials, timeout: config.timeoutSeconds)
-    let (bytes, response) = try await BedrockClient.makeSession().bytes(for: request)
+    let (bytes, response) = try await HTTPStream.bytes(for: request, session: BedrockClient.makeSession())
     var data = Data()
     for try await byte in bytes { data.append(byte) }
     let status = (response as? HTTPURLResponse)?.statusCode ?? -1

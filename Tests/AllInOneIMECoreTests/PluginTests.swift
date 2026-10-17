@@ -138,7 +138,7 @@ struct PluginTests {
 
     // MARK: JavaScript
 
-    @Test func scriptsGetNothingButFetch() throws {
+    @Test(.enabled(if: Available.javaScript)) func scriptsGetNothingButFetch() throws {
         let fetcher = StubFetcher(["https://a.test/x": (200, #"{"v": 41}"#)])
         let source = """
             function run(input) {
@@ -163,7 +163,7 @@ struct PluginTests {
         }
     }
 
-    @Test func scriptsAreToldTheInterfaceLanguageAndNothingElse() throws {
+    @Test(.enabled(if: Available.javaScript)) func scriptsAreToldTheInterfaceLanguageAndNothingElse() throws {
         let fetcher = StubFetcher()
         let whole = "function run(input, context) { return JSON.stringify(arguments[1]) + ' ' + arguments.length }"
         #expect(try PluginScript.evaluate(source: whole, input: "x", language: .chinese, fetcher: fetcher) == #"{"language":"zh"} 2"#)
@@ -201,7 +201,7 @@ struct PluginTests {
 
     // MARK: @stock
 
-    @Test func stockQuotes() throws {
+    @Test(.enabled(if: Available.javaScript)) func stockQuotes() throws {
         let fetcher = StubFetcher([
             Self.url("AAPL"): Self.chart("AAPL", "Apple Inc.", 336.64, 340.42, "USD"),
             Self.url("TSLA"): Self.chart("TSLA", "Tesla, Inc.", 382.7, 375.0, "USD"),

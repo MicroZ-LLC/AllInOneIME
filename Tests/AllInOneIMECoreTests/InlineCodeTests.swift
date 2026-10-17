@@ -141,7 +141,8 @@ struct InlineCodeTests {
         #expect(ran("@read example.com").phase == .failed("没有得到结果"))  // other commands as before
     }
 
-    @Test func hiddenWithoutTheirProgram() {
+    /// (@imessage's program is Messages.app, which only a Mac has.)
+    @Test(.enabled(if: Available.messagesApp)) func hiddenWithoutTheirProgram() {
         // The controller leaves out the commands whose program isn't installed (`setCommands`)…
         let missing = Set(Command.builtins.compactMap { command in
             command.program.flatMap { CommandRunner.isInstalled($0, path: "/nowhere") ? nil : command.name }
@@ -269,7 +270,7 @@ struct InlineCodeTests {
 
     // MARK: - JavaScript
 
-    @Test func javaScriptIsREPLStyle() throws {
+    @Test(.enabled(if: Available.javaScript)) func javaScriptIsREPLStyle() throws {
         let cases: [(code: String, result: String)] = [
             ("1 + 1", "2"),  // the value of the last statement
             ("'abc'.toUpperCase()", "ABC"),  // text as it is
@@ -296,7 +297,7 @@ struct InlineCodeTests {
         }
     }
 
-    @Test func javaScriptHasNothingButTheLanguage() throws {
+    @Test(.enabled(if: Available.javaScript)) func javaScriptHasNothingButTheLanguage() throws {
         let globals = "[typeof require, typeof process, typeof fetch, typeof XMLHttpRequest, typeof setTimeout, typeof importScripts].join()"
         #expect(try InlineCode.evaluateJavaScript(globals) == Array(repeating: "undefined", count: 6).joined(separator: ","))
         // Warnings go their own way (to standard error in the child process).
@@ -308,7 +309,7 @@ struct InlineCodeTests {
         #expect(try InlineCode.evaluateJavaScript("typeof kept") == "undefined")
     }
 
-    @Test func javaScriptErrorsAreOneLine() {
+    @Test(.enabled(if: Available.javaScript)) func javaScriptErrorsAreOneLine() {
         let cases: [(code: String, error: String)] = [
             ("x.y", "ReferenceError: Can't find variable: x"),
             ("throw new Error('first line\\nsecond line')", "Error: first line"),

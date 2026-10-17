@@ -801,7 +801,7 @@ struct ReminderParserTests {
     }
 
     /// A span of time is due at its start, and all of it leaves the title.
-    @Test func timeSpansStartAtTheirStart() {
+    @Test(.enabled(if: Available.systemDates)) func timeSpansStartAtTheirStart() {
         let now = Self.realNow()
         let parser = ReminderParser()
         let cases: [(String, DateComponents, String)] = [
@@ -820,7 +820,7 @@ struct ReminderParserTests {
         #expect(parser.parse("明天3点到公司", now: now).title == "到公司")
     }
 
-    @Test func theSystemsDetectorInChinese() {
+    @Test(.enabled(if: Available.systemDates)) func theSystemsDetectorInChinese() {
         let now = Self.realNow()
         let parser = ReminderParser()
         func parse(_ text: String) -> ReminderDraft { parser.parse(text, now: now) }
@@ -850,7 +850,7 @@ struct ReminderParserTests {
         #expect(parse("买3斤苹果") == ReminderDraft(title: "买3斤苹果") && parse("晚一点出发").due == nil)
     }
 
-    @Test func theSystemsDetectorInEnglish() {
+    @Test(.enabled(if: Available.systemDates)) func theSystemsDetectorInEnglish() {
         let now = Self.realNow()
         let parser = ReminderParser()
         func parse(_ text: String) -> ReminderDraft { parser.parse(text, now: now) }
@@ -874,7 +874,7 @@ struct ReminderParserTests {
     }
 
     /// What the stand-ins above assume of it for the forms read together, weeks from Monday, and the rest.
-    @Test func theSystemsDetectorWithWhatIsReadHere() {
+    @Test(.enabled(if: Available.systemDates)) func theSystemsDetectorWithWhatIsReadHere() {
         let now = Self.realNow()
         let parser = ReminderParser()
         let calendar = ReminderParser.localCalendar
@@ -914,7 +914,7 @@ struct ReminderParserTests {
     static func allDayDraft(_ title: String, _ day: DateComponents) -> ReminderDraft { ReminderDraft(title: title, due: day) }
 
     /// The sentences of the behaviour review, with the real detector: points aren't times, the titles, fixed days.
-    @Test func theSystemsDetectorWithPointsTitlesAndFixedDays() {
+    @Test(.enabled(if: Available.systemDates)) func theSystemsDetectorWithPointsTitlesAndFixedDays() {
         let now = Self.realNow()
         let parser = ReminderParser()
         let calendar = ReminderParser.localCalendar
@@ -965,7 +965,7 @@ struct ReminderParserTests {
         #expect(parse("血压12.8 明天复查") == Self.allDayDraft("血压12.8复查", tomorrow))
     }
 
-    @Test func aLongTextFullOfDatesIsReadQuickly() {
+    @Test(.enabled(if: Available.systemDates)) func aLongTextFullOfDatesIsReadQuickly() {
         // Read on the main thread as @reminder ⏎ is pressed (a long text from the clipboard): one with a date every
         // few characters took most of a second, each date looking for meals in all of the text.
         let unit = "明天下午3点开会，周五前交报告，10月15日交房租，3点半接孩子，晚饭7点，下周一 9:30，15号，"

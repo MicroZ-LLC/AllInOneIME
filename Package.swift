@@ -110,7 +110,17 @@ let macOnly: Set = ["CRime", "AllInOneIMERime", "AllInOneIMEMac", "AllInOneIMEMa
                     "AllInOneIMEInstaller", "AllInOneIMERimeTests"]
 package.targets.removeAll { macOnly.contains($0.name) }
 package.products.removeAll { $0.name == "AllInOneIME" }
-for target in package.targets where ["allinoneime-cli", "AllInOneIMECoreTests"].contains(target.name) {
-    target.dependencies = ["AllInOneIMECore"]
+package.targets.first { $0.name == "allinoneime-cli" }?.dependencies = ["AllInOneIMECore"]
+// The core's tests as they are: what they import of Apple's (os's lock, CryptoKit, CoreGraphics) is shimmed
+// (Tests/LinuxShims), and those that need the Mac's git (`ProcessGitRunner`) are left out.
+package.targets += [
+    .target(name: "os", path: "Tests/LinuxShims/os"),
+    .target(name: "CryptoKit", dependencies: [.product(name: "Crypto", package: "swift-crypto")], path: "Tests/LinuxShims/CryptoKit"),
+    .target(name: "CoreGraphics", path: "Tests/LinuxShims/CoreGraphics"),
+]
+if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" }) {
+    tests.dependencies = ["AllInOneIMECore", "os", "CryptoKit", "CoreGraphics"]
+    tests.exclude += ["Acceptance/ExtensionSourcesAcceptanceTests.swift", "Acceptance/PluginLanguageAcceptanceTests.swift",
+                      "ExtensionSourcesTests.swift"]
 }
 #endif

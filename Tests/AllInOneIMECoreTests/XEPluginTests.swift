@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 
 /// `@xe` (Plugins/xe): currency conversion, with recorded open.er-api.com / Frankfurter responses.
-struct XEPluginTests {
+@Suite(.enabled(if: Available.javaScript)) struct XEPluginTests {
     static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent("Plugins/xe")
 
