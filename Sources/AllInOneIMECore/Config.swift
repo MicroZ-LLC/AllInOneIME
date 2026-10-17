@@ -56,8 +56,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var jargonFile: String?
     /// The key that runs the @ command at the start of the draft.
     public var actionKey: ActionKey
-    /// Language of the settings window; nil follows the system.
-    public var uiLanguage: Language?
+    /// The interface language (`InterfaceLanguage.code(forSetting:shipped:)`): "zh" (Simplified Chinese) and "en", as
+    /// older versions write them, or another shipped language's code ("fr"); nil follows the system. A code this version
+    /// doesn't ship is kept, and followed as nil.
+    public var uiLanguage: String?
     /// The user's own @ commands, after the built-in ones (see `CustomCommand`).
     public var customCommands: [CustomCommand]
     /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
@@ -155,7 +157,7 @@ public struct Config: Codable, Equatable, Sendable {
         outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
         inputLanguages: [Language] = [.english], defaultInput: Language = .english,
         voiceInput: Bool = true, jargonFile: String? = nil,
-        actionKey: ActionKey = .enter, uiLanguage: Language? = nil, customCommands: [CustomCommand] = [],
+        actionKey: ActionKey = .enter, uiLanguage: String? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
         gemini: ProviderSettings = ProviderSettings(), openai: ProviderSettings = ProviderSettings()
     ) {
@@ -262,7 +264,7 @@ public struct Config: Codable, Equatable, Sendable {
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
         actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
-        uiLanguage = (try? c.decodeIfPresent(Language.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isInterfaceLanguage ? $0 : nil }
+        uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
         extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
@@ -431,6 +433,15 @@ public struct Config: Codable, Equatable, Sendable {
         } catch {
             throw ConfigError.malformed(path: url.path, detail: String(describing: error))
         }
+    }
+
+    /// Just `uiLanguage` from the config file, for AllInOneIME Settings and the installer, which need no more of it:
+    /// nil when the file or the value isn't there, or can't be read.
+    public static func uiLanguageSetting(from url: URL = defaultURL) -> String? {
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = json["uiLanguage"] as? String, !value.isEmpty else { return nil }
+        return value
     }
 
     public func write(to url: URL = defaultURL) throws {

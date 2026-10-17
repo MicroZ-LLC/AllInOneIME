@@ -74,7 +74,7 @@ enum AppProfileText {
         }
         if let typeOut = profile.typeOut { parts.append(typeOut ? tr("逐字上屏", "Typed out") : tr("不逐字上屏", "Not typed out")) }
         if profile.noAI == true { parts.append(tr("不用 AI", "No AI")) }
-        return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere") : parts.joined(separator: " · ")
+        return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
     /// The notice of an AI command refused in an app with no AI.

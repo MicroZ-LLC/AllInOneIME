@@ -523,7 +523,7 @@ make install
 2. 用一个有 `bedrock:InvokeModelWithResponseStream` 权限的 AWS profile：`~/.aws/credentials` 里的固定密钥，或者能拿到临时凭证的
    profile（`credential_process`、角色、SSO；见下面的「AWS profile」）。
 3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
-   选好 profile、区域和模型，点「测试连接」。设置窗口最上面的「界面语言」可以选中文或 English；默认跟随系统
+   选好 profile、区域和模型，点「测试连接」。设置窗口最上面的「界面语言」可以选简体中文或 English；默认「跟随系统」，也跟随在系统设置 → 通用 → 语言与地区 → 应用程序里单独给 AllInOneIME 选的语言
    （系统的首选语言里中文排在英文前面时显示中文，否则显示英文）。设置窗口、候选框里的提示和输入法菜单都跟着它。
 
 <img src="docs/settings.png" width="420" alt="设置窗口">
@@ -613,7 +613,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
 | `voiceInput` | 按住右 ⌥ 说话 | `true` |
 | `actionKey` | 执行键：`"enter"`（⏎）、`"optionTap"`（单按 ⌥）、`"optionSpace"`（⌥空格）、`"space"`（空格） | `"enter"` |
-| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`、`"en"` | `null`（跟随系统） |
+| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码 | `null`（跟随系统） |
 | `rewriteStyles` | 改写风格，例如 `["润色", "简洁", "黑话"]` | `["润色", "简洁", "正式"]` |
 | `jargonFile` | 你自己的黑话词表文件 | `null`（即 `~/.config/allinoneime/jargon.txt`） |
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
@@ -655,7 +655,8 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 ## 开发
 
 ```sh
-make test         # 单元测试，加上用真实 Rime 引擎跑的测试
+make test         # 单元测试，加上用真实 Rime 引擎跑的测试（和 make strings-check）
+make strings      # 把新的界面文字加进 Resources/Localizable.xcstrings，不再用的标成 stale
 make pack         # 中文语言包：build/packs/zh-pinyin-<版本>.tar.xz、它的 sha256 和 packs.json 里的条目
 make packs        # 所有语言包：中文，以及 LanguagePacks/ 里的韩语和印地语（ko-hangul、hi-phonetic）
 make selftest     # 用模拟文本框驱动输入法：真实 Bedrock 调用，加上用合成语音测试本机识别
@@ -668,6 +669,12 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 ```
 
 `make selftest` 和 `make realtest` 不受你的设置影响。自测用它自己的配置（Amazon Bedrock，AWS profile 和区域取自你的配置，其余都是默认值）；真实 App 测试运行时把服务商设成 Bedrock，结束后换回你的。当时测不了的会跳过，不算失败：没有这个 profile 的 Bedrock 密钥时的在线检查，以及安全输入开着时（屏幕锁着、正在输密码）要打字的检查。最后一行列出通过、失败和跳过的数目；只有失败才算没通过，有跳过时结尾是 INCOMPLETE，什么打字的都没跑时是 SKIPPED（屏幕锁着时开始的真实 App 测试是 BLOCKED），不会是 PASSED。
+
+界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog
+`Resources/Localizable.xcstrings`（Makefile 用 Xcode 的 `xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为
+key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过）。同一句英文有两种意思时（它会列出来），给其中一个单独的
+key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", key: "remove.delete")`；catalog 里这个 key 的英文就是这句英文。加一种
+语言，就是在 catalog 里加它的一列。
 
 代码结构：
 

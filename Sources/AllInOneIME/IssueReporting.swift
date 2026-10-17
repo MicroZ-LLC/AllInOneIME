@@ -14,9 +14,8 @@ enum IssueReporting {
             return "\(record.id) \(record.version)"
         }
         // The interface language picked, or the system's (which it follows) with "system".
-        let shown = UIText.chinese ? "zh" : "en"
         return IssueReport.Diagnostics(config: config, macOS: macOS, architecture: architecture,
-                                       interfaceLanguage: config.uiLanguage.map(\.rawValue) ?? "system (\(shown))",
+                                       interfaceLanguage: config.uiLanguage ?? "system (\(UIText.language))",
                                        languagePacks: packs, plugins: plugins, extensions: extensions)
     }
 

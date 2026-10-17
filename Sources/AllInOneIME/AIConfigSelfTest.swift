@@ -223,9 +223,9 @@ extension SelfTest {
         snapshot("config-changes", in: snapshotDirectory)
         _ = escape(controller, client)
         controller.commitComposition(client)
-        settings.uiLanguage = .english
+        settings.uiLanguage = "en"
         try? start.write(to: url)
-        controller.loadSettings = { var config = (try? Config.load(from: url)) ?? SelfTest.settings; config.uiLanguage = .english; return config }
+        controller.loadSettings = { var config = (try? Config.load(from: url)) ?? SelfTest.settings; config.uiLanguage = "en"; return config }
         controller.applySettings()
         model.answer = changes
         command("translate into English and French, Chinese in WeChat, candidates in a column")

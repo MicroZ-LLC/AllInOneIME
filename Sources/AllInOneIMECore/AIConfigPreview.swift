@@ -15,7 +15,12 @@ extension AIConfig {
         public var offeredProviders: [Provider]
         /// Whether a key is saved for the provider (or the hosted service is signed in to); asked without reading it.
         public var hasKey: @Sendable (Provider) -> Bool
-        public var chinese: Bool
+        /// The interface language of the rows (`InterfaceLanguage`): "zh-Hans", "en", …
+        public var language: String
+        public var chinese: Bool {
+            get { InterfaceLanguage.isChinese(language) }
+            set { language = newValue ? "zh-Hans" : "en" }
+        }
         /// What the user typed (the sentence, a refine's lines): a new base URL's host must be in it, or known.
         public var typedText: String
         /// The hosts of the services Settings offers (`compatibleHosts`): a base URL there needs no typing.
@@ -26,14 +31,14 @@ extension AIConfig {
                     knownModels: @escaping @Sendable (Provider) -> [String] = { _ in [] },
                     offeredProviders: [Provider] = [.bedrock, .anthropic, .gemini, .openai],
                     hasKey: @escaping @Sendable (Provider) -> Bool = { _ in false }, chinese: Bool = false,
-                    typedText: String = "", knownHosts: Set<String> = AIConfig.compatibleHosts) {
+                    language: String? = nil, typedText: String = "", knownHosts: Set<String> = AIConfig.compatibleHosts) {
             self.packInstalled = packInstalled
             self.apps = apps
             self.awsProfiles = awsProfiles
             self.knownModels = knownModels
             self.offeredProviders = offeredProviders
             self.hasKey = hasKey
-            self.chinese = chinese
+            self.language = language ?? (chinese ? "zh-Hans" : "en")
             self.typedText = typedText
             self.knownHosts = knownHosts
         }
@@ -278,7 +283,7 @@ extension AIConfig {
 
     /// The one line when nothing can be applied: the refused part's own when there is one (its reason), else `failure`'s.
     public static func failureLine(_ failure: Failure, proposal: Proposal?, config: Config, environment env: Environment) -> String {
-        let text = Text(chinese: env.chinese)
+        let text = Text(language: env.language)
         if failure == .notAllowed, let proposal {
             let refused = check(proposal, config: config, environment: env).rows.filter(\.isRefused)
             if refused.count == 1 { return refused[0].text(chinese: env.chinese) }
@@ -289,7 +294,7 @@ extension AIConfig {
     /// Every row of `proposal` (refused ones too, none for what is already so), and how many changes were already so.
     public static func check(_ proposal: Proposal, config: Config, environment env: Environment,
                              droppedKey: (dropped: Bool, provider: Provider?) = (false, nil)) -> (rows: [Row], unchanged: Int) {
-        let text = Text(chinese: env.chinese)
+        let text = Text(language: env.language)
         var working = config
         var rows: [Row] = []
         let order = Setting.allCases

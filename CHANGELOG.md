@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Changed
+
+- The interface is ready for more languages (its text goes through a String Catalog), and its language follows the system as macOS picks an app's, including a language picked for AllInOneIME alone in System Settings → General → Language & Region → Applications. It is still English or Simplified Chinese; a Traditional Chinese system still gets Simplified Chinese.
+
 ## 0.6.4 (2026-10-16)
 
 ### Added

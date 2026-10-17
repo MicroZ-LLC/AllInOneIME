@@ -604,7 +604,7 @@ Translations and rewrites go to the AI provider picked in Settings → AI Provid
 2. Use an AWS profile allowed `bedrock:InvokeModelWithResponseStream`: static keys in `~/.aws/credentials`, or a profile
    that gets temporary credentials (`credential_process`, a role, SSO; see "AWS profiles" below).
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
-   Pick the profile, region and model, and click "Test Connection". "Language" at the top of the settings window can be English or Chinese; by default ("System") it follows the system
+   Pick the profile, region and model, and click "Test Connection". "Interface language" at the top of the settings window can be English or 简体中文; by default ("Follow the system") it follows the system, including a language picked for AllInOneIME alone (System Settings → General → Language & Region → Applications)
    (Chinese if Chinese comes before English in the system's preferred languages, English otherwise). The settings window, the hints in the candidate panel and the input menu all follow it.
 
 <img src="docs/en/settings.png" width="420" alt="The settings window">
@@ -706,7 +706,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
 | `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
-| `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"`, `"en"` | `null` (follow the system) |
+| `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"` (Simplified Chinese), `"en"`, or the code of another language the app ships | `null` (follow the system) |
 | `rewriteStyles` | Rewrite styles: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, e.g. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
@@ -749,7 +749,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 ## Development
 
 ```sh
-make test         # unit tests, plus tests that run the real Rime engine
+make test         # unit tests, plus tests that run the real Rime engine (and make strings-check)
+make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
@@ -762,6 +763,13 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 ```
 
 `make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, and anything typed while secure input is on (the screen locked, a password field). The last line counts passed, failed and skipped checks; only failures fail the run, and a run with skips ends in INCOMPLETE, or SKIPPED when nothing that types ran (BLOCKED: the real-app test started on a locked screen), never PASSED.
+
+Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
+from the String Catalog `Resources/Localizable.xcstrings` (compiled into each app by the Makefile with Xcode's
+`xcstringstool`), keyed by the English text with `%@` for each interpolation. After adding or changing text, run
+`make strings` (`make test` fails until then). Where one English text means two things (it reports them), give one a
+key of its own, a short dotted name for where or how it is used: `tr("删除", "Remove", key: "remove.delete")`; its English is the
+key's English value in the catalog. Adding a language is adding its column to the catalog.
 
 Code layout:
 

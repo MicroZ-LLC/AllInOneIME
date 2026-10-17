@@ -36,7 +36,7 @@ extension SelfTest {
         try? start.write(to: url)
         AIConfigSession.url = url
         AIConfigSession.lastApplied = nil
-        AIConfigSession.environment = { _ in AIConfig.Environment(hasKey: { _ in false }, chinese: UIText.chinese) }
+        AIConfigSession.environment = { _ in AIConfig.Environment(hasKey: { _ in false }, language: UIText.language) }
         AIConfigSession.openKeyField = { opened.append($0) }
         AIConfigSession.testConnection = { _ in (false, "No API key for the Claude API") }
         DoctorSession.perform = { performed.append($0) }
@@ -138,8 +138,8 @@ extension SelfTest {
         _ = escape(controller, client)
 
         // In English, for the release notes.
-        settings.uiLanguage = .english
-        controller.loadSettings = { var config = (try? Config.load(from: url)) ?? SelfTest.settings; config.uiLanguage = .english; return config }
+        settings.uiLanguage = "en"
+        controller.loadSettings = { var config = (try? Config.load(from: url)) ?? SelfTest.settings; config.uiLanguage = "en"; return config }
         controller.applySettings()
         DoctorSession.service = DoctorService(client: ChatClient(apple: CannedGuidedModel("{}")))
         _ = pump(timeout: 4) { controller.panelModel().detail == nil }

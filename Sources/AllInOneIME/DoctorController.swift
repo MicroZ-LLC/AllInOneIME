@@ -205,7 +205,7 @@ extension AllInOneIMEInputController {
                 guard !Task.isCancelled else { return }
                 let seconds = Int(DoctorSession.connectionTimeout)
                 facts.connection = outcome.map { $0.ok ? .ok($0.line) : .failed($0.line) }
-                    ?? .failed(chinese ? "\(seconds) 秒内没有回应" : "no answer within \(seconds) s")
+                    ?? .failed(tr("\(seconds) 秒内没有回应", "no answer within \(seconds) s"))
             }
             let findings = Doctor.findings(facts, chinese: chinese)
             var report = Self.report(findings, chinese: chinese, final: question.isEmpty)

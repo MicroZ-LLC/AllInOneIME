@@ -643,7 +643,7 @@ enum UpdateText {
     static func describe(_ error: Error) -> String {
         guard let error = error as? UpdateError else { return error.localizedDescription }
         switch error {
-        case let .unreachable(host): return tr("连不上 \(host)", "Can't reach \(host)")
+        case let .unreachable(host): return tr("连不上 \(host)", "Can't reach \(host)", key: "updates.unreachable")
         case let .http(status, file): return tr("更新服务器对 \(file) 返回了 HTTP \(status)", "The update server answered HTTP \(status) for \(file)")
         case .missingSignature, .badSignature:
             return tr("更新信息的签名不对，可能正在发布中，过几分钟再试。没有做任何改动。",

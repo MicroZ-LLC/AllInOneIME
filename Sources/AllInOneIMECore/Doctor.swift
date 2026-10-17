@@ -713,7 +713,7 @@ extension Doctor {
             case let .copyCommand(command):
                 action("复制命令到剪贴板，在终端里运行：\(command)", "Copy the command to run in Terminal: \(command)", .copyCommand(command))
             case let .openKeyField(provider):
-                let text = AIConfig.Text(chinese: env.chinese)
+                let text = AIConfig.Text(language: env.language)
                 // The row `@config` shows for a provider without a key (it is the one in use here: nothing to choose).
                 rows.append(provider == .bedrock
                     ? AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),

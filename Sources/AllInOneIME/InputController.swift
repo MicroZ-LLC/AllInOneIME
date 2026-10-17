@@ -2031,7 +2031,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Chinese one), and where it is: 「应用」, or its folder (a folder's ends in "/"), after 「内容 · 」 when it
     /// was found by what is in it. A web address says it opens in the browser.
     static func openRow(_ result: SearchResult) -> (text: String, comment: String) {
-        if result.webURL != nil { return (result.name, tr("在浏览器中打开", "open in the browser")) }
+        if result.webURL != nil { return (result.name, tr("在浏览器中打开", "open in the browser", key: "openRow.inBrowser")) }
         let folder = ((result.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
         let place = result.path.hasSuffix(".app") ? tr("应用", "app")
             : result.isFolder && !folder.hasSuffix("/") ? folder + "/" : folder

@@ -24,7 +24,7 @@ extension SelfTest {
         }
         let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
-        UIText.choice = .english
+        UIText.choice = "en"
 
         // The repository: a bundle in ext/ with one command.
         let bare = dir.appendingPathComponent("remote.git"), work = dir.appendingPathComponent("work")
@@ -96,19 +96,19 @@ extension SelfTest {
         check(Command.catalog(model.config.customCommands, scripts: LiveExtensions.load(model.config).commands).allSatisfy { $0.name != "selftesthello" },
               "nothing of it loads before Enable")
         for chinese in [false, true] {
-            UIText.choice = chinese ? .chinese : .english
+            UIText.choice = chinese ? "zh" : "en"
             let image = snapshotDirectory.appendingPathComponent("extension-source-add\(chinese ? "-zh" : "").png")
             let start = ExtensionSourceSheet.Start(source: ExtensionSource(url: "git@github.com:you/my-extensions.git"), cloneNow: false)
             renderOffscreen(ExtensionSourceSheet(model: model, start: start), size: NSSize(width: 600, height: 600), to: image)
             check(fm.fileExists(atPath: image.path), "the Add from Link sheet renders (\(image.lastPathComponent))")
         }
         for chinese in [false, true] {
-            UIText.choice = chinese ? .chinese : .english
+            UIText.choice = chinese ? "zh" : "en"
             let image = snapshotDirectory.appendingPathComponent("extension-source-review\(chinese ? "-zh" : "").png")
             renderOffscreen(ExtensionSourceReviewView(review: review).frame(width: 600, height: 620), size: NSSize(width: 600, height: 620), to: image)
             check(fm.fileExists(atPath: image.path), "the review renders (\(image.lastPathComponent))")
         }
-        UIText.choice = .english
+        UIText.choice = "en"
         check(ExtensionSourceText.unsigned(url).hasPrefix("This source isn't signed: it will run programs from file://"), "…with its warning")
 
         // A config that names the folder before it's reviewed (copied from another Mac): it isn't loaded.
@@ -143,20 +143,20 @@ extension SelfTest {
         let script = installed.appendingPathComponent("ext/hello.sh")
         check((try? String(contentsOf: script, encoding: .utf8))?.contains("echo hi") == true, "…and doesn't apply it")
         for chinese in [false, true] {
-            UIText.choice = chinese ? .chinese : .english
+            UIText.choice = chinese ? "zh" : "en"
             let image = snapshotDirectory.appendingPathComponent("settings-commands-sources\(chinese ? "-zh" : "").png")
             SettingsImage.render(model, page: .commands, to: image) { _ = pump(timeout: $0) { false } }
             check(fm.fileExists(atPath: image.path), "Custom Commands shows the source with its update (\(image.lastPathComponent))")
         }
         // The menu bar panel's quiet line.
-        UIText.choice = .english
+        UIText.choice = "en"
         let notice = snapshotDirectory.appendingPathComponent("panel-extension-sources.png")
         renderOffscreen(ExtensionSourceNotice(sources: sources, configured: { [source] }, open: {}).padding(10).frame(width: 360)
                             .background(Color.white).environment(\.colorScheme, .light),
                         size: NSSize(width: 360, height: 40), to: notice)
         check(fm.fileExists(atPath: notice.path) && sources.updateCount(for: [source]) == 1,
               "the menu bar panel's line says there is 1 update (\(notice.lastPathComponent))")
-        UIText.choice = .english
+        UIText.choice = "en"
         _ = runAsync(60) { await sources.update(source) }
         check(sources.statuses[url]?.updates.isEmpty == true && sources.statuses[url]?.commit != clone.status.commit
               && (try? String(contentsOf: script, encoding: .utf8))?.contains("hello there") == true,

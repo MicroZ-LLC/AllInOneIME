@@ -45,7 +45,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg update-zip update-manifest update-test test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check dmg update-zip update-manifest update-test test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -77,7 +77,26 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
 
-app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
+# The interface text in languages other than Simplified Chinese and English (those two are in the code): the String
+# Catalog, compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict), which go into
+# the input method, AllInOneIME Settings and the installer. The English text is the key (Sources/AllInOneIME/UIText.swift:
+# tr). `make strings` adds the code's new texts to the catalog (Scripts/strings.swift); `make strings-check`, part of
+# `make test`, fails when one is missing or a language in it lacks a translation.
+STRINGS       := Resources/Localizable.xcstrings
+STRINGS_BUILD := $(BUILD_DIR)/strings
+
+$(STRINGS_BUILD): $(STRINGS)
+	rm -rf $@ && mkdir -p $@
+	xcrun xcstringstool compile $(STRINGS) --output-directory $@
+	touch $@
+
+strings:
+	swift Scripts/strings.swift
+
+strings-check:
+	swift Scripts/strings.swift --check
+
+app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
@@ -89,6 +108,7 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 		mkdir -p "$(APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/$$lang.lproj/InfoPlist.strings" "$(APP)/Contents/Resources/$$lang.lproj/"; \
 	done
+	ditto "$(STRINGS_BUILD)" "$(APP)/Contents/Resources"
 	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	cp $(RIME_LIB) "$(APP)/Contents/Frameworks/"
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
@@ -142,7 +162,7 @@ LEGACY_INSTALLED_APP := $(INSTALL_DIR)/$(LEGACY_APP_NAME).app
 LEGACY_SETTINGS_APP  := $(USER_APPS)/AI 拼音设置.app
 LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
-settings-app: Resources/AppIcon.icns
+settings-app: $(STRINGS_BUILD) Resources/AppIcon.icns
 	$(SWIFT_BUILD) --product AllInOneIMESettings
 	rm -rf "$(SETTINGS_APP)"
 	mkdir -p "$(SETTINGS_APP)/Contents/MacOS" "$(SETTINGS_APP)/Contents/Resources"
@@ -154,6 +174,7 @@ settings-app: Resources/AppIcon.icns
 		mkdir -p "$(SETTINGS_APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/Settings-$$lang.lproj/InfoPlist.strings" "$(SETTINGS_APP)/Contents/Resources/$$lang.lproj/"; \
 	done
+	ditto "$(STRINGS_BUILD)" "$(SETTINGS_APP)/Contents/Resources"
 	printf 'APPL????' > "$(SETTINGS_APP)/Contents/PkgInfo"
 	if [ -n "$(SIGN_HASH)" ]; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(SETTINGS_APP)"; \
@@ -171,7 +192,7 @@ INSTALLER_NAME := Install AllInOneIME
 INSTALLER_APP  := $(BUILD_DIR)/$(INSTALLER_NAME).app
 PAYLOAD_DIR    := $(BUILD_DIR)/payload
 
-installer-app: app settings-app
+installer-app: app settings-app $(STRINGS_BUILD)
 	$(SWIFT_BUILD) --product AllInOneIMEInstaller
 	rm -rf "$(INSTALLER_APP)" "$(PAYLOAD_DIR)"
 	mkdir -p "$(INSTALLER_APP)/Contents/MacOS" "$(INSTALLER_APP)/Contents/Resources" "$(PAYLOAD_DIR)"
@@ -183,6 +204,7 @@ installer-app: app settings-app
 		mkdir -p "$(INSTALLER_APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/Installer-$$lang.lproj/InfoPlist.strings" "$(INSTALLER_APP)/Contents/Resources/$$lang.lproj/"; \
 	done
+	ditto "$(STRINGS_BUILD)" "$(INSTALLER_APP)/Contents/Resources"
 	printf 'APPL????' > "$(INSTALLER_APP)/Contents/PkgInfo"
 	mv "$(APP)" "$(SETTINGS_APP)" "$(PAYLOAD_DIR)/"
 	ditto -c -k --norsrc --noextattr --noacl --zlibCompressionLevel 0 "$(PAYLOAD_DIR)" "$(INSTALLER_APP)/Contents/Resources/Payload.zip"
@@ -245,7 +267,7 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-test: deps
+test: deps strings-check
 	swift test
 
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for

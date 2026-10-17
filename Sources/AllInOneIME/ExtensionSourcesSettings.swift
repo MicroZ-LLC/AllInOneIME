@@ -87,7 +87,7 @@ struct ExtensionSourcesSection: View {
                 Spacer()
                 if busy { ProgressView().controlSize(.small) }
                 if !trusted {
-                    Button(tr("检查并启用…", "Review…")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }
+                    Button(tr("检查并启用…", "Review…", key: "extensionSource.reviewAndEnable")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }
                         .disabled(busy)
                 } else if !enabled {
                     // Taken out of the load list (Script Extensions → Remove): back in, without another review.

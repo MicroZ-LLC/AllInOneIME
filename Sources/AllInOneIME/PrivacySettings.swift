@@ -85,7 +85,7 @@ struct PrivacySection: View {
 /// whose placeholder the model changed past telling (`Redaction.isAltered`) marked, its text as the model wrote it.
 enum RedactionPanel {
     static func hiddenLine(_ count: Int) -> String {
-        tr("已对 AI 隐藏 \(count) 项", count == 1 ? "1 item hidden from the AI" : "\(count) items hidden from the AI")
+        count == 1 ? tr("已对 AI 隐藏 1 项", "1 item hidden from the AI") : tr("已对 AI 隐藏 \(count) 项", "\(count) items hidden from the AI")
     }
 
     static let changed = tr("⚠ 占位符被改动", "⚠ placeholder changed")

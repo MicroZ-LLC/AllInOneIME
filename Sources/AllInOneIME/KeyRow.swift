@@ -97,11 +97,11 @@ struct KeyRowContent: View {
                     if state.isSet {
                         Button(tr("替换…", "Replace…")) { editing = true }
                         if let remove {
-                            Button(tr("删除…", "Remove…")) { removing = true }
+                            Button(tr("删除…", "Remove…", key: "keyRow.delete")) { removing = true }
                                 .alert(removeTitle, isPresented: $removing) {
                                     // ⏎ is Cancel: removing is a choice of its own.
                                     Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
-                                    Button(tr("删除", "Remove"), role: .destructive, action: remove)
+                                    Button(tr("删除", "Remove", key: "remove.delete"), role: .destructive, action: remove)
                                 } message: {
                                     if let removeMessage { Text(removeMessage) }
                                 }

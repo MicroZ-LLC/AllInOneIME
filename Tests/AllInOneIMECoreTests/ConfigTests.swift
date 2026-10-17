@@ -176,8 +176,8 @@ struct ConfigTests {
     @Test func uiLanguage() throws {
         #expect(try decode("{}").uiLanguage == nil)
         #expect(try decode(#"{"uiLanguage": null}"#).uiLanguage == nil)
-        #expect(try decode(#"{"uiLanguage": "zh"}"#).uiLanguage == .chinese)
-        #expect(try decode(#"{"uiLanguage": "en"}"#).uiLanguage == .english)
+        #expect(try decode(#"{"uiLanguage": "zh"}"#).uiLanguage == "zh")
+        #expect(try decode(#"{"uiLanguage": "en"}"#).uiLanguage == "en")
     }
 
     /// The menu bar icon is on unless turned off; the key is written either way (discoverable). An old
@@ -211,7 +211,7 @@ struct ConfigTests {
         c.setOrder([Language.english, .chinese])
         c.voiceInput = false
         c.actionKey = .optionSpace
-        c.uiLanguage = .chinese
+        c.uiLanguage = "zh"
         try c.write(to: url)
         #expect(try Config.load(from: url) == c)
         let text = try String(contentsOf: url, encoding: .utf8)

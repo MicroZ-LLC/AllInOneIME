@@ -65,7 +65,7 @@ enum AIConfigSession {
         let installed = Set(Language.allCases.filter { LanguagePackManager.shared.isUsable($0) })
         let models = knownModels()
         let offered = Provider.offered
-        let chinese = UIText.chinese
+        let language = UIText.language
         let hosts = AIConfig.compatibleHosts.union(CompatibleService.all.compactMap { URL(string: $0.baseURL)?.host?.lowercased() })
         let others = RecentApps.apps + Array(((try? Config.load(from: url)) ?? .default).appProfiles.keys)
         let cached = cachedApps.flatMap { Date().timeIntervalSince($0.date) < 60 ? $0.catalog : nil }
@@ -77,7 +77,7 @@ enum AIConfigSession {
         if cached == nil { cachedApps = (Date(), apps) }
         return AIConfig.Environment(
             packInstalled: { installed.contains($0) }, apps: apps, awsProfiles: { AIConfig.awsProfiles().map(\.name) },
-            knownModels: { models[$0] ?? [] }, offeredProviders: offered, hasKey: { keyed.contains($0) }, chinese: chinese,
+            knownModels: { models[$0] ?? [] }, offeredProviders: offered, hasKey: { keyed.contains($0) }, language: language,
             typedText: typed, knownHosts: hosts)
     }
 
@@ -187,7 +187,7 @@ extension AllInOneIMEInputController {
         lastElapsed = nil
         lastFromCache = false
         lastHidden = 0
-        let text = AIConfig.Text(chinese: UIText.chinese)
+        let text = AIConfig.Text(language: UIText.language)
         // A key typed into the sentence, or into a refine's line, is dropped; with nothing else in what was typed last,
         // nothing is sent and the key field opens.
         let keys = AIConfig.droppingKeys(input)
@@ -238,7 +238,7 @@ extension AllInOneIMEInputController {
     /// The answer read and checked against the settings as they are now: the preview, or the line that says why not.
     @MainActor
     func showConfigAnswer(_ answer: String, id: Int, env: AIConfig.Environment, droppedKey: (dropped: Bool, provider: Provider?)) {
-        let text = AIConfig.Text(chinese: env.chinese)
+        let text = AIConfig.Text(language: env.language)
         let outcome: Result<AIConfig.Preview, AIConfig.Failure>
         let proposal = try? AIConfig.parse(answer)
         if let proposal {
@@ -266,7 +266,7 @@ extension AllInOneIMEInputController {
     /// runs after the provider changed.
     @MainActor
     func applyConfig(_ preview: AIConfig.Preview) {
-        let text = AIConfig.Text(chinese: UIText.chinese)
+        let text = AIConfig.Text(language: UIText.language)
         if !preview.edits.isEmpty {
             do {
                 let applied = try AIConfig.applying(preview.edits, at: AIConfigSession.url, now: AIConfigSession.now())
@@ -307,7 +307,7 @@ extension AllInOneIMEInputController {
     /// `@config undo`, or ⌘Z on the confirmation: the values the last changes replaced, back (within ten minutes).
     @MainActor
     func undoConfig() {
-        let text = AIConfig.Text(chinese: UIText.chinese)
+        let text = AIConfig.Text(language: UIText.language)
         guard let applied = AIConfigSession.lastApplied else {
             showNotice(text.nothingToUndo, client: nil)
             return
@@ -357,7 +357,7 @@ extension AllInOneIMEInputController {
             return
         }
         guard let shown = composer.configPreview else { return }
-        let text = AIConfig.Text(chinese: UIText.chinese)
+        let text = AIConfig.Text(language: UIText.language)
         if shown.preview.droppedKey {
             model.status = .error(text.droppedKeyPreview)
         } else if let note = shown.preview.note {

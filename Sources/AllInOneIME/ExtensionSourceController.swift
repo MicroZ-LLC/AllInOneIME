@@ -275,7 +275,7 @@ enum ExtensionSourceText {
     }
 
     static func updates(_ count: Int) -> String {
-        tr("有 \(count) 个更新", count == 1 ? "1 update" : "\(count) updates")
+        count == 1 ? tr("有 1 个更新", "1 update") : tr("有 \(count) 个更新", "\(count) updates")
     }
 
     /// "a1b2c3d · 2 hr ago".
