@@ -993,7 +993,8 @@ struct SettingsView: View {
             .disabled(!model.canSave)
             HStack {
                 Text(model.recentQuestions == 0 ? tr("没有保存的问题。", "No questions saved.")
-                     : tr("保存了 \(model.recentQuestions) 个问题。", "\(model.recentQuestions) saved \(model.recentQuestions == 1 ? "question" : "questions")."))
+                     : model.recentQuestions == 1 ? tr("保存了 1 个问题。", "1 saved question.")
+                     : tr("保存了 \(model.recentQuestions) 个问题。", "\(model.recentQuestions) saved questions."))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(tr("清除（\(model.recentQuestions)）", "Clear (\(model.recentQuestions))")) { model.clearRecentQuestions() }

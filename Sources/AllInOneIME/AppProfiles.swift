@@ -187,8 +187,8 @@ struct AppProfilesSection: View {
             Picker(tr("逐字上屏", "Type results out"), selection: Binding(
                 get: { profile.typeOut },
                 set: { value in model.changeProfile(app) { $0.typeOut = value } })) {
-                Text(tr("跟全局一样（\(model.config.typeOut ? "开" : "关")）",
-                        "Same as everywhere (\(model.config.typeOut ? "on" : "off"))")).tag(Bool?.none)
+                Text(model.config.typeOut ? tr("跟全局一样（开）", "Same as everywhere (on)")
+                     : tr("跟全局一样（关）", "Same as everywhere (off)")).tag(Bool?.none)
                 Text(tr("开", "On")).tag(Bool?.some(true))
                 Text(tr("关", "Off")).tag(Bool?.some(false))
             }
