@@ -491,10 +491,12 @@ struct AppleModelAcceptanceTests {
     /// - the question history (0.6.3/question-history): `rememberQuestions`, on by default;
     /// - hiding sensitive values (the redaction feature): `redaction`, off, with every kind of value picked and no words
     ///   of the user's own;
-    /// - `@claude` becoming `@agent` (0.6.5/agent): `agent`, Claude Code, and `agentCommand`, no custom agent's command.
+    /// - `@claude` becoming `@agent` (0.6.5/agent): `agent`, Claude Code, and `agentCommand`, no custom agent's command;
+    /// - `@agent` taking the Chrome page along (0.6.5/page-context): `agentPageContext`, on by default (written right
+    ///   after the agent keys, so it's one string with them).
     static let addedSince063: [String: [String]] = [
         "config/old": [
-            #","agent":"claude","agentCommand":[]"#,
+            #","agent":"claude","agentCommand":[],"agentPageContext":true"#,
             #","rememberQuestions":true"#,
             #","redaction":{"cards":true,"customWords":[],"emails":true,"enabled":false,"ips":true,"keys":true,"phones":true}"#,
         ],
