@@ -339,13 +339,20 @@ public enum ExtensionSources {
             rest.insert((existing as NSString).lastPathComponent, at: 0)
             existing = (existing as NSString).deletingLastPathComponent
         }
+        #if os(Windows)
+        // No realpath there: Foundation resolves the links. It doesn't say how the volume compares names: NTFS's way.
+        existing = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path
+        let unsaid = false
+        #else
         if let real = realpath(existing, nil) {
             existing = String(cString: real)
             free(real)
         }
+        let unsaid = true
+        #endif
         let resolved = rest.reduce(existing) { ($0 as NSString).appendingPathComponent($1) }
         let caseSensitive = (try? URL(fileURLWithPath: existing).resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?
-            .volumeSupportsCaseSensitiveNames ?? true
+            .volumeSupportsCaseSensitiveNames ?? unsaid
         return caseSensitive ? resolved : resolved.lowercased()
     }
 

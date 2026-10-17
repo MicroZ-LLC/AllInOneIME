@@ -14,6 +14,19 @@ public enum CorePaths {
         #endif
     }
 
+    /// Whether `path` names a place on its own, not from some folder: one starting at "/"; on Windows one starting at a
+    /// drive's root ("C:\…", "C:/…") or a share ("\\server\share\…"), as Foundation writes them too ("C:/Users/…").
+    public static func isAbsolute(_ path: String) -> Bool {
+        #if os(Windows)
+        let start = Array(path.prefix(3))
+        func separator(_ character: Character) -> Bool { character == "/" || character == "\\" }
+        if start.count == 3, start[0].isASCII, start[0].isLetter, start[1] == ":", separator(start[2]) { return true }
+        return start.count >= 2 && separator(start[0]) && separator(start[1])
+        #else
+        return path.hasPrefix("/")
+        #endif
+    }
+
     /// What the user edits: config.json, jargon.txt, plugins/, extensions/.
     public static var configDir: URL {
         #if os(macOS)

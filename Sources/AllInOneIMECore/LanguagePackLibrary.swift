@@ -188,7 +188,7 @@ public struct LanguagePackLibrary: Sendable {
     static func unpack(_ archive: URL, into folder: URL) throws {
         let errors = Pipe()
         let tar = try Platform.current.processes.launch(LaunchSpec(
-            executable: URL(fileURLWithPath: "/usr/bin/tar"),
+            executable: systemTar,
             arguments: ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs", "--no-mac-metadata", "--no-acls", "--no-fflags"],
             standardOutput: .null, standardError: .pipe(errors)))
         let message = errors.fileHandleForReading.readDataToEndOfFile()
@@ -196,6 +196,16 @@ public struct LanguagePackLibrary: Sendable {
         guard tar.terminationStatus == 0 else {
             throw LanguagePackError.unpack(String(decoding: message, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
         }
+    }
+
+    /// /usr/bin/tar; on Windows (10 and later) its own bsdtar, in System32 (the variable's name in any case).
+    static var systemTar: URL {
+        #if os(Windows)
+        let root = ProcessInfo.processInfo.environment.first { $0.key.uppercased() == "SYSTEMROOT" }?.value ?? #"C:\Windows"#
+        return URL(fileURLWithPath: root, isDirectory: true).appendingPathComponent("System32/tar.exe")
+        #else
+        return URL(fileURLWithPath: "/usr/bin/tar")
+        #endif
     }
 
     // MARK: Network

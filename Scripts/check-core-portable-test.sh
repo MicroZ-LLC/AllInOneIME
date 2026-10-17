@@ -57,6 +57,9 @@ caught "a C library under another system's guard" '#if os(Windows)\nimport Glibc
 caught "a C library in an #else" '#if canImport(Darwin)\n#else\nimport Glibc\n#endif\n'
 caught "a C library under a negated guard" '#if !canImport(Glibc)\nimport Glibc\n#endif\n'
 caught "a C library after its guard closed" '#if canImport(Glibc)\n#endif\nimport Glibc\n'
+caught "WinSDK unguarded" 'import WinSDK\n'
+caught "WinSDK under Linux's guard" '#if os(Linux)\nimport WinSDK\n#endif\n'
+caught "ucrt under Darwin's guard" '#if canImport(Darwin)\nimport ucrt\n#endif\n'
 
 # MARK: - Programs
 
@@ -73,6 +76,11 @@ caught "system(\"...\")" 'system("ls")\n'
 caught "system( with no system of the core's" 'let c = command\nsystem(c)\n'
 caught "Glibc.system(" 'Glibc.system(command)\n'
 caught "execv(" 'execv(path, argv)\n'
+caught "CreateProcessW(" '_ = CreateProcessW(nil, line, nil, nil, false, 0, nil, nil, &startup, &info)\n'
+caught "ShellExecuteExW(" '_ = ShellExecuteExW(&execute)\n'
+caught "ShellExecuteW(" '_ = ShellExecuteW(nil, verb, file, nil, nil, 1)\n'
+caught "WinExec(" '_ = WinExec(line, 1)\n'
+caught "_wspawnv(" '_ = _wspawnv(0, path, argv)\n'
 caught "execve(" 'execve(path, argv, envp)\n'
 caught "posix_spawn(" 'posix_spawn(&pid, path, nil, nil, argv, envp)\n'
 caught "posix_spawnp(" 'posix_spawnp(&pid, "sh", nil, nil, argv, envp)\n'
@@ -143,6 +151,9 @@ import Android
 #elseif os(Windows)
 import WinSDK
 import ucrt
+#endif
+#if canImport(WinSDK)
+import WinSDK
 #endif
 #if os(macOS) || os(iOS)
 import Darwin

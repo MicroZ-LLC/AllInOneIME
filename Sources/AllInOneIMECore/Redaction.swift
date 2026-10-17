@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(WinSDK)
+import WinSDK  // inet_pton (Winsock's, not the C library's)
+#endif
 
 /// What is hidden from the AI before a request is sent (`Redaction`): `Config.redaction`. Off by default; on, each
 /// detector is on unless turned off, and the user's own words are hidden too.

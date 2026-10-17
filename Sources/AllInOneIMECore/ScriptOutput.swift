@@ -132,7 +132,7 @@ public struct ScriptItem: Hashable, Sendable {
         guard let arg else { return .insert }
         let lower = arg.lowercased()
         let opens = lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("file://")
-            || arg.hasPrefix("/") || arg.hasPrefix("~/")
+            || CorePaths.isAbsolute(arg) || arg.hasPrefix("~/")
         return opens ? .open : .insert
     }
 
@@ -154,18 +154,32 @@ public struct ScriptItem: Hashable, Sendable {
             return url
         }
         var folder: ObjCBool = false
-        guard target.hasPrefix("/"), FileManager.default.fileExists(atPath: target, isDirectory: &folder) else { return nil }
+        guard CorePaths.isAbsolute(target), FileManager.default.fileExists(atPath: target, isDirectory: &folder) else { return nil }
         // A folder has the executable bit to be listed; a bundle like a .workflow is a folder too.
         if Self.runnableExtensions.contains((target as NSString).pathExtension.lowercased()) { return nil }
+        #if os(Windows)
+        // No executable bit: a program is a file Windows can run (an .exe, .com, …).
+        if !folder.boolValue, FileManager.default.isExecutableFile(atPath: target) { return nil }
+        #else
         if !folder.boolValue, access(target, X_OK) == 0 { return nil }
+        #endif
         return URL(fileURLWithPath: target)
     }
 
-    /// The kinds of file that opening runs: scripts and programs Terminal or an interpreter would run.
-    public static let runnableExtensions: Set<String> = [
-        "sh", "bash", "zsh", "csh", "tcsh", "ksh", "fish", "command", "tool", "terminal",
-        "py", "pyw", "rb", "pl", "php", "lua", "tcl", "js", "jar", "applescript", "scpt", "workflow", "action",
-    ]
+    /// The kinds of file that opening runs: scripts and programs Terminal or an interpreter would run (on Windows,
+    /// also what Explorer runs: programs, batch files, Windows Script Host's and PowerShell's scripts, installers,
+    /// shortcuts).
+    public static let runnableExtensions: Set<String> = {
+        var kinds: Set<String> = [
+            "sh", "bash", "zsh", "csh", "tcsh", "ksh", "fish", "command", "tool", "terminal",
+            "py", "pyw", "rb", "pl", "php", "lua", "tcl", "js", "jar", "applescript", "scpt", "workflow", "action",
+        ]
+        #if os(Windows)
+        kinds.formUnion(["exe", "com", "bat", "cmd", "scr", "cpl", "msc", "pif", "lnk", "url", "appref-ms", "ps1", "psm1",
+                         "vbs", "vbe", "jse", "wsf", "wsh", "hta", "msi", "msp", "reg", "inf"])
+        #endif
+        return kinds
+    }()
 
     /// What `open` opens: a web address as it is, a path with "~" expanded.
     public var openTarget: String? {

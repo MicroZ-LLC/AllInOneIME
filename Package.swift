@@ -117,5 +117,12 @@ package.targets += [
 if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" }) {
     tests.dependencies = ["AllInOneIMECore", "os", "CryptoKit", "CoreGraphics"]
     tests.exclude += ["Acceptance/PluginLanguageAcceptanceTests.swift"]
+    #if os(Windows)
+    // Windows has no POSIX calls for the tests to check processes and files with (pid_t, kill, process groups, realpath,
+    // lstat, opendir): those that use them are left out, and with them the ones that write their scripts with ScriptFolder
+    // (bash scripts anyway) or ExtensionComposerTests' helpers.
+    tests.exclude += ["ScriptFolder.swift", "ExtensionTests.swift", "ExtensionRobustnessTests.swift", "ExtensionComposerTests.swift",
+                      "ClickPickTests.swift", "ExtensionExamplesTests.swift", "Acceptance/QuestionHistoryAcceptanceTests.swift"]
+    #endif
 }
 #endif

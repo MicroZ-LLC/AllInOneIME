@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(WinSDK)
+import WinSDK
+#endif
 
 /// Time in tests that run alongside more than a thousand others, many starting git and other programs in parallel:
 /// there, starting a process or getting a turn on a core can take seconds. So a bound on how long something took is
@@ -22,6 +25,11 @@ enum Timing {
     static func threadCPUNanoseconds() -> UInt64 {
         #if canImport(Darwin)
         return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
+        #elseif os(Windows)
+        // Its kernel and user time, in 100 ns steps (counted at the scheduler's tick).
+        var (created, exited, kernel, user) = (FILETIME(), FILETIME(), FILETIME(), FILETIME())
+        _ = GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)
+        return [kernel, user].reduce(0) { $0 + (UInt64($1.dwHighDateTime) << 32 | UInt64($1.dwLowDateTime)) * 100 }
         #else
         var time = timespec()
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time)

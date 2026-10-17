@@ -7,6 +7,8 @@ import Glibc
 import Musl
 #elseif canImport(Android)
 import Android
+#elseif canImport(WinSDK)
+import WinSDK
 #endif
 
 /// The file operations that differ by system: swapping two folders in one step, writing a file only the user can read,
@@ -26,9 +28,9 @@ public protocol FileOps: Sendable {
     func trash(_ url: URL) throws
 }
 
-/// The system's own calls: `renamex_np` on Apple platforms, `renameat2` on Linux and Android; POSIX
-/// `open`/`fchmod`/`fsync`/`rename` for private writes (Windows: an atomic write in the user's own folder); `stat`'s
-/// nanosecond times.
+/// The system's own calls: `renamex_np` on Apple platforms, `renameat2` on Linux and Android, `MoveFileExW` on Windows;
+/// POSIX `open`/`fchmod`/`fsync`/`rename` for private writes (Windows: `CreateFileW` with an access list of the user
+/// alone, `FlushFileBuffers`, `MoveFileExW`); `stat`'s nanosecond times (Windows: `GetFileTime`'s 100 ns ones).
 public struct SystemFileOps: FileOps {
     public init() {}
 
@@ -55,8 +57,32 @@ public struct SystemFileOps: FileOps {
             }
         }
         guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        #elseif os(Windows)
+        // A rename (MoveFileExW without MOVEFILE_REPLACE_EXISTING) fails when something is there. Windows has no swap: the
+        // old one first gets a second, hidden name beside it, then the new one takes its place. A file's second name is a
+        // hard link, so the new file is renamed over the old in one step and `destination` is never missing; a folder
+        // (which nothing replaces) is renamed aside, so there is a moment between two renames when it is. Each step that
+        // fails undoes those before it.
+        guard exists else { return try Self.move(source, to: destination) }
+        let aside = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString)")
+        let linked = Self.isPlainFile(source) && Self.isPlainFile(destination)
+            && Self.path(aside, { new in Self.path(destination) { CreateHardLinkW(new, $0, nil) } })
+        if !linked { try Self.move(destination, to: aside) }
+        do {
+            try Self.move(source, to: destination, replacing: linked)
+        } catch {
+            if linked { _ = Self.path(aside) { DeleteFileW($0) } } else { try? Self.move(aside, to: destination) }
+            throw error
+        }
+        do {
+            try Self.move(aside, to: source)
+        } catch {
+            try? Self.move(destination, to: source)
+            try? Self.move(aside, to: destination)
+            throw error
+        }
         #else
-        // Windows: ReplaceFileW swaps files, not folders; a folder is moved aside, then the new one in.
+        // Elsewhere (no system call of its own known here): a folder is moved aside, then the new one in.
         let files = FileManager.default
         guard exists else { return try files.moveItem(at: source, to: destination) }
         let aside = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString)")
@@ -72,11 +98,34 @@ public struct SystemFileOps: FileOps {
     }
 
     public func writePrivate(_ data: Data, to url: URL) throws {
-        #if os(Windows)
-        // A new file in the user's profile is theirs alone (its ACL); written whole, then moved over the old.
-        try data.write(to: url, options: .atomic)
-        #else
         let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+        #if os(Windows)
+        // Its access list, set as it is made, has one entry, the user's, and inherits none from the folder: Windows' 0600.
+        let handle = try Self.userOnly { security in
+            Self.path(temporary) {
+                CreateFileW($0, DWORD(GENERIC_WRITE), 0, &security, DWORD(CREATE_NEW), DWORD(FILE_ATTRIBUTE_NORMAL), nil)
+            }
+        }
+        guard let handle, handle != INVALID_HANDLE_VALUE else { throw Self.lastError(temporary) }
+        var written = data.withUnsafeBytes { bytes in
+            var offset = 0
+            while offset < bytes.count {
+                var n: DWORD = 0
+                guard WriteFile(handle, bytes.baseAddress! + offset, DWORD(min(bytes.count - offset, 1 << 30)), &n, nil), n > 0 else { return false }
+                offset += Int(n)
+            }
+            return true
+        }
+        written = FlushFileBuffers(handle) && written
+        CloseHandle(handle)
+        do {
+            guard written else { throw Self.lastError(temporary) }
+            try Self.move(temporary, to: url, replacing: true)
+        } catch {
+            _ = Self.path(temporary) { DeleteFileW($0) }
+            throw error
+        }
+        #else
         let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: temporary.path]) }
         var written = fchmod(fd, 0o600) == 0  // whatever the umask
@@ -98,7 +147,18 @@ public struct SystemFileOps: FileOps {
 
     public func modificationDate(atPath path: String) -> Date? {
         #if os(Windows)
-        return (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+        // CreateFileW follows links; backup semantics opens a folder too. Reading attributes alone takes no share mode.
+        let handle = path.withCString(encodedAs: UTF16.self) {
+            CreateFileW($0, DWORD(FILE_READ_ATTRIBUTES), DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), nil,
+                        DWORD(OPEN_EXISTING), DWORD(FILE_FLAG_BACKUP_SEMANTICS), nil)
+        }
+        guard let handle, handle != INVALID_HANDLE_VALUE else { return nil }
+        defer { CloseHandle(handle) }
+        var time = FILETIME()
+        guard GetFileTime(handle, nil, nil, &time) else { return nil }
+        // 100 ns steps since 1601.
+        let ticks = Int64(UInt64(time.dwHighDateTime) << 32 | UInt64(time.dwLowDateTime)) - 116_444_736_000_000_000
+        return Date(timeIntervalSince1970: TimeInterval(ticks / 10_000_000) + TimeInterval(ticks % 10_000_000) / 1e7)
         #else
         var info = stat()
         guard stat(path, &info) == 0 else { return nil }
@@ -119,3 +179,65 @@ public struct SystemFileOps: FileOps {
         #endif
     }
 }
+
+#if os(Windows)
+extension SystemFileOps {
+    /// `url`'s path as Windows' wide-character calls take it ("C:\…").
+    private static func path<T>(_ url: URL, _ body: (UnsafePointer<WCHAR>) throws -> T) rethrows -> T {
+        try url.withUnsafeFileSystemRepresentation { String(cString: $0!) }.withCString(encodedAs: UTF16.self, body)
+    }
+
+    /// Renames `from` to `to` on one volume (nothing is copied); over what is at `to` only when `replacing`.
+    private static func move(_ from: URL, to: URL, replacing: Bool = false) throws {
+        let moved = path(from) { old in path(to) { MoveFileExW(old, $0, replacing ? DWORD(MOVEFILE_REPLACE_EXISTING) : 0) } }
+        guard moved else { throw lastError(to) }
+    }
+
+    /// A file, not a folder or a link.
+    private static func isPlainFile(_ url: URL) -> Bool {
+        let attributes = path(url) { GetFileAttributesW($0) }
+        return attributes != INVALID_FILE_ATTRIBUTES && attributes & DWORD(FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT) == 0
+    }
+
+    /// `body` given the security attributes of a file only the user running this may open: one entry, for their account,
+    /// with the folder's entries not inherited ("D:P(A;;FA;;;<their SID>)").
+    private static func userOnly<T>(_ body: (inout SECURITY_ATTRIBUTES) throws -> T) throws -> T {
+        var token: HANDLE?
+        guard OpenProcessToken(GetCurrentProcess(), DWORD(TOKEN_QUERY), &token), let token else { throw lastError(nil) }
+        defer { CloseHandle(token) }
+        var size: DWORD = 0
+        _ = GetTokenInformation(token, TokenUser, nil, 0, &size)
+        let user = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<TOKEN_USER>.alignment)
+        defer { user.deallocate() }
+        var sid: LPWSTR?
+        guard GetTokenInformation(token, TokenUser, user, size, &size),
+              ConvertSidToStringSidW(user.assumingMemoryBound(to: TOKEN_USER.self).pointee.User.Sid, &sid), let sid else { throw lastError(nil) }
+        defer { LocalFree(sid) }
+        var descriptor: PSECURITY_DESCRIPTOR?
+        let rules = "D:P(A;;FA;;;\(String(decodingCString: sid, as: UTF16.self)))"
+        guard rules.withCString(encodedAs: UTF16.self, {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW($0, DWORD(SDDL_REVISION_1), &descriptor, nil)
+        }) else { throw lastError(nil) }
+        defer { LocalFree(descriptor) }
+        var security = SECURITY_ATTRIBUTES(nLength: DWORD(MemoryLayout<SECURITY_ATTRIBUTES>.size), lpSecurityDescriptor: descriptor,
+                                           bInheritHandle: false)
+        return try body(&security)
+    }
+
+    /// The last Windows call's error as Foundation's file errors say it (its code underneath).
+    private static func lastError(_ url: URL?) -> CocoaError {
+        let code = GetLastError()
+        let kind: CocoaError.Code
+        switch Int32(bitPattern: code) {
+        case ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND: kind = .fileNoSuchFile
+        case ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS: kind = .fileWriteFileExists
+        case ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION: kind = .fileWriteNoPermission
+        case ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL: kind = .fileWriteOutOfSpace
+        default: kind = .fileWriteUnknown
+        }
+        var info: [String: Any] = [NSUnderlyingErrorKey: NSError(domain: "Win32", code: Int(code))]
+        if let url { info[NSFilePathErrorKey] = url.path }
+        return CocoaError(kind, userInfo: info)
+    }
+}
+#endif

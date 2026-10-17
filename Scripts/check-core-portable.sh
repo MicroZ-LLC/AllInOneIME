@@ -5,8 +5,8 @@
 #     FoundationEssentials, Dispatch, Crypto, AllInOneIMEText, Synchronization) outside Platform/Apple/; a C library
 #     (Darwin, Glibc, Musl, Android, WinSDK, ucrt) only under its own `#if canImport(...)` or `#if os(...)`;
 #   - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code in such a branch;
-#   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, ...) instead of through the
-#     ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
+#   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
+#     `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
 # Scripts/check-core-portable-test.sh checks the check.
 #
 #   Scripts/check-core-portable.sh            check (run by `make test`)
