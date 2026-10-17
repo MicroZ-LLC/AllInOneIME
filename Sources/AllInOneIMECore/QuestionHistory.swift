@@ -87,8 +87,7 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
 
     /// ~/Library/Application Support/AllInOneIME/recent-questions.json
     public static var defaultURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/AllInOneIME/recent-questions.json")
+        CorePaths.dataDir.appendingPathComponent("recent-questions.json")
     }
 
     /// What `url` holds: nothing when there's no file or it can't be read (it's only a convenience).

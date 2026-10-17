@@ -165,7 +165,7 @@ public struct PluginInstallRecord: Codable, Equatable, Sendable {
 /// The plugins in ~/.config/allinoneime/plugins.
 public enum PluginStore {
     public static var directory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/allinoneime/plugins", isDirectory: true)
+        CorePaths.configDir.appendingPathComponent("plugins", isDirectory: true)
     }
 
     /// A plugin folder that can't be used, and why (shown in Settings).

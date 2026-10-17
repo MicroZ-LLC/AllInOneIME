@@ -24,7 +24,7 @@ public struct AWSFileLocations: Equatable, Sendable {
 
     public init(environment: [String: String]) {
         let home = environment["HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.homeDirectoryForCurrentUser
+            ?? CorePaths.home
         func file(_ variable: String, _ fallback: String) -> URL {
             guard let value = environment[variable], !value.isEmpty else { return home.appendingPathComponent(fallback) }
             if value == "~" { return home }

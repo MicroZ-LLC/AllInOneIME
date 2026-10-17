@@ -27,4 +27,20 @@ struct PortableTests {
         #expect(WebReader.big5.rawValue == CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.big5.rawValue)))
         #endif
     }
+
+    #if os(macOS)
+    @Test func theMacsFoldersAreTheSameAsEver() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        #expect(CorePaths.home.path == home)
+        #expect(Config.userURL.path == home + "/.config/allinoneime/config.json")
+        #expect(JargonLibrary.defaultURL.path == home + "/.config/allinoneime/jargon.txt")
+        #expect(PluginStore.directory.path == home + "/.config/allinoneime/plugins")
+        #expect(LanguagePackStore.defaultDirectory.path == home + "/Library/Application Support/AllInOneIME/LanguagePacks")
+        #expect(ExtensionSources.directory.path == home + "/Library/Application Support/AllInOneIME/Sources")
+        #expect(QuestionHistory.defaultURL.path == home + "/Library/Application Support/AllInOneIME/recent-questions.json")
+        #expect(ClaudeAgents.projectsRoot.path == home + "/.claude/projects")
+        #expect(CorePaths.logsDir.path == home + "/Library/Logs/AllInOneIME")
+        #expect(CorePaths.cacheDir.path == home + "/Library/Caches/AllInOneIME")
+    }
+    #endif
 }

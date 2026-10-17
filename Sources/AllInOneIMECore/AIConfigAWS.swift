@@ -16,7 +16,7 @@ extension AIConfig {
     /// regions, read line by line: section names and `region` lines only, never a key, a token or any other setting.
     /// SSO, role and `credential_process` profiles are listed with their region like the others.
     public static func awsProfiles(environment: [String: String] = ProcessInfo.processInfo.environment) -> [AWSProfile] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = CorePaths.home
         let config = environment["AWS_CONFIG_FILE"] ?? home.appendingPathComponent(".aws/config").path
         let credentials = environment["AWS_SHARED_CREDENTIALS_FILE"] ?? home.appendingPathComponent(".aws/credentials").path
         return awsProfiles(config: try? String(contentsOfFile: config, encoding: .utf8),

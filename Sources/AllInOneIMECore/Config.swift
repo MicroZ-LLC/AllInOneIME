@@ -410,8 +410,7 @@ public struct Config: Codable, Equatable, Sendable {
 
     /// The user's config file, `~/.config/allinoneime/config.json`.
     public static var userURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/allinoneime/config.json")
+        CorePaths.configDir.appendingPathComponent("config.json")
     }
 
     /// Set only by the app's self-test, before anything reads the config: a file of its own in its own folder, so

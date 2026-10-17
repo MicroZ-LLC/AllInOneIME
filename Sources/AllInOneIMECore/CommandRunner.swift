@@ -208,7 +208,7 @@ public enum CommandRunner {
             process.executableURL = url
             process.arguments = Array(argv.dropFirst())
             process.environment = environment
-            process.currentDirectoryURL = launch.directory ?? FileManager.default.homeDirectoryForCurrentUser
+            process.currentDirectoryURL = launch.directory ?? CorePaths.home
             let stdout = Pipe(), stderr = Pipe(), stdin = Pipe()
             process.standardOutput = stdout
             process.standardError = stderr
@@ -362,7 +362,7 @@ public enum ShellEnvironment {
         // between markers, so whatever the shell's startup files print is skipped.
         let script = names.map { "printf '\(marker)\($0)=%s' \"${\($0)}\"" }.joined(separator: "; ") + "; printf '\(marker)'"
         process.arguments = ["-ilc", script]
-        process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+        process.currentDirectoryURL = CorePaths.home
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice

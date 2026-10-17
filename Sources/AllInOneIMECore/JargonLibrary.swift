@@ -27,7 +27,7 @@ public enum JargonLibrary {
 
     /// Where the list is read from unless `Config.jargonFile` names another file.
     public static var defaultURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/allinoneime/jargon.txt")
+        CorePaths.configDir.appendingPathComponent("jargon.txt")
     }
 
     /// Written when the user creates a list from the settings window: comments only, no entries.
