@@ -1167,7 +1167,7 @@ struct AWSCredentialResolverTests {
         clock.advance(2 * 3600)
         #expect(!resolver.status(profile: "role").isReady)
         #expect(line("sso") == "SSO: Your SSO sign-in for profile sso has expired. Run `aws sso login --profile sso` in Terminal")
-        #expect(AWSProfileStatus.time(clock.now.addingTimeInterval(86400), now: clock.now, chinese: false, timeZone: utc) == "Oct 17 20:00")
+        #expect(AWSProfileStatus.time(clock.now.addingTimeInterval(86400), now: clock.now, language: "en", timeZone: utc) == "Oct 17 20:00")
     }
 }
 

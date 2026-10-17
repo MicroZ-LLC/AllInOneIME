@@ -146,13 +146,14 @@ public enum Doctor {
 
     // MARK: - The findings
 
-    /// Every finding for `facts`, problems first (then warnings, then what is fine), in the areas' order within each.
-    public static func findings(_ facts: Facts, chinese: Bool) -> [Finding] {
-        let t = Words(chinese: chinese)
+    /// Every finding for `facts`, problems first (then warnings, then what is fine), in the areas' order within each; in
+    /// the interface language `language` (`InterfaceLanguage`).
+    public static func findings(_ facts: Facts, language: String) -> [Finding] {
+        let t = Words(language: language)
         var out: [Finding] = []
         out += inputMethod(facts, t)
         out += provider(facts, t)
-        out += configFindings(data: facts.configData, error: facts.configError, config: facts.config, chinese: chinese)
+        out += configFindings(data: facts.configData, error: facts.configError, config: facts.config, language: language)
         out += permissions(facts, t)
         if let owner = facts.secureInput {
             out.append(Finding(area: .secureInput, status: .warning, title: t.tr("安全输入开着（\(owner)）", "Secure input is on (\(owner))"),
@@ -174,8 +175,8 @@ public enum Doctor {
                                detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
         } else {
             out.append(Finding(area: .recentErrors, status: .warning,
-                               title: t.tr("最近的日志里有 \(errors) 个错误",
-                                           errors == 1 ? "1 recent error in the logs" : "\(errors) recent errors in the logs"),
+                               title: errors == 1 ? t.tr("最近的日志里有 1 个错误", "1 recent error in the logs")
+                                   : t.tr("最近的日志里有 \(errors) 个错误", "\(errors) recent errors in the logs"),
                                detail: facts.recentErrors.joined(separator: t.tr("；", "; "))))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
@@ -192,17 +193,22 @@ public enum Doctor {
         }.map(\.element)
     }
 
+    /// `findings` in Simplified Chinese or English.
+    public static func findings(_ facts: Facts, chinese: Bool) -> [Finding] {
+        findings(facts, language: InterfaceLanguage.code(chinese: chinese))
+    }
+
     static func inputMethod(_ facts: Facts, _ t: Words) -> [Finding] {
         let im = facts.inputMethod
-        func problem(_ zh: String, _ en: String, _ status: Status = .problem) -> [Finding] {
-            [Finding(area: .inputMethod, status: status, title: t.tr(zh, en), detail: t.tr("可以重新启用", "it can be enabled again"),
+        func problem(_ title: String, _ status: Status = .problem) -> [Finding] {
+            [Finding(area: .inputMethod, status: status, title: title, detail: t.tr("可以重新启用", "it can be enabled again"),
                      fix: .enableInputMethod)]
         }
-        if !im.registered { return problem("输入法没有注册", "The input method isn't registered") }
-        if !im.enabled { return problem("输入法没有启用", "The input method isn't enabled") }
-        if !im.listed { return problem("输入法不在你的输入法列表里（⌃空格切换不到它）",
-                                       "The input method isn't in your input sources (Ctrl-Space doesn't reach it)", .warning) }
-        if !im.selectable { return problem("输入法现在不能选", "The input method can't be selected now", .warning) }
+        if !im.registered { return problem(t.tr("输入法没有注册", "The input method isn't registered")) }
+        if !im.enabled { return problem(t.tr("输入法没有启用", "The input method isn't enabled")) }
+        if !im.listed { return problem(t.tr("输入法不在你的输入法列表里（⌃空格切换不到它）",
+                                            "The input method isn't in your input sources (Ctrl-Space doesn't reach it)"), .warning) }
+        if !im.selectable { return problem(t.tr("输入法现在不能选", "The input method can't be selected now"), .warning) }
         return [Finding(area: .inputMethod, status: .ok,
                         title: t.tr("AllInOneIME \(im.version) 已安装并启用", "AllInOneIME \(im.version) is installed and enabled"),
                         detail: im.selected ? t.tr("正在使用", "in use now") : nil)]
@@ -211,7 +217,7 @@ public enum Doctor {
     static func provider(_ facts: Facts, _ t: Words) -> [Finding] {
         guard let config = facts.config else { return [] }
         var out: [Finding] = []
-        let name = AIConfig.Text(chinese: t.chinese).provider(config.provider)
+        let name = AIConfig.Text(language: t.language).provider(config.provider)
         let label = t.tr("AI 服务：", "AI provider: ") + name
         switch config.provider {
         case .apple:
@@ -267,13 +273,13 @@ public enum Doctor {
     /// fixed with its command on the clipboard).
     static func bedrockProfile(_ facts: Facts, config: Config, label: String, _ t: Words) -> [Finding] {
         let status = facts.awsStatus
-        let kind = status?.kind.map { " (" + $0.label(chinese: t.chinese) + ")" } ?? ""
+        let kind = status?.kind.map { " (" + $0.label(language: t.language) + ")" } ?? ""
         let fix = status?.fixCommand.map(Fix.copyCommand)
         switch facts.awsProfile {
         case let .success(region)?:
             // A profile whose credentials are fetched says so as the status line does ("credentials expire at 15:30",
             // "assumed when a request needs it"); static keys and the environment's as before.
-            let held = status.flatMap { $0.kind?.refreshes == true ? $0.credentials(chinese: t.chinese) : nil }
+            let held = status.flatMap { $0.kind?.refreshes == true ? $0.credentials(language: t.language) : nil }
                 ?? t.tr("找到了密钥", "credentials found")
             var out = [Finding(area: .provider, status: .ok, title: label,
                                detail: t.tr("profile \(config.awsProfile)\(kind)，区域 \(config.region ?? region)，\(held)",
@@ -282,16 +288,16 @@ public enum Doctor {
             if let problem = status?.problem {
                 out.append(Finding(area: .provider, status: .warning,
                                    title: t.tr("AWS 凭证下次刷新会失败", "AWS credentials: the next refresh will fail"),
-                                   detail: problem.message(chinese: t.chinese), fix: problem.fixCommand.map(Fix.copyCommand)))
+                                   detail: problem.message(language: t.language), fix: problem.fixCommand.map(Fix.copyCommand)))
             }
             if let failed = status?.lastError, failed != status?.problem {
                 out.append(Finding(area: .provider, status: .warning,
                                    title: t.tr("AWS 凭证上次刷新失败", "AWS credentials: the last refresh failed"),
-                                   detail: failed.message(chinese: t.chinese), fix: failed.fixCommand.map(Fix.copyCommand)))
+                                   detail: failed.message(language: t.language), fix: failed.fixCommand.map(Fix.copyCommand)))
             }
             return out
         case let .failure(error)?:
-            let detail = status?.problem.map { $0.message(chinese: t.chinese) } ?? error.message
+            let detail = status?.problem.map { $0.message(language: t.language) } ?? error.message
             return [Finding(area: .provider, status: .problem, title: label + kind, detail: detail, fix: fix ?? .openKeyField(.bedrock))]
         case nil:
             return [Finding(area: .provider, status: .ok, title: label)]
@@ -339,7 +345,7 @@ public enum Doctor {
         guard let config = facts.config else { return [] }
         var out: [Finding] = [], installed: [String] = []
         for language in config.inputLanguages where LanguagePack.for(language) != nil {
-            let name = t.chinese ? language.displayName : language.englishName
+            let name = language.name(in: t.language)
             switch facts.packs[language] ?? .missing {
             case .installed: installed.append(name)
             case .downloading:
@@ -366,9 +372,9 @@ public enum Doctor {
         var out: [Finding] = []
         if !facts.skippedExtensions.isEmpty {
             out.append(Finding(area: .extensions, status: .warning,
-                               title: t.tr("\(facts.skippedExtensions.count) 个扩展命令没有加载",
-                                           facts.skippedExtensions.count == 1 ? "1 extension command wasn't loaded"
-                                               : "\(facts.skippedExtensions.count) extension commands weren't loaded"),
+                               title: facts.skippedExtensions.count == 1 ? t.tr("1 个扩展命令没有加载", "1 extension command wasn't loaded")
+                                   : t.tr("\(facts.skippedExtensions.count) 个扩展命令没有加载",
+                                          "\(facts.skippedExtensions.count) extension commands weren't loaded"),
                                detail: facts.skippedExtensions.prefix(3).joined(separator: t.tr("；", "; "))))
         }
         if !facts.pluginErrors.isEmpty {
@@ -421,7 +427,12 @@ public enum Doctor {
     /// doesn't know, values out of range, a language listed twice, more than 5 translation languages. The fixes go
     /// through `AIConfig` (`repairConfig`, checked like any change) or write the file again as Settings does.
     public static func configFindings(data: Data?, error: String?, config: Config?, chinese: Bool) -> [Finding] {
-        let t = Words(chinese: chinese)
+        configFindings(data: data, error: error, config: config, language: InterfaceLanguage.code(chinese: chinese))
+    }
+
+    /// `configFindings` in the interface language `language`.
+    public static func configFindings(data: Data?, error: String?, config: Config?, language: String) -> [Finding] {
+        let t = Words(language: language)
         if let error {
             return [Finding(area: .config, status: .problem, title: t.tr("config.json 读不了", "config.json can't be read"),
                             detail: error + t.tr("（打开设置 → 高级 → 配置文件修正它；不会自动删除）",
@@ -643,29 +654,35 @@ public enum Doctor {
     }
 
     /// "2 problems, 1 warning, 9 fine".
-    public static func summary(_ findings: [Finding], chinese: Bool) -> String {
-        let t = Words(chinese: chinese)
+    public static func summary(_ findings: [Finding], language: String) -> String {
+        let t = Words(language: language)
         let problems = findings.filter { $0.status == .problem }.count, warnings = findings.filter { $0.status == .warning }.count
         let fine = findings.count - problems - warnings
         if problems == 0, warnings == 0 { return t.tr("全部正常（\(fine) 项）", "All \(fine) checks are fine") }
-        return t.tr("\(problems) 个问题，\(warnings) 个提醒，\(fine) 项正常",
-                    "\(problems) \(problems == 1 ? "problem" : "problems"), "
-                        + "\(warnings) \(warnings == 1 ? "warning" : "warnings"), \(fine) fine")
+        let problemCount = problems == 1 ? t.tr("1 个问题", "1 problem") : t.tr("\(problems) 个问题", "\(problems) problems")
+        let warningCount = warnings == 1 ? t.tr("1 个提醒", "1 warning") : t.tr("\(warnings) 个提醒", "\(warnings) warnings")
+        let fineCount = t.tr("\(fine) 项正常", "\(fine) fine")
+        return t.tr("\(problemCount)，\(warningCount)，\(fineCount)", "\(problemCount), \(warningCount), \(fineCount)")
     }
 
-    struct Words {
-        let chinese: Bool
-        func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+    /// `summary` in Simplified Chinese or English.
+    public static func summary(_ findings: [Finding], chinese: Bool) -> String {
+        summary(findings, language: InterfaceLanguage.code(chinese: chinese))
+    }
 
-        func appleReason(_ availability: AppleModelAvailability) -> String {
-            switch availability {
-            case .available: return tr("可以用", "ready")
-            case .unsupportedSystem: return tr("需要 macOS 26", "needs macOS 26")
-            case .deviceNotEligible: return tr("这台 Mac 不支持", "not supported on this Mac")
-            case .appleIntelligenceNotEnabled: return tr("在系统设置 → Apple 智能与 Siri 里打开",
-                                                         "turn it on in System Settings → Apple Intelligence & Siri")
-            case .modelNotReady: return tr("模型还没准备好（可能还在下载）", "the model isn't ready yet (it may still be downloading)")
-            }
+    /// The findings' text in one interface language (`InterfaceWords`), and the words only they use.
+    typealias Words = InterfaceWords
+}
+
+extension InterfaceWords {
+    func appleReason(_ availability: AppleModelAvailability) -> String {
+        switch availability {
+        case .available: return tr("可以用", "ready")
+        case .unsupportedSystem: return tr("需要 macOS 26", "needs macOS 26")
+        case .deviceNotEligible: return tr("这台 Mac 不支持", "not supported on this Mac")
+        case .appleIntelligenceNotEnabled: return tr("在系统设置 → Apple 智能与 Siri 里打开",
+                                                     "turn it on in System Settings → Apple Intelligence & Siri")
+        case .modelNotReady: return tr("模型还没准备好（可能还在下载）", "the model isn't ready yet (it may still be downloading)")
         }
     }
 }
@@ -674,12 +691,12 @@ extension Doctor {
     /// `fixes` as the Assistant's preview: settings repaired through its checks (rows old → new), the rest as action rows
     /// ("→ Download the Korean language pack") and a key row. Nil when none of them can be applied.
     public static func fixPreview(_ fixes: [Fix], config: Config, environment env: AIConfig.Environment) -> AIConfig.Preview? {
-        let t = Words(chinese: env.chinese)
+        let t = Words(language: env.language)
         var rows: [AIConfig.Row] = []
         var working = config
         for fix in fixes {
-            func action(_ zh: String, _ en: String, _ action: AIConfig.Action) {
-                rows.append(AIConfig.Row(key: "doctor", label: t.tr(zh, en), status: .action, action: action))
+            func action(_ label: String, _ action: AIConfig.Action) {
+                rows.append(AIConfig.Row(key: "doctor", label: label, status: .action, action: action))
             }
             switch fix {
             case let .repairConfig(changes):
@@ -688,26 +705,30 @@ extension Doctor {
                 AIConfig.apply(checked.compactMap(\.edit), to: &working)
                 rows += checked
             case .resaveConfig:
-                action("去掉 config.json 里重复的语言（别的不动）",
-                       "Remove the repeated languages from config.json (nothing else changes)", .resaveConfig)
+                action(t.tr("去掉 config.json 里重复的语言（别的不动）",
+                            "Remove the repeated languages from config.json (nothing else changes)"), .resaveConfig)
             case .enableInputMethod:
-                action("重新启用 AllInOneIME 输入法", "Enable the AllInOneIME input method again", .enableInputMethod)
+                action(t.tr("重新启用 AllInOneIME 输入法", "Enable the AllInOneIME input method again"), .enableInputMethod)
             case let .openPrivacy(pane):
-                let name: (String, String)
+                let label: String
                 switch pane {
-                case .accessibility: name = ("辅助功能", "Accessibility")
-                case .microphone: name = ("麦克风", "Microphone")
-                case .automation: name = ("自动化", "Automation")
+                case .accessibility:
+                    label = t.tr("打开系统设置 → 隐私与安全性 → 辅助功能", "Open System Settings → Privacy & Security → Accessibility")
+                case .microphone:
+                    label = t.tr("打开系统设置 → 隐私与安全性 → 麦克风", "Open System Settings → Privacy & Security → Microphone")
+                case .automation:
+                    label = t.tr("打开系统设置 → 隐私与安全性 → 自动化", "Open System Settings → Privacy & Security → Automation")
                 }
-                action("打开系统设置 → 隐私与安全性 → \(name.0)", "Open System Settings → Privacy & Security → \(name.1)", .openPrivacy(pane))
+                action(label, .openPrivacy(pane))
             case let .downloadPack(language):
-                action("下载\(language.displayName)语言包", "Download the \(language.englishName) language pack", .downloadPack(language))
+                action(t.tr("下载\(language.displayName)语言包", "Download the \(language.name(in: t.language)) language pack"),
+                       .downloadPack(language))
             case .openAppleIntelligenceSettings:
-                action("打开系统设置 → Apple 智能与 Siri", "Open System Settings → Apple Intelligence & Siri", .openAppleIntelligenceSettings)
+                action(t.tr("打开系统设置 → Apple 智能与 Siri", "Open System Settings → Apple Intelligence & Siri"), .openAppleIntelligenceSettings)
             case .checkForUpdates:
-                action("检查更新", "Check for updates", .checkForUpdates)
+                action(t.tr("检查更新", "Check for updates"), .checkForUpdates)
             case let .copyCommand(command):
-                action("复制命令到剪贴板，在终端里运行：\(command)", "Copy the command to run in Terminal: \(command)", .copyCommand(command))
+                action(t.tr("复制命令到剪贴板，在终端里运行：\(command)", "Copy the command to run in Terminal: \(command)"), .copyCommand(command))
             case let .openKeyField(provider):
                 let text = AIConfig.Text(language: env.language)
                 // The row a request's preview shows for a provider without a key (it is the one in use here: nothing to choose).

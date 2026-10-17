@@ -111,50 +111,60 @@ public struct AWSProfileStatus: Equatable, Sendable {
 
     /// "Static keys: found the keys for this profile", "Role via base: credentials expire at 15:30", "SSO (signed in until
     /// 18:00): …", "credential_process: runs when a request needs credentials", or the problem.
-    public func line(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
-        func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
-        let separator = tr("：", ": ")
+    public func line(language: String, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+        let t = InterfaceWords(language: language)
+        let separator = t.tr("：", ": ")
         guard let kind, kind != .noCredentials else {
-            return (problem ?? (kind == nil ? .profileNotFound(profile) : .noCredentials(profile: profile))).message(chinese: chinese)
+            return (problem ?? (kind == nil ? .profileNotFound(profile) : .noCredentials(profile: profile))).message(language: language)
         }
-        var label = kind.label(chinese: chinese)
+        var label = kind.label(language: language)
         if let until = signedInUntil, until > now {
-            label += tr("（登录有效至 \(Self.time(until, now: now, chinese: true, timeZone: timeZone))）",
-                        " (signed in until \(Self.time(until, now: now, chinese: false, timeZone: timeZone)))")
+            label += t.tr("（登录有效至 \(Self.time(until, now: now, language: "zh-Hans", timeZone: timeZone))）",
+                          " (signed in until \(Self.time(until, now: now, language: language, timeZone: timeZone)))")
         }
         var detail: String
         if let expiration, hasCredentials, expiration > now {
-            detail = credentials(chinese: chinese, now: now, timeZone: timeZone)
-            if let problem { detail += tr("；", "; ") + problem.message(chinese: chinese) }
+            detail = credentials(language: language, now: now, timeZone: timeZone)
+            if let problem { detail += t.tr("；", "; ") + problem.message(language: language) }
         } else if let problem {
-            detail = problem.message(chinese: chinese)
+            detail = problem.message(language: language)
         } else {
-            detail = credentials(chinese: chinese, now: now, timeZone: timeZone)
+            detail = credentials(language: language, now: now, timeZone: timeZone)
         }
         if let lastError, lastError != problem {
-            detail += tr("；上次刷新失败：", "; the last refresh failed: ") + lastError.shortMessage(chinese: chinese)
+            detail += t.tr("；上次刷新失败：", "; the last refresh failed: ") + lastError.shortMessage(language: language)
         }
         return label + separator + detail
     }
 
+    /// `line` in Simplified Chinese or English.
+    public func line(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+        line(language: InterfaceLanguage.code(chinese: chinese), now: now, timeZone: timeZone)
+    }
+
     /// The credentials held, as the status line and the checks say it: "credentials expire at 15:30", "found the keys for
     /// this profile", or, nothing fetched yet, when they will be ("assumed when a request needs it").
-    public func credentials(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
-        func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+    public func credentials(language: String, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+        let t = InterfaceWords(language: language)
         if let expiration, hasCredentials, expiration > now {
-            return tr("凭证 \(Self.time(expiration, now: now, chinese: true, timeZone: timeZone)) 到期",
-                      "credentials expire at \(Self.time(expiration, now: now, chinese: false, timeZone: timeZone))")
+            return t.tr("凭证 \(Self.time(expiration, now: now, language: "zh-Hans", timeZone: timeZone)) 到期",
+                      "credentials expire at \(Self.time(expiration, now: now, language: language, timeZone: timeZone))")
         }
         switch kind {
-        case .staticKeys?: return tr("已找到这个 profile 的密钥", "found the keys for this profile")
-        case .environment?: return tr("已找到 shell 里的 AWS_ACCESS_KEY_ID", "found AWS_ACCESS_KEY_ID in your shell")
+        case .staticKeys?: return t.tr("已找到这个 profile 的密钥", "found the keys for this profile")
+        case .environment?: return t.tr("已找到 shell 里的 AWS_ACCESS_KEY_ID", "found AWS_ACCESS_KEY_ID in your shell")
         case .credentialProcess?:
-            return hasCredentials ? tr("凭证一直用到 AWS 不再接受", "credentials kept until AWS stops taking them")
-                : tr("需要凭证时才运行", "runs when a request needs credentials")
-        case .role?: return tr("需要时才切换角色", "assumed when a request needs it")
-        case .sso?: return tr("需要时才取凭证", "credentials fetched when a request needs them")
-        case .noCredentials?, nil: return AWSCredentialError.noCredentials(profile: profile).message(chinese: chinese)
+            return hasCredentials ? t.tr("凭证一直用到 AWS 不再接受", "credentials kept until AWS stops taking them")
+                : t.tr("需要凭证时才运行", "runs when a request needs credentials")
+        case .role?: return t.tr("需要时才切换角色", "assumed when a request needs it")
+        case .sso?: return t.tr("需要时才取凭证", "credentials fetched when a request needs them")
+        case .noCredentials?, nil: return AWSCredentialError.noCredentials(profile: profile).message(language: language)
         }
+    }
+
+    /// `credentials` in Simplified Chinese or English.
+    public func credentials(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+        credentials(language: InterfaceLanguage.code(chinese: chinese), now: now, timeZone: timeZone)
     }
 
     /// Seconds until the line may read otherwise: the credentials' expiry, the end of the sign-in, or a minute, whichever
@@ -165,14 +175,25 @@ public struct AWSProfileStatus: Equatable, Sendable {
         return max(1, min(60, next))
     }
 
-    /// "15:30" today, else "Oct 17 15:30" ("10月17日 15:30").
-    static func time(_ date: Date, now: Date, chinese: Bool, timeZone: TimeZone) -> String {
+    /// "15:30" today, else "Oct 17 15:30" ("10月17日 15:30"; the day as `language` writes it in the others).
+    static func time(_ date: Date, now: Date, language: String, timeZone: TimeZone) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: chinese ? "zh_Hans" : "en_US_POSIX")
         formatter.timeZone = timeZone
-        formatter.dateFormat = calendar.isDate(date, inSameDayAs: now) ? "HH:mm" : chinese ? "M月d日 HH:mm" : "MMM d HH:mm"
+        if calendar.isDate(date, inSameDayAs: now) {
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "HH:mm"
+        } else if InterfaceLanguage.isChinese(language) {
+            formatter.locale = Locale(identifier: "zh_Hans")
+            formatter.dateFormat = "M月d日 HH:mm"
+        } else if language == "en" {
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "MMM d HH:mm"
+        } else {
+            formatter.locale = Locale(identifier: language)
+            formatter.setLocalizedDateFormatFromTemplate("MMMd HH:mm")
+        }
         return formatter.string(from: date)
     }
 }

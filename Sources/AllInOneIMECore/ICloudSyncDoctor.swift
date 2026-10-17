@@ -29,10 +29,13 @@ extension Doctor {
         }
         guard sync.available else {
             return [Finding(area: .iCloudSync, status: .problem, title: t.tr("iCloud 云盘不可用", "iCloud Drive isn't available"),
-                            detail: ICloudSync.turnOnDrive(chinese: t.chinese))]
+                            detail: ICloudSync.turnOnDrive(language: t.language))]
         }
         var out: [Finding] = []
-        let last = sync.lastSync.map { t.tr("上次同步：", "last synced ") + ICloudSync.ago($0, now: sync.checked ?? Date(), chinese: t.chinese) }
+        let last = sync.lastSync.map {
+            let ago = ICloudSync.ago($0, now: sync.checked ?? Date(), language: t.language)
+            return t.tr("上次同步：\(ago)", "last synced \(ago)")
+        }
         if let error = sync.lastError {
             out.append(Finding(area: .iCloudSync, status: .warning, title: t.tr("通过 iCloud 同步出错了", "Sync through iCloud failed"),
                                detail: [error, last].compactMap { $0 }.joined(separator: t.tr("；", "; "))))
@@ -41,18 +44,17 @@ extension Doctor {
                                detail: [t.tr("别的 Mac 同步的文件还在下载", "files another Mac synced are still downloading"), last]
                                    .compactMap { $0 }.joined(separator: t.tr("；", "; "))))
         } else if let lastSync = sync.lastSync {
-            out.append(Finding(area: .iCloudSync, status: .ok,
-                               title: t.tr("已通过 iCloud 同步（", "Synced through iCloud ")
-                                   + ICloudSync.ago(lastSync, now: sync.checked ?? Date(), chinese: t.chinese) + t.tr("）", "")))
+            let ago = ICloudSync.ago(lastSync, now: sync.checked ?? Date(), language: t.language)
+            out.append(Finding(area: .iCloudSync, status: .ok, title: t.tr("已通过 iCloud 同步（\(ago)）", "Synced through iCloud \(ago)")))
         } else {
             out.append(Finding(area: .iCloudSync, status: .warning, title: t.tr("还没有通过 iCloud 同步过", "Not synced through iCloud yet"),
                                detail: t.tr("在设置 → 通用里点「立即同步」", "Settings → General → Sync Now")))
         }
         if !sync.refused.isEmpty {
-            let list = sync.refused.sorted { $0.key < $1.key }.map { "\($0.key) (\($0.value.text(chinese: t.chinese)))" }
+            let list = sync.refused.sorted { $0.key < $1.key }.map { "\($0.key) (\($0.value.text(language: t.language)))" }
             out.append(Finding(area: .iCloudSync, status: .warning,
-                               title: t.tr("iCloud 里的 \(list.count) 项设置没有用在这台 Mac 上",
-                                           list.count == 1 ? "1 setting from iCloud isn't used on this Mac" : "\(list.count) settings from iCloud aren't used on this Mac"),
+                               title: list.count == 1 ? t.tr("iCloud 里的 1 项设置没有用在这台 Mac 上", "1 setting from iCloud isn't used on this Mac")
+                                   : t.tr("iCloud 里的 \(list.count) 项设置没有用在这台 Mac 上", "\(list.count) settings from iCloud aren't used on this Mac"),
                                detail: list.joined(separator: t.tr("、", ", "))))
         }
         return out
@@ -61,20 +63,23 @@ extension Doctor {
 
 extension ICloudSync {
     /// What to do when iCloud Drive isn't there.
-    public static func turnOnDrive(chinese: Bool) -> String {
-        chinese ? "在系统设置 → Apple 账户 → iCloud 里打开 iCloud 云盘" : "Turn on iCloud Drive in System Settings → Apple Account → iCloud"
+    public static func turnOnDrive(language: String) -> String {
+        InterfaceWords(language: language).tr("在系统设置 → Apple 账户 → iCloud 里打开 iCloud 云盘",
+                                              "Turn on iCloud Drive in System Settings → Apple Account → iCloud")
     }
 
     /// "just now", "2 min ago", "3 h ago", or the day.
-    public static func ago(_ date: Date, now: Date, chinese: Bool) -> String {
+    public static func ago(_ date: Date, now: Date, language: String) -> String {
+        let t = InterfaceWords(language: language)
         let seconds = max(0, now.timeIntervalSince(date))
+        let (minutes, hours) = (Int(seconds / 60), Int(seconds / 3600))
         switch seconds {
-        case ..<60: return chinese ? "刚刚" : "just now"
-        case ..<3600: return chinese ? "\(Int(seconds / 60)) 分钟前" : "\(Int(seconds / 60)) min ago"
-        case ..<86400: return chinese ? "\(Int(seconds / 3600)) 小时前" : "\(Int(seconds / 3600)) h ago"
+        case ..<60: return t.tr("刚刚", "just now")
+        case ..<3600: return t.tr("\(minutes) 分钟前", "\(minutes) min ago")
+        case ..<86400: return t.tr("\(hours) 小时前", "\(hours) h ago")
         default:
             let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: chinese ? "zh_CN" : "en_US")
+            formatter.locale = Locale(identifier: language == "en" ? "en_US" : language)
             formatter.dateStyle = .medium
             formatter.timeStyle = .short
             return formatter.string(from: date)
@@ -89,7 +94,7 @@ extension AIConfig {
         let label = text.iCloudSyncLabel, path = Key.iCloudSync.path
         guard case let .bool(on) = value else { return Row(key: path, label: label, status: .refused(text.notValid)) }
         guard on != config.iCloudSync.enabled else { return nil }
-        if on, !env.iCloudDriveAvailable() { return Row(key: path, label: label, status: .refused(ICloudSync.turnOnDrive(chinese: env.chinese))) }
+        if on, !env.iCloudDriveAvailable() { return Row(key: path, label: label, status: .refused(ICloudSync.turnOnDrive(language: env.language))) }
         return Row(key: path, label: label, old: text.onOff(config.iCloudSync.enabled), new: text.onOff(on), status: .change, edit: .iCloudSync(on))
     }
 }

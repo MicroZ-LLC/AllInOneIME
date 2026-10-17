@@ -25,7 +25,7 @@ struct ICloudSyncSection: View {
             }
             if driveMissing || (model.config.iCloudSync.enabled && !sync.driveAvailable) {
                 HStack(alignment: .firstTextBaseline) {
-                    Label(ICloudSync.turnOnDrive(chinese: UIText.chinese), systemImage: "exclamationmark.triangle.fill")
+                    Label(ICloudSync.turnOnDrive(language: UIText.language), systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                     Spacer()
                     Button(tr("打开 iCloud 设置", "Open iCloud Settings"), action: Self.openICloudSettings)
@@ -159,24 +159,35 @@ struct ICloudSyncSection: View {
     private func statusLine(now: Date) -> String {
         if !sync.refused.isEmpty {
             let count = sync.refused.count
-            return statusText(now: now) + tr("；iCloud 里有 \(count) 项设置没用在这台 Mac 上（设置 → 助手的「检查问题」说明原因）",
-                                             count == 1 ? "; 1 setting from iCloud isn't used here (Settings → Assistant → Check for problems says why)"
-                                                 : "; \(count) settings from iCloud aren't used here (Settings → Assistant → Check for problems says why)")
+            return statusText(now: now) + (count == 1
+                ? tr("；iCloud 里有 1 项设置没用在这台 Mac 上（设置 → 助手的「检查问题」说明原因）",
+                     "; 1 setting from iCloud isn't used here (Settings → Assistant → Check for problems says why)")
+                : tr("；iCloud 里有 \(count) 项设置没用在这台 Mac 上（设置 → 助手的「检查问题」说明原因）",
+                     "; \(count) settings from iCloud aren't used here (Settings → Assistant → Check for problems says why)"))
         }
         return statusText(now: now)
     }
 
     private func statusText(now: Date) -> String {
         switch sync.status {
-        case .off: return sync.lastSync.map { tr("上次同步：", "Last synced ") + ICloudSync.ago($0, now: now, chinese: UIText.chinese) }
+        case .off: return sync.lastSync.map { lastSynced($0, now: now) }
             ?? tr("还没有同步过", "Not synced yet")
         case .unavailable: return tr("iCloud 云盘不可用", "iCloud Drive isn't available")
         case .syncing: return tr("正在同步…", "Syncing…")
-        case let .synced(date): return tr("上次同步：", "Last synced ") + ICloudSync.ago(date, now: now, chinese: UIText.chinese)
+        case let .synced(date): return lastSynced(date, now: now)
         case .waiting: return tr("正在等 iCloud…", "Waiting for iCloud…")
-            + (sync.lastSync.map { tr("（上次同步：", " (last synced ") + ICloudSync.ago($0, now: now, chinese: UIText.chinese) + tr("）", ")") } ?? "")
+            + (sync.lastSync.map {
+                let ago = ICloudSync.ago($0, now: now, language: UIText.language)
+                return tr("（上次同步：\(ago)）", " (last synced \(ago))")
+            } ?? "")
         case let .failed(message): return message
         }
+    }
+
+    /// "Last synced 2 min ago".
+    private func lastSynced(_ date: Date, now: Date) -> String {
+        let ago = ICloudSync.ago(date, now: now, language: UIText.language)
+        return tr("上次同步：\(ago)", "Last synced \(ago)")
     }
 
     private var statusColor: Color {

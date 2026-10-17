@@ -321,7 +321,7 @@ enum UIText {
     /// An error as the settings window shows it.
     static func describe(_ error: Error) -> String {
         // One line that says what to do ("SSO sign-in expired: run aws sso login --profile X").
-        if let error = error as? AWSCredentialError { return error.shortMessage(chinese: chinese) }
+        if let error = error as? AWSCredentialError { return error.shortMessage(language: language) }
         if let error = error as? WebReader.ReadError {
             switch error {
             case let .invalidURL(text): return tr("不是网址：\(text)", "Not a web address: \(text)")

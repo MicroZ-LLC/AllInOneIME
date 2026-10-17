@@ -54,13 +54,13 @@ final class AWSProfileModel: ObservableObject {
     /// "dev — Role via base".
     func label(_ name: String, shownAs: String? = nil) -> String {
         guard let kind = summaries.first(where: { $0.name == name })?.kind else { return shownAs ?? name }
-        return (shownAs ?? name) + "  —  " + kind.label(chinese: UIText.chinese)
+        return (shownAs ?? name) + "  —  " + kind.label(language: UIText.language)
     }
 
     /// The status line, in the window's language.
     func line(profile: String) -> String {
         guard let status = status(for: profile) else { return tr("正在读取 profile…", "Reading the profile…") }
-        return status.line(chinese: UIText.chinese)
+        return status.line(language: UIText.language)
     }
 }
 

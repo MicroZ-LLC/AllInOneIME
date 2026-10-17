@@ -672,17 +672,21 @@ public enum ICloudSync {
         /// A key the config always has can't be deleted.
         case cannotDelete
 
-        public func text(chinese: Bool) -> String {
+        public func text(language: String) -> String {
+            let t = InterfaceWords(language: language)
             switch self {
-            case .wrongType: return chinese ? "值的类型不对" : "not the right kind of value"
-            case .outOfRange: return chinese ? "超出设置允许的范围" : "out of the range Settings allows"
-            case .unknownValue: return chinese ? "这个版本不认识这个值" : "a value this version doesn't know"
-            case .invalidCommand: return chinese ? "有设置里存不了的命令" : "a command Settings couldn't save"
-            case .noKey: return chinese ? "这台 Mac 上没有它的密钥" : "no key for it on this Mac"
-            case .noProfile: return chinese ? "这台 Mac 上没有这个 AWS profile" : "no such AWS profile on this Mac"
-            case .cannotDelete: return chinese ? "这一项不能删除" : "this setting can't be removed"
+            case .wrongType: return t.tr("值的类型不对", "not the right kind of value")
+            case .outOfRange: return t.tr("超出设置允许的范围", "out of the range Settings allows")
+            case .unknownValue: return t.tr("这个版本不认识这个值", "a value this version doesn't know")
+            case .invalidCommand: return t.tr("有设置里存不了的命令", "a command Settings couldn't save")
+            case .noKey: return t.tr("这台 Mac 上没有它的密钥", "no key for it on this Mac")
+            case .noProfile: return t.tr("这台 Mac 上没有这个 AWS profile", "no such AWS profile on this Mac")
+            case .cannotDelete: return t.tr("这一项不能删除", "this setting can't be removed")
             }
         }
+
+        /// `text` in Simplified Chinese or English.
+        public func text(chinese: Bool) -> String { text(language: InterfaceLanguage.code(chinese: chinese)) }
     }
 
     /// What the checks need of this Mac: which providers have a key (asked without reading it), the AWS profiles, the

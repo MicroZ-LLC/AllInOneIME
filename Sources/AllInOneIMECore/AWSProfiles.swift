@@ -78,16 +78,20 @@ public enum AWSProfileKind: Equatable, Sendable {
     case noCredentials
 
     /// "Static keys", "credential_process", "Role via base", "SSO", "Environment variables".
-    public func label(chinese: Bool) -> String {
+    public func label(language: String) -> String {
+        let t = InterfaceWords(language: language)
         switch self {
-        case .staticKeys: return chinese ? "静态密钥" : "Static keys"
+        case .staticKeys: return t.tr("静态密钥", "Static keys")
         case .credentialProcess: return "credential_process"
-        case let .role(source): return chinese ? "通过 \(source) 的角色" : "Role via \(source)"
+        case let .role(source): return t.tr("通过 \(source) 的角色", "Role via \(source)")
         case .sso: return "SSO"
-        case .environment: return chinese ? "环境变量" : "Environment variables"
-        case .noCredentials: return chinese ? "没有凭证" : "No credentials"
+        case .environment: return t.tr("环境变量", "Environment variables")
+        case .noCredentials: return t.tr("没有凭证", "No credentials")
         }
     }
+
+    /// `label` in Simplified Chinese or English.
+    public func label(chinese: Bool) -> String { label(language: InterfaceLanguage.code(chinese: chinese)) }
 
     /// Whether its credentials expire and are fetched again (a program, STS, the SSO portal).
     public var refreshes: Bool {
