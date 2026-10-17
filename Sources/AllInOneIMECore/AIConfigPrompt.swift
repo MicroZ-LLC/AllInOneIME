@@ -1,6 +1,6 @@
 import Foundation
 
-/// The request of `@config` (`AIConfig`): its own instructions, separate from every other prompt (those stay as they
+/// The request of Settings → Assistant (`AIConfig`): its own instructions, separate from every other prompt (those stay as they
 /// were). They hold the allowlist with each setting's type and allowed values, the current values of those settings
 /// only (never a key, a word hidden from the AI, or any other part of the config), and the rules of the answer; the
 /// user's sentence is the message. Bump `version` when the wording changes (it is part of the cache key).

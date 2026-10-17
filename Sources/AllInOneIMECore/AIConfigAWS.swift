@@ -1,7 +1,7 @@
 import Foundation
 
 extension AIConfig {
-    /// An AWS profile as `@config` may know it: its name and region, nothing else of it.
+    /// An AWS profile as Settings → Assistant may know it: its name and region, nothing else of it.
     public struct AWSProfile: Equatable, Sendable {
         public var name: String
         public var region: String?

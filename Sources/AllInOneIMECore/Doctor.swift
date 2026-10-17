@@ -1,9 +1,10 @@
 import Foundation
 
-/// `@doctor`: the setup checked on this Mac, a row per finding (✗ problems first, then ⚠, then ✓), each with a short
-/// fix; the safe, local fixes go through `@config`'s preview, apply and undo (`fixPreview`). The checks read only what the
+/// Settings → Assistant's "Check for problems": the setup checked on this Mac, a row per finding (✗ problems first,
+/// then ⚠, then ✓), each with a short fix; the config fixes go through the request's preview, apply and undo
+/// (`fixPreview`). The checks read only what the
 /// input method already knows (`Facts`, gathered by the app's probes; the tests give their own) and never send anything.
-/// `@doctor <question>` then has the model explain the likely cause from them (`DoctorService`).
+/// A question then has the model explain the likely cause from them (`DoctorService`).
 public enum Doctor {
     public enum Status: Int, Comparable, Sendable {
         case problem, warning, ok
@@ -39,7 +40,7 @@ public enum Doctor {
         case openPrivacy(PrivacyPane)
         /// Downloads a language pack (confirmed in the preview first).
         case downloadPack(Language)
-        /// Settings changed through `@config`'s checks and apply/undo.
+        /// Settings changed through `AIConfig`'s checks and apply/undo.
         case repairConfig([AIConfig.Change])
         /// The repeated languages taken out of the config file (`removeRepeatedLanguages`): nothing else in it changes,
         /// keys this version doesn't know included.
@@ -51,16 +52,6 @@ public enum Doctor {
         case openAppleIntelligenceSettings
         /// "Check for Updates" as in the input menu.
         case checkForUpdates
-
-        /// One that ⏎ applies with the others ("fix all safe ones"): it changes only this app's own settings or input
-        /// source, opening nothing. What opens a window or a pane (Check for Updates opens Settings), or downloads, is
-        /// picked one by one.
-        public var isSafe: Bool {
-            switch self {
-            case .repairConfig, .resaveConfig, .enableInputMethod: return true
-            case .openPrivacy, .downloadPack, .openKeyField, .openAppleIntelligenceSettings, .checkForUpdates, .copyCommand: return false
-            }
-        }
     }
 
     public struct Finding: Equatable, Sendable {
@@ -235,7 +226,7 @@ public enum Doctor {
                 out.append(Finding(area: .provider, status: .ok, title: label,
                                    detail: config.provider == .hosted ? t.tr("已登录", "signed in") : t.tr("已保存 API key", "API key saved")))
             } else {
-                // As `@config` says it of a provider without a key; its fix opens Settings at the key field.
+                // As the Assistant's preview says it of a provider without a key; its fix opens Settings at the key field.
                 out.append(Finding(area: .provider, status: .problem, title: label,
                                    detail: config.provider == .hosted ? t.tr("需要登录：在设置里登录", "needs a sign-in: sign in in Settings")
                                        : t.tr("需要 API key：在设置里填（不会发给 AI）", "needs an API key: add it in Settings (never sent to the AI)"),
@@ -251,17 +242,19 @@ public enum Doctor {
         case let .failed(line):
             out.append(Finding(area: .connection, status: .problem, title: t.tr("连接失败", "The connection failed"), detail: line))
         }
-        // @config and @doctor use the on-device model whatever the provider: say whether they can.
+        // Settings → Assistant uses the on-device model whatever the provider: say whether it can.
         if config.provider != .apple, facts.apple != .unsupportedSystem {
             if facts.apple == .available {
                 out.append(Finding(area: .appleIntelligence, status: .ok,
-                                   title: t.tr("Apple 智能可以用（@config 和 @doctor 在本机运行）",
-                                               "Apple Intelligence is ready (@config and @doctor run on this Mac)")))
+                                   title: t.tr("Apple 智能可以用", "Apple Intelligence is ready"),
+                                   detail: t.tr("这一页的请求在本机处理", "Requests on this page are handled on this Mac")))
             } else {
                 let fixable = facts.apple == .appleIntelligenceNotEnabled
                 out.append(Finding(area: .appleIntelligence, status: .warning,
                                    title: t.tr("Apple 智能不能用", "Apple Intelligence isn't available"),
-                                   detail: t.appleReason(facts.apple), fix: fixable ? .openAppleIntelligenceSettings : nil))
+                                   detail: t.appleReason(facts.apple) + t.tr("；这一页的请求会发给你选的 AI 服务",
+                                                                            "; requests on this page go to your AI provider"),
+                                   fix: fixable ? .openAppleIntelligenceSettings : nil))
             }
         }
         return out
@@ -423,7 +416,7 @@ public enum Doctor {
 
     /// What is wrong with the config file: it can't be read (no automatic fix: it is never replaced), keys this version
     /// doesn't know, values out of range, a language listed twice, more than 5 translation languages. The fixes go
-    /// through `@config` (`repairConfig`, checked like any change) or write the file again as Settings does.
+    /// through `AIConfig` (`repairConfig`, checked like any change) or write the file again as Settings does.
     public static func configFindings(data: Data?, error: String?, config: Config?, chinese: Bool) -> [Finding] {
         let t = Words(chinese: chinese)
         if let error {
@@ -475,7 +468,7 @@ public enum Doctor {
 
     // MARK: - Logs
 
-    /// Error lines of the app's own logs, as `@doctor` may show and send them: the newest `limit`, each as a fixed phrase
+    /// Error lines of the app's own logs, as the checks may show and send them: the newest `limit`, each as a fixed phrase
     /// for the event it records ("update check failed (network, -1009)", "Rime dictionary failed to load", "plugin
     /// weather failed to load"), with a reason from a fixed list or an error code or domain. Of the line's own text only
     /// two things may be kept: a `~/…` path in a Rime dictionary event (which of its files), and a plugin's name when it
@@ -635,7 +628,7 @@ public enum Doctor {
     // MARK: - For the model
 
     /// The findings as the model reads them, one per line, each with its id when it has a fix ("F3"): what
-    /// `@doctor <question>` sends, nothing else. In the language they were made in: the controller makes them in English
+    /// a question sends, nothing else. In the language they were made in: the controller makes them in English
     /// for the model (`findings(_:chinese: false)`, in the same order as the panel's). Each line is scrubbed again
     /// (`scrub`): no paths beyond ~ ("…/<last>" for others), no keys; the user's text was never in them.
     public static func report(_ findings: [Finding], areas: Set<Area>? = nil) -> String {
@@ -675,7 +668,7 @@ public enum Doctor {
 }
 
 extension Doctor {
-    /// `fixes` as `@config`'s preview: settings repaired through its checks (rows old → new), the rest as action rows
+    /// `fixes` as the Assistant's preview: settings repaired through its checks (rows old → new), the rest as action rows
     /// ("→ Download the Korean language pack") and a key row. Nil when none of them can be applied.
     public static func fixPreview(_ fixes: [Fix], config: Config, environment env: AIConfig.Environment) -> AIConfig.Preview? {
         let t = Words(chinese: env.chinese)
@@ -714,7 +707,7 @@ extension Doctor {
                 action("复制命令到剪贴板，在终端里运行：\(command)", "Copy the command to run in Terminal: \(command)", .copyCommand(command))
             case let .openKeyField(provider):
                 let text = AIConfig.Text(chinese: env.chinese)
-                // The row `@config` shows for a provider without a key (it is the one in use here: nothing to choose).
+                // The row a request's preview shows for a provider without a key (it is the one in use here: nothing to choose).
                 rows.append(provider == .bedrock
                     ? AIConfig.Row(key: "\(provider.rawValue).apiKey", label: text.keyLabel(provider),
                                    new: t.tr("在设置 → AI 服务里看 AWS profile", "check the AWS profile in Settings → AI Provider"),

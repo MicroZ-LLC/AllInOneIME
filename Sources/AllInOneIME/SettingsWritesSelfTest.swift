@@ -93,7 +93,7 @@ extension SelfTest {
     }
 
     /// A field copied from the config when its page shows follows the config while it isn't being edited, and is written
-    /// back only when it was: with the Privacy words showing, `@config` adds a word to the file; the page is left and the
+    /// back only when it was: with the Privacy words showing, the Assistant adds a word to the file; the page is left and the
     /// window closed: the word is still there. With a word typed into the field meanwhile, both are kept.
     static func testFieldsFollowOutsideWrites(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("outside-config.json")
@@ -128,7 +128,7 @@ extension SelfTest {
                     _ = pump(timeout: 0.2) { false }
                 }
             }
-            // @config adds a word as it does: to the file, then the windows are told.
+            // The Assistant adds a word as it does: to the file, then the windows are told.
             _ = try? AIConfig.applying([.addWords(["Project Phoenix"])], at: url, now: Date())
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             _ = pump(timeout: 0.5) { false }
@@ -141,8 +141,8 @@ extension SelfTest {
             let words = (try? Config.load(from: url))?.redaction.customWords ?? []
             let expected = typing ? ["Atlas", "Project Phoenix", "comet"] : ["Atlas", "Project Phoenix"]
             check(words == expected, typing
-                  ? "a word typed into the field while @config added one: both kept when the page is left (\(words))"
-                  : "a word @config adds while the Privacy words show is still there once the page is left and closed (\(words))")
+                  ? "a word typed into the field while the Assistant added one: both kept when the page is left (\(words))"
+                  : "a word the Assistant adds while the Privacy words show is still there once the page is left and closed (\(words))")
         }
     }
 
@@ -190,7 +190,7 @@ extension SelfTest {
               "the custom agent's command follows a hand edit, and typing goes on from it (shown \(shown), written \(written))")
     }
 
-    /// A Settings save writes only what the window changed. With Settings open, `@config` sets one app's profile and a
+    /// A Settings save writes only what the window changed. With Settings open, the Assistant sets one app's profile and a
     /// switch of hiding sensitive information, and the window isn't told; the window then changes another app's profile
     /// and another switch, and saves: all four are in the file, and the window shows them.
     static func testSettingsSavesOnlyItsChanges(snapshotDirectory: URL) {
@@ -206,7 +206,7 @@ extension SelfTest {
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }
-        // @config: Mail's results typed out, emails no longer hidden; the window not told.
+        // The Assistant: Mail's results typed out, emails no longer hidden; the window not told.
         _ = try? AIConfig.applying([.app(mail, .typeOut(true)), .flag(.redactionEmails, false)], at: url, now: Date())
         // The window: WeChat in English, phone numbers no longer hidden, saved as its controls save.
         model.config.appProfiles[weChat]?.inputLanguage = .english
@@ -218,8 +218,8 @@ extension SelfTest {
         let file = (try? Config.load(from: url)) ?? .default
         check(file.appProfiles[mail] == AppProfile(inputLanguage: .english, typeOut: true) && file.appProfiles[weChat] == AppProfile(inputLanguage: .english)
               && !file.redaction.emails && !file.redaction.phones && file.redaction.cards,
-              "a Settings save over an @config write it hadn't read keeps both: another app's profile, another switch (\(file.appProfiles), "
+              "a Settings save over an Assistant write it hadn't read keeps both: another app's profile, another switch (\(file.appProfiles), "
               + "emails \(file.redaction.emails), phones \(file.redaction.phones))")
-        check(model.config.appProfiles[mail]?.typeOut == true && !model.config.redaction.emails, "and the window then shows @config's change")
+        check(model.config.appProfiles[mail]?.typeOut == true && !model.config.redaction.emails, "and the window then shows the Assistant's change")
     }
 }

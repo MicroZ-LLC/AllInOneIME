@@ -3019,8 +3019,9 @@ enum SelfTest {
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
-        testAIConfig(controller, client, snapshotDirectory: snapshotDirectory)
-        testDoctor(controller, client, snapshotDirectory: snapshotDirectory)
+        testAIConfig(snapshotDirectory: snapshotDirectory)
+        testDoctor(snapshotDirectory: snapshotDirectory)
+        testAssistantPage(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
 
         section("error display (an invalid Bedrock model)", needs: [.composing, .bedrock])

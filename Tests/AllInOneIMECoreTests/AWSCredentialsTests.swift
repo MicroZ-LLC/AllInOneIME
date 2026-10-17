@@ -791,7 +791,7 @@ struct AWSCredentialResolverTests {
         let home = try AWSCTHome(config: "[profile dev]\nrole_arn = arn:aws:iam::1:role/r\nsource_profile = keys\n[profile proc]\ncredential_process = /bin/echo\n",
                                  credentials: "[keys]\naws_access_key_id = AKIAKEYS\naws_secret_access_key = k\n")
         defer { home.remove() }
-        // @doctor tells the time by the real clock.
+        // The checks tell the time by the real clock.
         let clock = AWSCTClock(Date()), http = AWSCTHTTP()
         http.on("sts.us-east-1.amazonaws.com", .init(status: 200, body: AWSCT.assumeRoleXML("ASIAROLE", expiration: clock.now.addingTimeInterval(3600))),
                 .init(status: 403, body: AWSCT.stsError("AccessDenied", "Not allowed any more")))
@@ -1115,7 +1115,7 @@ struct AWSCredentialResolverTests {
         ])
         for name in ["default", "proc", "role", "sso"] { _ = resolver.status(profile: name) }
         #expect(runner.runs.isEmpty && http.requests.isEmpty)
-        // @config's own listing is unchanged: names and regions.
+        // The Assistant's own listing is unchanged: names and regions.
         #expect(AIConfig.awsProfiles(environment: ["AWS_CONFIG_FILE": home.files.config.path,
                                                    "AWS_SHARED_CREDENTIALS_FILE": home.files.credentials.path]).map(\.name)
             == ["default", "proc", "role", "sso"])

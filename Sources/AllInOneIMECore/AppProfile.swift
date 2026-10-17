@@ -161,5 +161,5 @@ extension Command {
     /// Sends its text to a model: @improve, @translate, @question, a custom prompt command, editing a selection, and
     /// @agent (a coding agent). Refused in an app with no AI (`AppProfile.noAI`); the others (@open, @note, a program,
     /// a script, a link …) work.
-    public var usesAI: Bool { kind == .convert || kind == .generate || self == .agent || kind == .config }
+    public var usesAI: Bool { kind == .convert || kind == .generate || self == .agent }
 }

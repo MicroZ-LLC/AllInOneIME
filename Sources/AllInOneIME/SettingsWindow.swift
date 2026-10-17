@@ -78,7 +78,7 @@ final class SettingsModel: ObservableObject {
     }
 
     /// "Remember recent questions" switched in the window: off deletes the ones kept. Only from the switch: a config read
-    /// again with it off (`@config` turned it off, and may still undo that) keeps them.
+    /// again with it off (the Assistant turned it off, and may still undo that) keeps them.
     func setRememberQuestions(_ on: Bool) {
         config.rememberQuestions = on
         if !on { clearRecentQuestions() }
@@ -133,7 +133,7 @@ final class SettingsModel: ObservableObject {
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
     /// (`AIConfig.writing`), down to an app's profile and each switch of hiding sensitive information: a value written
-    /// meanwhile by `@config` or by hand that the window hasn't read yet stays as it is, and so do keys this version
+    /// meanwhile by Settings → Assistant or by hand that the window hasn't read yet stays as it is, and so do keys this version
     /// doesn't know. Nothing is written when nothing changed (opening the window, moving through its fields, ⏎ on one
     /// left as it was, closing it). The window then shows the file as it now is.
     func save() {
@@ -244,7 +244,7 @@ final class SettingsModel: ObservableObject {
             return
         }
         keyLookups += 1
-        // As @config and @doctor look (`AIConfigSession.keySource`).
+        // As the Assistant's requests and checks look (`AIConfigSession.keySource`).
         let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
@@ -868,13 +868,13 @@ struct SettingsView: View {
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
     @State private var commandToDelete: Int?
-    /// The provider whose key row shows its paste field (Replace…, or `@config` opening Settings at the key).
+    /// The provider whose key row shows its paste field (Replace…, or the Assistant opening Settings at the key).
     @State private var editingKey: Provider?
-    /// The key sheet: a provider other than the one in use whose key `@config` or `@doctor` asked for.
+    /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
     @State private var keySheet: KeySheetRequest?
     /// The web search key row's paste field.
     @State private var editingSearchKey = false
-    /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
+    /// The page shown (Assistant when none is asked for) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
     /// The input language whose settings the Input page shows.
@@ -887,20 +887,26 @@ struct SettingsView: View {
     @State private var packToRemove: LanguagePack?
     /// A pack the user asked to delete from its language's card (asked first, with its size).
     @State private var packToDelete: LanguagePack?
-    private let remembersPage: Bool
-    static let pageKey = "settingsPage"
+    /// Settings → Assistant's request, preview and checks: the process's own (`AssistantModel.shared`), so they stay while
+    /// other pages are shown and the window is closed.
+    private let assistant: AssistantModel
 
-    /// `page`: shown as given and not remembered (the self-test's images); nil: the one shown last.
     /// The README images: the key sheet drawn over the page, for this provider (a real sheet isn't in a page's image).
     private let keySheetShown: Provider?
 
-    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil, keySheetShown: Provider? = nil) {
+    /// `page`: the one shown first; nil: Assistant (the last one isn't remembered).
+    @MainActor
+    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil, keySheetShown: Provider? = nil,
+         assistant: AssistantModel? = nil) {
         self.model = model
         self.keySheetShown = keySheetShown
+        self.assistant = assistant ?? .shared
         if let inputTab { _inputTab = State(initialValue: inputTab) }
-        remembersPage = page == nil
-        _page = State(initialValue: page ?? UserDefaults.standard.string(forKey: Self.pageKey).flatMap(SettingsPage.init) ?? .general)
+        _page = State(initialValue: page ?? Self.firstPage)
     }
+
+    /// The page Settings opens on when none is asked for.
+    static let firstPage = SettingsPage.assistant
 
     @ViewBuilder private var loadErrorSection: some View {
         if let loadError = model.loadError {
@@ -1818,6 +1824,7 @@ struct SettingsView: View {
             packDialogs(Form {
                 loadErrorSection
                 switch page {
+                case .assistant: AssistantPage(assistant: assistant)
                 case .general:
                     generalSection
                     menuBarSection
@@ -1856,7 +1863,6 @@ struct SettingsView: View {
             .id("\(page.rawValue)-\(UIText.chinese)"))
         }
         .navigationSplitViewStyle(.balanced)
-        .onChange(of: page) { if remembersPage { UserDefaults.standard.set(page.rawValue, forKey: Self.pageKey) } }
         .frame(minWidth: 760, idealWidth: 860, minHeight: 480, idealHeight: 720)
         // Text fields save on Return; everything else (pickers, steppers, toggles) saves on change.
         .sheet(item: $commandEdit) { edit in
@@ -1950,7 +1956,7 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
             page = .provider
-            model.reloadIfChanged()  // what @config just set
+            model.reloadIfChanged()  // what the Assistant just set
             guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
             // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page).
             if provider == model.config.provider {
@@ -2511,19 +2517,21 @@ final class SettingsWindow {
 
     /// Shows the window on `page` (already open: it turns to it).
     func show(page: SettingsPage) {
-        UserDefaults.standard.set(page.rawValue, forKey: SettingsView.pageKey)
-        show()
+        show(opening: page)
         NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": page.rawValue])
     }
 
-    func show() {
+    /// Shows the window; opened now, it starts on Assistant.
+    func show() { show(opening: nil) }
+
+    private func show(opening page: SettingsPage?) {
         AgentAvailability.forget()  // an agent may have been installed meanwhile
         if window?.isVisible != true {
             // (Re)build so the window reflects the config file as it is now.
             window?.close()
             let model = SettingsModel()
             UIText.choice = model.config.uiLanguage
-            let host = NSHostingController(rootView: SettingsView(model: model))
+            let host = NSHostingController(rootView: SettingsView(model: model, page: page))
             let window = NSWindow(contentViewController: host)
             // Fields saved on ⏎ (a model ID, the base URL) are saved when the window closes too.
             if let closing { NotificationCenter.default.removeObserver(closing) }
@@ -2858,14 +2866,16 @@ struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, input, writing, commands, plugins, voice, agent, provider, advanced, about, apps
+    case assistant, general, input, writing, commands, plugins, voice, agent, provider, advanced, about, apps
 
     var id: String { rawValue }
 
-    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .agent, .provider], [.advanced, .about]]
+    static let groups: [[SettingsPage]] = [[.assistant], [.general, .input, .writing, .voice, .apps], [.commands, .plugins, .agent, .provider],
+                                           [.advanced, .about]]
 
     var title: String {
         switch self {
+        case .assistant: return tr("助手", "Assistant")
         case .general: return tr("通用", "General")
         case .input: return tr("输入", "Input")
         case .writing: return tr("翻译与改写", "Translate & Rewrite")
@@ -2882,6 +2892,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     var icon: CandidateView.Icon {
         switch self {
+        case .assistant: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
         case .general: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
         case .input: return CommandIcons.input
         case .writing: return CommandIcons.translate
@@ -2899,6 +2910,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
+        case .assistant: return "assistant config change settings describe sentence doctor check problems fix diagnose 助手 设置 改设置 描述 一句话 检查 问题 修复 诊断"
         case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
@@ -2925,9 +2937,11 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
 enum SettingsImage {
     @MainActor
-    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, keySheet: Provider? = nil, to url: URL,
-                       appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
-        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet))
+    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, keySheet: Provider? = nil,
+                       assistant: AssistantModel? = nil, to url: URL, appearance: NSAppearance.Name = .aqua,
+                       settle: (TimeInterval) -> Void) {
+        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet,
+                                                        assistant: assistant))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)

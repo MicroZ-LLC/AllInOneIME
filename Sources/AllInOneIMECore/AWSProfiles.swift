@@ -64,7 +64,7 @@ public enum AWSEnvironment {
     }
 }
 
-/// How a profile gets its credentials, as the settings and `@doctor` name it. Nothing secret.
+/// How a profile gets its credentials, as the settings and their checks name it. Nothing secret.
 public enum AWSProfileKind: Equatable, Sendable {
     /// `aws_access_key_id` and `aws_secret_access_key` (and maybe `aws_session_token`).
     case staticKeys

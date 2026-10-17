@@ -6,7 +6,7 @@ import SwiftUI
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
     /// The words field as typed; saved on Return and when the page goes (`RedactionSettings.words`), only if it was edited
-    /// here, and then on top of the list as it is by then: a word added meanwhile elsewhere (`@config`, a hand edit) stays.
+    /// here, and then on top of the list as it is by then: a word added meanwhile elsewhere (Settings → Assistant, a hand edit) stays.
     /// Not being edited, it follows the list.
     @State private var words = ""
     @State private var edited = false
@@ -48,7 +48,7 @@ struct PrivacySection: View {
         .disabled(!model.canSave)
         .onAppear { show(model.config.redaction.customWords) }
         .onDisappear(perform: saveWords)
-        // The list read again (written by @config, by hand): shown, unless the field is being edited.
+        // The list read again (written by the Assistant, by hand): shown, unless the field is being edited.
         .onChange(of: model.config.redaction.customWords) { if !edited { show(model.config.redaction.customWords) } }
         .onChange(of: model.config.redaction) { model.save() }
     }

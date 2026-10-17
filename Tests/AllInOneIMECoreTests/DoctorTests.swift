@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// `@doctor`: findings from the probes' facts (problems first), the config file's own checks, the fixes as `@config`'s
-/// preview, the logs summarised, the question answered on the on-device model with the checks as tools, and the keys.
+/// Settings → Assistant's checks: findings from the probes' facts (problems first), the config file's own checks, the
+/// fixes as a request's preview, the logs summarised, the question answered on the on-device model with the checks as tools, and the keys.
 struct DoctorTests {
     func facts(_ change: (inout Doctor.Facts) -> Void = { _ in }) -> Doctor.Facts {
         var facts = Doctor.Facts()
@@ -88,7 +88,7 @@ struct DoctorTests {
                                           "More than 5 translation languages", "A language is listed twice in config.json"])
         #expect(findings[0].detail == "fontSize (ignored)")
         #expect(findings[3].fix == .resaveConfig)
-        // The repairs go through @config's checks: the preview shows them old → new.
+        // The repairs go through `AIConfig`'s checks: the preview shows them old → new.
         let fixes = findings.compactMap(\.fix)
         let preview = try #require(Doctor.fixPreview(fixes, config: config, environment: AIConfig.Environment()))
         #expect(preview.edits == [.typeOutRate(16), .outputLanguages(["en", "fr", "de", "es", "it"].map(OutputLanguage.init))])
@@ -98,12 +98,10 @@ struct DoctorTests {
             .map(\.status) == [.ok])
     }
 
-    @Test func fixesAreSafeOrPicked() {
-        #expect(Doctor.Fix.repairConfig([]).isSafe && Doctor.Fix.resaveConfig.isSafe && Doctor.Fix.enableInputMethod.isSafe)
-        #expect(!Doctor.Fix.downloadPack(.korean).isSafe && !Doctor.Fix.openPrivacy(.microphone).isSafe && !Doctor.Fix.openKeyField(.gemini).isSafe)
+    @Test func fixesPreviewAsActionsAndKeyRows() {
         let preview = Doctor.fixPreview([.downloadPack(.korean), .openKeyField(.gemini)], config: .default, environment: AIConfig.Environment())
         #expect(preview?.actions == [.downloadPack(.korean)] && preview?.needsKey == .gemini && preview?.edits.isEmpty == true)
-        // The key's row says it as @config does (the provider is the one in use: nothing to choose).
+        // The key's row says it as a request's preview does (the provider is the one in use: nothing to choose).
         #expect(preview?.rows.last?.text(chinese: false) == "Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI)")
         let zh = Doctor.fixPreview([.openKeyField(.anthropic)], config: .default, environment: AIConfig.Environment(chinese: true))
         #expect(zh?.rows.map { $0.text(chinese: true) } == ["Claude API 需要 API key：⏎ 打开设置去填（不会发给 AI）"])
@@ -162,64 +160,21 @@ struct DoctorTests {
         #expect(DoctorService.system(findings, tools: false).contains("[fix F1]"))
     }
 
-    // MARK: - The panel
+    // MARK: - The fixes in the Assistant's preview
 
-    func drafted(_ text: String = "") -> Composer {
-        let c = Composer(engine: FakeEngine(), actionKey: .enter)
-        c.setInputMode(.english)
-        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
-        for ch in "doc" { _ = c.handleKeyDown(k(String(ch))) }
-        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
-        for ch in text { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
-        return c
-    }
-
-    func reported() -> (Composer, Composer.ConfigState.Report) {
-        let c = drafted()
-        #expect(c.draft == "@doctor ")
-        let started = c.handleKeyDown(enterKey).effects
-        #expect(started.first == .startCommand(.doctor, input: "", id: 1))
-        let report = Composer.ConfigState.Report(lines: ["✗ Chinese pack missing", "⚠ typing speed", "✓ fine"],
-                                                 fixes: [.downloadPack(.chinese), .repairConfig([]), nil])
-        _ = c.receiveDoctor(report, id: 1)
-        return (c, report)
-    }
-
-    @Test func findingsWithAFixAreNumbered() {
-        let (c, _) = reported()
-        #expect(c.phase == .choosing && c.choices.map(\.label) == ["1", "2", ""])
-        // A digit previews that fix; ⏎ the safe ones; nothing is inserted.
-        #expect(c.handleKeyDown(k("1")).effects == [.previewFixes([.downloadPack(.chinese)])])
-        #expect(c.handleKeyDown(enterKey).effects == [.previewFixes([.repairConfig([])])])
-        // A click on a numbered row too; one without a fix does nothing.
-        #expect(c.choose(index: 0) == [.previewFixes([.downloadPack(.chinese)])] && c.choose(index: 2).isEmpty)
-    }
-
-    @Test func theFixPreviewAppliesLikeConfigs() throws {
-        let (c, _) = reported()
-        let preview = try #require(Doctor.fixPreview([.downloadPack(.chinese)], config: .default, environment: AIConfig.Environment()))
-        _ = c.showFixPreview(preview, lines: ["→ Download the Chinese language pack"])
-        #expect(c.choices.map(\.text) == ["→ Download the Chinese language pack"])
-        // Esc goes back to the findings, ⏎ applies.
-        _ = c.handleKeyDown(escKey)
-        #expect(c.choices.map(\.label) == ["1", "2", ""] && c.phase == .choosing)
-        // A fix that writes settings: ⏎ applies it, ⌘Z undoes it.
+    /// A config fix is the preview a request gets (old → new, applied and undone through `AIConfig`); an action fix is an
+    /// action row that writes no setting (nothing to undo).
+    @Test func fixPreviewsAreConfigPreviews() throws {
         var config = Config.default
         config.typeOutRate = 100
         let repair = try #require(Doctor.fixPreview([.repairConfig([.init(key: .setting(.typeOutRate), value: .number(16))])],
                                                     config: config, environment: AIConfig.Environment()))
-        _ = c.showFixPreview(repair, lines: ["Typing speed: 100 a second → 16 a second"])
-        #expect(c.handleKeyDown(enterKey).effects == [.applyConfig(repair), .showPanel])
-        _ = c.configApplied("Changed 1 setting")
-        let undo = c.handleKeyDown(k("z", mods: .command)).effects
-        #expect(undo.last == .undoConfig && commits(undo).isEmpty)
-    }
-
-    @Test func checksAloneSendNothingEvenWithoutAI() {
-        let c = drafted()
-        c.aiRefusal = { "AI is off in this app" }
-        let effects = c.handleKeyDown(enterKey).effects
-        #expect(effects.first == .startCommand(.doctor, input: "", id: 1) && !effects.contains { if case .notice = $0 { return true } else { return false } })
+        #expect(repair.edits.count == 1 && repair.actions.isEmpty && repair.rows.first?.status == .change)
+        let pack = try #require(Doctor.fixPreview([.downloadPack(.chinese)], config: .default, environment: AIConfig.Environment()))
+        #expect(pack.edits.isEmpty && pack.actions == [.downloadPack(.chinese)] && pack.rows.map { $0.text(chinese: false) }
+                == ["→ Download the Chinese language pack"])
+        let resave = try #require(Doctor.fixPreview([.resaveConfig], config: .default, environment: AIConfig.Environment()))
+        #expect(resave.edits.isEmpty && resave.actions == [.resaveConfig])
     }
 
     // MARK: - What must never show or go out
@@ -292,12 +247,6 @@ struct DoctorTests {
                 == ["update check failed (timed out)"])
     }
 
-    @Test func checkForUpdatesIsPickedNotSafe() {
-        #expect(!Doctor.Fix.checkForUpdates.isSafe)
-        let report = Composer.ConfigState.Report(lines: ["a"], fixes: [.checkForUpdates])
-        #expect(report.defaultFixes.isEmpty)
-    }
-
     @Test func testConnectionOnlyWithSomethingToTest() {
         var claude = facts { $0.config?.provider = .anthropic }
         #expect(!Doctor.canTestConnection(claude))
@@ -307,18 +256,6 @@ struct DoctorTests {
         #expect(!Doctor.canTestConnection(facts { $0.awsProfile = .failure(Doctor.ProbeError("no profile")) }))
         #expect(!Doctor.canTestConnection(facts { $0.config?.provider = .apple; $0.apple = .modelNotReady }))
         #expect(!Doctor.canTestConnection(facts { $0.config = nil }))
-    }
-
-    @Test func aFixThatOnlyRunsActionsOffersNoUndo() throws {
-        let (c, _) = reported()
-        let preview = try #require(Doctor.fixPreview([.downloadPack(.chinese)], config: .default, environment: AIConfig.Environment()))
-        _ = c.showFixPreview(preview, lines: ["→ Download the Chinese language pack"])
-        _ = c.handleKeyDown(enterKey)
-        _ = c.configApplied("Done")
-        #expect(!c.configState.writesSettings)
-        // ⌘Z isn't @config's here: it never undoes an older change.
-        let z = c.handleKeyDown(k("z", mods: .command))
-        #expect(!z.effects.contains(.undoConfig))
     }
 
     @Test func typographicAndCJKQuotesAreLeftOut() {
@@ -341,26 +278,6 @@ struct DoctorTests {
         // Even findings made elsewhere, as the report is sent.
         let raw = [Doctor.Finding(area: .extensions, status: .warning, title: "x", detail: "\(home)/a \(key)")]
         #expect(Doctor.report(raw) == "- extensions: ⚠ x — ~/a [KEY]")
-    }
-
-    @Test func enterAppliesOnlySafeFixesWhateverTheModelSuggests() {
-        let report = Composer.ConfigState.Report(lines: ["a", "b", "c", "d"],
-                                                 fixes: [.downloadPack(.korean), .repairConfig([]), nil, .checkForUpdates],
-                                                 recommended: [0, 3])
-        #expect(report.defaultFixes == [.repairConfig([])])  // Check for Updates opens Settings: picked by its number
-    }
-
-    @Test func inAnAppWithNoAIOnlyTheQuestionIsRefused() {
-        let c = drafted("why")
-        c.aiRefusal = { "AI is off in this app" }
-        let effects = c.handleKeyDown(enterKey).effects
-        #expect(effects.first == .startCommand(.doctor, input: "", id: 1) && effects.contains(.notice("AI is off in this app")))
-    }
-
-    @Test func shiftReturnDoesNothingOnTheFindings() {
-        let (c, _) = reported()
-        #expect(c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)).effects.isEmpty)
-        #expect(c.phase == .choosing)
     }
 
     @Test func fileURLsAndMaskedTextAreMaskedOnce() {

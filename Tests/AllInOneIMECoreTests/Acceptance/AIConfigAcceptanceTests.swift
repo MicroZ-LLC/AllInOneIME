@@ -295,162 +295,6 @@ func aicInsertsNothing(_ effects: [Composer.Effect]) -> Bool {
 
 // MARK: - The input controller, stood in for
 
-/// A composer and what AIConfigController does with its effects, on a temporary config file.
-final class AICRig {
-    let composer = Composer(engine: FakeEngine(), actionKey: .enter)
-    let url: URL
-    var env: AIConfig.Environment
-    let apple: AICAppleStub
-    let service: AIConfigService
-    let secrets = AICSecrets()
-    /// What undoes the last changes (kept across panels, like `AIConfigSession.lastApplied`).
-    var lastApplied: AIConfig.Applied?
-    var now = Date(timeIntervalSince1970: 1_800_000_000)
-    /// Settings opened at the key field for these providers.
-    var openedKeyField: [Provider] = []
-    var testConnections = 0
-    var notices: [String] = []
-    var effects: [Composer.Effect] = []
-    /// The answers the composer was given, and the previews.
-    var previews: [AIConfig.Preview] = []
-
-    init(_ config: Config = AIC.base, env: AIConfig.Environment = AIC.env(), apple: AICAppleStub = AICAppleStub(), keys: Bool = true) throws {
-        url = try AIC.tempConfig(config)
-        self.env = env
-        self.apple = apple
-        service = AIC.service(apple, secrets: secrets, keys: keys)
-        composer.setInputMode(.english)
-    }
-
-    var c: Composer { composer }
-    var config: Config { (try? Config.load(from: url)) ?? .default }
-
-    @discardableResult
-    func key(_ event: KeyEvent) async -> [Composer.Effect] {
-        let out = composer.handleKeyDown(event).effects
-        effects += out
-        await perform(out)
-        return out
-    }
-
-    func type(_ text: String) async {
-        for ch in text {
-            if ch == " " {
-                await key(spaceKey)
-            } else {
-                await key(KeyEvent(keyCode: 0, characters: String(ch), modifiers: ch.isUppercase ? .shift : []))
-            }
-        }
-    }
-
-    /// "@config " from the command list, then `text`.
-    func draft(_ text: String, command: String = "config") async {
-        await key(aicAt)
-        await type(command)
-        await key(aicTab)
-        await type(text)
-    }
-
-    /// "@config <text>" and ⏎.
-    @discardableResult
-    func run(_ text: String) async -> [Composer.Effect] {
-        await draft(text)
-        return await key(enterKey)
-    }
-
-    func perform(_ effects: [Composer.Effect]) async {
-        for effect in effects {
-            switch effect {
-            case let .startCommand(command, input, id) where command.kind == .config:
-                await request(input, turns: [], id: id)
-            case let .startRefine(refinement, id):
-                if case let .command(command, input) = refinement.request, command.kind == .config {
-                    await request(input, turns: refinement.turns, id: id)
-                }
-            case let .applyConfig(preview):
-                await apply(preview)
-            case .undoConfig:
-                undo()
-            default:
-                break
-            }
-        }
-    }
-
-    /// As `startConfigRequest` and `showConfigAnswer`.
-    func request(_ input: String, turns: [Refinement.Turn], id: Int) async {
-        let keys = AIConfig.droppingKeys(input)
-        if keys.dropped, keys.text.filter(\.isLetter).count < 2 {
-            effects += composer.endConfig()
-            openedKeyField.append(keys.provider ?? config.provider)
-            notices.append(AIConfig.Text(chinese: env.chinese).droppedKey)
-            return
-        }
-        let config = self.config
-        var env = self.env
-        env.typedText = ([keys.text] + turns.map { AIConfig.droppingKeys($0.instruction).text }).joined(separator: "\n")
-        do {
-            let tools = AIConfigService.Tools(
-                findApps: { [apps = env.apps] in apps.search($0).map { "\($0.name): \($0.bundleID)" }.joined(separator: "\n") },
-                awsProfiles: { [profiles = env.awsProfiles()] in profiles.joined(separator: "\n") },
-                languagePacks: { "zh: installed" })
-            let answer = try await service.ask(keys.text, turns: turns, context: AIC.context(config, env: env), tools: tools)
-            let proposal = try? AIConfig.parse(answer.text)
-            let outcome = proposal.map { AIConfig.preview($0, config: config, environment: env, droppedKey: (keys.dropped, keys.provider)) }
-                ?? .failure(.notUnderstood)
-            switch outcome {
-            case let .success(preview):
-                previews.append(preview)
-                effects += composer.receiveConfig(preview, lines: preview.rows.map { $0.text(chinese: env.chinese) },
-                                                  answer: answer.text, id: id)
-            case let .failure(failure):
-                effects += composer.fail(AIConfig.failureLine(failure, proposal: proposal, config: config, environment: env), id: id)
-            }
-        } catch {
-            effects += composer.fail("\(error) (try @doctor)", id: id)
-        }
-    }
-
-    /// As `applyConfig`.
-    func apply(_ preview: AIConfig.Preview) async {
-        let text = AIConfig.Text(chinese: env.chinese)
-        if !preview.edits.isEmpty {
-            do {
-                lastApplied = try AIConfig.applying(preview.edits, at: url, now: now)
-            } catch {
-                effects += composer.configNotApplied("Not saved: \(error)")
-                return
-            }
-        }
-        if let provider = preview.needsKey {
-            effects += composer.endConfig()
-            openedKeyField.append(provider)
-            return
-        }
-        effects += composer.configApplied(text.applied(preview.edits.count))
-        guard preview.changesProvider else { return }
-        testConnections += 1
-        effects += composer.configStatus("✓ Connection works: test")
-    }
-
-    /// As `undoConfig`.
-    func undo() {
-        let text = AIConfig.Text(chinese: env.chinese)
-        guard let applied = lastApplied, let report = try? AIConfig.undoing(applied, at: url, now: now) else {
-            lastApplied = nil
-            notices.append(text.nothingToUndo)
-            return
-        }
-        lastApplied = nil
-        notices.append(text.undone(skipped: report.skipped))
-    }
-
-    /// The rows shown.
-    var rows: [String] { composer.choices.map(\.text) }
-}
-
-// MARK: - The tests
-
 struct AIConfigAcceptanceTests {
     // MARK: Allowlist
 
@@ -681,37 +525,6 @@ struct AIConfigAcceptanceTests {
         #expect(try AIC.preview([("appProfiles.WeChat.inputLanguage", "fr")]) == .failure(.notAllowed))
     }
 
-    /// Whatever the answer asks for, what is written is a config Settings would write: it loads, and @doctor's config
-    /// checks find no problem in it; when nothing can be applied, nothing is written.
-    @Test func valid_invalidConfigNeverWritten() async throws {
-        let url = try AIC.tempConfig()
-        let answers: [[(String, Any)]] = [
-            [("outputLanguages", ["en", "fr", "de", "es", "it", "pt"]), ("typeOutRate", 500), ("candidateLayout", "vertical")],
-            [("inputLanguages", ["zh", "en", "fr", "ko", "hi", "de"]), ("defaultInput", "de"), ("typeOut", true)],
-            [("region", "mars-1"), ("openai.baseURL", "http://insecure.example.com"), ("useSelection", false)],
-        ]
-        for changes in answers {
-            let preview = try AIC.preview(changes).get()
-            #expect(preview.edits.count == 1, "\(preview.rows)")
-            _ = try AIConfig.applying(preview.edits, at: url)
-            let data = try AIC.bytes(url)
-            let config = try Config.load(from: url)
-            let problems = Doctor.configFindings(data: data, error: nil, config: config, chinese: false).filter { $0.status != .ok }
-            #expect(problems.isEmpty, "\(problems)")
-            #expect(config.outputLanguages.count <= 5 && config.inputLanguages.count <= 5)
-            #expect(config.typeOutRate <= TypeOut.fastestRate && config.typeOutRate >= TypeOut.slowestRate * 0.999)
-            #expect(config.region == nil && config.openai.baseURL == nil)
-        }
-        // Nothing allowed: no preview, and the rig writes nothing.
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("outputLanguages", ["xx"]), ("customCommands", [])])]))
-        let original = try AIC.bytes(rig.url)
-        await rig.run("translate into Klingon")
-        guard case let .failed(line) = rig.c.phase else { Issue.record("no failure line: \(rig.c.phase)"); return }
-        #expect(!line.contains("\n"))
-        let back = await rig.key(enterKey)
-        #expect(!back.contains { if case .applyConfig = $0 { return true } else { return false } })
-        #expect(try AIC.bytes(rig.url) == original)
-    }
 
     // MARK: Provider setup (CHANGE 1)
 
@@ -780,25 +593,6 @@ struct AIConfigAcceptanceTests {
         #expect(try AIC.preview([("openai.baseURL", "https://api.example.com/v1")], env: other) == .failure(.notAllowed))
     }
 
-    /// A host the user typed (in the sentence, or a refine's line) is accepted.
-    @Test func prov_baseURLTypedHostAccepted() async throws {
-        let url = "https://llm.mycompany.example/v1"
-        let env = AIC.env(typed: "point it at \(url) please")
-        #expect(try AIC.preview([("openai.baseURL", url)], env: env).get().edits == [.baseURL(url)])
-        #expect(try AIC.preview([("openai.baseURL", "https://LLM.MyCompany.example/v1")], env: env).get().edits.count == 1)
-        // Through the panel: typed in the sentence, then in a refine's line.
-        let answer = AIC.answer([("openai.baseURL", url)])
-        let rig = try AICRig(apple: AICAppleStub([answer]))
-        await rig.run("use llm.mycompany.example as the base URL")
-        #expect(rig.previews.last?.edits == [.baseURL(url)], "\(rig.rows)")
-        await rig.key(enterKey)
-        #expect(rig.config.openai.baseURL == url)
-        let refined = try AICRig(apple: AICAppleStub([AIC.answer([("typeOut", true)]), answer]))
-        await refined.run("type results out")
-        await refined.type("and use llm.mycompany.example")
-        await refined.key(acceptanceShiftReturn)
-        #expect(refined.previews.last?.edits == [.baseURL(url)], "\(refined.rows)")
-    }
 
     /// A known service's host (Settings' list) needs no typing.
     @Test func prov_baseURLKnownServiceAccepted() throws {
@@ -872,38 +666,6 @@ struct AIConfigAcceptanceTests {
         #expect(undone == before)
     }
 
-    /// Sign-off: undo leaves a key changed since (in Settings, by hand) as it is, puts back the others, and says which
-    /// it left.
-    @Test func flow_undoSkipsKeysChangedSinceAndSaysSo() async throws {
-        let url = try AIC.tempConfig()
-        let t = Date(timeIntervalSince1970: 1_800_000_000)
-        let applied = try AIConfig.applying([.outputLanguages([.english, OutputLanguage("fr")]), .candidateLayout(.vertical)], at: url, now: t)
-        var changed = try Config.load(from: url)
-        changed.setOrder([OutputLanguage("de")])
-        try changed.write(to: url)
-        let report = try #require(try AIConfig.undoing(applied, at: url, now: t.addingTimeInterval(60)))
-        #expect(report.undone == 1 && report.skipped.count == 1)
-        let config = try Config.load(from: url)
-        #expect(config.outputLanguages == [OutputLanguage("de")])
-        #expect(config.candidateLayout == .horizontal)
-        let line = AIConfig.Text(chinese: false).undone(skipped: report.skipped)
-        #expect(line.contains("Translation languages") && line != AIConfig.Text(chinese: false).undone, "\(line)")
-        #expect(AIConfig.Text(chinese: true).undone(skipped: report.skipped).contains("翻译语言"))
-
-        // Through the panel: `@config undo` says so.
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"]), ("candidateLayout", "vertical")])]))
-        await rig.run("English and French, candidates in a column")
-        await rig.key(enterKey)
-        await rig.key(escKey)
-        var edited = rig.config
-        edited.candidateLayout = .horizontal
-        edited.typeOut = true
-        try edited.write(to: rig.url)
-        await rig.run("undo")
-        #expect(rig.config.outputLanguages == AIC.base.outputLanguages)
-        #expect(rig.config.candidateLayout == .horizontal && rig.config.typeOut)
-        #expect(rig.notices.last?.contains("Candidate layout") == true, "\(rig.notices)")
-    }
 
     /// Sign-off: `questionRounds` and `questionContinueIn` are the config's own keys: refused here like any key off the
     /// allowlist, not an unreadable answer.
@@ -980,31 +742,6 @@ struct AIConfigAcceptanceTests {
             + " needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there"
     }
 
-    /// Spec change (2026-10-15): a provider that needs a key and has none isn't switched to. Its row says so, and ⏎
-    /// opens Settings at its key field; the provider stays as it was; no Test Connection. With the key saved, no such row.
-    @Test func prov_needsKeyRowOpensTheKeyField() async throws {
-        let preview = try AIC.preview([("provider", "anthropic")], env: AIC.env(hasKey: [])).get()
-        #expect(preview.needsKey == .anthropic)
-        #expect(!preview.edits.contains(.provider(.anthropic)))
-        #expect(preview.canApply)
-        let row = try #require(preview.rows.first { if case .needsKey = $0.status { return true } else { return false } })
-        #expect(row.text(chinese: false) == Self.needsKeyLine(.anthropic), "\(row.text(chinese: false))")
-        #expect(row.edit == nil)
-        #expect(try AIC.preview([("provider", "anthropic")], env: AIC.env(hasKey: [.anthropic])).get().needsKey == nil)
-        #expect(try AIC.preview([("awsProfile", "work")], env: AIC.env(hasKey: [])).get().needsKey == nil)
-
-        // Through the panel: ⏎ opens the key field; the provider isn't switched; nothing is inserted.
-        let rig = try AICRig(env: AIC.env(hasKey: []), apple: AICAppleStub([AIC.answer([("provider", "gemini")])]))
-        let before = try AIC.bytes(rig.url)
-        await rig.run("switch to Gemini")
-        #expect(rig.rows == [Self.needsKeyLine(.gemini)], "\(rig.rows)")
-        let applied = await rig.key(enterKey)
-        #expect(rig.openedKeyField == [.gemini])
-        #expect(rig.config.provider == .bedrock)
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(rig.testConnections == 0)
-        #expect(aicInsertsNothing(rig.effects) && aicInsertsNothing(applied))
-    }
 
     /// No key: no switch, for every provider that needs one, in both languages; the other rows still apply.
     @Test func prov_noKeyNoSwitchTheOtherRowsApply() throws {
@@ -1031,35 +768,7 @@ struct AIConfigAcceptanceTests {
         }
     }
 
-    /// Through the panel: the other changes are written, the provider isn't, the key field opens, no Test Connection.
-    @Test func prov_noKeyAppliesTheRestWithoutTestConnection() async throws {
-        let answer = AIC.answer([("provider", "gemini"), ("candidateLayout", "vertical"), ("outputLanguages", ["en", "fr"])])
-        let rig = try AICRig(env: AIC.env(hasKey: [.anthropic]), apple: AICAppleStub([answer]))
-        await rig.run("switch to Gemini, candidates in a column, English and French")
-        #expect(rig.rows.contains(Self.needsKeyLine(.gemini)), "\(rig.rows)")
-        await rig.key(enterKey)
-        let config = rig.config
-        #expect(config.provider == .bedrock)
-        #expect(config.candidateLayout == .vertical && config.outputLanguages == [.english, OutputLanguage("fr")])
-        #expect(rig.openedKeyField == [.gemini])
-        #expect(rig.testConnections == 0)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// With a key, it switches and Test Connection runs, as before. A key in the shell (ANTHROPIC_API_KEY …) counts:
-    /// the app reports it to the checks as a key (`hasKey`), like one in the keychain.
-    @Test func prov_withAKeyItSwitchesAndTestsTheConnection() async throws {
-        for provider in [Provider.gemini, .anthropic, .openai] {
-            let rig = try AICRig(env: AIC.env(hasKey: [provider]), apple: AICAppleStub([AIC.answer([("provider", provider.rawValue)])]))
-            await rig.run("switch provider")
-            #expect(!rig.rows.contains { $0.contains("needs an API key") }, "\(rig.rows)")
-            await rig.key(enterKey)
-            #expect(rig.config.provider == provider)
-            #expect(rig.openedKeyField.isEmpty)
-            #expect(rig.testConnections == 1)
-            #expect(rig.rows.last?.contains("Connection") == true)
-        }
-    }
 
     // MARK: The key store (spec change, 2026-10-15)
 
@@ -1103,82 +812,9 @@ struct AIConfigAcceptanceTests {
         #expect(AIConfig.droppingKeys(AIC.geminiKey).provider == .gemini)
     }
 
-    /// A key typed as the whole sentence: nothing is sent, the key field opens, nothing is inserted.
-    @Test func prov_keyAloneIsNeverSent() async throws {
-        let host = AIC.host()
-        let unavailable = AICAppleStub(availability: .appleIntelligenceNotEnabled)
-        for apple in [AICAppleStub(), unavailable] {
-            let rig = try AICRig(AIC.onClaude(AIC.base, host: host), apple: apple)
-            await rig.run(AIC.claudeKey)
-            #expect(apple.calls.isEmpty)
-            #expect(rig.openedKeyField == [.anthropic])
-            #expect(rig.notices.contains(AIConfig.Text(chinese: false).droppedKey))
-            #expect(aicInsertsNothing(rig.effects))
-        }
-        #expect(AICHTTPStub.bodies(host).isEmpty)
-    }
 
-    /// A key typed among other words is dropped before the request, on the device and on the configured provider;
-    /// the preview warns and offers the key field.
-    @Test func prov_keyMixedWithTextIsDroppedBeforeTheRequest() async throws {
-        let sentence = "use Claude with my key \(AIC.claudeKey) please"
-        let answer = AIC.answer([("provider", "anthropic")])
-        // On the device.
-        let apple = AICAppleStub([answer])
-        let rig = try AICRig(env: AIC.env(hasKey: [.anthropic]), apple: apple)
-        await rig.run(sentence)
-        let call = try #require(apple.calls.first)
-        #expect(!call.text.contains(AIC.claudeKey) && !call.text.contains("sk-ant-api03"))
-        #expect(call.text.contains("use Claude with my key"))
-        let preview = try #require(rig.previews.last)
-        #expect(preview.droppedKey)
-        #expect(preview.needsKey == .anthropic)  // the key field, even though one is saved: the user meant to give one
 
-        // On the configured provider (Apple Intelligence off).
-        let host = AIC.host()
-        AICHTTPStub.enqueue(host, answer)
-        let cloud = try AICRig(AIC.onClaude(AIC.base, host: host), apple: AICAppleStub(availability: .deviceNotEligible))
-        await cloud.run(sentence)
-        let sent = AICHTTPStub.sentTexts(host)
-        #expect(sent.count == 1)
-        #expect(sent.allSatisfy { !$0.contains(AIC.claudeKey) && !$0.contains("sk-ant-api03") })
-        #expect(sent.first?.contains("use Claude with my key") == true)
-        #expect(AICHTTPStub.bodies(host).allSatisfy { !String(decoding: $0, as: UTF8.self).contains(AIC.claudeKey) })
-    }
 
-    /// Edge: a key typed into the refine line ("also use this key …") is typed into the @config sentence too: it
-    /// mustn't reach the model either.
-    @Test func prov_keyTypedWhileRefiningIsNotSent() async throws {
-        let apple = AICAppleStub([AIC.answer([("candidateLayout", "vertical")]), AIC.answer([("provider", "anthropic")])])
-        let rig = try AICRig(apple: apple)
-        await rig.run("candidates in a column")
-        #expect(rig.c.phase == .choosing)
-        await rig.type("also use Claude with \(AIC.claudeKey)")
-        await rig.key(acceptanceShiftReturn)  // ⇧⏎ sends the refine (CHANGE 2)
-        #expect(apple.calls.count == 2)
-        for call in apple.calls { #expect(!call.text.contains(AIC.claudeKey), "the refine sent the key") }
-    }
-
-    /// Test Connection runs once a provider change is applied, and its line shows under the confirmation; not after
-    /// other changes.
-    @Test func prov_testConnectionAfterAProviderChange() async throws {
-        for (key, value) in [("provider", "openai"), ("awsProfile", "work"), ("region", "eu-west-1"),
-                             ("modelId", AIC.bedrockModels[1]), ("openai.baseURL", "https://api.deepseek.com/v1")] as [(String, Any)] {
-            #expect(try AIC.preview([(key, value)], env: AIC.env(hasKey: [.openai])).get().changesProvider, "\(key)")
-        }
-        #expect(try AIC.preview([("candidateLayout", "vertical")]).get().changesProvider == false)
-
-        let rig = try AICRig(env: AIC.env(hasKey: [.anthropic]), apple: AICAppleStub([AIC.answer([("provider", "anthropic")])]))
-        await rig.run("use Claude")
-        await rig.key(enterKey)
-        #expect(rig.testConnections == 1)
-        #expect(rig.rows.count == 2 && rig.rows.last?.contains("Connection") == true)
-
-        let other = try AICRig(apple: AICAppleStub([AIC.answer([("candidateLayout", "vertical")])]))
-        await other.run("candidates in a column")
-        await other.key(enterKey)
-        #expect(other.testConnections == 0)
-    }
 
     // MARK: The prompt
 
@@ -1340,17 +976,6 @@ struct AIConfigAcceptanceTests {
         #expect(preview.edits.contains(.candidateLayout(.horizontal)) && !preview.edits.contains(.candidateLayout(.vertical)))
     }
 
-    /// Unknown keys make the answer unreadable: one line, nothing applied, nothing inserted.
-    @Test func parse_unknownKeyIsTheOneLineFailure() async throws {
-        let rig = try AICRig(apple: AICAppleStub([#"{"changes": [{"key": "candidateLayout", "value": "vertical"}, {"key": "colour", "value": "pink"}]}"#]))
-        let before = try AIC.bytes(rig.url)
-        await rig.run("make it pink")
-        #expect(rig.c.phase == .failed(AIConfig.Text(chinese: false).failure(.notUnderstood)))
-        #expect(rig.c.phase == .failed("Couldn't turn that into a setting"))
-        await rig.key(enterKey)
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
     // MARK: The flow
 
@@ -1367,162 +992,15 @@ struct AIConfigAcceptanceTests {
         #expect(!zh[0].contains("English") && !en[0].contains("英"))
     }
 
-    /// With nothing after it, ⏎ does nothing and nothing is sent.
-    @Test func flow_emptyEnterDoesNothing() async throws {
-        let rig = try AICRig()
-        let effects = await rig.run("")
-        #expect(rig.apple.calls.isEmpty)
-        #expect(!effects.contains { if case .startCommand = $0 { return true } else { return false } })
-        #expect(aicInsertsNothing(effects))
-    }
 
-    /// ⏎ applies every change shown, through the config file; nothing is inserted; a confirmation line is shown.
-    @Test func flow_enterApplies() async throws {
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"]), ("candidateLayout", "vertical")])]))
-        await rig.run("output languages English and French, candidates in a column")
-        #expect(rig.c.phase == .choosing && rig.rows.count == 2)
-        await rig.key(enterKey)
-        #expect(rig.config.outputLanguages == [.english, OutputLanguage("fr")] && rig.config.candidateLayout == .vertical)
-        #expect(rig.rows == [AIConfig.Text(chinese: false).applied(2)])
-        await rig.key(enterKey)  // closes the confirmation
-        #expect(rig.c.phase == .idle)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    @Test func flow_oneApplies() async throws {
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("candidateLayout", "vertical")])]))
-        await rig.run("candidates in a column")
-        await rig.key(KeyEvent(keyCode: 0x12, characters: "1"))
-        #expect(rig.config.candidateLayout == .vertical)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// Esc cancels: nothing applied, nothing inserted.
-    @Test func flow_escCancels() async throws {
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("candidateLayout", "vertical")])]))
-        let before = try AIC.bytes(rig.url)
-        await rig.run("candidates in a column")
-        await rig.key(escKey)
-        #expect(rig.c.phase != .choosing)
-        await rig.key(escKey)
-        #expect(!rig.effects.contains { if case .applyConfig = $0 { return true } else { return false } })
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// Typing more refines the proposal: ⇧⏎ sends it (CHANGE 2 of spec-question-chat.md), the model gets its answer and
-    /// the instruction, the new preview replaces the old one, and ⏎ applies the refined one.
-    @Test func flow_typingRefines() async throws {
-        let first = AIC.answer([("outputLanguages", ["en", "fr"])])
-        let second = AIC.answer([("outputLanguages", ["en", "fr", "de"])])
-        let apple = AICAppleStub([first, second])
-        let rig = try AICRig(apple: apple)
-        await rig.run("output languages English and French")
-        #expect(rig.rows.count == 1 && rig.rows[0].contains("English, French"))
-        await rig.type("also German")
-        await rig.key(acceptanceShiftReturn)
-        #expect(apple.calls.count == 2)
-        let refine = try #require(apple.calls.last)
-        #expect(refine.text.contains("also German") && refine.text.contains(#"["en","fr"]"#))
-        #expect(rig.rows.count == 1 && rig.rows[0].contains("English, French, German"), "\(rig.rows)")
-        await rig.key(enterKey)
-        #expect(rig.config.outputLanguages == ["en", "fr", "de"].map(OutputLanguage.init))
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// CHANGE 2: ⏎ with a refine line typed applies the proposal shown and drops the line; nothing more is asked.
-    @Test func flow_enterWithARefineLineAppliesTheProposalShown() async throws {
-        let apple = AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"])]), AIC.answer([("outputLanguages", ["en", "fr", "de"])])])
-        let rig = try AICRig(apple: apple)
-        await rig.run("output languages English and French")
-        let shown = try #require(rig.previews.last)
-        await rig.type("also German")
-        #expect(rig.c.refineLine == "also German")
-        let effects = await rig.key(enterKey)
-        #expect(effects.contains(.applyConfig(shown)))
-        #expect(!effects.contains { if case .startRefine = $0 { return true } else { return false } })
-        #expect(apple.calls.count == 1)
-        #expect(rig.config.outputLanguages == [.english, OutputLanguage("fr")])
-        #expect(rig.c.refineLine == nil && rig.c.refineText.isEmpty)
-        #expect(rig.rows == [AIConfig.Text(chinese: false).applied(1)])
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// CHANGE 2: on @config's results, ⇧⏎ with nothing typed does nothing: nothing applied, sent or inserted.
-    @Test func flow_shiftEnterWithNothingTypedDoesNothing() async throws {
-        let apple = AICAppleStub([AIC.answer([("candidateLayout", "vertical")])])
-        let rig = try AICRig(apple: apple)
-        await rig.run("candidates in a column")
-        let before = try AIC.bytes(rig.url)
-        let rows = rig.rows
-        let effects = await rig.key(acceptanceShiftReturn)
-        #expect(!effects.contains { if case .applyConfig = $0 { return true } else { return false } })
-        #expect(!effects.contains { if case .startRefine = $0 { return true } else { return false } })
-        #expect(aicInsertsNothing(effects))
-        #expect(rig.c.phase == .choosing && rig.rows == rows)
-        #expect(apple.calls.count == 1)
-        #expect(try AIC.bytes(rig.url) == before)
-    }
 
-    /// ⌘Z on the confirmation undoes exactly what was applied: the file is as it was, byte for byte.
-    @Test func flow_commandZUndoes() async throws {
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"]), ("typeOut", true),
-                                                              ("appProfiles.WeChat.inputLanguage", "en"),
-                                                              ("redaction.customWords.add", ["Bluebird"])])]))
-        let before = try AIC.bytes(rig.url)
-        await rig.run("English and French, type out, English in WeChat, hide Bluebird")
-        await rig.key(enterKey)
-        #expect(try AIC.bytes(rig.url) != before)
-        let undo = await rig.key(aicCommandZ)
-        #expect(undo.contains(.undoConfig))
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(rig.c.phase == .idle && aicInsertsNothing(rig.effects))
-    }
 
-    /// `@config undo` within 10 minutes puts back the changed keys only: a setting changed since elsewhere stays.
-    @Test func flow_configUndoWithinTenMinutesRestoresChangedKeysOnly() async throws {
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("outputLanguages", ["en", "fr"])])]))
-        await rig.run("output languages English and French")
-        await rig.key(enterKey)
-        await rig.key(escKey)
-        // Meanwhile Settings changed another key.
-        var changed = rig.config
-        changed.candidateLayout = .vertical
-        try changed.write(to: rig.url)
-        rig.now = rig.now.addingTimeInterval(9 * 60 + 59)
-        let effects = await rig.run("undo")
-        #expect(effects.contains(.undoConfig))
-        #expect(rig.apple.calls.count == 1)  // undo asks no AI
-        #expect(rig.config.outputLanguages == AIC.base.outputLanguages)
-        #expect(rig.config.candidateLayout == .vertical)
-        var expected = AIC.base
-        expected.candidateLayout = .vertical
-        #expect(try rig.config == AIC.roundTrip(expected))
-        #expect(rig.notices.last == AIConfig.Text(chinese: false).undone)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    @Test func flow_undoRefusedAfterTheWindow() async throws {
-        #expect(AIConfig.undoWindow == 600)
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("candidateLayout", "vertical")])]))
-        await rig.run("candidates in a column")
-        await rig.key(enterKey)
-        await rig.key(escKey)
-        let after = try AIC.bytes(rig.url)
-        rig.now = rig.now.addingTimeInterval(10 * 60 + 1)
-        await rig.run("undo")
-        #expect(try AIC.bytes(rig.url) == after)
-        #expect(rig.config.candidateLayout == .vertical)
-        #expect(rig.notices.last == AIConfig.Text(chinese: false).nothingToUndo)
-        // The API too.
-        let url = try AIC.tempConfig()
-        let t = Date(timeIntervalSince1970: 1_800_000_000)
-        let applied = try AIConfig.applying([.candidateLayout(.vertical)], at: url, now: t)
-        #expect(try AIConfig.undo(applied, at: url, now: t.addingTimeInterval(601)) == false)
-        #expect(try Config.load(from: url).candidateLayout == .vertical)
-        #expect(try AIConfig.undo(applied, at: url, now: t.addingTimeInterval(600)) == true)
-        #expect(try Config.load(from: url).candidateLayout == .horizontal)
-    }
 
     /// Every kind of change undoes exactly: the file comes back byte for byte.
     @Test func flow_undoIsExactForEveryKindOfChange() throws {
@@ -1601,41 +1079,7 @@ struct AIConfigAcceptanceTests {
         }
     }
 
-    /// Neither: one line in the panel, nothing applied.
-    @Test func device_neitherIsOneLineFailure() async throws {
-        // The provider is the on-device model, which is off.
-        var onApple = AIC.base
-        onApple.provider = .apple
-        let off = AICAppleStub(availability: .appleIntelligenceNotEnabled)
-        await #expect(throws: (any Error).self) { _ = try await AIC.service(off).ask("x", context: AIC.context(onApple)) }
-        // A provider without a key.
-        let host = AIC.host()
-        await #expect(throws: (any Error).self) {
-            _ = try await AIC.service(AICAppleStub(availability: .deviceNotEligible), keys: false)
-                .ask("x", context: AIC.context(AIC.onClaude(AIC.base, host: host)))
-        }
-        // In the panel.
-        let rig = try AICRig(onApple, apple: off)
-        let before = try AIC.bytes(rig.url)
-        await rig.run("candidates in a column")
-        guard case let .failed(line) = rig.c.phase else { Issue.record("\(rig.c.phase)"); return }
-        #expect(!line.isEmpty && !line.contains("\n"))
-        await rig.key(enterKey)
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
     // MARK: Apps with no AI
 
-    /// Coordinator: @config is refused in an app with no AI: nothing is sent, the draft stays.
-    @Test func noai_configRefused() async throws {
-        let rig = try AICRig(apple: AICAppleStub([AIC.answer([("candidateLayout", "vertical")])]))
-        rig.c.aiRefusal = { "AI is off in this app" }
-        let effects = await rig.run("candidates in a column")
-        #expect(effects.contains(.notice("AI is off in this app")))
-        #expect(!effects.contains { if case .startCommand = $0 { return true } else { return false } })
-        #expect(rig.apple.calls.isEmpty)
-        #expect(rig.c.draft == "@config candidates in a column")
-        #expect(aicInsertsNothing(effects))
-    }
 }

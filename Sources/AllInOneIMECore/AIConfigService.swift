@@ -3,7 +3,7 @@ import Foundation
 import FoundationModels
 #endif
 
-/// Sends `@config`'s request (`AIConfigPrompt`): on Apple's on-device model whenever it is available, whatever provider
+/// Sends Settings → Assistant's request (`AIConfigPrompt`): on Apple's on-device model whenever it is available, whatever provider
 /// the user chose (or whether one is set up at all), held to the answer's schema (guided generation) with tools that look
 /// up apps, AWS profiles and language packs on this Mac; otherwise to the configured provider, the JSON described in the
 /// instructions. Either way the answer is the same JSON, read by the same strict reader (`AIConfig.parse`). Values the
@@ -61,8 +61,8 @@ public final class AIConfigService: Sendable {
     /// Whether the request would go to the on-device model now.
     public var onDevice: Bool { client.apple.availability == .available }
 
-    /// Gets the on-device model ready (it loads in a few seconds the first time): called as `@config` or `@doctor` is
-    /// written, so the request that follows doesn't wait for it. Nothing is sent.
+    /// Gets the on-device model ready (it loads in a few seconds the first time): called as Settings → Assistant
+    /// shows, so the request that follows doesn't wait for it. Nothing is sent.
     public func prewarm() {
         guard onDevice, let guided = client.apple as? any AppleGuidedBackend else { return }
         guided.prewarm()

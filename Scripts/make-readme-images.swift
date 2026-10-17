@@ -14,9 +14,8 @@
 // selection.png @improve on the selected text, with an email and a phone number hidden from the AI
 // question-chat.png   an @question conversation: two rounds, the next question's line on top (canned answers)
 // question-chat-handoff.png   after the last round: where to go on (the agents installed, Claude, ChatGPT, a copy)
-// config.png    @config: the changes it would make, old → new (a canned answer)
-// doctor.png    @doctor: the checks, problems first (made-up findings)
 // panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
+// settings-assistant.png   Settings → Assistant: a request's preview and the checks (a canned answer, made-up findings)
 import AppKit
 
 let args = CommandLine.arguments
@@ -231,24 +230,13 @@ try composite([
                      "After the last round: ⌘1, ⌘2 … go on in the agents installed, Claude or ChatGPT"),
          marked: marked("question-chat-handoff", "question › what is rust"), panel: load("question-chat-handoff")),
 ], to: "question-chat-handoff.png")
-try composite([
-    Step(caption: tr("@config 加一句话，按 ⏎：要改的设置，原来 → 改成；再按 ⏎ 应用",
-                     "@config and what to change, ⏎: each change, old → new; ⏎ again applies them"),
-         marked: tr("config › 翻译成英语和法语，微信里用中文，候选竖排",
-                    "config › translate into English and French, Chinese in WeChat, candidates in a column"),
-         panel: loadScene(tr("config-changes", "config-preview-en"))),
-], to: "config.png")
-try composite([
-    Step(caption: tr("@doctor 按 ⏎：检查这台 Mac 上的设置，问题在前；按数字修那一项",
-                     "@doctor, ⏎: the checks on this Mac, problems first; a digit fixes that one"),
-         marked: "doctor › ", panel: load("doctor")),
-], to: "doctor.png")
 
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
-for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png")] {
+for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png"),
+                   (render("assistant"), "settings-assistant.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
       + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png, question-chat.png, question-chat-handoff.png, "
-      + "config.png, doctor.png")
+      + "settings-assistant.png")

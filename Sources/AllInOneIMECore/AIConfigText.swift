@@ -134,13 +134,13 @@ extension AIConfig {
 
         // MARK: Reasons
 
-        var notHere: String { tr("不能在这里改，请打开设置", "can't be set here: open Settings") }
+        var notHere: String { tr("请到设置里对应的那一页改", "change it on its own page in Settings") }
         var secretRefused: String { tr("请在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)") }
         func enterKey(_ provider: Provider) -> String {
             provider == .hosted ? tr("在设置里登录", "sign in in Settings") : tr("在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)")
         }
-        /// "Gemini API needs an API key" (AllInOneIME Cloud: a sign-in): the row of a provider without one, in `@config`'s
-        /// preview and on `@doctor`'s fix.
+        /// "Gemini API needs an API key" (AllInOneIME Cloud: a sign-in): the row of a provider without one, in the
+        /// Assistant's preview, a request's or a finding's fix.
         public func needsKey(_ provider: Provider) -> String {
             let name = self.provider(provider)
             return provider == .hosted ? tr("\(name) 需要登录", "\(name) needs a sign-in")
@@ -194,7 +194,7 @@ extension AIConfig {
         public func failure(_ failure: Failure) -> String {
             switch failure {
             case .notUnderstood: return tr("没能把这句话变成设置", "Couldn't turn that into a setting")
-            case .notAllowed: return tr("这些不能在这里改：请打开设置", "Those can't be set here: open Settings")
+            case .notAllowed: return tr("这些请到设置里对应的那一页改", "Change those on their own pages in Settings")
             case .alreadySet: return tr("已经是这样设置的了", "Already set that way")
             }
         }
@@ -211,7 +211,7 @@ extension AIConfig {
 
         /// The confirmation once applied: "Changed 2 settings".
         public func applied(_ count: Int) -> String {
-            tr("已修改 \(count) 项设置", count == 1 ? "Changed 1 setting" : "Changed \(count) settings")
+            tr("已改 \(count) 项", count == 1 ? "Changed 1 setting" : "Changed \(count) settings")
         }
 
         public var undone: String { tr("已撤销刚才的设置修改", "Undone: the settings are as they were") }
