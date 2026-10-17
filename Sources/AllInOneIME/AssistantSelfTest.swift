@@ -169,6 +169,17 @@ extension SelfTest {
         assistant.dismissPreview()
         check(assistant.preview == nil && rig.file().outputLanguages == [.english, .chinese], "Cancel on the preview changes nothing")
 
+        // A preview made before the settings changed elsewhere goes when the page shows again; one still current stays.
+        ask("translate into English and French", #"{"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}]}"#)
+        assistant.dropStalePreview()
+        let kept = assistant.preview != nil
+        var elsewhere = rig.file()
+        elsewhere.typeOut.toggle()
+        try? elsewhere.write(to: rig.url)
+        assistant.dropStalePreview()
+        check(kept && assistant.preview == nil, "a preview stays while the settings are as they were, and goes once they changed elsewhere")
+        try? start.write(to: rig.url)
+
         // Nothing it can do: one line.
         ask("install the weather plugin", #"{"changes": [{"key": "plugins", "value": []}]}"#)
         check(assistant.preview == nil && assistant.message == "✕ plugins：请到设置里对应的那一页改",

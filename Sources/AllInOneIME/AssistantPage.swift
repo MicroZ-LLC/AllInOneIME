@@ -65,6 +65,8 @@ final class AssistantModel: ObservableObject {
     private var tested: (config: Config, keySaved: [Provider: Bool], connection: Doctor.Facts.Connection)?
     /// A fix or an undo asked for the probes while Check was running: they run once it's done.
     private var pendingReprobe = false
+    /// The settings a preview was made against (`dropStalePreview`).
+    private var previewConfig: Config?
 
     init() {}
 
@@ -143,6 +145,7 @@ final class AssistantModel: ObservableObject {
 
     private func show(_ preview: AIConfig.Preview, chinese: Bool) {
         self.preview = preview
+        previewConfig = config()
         lines = preview.rows.map { Self.line($0, chinese: chinese) }
     }
 
@@ -170,6 +173,15 @@ final class AssistantModel: ObservableObject {
     func dismissPreview() {
         preview = nil
         lines = []
+        previewConfig = nil
+    }
+
+    /// The page shown again: a preview made before the settings changed elsewhere (another page, the menu, a hand edit)
+    /// would apply against values it didn't show, so it goes.
+    func dropStalePreview() {
+        guard preview != nil, let made = previewConfig, made != config() else { return }
+        log.notice("assistant: the settings changed since the preview was made; it's dropped")
+        dismissPreview()
     }
 
     /// Apply: the changes written to the config file (the input method and Settings' other pages read it from there),
@@ -235,11 +247,13 @@ final class AssistantModel: ObservableObject {
             return
         }
         do {
-            AIConfigSession.lastApplied = nil
             guard let report = try AIConfig.undoing(last, at: AIConfigSession.url, now: AIConfigSession.now()) else {
+                AIConfigSession.lastApplied = nil  // ten minutes have passed: nothing left to undo
                 undone = text.nothingToUndo
                 return
             }
+            // Only once it's done: an undo that couldn't write can be tried again.
+            AIConfigSession.lastApplied = nil
             log.notice("assistant: \(report.undone) changes undone, \(report.skipped.count) changed since and left as they are")
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             undone = text.undone(skipped: report.skipped)
@@ -377,9 +391,12 @@ final class AssistantModel: ObservableObject {
             cancelRequest()
             clearOutcome()
             dismissPreview()
-            Task { @MainActor [weak self] in
+            // The request's own task: Cancel stops it, and a request sent meanwhile replaces it.
+            working = true
+            requestTask = Task { @MainActor [weak self] in
                 let env = await AIConfigSession.environment("")
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
+                self.working = false
                 if let preview = Doctor.fixPreview([fix], config: self.config(), environment: env) {
                     self.show(preview, chinese: env.chinese)
                 } else {
@@ -556,12 +573,15 @@ struct AssistantPage: View {
         }
         .onAppear {
             assistant.expireUndo()
+            assistant.dropStalePreview()
             assistant.probe()
             AIConfigSession.prewarmIfDue()  // the on-device model and the apps, before a request
             // The request field, once the page is up.
             DispatchQueue.main.async { requestFocused = true }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+        // Settings back in front (the input method's process active again), not any window of it becoming key.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            assistant.dropStalePreview()
             assistant.probe()
         }
     }
