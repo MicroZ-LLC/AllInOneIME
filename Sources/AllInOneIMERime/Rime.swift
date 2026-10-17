@@ -69,6 +69,27 @@ public final class RimeService {
         _ = api.pointee.start_maintenance(1)
     }
 
+    /// librime's own user-data sync (the learned words on every Mac, `RimeSync`): in its maintenance thread, it reads
+    /// `sync_dir` from the user folder's `installation.yaml` (`RimeSync.setSyncDir`), merges into this installation's user
+    /// dictionaries the snapshots the other installations left there, and writes this one's own in its folder there
+    /// (named by its `installation_id`). Sessions are dropped first, as for a redeploy; `isReady` is false until it is
+    /// done. False when Rime isn't ready (deploying, or another sync running).
+    @discardableResult
+    public func syncUserData() -> Bool {
+        guard isReady else { return false }
+        generation += 1
+        return api.pointee.sync_user_data() != 0
+    }
+
+    /// The sync folder of this installation (`sync_dir`/`installation_id`), as librime last read it.
+    public var userDataSyncDir: URL? {
+        guard isStarted else { return nil }
+        var buffer = [CChar](repeating: 0, count: 4096)
+        api.pointee.get_user_data_sync_dir(&buffer, buffer.count)
+        let path = String(cString: buffer)
+        return path.isEmpty ? nil : URL(fileURLWithPath: path)
+    }
+
     /// Bumped by `redeploy()`; sessions from an older generation are invalid.
     public private(set) var generation = 0
 
