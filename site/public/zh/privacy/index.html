@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隐私政策 — AllInOneIME</title>
+<meta name="description" content="AllInOneIME、AllInOneIME Cloud 和 allinoneime.com 收集什么、为什么收集，以及怎样删除。">
+<link rel="icon" href="/favicon.png">
+<link rel="alternate" hreflang="en" href="https://allinoneime.com/privacy/">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .policy { max-width: 760px; padding: 56px 24px 80px; }
+  .policy h1 { font-size: clamp(34px, 5vw, 48px); margin: 0 0 8px; }
+  .policy h2 { font-size: 24px; margin: 40px 0 10px; }
+  .policy p, .policy li { color: var(--muted); }
+  .policy strong { color: var(--text); }
+  .policy ul { padding-left: 1.2em; }
+  .policy li { margin: 6px 0; }
+  .policy a { color: var(--blue-2); }
+  .policy .updated { color: var(--faint); font-size: 15px; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/zh/"><img src="/images/icon.png" alt="">AllInOneIME</a>
+    <nav class="nav-links">
+      <a href="/privacy/" lang="en">English</a>
+      <a class="btn btn-primary btn-small" href="/download">下载</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap policy">
+  <h1>隐私政策</h1>
+  <p class="updated">最后更新：2026 年 10 月 17 日</p>
+
+  <p>AllInOneIME 是 MicroZ LLC（下称“我们”）开发的 macOS 输入法。本政策适用于这款应用、AllInOneIME Cloud（可以在应用里登录使用的AI 服务，可选）以及本网站 allinoneime.com。</p>
+
+  <p><strong>简单说：你打的字留在你的 Mac 上，除非你用命令把它发给 AI。我们不卖数据，不放广告，也不追踪你。</strong></p>
+
+  <h2>应用</h2>
+  <ul>
+    <li>打字在你的 Mac 上处理。只有当你在 AI 命令（如 <code>@improve</code>、<code>@translate</code>、<code>@question</code>）里按下确认键时，才会把那段文字发给你在设置里选的 AI 服务：Mac 上的 Apple Intelligence、你自己在服务商那里的账号（如 Amazon Bedrock、OpenAI、Anthropic、Google），或 AllInOneIME Cloud。你发给服务商的内容适用该服务商自己的条款。</li>
+    <li>应用里没有统计或追踪。它在你 Mac 上的日志不记录你打的字。</li>
+    <li>你填的 API key 存在 Mac 的钥匙串里。</li>
+    <li>应用每天从 allinoneime.com 下载一次更新清单，请求里不带任何标识。语言包和插件在你安装时从 allinoneime.com 和 GitHub 下载。</li>
+  </ul>
+
+  <h2>AllInOneIME Cloud（可选）</h2>
+  <ul>
+    <li><strong>账号：</strong>你的邮箱地址，存在 Amazon Cognito 里。密码由 Cognito 保管，我们看不到。</li>
+    <li><strong>用量：</strong>你每天的请求次数、套餐和剩余额度，存在我们位于 Amazon Web Services（美国西部）的数据库里。</li>
+    <li><strong>你的文字：</strong>转发给模型服务商（目前经由 OpenRouter）来生成结果。我们不保存，也不记日志。模型服务商按它自己的条款处理。</li>
+    <li><strong>付款：</strong>由 Stripe 处理。我们只收到订阅状态，看不到你的卡号等信息。</li>
+    <li><strong>错误日志：</strong>只记错误类型，不含你的文字或账号信息。</li>
+    <li><strong>邮件：</strong>我们只发你自己要的邮件：注册验证码和重置密码的验证码，发件地址是 noreply@allinoneime.com。不发订阅通讯或营销邮件。回复你的客服邮件时用 support@allinoneime.com。</li>
+  </ul>
+
+  <h2>本网站</h2>
+  <p>allinoneime.com 由 Cloudflare 提供服务，Cloudflare 会为了传送和保护网站处理常规的请求数据（如 IP 地址）。网站不用 cookie，没有统计，也没有广告。</p>
+
+  <h2>共享</h2>
+  <p>我们不出售或出租个人信息。只在运行服务需要时，与上面提到的服务商（Amazon Web Services、Stripe、Cloudflare 和模型服务商）共享，或在法律要求时提供。</p>
+
+  <h2>保存和删除</h2>
+  <p>AllInOneIME Cloud 在你的账号存在期间保存账号数据。要删除账号和相关数据，请用账号的邮箱发信到
+  <a href="mailto:support@allinoneime.com">support@allinoneime.com</a>，我们会在 30 天内删除。应用里的数据只在你的 Mac 上，删除应用或它的文件夹即可清除。</p>
+
+  <h2>儿童</h2>
+  <p>AllInOneIME 不面向 13 岁以下的儿童，我们也不会有意收集他们的个人信息。</p>
+
+  <h2>变更</h2>
+  <p>本政策如有变更，新版本会发布在这里，并更新日期。</p>
+
+  <h2>联系</h2>
+  <p>MicroZ LLC · <a href="mailto:support@allinoneime.com">support@allinoneime.com</a></p>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 MicroZ LLC</span>
+    <nav>
+      <a href="/zh/">AllInOneIME</a>
+      <a href="/docs">文档</a>
+      <a href="/privacy/" lang="en">English</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

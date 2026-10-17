@@ -1,15 +1,15 @@
 {
-  "build" : "9",
-  "generated" : "2026-10-16T07:06:17Z",
+  "build" : "10",
+  "generated" : "2026-10-17T07:13:35Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.3",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.6.4",
   "schema" : 1,
-  "sha256" : "0ec534f636068671e7e201660028f55e8de6e548eb37a4474a10a829f3391345",
-  "size" : 15140132,
+  "sha256" : "1fe044d5cf307eada607200bb46ca79678901c8db7976b9caaf2faa56ac6bb7f",
+  "size" : 17636023,
   "summary" : {
-    "en" : "Refine results, run commands on the selected text, see recent questions, set things per app, use Apple Intelligence on your Mac, and hide sensitive information before sending. The first release notarized by Apple.",
-    "zh" : "可以修改结果、对选中的文字用命令、查看最近的问题、按 App 设置，支持本机的 Apple Intelligence，发送前可以隐藏敏感信息。首个经过 Apple 公证的版本。"
+    "en" : "Carry on a conversation with @question and hand it to your coding agent, follow up on any result with ⇧⏎, change settings by describing them with @config, check your setup with @doctor, add extensions from Git, and use Bedrock with SSO, role and credential_process profiles that refresh on their own.",
+    "zh" : "@question 可以连续追问，并交给你的编程助手接着聊；任何 AI 结果都能用 ⇧⏎ 追问；用 @config 一句话改设置，用 @doctor 检查配置；可以从 Git 添加扩展；Bedrock 支持 SSO、角色和 credential_process，凭证自动刷新。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.3/AllInOneIME-0.6.3-update.zip",
-  "version" : "0.6.3"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.6.4/AllInOneIME-0.6.4-update.zip",
+  "version" : "0.6.4"
 }
