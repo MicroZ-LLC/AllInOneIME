@@ -466,7 +466,9 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - Turned back on after it was off: what iCloud changed meanwhile comes in (also where this Mac changed it too), what only
   this Mac changed goes up, and a collection it added to meanwhile is merged, never dropped.
 - Recent questions of two Macs are merged; "Clear" on one Mac clears every question asked before it on the others too.
-  Turning "Remember recent questions" off deletes them on that Mac only.
+  Turning "Remember recent questions" off deletes them on that Mac only, and turned on again, the other Macs' questions
+  come back to it. A Clear made while a Mac doesn't sync the recent questions (or doesn't remember them) is that Mac's
+  alone.
 - Turning off Hidden words or Recent questions leaves what was synced in iCloud: **Remove from iCloud…** under each
   switch (asked first) takes them out; other Macs keep theirs, and one that still syncs them puts its own back.
 - A value from another Mac that this one can't use (a provider without a key here, an AWS profile it doesn't have, a value
