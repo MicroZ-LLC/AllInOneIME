@@ -83,6 +83,11 @@ public enum WebReader {
         return [title.isEmpty ? nil : tidy(title), url.absoluteString].compactMap { $0 }.joined(separator: "\n") + "\n\n" + text
     }
 
+    /// GB18030 and Big5 as Foundation numbers them: `CFStringConvertEncodingToNSStringEncoding` of CFStringEncodings'
+    /// `GB_18030_2000` and `big5` (CoreFoundation's functions are Apple's; the numbers are the same everywhere).
+    static let gb18030 = String.Encoding(rawValue: 0x8000_0632)
+    static let big5 = String.Encoding(rawValue: 0x8000_0A03)
+
     /// Bytes as text, in the charset the header or the page names (GBK/GB2312 pages read as GB18030).
     static func decode(_ data: Data, contentType: String) -> String {
         func charset(_ s: String) -> String? {
@@ -92,12 +97,8 @@ public enum WebReader {
         }
         let head = String(decoding: data.prefix(4096), as: UTF8.self)
         let name = charset(contentType) ?? charset(head) ?? "utf-8"
-        if ["gbk", "gb2312", "gb18030", "x-gbk"].contains(name) {
-            let gb = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
-            if let s = String(data: data, encoding: String.Encoding(rawValue: gb)) { return s }
-        }
-        if name == "big5", let s = String(data: data, encoding: String.Encoding(rawValue:
-            CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.big5.rawValue)))) { return s }
+        if ["gbk", "gb2312", "gb18030", "x-gbk"].contains(name), let s = String(data: data, encoding: gb18030) { return s }
+        if name == "big5", let s = String(data: data, encoding: big5) { return s }
         return String(decoding: data, as: UTF8.self)
     }
 

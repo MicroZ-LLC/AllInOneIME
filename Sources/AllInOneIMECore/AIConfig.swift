@@ -145,7 +145,7 @@ public enum AIConfig {
             switch any {
             case is NSNull: self = .null
             case let number as NSNumber:
-                self = CFGetTypeID(number) == CFBooleanGetTypeID() ? .bool(number.boolValue) : .number(number.doubleValue)
+                self = number.isBoolean ? .bool(number.boolValue) : .number(number.doubleValue)
             case let string as String: self = .string(string)
             case let array as [Any]:
                 var items: [JSONValue] = []
