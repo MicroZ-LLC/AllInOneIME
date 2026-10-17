@@ -5,7 +5,6 @@ AWSCredentialSources.swift CryptoKit
 AWSProfiles.swift CryptoKit
 AppBundles.swift Security
 AppleModel.swift NaturalLanguage
-CandidateLayout.swift CoreGraphics
 DeadKeys.swift Carbon
 ExtensionSources.swift CryptoKit
 ExtensionStore.swift CryptoKit
