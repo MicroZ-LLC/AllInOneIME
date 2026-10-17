@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 /// The mdfind processes of one `@open` search: each is stopped at the search's time limit, and all of
 /// them as soon as the search is cancelled. None starts after that, and what they printed is dropped.
@@ -52,7 +51,7 @@ public final class Spotlight: @unchecked Sendable {
 
     /// What each search printed, all of them run at once; nil once the search is cancelled.
     public func mdfind(each searches: [[String]]) -> [Data]? {
-        let outputs = OSAllocatedUnfairLock(initialState: [Data](repeating: Data(), count: searches.count))
+        let outputs = Locked(initialState: [Data](repeating: Data(), count: searches.count))
         DispatchQueue.concurrentPerform(iterations: searches.count) { index in
             let printed = mdfind(searches[index]) ?? Data()
             outputs.withLock { $0[index] = printed }

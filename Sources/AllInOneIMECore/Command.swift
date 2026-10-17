@@ -233,7 +233,7 @@ public struct Command: Hashable, Sendable {
     }
 
     private static let catalogLog = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
-    private static let loggedHidden = OSAllocatedUnfairLock(initialState: Set<String>())
+    private static let loggedHidden = Locked(initialState: Set<String>())
 
     /// A plugin or custom command a built-in one hides (say a custom "@note" from before @note was built in):
     /// logged once per process, with no UI. The catalog is made on most keystrokes, hence once. The name is

@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 public struct ConversionUpdate: Equatable, Sendable {
     public var result: ConversionResult
@@ -30,7 +29,7 @@ public final class Converter: Sendable {
     private let loadCredentials: CredentialLoader
     private let loadKey: ChatClient.KeyLoader
     private let loadJargon: JargonLoader
-    private let cache = OSAllocatedUnfairLock(initialState: LRUCache(capacity: 64))
+    private let cache = Locked(initialState: LRUCache(capacity: 64))
 
     public init(
         client: BedrockClient = BedrockClient(),

@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 /// Runs a `run` command (`CustomCommand`): the program starts in the home folder, without a shell,
 /// with the user's shell PATH; what it prints becomes the one result. It is stopped after its
@@ -103,7 +102,7 @@ public enum CommandRunner {
     public static let stopGrace: Double = 0.5
 
     /// The process groups of the programs running now (each runs in its own group: what it starts is in it too).
-    private static let groups = OSAllocatedUnfairLock(initialState: Set<pid_t>())
+    private static let groups = Locked(initialState: Set<pid_t>())
 
     /// Stops every program still running, and what each started: the input method is quitting (an update,
     /// logging out). Returns once they're gone, or after `grace` seconds, when they're killed.

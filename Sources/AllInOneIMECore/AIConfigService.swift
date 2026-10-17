@@ -1,5 +1,4 @@
 import Foundation
-import os
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -49,7 +48,7 @@ public final class AIConfigService: Sendable {
     private let client: ChatClient
     private let loadCredentials: ChatClient.CredentialLoader
     private let loadKey: ChatClient.KeyLoader
-    private let cache = OSAllocatedUnfairLock(initialState: LRUCache(capacity: 32))
+    private let cache = Locked(initialState: LRUCache(capacity: 32))
 
     public init(client: ChatClient = ChatClient(),
                 loadCredentials: @escaping ChatClient.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0) },
