@@ -186,6 +186,22 @@ struct ShiftHoldTests {
         #expect(h.poll() == nil)
     }
 
+    /// Shift's release gone unseen (let go in another app, a password field): synced again with Shift as it really is
+    /// (`resync`, a field becoming active), the next press is timed.
+    @Test func aReleaseGoneUnseenIsSyncedAgain() {
+        let h = HoldProbe()
+        #expect(h.down())
+        h.hold.cancel()  // another field became active; Shift let go where it went unseen
+        h.hold.resync(shiftDown: false)
+        #expect(h.down())
+        h.wait(1)
+        #expect(h.poll() == .toggle)
+        // Still down, as it really is: no press until it's let go and pressed again.
+        h.hold.resync(shiftDown: true)
+        #expect(h.hold.held == nil && !h.down())
+        #expect(!h.up() && h.down())
+    }
+
     /// fn (🌐) held with Shift, before or after it, is no long press; neither is a Shift that Sticky Keys latches.
     @Test func fnOrStickyKeysNeverToggle() {
         let fnKey: UInt16 = 0x3F
@@ -666,6 +682,26 @@ struct TranslateModeStateTests {
         // Turned off there by hand: it becoming active again (from the input method's own window) leaves it off.
         s.leave()
         #expect(s.appActivated(wechat) == .unchanged && s.activated(wechat) == .unchanged && !s.isOn)
+    }
+
+    /// Through an app that translates always and back, its text field active there or not: that was switching to
+    /// another app all the same, off whichever of the app and its field comes first.
+    @Test func throughAnAppThatTranslatesAlwaysAndBack() {
+        var config = config
+        config.appProfiles = [wechat: AppProfile(translateAlways: true)]
+        let s = StateProbe(config)
+        _ = s.activated(notes)
+        s.enter()
+        #expect(s.appActivated(wechat) == .unchanged && s.isOn)
+        #expect(s.activated(notes) == .left(english) && !s.isOn)
+        // The app first.
+        s.enter()
+        #expect(s.appActivated(wechat) == .unchanged && s.isOn)
+        #expect(s.appActivated(notes) == .left(english) && s.activated(notes) == .unchanged && !s.isOn)
+        // Its field active there.
+        s.enter()
+        #expect(s.appActivated(wechat) == .unchanged && s.activated(wechat) == .unchanged && s.isOn)
+        #expect(s.activated(notes) == .left(english) && !s.isOn)
     }
 
     /// The target removed from the output languages in the settings while it's on: the first of them at once (none left:

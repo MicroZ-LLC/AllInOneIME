@@ -829,6 +829,8 @@ final class AllInOneIMEInputController: IMKInputController {
         guard !SecureInput.blocksComposing(client ?? clientOverride ?? self.client()) else {
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped(), client: client) }
+            // No long press of Shift either, and Shift as it is now: the release isn't missed by the next press.
+            translateModeFlagsMissed(shiftDown: event.modifierFlags.contains(.shift))
             return
         }
         ensureEngine()

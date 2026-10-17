@@ -185,12 +185,12 @@ public enum TranslateMode {
         /// Another application became active (`app`, its bundle id), a text field in it or not: it leaves. Nothing
         /// changes when a field of that app became active first (`activated` has had its say), nor for an app that
         /// translates always (its field, once active, keeps it on or turns it on: `activated`). Coming back to the app
-        /// left is switching to another app again: its field doesn't count as the same app's (`activated`).
+        /// left, through one that translates always too, is switching to another app again: its field doesn't count
+        /// as the same app's (`activated`).
         public mutating func appActivated(_ app: String?, config: Config) -> Transition {
-            guard !sawApp || app?.lowercased() != self.app?.lowercased(),
-                  config.profile(for: app)?.translateAlways != true else { return .unchanged }
+            guard !sawApp || app?.lowercased() != self.app?.lowercased() else { return .unchanged }
             (self.app, sawApp) = (nil, false)
-            guard let session else { return .unchanged }
+            guard config.profile(for: app)?.translateAlways != true, let session else { return .unchanged }
             leave()
             return .left(session)
         }
@@ -293,6 +293,14 @@ public enum TranslateMode {
         public mutating func keyDown() { cancel() }
 
         public mutating func cancel() { pressedAt = nil }
+
+        /// Modifier changes may have gone unseen (another field, another app, secure input): no press, and Shift down
+        /// or not as it really is (`shiftDown`), so a release missed doesn't make the next press look like the other
+        /// Shift's.
+        public mutating func resync(shiftDown: Bool) {
+            cancel()
+            self.shiftDown = shiftDown
+        }
 
         /// What is due now (a timer went off): the hint, then the toggle, each once. `pointerUsed`: a mouse button, a
         /// drag or the wheel since Shift went down: a Shift-click, never a long press; so is the pointer moved further

@@ -16,6 +16,9 @@ enum TranslateModeShared {
     static var holdToken = 0
     /// Whether Shift is still down, with no mouse button, when a timer goes off (the self-test supplies its own).
     static var shiftHeld: () -> Bool = { NSEvent.modifierFlags.contains(.shift) && NSEvent.pressedMouseButtons == 0 }
+    /// Whether Shift is down now, as the system has it: the press is synced with it where its modifier changes may have
+    /// gone unseen, another field or another app becoming active (the self-test supplies its own).
+    static var shiftDown: () -> Bool = { NSEvent.modifierFlags.contains(.shift) }
     /// Where the mouse is, while Shift is held (the self-test supplies its own).
     static var pointer: () -> CGPoint = { NSEvent.mouseLocation }
     /// Whether Sticky Keys is on (Accessibility → Keyboard), as the system keeps it (the self-test supplies its own).
@@ -43,16 +46,23 @@ enum TranslateModeShared {
     static var chipToken = 0
 
     /// Another app becoming active turns it off (`AllInOneIMEInputController.otherAppActivated`), whether it has a text
-    /// field or not. Not the input method itself (its settings window) nor its settings app.
+    /// field or not (`isOtherApp`).
     static func watchApps() {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                           object: nil, queue: .main) { note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-                  app.bundleIdentifier != Updater.settingsBundleID else { return }
+                  isOtherApp(pid: app.processIdentifier, id: app.bundleIdentifier,
+                             frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier) else { return }
             let id = app.bundleIdentifier
             MainActor.assumeIsolated { AllInOneIMEInputController.otherAppActivated(id) }
         }
+    }
+
+    /// Whether an app becoming active (its process `pid`, bundle id `id`) is another app's: not the input method itself
+    /// (its settings window) nor its settings app, and still the frontmost one (`frontmost`'s process): a notice that
+    /// comes after the next app's activation, and maybe after its text field's, is stale.
+    nonisolated static func isOtherApp(pid: pid_t, id: String?, frontmost: pid_t?) -> Bool {
+        pid != ProcessInfo.processInfo.processIdentifier && id != Updater.settingsBundleID && frontmost == pid
     }
 }
 
@@ -72,7 +82,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func translateModeFlagsChanged(keyCode: UInt16, modifiers: KeyModifiers) {
         guard TranslateModeShared.hold.flagsChanged(keyCode: keyCode, modifiers: modifiers) else {
-            endHoldHint()
+            Self.endHoldHint()
             return
         }
         TranslateModeShared.holdToken += 1
@@ -86,13 +96,21 @@ extension AllInOneIMEInputController {
         }
     }
 
+    /// A modifier change secure input keeps from the composer (`shiftDown`: Shift down after it): no long press, and
+    /// Shift as it is for the next one.
+    @MainActor
+    func translateModeFlagsMissed(shiftDown: Bool) {
+        TranslateModeShared.hold.resync(shiftDown: shiftDown)
+        Self.endHoldHint()
+    }
+
     /// A key went down: Shift held with it is for a capital or a shortcut. With the mode on here while secure input is
     /// on elsewhere, nothing collects (text goes in as typed): said once each time. (In the app holding it the input
     /// method is paused, and says so itself.)
     @MainActor
     func translateModeKeyDown() {
         TranslateModeShared.hold.keyDown()
-        endHoldHint()
+        Self.endHoldHint()
         guard composer.translateMode != nil else { return }
         TranslateModeShared.listOpen = false  // a key closes the chip's list, and does what it does
         scheduleChipRefresh()
@@ -112,7 +130,7 @@ extension AllInOneIMEInputController {
         guard let held = TranslateModeShared.hold.held else { return }
         guard TranslateModeShared.shiftHeld(), composer.voice == .off else {
             TranslateModeShared.hold.cancel()
-            endHoldHint()
+            Self.endHoldHint()
             return
         }
         switch TranslateModeShared.hold.poll(pointerUsed: pointerUsedWithin(held)) {
@@ -126,14 +144,14 @@ extension AllInOneIMEInputController {
             TranslateModeShared.hint = nil  // the toggle's own notice takes its place
             toggleTranslateMode()
         case nil:
-            endHoldHint()  // the pointer used or moved: a Shift-click
+            Self.endHoldHint()  // the pointer used or moved: a Shift-click
         }
     }
 
-    /// The press is no longer timed (released, a key, another modifier, the pointer, another field): its hint goes at
-    /// once if it's still the notice up.
+    /// The press is no longer timed (released, a key, another modifier, the pointer, another field or app): its hint
+    /// goes at once if it's still the notice up.
     @MainActor
-    private func endHoldHint() {
+    private static func endHoldHint() {
         guard TranslateModeShared.hold.held == nil, let hint = TranslateModeShared.hint else { return }
         TranslateModeShared.hint = nil
         TranslateModeShared.hintField?.endNotice(hint)
@@ -188,11 +206,12 @@ extension AllInOneIMEInputController {
 
     /// A text field became active (`activateServer`, after the app's settings): another app leaves the mode, with no
     /// notice, unless it translates always (`AppProfile.translateAlways`), where it comes on. The composer of this field
-    /// follows, and the chip shows here (or no longer).
+    /// follows, and the chip shows here (or no longer). A press of Shift ends, synced with Shift as it is (its release
+    /// may have gone unseen).
     @MainActor
     func translateModeActivated(app: String?) {
-        TranslateModeShared.hold.cancel()
-        endHoldHint()
+        TranslateModeShared.hold.resync(shiftDown: TranslateModeShared.shiftDown())
+        Self.endHoldHint()
         TranslateModeShared.listOpen = false
         let config = loadSettings()
         let transition = TranslateModeShared.state.activated(app: app, last: TranslateModeShared.lastTarget, config: config)
@@ -213,9 +232,11 @@ extension AllInOneIMEInputController {
 
     /// Another app became active (`TranslateModeShared.watchApps`), a text field in it or not: it leaves, with no
     /// notice, unless that app translates always (`State.appActivated`). The field still being typed in, if any,
-    /// follows (its draft goes in as typed) and the chip goes.
+    /// follows (its draft goes in as typed) and the chip goes. A press of Shift ends there, its hint gone.
     @MainActor
     static func otherAppActivated(_ app: String?) {
+        TranslateModeShared.hold.resync(shiftDown: TranslateModeShared.shiftDown())
+        endHoldHint()
         let field = activeController
         let config = field?.loadSettings() ?? LiveConfig.current
         guard case .left = TranslateModeShared.state.appActivated(app, config: config) else { return }
