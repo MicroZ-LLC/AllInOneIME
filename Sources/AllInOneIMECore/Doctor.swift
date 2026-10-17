@@ -52,16 +52,6 @@ public enum Doctor {
         case openAppleIntelligenceSettings
         /// "Check for Updates" as in the input menu.
         case checkForUpdates
-
-        /// One that ⏎ applies with the others ("fix all safe ones"): it changes only this app's own settings or input
-        /// source, opening nothing. What opens a window or a pane (Check for Updates opens Settings), or downloads, is
-        /// picked one by one.
-        public var isSafe: Bool {
-            switch self {
-            case .repairConfig, .resaveConfig, .enableInputMethod: return true
-            case .openPrivacy, .downloadPack, .openKeyField, .openAppleIntelligenceSettings, .checkForUpdates, .copyCommand: return false
-            }
-        }
     }
 
     public struct Finding: Equatable, Sendable {
@@ -256,13 +246,15 @@ public enum Doctor {
         if config.provider != .apple, facts.apple != .unsupportedSystem {
             if facts.apple == .available {
                 out.append(Finding(area: .appleIntelligence, status: .ok,
-                                   title: t.tr("Apple 智能可以用（设置 → 助手在本机运行）",
-                                               "Apple Intelligence is ready (Settings → Assistant runs on this Mac)")))
+                                   title: t.tr("Apple 智能可以用", "Apple Intelligence is ready"),
+                                   detail: t.tr("这一页的请求在本机处理", "Requests on this page are handled on this Mac")))
             } else {
                 let fixable = facts.apple == .appleIntelligenceNotEnabled
                 out.append(Finding(area: .appleIntelligence, status: .warning,
                                    title: t.tr("Apple 智能不能用", "Apple Intelligence isn't available"),
-                                   detail: t.appleReason(facts.apple), fix: fixable ? .openAppleIntelligenceSettings : nil))
+                                   detail: t.appleReason(facts.apple) + t.tr("；这一页的请求会发给你选的 AI 服务",
+                                                                            "; requests on this page go to your AI provider"),
+                                   fix: fixable ? .openAppleIntelligenceSettings : nil))
             }
         }
         return out

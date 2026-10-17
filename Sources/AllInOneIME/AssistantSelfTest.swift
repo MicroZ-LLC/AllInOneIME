@@ -131,7 +131,7 @@ extension SelfTest {
                          {"key": "customCommands", "value": []}], "note": "竖排候选，微信里用中文。"}
             """)
         check(model.requests == 1 && assistant.lines == ["候选排列：横排 → 竖排", "按 App · WeChat · 开始的输入语言：跟全局一样 → 中文",
-                                                         "✕ customCommands：不能在这里改，请打开设置"],
+                                                         "✕ customCommands：请到设置里对应的那一页改"],
               "the request goes to the on-device model; the preview shows each change and the refused part (\(assistant.lines))")
         check(assistant.preview?.note == "竖排候选，微信里用中文。" && rig.file().candidateLayout == .horizontal,
               "its note shows; nothing changed before Apply")
@@ -171,7 +171,7 @@ extension SelfTest {
 
         // Nothing it can do: one line.
         ask("install the weather plugin", #"{"changes": [{"key": "plugins", "value": []}]}"#)
-        check(assistant.preview == nil && assistant.message == "✕ plugins：不能在这里改，请打开设置",
+        check(assistant.preview == nil && assistant.message == "✕ plugins：请到设置里对应的那一页改",
               "a refused request is one line (\(assistant.message ?? "-"))")
         ask("make it nice", "not json")
         check(assistant.message == "没能把这句话变成设置", "an answer that isn't settings is one line (\(assistant.message ?? "-"))")
