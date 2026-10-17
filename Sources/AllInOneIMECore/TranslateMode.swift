@@ -1,4 +1,7 @@
+#if canImport(CoreGraphics)
+// A public default argument (`pointer: { .zero }`) needs CGPoint's module imported here; elsewhere Foundation has it.
 import CoreGraphics
+#endif
 import Foundation
 
 // MARK: - Translate as You Type (a prototype)
