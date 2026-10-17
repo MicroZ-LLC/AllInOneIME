@@ -85,9 +85,10 @@ final class SettingsModel: ObservableObject {
     func setRememberQuestions(_ on: Bool) {
         config.rememberQuestions = on
         guard !on else { return }
+        // Marked first, so that a sync running meanwhile never takes the deletion for a Clear.
+        if persists { ICloudSyncController.shared.questionsForgotten() }
         QuestionHistoryStore.clear()
         recentQuestions = 0
-        if persists { ICloudSyncController.shared.questionsForgotten() }
     }
 
     /// Questions asked since the window opened.
@@ -139,7 +140,7 @@ final class SettingsModel: ObservableObject {
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
     /// (`AIConfig.writing`), down to an app's profile and each switch of hiding sensitive information: a value written
-    /// meanwhile by Settings → Assistant or by hand that the window hasn't read yet stays as it is, and so do keys this version
+    /// meanwhile by sync through iCloud, Settings → Assistant or by hand that the window hasn't read yet stays as it is, and so do keys this version
     /// doesn't know. Nothing is written when nothing changed (opening the window, moving through its fields, ⏎ on one
     /// left as it was, closing it). The window then shows the file as it now is.
     func save() {

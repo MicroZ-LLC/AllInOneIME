@@ -79,8 +79,12 @@ final class ICloudSyncController: ObservableObject {
     /// Another run was asked for while one was going on.
     private var again = false
     private var watchers: [DispatchSourceFileSystemObject] = []
-    /// What is watched: each folder with its file number (a folder deleted and made again is watched anew).
-    private var watched: [String] = []
+    /// A folder watched, by its path and file number: one deleted and made again is watched anew.
+    private struct Watched: Hashable {
+        var path: String
+        var inode: UInt64?
+    }
+    private var watched: [Watched] = []
     private var poll: Timer?
     private var rimeTimer: Timer?
     private var lastRimeSync: Date?
@@ -90,6 +94,8 @@ final class ICloudSyncController: ObservableObject {
     /// Shown, not live: the settings images (`show`).
     private var sample = false
 
+    /// This Mac's sync record was copied from another Mac: Rime's installation id is made anew before its next sync.
+    static let rimeResetKey = "iCloudSyncResetRimeInstallation"
     static let debounce: TimeInterval = 5
     static let pollInterval: TimeInterval = 5 * 60
     static let rimeInterval: TimeInterval = 30 * 60
@@ -154,9 +160,14 @@ final class ICloudSyncController: ObservableObject {
         }
         running = true
         var engine = self.engine
-        // The config file is written on the main thread, as Settings and @config write it.
-        engine.writeConfig = { config, old, keys, url in
-            try DispatchQueue.main.sync { try AIConfig.writing(config, from: old, keys: keys, at: url) }
+        // The config file is written on the main thread, as Settings and @config write it (a key Settings changed since
+        // the run read the file is left as Settings wrote it), and Settings and the input method are told at once.
+        engine.writeConfig = { (config: Config, old: Config, keys: Set<String>, url: URL) throws -> Set<String> in
+            try DispatchQueue.main.sync { () throws -> Set<String> in
+                let written = try ICloudSync.writeConfig(config, readAs: old, keys: keys, at: url)
+                if !written.isEmpty { NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil) }
+                return written
+            }
         }
         queue.async {
             let on = ((try? Config.load(from: engine.configURL)) ?? .default).iCloudSync
@@ -192,7 +203,8 @@ final class ICloudSyncController: ObservableObject {
             stopRime(rimeFolder)
             rimeSyncDirSet = false
         }
-        if report.newMachine { resetRimeInstallation() }
+        // Rime's installation id is made anew before its next sync (Rime may not be running now).
+        if report.newMachine { UserDefaults.standard.set(true, forKey: Self.rimeResetKey) }
         for (key, problem) in report.rejected.sorted(by: { $0.key < $1.key }) {
             log.notice("iCloud sync: \(key, privacy: .public) from iCloud not applied: \(problem.rawValue, privacy: .public)")
         }
@@ -232,6 +244,10 @@ final class ICloudSyncController: ObservableObject {
         try? FileManager.default.createDirectory(at: rimeFolder, withIntermediateDirectories: true)
         folder.downloadAll(in: ICloudSync.rimeFolder)
         rimeSyncDirSet = true
+        if UserDefaults.standard.bool(forKey: Self.rimeResetKey), RimeService.shared.userDataDir != nil {
+            resetRimeInstallation()
+            UserDefaults.standard.removeObject(forKey: Self.rimeResetKey)
+        }
         if syncRime(rimeFolder) {
             lastRimeSync = Date()
             rimeWanted = false
@@ -280,17 +296,18 @@ final class ICloudSyncController: ObservableObject {
     }
 
     /// "Remove from iCloud…" for the hidden words or the recent questions (Settings turns its switch off first): only
-    /// those taken out of iCloud; this Mac keeps its own.
-    func removeFromICloud(_ category: ICloudSync.Category, done: @escaping @MainActor (String?) -> Void) {
+    /// those taken out of iCloud; this Mac keeps its own. `done` gets the outcome (`.waiting`: settings.json isn't
+    /// downloaded yet; the next runs finish it), or the error.
+    func removeFromICloud(_ category: ICloudSync.Category, done: @escaping @MainActor (Result<ICloudSyncEngine.Removal, Error>) -> Void) {
         let engine = self.engine
         queue.async {
-            var failure: String?
-            do {
-                try engine.removeFromICloud(category)
-            } catch {
-                failure = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let result = Result { try engine.removeFromICloud(category) }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if case .success(.waiting) = result { ICloudSyncController.shared.changed() }
+                    done(result)
+                }
             }
-            DispatchQueue.main.async { MainActor.assumeIsolated { done(failure) } }
         }
     }
 
@@ -301,10 +318,10 @@ final class ICloudSyncController: ObservableObject {
         changed()
     }
 
-    /// The recent questions deleted because "Remember recent questions" was turned off: no Clear for the other Macs.
+    /// The recent questions about to be deleted because "Remember recent questions" was turned off: no Clear for the other
+    /// Macs. Marked at once (before the deletion), not on the queue: a run going on reads the mark after the file.
     func questionsForgotten() {
-        let engine = self.engine
-        queue.async { engine.forgetQuestionsSeen() }
+        engine.forgetQuestionsSeen()
     }
 
     /// Turning it on in Settings: only with iCloud Drive there.
@@ -351,15 +368,14 @@ final class ICloudSyncController: ObservableObject {
             folders.append(engine.questionsURL.deletingLastPathComponent().path)
             folders.append(engine.folder.exists ? engine.folder.url.path : engine.folder.url.deletingLastPathComponent().path)
         }
-        let keys = Array(Set(folders)).sorted().map { path -> String in
+        let keys = Array(Set(folders)).sorted().map { path -> Watched in
             var info = stat()
-            return stat(path, &info) == 0 ? "\(path)#\(info.st_ino)" : path
+            return Watched(path: path, inode: stat(path, &info) == 0 ? UInt64(info.st_ino) : nil)
         }
         guard keys != watched else { return }
         watchers.forEach { $0.cancel() }
         watchers = keys.compactMap { key in
-            let path = String(key.split(separator: "#").first ?? Substring(key))
-            let fd = open(path, O_EVTONLY)
+            let fd = open(key.path, O_EVTONLY)
             guard fd >= 0 else { return nil }
             let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
             source.setEventHandler { MainActor.assumeIsolated { ICloudSyncController.shared.changed() } }

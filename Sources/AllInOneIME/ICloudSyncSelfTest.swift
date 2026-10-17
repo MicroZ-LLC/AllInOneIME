@@ -76,6 +76,19 @@ extension SelfTest {
         let textAfter = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
         check(textAfter == textBefore.replacingOccurrences(of: "\"candidateLayout\" : \"horizontal\"", with: "\"candidateLayout\" : \"vertical\""),
               "only that key's text changed in the config file")
+        // Settings with the file as it was before that change (the window not yet told): a switch saved there writes that
+        // key alone, never the stale rest over what sync wrote.
+        let staleText = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        try? Data(textBefore.utf8).write(to: configURL)
+        let staleModel = SettingsModel(configURL: configURL)
+        try? Data(staleText.utf8).write(to: configURL)
+        staleModel.config.voiceInput.toggle()
+        staleModel.save()
+        let afterSave = LiveConfig.current
+        check(afterSave.candidateLayout == .vertical && afterSave.voiceInput == staleModel.config.voiceInput,
+              "a Settings save writes only the keys it changed: what sync wrote meanwhile stays")
+        staleModel.config.voiceInput.toggle()
+        staleModel.save()
         // A change here goes there.
         edit(configURL) { $0.typeOutVaries = true }
         syncNow()

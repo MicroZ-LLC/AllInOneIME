@@ -134,7 +134,15 @@ struct ICloudSyncSection: View {
     private func remove(_ category: ICloudSync.Category) {
         if category == .hiddenWords { model.config.iCloudSync.hiddenWords = false } else { model.config.iCloudSync.recentQuestions = false }
         model.save()
-        sync.removeFromICloud(category) { error in removeError = error.map { tr("没能移除：", "Couldn't remove it: ") + $0 } }
+        sync.removeFromICloud(category) { result in
+            switch result {
+            case .success(.removed): removeError = nil
+            case .success(.waiting):
+                removeError = tr("正在等 iCloud…：settings.json 下载下来后就移除。", "Waiting for iCloud…: removed once settings.json is downloaded.")
+            case let .failure(error):
+                removeError = tr("没能移除：", "Couldn't remove it: ") + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            }
+        }
     }
 
     /// "Remove from iCloud…" under an opt-in's switch, while the shared folder is there.
