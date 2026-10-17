@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 /// A command typed at the start of a draft, e.g. "@question 量子计算是什么". The action key then
 /// runs it on the rest of the draft. Without one, nothing is sent: the input method just types.
@@ -232,7 +231,7 @@ public struct Command: Hashable, Sendable {
         return hidden
     }
 
-    private static let catalogLog = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
+    private static let catalogLog = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
     private static let loggedHidden = Locked(initialState: Set<String>())
 
     /// A plugin or custom command a built-in one hides (say a custom "@note" from before @note was built in):
@@ -240,7 +239,7 @@ public struct Command: Hashable, Sendable {
     /// the built-in's, so it may be logged.
     private static func logHidden(_ kind: String, _ name: String) {
         guard loggedHidden.withLock({ $0.insert(kind + " " + name).inserted }) else { return }
-        catalogLog.notice("\(kind, privacy: .public) @\(name, privacy: .public) is hidden: a built-in command has that name")
+        catalogLog.notice("\(kind) @\(name) is hidden: a built-in command has that name")
     }
 
     /// The draft's command and the text after it: "@question 量子计算" → (.question, "量子计算").

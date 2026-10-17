@@ -1,5 +1,4 @@
 import Foundation
-import os
 import Security
 
 /// The API keys of the Claude, Gemini and OpenAI-compatible providers, and of other services the
@@ -17,7 +16,7 @@ import Security
 public enum APIKeys {
     static let service = "AllInOneIME API key"
     static let cache = KeyCache()
-    static let log = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "keys")
+    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "keys")
 
     /// The items of this service: the login keychain; tests and the self-test give an in-memory one
     /// (`Keychain.inMemory`), so that nothing they do reaches the user's keychain.
@@ -118,10 +117,10 @@ public enum APIKeys {
         defer { cache.forget(account) }
         let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key))
         guard status == errSecSuccess else {
-            log.error("key not saved: \(account, privacy: .public) (\(status, privacy: .public))")
+            log.error("key not saved: \(account) (\(status))")
             throw KeychainError(status: status)
         }
-        log.notice("key saved: \(account, privacy: .public)")
+        log.notice("key saved: \(account)")
     }
 
     /// Removes the key of `provider`: only ever on the user's say-so (Settings → Remove Key…, confirmed; signing out).
@@ -134,10 +133,10 @@ public enum APIKeys {
         defer { cache.forget(account) }
         let status = store.delete(account)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            log.error("key not removed: \(account, privacy: .public) (\(status, privacy: .public))")
+            log.error("key not removed: \(account) (\(status))")
             throw KeychainError(status: status)
         }
-        if status == errSecSuccess { log.notice("key removed: \(account, privacy: .public)") }
+        if status == errSecSuccess { log.notice("key removed: \(account)") }
     }
 
     /// The last 4 characters of `key`, kept with it as an attribute (not secret) so that Settings can say which key is

@@ -1,13 +1,11 @@
 # Core files that still import an Apple-only module outside `#if canImport(...)` (Scripts/check-core-portable.sh).
 # This list only shrinks: don't add to it; take a line out once its import is gone or guarded.
 APIKeys.swift Security
-APIKeys.swift os
 AWSCredentialSources.swift CryptoKit
 AWSProfiles.swift CryptoKit
 AppBundles.swift Security
 AppleModel.swift NaturalLanguage
 CandidateLayout.swift CoreGraphics
-Command.swift os
 DeadKeys.swift Carbon
 ExtensionSources.swift CryptoKit
 ExtensionStore.swift CryptoKit
