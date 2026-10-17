@@ -43,7 +43,10 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var questionNote: String?
     /// The model's explanation of the findings for `question`, and the findings whose fixes it named.
     @Published private(set) var explanation: String?
-    @Published private(set) var recommended: [Int] = []
+    /// The fixes it named (matched to the findings by their fix: the rows may be probed again meanwhile).
+    @Published private(set) var recommended: [Doctor.Fix] = []
+    /// Check is running its connection test (the button waits for it; the quick probes don't hold it).
+    @Published private(set) var checkingConnection = false
     /// The finding whose command was just copied ("Copied" for a moment).
     @Published private(set) var copied: Int?
     /// The ✓ rows shown though everything is fine (the disclosure opened).
@@ -57,9 +60,11 @@ final class AssistantModel: ObservableObject {
     private var checkTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
     private var lastProbe: Date?
-    /// The last connection test's result, and the config it ran with: shown again with the probes while the config is
-    /// as it was.
-    private var tested: (config: Config, connection: Doctor.Facts.Connection)?
+    /// The last connection test's result, and the config and keys it ran with: shown again with the probes while both
+    /// are as they were.
+    private var tested: (config: Config, keySaved: [Provider: Bool], connection: Doctor.Facts.Connection)?
+    /// A fix or an undo asked for the probes while Check was running: they run once it's done.
+    private var pendingReprobe = false
 
     init() {}
 
@@ -283,14 +288,21 @@ final class AssistantModel: ObservableObject {
         run(connection: true)
     }
 
-    /// The probes again after a fix (the last connection result kept while the config is as it was).
+    /// The probes again after a fix (the last connection result kept while the config is as it was); after Check, when
+    /// it's running.
     private func reprobe() {
-        guard !findings.isEmpty, !checking else { return }
+        guard !findings.isEmpty else { return }
+        guard !checking else {
+            pendingReprobe = true
+            return
+        }
         run(connection: false)
     }
 
     private func run(connection: Bool) {
         checking = true
+        checkingConnection = connection
+        if !connection { pendingReprobe = false }
         lastProbe = Date()
         probes += 1
         if connection {
@@ -310,7 +322,9 @@ final class AssistantModel: ObservableObject {
             var facts = await DoctorSession.probe()
             guard let self, !Task.isCancelled else { return }
             let chinese = UIText.chinese
-            if let tested = self.tested, tested.config == facts.config { facts.connection = tested.connection }
+            if let tested = self.tested, tested.config == facts.config, tested.keySaved == facts.keySaved {
+                facts.connection = tested.connection
+            }
             if connection, Doctor.canTestConnection(facts) {
                 facts.connection = .running
                 self.findings = Doctor.findings(facts, chinese: chinese)
@@ -323,7 +337,7 @@ final class AssistantModel: ObservableObject {
                 let seconds = Int(DoctorSession.connectionTimeout)
                 facts.connection = outcome.map { $0.ok ? .ok($0.line) : .failed($0.line) }
                     ?? .failed(chinese ? "\(seconds) 秒内没有回应" : "no answer within \(seconds) s")
-                if let config = facts.config { self.tested = (config, facts.connection) }
+                if let config = facts.config { self.tested = (config, facts.keySaved, facts.connection) }
             }
             let findings = Doctor.findings(facts, chinese: chinese)
             self.findings = findings
@@ -334,7 +348,7 @@ final class AssistantModel: ObservableObject {
                     let answer = try await DoctorSession.service.ask(question, findings: english, config: facts.config ?? .default)
                     guard !Task.isCancelled else { return }
                     self.explanation = answer.explanation + (answer.onDevice ? "" : tr("（由你选的 AI 服务回答）", " (answered by your AI provider)"))
-                    self.recommended = answer.fixes
+                    self.recommended = answer.fixes.compactMap { english.indices.contains($0) ? english[$0].fix : nil }
                 } catch {
                     guard !Task.isCancelled else { return }
                     self.explanation = tr("没能问 AI：", "Couldn't ask the AI: ") + UIText.describe(error)
@@ -343,6 +357,11 @@ final class AssistantModel: ObservableObject {
             let (problems, warnings) = (findings.filter { $0.status == .problem }.count, findings.filter { $0.status == .warning }.count)
             log.notice("assistant: checks done (\(connection ? "with" : "without", privacy: .public) the connection): problems=\(problems) warnings=\(warnings)")
             self.checking = false
+            self.checkingConnection = false
+            if self.pendingReprobe {
+                self.pendingReprobe = false
+                self.run(connection: false)
+            }
         }
     }
 
@@ -401,7 +420,7 @@ final class AssistantModel: ObservableObject {
         connectionTask?.cancel()
         (request, preview, lines, message, applied, appliedWritesSettings, undone, connection) = ("", nil, [], nil, nil, false, nil, nil)
         (findings, checking, question, questionNote, explanation, recommended, copied, showsFine) = ([], false, "", nil, nil, [], nil, false)
-        (probes, connectionTests, lastProbe, tested) = (0, 0, nil, nil)
+        (probes, connectionTests, lastProbe, tested, checkingConnection, pendingReprobe) = (0, 0, nil, nil, false, false)
     }
 }
 
@@ -508,7 +527,7 @@ struct AssistantPage: View {
                 .labelsHidden()
                 .onSubmit { if !assistant.question.trimmingCharacters(in: .whitespaces).isEmpty { assistant.check() } }
                 Button(tr("检查", "Check")) { assistant.check() }
-                    .disabled(assistant.checking)
+                    .disabled(assistant.checkingConnection)
             }
             if let note = assistant.questionNote {
                 Label(note, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
@@ -562,7 +581,7 @@ struct AssistantPage: View {
                 if finding.fix != nil {
                     if assistant.copied == index {
                         Text(tr("已复制", "Copied")).foregroundStyle(.secondary)
-                    } else if assistant.recommended.contains(index) {
+                    } else if let fix = finding.fix, assistant.recommended.contains(fix) {
                         Button(tr("修复", "Fix")) { assistant.fix(index) }.buttonStyle(.borderedProminent)
                     } else {
                         Button(tr("修复", "Fix")) { assistant.fix(index) }

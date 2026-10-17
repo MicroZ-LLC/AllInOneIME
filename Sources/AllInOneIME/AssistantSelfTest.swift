@@ -299,8 +299,9 @@ extension SelfTest {
         probed()
         check(rig.tested == 1 && assistant.findings.contains { $0.text(chinese: true).hasPrefix("✓ 连接正常") },
               "Check runs the connection test (\(rig.tested))")
-        check(model.requests == 1 && assistant.explanation?.hasPrefix("打字速度超出范围") == true && assistant.recommended == [1],
-              "the question is answered on device, its fix marked (\(assistant.explanation ?? "-"), \(assistant.recommended))")
+        check(model.requests == 1 && assistant.explanation?.hasPrefix("打字速度超出范围") == true
+              && assistant.recommended == assistant.findings.filter { $0.title.hasPrefix("打字速度") }.compactMap(\.fix),
+              "the question is answered on device, its fix marked (\(assistant.explanation ?? "-"), \(assistant.recommended.count))")
 
         // A key typed into the question: never sent, nor left in the field.
         let key = "sk-ant-" + "api03-abcdefghijklmnopqrstuvwxyz0123456789"
