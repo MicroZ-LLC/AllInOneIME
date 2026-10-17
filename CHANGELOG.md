@@ -21,6 +21,7 @@ English | [中文](CHANGELOG.zh-CN.md)
   field too) turns it off, with no notice, unless the app has "Always Translate as You Type" in Settings → Apps
   (`translateAlways`). In an app with No AI or during secure input, text goes in as typed. Its request is one of its
   own: every other prompt is unchanged.
+- Script plugins get the input method's language: the app calls `run(input, {language})`, `language` being `"zh"` or `"en"` as its own interface shows (config `uiLanguage`, else the system's). Plugins with `run(input)` work as before; nothing else is passed.
 
 ## 0.6.4 (2026-10-16)
 

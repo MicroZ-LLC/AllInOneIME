@@ -112,6 +112,28 @@ struct PluginTests {
         let run = PluginRunner.command(for: stock, executable: "/Apps/AllInOneIME")
         #expect(run.argv == ["/Apps/AllInOneIME", "--run-plugin", try stockFolder().path])
         #expect(run.standardInput(for: "aapl") == "aapl" && run.timeout == 10)
+        // Told the interface language after the folder, and nothing else.
+        #expect(PluginRunner.command(for: stock, executable: "/Apps/AllInOneIME", language: .chinese).argv
+                == ["/Apps/AllInOneIME", "--run-plugin", try stockFolder().path, "--language", "zh"])
+        #expect(PluginRunner.command(for: stock, executable: "/Apps/AllInOneIME", language: .english).argv
+                == ["/Apps/AllInOneIME", "--run-plugin", try stockFolder().path, "--language", "en"])
+        #expect(PluginRunner.command(for: stock, executable: "/Apps/AllInOneIME", language: nil).argv == run.argv)
+    }
+
+    /// `--run-plugin <folder> [--language zh|en]`, as main.swift reads it.
+    @Test func pluginHostArguments() {
+        typealias Invocation = PluginHost.Invocation
+        #expect(PluginHost.invocation(["/p/stock"]) == Invocation(directory: "/p/stock"))
+        #expect(PluginHost.invocation(["/p/stock", "--language", "zh"]) == Invocation(directory: "/p/stock", language: .chinese))
+        #expect(PluginHost.invocation(["/p/stock", "--language", "en"]) == Invocation(directory: "/p/stock", language: .english))
+        // Unknown, not an interface language, or missing: no language (the script gets {}).
+        #expect(PluginHost.invocation(["/p/stock", "--language", "xx"]) == Invocation(directory: "/p/stock"))
+        #expect(PluginHost.invocation(["/p/stock", "--language", "fr"]) == Invocation(directory: "/p/stock"))
+        #expect(PluginHost.invocation(["/p/stock", "--language", "ZH"]) == Invocation(directory: "/p/stock"))
+        #expect(PluginHost.invocation(["/p/stock", "--language"]) == Invocation(directory: "/p/stock"))
+        #expect(PluginHost.invocation(["/p/stock", "--other", "x", "--language", "en"]) == Invocation(directory: "/p/stock", language: .english))
+        // No folder: main exits with 2.
+        #expect(PluginHost.invocation([]) == nil)
     }
 
     // MARK: JavaScript
@@ -139,6 +161,30 @@ struct PluginTests {
         #expect(throws: PluginScriptError.failed("can't reach the host")) {
             try PluginScript.evaluate(source: "function run() { return fetch('https://b.test/').text }", input: "", fetcher: fetcher)
         }
+    }
+
+    @Test func scriptsAreToldTheInterfaceLanguageAndNothingElse() throws {
+        let fetcher = StubFetcher()
+        let whole = "function run(input, context) { return JSON.stringify(arguments[1]) + ' ' + arguments.length }"
+        #expect(try PluginScript.evaluate(source: whole, input: "x", language: .chinese, fetcher: fetcher) == #"{"language":"zh"} 2"#)
+        #expect(try PluginScript.evaluate(source: whole, input: "x", language: .english, fetcher: fetcher) == #"{"language":"en"} 2"#)
+        #expect(try PluginScript.evaluate(source: whole, input: "x", language: nil, fetcher: fetcher) == "{} 2")
+        #expect(try PluginScript.evaluate(source: whole, input: "x", fetcher: fetcher) == "{} 2")
+        // Only the interface's two languages.
+        #expect(try PluginScript.evaluate(source: whole, input: "x", language: .french, fetcher: fetcher) == "{} 2")
+        // A plain object.
+        let plain = "function run(input, context) { return String(Object.getPrototypeOf(context) === Object.prototype) }"
+        #expect(try PluginScript.evaluate(source: plain, input: "x", language: .chinese, fetcher: fetcher) == "true")
+        // The way the docs suggest reading it, older apps included.
+        let reads = "function run(input, context) { return input + ' ' + ((context && context.language) || 'none') }"
+        #expect(try PluginScript.evaluate(source: reads, input: "你好", language: .chinese, fetcher: fetcher) == "你好 zh")
+        #expect(try PluginScript.evaluate(source: reads, input: "hi", language: .english, fetcher: fetcher) == "hi en")
+        #expect(try PluginScript.evaluate(source: reads, input: "hi", fetcher: fetcher) == "hi none")
+        // `run(input)` plugins work as before.
+        let old = "function run(input) { return input.toUpperCase() }"
+        #expect(try PluginScript.evaluate(source: old, input: "hi", language: .chinese, fetcher: fetcher) == "HI")
+        #expect(try PluginScript.evaluate(source: old, input: "hi", fetcher: fetcher) == "HI")
+        #expect(fetcher.asked.isEmpty)
     }
 
     @Test func fetchOnlyReachesTheListedHosts() {

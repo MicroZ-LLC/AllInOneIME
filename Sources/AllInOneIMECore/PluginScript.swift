@@ -42,7 +42,7 @@ public enum PluginScriptError: Error, LocalizedError, Equatable {
     }
 }
 
-/// Runs a plugin's JavaScript: `run(input)` with nothing but `fetch` (see docs/plugins.md).
+/// Runs a plugin's JavaScript: `run(input, context)` with nothing but `fetch` (see docs/plugins.md).
 public enum PluginScript {
     /// The `fetch` scripts call, over the native one (`__fetch(urls, headers)` → [{status, text, error}]).
     static let prelude = """
@@ -66,7 +66,14 @@ public enum PluginScript {
         })(__fetch);
         """
 
-    public static func evaluate(source: String, input: String, fetcher: PluginFetcher) throws -> String {
+    /// What `run` gets after the text: `{language: "zh"}` or `{language: "en"}`, the input method's interface
+    /// language, else `{}` (an older app, or a language the interface can't be in). Nothing else.
+    static func context(language: Language?) -> [String: String] {
+        guard let language, language.isInterfaceLanguage else { return [:] }
+        return ["language": language.rawValue]
+    }
+
+    public static func evaluate(source: String, input: String, language: Language? = nil, fetcher: PluginFetcher) throws -> String {
         guard let context = JSContext() else { throw PluginScriptError.failed("JavaScript is not available") }
         var thrown: String?
         context.exceptionHandler = { _, exception in
@@ -88,7 +95,8 @@ public enum PluginScript {
         guard let run = context.objectForKeyedSubscript("run"), run.isObject, !run.isUndefined else {
             throw PluginScriptError.noRunFunction
         }
-        let value = run.call(withArguments: [input])
+        // `run(input)` plugins work as before: JavaScript ignores the extra argument.
+        let value = run.call(withArguments: [input, Self.context(language: language)])
         if let thrown { throw PluginScriptError.failed(Self.clean(thrown)) }
         guard let value, value.isString, let text = value.toString() else {
             throw PluginScriptError.failed("run(input) must return text")

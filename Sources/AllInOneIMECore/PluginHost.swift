@@ -3,10 +3,33 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// `AllInOneIME --run-plugin <folder>`: the child process a script plugin runs in. The text comes on
-/// standard input; the result goes to standard output, an error message to standard error (exit 1).
+/// `AllInOneIME --run-plugin <folder> [--language zh|en]`: the child process a script plugin runs in. The
+/// text comes on standard input; the result goes to standard output, an error message to standard error (exit 1).
 public enum PluginHost {
-    public static func run(directory path: String, appVersion: String = AppVersion.string) -> Int32 {
+    /// What follows `--run-plugin`.
+    public struct Invocation: Equatable, Sendable {
+        public var directory: String
+        /// The input method's interface language, for the script's `context`; nil when missing or unknown.
+        public var language: Language?
+
+        public init(directory: String, language: Language? = nil) {
+            self.directory = directory
+            self.language = language
+        }
+    }
+
+    /// `<folder> [--language zh|en]` (the arguments after `--run-plugin`); nil without a folder. A missing or
+    /// unknown language is nil (the script then gets `{}`), other arguments are ignored.
+    public static func invocation(_ arguments: [String]) -> Invocation? {
+        guard let directory = arguments.first else { return nil }
+        var language: Language?
+        if let index = arguments.dropFirst().firstIndex(of: "--language"), index + 1 < arguments.count {
+            language = Language(rawValue: arguments[index + 1]).flatMap { $0.isInterfaceLanguage ? $0 : nil }
+        }
+        return Invocation(directory: directory, language: language)
+    }
+
+    public static func run(directory path: String, language: Language? = nil, appVersion: String = AppVersion.string) -> Int32 {
         func fail(_ message: String) -> Int32 {
             FileHandle.standardError.write(Data((message + "\n").utf8))
             return 1
@@ -26,7 +49,7 @@ public enum PluginHost {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             let text = try PluginScript.evaluate(source: String(decoding: source, as: UTF8.self), input: input,
-                                                 fetcher: URLSessionFetcher(hosts: manifest.hosts))
+                                                 language: language, fetcher: URLSessionFetcher(hosts: manifest.hosts))
             FileHandle.standardOutput.write(Data(text.utf8))
             return 0
         } catch {
@@ -35,19 +58,20 @@ public enum PluginHost {
     }
 }
 
-/// Runs a script plugin: `<executable> --run-plugin <folder>` through `CommandRunner` (timeout, output
-/// limit, Esc), with the text on standard input.
+/// Runs a script plugin: `<executable> --run-plugin <folder> [--language zh|en]` through `CommandRunner`
+/// (timeout, output limit, Esc), with the text on standard input.
 public enum PluginRunner {
-    /// The program run for `plugin`, as a `run` command.
-    public static func command(for plugin: InstalledPlugin, executable: String) -> CustomCommand {
-        CustomCommand(name: plugin.name, type: .run, argv: [executable, "--run-plugin", plugin.directory.path],
+    /// The program run for `plugin`, as a `run` command; `language` is the input method's interface language.
+    public static func command(for plugin: InstalledPlugin, executable: String, language: Language? = nil) -> CustomCommand {
+        CustomCommand(name: plugin.name, type: .run,
+                      argv: [executable, "--run-plugin", plugin.directory.path] + (language.map { ["--language", $0.rawValue] } ?? []),
                       stdin: CustomCommand.placeholder, ascii: plugin.manifest.typesLatin,
                       timeoutSeconds: plugin.manifest.timeout)
     }
 
-    public static func run(_ plugin: InstalledPlugin, input: String,
+    public static func run(_ plugin: InstalledPlugin, input: String, language: Language? = nil,
                            executable: String = Bundle.main.executablePath ?? CommandLine.arguments[0])
         -> AsyncThrowingStream<ConversionUpdate, Error> {
-        CommandRunner.run(command(for: plugin, executable: executable), input: input)
+        CommandRunner.run(command(for: plugin, executable: executable, language: language), input: input)
     }
 }
