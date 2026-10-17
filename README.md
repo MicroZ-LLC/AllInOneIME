@@ -531,17 +531,26 @@ Only the first 150 terms are read. With "Jargon" checked, the list is sent to Be
 
 A prototype, to try. Hold Shift on its own for 1 second to turn Translate as You Type on (or off); a quick tap of Shift
 still switches the input language. At 0.5 s a hint near the caret says "Keep holding → Translate as You Type", and at 1 s
-"Translate as You Type on: Chinese → English · hold Shift again to turn off" confirms it for about 1.5 s (turning it off:
+"Translate as You Type on: Chinese → English · hold Shift again to turn off" (naming the language it translates into)
+confirms it for about 1.5 s (turning it off:
 "Keep holding → Translate as You Type off", then "Translate as You Type off"); let go before then and nothing changes.
 Shift with a letter (a capital) or with another key never turns it on. While it's on, the menu bar icon carries a small
 dot. There is no command for it.
 
-While it's on, what you type collects into a draft shown after "中→英 ›" (the arrow points to your first translation
-language that isn't the one you type: "中→日 ›" with Japanese first). ⏎ translates it and the translation goes in at once,
+While it's on, what you type collects into a draft shown after "中→英 ›". It translates into the language you picked last
+on its chip (below), in every app and after a restart; until you pick one, into your first translation language in
+Settings (and back to that one when the language picked is no longer among them). The language you're typing when it
+comes on doesn't change it. ⏎ translates the draft and the translation goes in at once,
 with no candidates to pick: the draft says "Translating…" meanwhile, and nothing is sent (⏎ again is the app's own). ⇧⏎
 inserts the draft as typed; Esc while it's translated stops it and keeps the draft; if it fails (the network, a refusal,
 secure input), the draft stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to
 English) goes in as typed.
+
+While it's on, a small chip "中 → 英" shows under the line you're typing in, in the input method's own panel (the
+candidate panel: on top of the candidates while you type pinyin), so it never takes the focus from the app. Click "中" to
+switch the input language, as a tap of Shift does. Click "英" for a short list of your translation languages, the current
+one checked, and click one: it's what it translates into at once (the chip, the draft's "中→日 ›" and the next
+translation follow) and from then on. The keys work as before; one closes the list.
 
 - **Tone**: it follows the app: the app's first rewrite style in Settings → Apps, else casual in chat apps (WeChat, Slack,
   Messages, Telegram, Discord, Teams), formal in mail apps (Mail, Outlook, Spark), natural elsewhere.

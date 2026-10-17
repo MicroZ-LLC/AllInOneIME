@@ -357,6 +357,72 @@ struct TranslateModeComposerTests {
         #expect(commits(d.setTranslateMode(nil)).isEmpty && d.draft == "@improve ")
     }
 
+    /// The target comes from the state (the last pick, else the first output language), never from the language typed:
+    /// turned on while English is typed it still translates into English, and English goes in as typed.
+    @Test func theLanguageTypedHasNoSayInTheTarget() {
+        var config = Config.default
+        config.setOrder([OutputLanguage.english, .chinese])
+        var state = TranslateMode.State()
+        let (c, _) = composer(nil)
+        c.setInputMode(.english)
+        let session = state.enter(last: nil, config: config)
+        #expect(session == english)
+        _ = c.setTranslateMode(session)
+        #expect(!c.handleKeyDown(k("h")).handled && c.draft.isEmpty && c.markedText.isEmpty)
+        // Chinese typed collects, into English.
+        c.setInputMode(.chinese)
+        draftNihao(c)
+        #expect(c.markedText == "中→英 › 你好")
+    }
+
+    /// The chip (「中 → 英」): none while it's off; its source is the language typed (a click on it, a tap of Shift,
+    /// switches it), its target the session's; its list the output languages, the target checked.
+    @Test func theChip() throws {
+        #expect(composer(nil).0.translateModeChip() == nil)
+        let (c, _) = composer()
+        let chip = try #require(c.translateModeChip())
+        #expect(chip.text == "中 → 英" && chip.sourceText == "中" && chip.targetText == "英" && chip.choices == nil)
+        #expect(c.shiftTapped().contains(.inputLanguageChanged(.english)) && c.translateModeChip()?.text == "英 → 英")
+        _ = c.shiftTapped()
+        #expect(c.translateModeChip()?.text == "中 → 英")
+        let ja = OutputLanguage("ja")
+        let list = try #require(c.translateModeChip(choices: [.english, ja, .chinese]))
+        #expect(list.choices == [.english, ja, .chinese] && list.checks(.english) && !list.checks(ja) && !list.checks(.chinese))
+        #expect(list.choice(at: 1) == ja && list.choice(at: 3) == nil && list.choice(at: -1) == nil && chip.choice(at: 0) == nil)
+        #expect(TranslateMode.Chip(source: .english, target: .chinese).text == "英 → 中")
+        #expect(TranslateMode.Chip(source: .chinese, target: OutputLanguage("zh-Hant")).text == "中 → 繁")
+    }
+
+    /// A click on the chip's source part does what a tap of Shift does, to the letter.
+    @Test func aClickOnTheSourceIsATapOfShift() {
+        let (a, _) = composer(), (b, _) = composer()
+        draftNihao(a)
+        draftNihao(b)
+        type("wo", a)
+        type("wo", b)
+        let tap = a.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
+            + a.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
+        let click = b.shiftTapped()
+        #expect(!tap.isEmpty && tap == click)
+        #expect(a.inputLanguage == .english && b.inputLanguage == .english && a.markedText == b.markedText && a.draft == b.draft)
+        // One input language: nothing, as for Shift.
+        let (one, _) = composer()
+        one.inputLanguages = [.chinese]
+        #expect(one.shiftTapped().isEmpty && one.inputLanguage == .chinese)
+    }
+
+    /// Another target picked on the chip: the draft stays, after the new indicator, and ⏎ translates into it.
+    @Test func anotherTargetKeepsTheDraft() {
+        let (c, _) = composer()
+        draftNihao(c)
+        let japanese = TranslateMode.Session(target: OutputLanguage("ja"))
+        let picked = c.setTranslateMode(japanese)
+        #expect(commits(picked).isEmpty && picked.contains(.updateMarkedText))
+        #expect(c.draft == "你好" && c.markedText == "中→日 › 你好" && c.translateModeChip()?.text == "中 → 日")
+        let sent = request(c.handleKeyDown(enterKey).effects)
+        #expect(sent?.session == japanese && sent?.input == "你好")
+    }
+
     @Test func typedOutWhereResultsAre() {
         let (c, _) = composer()
         c.typesResults = true
@@ -423,16 +489,18 @@ struct TranslateModeToneTests {
 
 // MARK: - App switches and translateAlways
 
-/// `TranslateMode.State` through a class (its mutating calls inside `#expect`).
+/// `TranslateMode.State` through a class (its mutating calls inside `#expect`), with `last` the language picked last.
 final class StateProbe {
     var state = TranslateMode.State()
     let config: Config
+    var last: OutputLanguage?
     init(_ config: Config) { self.config = config }
 
-    func activated(_ app: String?) -> TranslateMode.State.Transition { state.activated(app: app, source: .chinese, config: config) }
+    func activated(_ app: String?) -> TranslateMode.State.Transition { state.activated(app: app, last: last, config: config) }
     @discardableResult
-    func enter() -> TranslateMode.Session? { state.enter(source: .chinese, config: config) }
+    func enter() -> TranslateMode.Session? { state.enter(last: last, config: config) }
     func leave() { state.leave() }
+    func retarget(_ target: OutputLanguage) -> TranslateMode.Session? { state.retarget(target) }
     var isOn: Bool { state.isOn }
 }
 
@@ -486,16 +554,51 @@ struct TranslateModeStateTests {
         #expect(s.activated(wechat) == .left(english))
     }
 
-    @Test func theTargetIsTheFirstOutputLanguageThatIsntTheOneTyped() {
-        #expect(TranslateMode.target(source: .chinese, outputs: [.english, .chinese]) == .english)
-        #expect(TranslateMode.target(source: .chinese, outputs: [.chinese, .english]) == .english)
-        #expect(TranslateMode.target(source: .english, outputs: [.english, .chinese]) == .chinese)
-        #expect(TranslateMode.target(source: .chinese, outputs: [OutputLanguage("zh-Hant")]) == OutputLanguage("zh-Hant"))
-        #expect(TranslateMode.target(source: .chinese, outputs: [.chinese]) == nil)
+    @Test func theTargetIsTheLastPickElseTheFirstOutputLanguage() {
+        let ja = OutputLanguage("ja")
+        // Nothing picked yet: the first output language, whichever it is.
+        #expect(TranslateMode.target(last: nil, outputs: [.english, .chinese]) == .english)
+        #expect(TranslateMode.target(last: nil, outputs: [.chinese, .english]) == .chinese)
+        #expect(TranslateMode.target(last: nil, outputs: [OutputLanguage("zh-Hant")]) == OutputLanguage("zh-Hant"))
+        // The last pick, wherever it is among them.
+        #expect(TranslateMode.target(last: ja, outputs: [.english, ja, .chinese]) == ja)
+        #expect(TranslateMode.target(last: .chinese, outputs: [.english, .chinese]) == .chinese)
+        // A pick no longer offered: the first again.
+        #expect(TranslateMode.target(last: ja, outputs: [.english, .chinese]) == .english)
+        #expect(TranslateMode.target(last: ja, outputs: []) == nil && TranslateMode.target(last: nil, outputs: []) == nil)
+        // Turned on: the same.
+        let s = StateProbe(config)
+        #expect(s.enter() == english)
+        s.leave()
+        s.last = .chinese
+        #expect(s.enter() == TranslateMode.Session(target: .chinese))
+        s.leave()
+        s.last = ja
+        #expect(s.enter() == english)
+        // Only Chinese to translate into: on, into Chinese (Chinese typed goes in as typed).
         var only = Config.default
         only.setOrder([OutputLanguage.chinese])
-        let s = StateProbe(only)
-        #expect(s.enter() == nil && !s.isOn)
+        #expect(StateProbe(only).enter() == TranslateMode.Session(target: .chinese))
+    }
+
+    @Test func anAppThatTranslatesAlwaysUsesTheLastPick() {
+        var config = config
+        config.appProfiles = [wechat: AppProfile(translateAlways: true)]
+        let s = StateProbe(config)
+        s.last = .chinese
+        _ = s.activated(notes)
+        #expect(s.activated(wechat) == .entered(TranslateMode.Session(target: .chinese)))
+    }
+
+    @Test func anotherTargetPickedWhileOn() {
+        let s = StateProbe(config)
+        #expect(s.retarget(.chinese) == nil && !s.isOn)  // off: nothing to change
+        s.enter()
+        let japanese = TranslateMode.Session(target: OutputLanguage("ja"))
+        #expect(s.retarget(OutputLanguage("ja")) == japanese && s.state.session == japanese)
+        // The state doesn't keep the pick: turned on again, it goes by `last` (the controller keeps that).
+        s.leave()
+        #expect(s.enter() == english)
     }
 
     @Test func translateAlwaysIsKeptInTheConfig() throws {

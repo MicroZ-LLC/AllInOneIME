@@ -4,8 +4,9 @@ import Foundation
 
 /// Translate as You Type (「边打边译」): typed text collects into a draft, and ⏎ translates it into one language and
 /// inserts the translation at once, with no candidates to pick from (⇧⏎ inserts the draft as typed). A long press of
-/// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the first output
-/// language that isn't the language being typed, in a tone that follows the app (`tone(app:)`).
+/// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the language picked
+/// last on its chip (`Chip`), at first the first output language (`target(last:outputs:)`), in a tone that follows the
+/// app (`tone(app:)`).
 /// It is one input method's state across its text fields (`State`): switching to another app leaves it, unless that
 /// app's profile translates always (`AppProfile.translateAlways`). The composer does the typing (Composer+TranslateMode.swift),
 /// the controller keeps the state and asks the model (`Converter.translateMode`, a request of its own:
@@ -83,9 +84,10 @@ public enum TranslateMode {
         return AppClass(app: app).tone
     }
 
-    /// The language text typed in `source` is translated into: the first of `outputs` that isn't it (nil: none).
-    public static func target(source: Language, outputs: [OutputLanguage]) -> OutputLanguage? {
-        outputs.first { !source.matches($0) }
+    /// The language it translates into: the one picked last (`last`, on the chip) while it is one of `outputs`, else
+    /// the first of them (nil: none). The language being typed has no say: text typed in the target goes in as typed.
+    public static func target(last: OutputLanguage?, outputs: [OutputLanguage]) -> OutputLanguage? {
+        last.flatMap { last in outputs.first { $0 == last } } ?? outputs.first
     }
 
     /// One language as the draft's prefix writes it: 「英」, 「日」, 「繁」 …, else its Chinese name without 语 / 文.
@@ -124,17 +126,27 @@ public enum TranslateMode {
 
         public var isOn: Bool { session != nil }
 
-        /// Turns it on: into the first output language that isn't `source` (the language being typed). Nil, and
-        /// nothing changes, when there's nothing to translate into.
+        /// Turns it on: into `last` (the language picked last) if it's still an output language, else the first one.
+        /// Nil, and nothing changes, when there's nothing to translate into.
         @discardableResult
-        public mutating func enter(source: Language, config: Config) -> Session? {
-            guard let target = TranslateMode.target(source: source, outputs: config.outputLanguages) else { return nil }
+        public mutating func enter(last: OutputLanguage?, config: Config) -> Session? {
+            guard let target = TranslateMode.target(last: last, outputs: config.outputLanguages) else { return nil }
             let session = Session(target: target)
             self.session = session
             return session
         }
 
         public mutating func leave() { session = nil }
+
+        /// Another language picked on the chip while it's on: it translates into that one from now on. Nil, and
+        /// nothing changes, while it's off.
+        @discardableResult
+        public mutating func retarget(_ target: OutputLanguage) -> Session? {
+            guard session != nil else { return nil }
+            let session = Session(target: target)
+            self.session = session
+            return session
+        }
 
         public enum Transition: Equatable, Sendable {
             case unchanged
@@ -144,18 +156,50 @@ public enum TranslateMode {
 
         /// A text field of `app` became active. Another field of the same app changes nothing. Another app leaves
         /// the mode, unless its profile translates always (`AppProfile.translateAlways`): there it stays on, or comes
-        /// on (as `enter`, with the defaults).
-        public mutating func activated(app: String?, source: Language, config: Config) -> Transition {
+        /// on (as `enter`, into `last` or the first output language).
+        public mutating func activated(app: String?, last: OutputLanguage?, config: Config) -> Transition {
             let same = sawApp && app?.lowercased() == self.app?.lowercased()
             (self.app, sawApp) = (app, true)
             guard !same else { return .unchanged }
             if config.profile(for: app)?.translateAlways == true {
-                guard session == nil, let session = enter(source: source, config: config) else { return .unchanged }
+                guard session == nil, let session = enter(last: last, config: config) else { return .unchanged }
                 return .entered(session)
             }
             guard let session else { return .unchanged }
             leave()
             return .left(session)
+        }
+    }
+
+    /// The chip near the caret while it's on (「中 → 英」, in the input method's own panel: the app's marked text can't be
+    /// clicked). A click on its source part switches the input language, as a tap of Shift does; one on its target part
+    /// lists the output languages (`choices`), the target checked, and the one clicked is the target from then on.
+    public struct Chip: Equatable, Sendable {
+        /// The language being typed.
+        public var source: Language
+        /// The language it translates into.
+        public var target: OutputLanguage
+        /// The output languages listed under it to pick from (the target part clicked); nil: no list.
+        public var choices: [OutputLanguage]?
+
+        public init(source: Language, target: OutputLanguage, choices: [OutputLanguage]? = nil) {
+            (self.source, self.target, self.choices) = (source, target, choices)
+        }
+
+        /// 「中」, the source part.
+        public var sourceText: String { TranslateMode.short(OutputLanguage(source)) }
+        /// 「英」, the target part.
+        public var targetText: String { TranslateMode.short(target) }
+        /// 「中 → 英」.
+        public var text: String { sourceText + " → " + targetText }
+
+        /// Whether `language` is checked in the list: the target.
+        public func checks(_ language: OutputLanguage) -> Bool { language == target }
+
+        /// The language of the list's row `index` (a click on it), nil: no such row or no list.
+        public func choice(at index: Int) -> OutputLanguage? {
+            guard let choices, choices.indices.contains(index) else { return nil }
+            return choices[index]
         }
     }
 

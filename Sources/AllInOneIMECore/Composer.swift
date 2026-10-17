@@ -1426,10 +1426,20 @@ public final class Composer {
         let toggle = isShift && !modifiers.contains(.shift)
             && held.map { $0 <= Self.shiftTapWindow && !pointerUsedWithin(max($0, 0)) } == true
         shiftPressedAt = nil
+        return toggle ? shiftTap() : []
+    }
+
+    /// A tap of Shift, as `handleFlagsChanged` tells one: the next input language. Translate as You Type's chip, its
+    /// source part clicked, does the same.
+    public func shiftTapped() -> [Effect] {
+        forField(shiftTap())
+    }
+
+    private func shiftTap() -> [Effect] {
         // With one input language Shift stays put, except to leave the letters a command switched to
         // (Chinese inside `@python print("…")`).
         let switches = inputLanguages.count > 1 || restoreChineseAfterOpen || nestedLatinFrom != nil
-        return toggle && voice == .off && switches ? switchInputLanguage() : []
+        return voice == .off && switches ? switchInputLanguage() : []
     }
 
     static let shiftTapWindow: TimeInterval = 0.5

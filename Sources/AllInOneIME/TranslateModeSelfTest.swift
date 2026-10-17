@@ -61,18 +61,29 @@ extension SelfTest {
     /// toggles nothing, and no @ command is offered for it. Pinyin collects into the draft after 「中→英 ›」, ⏎ translates
     /// (「翻译中…」 meanwhile) and the translation goes in at once, nothing sent after it; ⇧⏎ inserts as typed; Esc while
     /// translating keeps the draft; a failure keeps it with a notice and ⏎ tries again; typing in English (the target)
-    /// goes in as typed; in an app with no AI, ⏎ inserts as typed with the notice. A long press again turns it off; with
-    /// Japanese first it translates into Japanese; switching apps leaves it with no notice, an app that translates always
-    /// turns it on, in its tone.
-    static func testTranslateMode(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+    /// goes in as typed; in an app with no AI, ⏎ inserts as typed with the notice. The chip near the caret (「中 → 英」,
+    /// in the candidate panel, rendered: translate-mode-chip*.png): its source part switches the input language as a tap
+    /// of Shift, its target part lists the output languages and Japanese clicked there is the target at once and after
+    /// turning it on again (kept in the input method's defaults: the self-test's own here); a pick no longer offered goes
+    /// back to the first, and the language typed when it comes on doesn't matter. A long press again turns it off, the
+    /// chip gone; switching apps leaves it with no notice, an app that translates always turns it on, in its tone.
+    static func testTranslateMode(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("Translate as You Type (canned translations)", needs: .composing)
         let (notes, chat, mail) = ("com.example.notes", "com.example.chat", "com.example.mail")
-        let saved = (converter: controller.converter, settings: settings, shiftHeld: TranslateModeShared.shiftHeld)
+        let saved = (converter: controller.converter, settings: settings, shiftHeld: TranslateModeShared.shiftHeld,
+                     defaults: TranslateModeShared.defaults)
+        // The language picked last: in the self-test's own defaults (the user's stay as they are).
+        let suite = "com.aipinyin.selftest.translatemode"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
         defer {
             TranslateModeShared.state.leave()
             controller.perform(controller.composer.setTranslateMode(nil), client: client)
             controller.commitComposition(client)
             (controller.converter, settings, TranslateModeShared.shiftHeld) = (saved.converter, saved.settings, saved.shiftHeld)
+            TranslateModeShared.defaults = saved.defaults
+            TranslateModeShared.listOpen = false
+            UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
             controller.activateServer(client)
             controller.composer.setInputMode(settings.defaultInput)
@@ -195,35 +206,96 @@ extension SelfTest {
         check(client.inserted.last == "你好" && controller.notice == AppProfileText.refusal, "no AI in the app: ⏎ inserts as typed, with the notice")
         settings.appProfiles[notes] = nil
 
-        // A long press again: off.
+        // The chip near the caret, in the candidate panel (non-activating, never key: the field keeps the focus).
+        let japanese = OutputLanguage("ja")
+        settings.setOrder([OutputLanguage.english, japanese, .chinese])
+        let panel = CandidatePanel.shared
+        func chip() -> String { panel.isVisible ? panel.view.model.chip.map { "\($0.source) → \($0.target)" } ?? "none" : "hidden" }
+        /// A click on a part of the chip, through the panel's own mouse handling.
+        func click(_ part: CandidateView.ChipPart) {
+            guard let frames = panel.view.chipFrames else { return check(false, "the chip is in the panel to click") }
+            let rect = part == .source ? frames.source : frames.target
+            let point = panel.view.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+            guard let down = NSEvent.mouseEvent(with: .leftMouseDown, location: point, modifierFlags: [],
+                                                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+                                                context: nil, eventNumber: 0, clickCount: 1, pressure: 1) else { return }
+            check(panel.view.chipPart(at: panel.view.convert(point, from: nil)) == part, "a click there is on the chip's \(part) part")
+            panel.view.mouseDown(with: down)
+        }
+        controller.notice = nil
+        controller.refreshTranslateChip()
+        check(chip() == "中 → 英" && panel.view.model.rows.isEmpty && !panel.canBecomeKey && !panel.isKeyWindow
+              && panel.styleMask.contains(.nonactivatingPanel), "the chip near the caret while it's on: \(chip())")
+        snapshot("translate-mode-chip", in: snapshotDirectory)
+        type("nihao", controller, client)
+        check(chip() == "中 → 英" && panel.view.model.rows.first?.text == "你好", "…on top of the mode's candidates")
+        snapshot("translate-mode-chip-pinyin", in: snapshotDirectory)
+        _ = space(controller, client)
+        check(chip() == "中 → 英" && client.marked == "中→英 › 你好", "…and over the draft (\(chip()))")
+        // Its source part: as a tap of Shift.
+        click(.source)
+        check(controller.composer.inputLanguage == .english && chip() == "英 → 英" && client.marked == "中→英 › 你好",
+              "a click on 「中」 switches the input language, as a tap of Shift: \(chip())")
+        click(.source)
+        check(controller.composer.inputLanguage == .chinese && chip() == "中 → 英", "…and back (\(chip()))")
+        // Its target part: the output languages, the target checked; Japanese clicked is the target at once.
+        click(.target)
+        let listed = panel.view.model.rows
+        check(listed.map(\.text) == [OutputLanguage.english, japanese, .chinese].map(UIText.name) && listed.map(\.label) == ["✓", "", ""]
+              && chip() == "中 → 英", "a click on 「英」 lists the output languages, English checked: \(listed.map { $0.label + $0.text })")
+        snapshot("translate-mode-chip-list", in: snapshotDirectory)
+        panel.onSelect?(1)
+        check(controller.composer.translateMode?.target == japanese && chip() == "中 → 日" && panel.view.model.rows.isEmpty
+              && client.marked == "中→日 › 你好" && TranslateModeShared.defaults.string(forKey: "translateModeTarget") == "ja",
+              "Japanese clicked: the target at once, the chip \(chip()), the draft '\(client.marked)', kept as the last pick")
+        _ = enter(controller, client)
+        check(pump(timeout: 5) { client.inserted.last == "こんにちは" }, "…and the next translation into it (\(client.inserted.last ?? ""))")
+        // A key closes the list, and does what it does.
+        click(.target)
+        type("ni", controller, client)
+        check(!TranslateModeShared.listOpen && chip() == "中 → 日" && panel.view.model.rows.first?.label == "1",
+              "a key closes the list: the candidates again, under the chip")
+        _ = escape(controller, client)
+        check(pump(timeout: 1) { chip() == "中 → 日" && panel.view.model.rows.isEmpty }, "…the chip alone again (\(chip()))")
+
+        // A long press again: off, the chip gone.
         let off = longPress(hint: offHint)
         check(off.hinted && off.toggled && controller.composer.translateMode == nil && !MenuBarIcon.shared.translating
-              && controller.notice == tr("边打边译 已关闭", "Translate as You Type off"),
-              "a long press again turns it off: \(controller.notice ?? "-")")
+              && controller.notice == tr("边打边译 已关闭", "Translate as You Type off") && panel.view.model.chip == nil,
+              "a long press again turns it off, the chip gone: \(controller.notice ?? "-")")
         draft("nihao")
         check(client.inserted.last == "你好" && client.marked.isEmpty, "off: words go straight in again")
 
-        // Japanese first: into Japanese, the notice naming it.
-        settings.setOrder([OutputLanguage("ja"), .english, .chinese])
-        let japanese = longPress(hint: onHint)
-        check(japanese.toggled && controller.composer.translateMode?.target == OutputLanguage("ja")
+        // On again: into the language picked last, the notice naming it.
+        let again = longPress(hint: onHint)
+        check(again.toggled && controller.composer.translateMode?.target == japanese
               && controller.notice == tr("边打边译 已开启：中文 → 日语 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → Japanese · hold Shift again to turn off"),
-              "with Japanese first: \(controller.notice ?? "-")")
+              "on again: into the last pick, \(controller.notice ?? "-")")
         draft("nihao")
         check(client.marked == "中→日 › 你好", "…the draft after 「中→日 ›」: '\(client.marked)'")
-        _ = enter(controller, client)
-        check(pump(timeout: 5) { client.inserted.last == "こんにちは" }, "…into Japanese (\(client.inserted.last ?? ""))")
+        controller.commitComposition(client)
         _ = longPress(hint: offHint)
+        // Japanese no longer offered: the first again. Turned on while English is typed: still into English.
         settings.setOrder([OutputLanguage.english, .chinese])
+        tapShift(controller, client)
+        let english = longPress(hint: onHint)
+        check(english.toggled && controller.composer.translateMode?.target == .english && controller.composer.inputLanguage == .english
+              && controller.notice == tr("边打边译 已开启：中文 → 英文 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → English · hold Shift again to turn off"),
+              "a pick no longer offered: the first output language; English typed doesn't change it (\(controller.notice ?? "-"))")
+        check(!press(controller, client, "o", code: 0x1F) && client.marked.isEmpty, "…and English goes in as typed")
+        tapShift(controller, client)
+        _ = longPress(hint: offHint)
 
         // Another app leaves it, with no notice; an app that translates always turns it on, in its own tone.
         controller.toggleTranslateMode()
         controller.commitComposition(client)
         controller.notice = nil
+        controller.deactivateServer(client)
+        check(chip() != "中 → 英", "the field left: the chip goes (\(chip()))")
         client.bundleIDOverride = chat
         controller.activateServer(client)
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && controller.notice == nil
-              && !MenuBarIcon.shared.translating, "switching to another app leaves it, with no notice")
+              && !MenuBarIcon.shared.translating && chip() != "中 → 英", "switching to another app leaves it, with no notice and no chip")
         client.bundleIDOverride = mail
         controller.activateServer(client)
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")

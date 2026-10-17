@@ -47,6 +47,13 @@ extension Composer {
         return TranslateMode.indicator(from: typed, to: session.target)
     }
 
+    /// Translate as You Type's chip here (「中 → 英」, `TranslateMode.Chip`): the language typed and the one it translates
+    /// into, with `choices` listed under it. Nil while it's off here.
+    public func translateModeChip(choices: [OutputLanguage]? = nil) -> TranslateMode.Chip? {
+        guard let session = translateMode else { return nil }
+        return TranslateMode.Chip(source: inputLanguage, target: session.target, choices: choices)
+    }
+
     /// The draft as marked in the field: after the indicator, any "@" full-width (an app may take "@…" for a mention),
     /// and while it's translated, saying so.
     var modeShownDraft: String? {
@@ -64,7 +71,8 @@ extension Composer {
     }
 
     /// Turns the mode on here (`session`) or off (nil), as the controller has it. Off, its draft goes in as typed (pinyin
-    /// being typed picked first, a request stopped); the marked text shows the indicator, or no longer.
+    /// being typed picked first, a request stopped); the marked text shows the indicator, or no longer. Another target
+    /// (picked on the chip) keeps the draft, after the new indicator.
     public func setTranslateMode(_ session: TranslateMode.Session?) -> [Effect] {
         guard session != translateMode else { return [] }
         var effects: [Effect] = []

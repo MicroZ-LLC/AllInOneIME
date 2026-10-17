@@ -526,6 +526,7 @@ final class AllInOneIMEInputController: IMKInputController {
             perform(composer.commitAll(), client: sender as? IMKTextInput)
             fieldSession += 1
             if Self.activeController === self { Self.activeController = nil }
+            hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
         }
         super.deactivateServer(sender)
     }
@@ -1068,7 +1069,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .showPanel:
                 showPanel(target)
             case .hidePanel:
-                hidePanelIfOwned()
+                if !showTranslateChip(target) { hidePanelIfOwned() }  // Translate as You Type's chip stays
             case let .notice(text):
                 // A note left unsaved, its text on the clipboard: up as long as the other "on the clipboard" notices.
                 showNotice(text, client: target, long: text == composer.messages.noteNotSaved)
@@ -1091,6 +1092,7 @@ final class AllInOneIMEInputController: IMKInputController {
         scheduleRecipientSearch()
         scheduleListRun()
         refreshStatuses()
+        if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
 
     // MARK: - Script extensions
@@ -1863,7 +1865,7 @@ final class AllInOneIMEInputController: IMKInputController {
     // MARK: - Candidate panel
 
     @MainActor
-    private func anchor(_ client: IMKTextInput) -> NSRect {
+    func anchor(_ client: IMKTextInput) -> NSRect {
         // A command on the selection: under the selection's last line (nothing is marked to go by).
         if let range = composer.selection?.range, !range.isEmpty {
             let rect = client.firstRect(forCharacterRange: NSRange(location: range.upperBound - 1, length: 1), actualRange: nil)
@@ -1875,9 +1877,10 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     @MainActor
-    private func showPanel(_ client: IMKTextInput?) {
-        guard let client, composer.wantsPanel else {
-            hidePanelIfOwned()
+    func showPanel(_ client: IMKTextInput?) {
+        // Nothing to show: Translate as You Type's chip, if it's on here; its list of languages over anything else.
+        guard let client, composer.wantsPanel, !translateChipListShown else {
+            if !showTranslateChip(client) { hidePanelIfOwned() }
             return
         }
         let panel = CandidatePanel.shared
@@ -1896,6 +1899,7 @@ final class AllInOneIMEInputController: IMKInputController {
             guard let self else { return }
             self.perform(self.composer.scrollPalette(by: steps), client: nil)
         }
+        panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         panel.show(panelModel(), anchor: anchor(client))
     }
 
@@ -1919,7 +1923,7 @@ final class AllInOneIMEInputController: IMKInputController {
         perform(#selector(noticeExpired), with: nil, afterDelay: lasting ?? Self.noticeDuration(text, long: long))
         if composer.wantsPanel {
             showPanel(client)
-        } else if let client {
+        } else if !showTranslateChip(client), let client {  // under Translate as You Type's chip, if it's on here
             let panel = CandidatePanel.shared
             panel.owner = self
             panel.onSelect = nil
@@ -1943,7 +1947,7 @@ final class AllInOneIMEInputController: IMKInputController {
             notice = nil
             if composer.wantsPanel {
                 showPanel(clientOverride ?? client())
-            } else {
+            } else if !showTranslateChip(clientOverride ?? client()) {
                 hidePanelIfOwned()
             }
         }
@@ -2355,6 +2359,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
+        // Translate as You Type's pinyin (or dictation): its chip on top.
+        if composer.inModeComposition { model.chip = translateChip()?.panel }
         return model
     }
 
