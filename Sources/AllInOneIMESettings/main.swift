@@ -4,7 +4,7 @@
 //
 // It opens the input method with --settings: a running input method gets a reopen event and
 // shows its settings window; one that isn't running yet starts and shows it.
-import AllInOneIMECore
+import AllInOneIMEText
 import AppKit
 
 let inputMethodID = "com.aipinyin.inputmethod.AIPinyin"
@@ -13,7 +13,7 @@ let installed = home.appendingPathComponent("Library/Input Methods/AllInOneIME.a
 
 /// The interface language, as in the input method: the one picked in the settings (`uiLanguage`), else the
 /// system's among the languages this app ships (`InterfaceLanguage`).
-let language = InterfaceLanguage.current(setting: Config.uiLanguageSetting())
+let language = InterfaceLanguage.current(setting: ConfigFile.uiLanguage())
 
 /// As the input method's `tr`: the Chinese, the English, or the String Catalog's translation of the English.
 func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language) }

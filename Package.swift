@@ -12,10 +12,15 @@ let package = Package(
         .executable(name: "allinoneime-cli", targets: ["allinoneime-cli"]),
     ],
     targets: [
+        // The interface text and its language (UIString, InterfaceText, InterfaceLanguage) and the config's uiLanguage
+        // (ConfigFile): all AllInOneIME Settings needs, so it doesn't link AllInOneIMECore. AllInOneIMECore re-exports it.
+        .target(name: "AllInOneIMEText"),
+
         // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps.
         // FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
+            dependencies: ["AllInOneIMEText"],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"])]
         ),
 
@@ -55,7 +60,7 @@ let package = Package(
         .executableTarget(name: "allinoneime-cli", dependencies: ["AllInOneIMECore"]),
 
         // AllInOneIME Settings (「AllInOneIME 设置」): a launcher in ~/Applications that opens the settings window.
-        .executableTarget(name: "AllInOneIMESettings", dependencies: ["AllInOneIMECore"], swiftSettings: [.swiftLanguageMode(.v5)]),
+        .executableTarget(name: "AllInOneIMESettings", dependencies: ["AllInOneIMEText"], swiftSettings: [.swiftLanguageMode(.v5)]),
 
         // 「安装 AllInOneIME」: the installer on the release disk image (`make dmg`). It carries both
         // apps and installs them like `make install`; it uninstalls them too.

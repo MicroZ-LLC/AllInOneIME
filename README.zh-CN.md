@@ -679,6 +679,7 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 代码结构：
 
 - `Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
+- `Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
 - `Sources/AllInOneIMERime`：librime 封装
 - `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器

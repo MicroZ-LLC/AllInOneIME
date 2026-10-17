@@ -410,11 +410,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// The config file everything reads and writes: the user's (`userURL`), or the self-test's own while it runs.
     public static var defaultURL: URL { selfTestURL ?? userURL }
 
-    /// The user's config file, `~/.config/allinoneime/config.json`.
-    public static var userURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/allinoneime/config.json")
-    }
+    /// The user's config file, `~/.config/allinoneime/config.json` (`ConfigFile.userURL`).
+    public static var userURL: URL { ConfigFile.userURL }
 
     /// Set only by the app's self-test, before anything reads the config: a file of its own in its own folder, so
     /// that nothing it runs depends on the user's settings or changes them. Never set in the input method.
@@ -435,13 +432,10 @@ public struct Config: Codable, Equatable, Sendable {
         }
     }
 
-    /// Just `uiLanguage` from the config file, for AllInOneIME Settings and the installer, which need no more of it:
-    /// nil when the file or the value isn't there, or can't be read.
+    /// Just `uiLanguage` from the config file, for the installer, which needs no more of it (`ConfigFile.uiLanguage`, as
+    /// AllInOneIME Settings reads it): nil when the file or the value isn't there, or can't be read.
     public static func uiLanguageSetting(from url: URL = defaultURL) -> String? {
-        guard let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let value = json["uiLanguage"] as? String, !value.isEmpty else { return nil }
-        return value
+        ConfigFile.uiLanguage(from: url)
     }
 
     public func write(to url: URL = defaultURL) throws {

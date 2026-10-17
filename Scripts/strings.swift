@@ -8,8 +8,8 @@
 // each interpolation, "%%" for "%": `UIString.format`), is the catalog's key; Simplified Chinese and English come from
 // the code, other languages from the catalog (`InterfaceText`). This scans Sources for `tr` calls with two string
 // literals and:
-//   - adds the English formats not in the catalog yet, with the Chinese text and where it is first used as the
-//     comment (what translators see);
+//   - adds the English formats not in the catalog yet, with the Chinese text and the file it is first used in as the
+//     comment (what translators see; refreshed for every key in use);
 //   - marks the keys no longer used as stale (`extractionState: stale`), and unmarks those used again;
 //   - keeps every translation.
 // It reports English formats with more than one Chinese text: one key can't hold two meanings, so all but one of them
@@ -350,7 +350,9 @@ var strings = catalog["strings"] as? [String: Any] ?? [:]
 let shipped = Set(strings.values.flatMap { (($0 as? [String: Any])?["localizations"] as? [String: Any])?.keys ?? [String: Any]().keys })
     .subtracting(["en"]).sorted()
 
-func comment(_ use: Use) -> String { "\(use.chinese) — \(use.location)" }
+/// What translators see: the Chinese text and the file it is first used in; no line number, which would change the
+/// catalog with every edit above it.
+func comment(_ use: Use) -> String { "\(use.chinese) — \(use.file)" }
 
 func isStale(_ entry: [String: Any]) -> Bool { entry["extractionState"] as? String == "stale" }
 
