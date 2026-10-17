@@ -459,7 +459,13 @@ something, when iCloud brings a change from another Mac (and every 5 minutes), a
 the input method starts, every 30 minutes (after a pause in typing) and on Sync Now. The status line says "Last synced
 2 min ago", "Waiting for iCloud…" or the error.
 
-- Turning it on, a Mac takes what is in iCloud already; its own settings fill in only what isn't there yet.
+- Turning it on, a Mac takes the settings in iCloud already; its own fill in only what isn't there yet. Its
+  collections are merged instead: recent questions (both lists, newest first, a question once), hidden words, custom
+  commands (by name; iCloud's on a clash) and the jargon list's lines. The same when a switch under it is turned on for
+  the first time.
+- Turned back on after it was off: what iCloud changed meanwhile comes in (also where this Mac changed it too), what only
+  this Mac changed goes up, and a collection it added to meanwhile is merged, never dropped.
+- Recent questions of two Macs are merged; "Clear" on one Mac clears every question asked before it on the others too.
 - A value from another Mac that this one can't use (a provider without a key here, an AWS profile it doesn't have, a value
   out of range) isn't applied: the status line and `@doctor` say which.
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
