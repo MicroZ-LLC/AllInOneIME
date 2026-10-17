@@ -655,7 +655,7 @@ public enum ICloudSync {
 
     // MARK: - Checks
 
-    /// Why a value from iCloud isn't applied on this Mac (logged, and shown by `@doctor`).
+    /// Why a value from iCloud isn't applied on this Mac (logged, and shown by Settings → Assistant's checks).
     public enum Problem: String, Codable, Sendable {
         /// Not the kind of value the key holds.
         case wrongType
@@ -665,7 +665,7 @@ public enum ICloudSync {
         case unknownValue
         /// A custom command Settings wouldn't save (no name of letters, nothing to run, two of one name).
         case invalidCommand
-        /// A provider that needs a key this Mac hasn't got: nothing would work here (as `@config` and `@doctor` say).
+        /// A provider that needs a key this Mac hasn't got: nothing would work here (as Settings → Assistant says).
         case noKey
         /// An AWS profile this Mac doesn't have.
         case noProfile
@@ -888,7 +888,7 @@ public enum ICloudSync {
 }
 
 /// Which parts sync through iCloud on this Mac (`Config.iCloudSync`): off by default; each switch is this Mac's own,
-/// never synced. Hidden words and recent questions are off until turned on in Settings (`@config` can't).
+/// never synced. Hidden words and recent questions are off until turned on in Settings → General (the Assistant can't).
 public struct ICloudSyncSettings: Codable, Equatable, Sendable {
     public var enabled: Bool
     public var settings: Bool

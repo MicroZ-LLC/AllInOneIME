@@ -472,7 +472,7 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - Turning off Hidden words or Recent questions leaves what was synced in iCloud: **Remove from iCloud…** under each
   switch (asked first) takes them out; other Macs keep theirs, and one that still syncs them puts its own back.
 - A value from another Mac that this one can't use (a provider without a key here, an AWS profile it doesn't have, a value
-  out of range) isn't applied: the status line and `@doctor` say which.
+  out of range) isn't applied: the status line and Settings → Assistant's Check for problems say which.
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
   aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
 - Never synced: keys, tokens and passwords (they're in the keychain), extension sources (they run code: each Mac decides),
@@ -480,8 +480,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   sync switches themselves (each Mac's own).
 - Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** (asked
   first) moves the folder to the Trash and turns sync off on this Mac.
-- `@config sync through iCloud` turns it on or off; hidden words and recent questions are only chosen in Settings. In the
-  config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`).
+- Settings → Assistant ("sync through iCloud") turns it on or off; hidden words and recent questions are only chosen in
+  Settings → General. In the config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`).
 
 ## Menu bar panel
 

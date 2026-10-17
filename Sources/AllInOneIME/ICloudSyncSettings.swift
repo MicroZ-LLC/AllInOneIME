@@ -159,9 +159,9 @@ struct ICloudSyncSection: View {
     private func statusLine(now: Date) -> String {
         if !sync.refused.isEmpty {
             let count = sync.refused.count
-            return statusText(now: now) + tr("；iCloud 里有 \(count) 项设置没用在这台 Mac 上（@doctor 说明原因）",
-                                             count == 1 ? "; 1 setting from iCloud isn't used here (@doctor says why)"
-                                                 : "; \(count) settings from iCloud aren't used here (@doctor says why)")
+            return statusText(now: now) + tr("；iCloud 里有 \(count) 项设置没用在这台 Mac 上（设置 → 助手的「检查问题」说明原因）",
+                                             count == 1 ? "; 1 setting from iCloud isn't used here (Settings → Assistant → Check for problems says why)"
+                                                 : "; \(count) settings from iCloud aren't used here (Settings → Assistant → Check for problems says why)")
         }
         return statusText(now: now)
     }

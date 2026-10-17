@@ -83,7 +83,7 @@ extension ICloudSync {
 }
 
 extension AIConfig {
-    /// `@config` turning sync through iCloud on or off: on only with iCloud Drive there. What syncs (the hidden words and
+    /// Settings → Assistant turning sync through iCloud on or off: on only with iCloud Drive there. What syncs (the hidden words and
     /// recent questions above all, which need the user's own choice) is never set here (`syncOnlyInSettings`).
     static func checkICloudSync(_ value: JSONValue, in config: Config, env: Environment, text: Text) -> Row? {
         let label = text.iCloudSyncLabel, path = Key.iCloudSync.path

@@ -7,7 +7,7 @@ extension SelfTest {
     /// folder or questions): the self-test's config syncs as one Mac through the app's controller, a second Mac's config
     /// beside it; a change on each crosses over, the config is written key by key, the learned words go through the
     /// self-test's own Rime folder (librime's sync), a placeholder of `settings.json` waits, a corrupt one is set aside,
-    /// `@doctor` and Settings → General show it (settings-general-icloud*.png). Everything is put back afterwards.
+    /// Settings → Assistant's checks and Settings → General show it (settings-general-icloud*.png). Everything is put back afterwards.
     static func testICloudSync(snapshotDirectory: URL) {
         section("sync through iCloud (a temporary folder as iCloud Drive)")
         let fm = FileManager.default
@@ -128,11 +128,11 @@ extension SelfTest {
         check(sync.status.isSynced && files.contains { $0.hasPrefix("settings (unreadable ") } && rewritten?.entries["typeOutMistakes"]?.value == .bool(true),
               "a corrupt settings.json is set aside (\(files.filter { $0.hasPrefix("settings (") }.joined())) and a new one written")
 
-        // @doctor and Settings → General.
+        // Settings → Assistant's checks and Settings → General.
         let facts = sync.facts
-        check(facts.enabled && facts.available && facts.lastSync != nil && facts.lastError == nil, "@doctor: on, iCloud Drive there, synced just now")
+        check(facts.enabled && facts.available && facts.lastSync != nil && facts.lastError == nil, "the checks: on, iCloud Drive there, synced just now")
         let rows = Doctor.findings({ var all = Doctor.Facts(); all.iCloudSync = facts; return all }(), chinese: false).filter { $0.area == .iCloudSync }
-        check(rows.first?.title.hasPrefix("Synced through iCloud") == true, "@doctor says: \(rows.first?.title ?? "nothing")")
+        check(rows.first?.title.hasPrefix("Synced through iCloud") == true, "the checks say: \(rows.first?.title ?? "nothing")")
         for chinese in [false, true] {
             UIText.choice = chinese ? .chinese : .english
             let model = SettingsModel(configURL: configURL, persists: false)

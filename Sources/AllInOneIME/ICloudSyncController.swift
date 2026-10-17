@@ -12,7 +12,7 @@ import CoreGraphics
 ///
 /// Runs go on a serial queue of their own, never the main thread (a folder event or a poll never holds up typing); only
 /// writing the config file hops to the main thread, as Settings writes it there. What comes in is written the way
-/// `@config` writes it, so the input method and Settings read it again (`allInOneIMEConfigChanged`); what needs more than
+/// Settings → Assistant writes it, so the input method and Settings read it again (`allInOneIMEConfigChanged`); what needs more than
 /// reading (the menu bar icon, fuzzy pinyin, the interface language, a language pack) is applied here. The published state
 /// is the main thread's.
 @MainActor
@@ -160,7 +160,7 @@ final class ICloudSyncController: ObservableObject {
         }
         running = true
         var engine = self.engine
-        // The config file is written on the main thread, as Settings and @config write it (a key Settings changed since
+        // The config file is written on the main thread, as Settings and its Assistant write it (a key Settings changed since
         // the run read the file is left as Settings wrote it), and Settings and the input method are told at once.
         engine.writeConfig = { (config: Config, old: Config, keys: Set<String>, url: URL) throws -> Set<String> in
             try DispatchQueue.main.sync { () throws -> Set<String> in
@@ -330,7 +330,7 @@ final class ICloudSyncController: ObservableObject {
         return driveAvailable
     }
 
-    /// For `@doctor`.
+    /// For Settings → Assistant's checks (`DoctorSession`).
     var facts: Doctor.Facts.ICloudSyncFacts {
         var facts = Doctor.Facts.ICloudSyncFacts()
         let on = settings

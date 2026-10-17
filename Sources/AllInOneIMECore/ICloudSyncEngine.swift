@@ -60,7 +60,7 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         public var uploaded: [String] = []
         /// Values from iCloud refused this run for the first time (each logged once), and why.
         public var rejected: [String: ICloudSync.Problem] = [:]
-        /// All the values from iCloud refused now (`@doctor` lists them).
+        /// All the values from iCloud refused now (Settings → Assistant's checks list them).
         public var refused: [String: ICloudSync.Problem] = [:]
         /// An unreadable `settings.json` set aside this run, by its new name.
         public var setAside: String?
