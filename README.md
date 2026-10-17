@@ -537,7 +537,7 @@ confirms it for about 1.5 s (turning it off:
 Shift with a letter (a capital) or with another key never turns it on. While it's on, the menu bar icon carries a small
 dot. There is no command for it.
 
-While it's on, what you type collects into a draft shown after "中→英 ›". It translates into the language you picked last
+While it's on, what you type collects into a draft, with the languages on the chip by it ("中 → 英"). It translates into the language you picked last
 on its chip (below), in every app and after a restart; until you pick one, into your first translation language in
 Settings (and back to that one when the language picked is no longer among them). The language you're typing when it
 comes on doesn't change it. ⏎ translates the draft and the translation goes in at once,
@@ -549,7 +549,7 @@ English) goes in as typed.
 While it's on, a small chip "中 → 英" shows under the line you're typing in, in the input method's own panel (the
 candidate panel: on top of the candidates while you type pinyin), so it never takes the focus from the app. Click "中" to
 switch the input language, as a tap of Shift does. Click "英" for a short list of your translation languages, the current
-one checked, and click one: it's what it translates into at once (the chip, the draft's "中→日 ›" and the next
+one checked, and click one: it's what it translates into at once (the chip and the next
 translation follow) and from then on. The keys work as before; one closes the list.
 
 - **Tone**: it follows the app: the app's first rewrite style in Settings → Apps, else casual in chat apps (WeChat, Slack,

@@ -58,7 +58,7 @@ extension SelfTest {
     /// Translate as You Type through the fake field, with canned translations (`CannedTranslationModel`, no live AI): a
     /// long press of Shift (the real modifier changes and timers) shows the hint at 0.5 s, then turns it on at 1.0 s with
     /// its notice and the menu bar badge, the input language unchanged; a tap still switches it, Shift with a letter
-    /// toggles nothing, and no @ command is offered for it. Pinyin collects into the draft after 「中→英 ›」, ⏎ translates
+    /// toggles nothing, and no @ command is offered for it. Pinyin collects into the draft (the chip names the languages), ⏎ translates
     /// (「翻译中…」 meanwhile) and the translation goes in at once, nothing sent after it; ⇧⏎ inserts as typed; Esc while
     /// translating keeps the draft; a failure keeps it with a notice and ⏎ tries again; typing in English (the target)
     /// goes in as typed; in an app with no AI, ⏎ inserts as typed with the notice. The chip near the caret (「中 → 英」,
@@ -152,12 +152,12 @@ extension SelfTest {
 
         // Pinyin collects into the draft; ⏎ translates and inserts at once.
         type("nihao", controller, client)
-        check(client.marked.hasPrefix("中→英 › "), "pinyin in the mode: '\(client.marked)'")
+        check(!client.marked.contains("→"), "pinyin in the mode: '\(client.marked)'")
         _ = space(controller, client)
-        check(client.marked == "中→英 › 你好" && client.inserted.isEmpty, "the words picked collect into the draft: '\(client.marked)'")
+        check(client.marked == "你好" && client.inserted.isEmpty, "the words picked collect into the draft: '\(client.marked)'")
         model.delay = 0.3
         _ = enter(controller, client)
-        check(client.marked == "中→英 › 你好 · \(translating)" && controller.panelModel().rows.isEmpty,
+        check(client.marked == "你好 · \(translating)" && controller.panelModel().rows.isEmpty,
               "⏎: '\(client.marked)', no candidates")
         let inserted = pump(timeout: 5) { client.inserted.last == "Hello" }
         check(inserted && client.marked.isEmpty && !controller.composer.isComposing, "…and the translation goes in at once (\(client.inserted))")
@@ -178,7 +178,7 @@ extension SelfTest {
         let typed = controller.composer.draft
         _ = enter(controller, client)
         _ = escape(controller, client)
-        check(client.marked == "中→英 › \(typed)" && controller.composer.phase == .drafting, "Esc while translating stops it, the draft kept: '\(client.marked)'")
+        check(client.marked == "\(typed)" && controller.composer.phase == .drafting, "Esc while translating stops it, the draft kept: '\(client.marked)'")
         let count = client.inserted.count
         _ = pump(timeout: 2.3) { false }
         check(client.inserted.count == count, "…and nothing goes in later")
@@ -192,7 +192,7 @@ extension SelfTest {
         let failing = controller.composer.draft
         _ = enter(controller, client)
         let failed = pump(timeout: 5) { controller.notice?.contains("canned failure") == true }
-        check(failed && client.marked == "中→英 › \(failing)" && controller.composer.phase == .drafting,
+        check(failed && client.marked == "\(failing)" && controller.composer.phase == .drafting,
               "a failure keeps the draft, with a notice: \(controller.notice ?? "-")")
         let before = client.inserted.count
         _ = enter(controller, client)
@@ -231,10 +231,10 @@ extension SelfTest {
         check(chip() == "中 → 英" && panel.view.model.rows.first?.text == "你好", "…on top of the mode's candidates")
         snapshot("translate-mode-chip-pinyin", in: snapshotDirectory)
         _ = space(controller, client)
-        check(chip() == "中 → 英" && client.marked == "中→英 › 你好", "…and over the draft (\(chip()))")
+        check(chip() == "中 → 英" && client.marked == "你好", "…and over the draft (\(chip()))")
         // Its source part: as a tap of Shift.
         click(.source)
-        check(controller.composer.inputLanguage == .english && chip() == "英 → 英" && client.marked == "中→英 › 你好",
+        check(controller.composer.inputLanguage == .english && chip() == "英 → 英" && client.marked == "你好",
               "a click on 「中」 switches the input language, as a tap of Shift: \(chip())")
         click(.source)
         check(controller.composer.inputLanguage == .chinese && chip() == "中 → 英", "…and back (\(chip()))")
@@ -246,7 +246,7 @@ extension SelfTest {
         snapshot("translate-mode-chip-list", in: snapshotDirectory)
         panel.onSelect?(1)
         check(controller.composer.translateMode?.target == japanese && chip() == "中 → 日" && panel.view.model.rows.isEmpty
-              && client.marked == "中→日 › 你好" && TranslateModeShared.defaults.string(forKey: "translateModeTarget") == "ja",
+              && client.marked == "你好" && TranslateModeShared.defaults.string(forKey: "translateModeTarget") == "ja",
               "Japanese clicked: the target at once, the chip \(chip()), the draft '\(client.marked)', kept as the last pick")
         _ = enter(controller, client)
         check(pump(timeout: 5) { client.inserted.last == "こんにちは" }, "…and the next translation into it (\(client.inserted.last ?? ""))")
@@ -272,7 +272,7 @@ extension SelfTest {
               && controller.notice == tr("边打边译 已开启：中文 → 日语 · 再长按 Shift 关闭", "Translate as You Type on: Chinese → Japanese · hold Shift again to turn off"),
               "on again: into the last pick, \(controller.notice ?? "-")")
         draft("nihao")
-        check(client.marked == "中→日 › 你好", "…the draft after 「中→日 ›」: '\(client.marked)'")
+        check(client.marked == "你好", "…the draft as typed, the chip naming 中 → 日: '\(client.marked)'")
         controller.commitComposition(client)
         _ = longPress(hint: offHint)
         // Japanese no longer offered: the first again. Turned on while English is typed: still into English.

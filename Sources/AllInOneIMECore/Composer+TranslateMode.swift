@@ -4,9 +4,9 @@ import Foundation
 
 /// Translate as You Type (「边打边译」, `TranslateMode`) in the composer, while the controller has it on here (`translateMode`): what is
 /// typed in another language than the one it translates into collects into a draft instead of going into the field,
-/// shown after its indicator ("中→英 › 你好"). ⏎ translates the draft (pinyin still being typed is picked first) and the
+/// shown as typed, the chip by it naming the languages ("中 → 英"). ⏎ translates the draft (pinyin still being typed is picked first) and the
 /// translation goes in at once (`Effect.startTranslateMode`, `receive`); ⇧⏎ inserts it as typed. While it's translated
-/// the draft shows so ("中→英 › 你好 · 翻译中…"); Esc stops it, the draft kept, and typing on stops it and goes on with
+/// the draft shows so ("你好 · 翻译中…"); Esc stops it, the draft kept, and typing on stops it and goes on with
 /// the draft. A failure keeps the draft, with a notice, and ⏎ tries again; so does secure input on at ⏎ (while it's on,
 /// nothing collects: text goes in as typed). A draft already in the target language goes in as typed, and so does one in
 /// an app with no AI, with a notice. An @ command typed at the start of a sentence works as anywhere.
@@ -54,12 +54,12 @@ extension Composer {
         return TranslateMode.Chip(source: inputLanguage, target: session.target, choices: choices)
     }
 
-    /// The draft as marked in the field: after the indicator, any "@" full-width (an app may take "@…" for a mention),
-    /// and while it's translated, saying so.
+    /// The draft as marked in the field: any "@" full-width (an app may take "@…" for a mention), and while it's
+    /// translated, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
     var modeShownDraft: String? {
-        guard inModeComposition, let indicator = translateModeIndicator else { return nil }
+        guard inModeComposition, translateMode != nil else { return nil }
         let text = draft.replacingOccurrences(of: "@", with: "＠").replacingOccurrences(of: "\n", with: Self.lineBreak)
-        return indicator + " › " + text + (modeTranslating ? " · " + translateModeMessages.translating : "")
+        return text + (modeTranslating ? " · " + translateModeMessages.translating : "")
     }
 
     /// The candidate panel in the mode: only for the engine's candidates (and dictation); never results to pick.

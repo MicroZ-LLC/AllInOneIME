@@ -200,13 +200,13 @@ struct TranslateModeComposerTests {
     @Test func pinyinCollectsIntoADraftAfterTheIndicator() {
         let (c, _) = composer()
         type("nihao", c)
-        #expect(c.markedText == "中→英 › nihao" && c.wantsPanel)  // the candidates
+        #expect(c.markedText == "nihao" && c.wantsPanel)  // the candidates
         let space = c.handleKeyDown(spaceKey)
         #expect(commits(space).isEmpty && c.draft == "你好" && c.phase == .drafting)
-        #expect(c.markedText == "中→英 › 你好" && c.inModeComposition && !c.wantsPanel)
+        #expect(c.markedText == "你好" && c.inModeComposition && !c.wantsPanel)
         type("wo", c)
         _ = c.handleKeyDown(spaceKey)
-        #expect(c.draft == "你好我" && c.markedText == "中→英 › 你好我")
+        #expect(c.draft == "你好我" && c.markedText == "你好我")
     }
 
     @Test func returnTranslatesAndInsertsWithNoCandidates() {
@@ -215,9 +215,9 @@ struct TranslateModeComposerTests {
         let enter = c.handleKeyDown(enterKey)
         let sent = request(enter.effects)
         #expect(enter.handled && sent?.input == "你好" && sent?.session == english && commits(enter).isEmpty)
-        #expect(c.markedText == "中→英 › 你好 · 翻译中…" && c.choices.isEmpty && !c.wantsPanel)
+        #expect(c.markedText == "你好 · 翻译中…" && c.choices.isEmpty && !c.wantsPanel)
         // Partial results don't go in.
-        #expect(commits(c.receive(hello, isFinal: false, id: sent!.id)).isEmpty && c.markedText == "中→英 › 你好 · 翻译中…")
+        #expect(commits(c.receive(hello, isFinal: false, id: sent!.id)).isEmpty && c.markedText == "你好 · 翻译中…")
         let done = c.receive(hello, isFinal: true, id: sent!.id)
         #expect(commits(done) == ["Hello"] && c.phase == .idle && c.draft.isEmpty && c.markedText.isEmpty && c.choices.isEmpty)
         // Not sent: the next ⏎ is the app's.
@@ -258,7 +258,7 @@ struct TranslateModeComposerTests {
         let id = request(c.handleKeyDown(enterKey).effects)!.id
         let esc = c.handleKeyDown(escKey)
         #expect(esc.effects.contains(.cancelConversion) && commits(esc).isEmpty)
-        #expect(c.phase == .drafting && c.draft == "你好" && c.markedText == "中→英 › 你好")
+        #expect(c.phase == .drafting && c.draft == "你好" && c.markedText == "你好")
         // An answer arriving late goes nowhere.
         #expect(c.receive(hello, isFinal: true, id: id).isEmpty && c.draft == "你好")
         // ⏎ translates it again.
@@ -270,7 +270,7 @@ struct TranslateModeComposerTests {
         draftNihao(c)
         _ = c.handleKeyDown(enterKey)
         let typed = c.handleKeyDown(k("w"))
-        #expect(typed.effects.contains(.cancelConversion) && c.phase == .drafting && c.markedText == "中→英 › 你好w")
+        #expect(typed.effects.contains(.cancelConversion) && c.phase == .drafting && c.markedText == "你好w")
         // ⇧⏎ while it's translated: as typed.
         type("o", c)
         _ = c.handleKeyDown(spaceKey)
@@ -286,7 +286,7 @@ struct TranslateModeComposerTests {
         let failed = c.fail("网络连接失败", id: first)
         #expect(notices(failed) == [TranslateMode.Messages.chinese.failed("网络连接失败")] && commits(failed).isEmpty)
         #expect(notices(failed).first?.contains("网络连接失败") == true && notices(failed).first?.contains("\n") == false)
-        #expect(c.phase == .drafting && c.draft == "你好" && c.markedText == "中→英 › 你好")
+        #expect(c.phase == .drafting && c.draft == "你好" && c.markedText == "你好")
         let retry = request(c.handleKeyDown(enterKey).effects)
         #expect(retry?.input == "你好" && retry!.id != first)
         // No translation at all: the same.
@@ -316,7 +316,7 @@ struct TranslateModeComposerTests {
         // A space before anything goes in as usual.
         #expect(!c.handleKeyDown(spaceKey).handled && c.draft.isEmpty)
         type("hello world", c)
-        #expect(c.draft == "hello world" && c.markedText == "英→中 › hello world")
+        #expect(c.draft == "hello world" && c.markedText == "hello world")
         #expect(request(c.handleKeyDown(enterKey).effects)?.input == "hello world")
     }
 
@@ -372,7 +372,7 @@ struct TranslateModeComposerTests {
         // Chinese typed collects, into English.
         c.setInputMode(.chinese)
         draftNihao(c)
-        #expect(c.markedText == "中→英 › 你好")
+        #expect(c.markedText == "你好")
     }
 
     /// The chip (「中 → 英」): none while it's off; its source is the language typed (a click on it, a tap of Shift,
@@ -418,7 +418,7 @@ struct TranslateModeComposerTests {
         let japanese = TranslateMode.Session(target: OutputLanguage("ja"))
         let picked = c.setTranslateMode(japanese)
         #expect(commits(picked).isEmpty && picked.contains(.updateMarkedText))
-        #expect(c.draft == "你好" && c.markedText == "中→日 › 你好" && c.translateModeChip()?.text == "中 → 日")
+        #expect(c.draft == "你好" && c.markedText == "你好" && c.translateModeChip()?.text == "中 → 日")
         let sent = request(c.handleKeyDown(enterKey).effects)
         #expect(sent?.session == japanese && sent?.input == "你好")
     }
