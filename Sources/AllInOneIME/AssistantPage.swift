@@ -379,7 +379,7 @@ final class AssistantModel: ObservableObject {
         }
     }
 
-    /// Every finding is fine: they show as one line ("Everything looks good"), opened by a disclosure.
+    /// Every finding is fine: the folded line says "Everything looks good" (else "N more look good").
     var allFine: Bool { !findings.isEmpty && findings.allSatisfy { $0.status == .ok } }
 
     /// Fix on finding `index`: a config fix shows its changes in the preview above (Apply, Undo); the others act at once,
@@ -553,15 +553,18 @@ struct AssistantPage: View {
                 Label(explanation, systemImage: "sparkles").labelStyle(StatusLabelStyle(color: .purple))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if assistant.allFine {
+            // Problems and warnings each on a row; what is fine folded under one line, opened by its disclosure.
+            let indexed = Array(assistant.findings.enumerated())
+            findingRows(indexed.filter { $0.element.status != .ok })
+            let fine = indexed.filter { $0.element.status == .ok }
+            if !fine.isEmpty {
                 DisclosureGroup(isExpanded: $assistant.showsFine) {
-                    findingRows
+                    findingRows(fine)
                 } label: {
-                    Label(tr("一切正常", "Everything looks good"), systemImage: "checkmark.circle.fill")
+                    Label(assistant.allFine ? tr("一切正常", "Everything looks good")
+                          : tr("另外 \(fine.count) 项正常", "\(fine.count) more look good"), systemImage: "checkmark.circle.fill")
                         .labelStyle(StatusLabelStyle(color: .green))
                 }
-            } else {
-                findingRows
             }
         } header: {
             HStack(spacing: 8) {
@@ -586,8 +589,9 @@ struct AssistantPage: View {
         }
     }
 
-    @ViewBuilder private var findingRows: some View {
-        ForEach(Array(assistant.findings.enumerated()), id: \.offset) { index, finding in
+    /// Findings with their index among all of them (what Fix and Copied go by).
+    @ViewBuilder private func findingRows(_ rows: [(offset: Int, element: Doctor.Finding)]) -> some View {
+        ForEach(rows, id: \.offset) { index, finding in
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: Self.symbol(finding.status)).foregroundStyle(Self.color(finding.status))
                     .accessibilityLabel(finding.status.mark)
