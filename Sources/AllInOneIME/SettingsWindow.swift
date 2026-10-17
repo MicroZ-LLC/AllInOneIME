@@ -72,16 +72,22 @@ final class SettingsModel: ObservableObject {
     /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.
     @Published private(set) var recentQuestions = QuestionHistoryStore.history.entries.count
 
+    /// "Clear": a Clear for every Mac syncing the recent questions through iCloud too (`ICloudSyncController`).
     func clearRecentQuestions() {
         QuestionHistoryStore.clear()
         recentQuestions = 0
+        if persists { ICloudSyncController.shared.questionsCleared() }
     }
 
-    /// "Remember recent questions" switched in the window: off deletes the ones kept. Only from the switch: a config read
-    /// again with it off (the Assistant turned it off, and may still undo that) keeps them.
+    /// "Remember recent questions" switched in the window: off deletes the ones kept (on this Mac only: no Clear for the
+    /// other Macs). Only from the switch: a config read again with it off (the Assistant turned it off, and may still
+    /// undo that) keeps them.
     func setRememberQuestions(_ on: Bool) {
         config.rememberQuestions = on
-        if !on { clearRecentQuestions() }
+        guard !on else { return }
+        QuestionHistoryStore.clear()
+        recentQuestions = 0
+        if persists { ICloudSyncController.shared.questionsForgotten() }
     }
 
     /// Questions asked since the window opened.

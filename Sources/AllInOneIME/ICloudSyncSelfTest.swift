@@ -23,7 +23,7 @@ extension SelfTest {
         let saved = (sync.engine, sync.applyChanges)
         var applied: [ICloudSyncEngine.Report] = []
         defer {
-            sync.stopRime()
+            sync.stopRime(folder.url.appendingPathComponent(ICloudSync.rimeFolder))
             (sync.engine, sync.applyChanges) = saved
             if let configBefore { try? configBefore.write(to: configURL) }
             try? fm.removeItem(at: dir)
@@ -42,6 +42,11 @@ extension SelfTest {
             try? AIConfig.writing(config, from: before, keys: AIConfig.changedKeys(before, config), at: url)
         }
         edit(configURL) { $0.iCloudSync.enabled = true }
+        // Runs go on the sync queue: each Sync Now is waited for.
+        func syncNow() {
+            sync.syncNow()
+            check(pump(timeout: 30) { !sync.running }, "a run finished")
+        }
         sync.engine = ICloudSyncEngine(folder: folder, configURL: configURL, stateURL: dir.appendingPathComponent("this-mac/state.json"),
                                        questionsURL: dir.appendingPathComponent("this-mac/questions.json"),
                                        environment: ICloudSync.Environment(hasKey: { _ in false }, awsProfiles: nil))
@@ -56,7 +61,7 @@ extension SelfTest {
                                      stateURL: otherDir.appendingPathComponent("state.json"),
                                      questionsURL: otherDir.appendingPathComponent("questions.json"))
 
-        sync.syncNow()
+        syncNow()
         check(sync.status.isSynced && folder.exists, "turned on: synced into the shared folder (\(sync.status))")
         let first = other.run()
         check(first.outcome == .synced && first.uploaded.isEmpty, "the other Mac joins: it takes what is there, puts nothing over it")
@@ -64,7 +69,7 @@ extension SelfTest {
         edit(otherDir.appendingPathComponent("config.json")) { $0.candidateLayout = .vertical }
         _ = other.run()
         let textBefore = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-        sync.syncNow()
+        syncNow()
         let config = LiveConfig.current
         check(config.candidateLayout == .vertical && applied.last?.configKeys == ["candidateLayout"],
               "the other Mac's change came in (candidates in a column), and Settings and the input method were told")
@@ -73,7 +78,7 @@ extension SelfTest {
               "only that key's text changed in the config file")
         // A change here goes there.
         edit(configURL) { $0.typeOutVaries = true }
-        sync.syncNow()
+        syncNow()
         let back = other.run()
         check(back.applied == ["typeOutVaries"] && (try? Config.load(from: otherDir.appendingPathComponent("config.json")))?.typeOutVaries == true,
               "a change on this Mac reached the other")
@@ -98,12 +103,12 @@ extension SelfTest {
         try? fm.removeItem(at: file)
         try? Data().write(to: folder.url.appendingPathComponent(ICloudSyncFolder.placeholderName(of: ICloudSync.settingsFile)))
         edit(configURL) { $0.typeOutMistakes = true }
-        sync.syncNow()
+        syncNow()
         check(sync.status == .waiting && !fm.fileExists(atPath: file.path), "a placeholder of settings.json: \"Waiting for iCloud…\", nothing written over it")
         try? fm.removeItem(at: folder.url.appendingPathComponent(ICloudSyncFolder.placeholderName(of: ICloudSync.settingsFile)))
         // A corrupt one: set aside, a new one written.
         try? Data("{ not json".utf8).write(to: file)
-        sync.syncNow()
+        syncNow()
         let files = (try? fm.contentsOfDirectory(atPath: folder.url.path)) ?? []
         let rewritten = (try? Data(contentsOf: file)).flatMap { try? ICloudSync.RemoteSettings.parse($0) }
         check(sync.status.isSynced && files.contains { $0.hasPrefix("settings (unreadable ") } && rewritten?.entries["typeOutMistakes"]?.value == .bool(true),
@@ -125,7 +130,7 @@ extension SelfTest {
 
         // Off: nothing more is synced, and the folder stays.
         edit(configURL) { $0.iCloudSync.enabled = false }
-        sync.syncNow()
+        syncNow()
         check(sync.status == .off && folder.exists, "turned off: not synced, the folder in iCloud Drive left as it is")
         check((try? Data(contentsOf: Config.userURL)) == realConfig, "the user's config was not touched")
     }

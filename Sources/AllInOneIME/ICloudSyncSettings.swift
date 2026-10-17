@@ -12,6 +12,8 @@ struct ICloudSyncSection: View {
     /// Turning it on found no iCloud Drive.
     @State private var driveMissing = false
     @State private var confirmingRemove = false
+    /// The hidden words or the recent questions about to be taken out of iCloud (asked first).
+    @State private var categoryToRemove: ICloudSync.Category?
     @State private var removeError: String?
 
     var body: some View {
@@ -40,13 +42,16 @@ struct ICloudSyncSection: View {
                 }
                 Toggle(isOn: binding(\.hiddenWords)) {
                     titled(tr("隐藏的词", "Hidden words"),
-                           tr("你在隐私里加的词。只有开了「高级数据保护」，iCloud 云盘才是端到端加密的。",
-                              "The words you hide from the AI. iCloud Drive is end-to-end encrypted only with Advanced Data Protection."))
+                           tr("你在隐私里加的词。只有开了「高级数据保护」，iCloud 云盘才是端到端加密的。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。",
+                              "The words you hide from the AI. iCloud Drive is end-to-end encrypted only with Advanced Data Protection. Turned off, the ones synced stay in iCloud until you remove them."))
                 }
+                removeRow(.hiddenWords)
                 Toggle(isOn: binding(\.recentQuestions)) {
                     titled(tr("最近的问题", "Recent questions"),
-                           tr("@question 的问题和答案；只在开了「记住最近的问题」时同步。", "@question's questions and answers; only while “Remember recent questions” is on."))
+                           tr("@question 的问题和答案；只在开了「记住最近的问题」时同步。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。",
+                              "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them."))
                 }
+                removeRow(.recentQuestions)
                 HStack(alignment: .firstTextBaseline) {
                     TimelineView(.periodic(from: .now, by: 30)) { context in
                         Text(statusLine(now: context.date)).font(.callout).foregroundStyle(statusColor)
@@ -66,8 +71,8 @@ struct ICloudSyncSection: View {
         } header: {
             SectionTitle("iCloud", icon: CandidateView.Icon(symbol: "icloud.fill", color: .systemBlue))
         } footer: {
-            Text(tr("从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。",
-                    "Never synced: keys, tokens and passwords, extension sources, extension folders and plugins, window state. Each Mac decides for itself whether to sync, and what."))
+            Text(tr("从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，不再打错的 App 和最近用过的 App，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。",
+                    "Never synced: keys, tokens and passwords, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what."))
                 .font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
@@ -78,6 +83,21 @@ struct ICloudSyncSection: View {
         } message: {
             Text(tr("iCloud 云盘里的 AllInOneIME 文件夹会移到废纸篓，这台 Mac 也不再同步；这台 Mac 上的设置保持不变。还在同步的 Mac 会把它们的设置再放回去：先在那些 Mac 上关掉。",
                     "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first."))
+        }
+        .confirmationDialog(categoryToRemove == .recentQuestions ? tr("从 iCloud 移除最近的问题？", "Remove the recent questions from iCloud?")
+                                : tr("从 iCloud 移除隐藏的词？", "Remove the hidden words from iCloud?"),
+                            isPresented: Binding(get: { categoryToRemove != nil }, set: { if !$0 { categoryToRemove = nil } })) {
+            Button(tr("移除", "Remove"), role: .destructive) {
+                if let category = categoryToRemove { remove(category) }
+                categoryToRemove = nil
+            }
+            Button(tr("取消", "Cancel"), role: .cancel) { categoryToRemove = nil }
+        } message: {
+            Text(categoryToRemove == .recentQuestions
+                 ? tr("它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的问题保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。",
+                      "They're deleted from iCloud Drive and this Mac stops syncing them; the questions on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back.")
+                 : tr("它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的词保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。",
+                      "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back."))
         }
     }
 
@@ -107,7 +127,25 @@ struct ICloudSyncSection: View {
             model.config.iCloudSync.enabled = false
             model.save()
         }
-        removeError = sync.removeFromICloud().map { tr("没能移除：", "Couldn't remove it: ") + $0 }
+        sync.removeFromICloud { error in removeError = error.map { tr("没能移除：", "Couldn't remove it: ") + $0 } }
+    }
+
+    /// The hidden words or the recent questions out of iCloud: the switch off here first, so they don't go back up.
+    private func remove(_ category: ICloudSync.Category) {
+        if category == .hiddenWords { model.config.iCloudSync.hiddenWords = false } else { model.config.iCloudSync.recentQuestions = false }
+        model.save()
+        sync.removeFromICloud(category) { error in removeError = error.map { tr("没能移除：", "Couldn't remove it: ") + $0 } }
+    }
+
+    /// "Remove from iCloud…" under an opt-in's switch, while the shared folder is there.
+    @ViewBuilder private func removeRow(_ category: ICloudSync.Category) -> some View {
+        if sync.folderExists {
+            HStack {
+                Spacer()
+                Button(tr("从 iCloud 移除…", "Remove from iCloud…")) { categoryToRemove = category }
+                    .controlSize(.small)
+            }
+        }
     }
 
     private func statusLine(now: Date) -> String {
@@ -128,6 +166,7 @@ struct ICloudSyncSection: View {
         case .syncing: return tr("正在同步…", "Syncing…")
         case let .synced(date): return tr("上次同步：", "Last synced ") + ICloudSync.ago(date, now: now, chinese: UIText.chinese)
         case .waiting: return tr("正在等 iCloud…", "Waiting for iCloud…")
+            + (sync.lastSync.map { tr("（上次同步：", " (last synced ") + ICloudSync.ago($0, now: now, chinese: UIText.chinese) + tr("）", ")") } ?? "")
         case let .failed(message): return message
         }
     }
