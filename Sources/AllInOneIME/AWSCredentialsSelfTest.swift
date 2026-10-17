@@ -179,7 +179,7 @@ extension SelfTest {
             model.aws.load(profile: profile)
         }
         let english = UIText.choice
-        UIText.choice = .english
+        UIText.choice = "en"
         defer { UIText.choice = english }
         check(model.aws.label("dev") == "dev  —  Role via tools" && model.aws.label("sso-dev") == "sso-dev  —  SSO",
               "the profile picker shows each profile's kind (\(model.aws.label("dev")))")

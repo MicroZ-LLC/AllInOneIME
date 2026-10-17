@@ -24,7 +24,7 @@ public enum PluginHost {
         guard let directory = arguments.first else { return nil }
         var language: Language?
         if let index = arguments.dropFirst().firstIndex(of: "--language"), index + 1 < arguments.count {
-            language = Language(rawValue: arguments[index + 1]).flatMap { $0.isInterfaceLanguage ? $0 : nil }
+            language = Language(rawValue: arguments[index + 1]).flatMap { $0 == .chinese || $0 == .english ? $0 : nil }
         }
         return Invocation(directory: directory, language: language)
     }

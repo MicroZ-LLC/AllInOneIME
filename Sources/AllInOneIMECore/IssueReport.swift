@@ -27,7 +27,7 @@ public struct IssueReport: Equatable, Sendable {
         public var macOS: String
         /// "arm64" (Apple silicon) or "x86_64" (Intel), with " (Rosetta)" for an Intel build on Apple silicon.
         public var architecture: String
-        /// "en", "zh", or "system (en)" when it follows the system.
+        /// The config's `uiLanguage` ("en", "zh", …), or "system (en)", "system (zh-Hans)" … when it follows the system.
         public var interfaceLanguage: String
         /// Codes, in order: ["en", "zh"].
         public var inputLanguages: [String]

@@ -283,7 +283,7 @@ struct InputLanguageTests {
         let json = #"{"inputLanguages": ["ko", "xx", "fr"], "keyboardLayouts": {"fr": "com.apple.keylayout.French-PC"}, "uiLanguage": "fr"}"#
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
         #expect(config.inputLanguages == [.korean, .french])
-        #expect(config.uiLanguage == nil)  // the interface is Chinese or English
+        #expect(config.uiLanguage == "fr")  // kept: an interface language a later version may ship (followed as nil here)
         #expect(config.keyboardLayout(for: .french) == "com.apple.keylayout.French-PC")
         #expect(Config.default.keyboardLayout(for: .french) == "com.apple.keylayout.French")
         #expect(Config.default.keyboardLayout(for: .english) == nil)

@@ -443,7 +443,7 @@ enum SelfTest {
     static func testLanguageSwitchRedraws(in directory: URL) {
         let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
-        UIText.choice = .chinese
+        UIText.choice = "zh"
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config.actionKey = .enter
         let host = NSHostingView(rootView: SettingsView(model: model, page: .general))
@@ -454,7 +454,7 @@ enum SelfTest {
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
         _ = pump(timeout: 0.5) { false }
-        model.setUILanguage(.english)
+        model.setUILanguage("en")
         _ = pump(timeout: 0.6) { false }
         // The page as drawn now (the accessibility tree is empty offscreen): looked at for the action key's name.
         if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
@@ -486,6 +486,42 @@ enum SelfTest {
         model.config.candidateLayout = .vertical
         let back = pump(timeout: 2) { (try? Config.load(from: url))?.candidateLayout == .vertical }
         check(back, "and back")
+    }
+
+    /// Interface text in a language besides Chinese and English: the catalog compiled into the app, and a stand-in app
+    /// with a test fr.lproj/Localizable.strings of one entry (as the Makefile compiles the catalog), picked in the
+    /// settings: that text in French, what isn't translated in English, and Chinese for Simplified Chinese.
+    static func testInterfaceTranslations(in directory: URL) {
+        let english = Bundle.main.path(forResource: "en", ofType: "lproj").flatMap(Bundle.init(path:))
+        check(english?.path(forResource: "Localizable", ofType: "strings") != nil
+              && english.flatMap { InterfaceText.translate("None", key: "account.notSubscribed", in: $0) } == "None",
+              "the app carries the compiled String Catalog (en.lproj/Localizable.strings; keys of their own have their English)")
+        check(UIText.shipped.map(InterfaceLanguage.name) == ["English", "简体中文"],
+              "the settings offer the shipped languages in their own names (\(UIText.shipped.map(InterfaceLanguage.name)))")
+
+        let stand = directory.appendingPathComponent("interface-translations")
+        let fr = stand.appendingPathComponent("fr.lproj")
+        try? FileManager.default.removeItem(at: stand)
+        try? FileManager.default.createDirectory(at: fr, withIntermediateDirectories: true)
+        let table = (try? PropertyListSerialization.data(fromPropertyList: ["Stopped after %@ seconds": "Arrêté au bout de %@ secondes"],
+                                                          format: .xml, options: 0)) ?? Data()
+        try? table.write(to: fr.appendingPathComponent("Localizable.strings"))
+        guard let bundle = Bundle(path: stand.path) else { return check(false, "a stand-in app with fr.lproj") }
+        let (appBefore, pickedBefore) = (UIText.app, UIText.choice)
+        defer { UIText.app = appBefore; UIText.choice = pickedBefore }
+        UIText.app = bundle
+        UIText.choice = "fr"
+        let n = 12
+        check(UIText.shipped.contains("fr") && UIText.language == "fr" && !UIText.chinese,
+              "a shipped fr.lproj can be picked (\(UIText.shipped); \(UIText.language))")
+        let translated = tr("运行超过 \(n) 秒，已停止", "Stopped after \(n) seconds"), untranslated = tr("打开设置", "Open the settings")
+        check(translated == "Arrêté au bout de 12 secondes", "an interface text in French, from fr.lproj: \(translated)")
+        check(untranslated == "Open the settings", "one that fr.lproj lacks shows in English: \(untranslated)")
+        UIText.choice = "zh"
+        let chinese = tr("运行超过 \(n) 秒，已停止", "Stopped after \(n) seconds")
+        check(UIText.language == "zh-Hans" && chinese == "运行超过 12 秒，已停止", "Simplified Chinese still comes from the code: \(chinese)")
+        UIText.choice = "de"  // not shipped: follows the system
+        check(UIText.language == UIText.systemLanguage, "a language that isn't shipped follows the system (\(UIText.language))")
     }
 
     static func testLanguageDrag() {
@@ -598,32 +634,36 @@ enum SelfTest {
         model.config.jargonFile = list.path
         model.refreshJargon()
         check(model.jargonExists && model.jargonCount == 3, "the user's jargon list is counted (\(model.jargonCount) terms)")
-        // The window follows the system language: Chinese only when it comes before English.
-        check(!UIText.prefersChinese(["en-US", "zh-Hans-US"]) && UIText.prefersChinese(["zh-Hans-CN", "en-US"])
-              && UIText.prefersChinese(["ja-JP", "zh-Hant-TW", "en"]) && !UIText.prefersChinese(["ja-JP"]),
-              "the settings language follows the preferred languages (this Mac: \(UIText.systemPrefersChinese ? "中文" : "English"))")
+        // The window follows the system language among those the app ships (its .lproj folders): Chinese only when it
+        // comes before English, Traditional Chinese too while only Simplified Chinese ships.
+        let shipped = UIText.shipped
+        check(shipped == InterfaceLanguage.builtIn && InterfaceLanguage.pick(preferred: ["en-US", "zh-Hans-US"], shipped: shipped) == "en"
+              && InterfaceLanguage.pick(preferred: ["zh-Hans-CN", "en-US"], shipped: shipped) == "zh-Hans"
+              && InterfaceLanguage.pick(preferred: ["ja-JP", "zh-Hant-TW", "en"], shipped: shipped) == "zh-Hans"
+              && InterfaceLanguage.pick(preferred: ["ja-JP"], shipped: shipped) == "en",
+              "the settings language follows the preferred languages (\(shipped); this Mac: \(UIText.systemLanguage))")
         // Unless one is picked in the window: it applies at once and is saved.
         let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
-        for picked in [Language.english, .chinese] {
+        for picked in ["en", "zh"] {
             model.setUILanguage(picked)
             // The profile's line (keys found, where they are) in that language too.
-            check(UIText.chinese == (picked == .chinese) && (try? Config.load(from: url))?.uiLanguage == picked
+            check(UIText.chinese == (picked == "zh") && (try? Config.load(from: url))?.uiLanguage == picked
                   && model.credentialsReady == bedrockReady,
-                  "界面语言 \(picked.rawValue): applies at once and is saved (\(model.credentialStatus))")
+                  "界面语言 \(picked): applies at once and is saved (\(model.credentialStatus))")
         }
         model.setUILanguage(nil)
-        check(UIText.chinese == UIText.systemPrefersChinese && (try? Config.load(from: url))?.uiLanguage == nil,
+        check(UIText.language == UIText.systemLanguage && (try? Config.load(from: url))?.uiLanguage == nil,
               "界面语言 跟随系统 is saved as null")
         func render(_ name: String, chinese: Bool) {
-            UIText.choice = chinese ? .chinese : .english
+            UIText.choice = chinese ? "zh" : "en"
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.profileShownAs = "default"  // README images are public: not the user's own profile name
             if !chinese {
                 // The English README's: someone who writes English, translating into Spanish, French and German.
                 preview.config.setOrder([Language.english])
                 preview.config.setOrder(["es", "fr", "de"].map(OutputLanguage.init))
-                preview.config.uiLanguage = .english
+                preview.config.uiLanguage = "en"
             }
             preview.runTest()
             _ = pump(timeout: 20) { preview.testStatus != .running }
@@ -637,6 +677,7 @@ enum SelfTest {
         UIText.choice = pickedBefore
         testLanguageDrag()
         testLanguageSwitchRedraws(in: snapshotDirectory)
+        testInterfaceTranslations(in: snapshotDirectory)
         testCandidateLayoutSaves(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
@@ -1167,10 +1208,10 @@ enum SelfTest {
             _ = pump(timeout: 1) { controller.composer.draft != "@open " }
             let results = live(query)
             let shown = controller.panelModel().rows.first?.text
-            settings.uiLanguage = .english
+            settings.uiLanguage = "en"
             controller.applySettings()
             let english = controller.panelModel().rows.first?.text
-            settings.uiLanguage = .chinese
+            settings.uiLanguage = "zh"
             controller.applySettings()
             check(controller.composer.draft == "@open " + query && results.first?.path == app && shown == name
                   && english == FileManager.default.displayName(atPath: app) && !results.contains(where: \.matchedContent),
@@ -1862,7 +1903,7 @@ enum SelfTest {
         (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([Language.english])
         settings.setOrder([OutputLanguage.english])
-        settings.uiLanguage = .english
+        settings.uiLanguage = "en"
         controller.loadSettings = { SelfTest.settings }
         controller.openSettings = { opened.append($0) }
         controller.applySettings()
@@ -1901,7 +1942,7 @@ enum SelfTest {
         (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([Language.english])
         settings.setOrder(languages)
-        settings.uiLanguage = .english
+        settings.uiLanguage = "en"
         settings.actionKey = .enter
         controller.loadSettings = { SelfTest.settings }
         controller.applySettings()
@@ -1976,7 +2017,7 @@ enum SelfTest {
                                in directory: URL, appearance: NSAppearance.Name = .aqua) {
         snapshot(name, in: directory, appearance: appearance)
         let language = settings.uiLanguage
-        settings.uiLanguage = .english
+        settings.uiLanguage = "en"
         controller.applySettings()
         var model = controller.panelModel()
         // A notice still up keeps the words it was shown with; an English interface shows the English ones.
@@ -2565,7 +2606,7 @@ enum SelfTest {
         (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
         settings.setOrder([Language.chinese, .english])  // pinyin first
-        settings.uiLanguage = .chinese
+        settings.uiLanguage = "zh"
         controller.loadSettings = { SelfTest.settings }
         controller.applySettings()
         controller.converter = Converter(loadConfig: {
@@ -2618,7 +2659,7 @@ enum SelfTest {
         settings.claudeInBackground = false  // @agent records a Terminal launch; nothing starts in the background
         settings.voiceInput = true
         settings.actionKey = .enter  // the default; the action key section tries the others
-        settings.uiLanguage = .chinese  // README images; the interface language section tries English
+        settings.uiLanguage = "zh"  // README images; the interface language section tries English
         settings.claudeInBackground = false  // @agent records a Terminal launch; nothing starts in the background
         // In a column (horizontal is the default): the checks and README images below read the candidates one under
         // the other; `testHorizontalCandidates` tries the row.
@@ -2974,7 +3015,7 @@ enum SelfTest {
         // The cached sentence once more, with the interface in English (an English system, or the
         // Interface language setting, 界面语言, set to English).
         section("interface language: English", needs: [.composing, .bedrock])
-        settings.uiLanguage = .english
+        settings.uiLanguage = "en"
         controller.applySettings()
         improve(controller, client)
         type("wojintianyoudianbushufu", controller, client)
@@ -3000,7 +3041,7 @@ enum SelfTest {
         let englishMenu = controller.menu()?.items.map(\.title) ?? []
         check(englishMenu.first == "Settings…" && englishMenu.contains { $0.hasPrefix("Model: ") },
               "English input menu (\(englishMenu.prefix(3)))")
-        settings.uiLanguage = .chinese
+        settings.uiLanguage = "zh"
         controller.applySettings()
         check(controller.composer.messages == .chinese && UIText.chinese, "back to Chinese")
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // let the 中 (Chinese mode) notice expire

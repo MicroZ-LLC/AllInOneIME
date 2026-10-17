@@ -12,7 +12,7 @@ extension SelfTest {
         updates.updatesInPlace = true  // drawn as the installed copy shows it
         let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
-        UIText.choice = .english
+        UIText.choice = "en"
         let sample = UpdateManifest.sample(version: "9.9.0")
         updates.lastChecked = Date().addingTimeInterval(-3600)
 
@@ -28,12 +28,12 @@ extension SelfTest {
         updates.state = .needsNewerSystem(sample)
         check(updates.available == nil && controller.menu()?.items.last?.title == tr("检查更新…", "Check for Updates…"),
               "an update for a newer macOS isn't offered")
-        UIText.choice = .english
+        UIText.choice = "en"
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 is available", "the panel's notice")
-        UIText.choice = .chinese
+        UIText.choice = "zh"
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 可以更新了"
               && UpdateText.describe(UpdateError.hashMismatch).hasPrefix("下载的文件"), "…in Chinese too")
-        UIText.choice = .english
+        UIText.choice = "en"
 
         // Every state of the card renders (the images are looked at by hand).
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)

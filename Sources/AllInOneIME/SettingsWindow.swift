@@ -29,7 +29,7 @@ struct SuggestedModel: Identifiable, Hashable {
         case .openai:
             // OpenAI's own; for another service (DeepSeek, Qwen, Ollama, …), "Custom…" and its base URL.
             return [
-                SuggestedModel(id: "gpt-6-luna", title: "GPT-6 Luna", note: tr("默认：最快、最省", "Default: fastest, cheapest")),
+                SuggestedModel(id: "gpt-6-luna", title: "GPT-6 Luna", note: tr("默认：最快、最省", "Default: fastest, cheapest", key: "models.openaiDefault")),
                 SuggestedModel(id: "gpt-5.4-mini", title: "GPT-5.4 mini", note: tr("上一代 mini", "The previous mini")),
             ]
         }
@@ -179,8 +179,9 @@ final class SettingsModel: ObservableObject {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
-    /// Switches the window's language at once (nil: follow the system) and saves the choice.
-    func setUILanguage(_ language: Language?) {
+    /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
+    /// the choice.
+    func setUILanguage(_ language: String?) {
         UIText.choice = language  // before the change is published, so the window redraws in it
         config.uiLanguage = language
         save()
@@ -653,7 +654,7 @@ final class SettingsModel: ObservableObject {
             try APIKeys.remove(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
             extensionError = nil
         } catch {
-            extensionError = tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ") + error.localizedDescription
+            extensionError = tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ", key: "extensionKey.removeFailed") + error.localizedDescription
         }
         refreshExtensions()
     }
@@ -1271,7 +1272,8 @@ struct SettingsView: View {
             // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
             if !model.extensionIndex.identical.isEmpty {
                 let identical = model.extensionIndex.identical
-                Label(tr("跳过了 \(identical.count) 个完全相同的副本", identical.count == 1 ? "Skipped 1 identical copy" : "Skipped \(identical.count) identical copies"),
+                Label(identical.count == 1 ? tr("跳过了 1 个完全相同的副本", "Skipped 1 identical copy")
+                          : tr("跳过了 \(identical.count) 个完全相同的副本", "Skipped \(identical.count) identical copies"),
                       systemImage: "doc.on.doc")
                     .font(.caption).foregroundStyle(.secondary)
                     .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
@@ -1328,7 +1330,7 @@ struct SettingsView: View {
         let on = model.isEnabled(command.id) && hidden == nil
         let name = model.extensionNames[command.id] ?? command.name
         let input = command.input == .none ? tr("不用输入", "no input")
-            : tr("\(command.arguments.count) 个参数", command.arguments.count == 1 ? "1 argument" : "\(command.arguments.count) arguments")
+            : command.arguments.count == 1 ? tr("1 个参数", "1 argument") : tr("\(command.arguments.count) 个参数", "\(command.arguments.count) arguments")
         let traits = [command.background ? tr("后台", "background") : UIText.name(command.output), input,
                       command.status != nil ? tr("状态", "status") : nil].compactMap { $0 }.joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 2) {
@@ -1365,7 +1367,7 @@ struct SettingsView: View {
                         if let update = model.libraryUpdate(for: plugin) {
                             Button(tr("更新到 \(update.version)", "Update to \(update.version)")) { pluginToInstall = update }
                         }
-                        Button(tr("删除", "Remove")) { pluginToRemove = plugin }
+                        Button(tr("删除", "Remove", key: "remove.delete")) { pluginToRemove = plugin }
                     }
                     Text(pluginDetail(plugin)).font(.caption).foregroundStyle(.secondary)
                 }
@@ -1522,14 +1524,16 @@ struct SettingsView: View {
 
     @ViewBuilder private var interfaceSection: some View {
         Section {
-            // Following the system by default; the languages are written in their own language, so
-            // they can be found whatever the window is in.
-            Picker(tr("界面语言", "Interface language"), selection: Binding(get: { model.config.uiLanguage },
-                                                                          set: { model.setUILanguage($0) })) {
-                Text(tr("跟随系统", "Same as the system")).tag(Language?.none)
+            // Following the system by default; the languages the app ships are written in their own language, so
+            // they can be found whatever the window is in. Saved as "zh" / "en" for those two (older versions read them).
+            Picker(tr("界面语言", "Interface language"),
+                   selection: Binding(get: { InterfaceLanguage.code(forSetting: model.config.uiLanguage, shipped: UIText.shipped) },
+                                      set: { model.setUILanguage($0.map(InterfaceLanguage.setting(for:))) })) {
+                Text(tr("跟随系统", "Follow the system")).tag(String?.none)
                 Divider()
-                Text("中文").tag(Language?.some(.chinese))
-                Text("English").tag(Language?.some(.english))
+                ForEach(UIText.shipped, id: \.self) { code in
+                    Text(InterfaceLanguage.name(code)).tag(String?.some(code))
+                }
             }
             .pickerStyle(.menu)
         }
@@ -1901,7 +1905,7 @@ struct SettingsView: View {
         }
         .confirmationDialog(tr("删除这个插件？", "Remove this plugin?"),
                             isPresented: Binding(get: { pluginToRemove != nil }, set: { if !$0 { pluginToRemove = nil } })) {
-            Button(tr("删除", "Remove"), role: .destructive) {
+            Button(tr("删除", "Remove", key: "remove.delete"), role: .destructive) {
                 if let plugin = pluginToRemove { model.uninstall(plugin) }
                 pluginToRemove = nil
             }
@@ -2006,7 +2010,7 @@ struct SettingsView: View {
     /// What @improve does for each input language: "@improve: Chinese → polish / rewrite; Korean → …".
     private var inputSummary: String {
         let each = model.config.inputLanguages.map { "\(UIText.name($0)) → \(UIText.action(input: $0, config: model.config))" }
-        return tr("@improve：打", "@improve: ") + each.joined(separator: tr("；打", "; ")) + tr("。", ".")
+        return tr("@improve：打", "@improve: ") + each.joined(separator: tr("；打", "; ", key: "improve.separator")) + tr("。", ".")
     }
 
     /// Adds an input language; one whose pack isn't installed is added once the pack has downloaded
@@ -2205,7 +2209,7 @@ struct SettingsView: View {
                 Text("\(account.freeRemaining) / \(account.freeLimit)").monospacedDigit()
             }
             LabeledContent(tr("订阅剩余", "Subscription")) {
-                Text(account.isSubscribed || account.credits > 0 ? "\(account.credits)" : tr("未订阅", "None")).monospacedDigit()
+                Text(account.isSubscribed || account.credits > 0 ? "\(account.credits)" : tr("未订阅", "None", key: "account.notSubscribed")).monospacedDigit()
             }
             HStack {
                 // Until Stripe is set up (no payment link), there is nothing to subscribe to.

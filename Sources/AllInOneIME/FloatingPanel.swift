@@ -1132,7 +1132,7 @@ struct FloatingPanelView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(reminder.title + (due.map { tr("，", ", ") + $0 } ?? ""))
+            .accessibilityLabel(reminder.title + (due.map { tr("，", ", ", key: "panel.clauseSeparator") + $0 } ?? ""))
             .accessibilityHint(tr("打开提醒事项", "Opens Reminders"))
         }
     }
@@ -1207,7 +1207,7 @@ struct FloatingPanelView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel([row.title, FloatingPanel.progressName(row.progress), ago, row.reply].compactMap { $0 }
-            .joined(separator: tr("，", ", ")))
+            .joined(separator: tr("，", ", ", key: "panel.clauseSeparator")))
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(tr("在终端里打开", "Opens it in Terminal"))
     }
@@ -1240,7 +1240,7 @@ struct FloatingPanelView: View {
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel([run.command.title, FloatingPanel.progressName(progress), ago, line].compactMap { $0 }
-                    .joined(separator: tr("，", ", ")))
+                    .joined(separator: tr("，", ", ", key: "panel.clauseSeparator")))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint(tr("打开它的输出", "Opens what it printed"))
             }

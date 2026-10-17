@@ -17,7 +17,7 @@ enum PanelShowcase {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        UIText.choice = chinese ? .chinese : .english
+        UIText.choice = chinese ? "zh" : "en"
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
 
         let back = NSWindow(contentRect: backdrop, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -129,7 +129,7 @@ enum SettingsPageImages {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        UIText.choice = chinese ? .chinese : .english
+        UIText.choice = chinese ? "zh" : "en"
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.profileShownAs = "default"  // not the user's own profile name
         // AWS profiles: samples of every kind in a folder of their own, never the user's ~/.aws (`AWSProfileSamples`).

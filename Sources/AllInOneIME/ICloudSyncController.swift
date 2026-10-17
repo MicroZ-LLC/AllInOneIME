@@ -105,7 +105,7 @@ final class ICloudSyncController: ObservableObject {
     /// AWS profiles, the providers offered.
     nonisolated static var liveEnvironment: ICloudSync.Environment {
         ICloudSync.Environment(hasKey: { APIKeys.source($0) != .none }, awsProfiles: { AWSSharedConfig.profileNames() },
-                               offeredProviders: Provider.offered)
+                               offeredProviders: Provider.offered, interfaceLanguages: InterfaceLanguage.shipped())
     }
 
     /// The setting as the config file has it now.

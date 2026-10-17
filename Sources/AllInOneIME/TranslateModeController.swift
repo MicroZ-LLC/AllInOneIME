@@ -67,8 +67,10 @@ enum TranslateModeShared {
 }
 
 extension TranslateMode.Chip {
-    /// As the panel draws it: 「中 → 英」, "ZH → EN" in the English interface.
-    var panel: CandidateView.Chip { CandidateView.Chip(source: tr(sourceText, sourceTag), target: tr(targetText, targetTag)) }
+    /// As the panel draws it: 「中 → 英」 in the Chinese interface, the language codes ("ZH → EN") in the others.
+    var panel: CandidateView.Chip {
+        UIText.chinese ? CandidateView.Chip(source: sourceText, target: targetText) : CandidateView.Chip(source: sourceTag, target: targetTag)
+    }
 }
 
 extension AllInOneIMEInputController {

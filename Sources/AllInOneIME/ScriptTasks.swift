@@ -177,7 +177,7 @@ final class ScriptTasks {
         let title = run.command.title
         switch outcome {
         case .done:
-            notify(id, tr("完成了：", "Done: ") + title,
+            notify(id, tr("完成了：", "Done: ", key: "task.done") + title,
                    run.output?.notificationBody ?? tr("点这里查看输出", "Click to see what it printed"))
         case let .failed(message):
             notify(id, tr("出错了：", "Failed: ") + title, message)

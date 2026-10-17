@@ -104,14 +104,14 @@ extension SelfTest {
         needing([])
         let chosen = UIText.choice
         defer { UIText.choice = chosen }
-        for (name, language) in [("settings-apps", Language.chinese), ("settings-apps-en", .english)] {
+        for (name, language) in [("settings-apps", "zh"), ("settings-apps-en", "en")] {
             UIText.choice = language
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.config.setOrder([Language.chinese, .english])
             preview.config.appProfiles = AppProfileSamples.profiles
             let url = snapshotDirectory.appendingPathComponent("\(name).png")
             SettingsImage.render(preview, page: .apps, to: url) { seconds in _ = pump(timeout: seconds) { false } }
-            check(FileManager.default.fileExists(atPath: url.path), "Settings → Apps rendered (\(language.rawValue))")
+            check(FileManager.default.fileExists(atPath: url.path), "Settings → Apps rendered (\(language))")
         }
         check(SettingsPage.apps.matches("slack") && SettingsPage.apps.matches("不用 AI") && SettingsPage.apps.matches("按 App"),
               "the search finds Settings → Apps")

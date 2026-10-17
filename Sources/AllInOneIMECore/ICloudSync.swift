@@ -692,12 +692,16 @@ public enum ICloudSync {
         /// The AWS profiles in ~/.aws (nil: not checked).
         public var awsProfiles: (@Sendable () -> [String])?
         public var offeredProviders: [Provider]
+        /// The interface languages this Mac's app ships (`InterfaceLanguage.shipped`): a `uiLanguage` naming another is
+        /// refused.
+        public var interfaceLanguages: [String]
 
         public init(hasKey: @escaping @Sendable (Provider) -> Bool = { _ in true }, awsProfiles: (@Sendable () -> [String])? = nil,
-                    offeredProviders: [Provider] = Provider.allCases) {
+                    offeredProviders: [Provider] = Provider.allCases, interfaceLanguages: [String] = InterfaceLanguage.builtIn) {
             self.hasKey = hasKey
             self.awsProfiles = awsProfiles
             self.offeredProviders = offeredProviders
+            self.interfaceLanguages = interfaceLanguages
         }
     }
 
@@ -786,7 +790,7 @@ public enum ICloudSync {
         case "uiLanguage":
             if value == .null { return nil }
             guard case let .string(code) = value else { return .wrongType }
-            return Language(rawValue: code)?.isInterfaceLanguage == true ? nil : .unknownValue
+            return InterfaceLanguage.code(forSetting: code, shipped: env.interfaceLanguages) == nil ? .unknownValue : nil
         case "candidateLayout":
             guard case let .string(name) = value else { return .wrongType }
             return CandidateArrangement(rawValue: name) == nil ? .unknownValue : nil

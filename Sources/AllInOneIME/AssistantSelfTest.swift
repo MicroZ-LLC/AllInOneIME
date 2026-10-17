@@ -427,7 +427,7 @@ extension SelfTest {
         _ = pump(timeout: 0.3) { false }
 
         // The images: a preview and the findings, in Chinese and English, light and dark.
-        for (language, suffix) in [(Language.chinese, ""), (.english, "-en")] {
+        for (language, suffix) in [("zh", ""), ("en", "-en")] {
             UIText.choice = language
             try? start.write(to: rig.url)
             let shown = sampleAssistant(rig)
@@ -440,7 +440,7 @@ extension SelfTest {
                 }
                 let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
                 check(size > 10_000 && shown.lines.count == 3 && shown.findings.count > 3,
-                      "Settings → Assistant renders in \(language == .chinese ? "Chinese" : "English")\(dark.isEmpty ? "" : ", dark") (\(name))")
+                      "Settings → Assistant renders in \(language == "zh" ? "Chinese" : "English")\(dark.isEmpty ? "" : ", dark") (\(name))")
             }
             shown.reset()
         }

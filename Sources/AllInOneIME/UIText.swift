@@ -2,31 +2,32 @@ import AllInOneIMECore
 import Foundation
 
 /// Interface language (settings window, candidate panel, notices, input menu): the one picked in the
-/// settings (config `uiLanguage`), else the system's: Chinese when the system prefers Chinese to
-/// English (System Settings → General → Language & Region), English otherwise.
+/// settings (config `uiLanguage`), else the system's, as macOS picks it among the languages the app ships
+/// (`InterfaceLanguage.pick`; System Settings → General → Language & Region, including the language picked there
+/// for AllInOneIME alone). Simplified Chinese and English come from the code (`tr`), the others from
+/// Resources/Localizable.xcstrings.
 enum UIText {
-    /// Picked in the settings (applied from the config when a text field or the window opens);
-    /// nil follows the system. Main thread only.
-    static var choice: Language? {
+    /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
+    /// text field or the window opens); nil follows the system. Main thread only.
+    static var choice: String? {
         // The floating panel, on screen all along, redraws in the new language.
         didSet { if choice != oldValue { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) } }
     }
+    /// Where the translations are (`<code>.lproj`): the app; a stand-in while the self-test checks them. Main thread only.
+    static var app = Bundle.main { didSet { shipped = InterfaceLanguage.shipped(in: app) } }
+    /// The languages `app` ships: "en", "zh-Hans" and its other `.lproj` folders.
+    private(set) static var shipped = InterfaceLanguage.shipped()
     /// Read once per process (macOS relaunches apps after a language change).
-    static let systemPrefersChinese = prefersChinese(Locale.preferredLanguages)
+    static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages, shipped: shipped)
 
-    static var chinese: Bool { choice.map { $0 == .chinese } ?? systemPrefersChinese }
+    /// The interface language's code: "zh-Hans", "en", …
+    static var language: String { InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage }
 
-    /// The same, as a language: what script plugins are told (`run(input, {language})`).
-    static var language: Language { chinese ? .chinese : .english }
+    /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
+    static var chinese: Bool { InterfaceLanguage.isChinese(language) }
 
-    /// Whether Chinese comes before English in the preferred languages; English if neither is listed.
-    static func prefersChinese(_ languages: [String]) -> Bool {
-        for language in languages {
-            if language.hasPrefix("zh") { return true }
-            if language.hasPrefix("en") { return false }
-        }
-        return false
-    }
+    /// The same, as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
+    static var pluginLanguage: Language { chinese ? .chinese : .english }
 
     /// "单按 ⌥" / "Tap ⌥", …
     static func name(_ key: ActionKey) -> String {
@@ -77,12 +78,11 @@ enum UIText {
         }
     }
 
-    static func name(_ language: Language) -> String {
-        chinese ? language.displayName : language.englishName
-    }
+    /// An input language in the interface language: "法语" / "French" / "français".
+    static func name(_ language: Language) -> String { language.name(in: self.language) }
 
     /// An output language in the interface language: "日语" / "Japanese".
-    static func name(_ language: OutputLanguage) -> String { language.name(chinese: chinese) }
+    static func name(_ language: OutputLanguage) -> String { language.name(in: self.language) }
 
     /// A rewrite preset's name in the window ("简洁" / "Concise"); the config keeps the Chinese name.
     static func name(_ style: RewriteStyle) -> String { chinese ? style.name : english(style).name }
@@ -489,5 +489,12 @@ enum UIText {
     }
 }
 
-/// Settings-window text in the system language (see `UIText`).
-func tr(_ chinese: String, _ english: String) -> String { UIText.chinese ? chinese : english }
+/// Interface text in the interface language (see `UIText`): `chinese` for Simplified Chinese, `english` for English,
+/// else the translation of `english` in the app's `<language>.lproj` (compiled from Resources/Localizable.xcstrings),
+/// or `english` without one. The English text, as `UIString.format` ("%@ items"), is the catalog's key.
+///
+/// `key`: where the same English text means something else elsewhere (`make strings` reports those), a key of its
+/// own: a short dotted name for where or how it is used ("remove.delete"), whose English in the catalog is `english`.
+func tr(_ chinese: UIString, _ english: UIString, key: String? = nil) -> String {
+    InterfaceText.text(chinese, english, key: key, language: UIText.language, app: UIText.app)
+}

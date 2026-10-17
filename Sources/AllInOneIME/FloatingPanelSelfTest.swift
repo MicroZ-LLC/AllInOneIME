@@ -208,7 +208,7 @@ extension SelfTest {
             }
         }
         render("14-dashboard")
-        UIText.choice = .english
+        UIText.choice = "en"
         stand.sample(chinese: false)
         panel.refresh()
         check(pump(timeout: 3) { loaded() && taskRows().first?.title == "Refactor the login module" && panel.notes.first?.title == "Weekly meeting notes" }
@@ -216,7 +216,7 @@ extension SelfTest {
         check(panel.counts == "2 reminders · 1 task running" && FloatingPanel.completeLabel("Pay the rent") == "Complete \u{201C}Pay the rent\u{201D}",
               "English header and VoiceOver labels: \(panel.counts)")
         render("14-dashboard-en")
-        UIText.choice = .chinese
+        UIText.choice = "zh"
         stand.sample(chinese: true)
         panel.refresh()
         _ = pump(timeout: 3) { loaded() && taskRows().first?.title == "重构登录模块" && panel.notes.first?.title == "周会要点" }

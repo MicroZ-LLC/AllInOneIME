@@ -1,8 +1,8 @@
 import Foundation
 import NaturalLanguage
 
-/// The languages the input method types (`Config.inputLanguages`), and the two its interface and its own
-/// sentences are in (Chinese, English; `Config.uiLanguage` is one of those).
+/// The languages the input method types (`Config.inputLanguages`), and the two its own sentences are in
+/// (Chinese, English).
 public enum Language: String, Codable, CaseIterable, Sendable {
     case chinese = "zh"
     case english = "en"
@@ -32,6 +32,13 @@ public enum Language: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// Its name in the interface language `language` (`InterfaceLanguage`): "法语" / "French" / "français".
+    public func name(in language: String) -> String {
+        if InterfaceLanguage.isChinese(language) { return displayName }
+        if language == "en" { return englishName }
+        return Locale(identifier: language).localizedString(forLanguageCode: rawValue) ?? englishName
+    }
+
     /// Tag of the level-two lines in this language ("EN: …", "ZH: …").
     var tag: String { rawValue.uppercased() }
 
@@ -40,9 +47,6 @@ public enum Language: String, Codable, CaseIterable, Sendable {
 
     /// Typed in Latin letters, as English is (French too, with its own keyboard layout); not pinyin or Hangul.
     public var isLatin: Bool { self == .english || self == .french }
-
-    /// One the interface can be in.
-    public var isInterfaceLanguage: Bool { self == .chinese || self == .english }
 
     /// The keyboard layout it types with by default (`Config.keyboardLayouts`), nil for the system's own.
     public var defaultKeyboardLayout: String? { self == .french ? "com.apple.keylayout.French" : nil }
@@ -141,18 +145,27 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
         }
     }
 
-    /// Its name in the interface language: "英文", "日语" / "English", "Japanese".
-    public func name(chinese: Bool) -> String {
-        switch (code, chinese) {
-        case ("en", true): return "英文"
-        case ("zh", true): return "中文"
-        case ("zh", false): return "Chinese"
-        case ("zh-Hant", true): return "繁体中文"
-        case ("zh-Hant", false): return "Traditional Chinese"
-        default:
-            if let indian = Self.indian[code] { return chinese ? indian.chinese : indian.english }
-            return Locale(identifier: chinese ? "zh-Hans" : "en").localizedString(forIdentifier: code) ?? code
+    /// Its name in Chinese or English: "英文", "日语" / "English", "Japanese".
+    public func name(chinese: Bool) -> String { name(in: chinese ? "zh-Hans" : "en") }
+
+    /// Its name in the interface language `language` (`InterfaceLanguage`): "英文", "日语" / "English", "Japanese" /
+    /// "anglais", "japonais".
+    public func name(in language: String) -> String {
+        if InterfaceLanguage.isChinese(language) {
+            switch code {
+            case "en": return "英文"
+            case "zh": return "中文"
+            case "zh-Hant": return "繁体中文"
+            default: if let indian = Self.indian[code] { return indian.chinese }
+            }
+        } else if language == "en" {
+            switch code {
+            case "zh": return "Chinese"
+            case "zh-Hant": return "Traditional Chinese"
+            default: if let indian = Self.indian[code] { return indian.english }
+            }
         }
+        return Locale(identifier: language).localizedString(forIdentifier: code) ?? code
     }
 
     public init(from decoder: Decoder) throws {

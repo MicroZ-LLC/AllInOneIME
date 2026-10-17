@@ -120,7 +120,7 @@ enum ExtensionSourceCommands {
                                                     path: path, url: source.url, commit: staged.status.commit,
                                                     commitDate: staged.status.commitDate, config: others, plugins: PluginStore.load().0,
                                                     found: LiveExtensions.found, repository: staged.folder)
-            UIText.choice = .english
+            UIText.choice = "en"
             review.summary(describe: { UIText.describe($0, file: $1) }).forEach { print($0) }
             guard review.bundle != nil else {
                 manager.discard(staged)
@@ -225,7 +225,7 @@ enum ExtensionSourceCommands {
         } catch {
             return fail(error)
         }
-        UIText.choice = .english
+        UIText.choice = "en"
         let plugins = PluginStore.load().0
         // As the input method loads them: an extension source's folder only once it's reviewed, and only as its bundle.
         let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))

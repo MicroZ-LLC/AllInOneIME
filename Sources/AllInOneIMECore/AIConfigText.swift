@@ -4,11 +4,22 @@ extension AIConfig {
     /// What the preview says, in the interface language: the labels Settings uses, values as Settings shows them, and the
     /// reasons a part is refused.
     public struct Text: Sendable {
-        public var chinese: Bool
+        /// The interface language's code (`InterfaceLanguage`): "zh-Hans", "en", …
+        public var language: String
 
-        public init(chinese: Bool) { self.chinese = chinese }
+        public var chinese: Bool {
+            get { InterfaceLanguage.isChinese(language) }
+            set { language = newValue ? "zh-Hans" : "en" }
+        }
 
-        func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+        public init(chinese: Bool) { language = chinese ? "zh-Hans" : "en" }
+
+        public init(language: String) { self.language = language }
+
+        /// As the app's `tr`: the Chinese, the English, or the catalog's translation of the English.
+        func tr(_ zh: UIString, _ en: UIString, key: String? = nil) -> String {
+            InterfaceText.text(zh, en, key: key, language: language)
+        }
 
         // MARK: Labels
 
@@ -74,10 +85,10 @@ extension AIConfig {
         }
 
         public func outputs(_ languages: [OutputLanguage]) -> String {
-            languages.map { $0.name(chinese: chinese) }.joined(separator: separator)
+            languages.map { $0.name(in: language) }.joined(separator: separator)
         }
 
-        public func input(_ language: Language) -> String { chinese ? language.displayName : language.englishName }
+        public func input(_ language: Language) -> String { language.name(in: self.language) }
 
         public func inputs(_ languages: [Language]) -> String { languages.map(input).joined(separator: separator) }
 
@@ -98,7 +109,7 @@ extension AIConfig {
             return tr("\(shown) 秒一个字", "\(shown) s each")
         }
 
-        public func wordCount(_ count: Int) -> String { tr("\(count) 个词", count == 1 ? "1 word" : "\(count) words") }
+        public func wordCount(_ count: Int) -> String { count == 1 ? tr("1 个词", "1 word") : tr("\(count) 个词", "\(count) words") }
 
         public func added(_ words: [String]) -> String { "+ " + words.joined(separator: separator) }
 
@@ -137,7 +148,8 @@ extension AIConfig {
         var notHere: String { tr("请到设置里对应的那一页改", "change it on its own page in Settings") }
         var secretRefused: String { tr("请在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)") }
         func enterKey(_ provider: Provider) -> String {
-            provider == .hosted ? tr("在设置里登录", "sign in in Settings") : tr("在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)")
+            provider == .hosted ? tr("在设置里登录", "sign in in Settings")
+                : tr("在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)", key: "aiConfig.enterKey")
         }
         /// "Gemini API needs an API key" (AllInOneIME Cloud: a sign-in): the row of a provider without one, in the
         /// Assistant's preview, a request's or a finding's fix.
@@ -211,7 +223,7 @@ extension AIConfig {
 
         /// The confirmation once applied: "Changed 2 settings".
         public func applied(_ count: Int) -> String {
-            tr("已改 \(count) 项", count == 1 ? "Changed 1 setting" : "Changed \(count) settings")
+            count == 1 ? tr("已改 1 项", "Changed 1 setting") : tr("已改 \(count) 项", "Changed \(count) settings")
         }
 
         public var undone: String { tr("已撤销刚才的设置修改", "Undone: the settings are as they were") }

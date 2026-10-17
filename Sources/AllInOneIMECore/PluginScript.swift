@@ -69,7 +69,7 @@ public enum PluginScript {
     /// What `run` gets after the text: `{language: "zh"}` or `{language: "en"}`, the input method's interface
     /// language, else `{}` (an older app, or a language the interface can't be in). Nothing else.
     static func context(language: Language?) -> [String: String] {
-        guard let language, language.isInterfaceLanguage else { return [:] }
+        guard let language, language == .chinese || language == .english else { return [:] }
         return ["language": language.rawValue]
     }
 
