@@ -6,7 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Removed
 
-- The built-in `@calculate` is removed: the calculator is now the `@calculator` plugin in the plugin library (Settings → Plugins → Browse Library…). It works offline, with the same rules as before.
+- The built-in `@calculate` is removed: the calculator is now the `@calculator` plugin in the plugin library (Settings → Plugins → Browse Library…). It works offline, with the same rules as before. Inside a sentence, write the expression without spaces or quote it: `@reply the total is @calculator 23*17 dollars`, `@calculator「2 * pi」`.
 
 ## 0.6.4 (2026-10-16)
 
