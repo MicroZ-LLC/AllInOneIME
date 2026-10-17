@@ -448,7 +448,7 @@ so, with a button that opens that pane.
 | --- | --- | --- |
 | Settings | the settings in `config.json`: languages, rewrite styles, the action key, typing out, per-app settings, hiding sensitive information (its switches), the AI provider and model (never a key) … | on |
 | Jargon and custom commands | your jargon list and `customCommands` | on |
-| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's own sync) | on |
+| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync; your own Rime files, such as custom phrases, stay on the Mac) | on |
 | Hidden words | the words you hide from the AI ("iCloud Drive is end-to-end encrypted only with Advanced Data Protection") | off |
 | Recent questions | `@question`'s recent questions and answers (while "Remember recent questions" is on) | off |
 
@@ -466,6 +466,9 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - Turned back on after it was off: what iCloud changed meanwhile comes in (also where this Mac changed it too), what only
   this Mac changed goes up, and a collection it added to meanwhile is merged, never dropped.
 - Recent questions of two Macs are merged; "Clear" on one Mac clears every question asked before it on the others too.
+  Turning "Remember recent questions" off deletes them on that Mac only.
+- Turning off Hidden words or Recent questions leaves what was synced in iCloud: **Remove from iCloud…** under each
+  switch (asked first) takes them out; other Macs keep theirs, and one that still syncs them puts its own back.
 - A value from another Mac that this one can't use (a provider without a key here, an AWS profile it doesn't have, a value
   out of range) isn't applied: the status line and `@doctor` say which.
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
@@ -811,9 +814,10 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   which Apple syncs to your other Macs; nothing goes to the developer's servers. What goes there: `settings.json` (the
   synced settings, each with when it changed and a random id per Mac; your custom commands, also those that run a
   program, which still run only when you pick them), `jargon.txt` (your jargon list), `rime/` (each Mac's snapshot of
-  what pinyin learned; librime's sync also copies your own Rime setting files from the Rime folder there, as it always
-  does), and only if you turn them on, the words you hide from the AI (in `settings.json`) and `questions.json` (recent
-  questions and answers). Never: API keys, tokens or passwords, extension sources, extension folders and plugins, the
+  what pinyin learned, nothing else of the Rime folder: your custom phrases and Rime settings stay on the Mac), and only
+  if you turn them on, the words you hide from the AI (in `settings.json`) and `questions.json` (recent questions and
+  answers, readable only by your user account). Turning those two off leaves them in iCloud until you remove them
+  ("Remove from iCloud…" under each switch). Never: API keys, tokens or passwords, extension sources, extension folders and plugins, the
   apps without typos, the recent apps, window state, the sync switches. iCloud Drive is end-to-end encrypted only with
   Advanced Data Protection. This Mac's own record of what it synced is in
   `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`.
