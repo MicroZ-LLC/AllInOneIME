@@ -27,6 +27,7 @@ enum PageContextReader {
         lock.unlock()
         queue.async {
             guard wantedNow(pid), !owned.contains(pid), !leftAlone.contains(pid) else { return }
+            boundCalls()
             let app = AXUIElementCreateApplication(pid)
             var value: CFTypeRef?
             guard AXUIElementCopyAttributeValue(app, enhanced, &value) == .success, let on = value as? Bool else {
@@ -52,9 +53,16 @@ enum PageContextReader {
         queue.async {
             guard !wantedNow(pid) else { return }
             leftAlone.remove(pid)
-            guard owned.remove(pid) != nil else { return }
-            remember()
-            AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhanced, kCFBooleanFalse)
+            guard owned.contains(pid) else { return }
+            boundCalls()
+            // Set's result says nothing (-25208 even when it works): read back, tried twice; still on, it stays recorded
+            // for `releaseLeftOver`.
+            if turnOff(pid) || turnOff(pid) {
+                owned.remove(pid)
+                remember()
+            } else {
+                log.error("page context: Chrome's accessibility tree didn't turn off; tried again at the next launch")
+            }
         }
     }
 
@@ -65,8 +73,9 @@ enum PageContextReader {
         guard !pids.isEmpty else { return }
         UserDefaults.standard.removeObject(forKey: ownedKey)
         queue.async {
+            boundCalls()
             for pid in pids.map(pid_t.init) where NSRunningApplication(processIdentifier: pid).map({ browsers.contains($0.bundleIdentifier ?? "") }) == true {
-                AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhanced, kCFBooleanFalse)
+                _ = turnOff(pid)
                 log.notice("page context: Chrome's accessibility tree turned off again (left on by an earlier run)")
             }
         }
@@ -81,6 +90,17 @@ enum PageContextReader {
     nonisolated(unsafe) private static var wanted: [pid_t: Int] = [:]
     nonisolated(unsafe) private static var owned: Set<pid_t> = []
     nonisolated(unsafe) private static var leftAlone: Set<pid_t> = []
+
+    /// Off, and read back: whether it reads off now.
+    private static func turnOff(_ pid: pid_t) -> Bool {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, enhanced, kCFBooleanFalse)
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(app, enhanced, &value) == .success && (value as? Bool) == false
+    }
+
+    /// Every Accessibility call of this process waits 0.25 s at most (set on the system-wide element).
+    static func boundCalls() { AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25) }
 
     private static func wantedNow(_ pid: pid_t) -> Bool {
         lock.lock()
@@ -107,8 +127,7 @@ enum PageContextReader {
     /// the main thread.
     static func read(pid: pid_t, pointer: CGPoint, budget: TimeInterval = 3) -> PageContext? {
         let deadline = Date().addingTimeInterval(budget)
-        // Every element's calls wait 0.25 s at most (the system-wide element sets it for this process).
-        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25)
+        boundCalls()
         let app = AXUIElementCreateApplication(pid)
         var focused: AXUIElement?
         var web: AXUIElement?
