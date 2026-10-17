@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+      "comment" : "） — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
     "\nmacOS needs you to add it once (Keyboard settings should have opened):\n  System Settings → Keyboard → Text Input › Input Sources \"Edit…\" → + at the bottom left\n  → English → AllInOneIME → Add\nThen switch to AllInOneIME with Ctrl+Space or the 🌐 key." : {
       "comment" : "\nmacOS 需要你手动添加一次（“键盘”设置应该已经打开）：\n  系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加\n之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/main.swift"
     },
@@ -10,6 +13,9 @@
     " · ⏎ insert · %@ pick · ⌘C copy · Esc back" : {
       "comment" : " · ⏎ 上屏 · %@ 选 · ⌘C 复制 · Esc 返回 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
+    " · AI is off in this app, text goes in as typed" : {
+      "comment" : " · 这个 App 里关了 AI，照原样上屏 — Sources/AllInOneIME/TranslateModeController.swift"
+    },
     " · default" : {
       "comment" : " · 默认 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -17,13 +23,27 @@
       "comment" : " · 结尾 %@ — Sources/AllInOneIME/KeyRow.swift"
     },
     " · Esc back to the results" : {
-      "comment" : " · Esc 回到检查结果 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : " · Esc 回到检查结果 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
+    },
+    " · secure input is on, text goes in as typed for now" : {
+      "comment" : " · 系统安全输入开着，暂时照原样上屏 — Sources/AllInOneIME/TranslateModeController.swift"
+    },
+    " · Translate as You Type on" : {
+      "comment" : " · 边打边译 已开启 — Sources/AllInOneIME/MenuBarIcon.swift"
     },
     " · type, then ⇧⏎ to refine · Esc cancel" : {
-      "comment" : " · 打字后 ⇧⏎ 修改 · Esc 取消 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : " · 打字后 ⇧⏎ 修改 · Esc 取消 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     " · used by @agent" : {
       "comment" : " · @agent 用它 — Sources/AllInOneIME/AgentSettings.swift"
+    },
+    " · with the page" : {
+      "comment" : " · 带上了网页 — Sources/AllInOneIME/UIText.swift"
+    },
+    " · with the page “%@”" : {
+      "comment" : " · 带上了网页「%@」 — Sources/AllInOneIME/UIText.swift"
     },
     " (" : {
       "comment" : "（ — Sources/AllInOneIME/SettingsWindow.swift"
@@ -32,7 +52,7 @@
       "comment" : "（%@） — Sources/AllInOneIME/UIText.swift"
     },
     " (answered by your AI provider)" : {
-      "comment" : "（由你选的 AI 服务回答） — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "（由你选的 AI 服务回答） — Sources/AllInOneIME/AssistantPage.swift"
     },
     " (downloads a language pack)" : {
       "comment" : "（下载语言包） — Sources/AllInOneIME/SettingsWindow.swift"
@@ -42,6 +62,9 @@
     },
     " (ignored)" : {
       "comment" : "（会被忽略） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    " (last synced " : {
+      "comment" : "（上次同步： — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     " (no language pack yet)" : {
       "comment" : "（还没有语言包） — Sources/AllInOneIME/InputController.swift"
@@ -62,7 +85,8 @@
       "comment" : "（登录有效至 %@） — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
     },
     " (try @doctor)" : {
-      "comment" : "（可以试试 @doctor） — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "（可以试试 @doctor） — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     " <what you typed>" : {
       "comment" : " <你打的字> — Sources/AllInOneIME/AgentSettings.swift"
@@ -80,10 +104,13 @@
       "comment" : "，打的字一起带过去 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
     "; " : {
-      "comment" : "； — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "； — Sources/AllInOneIME/AssistantPage.swift"
     },
     "; it said: " : {
       "comment" : "；它说： — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "; requests on this page go to your AI provider" : {
+      "comment" : "；这一页的请求会发给你选的 AI 服务 — Sources/AllInOneIMECore/Doctor.swift"
     },
     "; the last refresh failed: " : {
       "comment" : "；上次刷新失败： — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
@@ -98,7 +125,8 @@
       "comment" : "。 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     ". Undo with @config undo" : {
-      "comment" : "。⌘Z 不行了，用 @config undo 撤销 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "。⌘Z 不行了，用 @config undo 撤销 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "(self-test) no audio file; the microphone stays off" : {
       "comment" : "（自检）没有音频文件，不使用麦克风 — Sources/AllInOneIME/InputController.swift"
@@ -113,7 +141,7 @@
       "comment" : "（标题在 GitHub 上写） — Sources/AllInOneIME/InputController.swift"
     },
     ")" : {
-      "comment" : "） — Sources/AllInOneIME/SettingsWindow.swift"
+      "comment" : "） — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only." : {
       "comment" : "{input} 换成命令后面写的内容（自动编码），放在 ? 后面。按执行键在浏览器打开，不上屏。只能用 https://。 — Sources/AllInOneIME/CommandEditor.swift"
@@ -126,6 +154,9 @@
     },
     "@agent hands it to" : {
       "comment" : "@agent 交给 — Sources/AllInOneIME/AgentSettings.swift"
+    },
+    "@agent takes the Chrome page along" : {
+      "comment" : "@agent 带上 Chrome 里的网页 — Sources/AllInOneIME/AgentSettings.swift"
     },
     "@agent's agent (%@)" : {
       "comment" : "@agent 的 agent（%@） — Sources/AllInOneIME/QuestionChatPanel.swift"
@@ -145,8 +176,15 @@
     "@improve: " : {
       "comment" : "@improve：打 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "@question with nothing after it lists your last %@ questions; pick one to see its answer again at once (offline), ⌘R asks it again. Questions and answers stay on this Mac (unless you sync them through iCloud, below); nothing is kept during secure input or for questions on selected text. Turning it off deletes them." : {
+      "comment" : "@question 后面不打字就列出最近 %@ 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上（除非在下面选了通过 iCloud 同步）；安全输入时和对选中文字的提问不存。关掉会删掉已存的。 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "@question with nothing after it lists your last %@ questions; pick one to see its answer again at once (offline), ⌘R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them." : {
-      "comment" : "@question 后面不打字就列出最近 %@ 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。 — Sources/AllInOneIME/SettingsWindow.swift"
+      "comment" : "@question 后面不打字就列出最近 %@ 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale"
+    },
+    "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them." : {
+      "comment" : "@question 的问题和答案；只在开了「记住最近的问题」时同步。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month (about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell." : {
       "comment" : "@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -223,6 +261,9 @@
     "%@ leads out of the repository." : {
       "comment" : "%@ 指向仓库外面。 — Sources/AllInOneIME/ExtensionSourceController.swift"
     },
+    "%@ more look good" : {
+      "comment" : "另外 %@ 项正常 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "%@ more not added: at most %@ at a time, each one line of at most %@ characters" : {
       "comment" : "另外 %@ 个没加：一次最多 %@ 个，每个一行、不超过 %@ 个字 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
@@ -293,7 +334,8 @@
       "comment" : "⇧⏎ 追问 · ⏎ 上屏 · ⌘R 重新问 · ⌘C 复制 · Esc 返回 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
     "⇧⏎ refine · ⏎ apply · Esc clear" : {
-      "comment" : "⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "⇧⏎ refine · ⏎ insert · ⌫ delete · Esc clear · ↑↓ choose" : {
       "comment" : "⇧⏎ 修改 · ⏎ 上屏 · ⌫ 删字 · Esc 清除 · ↑↓ 选择 — Sources/AllInOneIME/InputController.swift"
@@ -305,22 +347,27 @@
       "comment" : "⌃V 粘贴 · ⌫ 删字 · Esc 清除 — Sources/AllInOneIME/InputController.swift"
     },
     "⌘Z undo · Esc close (or @config undo within 10 minutes)" : {
-      "comment" : "⌘Z 撤销 · Esc 关闭（10 分钟内也可以用 @config undo 撤销） — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "⌘Z 撤销 · Esc 关闭（10 分钟内也可以用 @config undo 撤销） — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "⌥Space also works before the pinyin is picked. If Alfred, Raycast or another app uses ⌥Space, choose Tap ⌥. @ commands also run on Return." : {
       "comment" : "拼音没选完也可以直接按 ⌥空格。⌥空格被 Alfred、Raycast 等占用时，改用「单按 ⌥」。@ 命令按 ⏎ 也执行。 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "⏎ / 1 apply all" : {
-      "comment" : "⏎ / 1 全部应用 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "⏎ / 1 全部应用 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "⏎ / 1 apply, then enter the key in Settings" : {
-      "comment" : "⏎ / 1 应用并打开设置填密钥 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "⏎ / 1 应用并打开设置填密钥 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "⏎ / 1 open Settings for the key" : {
-      "comment" : "⏎ / 1 打开设置填密钥 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "⏎ / 1 打开设置填密钥 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "⏎ / Esc close" : {
-      "comment" : "⏎ / Esc 关闭 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "⏎ / Esc 关闭 — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
     },
     "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy" : {
       "comment" : "⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制 — Sources/AllInOneIME/InputController.swift"
@@ -332,7 +379,8 @@
       "comment" : "⏎ / Tab 选择收件人 · ↑↓ · Esc 取消 — Sources/AllInOneIME/InputController.swift"
     },
     "⏎ checks the setup (on this Mac only); or ask: @doctor why doesn't translate work" : {
-      "comment" : "⏎ 检查设置（只在这台 Mac 上）；也可以问：@doctor 为什么翻译不了 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "⏎ 检查设置（只在这台 Mac 上）；也可以问：@doctor 为什么翻译不了 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "⏎ close · ⌘C copy all · Esc back" : {
       "comment" : "⏎ 关闭 · ⌘C 复制全部 · Esc 返回 — Sources/AllInOneIME/InputController.swift"
@@ -371,10 +419,10 @@
       "comment" : "⚠ 占位符被改动 — Sources/AllInOneIME/PrivacySettings.swift"
     },
     "✓ Connection works: " : {
-      "comment" : "✓ 连接正常： — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "✓ 连接正常： — Sources/AllInOneIME/AssistantPage.swift"
     },
     "✓ From $ANTHROPIC_API_KEY" : {
-      "comment" : "✓ 来自 $ANTHROPIC_API_KEY — Sources/AllInOneIME/AIConfigSelfTest.swift"
+      "comment" : "✓ 来自 $ANTHROPIC_API_KEY — Sources/AllInOneIME/AssistantSelfTest.swift"
     },
     "✓ is the default; Shift switches" : {
       "comment" : "✓ 是默认；Shift 切换 — Sources/AllInOneIME/InputController.swift"
@@ -383,13 +431,13 @@
       "comment" : "✓ 这台 Mac 上可以使用 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "✓ Saved · ends in 0001" : {
-      "comment" : "✓ 已保存 · 结尾 0001 — Sources/AllInOneIME/AIConfigSelfTest.swift"
+      "comment" : "✓ 已保存 · 结尾 0001 — Sources/AllInOneIME/AssistantSelfTest.swift"
     },
     "✓ Saved · ends in a1b2" : {
-      "comment" : "✓ 已保存 · 结尾 a1b2 — Sources/AllInOneIME/AIConfigSelfTest.swift"
+      "comment" : "✓ 已保存 · 结尾 a1b2 — Sources/AllInOneIME/AssistantSelfTest.swift"
     },
     "✗ Connection failed: " : {
-      "comment" : "✗ 连接失败： — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "✗ 连接失败： — Sources/AllInOneIME/AssistantPage.swift"
     },
     "1 argument" : {
       "comment" : "1 个参数 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -404,7 +452,8 @@
       "comment" : "1 个词 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
     "A closing parenthesis is missing" : {
-      "comment" : "缺少右括号 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "缺少右括号 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "A codename, a name…, separated by commas" : {
       "comment" : "项目代号、名字…，用逗号分开 — Sources/AllInOneIME/PrivacySettings.swift"
@@ -602,6 +651,9 @@
     "AllInOneIME: notes, reminders, Claude tasks" : {
       "comment" : "AllInOneIME：笔记、提醒、Claude 任务 — Sources/AllInOneIME/MenuBarIcon.swift"
     },
+    "AllInOneIME: Translate as You Type on" : {
+      "comment" : "AllInOneIME：边打边译 已开启 — Sources/AllInOneIME/MenuBarIcon.swift"
+    },
     "Allow Access to Reminders" : {
       "comment" : "允许读取提醒事项 — Sources/AllInOneIME/FloatingPanel.swift"
     },
@@ -631,6 +683,9 @@
     },
     "Also hide these words" : {
       "comment" : "也隐藏这些词 — Sources/AllInOneIME/PrivacySettings.swift"
+    },
+    "Always Translate as You Type" : {
+      "comment" : "总是边打边译 — Sources/AllInOneIME/AppProfiles.swift"
     },
     "An @question conversation can go on in each agent installed here too (General → “Continue a conversation in”)." : {
       "comment" : "@question 的对话也能接着在这里装了的每个 agent 里聊（通用 →「对话接着在哪里聊」）。 — Sources/AllInOneIME/AgentSettings.swift"
@@ -683,8 +738,12 @@
     "Apple Intelligence declined this request" : {
       "comment" : "Apple Intelligence 拒绝了这个请求 — Sources/AllInOneIME/UIText.swift"
     },
+    "Apple Intelligence is ready" : {
+      "comment" : "Apple 智能可以用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
     "Apple Intelligence is ready (@config and @doctor run on this Mac)" : {
-      "comment" : "Apple 智能可以用（@config 和 @doctor 在本机运行） — Sources/AllInOneIMECore/Doctor.swift"
+      "comment" : "Apple 智能可以用（@config 和 @doctor 在本机运行） — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale"
     },
     "Apple Intelligence isn't available" : {
       "comment" : "Apple 智能不能用 — Sources/AllInOneIMECore/Doctor.swift"
@@ -694,6 +753,9 @@
     },
     "Applies to requests to your AI service; @agent, plugins that fetch from or open a website (@stock, @x) and script extensions send text as typed." : {
       "comment" : "只用于发给你的 AI 服务的请求；@agent、从网站取数据或打开网站的插件（@stock、@x）和脚本扩展照原样发送文字。 — Sources/AllInOneIME/PrivacySettings.swift"
+    },
+    "Apply" : {
+      "comment" : "应用 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "appProfile.sameAsEverywhere" : {
       "comment" : "和全局设置一样 — Sources/AllInOneIME/AppProfiles.swift",
@@ -720,6 +782,9 @@
     },
     "Ask a question; insert the answer" : {
       "comment" : "提问，答案可以直接上屏 — Sources/AllInOneIME/UIText.swift"
+    },
+    "Assistant" : {
+      "comment" : "助手 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "assumed when a request needs it" : {
       "comment" : "需要时才切换角色 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
@@ -812,13 +877,15 @@
       "comment" : "扩展包所在文件夹 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
     "cached" : {
-      "comment" : "缓存 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "缓存 — Sources/AllInOneIME/InputController.swift"
     },
     "calculate" : {
-      "comment" : "计算 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "计算 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Calculate on this Mac; insert the result" : {
-      "comment" : "在本机计算算式，结果可以直接上屏 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "在本机计算算式，结果可以直接上屏 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Calculate with bc" : {
       "comment" : "用 bc 计算 — Sources/AllInOneIME/CommandEditor.swift"
@@ -827,7 +894,8 @@
       "comment" : "不能运行：没有执行权限，第一行也不是 #! — Sources/AllInOneIME/UIText.swift"
     },
     "can't be set here: open Settings" : {
-      "comment" : "不能在这里改，请打开设置 — Sources/AllInOneIMECore/AIConfigText.swift"
+      "comment" : "不能在这里改，请打开设置 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "extractionState" : "stale"
     },
     "Can't open AllInOneIME Settings" : {
       "comment" : "打不开 AllInOneIME 设置 — Sources/AllInOneIMESettings/main.swift"
@@ -839,7 +907,7 @@
       "comment" : "读不了这种内容（%@） — Sources/AllInOneIME/UIText.swift"
     },
     "Cancel" : {
-      "comment" : "取消 — Sources/AllInOneIME/CommandEditor.swift"
+      "comment" : "取消 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Cancelled" : {
       "comment" : "已取消 — Sources/AllInOneIME/Updates.swift"
@@ -850,14 +918,24 @@
     "change it in Settings → Advanced (output tokens, timeout, temperature)" : {
       "comment" : "在设置 → 高级里改（最多输出 tokens、超时、temperature） — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "change it on its own page in Settings" : {
+      "comment" : "请到设置里对应的那一页改 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
     "Change settings by describing them" : {
-      "comment" : "用一句话改设置 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "用一句话改设置 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
+    },
+    "Change settings in a sentence" : {
+      "comment" : "用一句话改设置 — Sources/AllInOneIME/AssistantPage.swift"
+    },
+    "Change those on their own pages in Settings" : {
+      "comment" : "这些请到设置里对应的那一页改 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
     "Changed %@ settings" : {
-      "comment" : "已修改 %@ 项设置 — Sources/AllInOneIMECore/AIConfigText.swift"
+      "comment" : "已改 %@ 项 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
     "Changed 1 setting" : {
-      "comment" : "已修改 1 项设置 — Sources/AllInOneIMECore/AIConfigText.swift"
+      "comment" : "已改 1 项 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
     "Changelog" : {
       "comment" : "更新日志 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -867,6 +945,12 @@
     },
     "ChatGPT (web)" : {
       "comment" : "ChatGPT 网页版 — Sources/AllInOneIME/QuestionChatPanel.swift"
+    },
+    "Check" : {
+      "comment" : "检查 — Sources/AllInOneIME/AssistantPage.swift"
+    },
+    "Check for problems" : {
+      "comment" : "检查问题 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Check for Updates" : {
       "comment" : "检查更新 — Sources/AllInOneIME/Updates.swift"
@@ -890,16 +974,19 @@
       "comment" : "在设置 → AI 服务里看 AWS profile — Sources/AllInOneIMECore/Doctor.swift"
     },
     "check the setup" : {
-      "comment" : "检查设置 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "检查设置 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Check your setup and fix what can be fixed" : {
-      "comment" : "检查设置，能修的帮你修 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "检查设置，能修的帮你修 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "check, then add to Reminders" : {
       "comment" : "看一下再加到提醒事项 — Sources/AllInOneIME/UIText.swift"
     },
     "check, then change the settings" : {
-      "comment" : "看一下再改设置 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "看一下再改设置 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "check, then open a new issue on GitHub" : {
       "comment" : "看一下再在 GitHub 上新建问题 — Sources/AllInOneIME/UIText.swift"
@@ -914,10 +1001,12 @@
       "comment" : "正在检查更新… — Sources/AllInOneIME/Updates.swift"
     },
     "Checking…" : {
-      "comment" : "正在检查… — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "正在检查… — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
     },
     "Checking… · Esc cancel" : {
-      "comment" : "检查中… · Esc 取消 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "检查中… · Esc 取消 — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
     },
     "checks for updates automatically" : {
       "comment" : "自动检查更新 — Sources/AllInOneIMECore/Doctor.swift"
@@ -1024,6 +1113,9 @@
     "Continue in Claude or another AI" : {
       "comment" : "在 Claude 或别的 AI 里接着聊 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
+    "Copied" : {
+      "comment" : "已复制 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "Copy" : {
       "comment" : "复制 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
@@ -1034,7 +1126,7 @@
       "comment" : "复制对话 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
     "Couldn't ask the AI: " : {
-      "comment" : "没能问 AI： — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "没能问 AI： — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Couldn't check for updates" : {
       "comment" : "没能检查更新 — Sources/AllInOneIME/Updates.swift"
@@ -1063,6 +1155,9 @@
     "Couldn't remove it from the keychain: " : {
       "comment" : "无法从钥匙串里删除： — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Couldn't remove it: " : {
+      "comment" : "没能移除： — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Couldn't remove the plugin: " : {
       "comment" : "无法删除插件： — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1079,7 +1174,7 @@
       "comment" : "没能把这句话变成设置 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
     "Couldn't undo: " : {
-      "comment" : "没能撤销： — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "没能撤销： — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Couldn't unpack the apps: " : {
       "comment" : "解压失败： — Sources/AllInOneIMEInstaller/Installer.swift"
@@ -1145,7 +1240,8 @@
       "comment" : "已拒绝，去系统设置打开 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Describe a change, e.g. “output languages English and French” · “use Chinese in WeChat” · “candidates in a column”" : {
-      "comment" : "说说想怎么改设置，比如：翻译成英语和法语 · 微信里用中文 · 候选竖排 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "说说想怎么改设置，比如：翻译成英语和法语 · 微信里用中文 · 候选竖排 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "Description" : {
       "comment" : "说明 — Sources/AllInOneIME/CommandEditor.swift"
@@ -1157,13 +1253,16 @@
       "comment" : "数字 / ↑↓ 选一个看答案 · ⌃V 粘贴 · Esc 清除 — Sources/AllInOneIME/InputController.swift"
     },
     "Digits fix one · ⏎ / Esc close" : {
-      "comment" : "数字 修这一项 · ⏎ / Esc 关闭 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "数字 修这一项 · ⏎ / Esc 关闭 — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
     },
     "Digits fix one · ⏎ fix the safe ones · Esc close" : {
-      "comment" : "数字 修这一项 · ⏎ 修安全的几项 · Esc 关闭 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "数字 修这一项 · ⏎ 修安全的几项 · Esc 关闭 — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
     },
     "Division by zero" : {
-      "comment" : "不能除以 0 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "不能除以 0 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Documentation" : {
       "comment" : "使用说明 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -1180,6 +1279,9 @@
     "Don't type keys here: it wasn't sent, and ⏎ opens the key field." : {
       "comment" : "别在这里打密钥：它没有发出去，⏎ 会打开填密钥的地方 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    "Don't type keys here: it wasn't sent. Add keys in AI Provider." : {
+      "comment" : "别在这里打密钥：它没有发出去。密钥请在 AI 服务里填 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "done" : {
       "comment" : "完成了 — Sources/AllInOneIME/FloatingPanel.swift"
     },
@@ -1187,7 +1289,7 @@
       "comment" : "完成 — Sources/AllInOneIMEInstaller/main.swift"
     },
     "Done: " : {
-      "comment" : "已完成： — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "已完成： — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Download (once)" : {
       "comment" : "下载（只需一次） — Sources/AllInOneIME/SettingsWindow.swift"
@@ -1225,6 +1327,9 @@
     "e.g. " : {
       "comment" : "例如  — Sources/AllInOneIME/AgentSettings.swift"
     },
+    "e.g. translate into Japanese and English" : {
+      "comment" : "例如：翻译成日语和英语 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one." : {
       "comment" : "每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1243,6 +1348,9 @@
     "Empty: the profile's region (%@)" : {
       "comment" : "留空用 profile 的区域（%@） — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "EN → EN" : {
+      "comment" : "英 → 英 — Sources/AllInOneIME/TranslateModeSelfTest.swift"
+    },
     "Enable" : {
       "comment" : "启用 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
@@ -1256,10 +1364,14 @@
       "comment" : "Esc 返回修改 — Sources/AllInOneIME/InputController.swift"
     },
     "Esc close" : {
-      "comment" : "Esc 关闭 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "Esc 关闭 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "Every app can make typos and fix them." : {
       "comment" : "每个 App 都能打错再改。 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Everything looks good" : {
+      "comment" : "一切正常 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Extension Sources" : {
       "comment" : "扩展来源 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
@@ -1307,6 +1419,9 @@
     "Feedback" : {
       "comment" : "反馈 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "files another Mac synced are still downloading" : {
+      "comment" : "别的 Mac 同步的文件还在下载 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
     "Find a file, folder or app and open it" : {
       "comment" : "找文件、文件夹或 App 并打开 — Sources/AllInOneIME/UIText.swift"
     },
@@ -1315,6 +1430,9 @@
     },
     "First use: downloading the %@ speech model. You'll be told when it's ready" : {
       "comment" : "首次使用：正在下载%@语音模型，好了会提示 — Sources/AllInOneIME/InputController.swift"
+    },
+    "Fix" : {
+      "comment" : "修复 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Follow the system" : {
       "comment" : "跟随系统 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -1388,6 +1506,9 @@
     "hand it to %@ in the background" : {
       "comment" : "交给 %@ 在后台做 — Sources/AllInOneIME/UIText.swift"
     },
+    "Hidden words" : {
+      "comment" : "隐藏的词 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Hide" : {
       "comment" : "隐藏 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1418,6 +1539,9 @@
     "https:// addresses only" : {
       "comment" : "只能是 https:// 地址 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    "iCloud Drive isn't available" : {
+      "comment" : "iCloud 云盘不可用 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "improve.separator" : {
       "comment" : "；打 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -1431,6 +1555,9 @@
     },
     "In any case" : {
       "comment" : "不分大小写 — Sources/AllInOneIME/PrivacySettings.swift"
+    },
+    "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page). Needs Accessibility." : {
+      "comment" : "在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）。需要「辅助功能」权限。 — Sources/AllInOneIME/AgentSettings.swift"
     },
     "In English, letters are typed as they are: nothing to set yet." : {
       "comment" : "英文模式直接打字母，暂时没有要设置的。 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -1487,7 +1614,8 @@
       "comment" : "Base URL 无效：%@ — Sources/AllInOneIME/UIText.swift"
     },
     "Invalid expression near \"%@\"" : {
-      "comment" : "算式有误：「%@」这里不对 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "算式有误：「%@」这里不对 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "IP addresses" : {
       "comment" : "IP 地址 — Sources/AllInOneIME/PrivacySettings.swift"
@@ -1513,6 +1641,9 @@
     "Its script is a link out of the repository: %@" : {
       "comment" : "它的脚本是指向仓库外面的链接：%@ — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
+    "Jargon and custom commands" : {
+      "comment" : "黑话库和自定义命令 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Jargon list" : {
       "comment" : "黑话库 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1524,6 +1655,12 @@
     },
     "Keep" : {
       "comment" : "保留 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Keep holding → Translate as You Type" : {
+      "comment" : "继续按住 → 边打边译 — Sources/AllInOneIME/TranslateModeController.swift"
+    },
+    "Keep holding → Translate as You Type off" : {
+      "comment" : "继续按住 → 关闭边打边译 — Sources/AllInOneIME/TranslateModeController.swift"
     },
     "keep the first %@" : {
       "comment" : "留下前 %@ 种 — Sources/AllInOneIMECore/Doctor.swift"
@@ -1557,8 +1694,20 @@
     "Languages" : {
       "comment" : "翻译语言 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Languages, rewrite styles, the action key, per-app settings, the AI provider and model (never its key)…" : {
+      "comment" : "语言、改写风格、执行键、按 App 设置、AI 服务和模型（不含密钥）… — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Last checked: " : {
       "comment" : "上次检查： — Sources/AllInOneIME/Updates.swift"
+    },
+    "last synced " : {
+      "comment" : "上次同步： — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Last synced " : {
+      "comment" : "上次同步： — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Learned words" : {
+      "comment" : "学到的词 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Learned words and your own Rime settings" : {
       "comment" : "学到的词和你自己的 Rime 设置 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -1697,6 +1846,9 @@
     "needs the %@ language pack (download it in Settings → Input)" : {
       "comment" : "需要%@语言包（在设置 → 输入里下载） — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    "Never synced: keys, tokens and passwords, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what." : {
+      "comment" : "从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，不再打错的 App 和最近用过的 App，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "New" : {
       "comment" : "新建 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1725,7 +1877,8 @@
       "comment" : "这个 App 里不用 AI — Sources/AllInOneIME/AppProfiles.swift"
     },
     "no answer within %@ s" : {
-      "comment" : "%@ 秒内没有回应 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "%@ 秒内没有回应 — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
     },
     "No API key for the %@: add one in the settings" : {
       "comment" : "%@ 还没有 API key：在设置里添上 — Sources/AllInOneIME/UIText.swift"
@@ -1734,7 +1887,7 @@
       "comment" : "网页搜索还没有 API key：在设置 → 网页搜索里添上（或在 shell 里设置 %@） — Sources/AllInOneIME/UIText.swift"
     },
     "No API key yet" : {
-      "comment" : "还没有 API key — Sources/AllInOneIME/AIConfigSelfTest.swift"
+      "comment" : "还没有 API key — Sources/AllInOneIME/AssistantSelfTest.swift"
     },
     "No command yet" : {
       "comment" : "还没有命令 — Sources/AllInOneIME/AgentSettings.swift"
@@ -1750,6 +1903,9 @@
     },
     "No language to translate into yet: add one under Translate & Rewrite in the settings" : {
       "comment" : "还没有要翻译成的语言：在设置的「翻译与改写」里加一种 — Sources/AllInOneIME/InputController.swift"
+    },
+    "No language to translate into: add one under Translate & Rewrite in the settings" : {
+      "comment" : "没有要翻译成的语言：在设置的「翻译与改写」里加一种 — Sources/AllInOneIME/TranslateModeController.swift"
     },
     "No letter in the file name to name the command" : {
       "comment" : "文件名里没有英文字母，做不了命令名 — Sources/AllInOneIME/UIText.swift"
@@ -1781,8 +1937,12 @@
     "No recent errors in the logs" : {
       "comment" : "最近的日志里没有错误 — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "No requests left today: subscribe or add your own API key in the settings, or switch to Apple Intelligence in Settings → Assistant" : {
+      "comment" : "今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者在设置 → 助手里改用 Apple 智能 — Sources/AllInOneIME/UIText.swift"
+    },
     "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence" : {
-      "comment" : "今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者打 @config 用 Apple 智能 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者打 @config 用 Apple 智能 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "No requests left today: subscribe, or add your own API key in the settings" : {
       "comment" : "今天的免费次数用完了：可以在设置里订阅，或者填自己的 API key — Sources/AllInOneIME/UIText.swift"
@@ -1896,7 +2056,7 @@
       "comment" : "没有存上，原文已复制到剪贴板。 — Sources/AllInOneIME/InputController.swift"
     },
     "Not saved: " : {
-      "comment" : "没有保存： — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "没有保存： — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Not sent over http:// to the internet (only to this Mac or the local network): %@" : {
       "comment" : "不通过 http:// 发到互联网（只允许本机或局域网）：%@ — Sources/AllInOneIME/UIText.swift"
@@ -1915,6 +2075,15 @@
     },
     "not supported on this Mac" : {
       "comment" : "这台 Mac 不支持 — Sources/AllInOneIME/UIText.swift"
+    },
+    "Not synced through iCloud yet" : {
+      "comment" : "还没有通过 iCloud 同步过 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Not synced yet" : {
+      "comment" : "还没有同步过 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Not translated: {reason} (⏎ to retry)" : {
+      "comment" : "没翻译成：{reason}（⏎ 重试） — Sources/AllInOneIMECore/TranslateMode.swift"
     },
     "Not typed out" : {
       "comment" : "不逐字上屏 — Sources/AllInOneIME/AppProfiles.swift"
@@ -1944,10 +2113,11 @@
       "comment" : "没有加载：克隆不在了，请重新克隆 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
     "Nothing to calculate" : {
-      "comment" : "没有要算的式子 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "没有要算的式子 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Nothing to fix" : {
-      "comment" : "没有要修的 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "没有要修的 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "Nothing to undo from the last 10 minutes" : {
       "comment" : "10 分钟内没有可以撤销的设置修改 — Sources/AllInOneIMECore/AIConfigText.swift"
@@ -1974,7 +2144,8 @@
       "comment" : "开 — Sources/AllInOneIME/AppProfiles.swift"
     },
     "on device" : {
-      "comment" : "本机 — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "本机 — Sources/AllInOneIME/AIConfigController.swift",
+      "extractionState" : "stale"
     },
     "On the selection: “%@” (%@ characters)" : {
       "comment" : "对选中的文字：“%@”（%@ 字） — Sources/AllInOneIME/InputController.swift"
@@ -1990,6 +2161,9 @@
     },
     "One more step: add the input source" : {
       "comment" : "还差一步：添加输入法 — Sources/AllInOneIMEInstaller/main.swift"
+    },
+    "only chosen in Settings → General" : {
+      "comment" : "只能在设置 → 通用里选 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
     },
     "Open" : {
       "comment" : "打开 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2008,6 +2182,9 @@
     },
     "Open Config File" : {
       "comment" : "打开配置文件 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Open iCloud Settings" : {
+      "comment" : "打开 iCloud 设置 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Open in Terminal" : {
       "comment" : "在终端里打开 — Sources/AllInOneIME/AWSProfileSettings.swift"
@@ -2193,6 +2370,9 @@
     "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return." : {
       "comment" : "按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Preview" : {
+      "comment" : "预览 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "Privacy" : {
       "comment" : "隐私 — Sources/AllInOneIME/PrivacySettings.swift"
     },
@@ -2216,6 +2396,9 @@
     },
     "Q: " : {
       "comment" : "问： — Sources/AllInOneIME/QuestionChatPanel.swift"
+    },
+    "Question" : {
+      "comment" : "问题 — Sources/AllInOneIME/AssistantPage.swift"
     },
     "question › " : {
       "comment" : "追问 ›  — Sources/AllInOneIME/InputController.swift"
@@ -2258,6 +2441,9 @@
     },
     "Ready when it's done, no restart" : {
       "comment" : "下载完就能用，不用重启 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Recent questions" : {
+      "comment" : "最近的问题 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Recently asked: pick one to see its answer again, or write a new question" : {
       "comment" : "最近问过的：选一个看当时的答案，或者写新问题 — Sources/AllInOneIME/InputController.swift"
@@ -2349,11 +2535,23 @@
     "Remove %@" : {
       "comment" : "移除%@ — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Remove from iCloud…" : {
+      "comment" : "从 iCloud 移除… — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Remove the hidden words from iCloud?" : {
+      "comment" : "从 iCloud 移除隐藏的词？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Remove the key for %@ from the keychain?" : {
       "comment" : "从钥匙串里删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Remove the recent questions from iCloud?" : {
+      "comment" : "从 iCloud 移除最近的问题？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Remove the search API key from the keychain?" : {
       "comment" : "删除钥匙串里的搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Remove the synced data from iCloud?" : {
+      "comment" : "从 iCloud 移除同步的数据？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Remove this input language" : {
       "comment" : "移除这种输入语言 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2386,6 +2584,9 @@
     },
     "Report an Issue…" : {
       "comment" : "报告问题… — Sources/AllInOneIME/InputController.swift"
+    },
+    "Requests on this page are handled on this Mac" : {
+      "comment" : "这一页的请求在本机处理 — Sources/AllInOneIMECore/Doctor.swift"
     },
     "results" : {
       "comment" : "搜索结果 — Sources/AllInOneIME/UIText.swift"
@@ -2561,6 +2762,9 @@
     "Secure input is on (%@)" : {
       "comment" : "安全输入开着（%@） — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "secure input is on (a password field or the lock screen), nothing was sent" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），没有发给 AI — Sources/AllInOneIMECore/TranslateMode.swift"
+    },
     "Secure input is on (a password field or the lock screen): nothing was sent" : {
       "comment" : "系统安全输入已开启（密码框或锁屏），没有发送 — Sources/AllInOneIME/InputController.swift"
     },
@@ -2571,7 +2775,8 @@
       "comment" : "系统安全输入已开启（密码框或锁屏），没有运行命令 — Sources/AllInOneIME/InputController.swift"
     },
     "Secure input is on: the question wasn't sent; the checks ran" : {
-      "comment" : "系统安全输入已开启：问题没有发给 AI，只做了检查 — Sources/AllInOneIME/InputController.swift"
+      "comment" : "系统安全输入已开启：问题没有发给 AI，只做了检查 — Sources/AllInOneIME/InputController.swift",
+      "extractionState" : "stale"
     },
     "Secure input: the input method is paused, keys go straight in" : {
       "comment" : "安全输入中：输入法暂停，按键直接输入 — Sources/AllInOneIME/InputController.swift"
@@ -2605,6 +2810,15 @@
     },
     "Set “%@” for %@ in the settings first" : {
       "comment" : "先在设置里填好「%@」（%@） — Sources/AllInOneIME/InputController.swift"
+    },
+    "Settings" : {
+      "comment" : "设置 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Settings → General → Sync Now" : {
+      "comment" : "在设置 → 通用里点「立即同步」 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Settings → General turns it on" : {
+      "comment" : "在设置 → 通用里打开 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
     },
     "Settings…" : {
       "comment" : "设置… — Sources/AllInOneIME/InputController.swift"
@@ -2642,8 +2856,12 @@
     "Sign in to AllInOneIME Cloud in the settings, or add your own API key" : {
       "comment" : "请先在设置里登录 AllInOneIME 云，或者填自己的 API key — Sources/AllInOneIME/UIText.swift"
     },
+    "Sign in to AllInOneIME Cloud in the settings, or switch to Apple Intelligence in Settings → Assistant" : {
+      "comment" : "请先在设置里登录 AllInOneIME 云，或者在设置 → 助手里改用 Apple 智能 — Sources/AllInOneIME/UIText.swift"
+    },
     "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence" : {
-      "comment" : "请先在设置里登录 AllInOneIME 云，或者打 @config 用 Apple 智能 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "请先在设置里登录 AllInOneIME 云，或者打 @config 用 Apple 智能 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Sign in with Google" : {
       "comment" : "用 Google 登录 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2706,10 +2924,14 @@
       "comment" : "空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音 — Sources/AllInOneIME/InputController.swift"
     },
     "Space picks · ⇧⏎ refine · ⏎ apply · Esc clear the pinyin" : {
-      "comment" : "空格 选词 · ⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除拼音 — Sources/AllInOneIME/InputController.swift"
+      "comment" : "空格 选词 · ⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除拼音 — Sources/AllInOneIME/InputController.swift",
+      "extractionState" : "stale"
     },
     "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin" : {
       "comment" : "空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音 — Sources/AllInOneIME/InputController.swift"
+    },
+    "Space picks · ⏎ translate to %@ and insert · ⇧⏎ as typed" : {
+      "comment" : "空格 选词 · ⏎ 翻译成%@上屏 · ⇧⏎ 原文上屏 — Sources/AllInOneIME/TranslateModeController.swift"
     },
     "Space picks · type @ first for commands" : {
       "comment" : "空格 选词 · 开头打 @ 用命令 — Sources/AllInOneIME/InputController.swift"
@@ -2778,7 +3000,26 @@
       "comment" : "订阅剩余 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "suggested" : {
-      "comment" : "AI 建议 — Sources/AllInOneIME/DoctorController.swift"
+      "comment" : "AI 建议 — Sources/AllInOneIME/DoctorController.swift",
+      "extractionState" : "stale"
+    },
+    "Sync Now" : {
+      "comment" : "立即同步 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Sync through iCloud" : {
+      "comment" : "通过 iCloud 同步 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Sync through iCloud failed" : {
+      "comment" : "通过 iCloud 同步出错了 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Sync through iCloud is off" : {
+      "comment" : "没有开「通过 iCloud 同步」 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Synced through iCloud " : {
+      "comment" : "已通过 iCloud 同步（ — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Syncing…" : {
+      "comment" : "正在同步… — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Tag or commit" : {
       "comment" : "标签或提交 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
@@ -2810,7 +3051,7 @@
       "comment" : "测试连接 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Testing the connection…" : {
-      "comment" : "正在测试连接… — Sources/AllInOneIME/AIConfigController.swift"
+      "comment" : "正在测试连接… — Sources/AllInOneIME/AssistantPage.swift"
     },
     "That didn't work" : {
       "comment" : "没有完成 — Sources/AllInOneIMEInstaller/main.swift"
@@ -2844,6 +3085,9 @@
     },
     "The address must start with https://" : {
       "comment" : "网址要以 https:// 开头 — Sources/AllInOneIME/CommandEditor.swift"
+    },
+    "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first." : {
+      "comment" : "iCloud 云盘里的 AllInOneIME 文件夹会移到废纸篓，这台 Mac 也不再同步；这台 Mac 上的设置保持不变。还在同步的 Mac 会把它们的设置再放回去：先在那些 Mac 上关掉。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "The AllInOneIME input method isn't installed (~/Library/Input Methods/AllInOneIME.app)." : {
       "comment" : "没有找到 AllInOneIME 输入法（~/Library/Input Methods/AllInOneIME.app），请先安装。 — Sources/AllInOneIMESettings/main.swift"
@@ -2879,13 +3123,16 @@
       "comment" : "下载的文件和签名的更新信息对不上，没有做任何改动。 — Sources/AllInOneIME/Updates.swift"
     },
     "The expression is incomplete" : {
-      "comment" : "算式不完整 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "算式不完整 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "The expression is nested too deeply: %@ levels at most" : {
-      "comment" : "算式嵌套太深：最多 %@ 层 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "算式嵌套太深：最多 %@ 层 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "The expression is too long: %@ characters at most" : {
-      "comment" : "算式太长：最多 %@ 个字符 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "算式太长：最多 %@ 个字符 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "The input method goes into ~/Library/Input Methods and \"AllInOneIME Settings\" into ~/Applications, and AllInOneIME is added to your input sources. For this user only; no administrator password needed." : {
       "comment" : "输入法装到 ~/Library/Input Methods，「AllInOneIME 设置」装到 ~/Applications，并把 AllInOneIME 加进你的输入法列表。只装给当前用户，不需要管理员密码。 — Sources/AllInOneIMEInstaller/main.swift"
@@ -2954,7 +3201,8 @@
       "comment" : "仓库的历史变了（强制推送），不能直接更新：重新克隆，并重新检查一遍。 — Sources/AllInOneIME/ExtensionSourceController.swift"
     },
     "The result isn't a finite real number" : {
-      "comment" : "结果不是有限的实数 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "结果不是有限的实数 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "The Rime user folder has your own %@: it was left as is, so fuzzy pinyin isn't on." : {
       "comment" : "Rime 用户目录里有你自己的 %@，没有改动它，模糊音没有生效。 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2995,11 +3243,20 @@
     "The update to %@ didn't go in; this is still %@: " : {
       "comment" : "更新到 %@ 没成功，仍是 %@： — Sources/AllInOneIME/Updates.swift"
     },
+    "The words you hide from the AI. iCloud Drive is end-to-end encrypted only with Advanced Data Protection. Turned off, the ones synced stay in iCloud until you remove them." : {
+      "comment" : "你在隐私里加的词。只有开了「高级数据保护」，iCloud 云盘才是端到端加密的。关掉后已同步的仍留在 iCloud 里，用「从 iCloud 移除…」删掉。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "then › " : {
       "comment" : "接着说 ›  — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
     "There are several bundles: pick one." : {
       "comment" : "有好几个扩展包，选一个。 — Sources/AllInOneIME/ExtensionSourceController.swift"
+    },
+    "They're deleted from iCloud Drive and this Mac stops syncing them; the questions on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back." : {
+      "comment" : "它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的问题保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back." : {
+      "comment" : "它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的词保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Thinking" : {
       "comment" : "思考 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -3035,7 +3292,8 @@
       "comment" : "这里用的是你自己的 git 和 SSH 设置；先在终端里确认 git ls-remote %@ 能用。 — Sources/AllInOneIME/ExtensionSourceController.swift"
     },
     "Those can't be set here: open Settings" : {
-      "comment" : "这些不能在这里改：请打开设置 — Sources/AllInOneIMECore/AIConfigText.swift"
+      "comment" : "这些不能在这里改：请打开设置 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "extractionState" : "stale"
     },
     "Timeout %@ s" : {
       "comment" : "超时 %@ 秒 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -3054,6 +3312,24 @@
     },
     "Translate & Rewrite" : {
       "comment" : "翻译与改写 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Translate as You Type comes on when you switch to this app (elsewhere a long press of Shift turns it on and off): ⏎ translates into the language picked on its chip (until you pick one, your first translation language) and inserts it, ⇧⏎ inserts as typed." : {
+      "comment" : "切到这个 App 就打开边打边译（平时长按 Shift 开关）：⏎ 直接翻译成小标签上选的语言（还没选过时是第一种翻译语言）并上屏，⇧⏎ 原文上屏。 — Sources/AllInOneIME/AppProfiles.swift"
+    },
+    "Translate as You Type off" : {
+      "comment" : "边打边译 已关闭 — Sources/AllInOneIME/TranslateModeController.swift"
+    },
+    "Translate as You Type on: %@ · hold Shift again to turn off" : {
+      "comment" : "边打边译 已开启：%@ · 再长按 Shift 关闭 — Sources/AllInOneIME/TranslateModeController.swift"
+    },
+    "Translate as You Type on: Chinese → English · hold Shift again to turn off" : {
+      "comment" : "边打边译 已开启：中文 → 英文 · 再长按 Shift 关闭 — Sources/AllInOneIME/TranslateModeSelfTest.swift"
+    },
+    "Translate as You Type on: Chinese → Japanese · hold Shift again to turn off" : {
+      "comment" : "边打边译 已开启：中文 → 日语 · 再长按 Shift 关闭 — Sources/AllInOneIME/TranslateModeSelfTest.swift"
+    },
+    "Translate as You Type: secure input is on, text goes in as typed" : {
+      "comment" : "边打边译：系统安全输入开着，照原样上屏 — Sources/AllInOneIME/TranslateModeController.swift"
     },
     "Translate into your languages; with @improve, both" : {
       "comment" : "翻译成你加的语言；和 @improve 一起写就翻译加改写 — Sources/AllInOneIME/UIText.swift"
@@ -3118,6 +3394,9 @@
     "Typing speed" : {
       "comment" : "打字速度 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Undo" : {
+      "comment" : "撤销 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "Undone; changed since, left as is: " : {
       "comment" : "已撤销；这些之后又改过，没有动： — Sources/AllInOneIMECore/AIConfigText.swift"
     },
@@ -3137,7 +3416,8 @@
       "comment" : "正在卸载… — Sources/AllInOneIMEInstaller/main.swift"
     },
     "Unknown function or constant: %@" : {
-      "comment" : "不认识的函数或常数：%@ — Sources/AllInOneIME/UIText.swift"
+      "comment" : "不认识的函数或常数：%@ — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "unknown language “%@”" : {
       "comment" : "不认识的语言「%@」 — Sources/AllInOneIMECore/AIConfigText.swift"
@@ -3213,6 +3493,12 @@
     "voice input can't work" : {
       "comment" : "语音输入用不了 — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "Waiting for iCloud…" : {
+      "comment" : "正在等 iCloud… — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "Waiting for iCloud…: removed once settings.json is downloaded." : {
+      "comment" : "正在等 iCloud…：settings.json 下载下来后就移除。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "waiting for you" : {
       "comment" : "在等你 — Sources/AllInOneIME/FloatingPanel.swift"
     },
@@ -3225,6 +3511,12 @@
     "What it does" : {
       "comment" : "做什么 — Sources/AllInOneIME/CommandEditor.swift"
     },
+    "What pinyin learned from your choices (Rime's user dictionary)" : {
+      "comment" : "拼音从你的选择里学到的词（Rime 的用户词典） — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
+    "What to change" : {
+      "comment" : "想怎么改 — Sources/AllInOneIME/AssistantPage.swift"
+    },
     "What you type after @%@ goes to %@" : {
       "comment" : "@%@ 后面输入的内容会发到 %@ — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -3233,6 +3525,9 @@
     },
     "What's new" : {
       "comment" : "更新日志 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "What's wrong? (optional)" : {
+      "comment" : "遇到什么问题？（可选） — Sources/AllInOneIME/AssistantPage.swift"
     },
     "When @agent hands it to Claude Code, it works in the background and notifies you when it's done; click the notification to go on in Terminal. Off: it opens in Terminal." : {
       "comment" : "@agent 交给 Claude Code 时，它在后台做，做完弹通知，点通知在终端里接着聊。关掉就直接在终端打开。 — Sources/AllInOneIME/AgentSettings.swift"
@@ -3244,7 +3539,8 @@
       "comment" : "只有一种时 Shift 不切换 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Working out the settings…" : {
-      "comment" : "AI 正在理解要改的设置… — Sources/AllInOneIME/InputController.swift"
+      "comment" : "AI 正在理解要改的设置… — Sources/AllInOneIME/InputController.swift",
+      "extractionState" : "stale"
     },
     "Write a reply" : {
       "comment" : "写一条回复 — Sources/AllInOneIME/CommandEditor.swift"
@@ -3265,7 +3561,8 @@
       "comment" : "写上给 AI 的指令 — Sources/AllInOneIME/CommandEditor.swift"
     },
     "Wrong arguments for %@" : {
-      "comment" : "%@ 的参数不对 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "%@ 的参数不对 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "You can add it back with +" : {
       "comment" : "以后可以再用 ＋ 加回来 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -3291,11 +3588,20 @@
     "Your settings, jargon list and learned words are still there. To delete them too, see \"Uninstall\" in Installation and Troubleshooting on the wiki." : {
       "comment" : "设置、黑话库和学到的词还留着。要一起删掉，见 Wiki「安装与排查」里的「卸载」。 — Sources/AllInOneIMEInstaller/main.swift"
     },
+    "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to." : {
+      "comment" : "设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "Your SSO sign-in for profile %@ has expired. Run `%@` in Terminal" : {
       "comment" : "AWS profile '%@' 的 SSO 登录已过期。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"
     },
     "Your team's own terms" : {
       "comment" : "你团队自己的说法 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "ZH → EN" : {
+      "comment" : "中 → 英 — Sources/AllInOneIME/TranslateModeSelfTest.swift"
+    },
+    "ZH → JA" : {
+      "comment" : "中 → 日 — Sources/AllInOneIME/TranslateModeSelfTest.swift"
     },
     "Zhipu GLM" : {
       "comment" : "智谱 GLM — Sources/AllInOneIME/SettingsWindow.swift"
