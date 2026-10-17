@@ -182,6 +182,15 @@ extension SelfTest {
         assistant.sendRequest()
         check(model.requests == requests && rig.opened == [.anthropic] && assistant.message == AIConfig.Text(chinese: true).droppedKey,
               "a key typed into the request isn't sent; the key field opens (\(rig.opened))")
+        check(assistant.request.isEmpty, "and it doesn't stay in the field")
+
+        // A key with other words: the words go, the key doesn't (nor stays in the field); the preview says so.
+        let key = "sk-ant-" + "api03-abcdefghijklmnopqrstuvwxyz0123456789"
+        ask("candidates in a column " + key, #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#)
+        check(model.requests == requests + 1 && !(model.prompts.last ?? key).contains(key) && assistant.preview?.droppedKey == true
+              && !assistant.request.contains(key) && assistant.request.hasPrefix("candidates in a column"),
+              "a key mixed into a request is dropped before it's sent and from the field; the preview says so (\(assistant.request))")
+        assistant.dismissPreview()
 
         // A provider change: applied, then Test Connection, its result in the section.
         ask("use Claude", #"{"changes": [{"key": "provider", "value": "anthropic"}]}"#)
@@ -292,6 +301,14 @@ extension SelfTest {
               "Check runs the connection test (\(rig.tested))")
         check(model.requests == 1 && assistant.explanation?.hasPrefix("打字速度超出范围") == true && assistant.recommended == [1],
               "the question is answered on device, its fix marked (\(assistant.explanation ?? "-"), \(assistant.recommended))")
+
+        // A key typed into the question: never sent, nor left in the field.
+        let key = "sk-ant-" + "api03-abcdefghijklmnopqrstuvwxyz0123456789"
+        assistant.question = "why does " + key + " fail"
+        assistant.check()
+        probed()
+        check(model.requests == 2 && !(model.prompts.last ?? key).contains(key) && !assistant.question.contains(key)
+              && assistant.questionNote != nil, "a key typed into the question isn't sent, and leaves the field (\(assistant.question))")
 
         // A command to copy: Copied for a moment.
         rig.facts = { url in

@@ -39,6 +39,8 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var checking = false
     /// What's wrong, in the user's words: Check asks the model about it (`DoctorService`).
     @Published var question = ""
+    /// A key typed into the question: dropped before anything was sent, and said so under it.
+    @Published private(set) var questionNote: String?
     /// The model's explanation of the findings for `question`, and the findings whose fixes it named.
     @Published private(set) var explanation: String?
     @Published private(set) var recommended: [Int] = []
@@ -81,6 +83,8 @@ final class AssistantModel: ObservableObject {
         let chinese = UIText.chinese
         let text = AIConfig.Text(chinese: chinese)
         let keys = AIConfig.droppingKeys(typed)
+        // The key goes from the field too (and from this model, which outlives the window): what's left, if anything.
+        if keys.dropped { request = keys.text.filter(\.isLetter).count < 2 ? "" : keys.text }
         if keys.dropped, keys.text.filter(\.isLetter).count < 2 {
             log.notice("assistant: a key typed into the request was dropped; nothing sent")
             message = text.droppedKey
@@ -289,11 +293,19 @@ final class AssistantModel: ObservableObject {
         checking = true
         lastProbe = Date()
         probes += 1
-        let question = connection ? self.question.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         if connection {
             explanation = nil
             recommended = []
+            questionNote = nil
+            // A key typed into the question never goes out, nor stays in the field.
+            let keys = AIConfig.droppingKeys(self.question)
+            if keys.dropped {
+                self.question = keys.text.filter(\.isLetter).count < 2 ? "" : keys.text
+                questionNote = Self.droppedKeyNote
+                log.notice("assistant: a key typed into the question was dropped")
+            }
         }
+        let question = connection ? self.question.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         checkTask = Task { @MainActor [weak self] in
             var facts = await DoctorSession.probe()
             guard let self, !Task.isCancelled else { return }
@@ -388,7 +400,7 @@ final class AssistantModel: ObservableObject {
         checkTask?.cancel()
         connectionTask?.cancel()
         (request, preview, lines, message, applied, appliedWritesSettings, undone, connection) = ("", nil, [], nil, nil, false, nil, nil)
-        (findings, checking, question, explanation, recommended, copied, showsFine) = ([], false, "", nil, [], nil, false)
+        (findings, checking, question, questionNote, explanation, recommended, copied, showsFine) = ([], false, "", nil, nil, [], nil, false)
         (probes, connectionTests, lastProbe, tested) = (0, 0, nil, nil)
     }
 }
@@ -497,6 +509,9 @@ struct AssistantPage: View {
                 .onSubmit { if !assistant.question.trimmingCharacters(in: .whitespaces).isEmpty { assistant.check() } }
                 Button(tr("检查", "Check")) { assistant.check() }
                     .disabled(assistant.checking)
+            }
+            if let note = assistant.questionNote {
+                Label(note, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
             }
             if let explanation = assistant.explanation {
                 Label(explanation, systemImage: "sparkles").labelStyle(StatusLabelStyle(color: .purple))
