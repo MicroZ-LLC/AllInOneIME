@@ -466,6 +466,29 @@ case "--settings-image":
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
                                extensions: extensions, update: update, agent: agent)
     }
+case "--page-context":
+    // `--page-context [request]`: what `@agent` would take along from the Chrome page in front, printed (nothing is
+    // sent). Needs Accessibility for the process that runs it.
+    guard let chrome = NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").first else {
+        print("Google Chrome isn't running"); exit(1)
+    }
+    guard AXIsProcessTrusted() else { print("Accessibility isn't allowed for this process"); exit(1) }
+    // As when `@agent` starts being written: the page tree is asked for (and given back after).
+    PageContextReader.wake(pid: chrome.processIdentifier)
+    let mouse = NSEvent.mouseLocation, height = NSScreen.screens.first?.frame.height ?? 0
+    let started = Date()
+    guard let context = PageContextReader.read(pid: chrome.processIdentifier, pointer: CGPoint(x: mouse.x, y: height - mouse.y)) else {
+        print("no page (or a password field)")
+        PageContextReader.release(pid: chrome.processIdentifier)
+        Thread.sleep(forTimeInterval: 0.3)
+        exit(1)
+    }
+    let prompt = context.prompt(request: arguments.count > 1 ? arguments[1] : "(what you typed)")
+    print(prompt)
+    FileHandle.standardError.write(Data(String(format: "\n— %d chars, %.0f ms\n", prompt.count, Date().timeIntervalSince(started) * 1000).utf8))
+    PageContextReader.release(pid: chrome.processIdentifier)
+    Thread.sleep(forTimeInterval: 0.3)  // the release runs in the background
+    exit(0)
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
 case "--adopt-pack":

@@ -279,6 +279,12 @@ enum UIText {
     /// Main thread only.
     static var agentName = AgentKind.claude.displayName()
 
+    /// Added to the notice when `@agent` took the Chrome page along: " · 带上了网页「标题」".
+    static func withPage(_ title: String) -> String {
+        let short = title.count > 40 ? String(title.prefix(40)) + "…" : title
+        return tr(" · 带上了网页「\(short)」", " · with the page “\(short)”")
+    }
+
     /// The agent `config` picks, by name.
     static func agentName(_ config: Config) -> String { config.agent.displayName(custom: config.agentCommand) }
 

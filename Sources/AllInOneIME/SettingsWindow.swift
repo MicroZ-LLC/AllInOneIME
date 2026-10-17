@@ -1919,6 +1919,7 @@ struct SettingsView: View {
         .onChange(of: model.config.claudeInBackground) { model.save() }
         .onChange(of: model.config.agent) { model.save() }
         .onChange(of: model.config.agentCommand) { model.save() }
+        .onChange(of: model.config.agentPageContext) { model.save() }
         .onChange(of: model.config.useSelection) { model.save() }
         .onChange(of: model.config.rememberQuestions) { model.save() }
         .onChange(of: model.config.typeOut) { model.save() }

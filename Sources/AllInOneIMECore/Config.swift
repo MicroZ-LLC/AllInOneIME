@@ -79,6 +79,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var agent: AgentKind
     /// A custom agent's command (`AgentKind.custom`), the prompt appended as its last argument: `["muse", "--"]`.
     public var agentCommand: [String]
+    /// `@agent` typed in Chrome takes the page along (`PageContext`: the field, its form, the selection, the visible text),
+    /// when the input method may use Accessibility. On by default.
+    public var agentPageContext: Bool
     /// `@agent` with Claude Code runs as a Claude Code background session, with a notification when it's done
     /// (false: an interactive session in Terminal). Other agents always open in Terminal.
     public var claudeInBackground: Bool
@@ -188,6 +191,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.extensionSources = []
         self.agent = .claude
         self.agentCommand = []
+        self.agentPageContext = true
         self.claudeInBackground = true
         self.rememberQuestions = true
         self.questionRounds = QuestionChat.defaultRounds
@@ -221,7 +225,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Every key a config file may hold (`allKeys`: what the Assistant's checks and changes know as the config's own).
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
-        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground, agent, agentCommand
+        case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
         case checkForUpdates, useSelection, appProfiles
@@ -273,6 +277,7 @@ public struct Config: Codable, Equatable, Sendable {
         // A kind this version doesn't know (a later one's) is Claude Code, not an error.
         agent = (try? c.decodeIfPresent(AgentKind.self, forKey: .agent)).flatMap { $0 } ?? d.agent
         agentCommand = try c.decodeIfPresent([String].self, forKey: .agentCommand) ?? d.agentCommand
+        agentPageContext = try c.decodeIfPresent(Bool.self, forKey: .agentPageContext) ?? d.agentPageContext
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
         questionRounds = QuestionChat.rounds((try? c.decodeIfPresent(Int.self, forKey: .questionRounds)).flatMap { $0 } ?? d.questionRounds)
@@ -363,6 +368,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(extensionPreferences, forKey: .extensionPreferences)
         try c.encode(agent, forKey: .agent)
         try c.encode(agentCommand, forKey: .agentCommand)
+        try c.encode(agentPageContext, forKey: .agentPageContext)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
         try c.encode(rememberQuestions, forKey: .rememberQuestions)
         // Only when set: a file that never had them doesn't gain them.

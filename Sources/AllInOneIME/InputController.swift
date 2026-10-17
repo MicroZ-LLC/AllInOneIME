@@ -185,6 +185,14 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Whether an agent is on this Mac (a custom one by its command), for the `@question` hand-off's choices (the
     /// self-test supplies its own). Main thread only.
     var agentInstalled: (AgentKind, [String]) -> Bool = { AgentAvailability.installed($0, custom: $1) }
+    /// `@agent` in Chrome takes the page along (`Config.agentPageContext`).
+    private(set) var agentPageContext = true
+    /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
+    /// none), and reading it: off the main thread.
+    var pageProcess: (String?) -> pid_t? = { app in
+        PageContextReader.applies(app: app, enabled: true) ? app.flatMap(PageContextReader.runningPID) : nil
+    }
+    var readPageContext: @Sendable (pid_t, CGPoint) -> PageContext? = { PageContextReader.read(pid: $0, pointer: $1) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
     var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
     /// `@note`: saves the text to Apple Notes (the self-test saves nothing).
@@ -526,6 +534,7 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
             perform(composer.commitAll(), client: sender as? IMKTextInput)
+            releasePage()  // `@agent` asked for a page it didn't send
             fieldSession += 1
             if Self.activeController === self { Self.activeController = nil }
             hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
@@ -648,11 +657,62 @@ final class AllInOneIMEInputController: IMKInputController {
         TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
+    /// The browser whose page tree `@agent` asked for (`PageContextReader.wake`), until the page is read or the field is
+    /// left; the text field session it was looked for in (once each).
+    private var wokenPage: pid_t?
+    private var pageLookedFor = -1
+
+    /// `@agent …` being written in Chrome: its page tree is asked for now, ready by ⏎.
+    @MainActor
+    private func wakePageIfAgent() {
+        guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession,
+              composer.draft.hasPrefix("@\(Command.agent.name) ") else { return }
+        pageLookedFor = fieldSession
+        guard let pid = pageProcess(appID ?? activeApp) else { return }
+        wokenPage = pid
+        PageContextReader.wake(pid: pid)
+    }
+
+    /// The page tree given back, if `@agent` asked for it.
+    @MainActor
+    private func releasePage() {
+        if let pid = wokenPage { PageContextReader.release(pid: pid) }
+        wokenPage = nil
+    }
+
+    /// `prompt` with the page `@agent` was typed in (`PageContext`) when that applies (Chrome, the setting, Accessibility
+    /// allowed), read off the main thread; `start` then gets it on the main thread, with the page's title (nil: no page
+    /// taken along, `prompt` as typed — at once).
+    @MainActor
+    func withPage(_ prompt: String, _ start: @escaping @MainActor (String, String?) -> Void) {
+        guard agentPageContext, let pid = wokenPage ?? pageProcess(appID ?? activeApp) else { return start(prompt, nil) }
+        if wokenPage == nil { PageContextReader.wake(pid: pid) }  // typed fast (or pasted): asked for now
+        wokenPage = nil  // released once read
+        pageLookedFor = -1  // another `@agent` in this field asks again
+        let mouse = NSEvent.mouseLocation, height = NSScreen.screens.first?.frame.height ?? 0
+        let pointer = CGPoint(x: mouse.x, y: height - mouse.y)  // top-left origin, as Accessibility has it
+        let read = readPageContext
+        Task.detached {
+            let context = read(pid, pointer)
+            PageContextReader.release(pid: pid)
+            await MainActor.run {
+                guard let context, !context.isEmpty else {
+                    log.notice("@agent: no page context")
+                    return start(prompt, nil)
+                }
+                let full = context.prompt(request: prompt)
+                log.notice("@agent: page context \(full.count - prompt.count) chars")
+                start(full, context.title.isEmpty ? context.url : context.title)
+            }
+        }
+    }
+
     /// The agent picked for `@agent`: only Claude Code runs in the background; the command list's summary names it.
     @MainActor
     func applyAgent(_ config: Config) {
         agent = config.agent
         agentCommand = config.agentCommand
+        agentPageContext = config.agentPageContext
         composer.claudeInBackground = config.claudeInBackground && config.agent.supportsBackground
         UIText.agentName = config.agent.displayName(custom: config.agentCommand)
         nameAgent()
@@ -879,6 +939,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func perform(_ effects: [Composer.Effect], client: IMKTextInput?) {
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
+        defer { wakePageIfAgent() }
         for effect in effects {
             switch effect {
             case .updateMarkedText:
@@ -959,12 +1020,15 @@ final class AllInOneIMEInputController: IMKInputController {
                 // A file (a script list's row) by its path, which isn't kept in @open's history.
                 openItem(url.isFileURL ? url.path : url.absoluteString)
             case let .startBackgroundAgent(prompt):
-                Task { @MainActor [weak self] in
-                    do {
-                        _ = try await self?.startAgent(prompt)
-                    } catch {
-                        log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
-                        self?.showNotice(UIText.describe(error), client: nil)
+                withPage(prompt) { [weak self] prompt, page in
+                    Task { @MainActor [weak self] in
+                        do {
+                            _ = try await self?.startAgent(prompt)
+                            if let self, let page { self.showNotice(self.composer.messages.startedInBackground + UIText.withPage(page), client: nil) }
+                        } catch {
+                            log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
+                            self?.showNotice(UIText.describe(error), client: nil)
+                        }
                     }
                 }
             case .openSettings:
@@ -994,12 +1058,16 @@ final class AllInOneIMEInputController: IMKInputController {
                     log.error("@agent: no command for the custom agent")
                     break
                 }
-                do {
-                    try runInTerminal(arguments, prompt)
-                    log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")
-                } catch {
-                    log.error("@agent: could not start Terminal: \(String(describing: error), privacy: .public)")
-                    showNotice(UIText.describe(error), client: target)
+                withPage(prompt) { [weak self] prompt, page in
+                    guard let self else { return }
+                    do {
+                        try self.runInTerminal(arguments, prompt)
+                        log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")
+                        if let page { self.showNotice(self.composer.messages.openedTerminal + UIText.withPage(page), client: target) }
+                    } catch {
+                        log.error("@agent: could not start Terminal: \(String(describing: error), privacy: .public)")
+                        self.showNotice(UIText.describe(error), client: target)
+                    }
                 }
             case let .continueInClaudeCode(prompt):
                 handOff(prompt, to: .claude, client: target)
