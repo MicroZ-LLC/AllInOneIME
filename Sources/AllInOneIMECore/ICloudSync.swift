@@ -245,6 +245,8 @@ public enum ICloudSync {
         /// text, and when it was asked), to tell a Clear here; and the newest Clear known (`questionsFile`).
         public var questionsSeen: [String: Date] = [:]
         public var questionsCleared: Date?
+        /// "Remove from iCloud…" asked while `settings.json` wasn't downloaded: done by the next run that can read it.
+        public var pendingRemovals: Set<Category> = []
 
         public init(macID: String = UUID().uuidString) { self.macID = macID }
 
@@ -274,6 +276,7 @@ public enum ICloudSync {
                 state.questionsSeen = seen.compactMapValues { if case let .string(text) = $0 { return ICloudSync.date(text) } else { return nil } }
             }
             if case let .string(text)? = fields["questionsCleared"] { state.questionsCleared = ICloudSync.date(text) }
+            if let names = fields["pendingRemovals"]?.strings { state.pendingRemovals = Set(names.compactMap(Category.init(rawValue:))) }
             if case let .object(rejected)? = fields["rejected"] {
                 for (key, value) in rejected {
                     guard case let .object(f) = value, case let .string(modified)? = f["modified"], let date = ICloudSync.date(modified),
@@ -296,6 +299,7 @@ public enum ICloudSync {
             if let ownConfigWrite { fields["ownConfigWrite"] = .string(ICloudSync.dateText(ownConfigWrite)) }
             if !questionsSeen.isEmpty { fields["questionsSeen"] = .object(questionsSeen.mapValues { .string(ICloudSync.dateText($0)) }) }
             if let questionsCleared { fields["questionsCleared"] = .string(ICloudSync.dateText(questionsCleared)) }
+            if !pendingRemovals.isEmpty { fields["pendingRemovals"] = .array(pendingRemovals.map(\.rawValue).sorted().map { .string($0) }) }
             if !rejected.isEmpty {
                 fields["rejected"] = .object(rejected.mapValues { rejection in
                     .object(["modified": .string(ICloudSync.dateText(rejection.stamp.modified)), "by": .string(rejection.stamp.by),
@@ -378,6 +382,9 @@ public enum ICloudSync {
         public var kept: [String: Entry] = [:]
         /// Collections to merge with iCloud's (`mergedOnJoin`), with iCloud's entry: joining, or changed here while off.
         public var merges: [String: Entry] = [:]
+        /// Of `merges`, those of a join: their result stays provisional (recorded with this Mac's joining stamp, so that
+        /// it is merged again rather than replaced) until iCloud carries a list that holds all of this Mac's.
+        public var provisional: Set<String> = []
     }
 
     /// The merge, key by key, of this Mac's values `local`, its record `known` (the keys' values and stamps when it last
@@ -420,6 +427,7 @@ public enum ICloudSync {
                 if let theirs {
                     if let value, theirs.value != nil, value != theirs.value, mergedOnJoin.contains(key) {
                         plan.merges[key] = theirs
+                        plan.provisional.insert(key)
                         plan.kept[key] = Entry(value: value, stamp: .joining(mac))
                         continue
                     }
@@ -495,9 +503,10 @@ public enum ICloudSync {
                 }
                 if mergedOnJoin.contains(key), let record, record.stamp.isJoining, record.stamp.by == mac, theirs.stamp.by != mac,
                    theirs.stamp != record.stamp, let value, theirs.value != nil, value != theirs.value {
-                    // Still as this Mac joined, and another Mac's in iCloud: two Macs joined at once, or this one joined
-                    // offline. The collections merge, as on a join.
+                    // Still as this Mac joined (or provisional, from a join's merge), and another Mac's in iCloud: Macs
+                    // joined at once, or this one joined offline. The collections merge, as on a join.
                     plan.merges[key] = theirs
+                    plan.provisional.insert(key)
                     plan.kept[key] = mine
                     continue
                 }
@@ -549,6 +558,24 @@ public enum ICloudSync {
         guard !unknown.isEmpty else { return nil }
         for (name, value) in unknown { fields[name] = value }
         return .object(fields)
+    }
+
+    // MARK: - Writing the config
+
+    /// Writes `keys` of `config` into the config file at `url` (`AIConfig.writing`), except those whose value in the
+    /// file changed since the run read it as `old` (Settings saved meanwhile: that change stays, and goes up as a local
+    /// change next run). The keys written.
+    @discardableResult
+    public static func writeConfig(_ config: Config, readAs old: Config, keys: Set<String>, at url: URL) throws -> Set<String> {
+        let current = (try? Config.load(from: url)) ?? old
+        let now = AIConfig.encoded(current), then = AIConfig.encoded(old)
+        let companions = AIConfig.companions
+        let unchanged = keys.filter { key in
+            ([key] + (companions[key] ?? [])).allSatisfy { now[$0] == then[$0] }
+        }
+        guard !unchanged.isEmpty else { return [] }
+        try AIConfig.writing(config, from: current, keys: unchanged, at: url)
+        return unchanged
     }
 
     // MARK: - Merging collections

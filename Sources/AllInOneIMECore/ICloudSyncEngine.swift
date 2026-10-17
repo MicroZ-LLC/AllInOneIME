@@ -20,9 +20,10 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
     /// This Mac's hardware (a hash of its platform UUID, `ICloudSync.machineID`): a record made on another Mac (copied by
     /// Migration Assistant) gets a Mac id of its own. The tests give their own.
     public var machineID: () -> String? = { ICloudSync.machineID() }
-    /// How the config file is written (`AIConfig.writing`); the app writes it on the main thread, as Settings does.
-    public var writeConfig: (_ config: Config, _ old: Config, _ keys: Set<String>, _ url: URL) throws -> Void = { config, old, keys, url in
-        try AIConfig.writing(config, from: old, keys: keys, at: url)
+    /// How the config file is written (`ICloudSync.writeConfig`: a key changed in the file since the run read it is
+    /// skipped); the keys written. The app writes it on the main thread, as Settings does, and tells Settings at once.
+    public var writeConfig: (_ config: Config, _ old: Config, _ keys: Set<String>, _ url: URL) throws -> Set<String> = { config, old, keys, url in
+        try ICloudSync.writeConfig(config, readAs: old, keys: keys, at: url)
     }
 
     public init(folder: ICloudSyncFolder, configURL: URL = Config.defaultURL, stateURL: URL = ICloudSync.State.defaultURL,
@@ -135,6 +136,17 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         } catch {
             return fail(error)
         }
+        // A "Remove from iCloud…" that waited for settings.json: done now that it is here (unless turned on again).
+        if remote != nil, !state.pendingRemovals.isEmpty {
+            for category in state.pendingRemovals.sorted(by: { $0.rawValue < $1.rawValue }) {
+                if settings.categories.contains(category) {
+                    state.pendingRemovals.remove(category)
+                } else if (try? removing(category, state: &state)) == true {
+                    state.pendingRemovals.remove(category)
+                    if case let .data(data)? = try? folder.read(ICloudSync.settingsFile) { remote = try? ICloudSync.RemoteSettings.parse(data) }
+                }
+            }
+        }
         // The categories that are waiting for a file from iCloud (they don't count as synced yet).
         var waiting = Set<ICloudSync.Category>()
 
@@ -205,24 +217,38 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
             let after = ICloudSync.matchingAppKeys(ICloudSync.values(of: result.config, in: categories), to: Array(values.keys))
             for key in result.applied {
                 if let entry = plan.merges[key] {
-                    let mine = ICloudSync.Entry(value: after[key], stamp: .init(modified: now, by: state.macID))
-                    plan.entries[key] = mine == entry ? entry : mine
-                    if after[key] != entry.value { plan.outgoing[key] = mine } else { plan.entries[key] = entry }
+                    if after[key] == entry.value {
+                        // iCloud's already holds all of this Mac's: taken as it is (a join's merge is settled).
+                        plan.entries[key] = entry
+                    } else {
+                        let mine = ICloudSync.Entry(value: after[key], stamp: .init(modified: now, by: state.macID))
+                        plan.outgoing[key] = mine
+                        // A join's merge stays provisional (merged again, not replaced) until iCloud carries it.
+                        plan.entries[key] = plan.provisional.contains(key) ? ICloudSync.Entry(value: after[key], stamp: .joining(state.macID)) : mine
+                    }
                 } else if let stamp = incoming[key]?.stamp {
                     plan.entries[key] = ICloudSync.Entry(value: after[key], stamp: stamp)
                 }
             }
             let keys = AIConfig.changedKeys(config, result.config)
+            var written = Set<String>()
             if !keys.isEmpty {
                 do {
-                    try writeConfig(result.config, config, keys, configURL)
+                    written = try writeConfig(result.config, config, keys, configURL)
                 } catch {
                     return fail(error)
                 }
-                state.ownConfigWrite = Self.modificationDate(configURL)
+                if !written.isEmpty { state.ownConfigWrite = Self.modificationDate(configURL) }
+                // A key changed in the file meanwhile (Settings saved) keeps that change: recorded as before, so that it
+                // goes up as this Mac's change next run.
+                for key in plan.entries.keys where !written.contains(Self.topKey(key)) && keys.contains(Self.topKey(key))
+                    && (incoming[key] != nil || plan.merges[key] != nil) {
+                    plan.entries[key] = state.entries[key]
+                    plan.outgoing[key] = nil
+                }
             }
-            report.applied = result.applied.filter { incoming[$0] != nil }
-            report.configKeys = keys
+            report.applied = result.applied.filter { incoming[$0] != nil && written.contains(Self.topKey($0)) }
+            report.configKeys = written
         }
 
         // The jargon list: a newer one (or a merge) once its file is here and is the one stamped.
@@ -234,7 +260,9 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 if plan.merges[ICloudSync.jargonKey] != nil, let jargon {
                     list = Data(ICloudSync.mergedJargon(String(decoding: data, as: UTF8.self), String(decoding: jargon, as: UTF8.self)).utf8)
                     let mine = ICloudSync.Entry(value: ICloudSync.fileValue(list), stamp: .init(modified: now, by: state.macID))
-                    plan.entries[ICloudSync.jargonKey] = list == data ? entry : mine
+                    let provisional = ICloudSync.Entry(value: mine.value, stamp: .joining(state.macID))
+                    plan.entries[ICloudSync.jargonKey] = list == data ? entry
+                        : plan.provisional.contains(ICloudSync.jargonKey) ? provisional : mine
                     if list != data {
                         plan.outgoing[ICloudSync.jargonKey] = mine
                         jargonOut = list
@@ -328,6 +356,15 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         return report
     }
 
+    /// The config file's top-level key a sync key is in ("appProfiles" for "appProfiles.<id>", "redaction" for the hidden
+    /// words).
+    static func topKey(_ key: String) -> String {
+        if key.hasPrefix(ICloudSync.appPrefix) { return "appProfiles" }
+        if key == ICloudSync.hiddenWordsKey { return "redaction" }
+        if key == "inputLanguages" || key == "outputLanguages" { return key }
+        return key
+    }
+
     /// How the recent questions went.
     enum QuestionsResult {
         /// Merged: whether this Mac's list changed, and `questions.json` to put up (nil: iCloud's is the same).
@@ -360,6 +397,11 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 return .skipped
             }
             history = read.history
+        }
+        // Deleted without a Clear (the mark is read after the file, so a deletion this run saw is always marked).
+        if let mark = try? Data(contentsOf: forgottenURL) {
+            state.questionsSeen = [:]
+            if (try? Data(contentsOf: forgottenURL)) == mark { try? FileManager.default.removeItem(at: forgottenURL) }
         }
         let mine = Dictionary(history.entries.map { (Self.questionHash($0.question), $0.date) }, uniquingKeysWith: max)
         var cleared = state.questionsCleared
@@ -406,44 +448,80 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
     }
 
     /// The user cleared the recent questions at `date` ("Clear" in Settings, not turning "Remember recent questions"
-    /// off): every Mac drops the questions asked before it. Noted in this Mac's record, if it has one.
+    /// off): every Mac drops the questions asked before it. Noted in this Mac's record, if it has one, and only while
+    /// this Mac syncs the recent questions: a Clear made while it doesn't is this Mac's alone (turned on later, the other
+    /// Macs' questions come back here).
     public func recordQuestionsClear(at date: Date) {
-        guard FileManager.default.fileExists(atPath: stateURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: stateURL.path), let config = try? Config.load(from: configURL),
+              config.iCloudSync.categories.contains(.recentQuestions), config.rememberQuestions else { return }
         var state = ICloudSync.State.load(from: stateURL)
         state.questionsCleared = max(state.questionsCleared ?? date, date)
         try? state.write(to: stateURL)
     }
 
-    /// The recent questions were deleted here without a Clear ("Remember recent questions" turned off): what went isn't
-    /// cleared elsewhere.
+    /// The recent questions are about to be deleted here without a Clear ("Remember recent questions" turned off): what
+    /// goes isn't cleared elsewhere. Called before the file is deleted, from any thread: it leaves a mark next to the
+    /// record (`forgottenURL`) that a run reads after it reads the questions file, so even a run going on meanwhile never
+    /// takes the deletion for a Clear.
     public func forgetQuestionsSeen() {
         guard FileManager.default.fileExists(atPath: stateURL.path) else { return }
-        var state = ICloudSync.State.load(from: stateURL)
-        guard !state.questionsSeen.isEmpty else { return }
-        state.questionsSeen = [:]
-        try? state.write(to: stateURL)
+        try? Data(ICloudSync.dateText(Date()).utf8).write(to: forgottenURL, options: .atomic)
+    }
+
+    /// The mark `forgetQuestionsSeen` leaves.
+    var forgottenURL: URL { stateURL.deletingLastPathComponent().appendingPathComponent("questions-forgotten") }
+
+    /// How "Remove from iCloud…" for the hidden words or the recent questions went.
+    public enum Removal: Equatable, Sendable {
+        case removed
+        /// `settings.json` isn't downloaded yet: noted, and done by the next run that can read it.
+        case waiting
     }
 
     /// "Remove from iCloud…" for the hidden words or the recent questions: their entry (and `questions.json`) taken out of
-    /// iCloud, every other entry as it is. Other Macs keep theirs; one still syncing them puts its own back.
-    public func removeFromICloud(_ category: ICloudSync.Category) throws {
-        let keys: [String]
-        switch category {
-        case .hiddenWords: keys = [ICloudSync.hiddenWordsKey]
-        case .recentQuestions: keys = [ICloudSync.questionsKey]
-        default: return
-        }
-        if category == .recentQuestions, folder.exists {
-            let file = folder.url.appendingPathComponent(ICloudSync.questionsFile)
-            if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
-        }
-        guard case let .data(data) = try folder.read(ICloudSync.settingsFile),
-              let remote = try? ICloudSync.RemoteSettings.parse(data) else { return }
-        try folder.write(ICloudSync.settingsFile, remote.removing(Set(keys)))
+    /// iCloud, with the set-aside copies that hold them, every other entry as it is. Other Macs keep theirs; one still
+    /// syncing them puts its own back. While `settings.json` isn't downloaded yet it waits (`State.pendingRemovals`).
+    @discardableResult
+    public func removeFromICloud(_ category: ICloudSync.Category) throws -> Removal {
+        guard category == .hiddenWords || category == .recentQuestions else { return .removed }
         var state = ICloudSync.State.load(from: stateURL)
-        for key in keys { state.entries[key] = nil }
-        if category == .recentQuestions { state.questionsSeen = [:] }
+        let done = try removing(category, state: &state)
+        if done { state.pendingRemovals.remove(category) } else { state.pendingRemovals.insert(category) }
         try? state.write(to: stateURL)
+        return done ? .removed : .waiting
+    }
+
+    /// Takes `category` out of iCloud; false while `settings.json` isn't downloaded yet.
+    func removing(_ category: ICloudSync.Category, state: inout ICloudSync.State) throws -> Bool {
+        let key = category == .hiddenWords ? ICloudSync.hiddenWordsKey : ICloudSync.questionsKey
+        let fm = FileManager.default
+        if category == .recentQuestions, folder.exists {
+            for name in [ICloudSync.questionsFile, ICloudSyncFolder.placeholderName(of: ICloudSync.questionsFile)] {
+                let file = folder.url.appendingPathComponent(name)
+                if fm.fileExists(atPath: file.path) { try fm.removeItem(at: file) }
+            }
+        }
+        // The copies set aside when they couldn't be read may hold them too.
+        for name in (try? fm.contentsOfDirectory(atPath: folder.url.path)) ?? [] {
+            let file = folder.url.appendingPathComponent(name)
+            if category == .recentQuestions, name.hasPrefix("questions (unreadable ") {
+                try fm.removeItem(at: file)
+            } else if category == .hiddenWords, name.hasPrefix("settings (unreadable "),
+                      let data = try? Data(contentsOf: file), String(decoding: data, as: UTF8.self).contains(ICloudSync.hiddenWordsKey) {
+                try fm.removeItem(at: file)
+            }
+        }
+        switch try folder.read(ICloudSync.settingsFile) {
+        case .placeholder: return false
+        case .missing: break
+        case let .data(data):
+            if let remote = try? ICloudSync.RemoteSettings.parse(data), remote.entries[key] != nil || data.range(of: Data(key.utf8)) != nil {
+                try folder.write(ICloudSync.settingsFile, remote.removing([key]))
+            }
+        }
+        state.entries[key] = nil
+        if category == .recentQuestions { state.questionsSeen = [:] }
+        return true
     }
 
     /// A question's key (`QuestionHistory.key`) as this Mac's record keeps it: hashed, never the text.

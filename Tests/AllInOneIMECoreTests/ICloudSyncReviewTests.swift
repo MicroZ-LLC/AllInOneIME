@@ -592,3 +592,217 @@ struct ICloudSyncReviewFixTests {
         #expect(try !RimeSync.resetInstallationID(userDataDir: user))
     }
 }
+
+/// The second review's probes (scratchpad/icloud-probe2, S18–S25) as regression tests.
+@Suite(.serialized)
+struct ICloudSyncReview2Tests {
+    @Test func s18ThreeMacsJoinAtOnce() {
+        let w = ProbeWorld()
+        let fa = w.drive("s18-a"), fb = w.drive("s18-b"), fc = w.drive("s18-c")
+        let a = ProbeMac("s18-A", in: w, drive: fa) { $0.customCommands = [probeCommand("alpha")] }
+        let b = ProbeMac("s18-B", in: w, drive: fb) { $0.customCommands = [probeCommand("beta")] }
+        let c = ProbeMac("s18-C", in: w, drive: fc) { $0.customCommands = [probeCommand("gamma")] }
+        a.sync(at: pt(1)); b.sync(at: pt(1.1)); c.sync(at: pt(1.2))
+        // iCloud keeps A's files; B and C both see A's (not each other's yet) and merge.
+        probeCopyDrive(fa, fb); probeCopyDrive(fa, fc)
+        b.sync(at: pt(2)); c.sync(at: pt(2.1))
+        // B's and C's settings.json meet: C's keeps the name.
+        let g = w.path("s18-g")
+        probeCollide(server: fc, other: fb, into: g)
+        a.use(drive: g); b.use(drive: g); c.use(drive: g)
+        for i in 0..<4 { a.sync(at: pt(3 + Double(i))); b.sync(at: pt(3.3 + Double(i))); c.sync(at: pt(3.6 + Double(i))) }
+        expectProbe(Set(a.commands) == ["alpha", "beta", "gamma"] && a.commands == b.commands && b.commands == c.commands,
+              "three Macs joining at once all end with every Mac's commands")
+    }
+
+    // S19: the app writes the join's values on the main thread, then Settings (stale model, read before the join) saves
+    // the whole file because the user toggled a switch before the window read the file again.
+    @Test func s19StaleSettingsSaveAfterJoin() {
+        let w = ProbeWorld()
+        let g = w.drive("s19")
+        let a = ProbeMac("s19-A", in: w, drive: g) { $0.customCommands = [probeCommand("alpha")]; $0.maxTokens = 2000 }
+        a.sync(at: pt(1))
+        let b = ProbeMac("s19-B", in: w, drive: g) { $0.customCommands = [probeCommand("beta")] }
+        let stale = b.config  // Settings' model as the window had it when sync was turned on
+        b.sync(at: pt(2))     // the join: B takes maxTokens 2000, merges commands, and puts the merge up
+        expectProbe(b.config.maxTokens == 2000 && Set(b.commands) == ["alpha", "beta"], "B joined (\(b.config.maxTokens), \(b.commands))")
+        // The user turns on "Hidden words" before Settings re-read the file: whole-file save of the stale model.
+        // Settings now writes only the keys the window changed since it last read the file (SettingsModel.save).
+        var saved = stale
+        saved.iCloudSync.hiddenWords = true
+        try! AIConfig.writing(saved, from: stale, keys: AIConfig.changedKeys(stale, saved), at: b.engine.configURL)
+        probeTouch(b.engine.configURL, pt(2.01))
+        expectProbe(b.config.maxTokens == 2000 && Set(b.commands) == ["alpha", "beta"] && b.config.iCloudSync.hiddenWords,
+                    "Settings' save kept the join's values (\(b.config.maxTokens), \(b.commands))")
+        b.sync(at: pt(2.02))
+        a.sync(at: pt(3))
+        expectProbe(a.config.maxTokens == 2000 && a.commands.contains("alpha"), "A's settings survive B's stale Settings save")
+    }
+
+    // S20: the record says another machine (Migration Assistant): a new Mac id; nothing lost, nothing storms.
+    @Test func s20MachineChange() {
+        let w = ProbeWorld()
+        let g = w.drive("s20")
+        let a = ProbeMac("s20-A", in: w, drive: g) { $0.customCommands = [probeCommand("alpha")] }
+        a.engine.machineID = { "machine-one" }
+        a.sync(at: pt(1))
+        let b = ProbeMac("s20-B", in: w, drive: g)
+        b.engine.machineID = { "machine-two" }
+        b.sync(at: pt(2))
+        // A's whole folder (config, record) copied to a new Mac A2.
+        let a2 = ProbeMac("s20-A2", in: w, drive: g)
+        try! FileManager.default.removeItem(at: a2.engine.configURL)
+        try! FileManager.default.copyItem(at: a.engine.configURL, to: a2.engine.configURL)
+        try! FileManager.default.copyItem(at: a.engine.stateURL, to: a2.engine.stateURL)
+        a2.engine.machineID = { "machine-three" }
+        let r = a2.sync(at: pt(3))
+        var ups: [Int] = []
+        for i in 0..<3 { ups.append(a.sync(at: pt(4 + Double(i))).uploaded.count); ups.append(b.sync(at: pt(4.3 + Double(i))).uploaded.count); ups.append(a2.sync(at: pt(4.6 + Double(i))).uploaded.count) }
+        a2.edit(at: pt(10)) { $0.maxTokens = 3000 }
+        a2.sync(at: pt(10)); a.sync(at: pt(11)); b.sync(at: pt(12))
+        expectProbe(r.newMachine && a2.state.macID != a.state.macID, "the copy gets its own Mac id")
+        expectProbe(ups.allSatisfy { $0 == 0 }, "no uploads storm after it")
+        expectProbe(a.config.maxTokens == 3000 && b.config.maxTokens == 3000 && a.commands == ["alpha"], "a change on the copy reaches the others")
+        // The same machine id again (no copy): never a new id.
+        let before = a.state.macID
+        a.sync(at: pt(20))
+        expectProbe(a.state.macID == before, "the same Mac never gets a new id")
+    }
+
+    // S21: B changes the jargon; A gets B's jargon.txt before B's settings.json (still the old stamp); A runs.
+    @Test func s21JargonRepairRace() {
+        let w = ProbeWorld()
+        let g = w.drive("s21")
+        let a = ProbeMac("s21-A", in: w, drive: g), b = ProbeMac("s21-B", in: w, drive: g)
+        a.jargon("one\n", at: pt(0))
+        a.sync(at: pt(1)); b.sync(at: pt(2)); a.sync(at: pt(3))
+        let oldSettings = try! Data(contentsOf: g.appendingPathComponent("AllInOneIME/settings.json"))
+        b.jargon("one\ntwo-from-B\n", at: pt(10)); b.sync(at: pt(10))
+        let newSettings = try! Data(contentsOf: g.appendingPathComponent("AllInOneIME/settings.json"))
+        // A sees B's jargon.txt but still the old settings.json.
+        try! oldSettings.write(to: g.appendingPathComponent("AllInOneIME/settings.json"))
+        let r = a.sync(at: pt(11))
+        let jt = (try? String(contentsOf: g.appendingPathComponent("AllInOneIME/jargon.txt"), encoding: .utf8)) ?? "-"
+        // Then B's settings.json arrives (A's jargon.txt write may have gone over B's).
+        try! newSettings.write(to: g.appendingPathComponent("AllInOneIME/settings.json"))
+        var outs: [String] = []
+        for i in 0..<3 { outs.append("A:\(a.sync(at: pt(12 + Double(i))).outcome)"); outs.append("B:\(b.sync(at: pt(12.5 + Double(i))).outcome)") }
+        expectProbe(a.jargonText.contains("two-from-B") && b.jargonText.contains("two-from-B"), "B's new line reaches A and stays on B")
+    }
+
+    // S22: three Macs, varied settings, many runs: nothing re-uploads once settled.
+    @Test func s22SettleThreeMacs() {
+        let w = ProbeWorld()
+        let g = w.drive("s22")
+        let on = ICloudSyncSettings(enabled: true, hiddenWords: true, recentQuestions: true)
+        let a = ProbeMac("s22-A", in: w, drive: g) { $0.iCloudSync = on; $0.customCommands = [probeCommand("alpha")]; $0.redaction.customWords = ["X"]; $0.appProfiles["com.Apple.Mail"] = AppProfile(typeOut: true) }
+        let b = ProbeMac("s22-B", in: w, drive: g) { $0.iCloudSync = on; $0.customCommands = [probeCommand("beta")]; $0.appProfiles["com.apple.mail"] = AppProfile(noAI: true) }
+        let c = ProbeMac("s22-C", in: w, drive: g) { $0.iCloudSync = on; $0.redaction.customWords = ["Y"] }
+        a.jargon("a\n", at: pt(0)); c.jargon("c\n", at: pt(0))
+        a.ask("qa", at: pt(0)); b.ask("qb", at: pt(0.5))
+        var ups: [[String]] = []
+        for i in 0..<6 {
+            ups.append(a.sync(at: pt(1 + Double(i))).uploaded); ups.append(b.sync(at: pt(1.3 + Double(i))).uploaded); ups.append(c.sync(at: pt(1.6 + Double(i))).uploaded)
+        }
+        expectProbe(ups.suffix(6).allSatisfy(\.isEmpty), "settles (last two rounds upload nothing)")
+        expectProbe(a.commands == c.commands && a.hidden == c.hidden && a.jargonText == c.jargonText, "converged")
+    }
+
+    // S23: Remove hidden words from iCloud (switch off first, as Settings does); another Mac with it on puts its own back.
+    @Test func s23RemoveHiddenWords() {
+        let w = ProbeWorld()
+        let g = w.drive("s23")
+        let on = ICloudSyncSettings(enabled: true, hiddenWords: true)
+        let a = ProbeMac("s23-A", in: w, drive: g) { $0.iCloudSync = on; $0.redaction.customWords = ["Codename"] }
+        a.sync(at: pt(1))
+        a.edit(at: pt(2)) { $0.iCloudSync.hiddenWords = false }
+        try! a.engine.removeFromICloud(.hiddenWords)
+        a.sync(at: pt(3))
+        let s = (try? String(contentsOf: g.appendingPathComponent("AllInOneIME/settings.json"), encoding: .utf8)) ?? ""
+        expectProbe(!s.contains("Codename"), "removed from iCloud and not put back by this Mac")
+        expectProbe(a.hidden == ["Codename"], "kept on this Mac")
+        // While settings.json isn't downloaded: does it say so?
+        let url = g.appendingPathComponent("AllInOneIME/settings.json")
+        let data = try! Data(contentsOf: url)
+        try! FileManager.default.removeItem(at: url)
+        try! Data().write(to: g.appendingPathComponent("AllInOneIME/.settings.json.icloud"))
+        // Put back (another Mac's sync) while it's a placeholder: Remove says it waits, and a later run finishes it.
+        let back = try! ICloudSync.RemoteSettings.parse(data).patched(with: [ICloudSync.hiddenWordsKey: .init(value: .array([.string("Codename")]), stamp: .init(modified: pt(2.5), by: "OTHER"))])
+        let result = try? a.engine.removeFromICloud(.hiddenWords)
+        expectProbe(result == .waiting, "a placeholder: Remove says it is waiting, not that it removed them (\(String(describing: result)))")
+        expectProbe(a.state.pendingRemovals == [.hiddenWords], "noted for the next run")
+        try! FileManager.default.removeItem(at: g.appendingPathComponent("AllInOneIME/.settings.json.icloud"))
+        try! back.write(to: url)
+        // A copy set aside earlier holds them too.
+        try! back.write(to: g.appendingPathComponent("AllInOneIME/settings (unreadable 2026-10-16 180000).json"))
+        a.sync(at: pt(4))
+        let after = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        expectProbe(!after.contains("Codename") && a.state.pendingRemovals.isEmpty, "the next run that can read settings.json removed them")
+        expectProbe(!FileManager.default.fileExists(atPath: g.appendingPathComponent("AllInOneIME/settings (unreadable 2026-10-16 180000).json").path),
+                    "the set-aside copy holding them went too")
+    }
+
+    // S24: Remember off (Settings: deletes here, no Clear), the setting syncs to B, then on again.
+    @Test func s24RememberOffOnResurrects() {
+        let w = ProbeWorld()
+        let on = ICloudSyncSettings(enabled: true, recentQuestions: true)
+        let g = w.drive("s24")
+        let a = ProbeMac("s24-A", in: w, drive: g) { $0.iCloudSync = on }, b = ProbeMac("s24-B", in: w, drive: g) { $0.iCloudSync = on }
+        a.ask("Secret one", at: pt(1)); a.sync(at: pt(2)); b.sync(at: pt(3)); a.sync(at: pt(3.5))
+        a.edit(at: pt(4)) { $0.rememberQuestions = false }
+        try? FileManager.default.removeItem(at: a.engine.questionsURL)
+        a.engine.forgetQuestionsSeen()
+        a.sync(at: pt(4)); b.sync(at: pt(5))
+        expectProbe(b.questions == ["Secret one"], "turning Remember off on A clears nothing on B")
+        a.edit(at: pt(6)) { $0.rememberQuestions = true }
+        a.sync(at: pt(6)); b.sync(at: pt(7)); a.sync(at: pt(8))
+        // As the README says: on again, the other Macs' questions come back.
+        expectProbe(a.questions == ["Secret one"] && b.questions == ["Secret one"], "A: \(a.questions), B: \(b.questions)")
+    }
+
+    // S25: Clear in Settings while the questions switch is off on this Mac, then the switch on.
+    @Test func s25ClearWhileQuestionsOff() {
+        let w = ProbeWorld()
+        let on = ICloudSyncSettings(enabled: true, recentQuestions: true)
+        let g = w.drive("s25")
+        let a = ProbeMac("s25-A", in: w, drive: g) { $0.iCloudSync = on }, b = ProbeMac("s25-B", in: w, drive: g) { $0.iCloudSync = on }
+        b.ask("B one", at: pt(1)); b.sync(at: pt(2)); a.sync(at: pt(3))
+        a.edit(at: pt(4)) { $0.iCloudSync.recentQuestions = false }
+        a.sync(at: pt(4))
+        try? FileManager.default.removeItem(at: a.engine.questionsURL)
+        a.engine.recordQuestionsClear(at: pt(5))
+        b.ask("B two", at: pt(6)); b.sync(at: pt(6))
+        a.edit(at: pt(10)) { $0.iCloudSync.recentQuestions = true }
+        a.sync(at: pt(10)); b.sync(at: pt(11))
+        // A Clear made while this Mac didn't sync the questions is its own: the other Macs keep theirs (documented).
+        expectProbe(Set(b.questions) == ["B one", "B two"], "B: \(b.questions)")
+        expectProbe(Set(a.questions) == ["B one", "B two"], "A gets them back once it syncs them: \(a.questions)")
+    }
+
+    /// A Settings save landing while a run writes: the key Settings changed since the run read the file stays as Settings
+    /// wrote it, and goes up next run as this Mac's change.
+    @Test func aSettingsSaveDuringARunIsNeverOverwritten() throws {
+        let w = ProbeWorld()
+        let g = w.drive("race")
+        let a = ProbeMac("race-A", in: w, drive: g), b = ProbeMac("race-B", in: w, drive: g)
+        a.sync(at: pt(1)); b.sync(at: pt(2))
+        a.edit(at: pt(3)) { $0.maxTokens = 2500; $0.typeOut = true }
+        a.sync(at: pt(4))
+        // B's run reads its file, then Settings saves maxTokens before the run writes.
+        var engine = b.engine
+        engine.now = { pt(5) }
+        engine.writeConfig = { config, old, keys, url in
+            let before = try Config.load(from: url)
+            var user = before
+            user.maxTokens = 3000
+            try AIConfig.writing(user, from: before, keys: ["maxTokens"], at: url)
+            probeTouch(url, pt(5))
+            return try ICloudSync.writeConfig(config, readAs: old, keys: keys, at: url)
+        }
+        let report = engine.run()
+        expectProbe(report.configKeys == ["typeOut"] && b.config.maxTokens == 3000 && b.config.typeOut, "\(report.configKeys)")
+        expectProbe(b.sync(at: pt(6)).uploaded == ["maxTokens"], "Settings' change goes up next")
+        a.sync(at: pt(7))
+        expectProbe(a.config.maxTokens == 3000, "and wins: it is the newer")
+    }
+}
