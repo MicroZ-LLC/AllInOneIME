@@ -3016,6 +3016,7 @@ enum SelfTest {
         testCommandsOnSelection(controller, client)
         testAtAfterAWord(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
+        testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
         testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)

@@ -20,6 +20,12 @@ final class CandidatePanel: NSPanel {
         set { view.onScroll = newValue }
     }
 
+    /// A part of Translate as You Type's chip clicked (`CandidateView.Model.chip`).
+    var onChip: ((CandidateView.ChipPart) -> Void)? {
+        get { view.onChip }
+        set { view.onChip = newValue }
+    }
+
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 80),
@@ -76,6 +82,13 @@ final class CandidatePanel: NSPanel {
         setFrame(NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size), display: true)
         if !isVisible { orderFrontRegardless() }
         invalidateShadow()
+    }
+
+    /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
+    func shows(_ model: CandidateView.Model, anchor: NSRect) -> Bool {
+        guard isVisible, view.model == model else { return false }
+        let size = view.contentSize
+        return frame == NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
     }
 
     func hide() {
@@ -153,6 +166,16 @@ final class CandidateView: NSView {
         case error(String)
     }
 
+    /// Translate as You Type's chip (「中 → 英」): the language typed and the one it translates into, each a part to click.
+    struct Chip: Equatable {
+        var source: String
+        var target: String
+    }
+
+    enum ChipPart: Equatable {
+        case source, target
+    }
+
     struct Model: Equatable {
         var rows: [Row] = []
         var highlighted: Int?
@@ -169,6 +192,9 @@ final class CandidateView: NSView {
         /// The rows are a conversation (`QuestionChatPanel`): the panel is no taller than `CandidateView.maxHeight`, the
         /// rows scrolled to show the last one (or the highlighted one, when it's above).
         var transcript = false
+        /// Translate as You Type's chip on top (`onChip`); with it the panel is only as wide as it needs, unless a
+        /// footer is there.
+        var chip: Chip? = nil
     }
 
     enum Metrics {
@@ -192,6 +218,10 @@ final class CandidateView: NSView {
         static let cellSpacing: CGFloat = 2
         static let maxRowWidth: CGFloat = 600
         static let maxCellTextWidth: CGFloat = 280
+        /// Translate as You Type's chip: the space around each part's text, and below it.
+        static let chipInsetX: CGFloat = 8
+        static let chipInsetY: CGFloat = 3
+        static let chipGap: CGFloat = 4
     }
 
     enum Fonts {
@@ -202,6 +232,7 @@ final class CandidateView: NSView {
         static let label = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         static let status = NSFont.systemFont(ofSize: 13)
         static let footer = NSFont.systemFont(ofSize: 11)
+        static let chip = NSFont.systemFont(ofSize: 13, weight: .medium)
 
         static func text(for style: Row.Style) -> NSFont {
             switch style {
@@ -259,10 +290,17 @@ final class CandidateView: NSView {
     /// A row clicked: its index in `model.rows`.
     var onSelect: ((Int) -> Void)?
     var onScroll: ((Int) -> Void)?
+    var onChip: ((ChipPart) -> Void)?
     /// The row under the pointer, drawn lightly highlighted: what a click would pick.
     private(set) var hovered: Int? {
         didSet { if hovered != oldValue { needsDisplay = true } }
     }
+    /// The part of the chip under the pointer, drawn highlighted.
+    private(set) var hoveredChip: ChipPart? {
+        didSet { if hoveredChip != oldValue { needsDisplay = true } }
+    }
+    /// Where the chip's parts are (its source, the arrow, its target), and the whole of it.
+    private(set) var chipFrames: (source: NSRect, arrow: NSRect, target: NSRect, whole: NSRect)?
     /// Scrolling not yet a whole row (a trackpad's small steps add up).
     private var pendingScroll: CGFloat = 0
     private(set) var contentSize = NSSize(width: Metrics.minWidth, height: 40)
@@ -292,6 +330,14 @@ final class CandidateView: NSView {
         var widest: CGFloat = 0
         rowLayouts = []
         let horizontal = model.horizontal && !model.rows.isEmpty
+        chipFrames = nil
+        if let chip = model.chip {
+            let frames = layoutChip(chip, top: y)
+            chipFrames = frames
+            widest = max(widest, frames.whole.maxX - Metrics.textInsetX - Metrics.rowInsetX)
+            let alone = model.rows.isEmpty && model.status == .none && model.footer.isEmpty && model.input == nil && model.header == nil
+            y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
+        }
         inputFrame = nil
         if let input = inputString() {
             let size = Self.measure(input, minHeight: 0)
@@ -338,7 +384,7 @@ final class CandidateView: NSView {
         let rowsBottom = y
 
         statusFrame = nil
-        let compact = model.rows.isEmpty && model.footer.isEmpty
+        let compact = (model.rows.isEmpty || model.chip != nil) && model.footer.isEmpty
         let statusX = model.rows.isEmpty ? p + Metrics.rowInsetX : Metrics.textInsetX
         if let status = statusString() {
             let size = Self.measure(status, minHeight: 0)
@@ -365,6 +411,18 @@ final class CandidateView: NSView {
         needsDisplay = true
         // Other rows under a pointer that stayed put: the one there now.
         hovered = window.flatMap { $0.isVisible ? row(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
+        hoveredChip = window.flatMap { $0.isVisible ? chipPart(at: convert($0.mouseLocationOutsideOfEventStream, from: nil)) : nil }
+    }
+
+    /// The chip at the top left: its source and target parts, the arrow between them, one line.
+    private func layoutChip(_ chip: Chip, top: CGFloat) -> (source: NSRect, arrow: NSRect, target: NSRect, whole: NSRect) {
+        let (source, arrow, target) = chipStrings(chip)
+        let height = ceil(Fonts.chip.ascender - Fonts.chip.descender + Fonts.chip.leading) + 2 * Metrics.chipInsetY
+        let x = Metrics.padding + Metrics.rowInsetX - Metrics.chipInsetX
+        let sourceFrame = NSRect(x: x, y: top, width: ceil(source.size().width) + 2 * Metrics.chipInsetX, height: height)
+        let arrowFrame = NSRect(x: sourceFrame.maxX, y: top, width: ceil(arrow.size().width), height: height)
+        let targetFrame = NSRect(x: arrowFrame.maxX, y: top, width: ceil(target.size().width) + 2 * Metrics.chipInsetX, height: height)
+        return (sourceFrame, arrowFrame, targetFrame, sourceFrame.union(targetFrame))
     }
 
     /// How much taller than `maxHeight` a conversation's panel would be (its rows scroll instead).
@@ -484,6 +542,13 @@ final class CandidateView: NSView {
         return (label, text)
     }
 
+    private func chipStrings(_ chip: Chip) -> (source: NSAttributedString, arrow: NSAttributedString, target: NSAttributedString) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: Fonts.chip, .foregroundColor: NSColor.labelColor]
+        return (NSAttributedString(string: chip.source, attributes: attributes),
+                NSAttributedString(string: "→", attributes: [.font: Fonts.chip, .foregroundColor: NSColor.secondaryLabelColor]),
+                NSAttributedString(string: chip.target, attributes: attributes))
+    }
+
     private func inputString() -> NSAttributedString? {
         model.input.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
     }
@@ -533,6 +598,21 @@ final class CandidateView: NSView {
             shape.stroke()
         }
 
+        if let chip = model.chip, let frames = chipFrames {
+            // A pill, as the system's tokens; the part under the pointer a little stronger: each is a button.
+            let radius = frames.whole.height / 2
+            NSColor.selectedContentBackgroundColor.withAlphaComponent(0.14).setFill()
+            NSBezierPath(roundedRect: frames.whole, xRadius: radius, yRadius: radius).fill()
+            if let part = hoveredChip {
+                NSColor.selectedContentBackgroundColor.withAlphaComponent(0.22).setFill()
+                NSBezierPath(roundedRect: part == .source ? frames.source : frames.target, xRadius: radius, yRadius: radius).fill()
+            }
+            let (source, arrow, target) = chipStrings(chip)
+            for (text, frame) in [(source, frames.source), (arrow, frames.arrow), (target, frames.target)] {
+                let size = text.size()
+                text.draw(at: NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2))
+            }
+        }
         if let inputFrame, let input = inputString() {
             input.draw(with: inputFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
             // Under it, a line as under a text being typed.
@@ -645,14 +725,30 @@ final class CandidateView: NSView {
                                        owner: self))
     }
 
-    override func mouseMoved(with event: NSEvent) { hovered = row(at: convert(event.locationInWindow, from: nil)) }
-    override func mouseEntered(with event: NSEvent) { hovered = row(at: convert(event.locationInWindow, from: nil)) }
-    override func mouseExited(with event: NSEvent) { hovered = nil }
+    /// The part of the chip at `point`, if any (the arrow between them is neither).
+    func chipPart(at point: NSPoint) -> ChipPart? {
+        guard let frames = chipFrames else { return nil }
+        return frames.source.contains(point) ? .source : frames.target.contains(point) ? .target : nil
+    }
 
-    /// A click picks the row as its digit would (`Composer.choose`); the text field keeps the focus, the panel
-    /// being non-activating and never key.
+    private func hover(_ event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        (hovered, hoveredChip) = (row(at: point), chipPart(at: point))
+    }
+
+    override func mouseMoved(with event: NSEvent) { hover(event) }
+    override func mouseEntered(with event: NSEvent) { hover(event) }
+    override func mouseExited(with event: NSEvent) { (hovered, hoveredChip) = (nil, nil) }
+
+    /// A click picks the row as its digit would (`Composer.choose`), or a part of the chip (`onChip`); the text field
+    /// keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
-        if let index = row(at: convert(event.locationInWindow, from: nil)) { onSelect?(index) }
+        let point = convert(event.locationInWindow, from: nil)
+        if let part = chipPart(at: point) {
+            onChip?(part)
+        } else if let index = row(at: point) {
+            onSelect?(index)
+        }
     }
 }
 

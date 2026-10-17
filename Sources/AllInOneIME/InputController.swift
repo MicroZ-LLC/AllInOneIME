@@ -344,6 +344,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let app { recordApp(app) }
             ensureEngine()
             applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+            translateModeActivated(app: app)  // another app leaves Translate as You Type, unless it translates always
             // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
             // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
@@ -525,6 +526,7 @@ final class AllInOneIMEInputController: IMKInputController {
             perform(composer.commitAll(), client: sender as? IMKTextInput)
             fieldSession += 1
             if Self.activeController === self { Self.activeController = nil }
+            hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
         }
         super.deactivateServer(sender)
     }
@@ -606,6 +608,8 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
+        composer.translateModeMessages = .make(chinese: UIText.chinese)
+        translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
         nameAgent()  // the messages were just reset
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
@@ -729,6 +733,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
         // then goes on as usual.
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
+        translateModeKeyDown()  // Shift held with a key is no long press of it
         if typingTask != nil {
             if event.keyCode == VirtualKey.escape {
                 stopTyping(insertingRest: false)
@@ -781,6 +786,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
                                                       index: loadExtensions(config, false), disabled: config.disabledExtensions)
             applyAgent(config)
+            translateModeFollow(config)
             // Another agent picked in Settings: its program is checked (`setCommands` sees it changed).
             if changed || agentChanged && !checkedCommands.isEmpty {
                 setCommands(changed ? commands : checkedCommands)
@@ -823,6 +829,8 @@ final class AllInOneIMEInputController: IMKInputController {
         guard !SecureInput.blocksComposing(client ?? clientOverride ?? self.client()) else {
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped(), client: client) }
+            // No long press of Shift either, and Shift as it is now: the release isn't missed by the next press.
+            translateModeFlagsMissed(shiftDown: event.modifierFlags.contains(.shift))
             return
         }
         ensureEngine()
@@ -832,6 +840,10 @@ final class AllInOneIMEInputController: IMKInputController {
         perform(composer.handleFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags),
                                             timestamp: event.timestamp),
                 client: client)
+        // fn held with Shift is no long press of it either (only Translate as You Type is told of fn).
+        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
+        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
+        translateModeFlagsChanged(keyCode: event.keyCode, modifiers: modifiers)
     }
 
     static func modifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
@@ -1037,6 +1049,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 undoConfig()
             case let .previewFixes(fixes):
                 previewFixes(fixes)
+            case let .startTranslateMode(input, session, id):
+                if refusedForSecureInput(id: id, client: target) { break }
+                consume(translateModeStream(input, session: session, app: appID, id: id), id: id)
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1061,7 +1076,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .showPanel:
                 showPanel(target)
             case .hidePanel:
-                hidePanelIfOwned()
+                if !showTranslateChip(target) { hidePanelIfOwned() }  // Translate as You Type's chip stays
             case let .notice(text):
                 // A note left unsaved, its text on the clipboard: up as long as the other "on the clipboard" notices.
                 showNotice(text, client: target, long: text == composer.messages.noteNotSaved)
@@ -1084,6 +1099,7 @@ final class AllInOneIMEInputController: IMKInputController {
         scheduleRecipientSearch()
         scheduleListRun()
         refreshStatuses()
+        if composer.translateMode != nil { scheduleChipRefresh() }  // Translate as You Type's chip follows the caret
     }
 
     // MARK: - Script extensions
@@ -1856,7 +1872,7 @@ final class AllInOneIMEInputController: IMKInputController {
     // MARK: - Candidate panel
 
     @MainActor
-    private func anchor(_ client: IMKTextInput) -> NSRect {
+    func anchor(_ client: IMKTextInput) -> NSRect {
         // A command on the selection: under the selection's last line (nothing is marked to go by).
         if let range = composer.selection?.range, !range.isEmpty {
             let rect = client.firstRect(forCharacterRange: NSRange(location: range.upperBound - 1, length: 1), actualRange: nil)
@@ -1868,9 +1884,10 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     @MainActor
-    private func showPanel(_ client: IMKTextInput?) {
-        guard let client, composer.wantsPanel else {
-            hidePanelIfOwned()
+    func showPanel(_ client: IMKTextInput?) {
+        // Nothing to show: Translate as You Type's chip, if it's on here; its list of languages over anything else.
+        guard let client, composer.wantsPanel, !translateChipListShown else {
+            if !showTranslateChip(client) { hidePanelIfOwned() }
             return
         }
         let panel = CandidatePanel.shared
@@ -1889,6 +1906,7 @@ final class AllInOneIMEInputController: IMKInputController {
             guard let self else { return }
             self.perform(self.composer.scrollPalette(by: steps), client: nil)
         }
+        panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         panel.show(panelModel(), anchor: anchor(client))
     }
 
@@ -1912,7 +1930,7 @@ final class AllInOneIMEInputController: IMKInputController {
         perform(#selector(noticeExpired), with: nil, afterDelay: lasting ?? Self.noticeDuration(text, long: long))
         if composer.wantsPanel {
             showPanel(client)
-        } else if let client {
+        } else if !showTranslateChip(client), let client {  // under Translate as You Type's chip, if it's on here
             let panel = CandidatePanel.shared
             panel.owner = self
             panel.onSelect = nil
@@ -1925,7 +1943,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Takes `text` down if it is still the notice here: a save's progress, once its outcome is told in another
     /// text field.
     @MainActor
-    private func endNotice(_ text: String) {
+    func endNotice(_ text: String) {
         guard notice == text else { return }
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
         noticeExpired()
@@ -1936,7 +1954,7 @@ final class AllInOneIMEInputController: IMKInputController {
             notice = nil
             if composer.wantsPanel {
                 showPanel(clientOverride ?? client())
-            } else {
+            } else if !showTranslateChip(clientOverride ?? client()) {
                 hidePanelIfOwned()
             }
         }
@@ -2261,7 +2279,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
-                model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
+                model.footer = translateModeFooter() ?? tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
             }
             if state.pageNumber > 0 || !state.isLastPage {
                 model.detail = tr("第 \(state.pageNumber + 1) 页", "page \(state.pageNumber + 1)")
@@ -2348,6 +2366,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
+        // Translate as You Type's pinyin (or dictation): its chip on top.
+        if composer.inModeComposition { model.chip = translateChip()?.panel }
         return model
     }
 
