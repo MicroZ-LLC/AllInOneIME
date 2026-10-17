@@ -268,6 +268,7 @@ update-manifest:
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
 test: deps strings-check check-ios
+	Scripts/check-core-portable-test.sh
 	Scripts/check-core-portable.sh
 	swift test
 
