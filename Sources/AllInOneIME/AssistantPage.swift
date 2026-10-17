@@ -172,6 +172,8 @@ final class AssistantModel: ObservableObject {
         }
         // A fix's actions besides the settings: a file tidied, a pack downloaded, a pane opened.
         for action in preview.actions { DoctorSession.perform(action) }
+        // Tidying the file (the repeated languages) writes it too: the other pages read it again.
+        if preview.actions.contains(.resaveConfig) { NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil) }
         appliedWritesSettings = !preview.edits.isEmpty
         applied = preview.edits.isEmpty
             ? tr("已完成：", "Done: ") + preview.rows.filter { $0.action != nil }.map(\.label).joined(separator: tr("；", "; "))
@@ -251,9 +253,10 @@ final class AssistantModel: ObservableObject {
     // MARK: Check for problems
 
     /// The quick probes, as the page appears or Settings comes to the front: never a permission asked, a key read or the
-    /// AI called. Not again while they run, nor within two seconds of the last.
-    func probe() {
-        guard !checking, lastProbe.map({ Date().timeIntervalSince($0) > 2 }) ?? true else { return }
+    /// AI called. Not again while they run, nor within two seconds of the last (the page appearing and the window coming
+    /// to the front at once), unless `now`.
+    func probe(now: Bool = false) {
+        guard !checking, now || lastProbe.map({ Date().timeIntervalSince($0) > 2 }) ?? true else { return }
         run(connection: false)
     }
 

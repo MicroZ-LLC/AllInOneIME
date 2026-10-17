@@ -246,7 +246,7 @@ extension SelfTest {
         let assistant = AssistantModel()
         func probed() { _ = pump(timeout: 5) { !assistant.checking } }
 
-        assistant.probe()
+        assistant.probe(now: true)
         probed()
         let rows = assistant.findings.map { $0.text(chinese: true) }
         check(rows.first?.hasPrefix("✗") == true && rows.last?.hasPrefix("✓") == true && !assistant.allFine,
@@ -307,7 +307,7 @@ extension SelfTest {
             facts.awsProfile = .failure(Doctor.ProbeError(AWSCredentialError.ssoExpired(profile: "sso-dev").message(chinese: true)))
             return facts
         }
-        assistant.probe()
+        assistant.probe(now: true)
         probed()
         let copyIndex = assistant.findings.firstIndex { if case .copyCommand = $0.fix { return true } else { return false } }
         if let copyIndex {
@@ -335,7 +335,7 @@ extension SelfTest {
         var fine = start
         fine.typeOutRate = TypeOut.defaultRate
         try? fine.write(to: rig.url)
-        assistant.probe()
+        assistant.probe(now: true)
         probed()
         check(assistant.allFine && !assistant.findings.isEmpty, "everything fine folds into one line (\(assistant.findings.map { $0.status }))")
         assistant.reset()
@@ -370,7 +370,8 @@ extension SelfTest {
         _ = pump(timeout: 0.5) { false }
         check(rig.probed >= 1 && !assistant.findings.isEmpty, "Settings opens on Assistant: its probes ran (\(rig.probed))")
         check(rig.tested == 0 && assistant.connectionTests == 0, "opening the page doesn't run the connection test")
-        check(window.firstResponder is NSText, "the request field has the focus (\(String(describing: window.firstResponder)))")
+        let focused = window.firstResponder is NSText
+        check(focused, "the request field has the focus")
         window.close()
         _ = pump(timeout: 0.3) { false }
 
