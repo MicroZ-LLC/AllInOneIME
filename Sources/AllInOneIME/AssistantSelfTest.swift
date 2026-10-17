@@ -238,6 +238,33 @@ extension SelfTest {
         testSettingsSavesOnlyItsChanges(snapshotDirectory: snapshotDirectory)
     }
 
+    /// The settings the page's images are made from: made-up, never the user's (a provider without a key, a typing speed
+    /// out of range, Korean without its pack).
+    static var assistantSampleConfig: Config {
+        var config = Config.default
+        config.provider = .anthropic
+        config.typeOutRate = 100
+        config.setOrder([Language.korean, .chinese, .english])
+        config.candidateLayout = .horizontal
+        config.setOrder([OutputLanguage.english, .chinese])
+        return config
+    }
+
+    /// Settings → Assistant as its images show it, in the interface language: the canned answer's preview over the
+    /// made-up findings (`troubledFacts`), all from `rig`'s stand-ins and config file.
+    static func sampleAssistant(_ rig: AssistantRig) -> AssistantModel {
+        rig.facts = troubledFacts
+        let shown = AssistantModel()
+        rig.model.answer = assistantChanges
+        shown.request = UIText.chinese ? "翻译成英语和法语，微信里用中文，候选竖排"
+            : "translate into English and French, Chinese in WeChat, candidates in a column"
+        shown.sendRequest()
+        _ = pump(timeout: 5) { !shown.working }
+        shown.probe(now: true)
+        _ = pump(timeout: 5) { !shown.checking }
+        return shown
+    }
+
     /// The canned answer the page's images show: three changes.
     static let assistantChanges = """
         {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"},
@@ -374,12 +401,7 @@ extension SelfTest {
     /// request field has the focus; and its images in both languages, light and dark (`assistant*.png`).
     static func testAssistantPage(snapshotDirectory: URL) {
         section("Settings → Assistant: the page")
-        var start = settings
-        start.provider = .anthropic
-        start.typeOutRate = 100
-        start.setOrder([Language.korean, .chinese, .english])
-        start.candidateLayout = .horizontal
-        start.setOrder([OutputLanguage.english, .chinese])
+        let start = assistantSampleConfig
         let rig = AssistantRig(snapshotDirectory, name: "assistant-page.json", config: start)
         rig.facts = troubledFacts
         defer { rig.restore() }
@@ -408,14 +430,7 @@ extension SelfTest {
         for (language, suffix) in [(Language.chinese, ""), (.english, "-en")] {
             UIText.choice = language
             try? start.write(to: rig.url)
-            let shown = AssistantModel()
-            rig.model.answer = assistantChanges
-            shown.request = language == .chinese ? "翻译成英语和法语，微信里用中文，候选竖排"
-                : "translate into English and French, Chinese in WeChat, candidates in a column"
-            shown.sendRequest()
-            _ = pump(timeout: 5) { !shown.working }
-            shown.probe()
-            _ = pump(timeout: 5) { !shown.checking }
+            let shown = sampleAssistant(rig)
             let preview = SettingsModel(configURL: rig.url, persists: false)
             for (appearance, dark) in [(NSAppearance.Name.aqua, ""), (.darkAqua, "-dark")] {
                 let name = "assistant\(suffix)\(dark).png"

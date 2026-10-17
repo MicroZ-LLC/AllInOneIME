@@ -177,10 +177,19 @@ enum SettingsPageImages {
             default: updates.state = .upToDate
             }
         }
+        // Assistant: a sample request and made-up findings, from stand-ins and a config file of its own (no probe of
+        // this Mac, no AI, nothing of the user's).
+        let samples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-assistant-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
+        let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
+        let assistant = SelfTest.sampleAssistant(rig)
         for page in SettingsPage.allCases {
-            SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
+            SettingsImage.render(model, page: page, assistant: page == .assistant ? assistant : nil,
+                                 to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        rig.restore()
+        try? FileManager.default.removeItem(at: samples)
         // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
         // provider: sample states, no keychain asked.
         let provider = model.config.provider
