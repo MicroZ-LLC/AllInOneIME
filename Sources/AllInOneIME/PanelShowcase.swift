@@ -162,6 +162,9 @@ enum SettingsPageImages {
             model.config.agent = AgentKind(rawValue: kind) ?? .claude
             model.config.agentCommand = CustomCommand.arguments(fromCommandLine: command) ?? []
         }
+        // Sync through iCloud shown on, synced a while ago (nothing is read or synced).
+        model.config.iCloudSync = ICloudSyncSettings(enabled: true)
+        ICloudSyncController.shared.show(status: .synced(Date().addingTimeInterval(-120)), lastSync: Date().addingTimeInterval(-120))
         // The Updates card in a state of its own (nothing is checked or downloaded).
         if let update {
             let updates = UpdateController.shared

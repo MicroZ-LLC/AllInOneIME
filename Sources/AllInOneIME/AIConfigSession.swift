@@ -75,10 +75,11 @@ enum AIConfigSession {
             (providersWithKey(lookup), cached ?? scanApps(adding: others))
         }.value
         if cached == nil { cachedApps = (Date(), apps) }
+        let drive = ICloudSyncController.shared.engine.folder
         return AIConfig.Environment(
             packInstalled: { installed.contains($0) }, apps: apps, awsProfiles: { AIConfig.awsProfiles().map(\.name) },
             knownModels: { models[$0] ?? [] }, offeredProviders: offered, hasKey: { keyed.contains($0) }, chinese: chinese,
-            typedText: typed, knownHosts: hosts)
+            typedText: typed, knownHosts: hosts, iCloudDriveAvailable: { drive.isAvailable })
     }
 
     /// The models Settings offers for each provider (and the OpenAI-compatible services' own, where it names one).

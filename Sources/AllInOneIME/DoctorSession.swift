@@ -112,6 +112,7 @@ enum DoctorSession {
         if let result = updates.lastResult, !result.ok { facts.updates.lastError = result.error }
         if case let .failed(message, _) = updates.state { facts.updates.lastError = message }
         facts.recentErrors = read.recentErrors
+        facts.iCloudSync = ICloudSyncController.shared.facts
         return facts
     }
 

@@ -162,6 +162,8 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
+    // Sync through iCloud, if it is on: a first run in a moment, then as files change.
+    MainActor.assumeIsolated { ICloudSyncController.shared.start() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }

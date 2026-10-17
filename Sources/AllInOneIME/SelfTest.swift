@@ -3106,6 +3106,7 @@ enum SelfTest {
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
         testExtensionSources(snapshotDirectory: snapshotDirectory)
+        testICloudSync(snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 
         section("the user's config")
