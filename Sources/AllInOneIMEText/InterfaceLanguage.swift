@@ -77,6 +77,9 @@ public enum InterfaceLanguage {
     /// (`UIText.chinese`) are Chinese then.
     public static func isChinese(_ code: String) -> Bool { Tag(code).language == "zh" }
 
+    /// The code of Simplified Chinese or English: for what only knows whether the interface is Chinese.
+    public static func code(chinese: Bool) -> String { chinese ? "zh-Hans" : "en" }
+
     /// A language's name in that language, as the settings list it: "English", "简体中文", "Français".
     public static func name(_ code: String) -> String {
         let name = Locale(identifier: code).localizedString(forIdentifier: code) ?? code

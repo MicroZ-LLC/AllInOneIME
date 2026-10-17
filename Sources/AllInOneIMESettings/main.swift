@@ -16,7 +16,7 @@ let installed = home.appendingPathComponent("Library/Input Methods/AllInOneIME.a
 let language = InterfaceLanguage.current(setting: ConfigFile.uiLanguage())
 
 /// As the input method's `tr`: the Chinese, the English, or the String Catalog's translation of the English.
-func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language) }
+func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language, app: .main) }
 
 func fail(_ message: String) -> Never {
     let alert = NSAlert()

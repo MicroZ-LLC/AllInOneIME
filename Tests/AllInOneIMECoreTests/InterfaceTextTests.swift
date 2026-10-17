@@ -186,11 +186,71 @@ struct InterfaceTextTests {
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("ui-language-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
-        #expect(Config.uiLanguageSetting(from: url) == nil)
+        #expect(ConfigFile.uiLanguage(from: url) == nil)
         try Data(#"{"uiLanguage": "fr", "actionKey": "not a key"}"#.utf8).write(to: url)
-        #expect(Config.uiLanguageSetting(from: url) == "fr")  // read even where the whole config can't be
+        #expect(ConfigFile.uiLanguage(from: url) == "fr")  // read even where the whole config can't be
         try Data(#"{"uiLanguage": null}"#.utf8).write(to: url)
-        #expect(Config.uiLanguageSetting(from: url) == nil)
+        #expect(ConfigFile.uiLanguage(from: url) == nil)
+    }
+
+    // MARK: Without .lproj bundles (Windows, Android, Linux)
+
+    /// Fixtures/interface-text.xcstrings: French and German entries, a key of its own, an entry not translated, an empty
+    /// one, one with only plural variations and a stale one.
+    static func fixture() throws -> Data {
+        let url = try #require(Bundle.module.url(forResource: "interface-text", withExtension: "xcstrings", subdirectory: "Fixtures"))
+        return try Data(contentsOf: url)
+    }
+
+    @Test func catalogTablesWithoutBundles() throws {
+        let data = try Self.fixture()
+        let fr = try StringCatalog.table("fr", from: data)
+        #expect(fr["%@ items"] == "%@ éléments" && fr["Move %@ to %@"] == "Déplacer %1$@ vers %2$@" && fr["100%% done"] == "fini à 100 %%")
+        #expect(fr["remove.delete"] == "Supprimer")  // a key of its own
+        #expect(fr["Close"] == nil && fr["Open"] == nil)  // not translated; translated as nothing
+        #expect(fr["%@ files"] == nil)  // only plural variations, which tr doesn't use: English
+        #expect(fr.count == 5)
+        #expect(try StringCatalog.table("en", from: data) == ["remove.delete": "Remove"])
+        #expect(try StringCatalog.table("ja", from: data).isEmpty)  // a language the catalog doesn't have
+        #expect(try StringCatalog.languages(in: data) == ["de", "en", "fr"])
+        #expect(throws: (any Error).self) { try StringCatalog.table("fr", from: Data("not a catalog".utf8)) }
+    }
+
+    @Test func translateFromATable() throws {
+        let fr = try StringCatalog.table("fr", from: Self.fixture())
+        let n = 4, file = "a.txt", folder = "Docs"
+        #expect(InterfaceText.translate("\(n) items", in: fr) == "4 éléments")
+        #expect(InterfaceText.translate("Move \(file) to \(folder)", in: fr) == "Déplacer a.txt vers Docs")
+        #expect(InterfaceText.translate("100% done", in: fr) == "fini à 100 %")
+        #expect(InterfaceText.translate("Remove", key: "remove.delete", in: fr) == "Supprimer")
+        #expect(InterfaceText.translate("Close", in: fr) == nil)
+        // The bundle path's placeholder checks: never a crash, nor garbage.
+        #expect(InterfaceText.translate("\(n) left", in: ["%@ left": "il reste %3$@"]) == nil)
+        #expect(InterfaceText.translate("Saved", in: ["Saved": "%d enregistrés"]) == nil)
+        #expect(InterfaceText.translate("\(n) new", in: ["%@ new": "%1$@ nouveaux, %@"]) == "4 nouveaux, 4")
+
+        // Every language through one lookup, as a shell without bundles sets `InterfaceText.lookup`.
+        let lookup = InterfaceText.tableLookup(try StringCatalog.tables(from: Self.fixture()))
+        #expect(InterfaceText.text("共 \(n) 个", "\(n) items", language: "fr", lookup: lookup) == "4 éléments")
+        #expect(InterfaceText.text("共 \(n) 个", "\(n) items", language: "de", lookup: lookup) == "4 Einträge")
+        #expect(InterfaceText.text("共 \(n) 个", "\(n) items", language: "ja", lookup: lookup) == "4 items")  // no such language
+        #expect(InterfaceText.text("关闭", "Close", language: "fr", lookup: lookup) == "Close")  // not translated yet
+        #expect(InterfaceText.text("删除", "Remove", key: "remove.delete", language: "fr", lookup: lookup) == "Supprimer")
+        #expect(InterfaceText.text("共 \(n) 个", "\(n) items", language: "zh-Hans", lookup: lookup) == "共 4 个")
+        #expect(InterfaceText.text("共 \(n) 个", "\(n) items", language: "en", lookup: lookup) == "4 items")
+    }
+
+    /// %@, %n$@ and %% filled in by hand, the same on every Foundation.
+    @Test func fillByHand() {
+        #expect(InterfaceText.fill("%2$@ sur %1$@, %%, %@", ["a", "b"]) == "b sur a, %, a")
+        #expect(InterfaceText.fill("plain", []) == "plain" && InterfaceText.fill("%%", []) == "%")
+        #expect(InterfaceText.fill("%@ and %@", ["only"]) == nil)
+        #expect(InterfaceText.fill("%0$@", ["x"]) == nil && InterfaceText.fill("%1$", ["x"]) == nil)
+        #expect(InterfaceText.fill("100 %", []) == nil && InterfaceText.fill("% f", []) == nil)
+        #expect(InterfaceText.fill("%1$d", ["1"]) == nil && InterfaceText.fill("%s", ["1"]) == nil)
+        #expect(InterfaceText.fill("“%@”", ["%@ %d %%"]) == "“%@ %d %%”")  // an argument is never read as a format
+        #expect(InterfaceText.fill("%@ – %@", ["é🙂", "中文"]) == "é🙂 – 中文")
+        #expect(InterfaceText.fill("%99999999999999999999$@", ["x"]) == nil)
     }
 
     // MARK: The catalog

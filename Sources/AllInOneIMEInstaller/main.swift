@@ -6,10 +6,10 @@ import AppKit
 
 /// The interface language, as in the input method: the one picked in the settings (`uiLanguage`), else the
 /// system's among the languages this app ships (`InterfaceLanguage`).
-let language = InterfaceLanguage.current(setting: Config.uiLanguageSetting())
+let language = InterfaceLanguage.current(setting: ConfigFile.uiLanguage())
 
 /// As the input method's `tr`: the Chinese, the English, or the String Catalog's translation of the English.
-func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language) }
+func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language, app: .main) }
 
 /// The version this installer carries.
 let newVersion = Installer.version

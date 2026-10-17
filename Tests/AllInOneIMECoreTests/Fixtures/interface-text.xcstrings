@@ -1,0 +1,56 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ items" : {
+      "comment" : "共 %@ 个 — Sources/Example.swift",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "%@ Einträge" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%@ éléments" } }
+      }
+    },
+    "Move %@ to %@" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Déplacer %1$@ vers %2$@" } }
+      }
+    },
+    "100%% done" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "fini à 100 %%" } }
+      }
+    },
+    "Close" : {
+      "comment" : "关闭 — Sources/Example.swift"
+    },
+    "Open" : {
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "" } }
+      }
+    },
+    "remove.delete" : {
+      "comment" : "删除 — Sources/Example.swift",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer" } }
+      }
+    },
+    "%@ files" : {
+      "localizations" : {
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : { "stringUnit" : { "state" : "translated", "value" : "%@ fichier" } },
+              "other" : { "stringUnit" : { "state" : "translated", "value" : "%@ fichiers" } }
+            }
+          }
+        }
+      }
+    },
+    "Gone" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Parti" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

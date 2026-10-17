@@ -52,10 +52,27 @@ public struct UIString: ExpressibleByStringInterpolation, Equatable, Sendable {
     }
 }
 
-/// Interface text in other languages than Simplified Chinese and English: the translations the Makefile compiles from
-/// Resources/Localizable.xcstrings into each app's `<code>.lproj/Localizable.strings`, looked up by the English format,
-/// or by a key of its own where one English text has two meanings (`tr(_:_:key:)`).
+/// Interface text in other languages than Simplified Chinese and English: the translations of
+/// Resources/Localizable.xcstrings, looked up by the English format, or by a key of its own where one English text has
+/// two meanings (`tr(_:_:key:)`).
+///
+/// Where they come from is the shell's business (`lookup`): on Apple platforms the `<code>.lproj/Localizable.strings`
+/// the Makefile compiles from the catalog into each app (`bundleLookup`); elsewhere (Windows, Android, Linux) the catalog
+/// itself, read into a table per language (`StringCatalog`, `tableLookup`). The core only ever asks `text` in a language.
 public enum InterfaceText {
+    /// The translated format of a catalog key (the English format, or a key of its own) in a language; nil without one.
+    public typealias Lookup = @Sendable (_ key: String, _ language: String) -> String?
+
+    /// The translations `text(_:_:key:language:)` uses, for the whole process: the app's own `tr` and the core's texts
+    /// that take a language code. Set by the shell when it starts (the input method: `bundleLookup(app:)` on its bundle).
+    /// Until then there are none, and every language but Simplified Chinese shows English.
+    public static var lookup: Lookup {
+        get { current.value }
+        set { current.value = newValue }
+    }
+
+    private static let current = Locked<Lookup>({ _, _ in nil })
+
     /// The translation of `english` in `bundle` (a `<code>.lproj` bundle, or a bundle whose localization is
     /// already chosen), filled in with english's arguments; nil when the bundle has no entry for english.format.
     /// A translation whose placeholders don't fit the arguments (more arguments referenced than given, or anything
@@ -66,18 +83,44 @@ public enum InterfaceText {
 
     /// `translate`, with the catalog entry named by `key` rather than by english.format.
     public static func translate(_ english: UIString, key: String, in bundle: Bundle) -> String? {
-        // Returned as is when the table has no entry; a translation can't be one control character.
-        let missing = "\u{1}"
-        let translation = bundle.localizedString(forKey: key, value: missing, table: "Localizable")
-        guard translation != missing else { return nil }
-        return fill(translation, english.arguments)
+        format(key, in: bundle).flatMap { fill($0, english.arguments) }
+    }
+
+    /// The translation of `english` in `table` (one language's, catalog key → translated format: `StringCatalog.table`),
+    /// filled in with english's arguments, as `translate(_:in:)` does from a bundle: nil without an entry, or when the
+    /// entry's placeholders don't fit.
+    public static func translate(_ english: UIString, in table: [String: String]) -> String? {
+        translate(english, key: english.format, in: table)
+    }
+
+    /// `translate(_:in:)` from a table, with the entry named by `key` rather than by english.format.
+    public static func translate(_ english: UIString, key: String, in table: [String: String]) -> String? {
+        table[key].flatMap { fill($0, english.arguments) }
     }
 
     /// The text in the interface language `language` (`InterfaceLanguage`): `chinese` for Simplified Chinese,
-    /// `english` for English, else the translation in `app`'s `<language>.lproj` (by `key`, if given), or `english`
-    /// without one.
+    /// `english` for English, else the translation `lookup` has (by `key`, if given), or `english` without one.
+    public static func text(_ chinese: UIString, _ english: UIString, key: String? = nil, language: String) -> String {
+        switch language {
+        case "zh-Hans": return chinese.text
+        case "en": return english.text
+        default: return text(chinese, english, key: key, language: language, lookup: lookup)
+        }
+    }
+
+    /// `text`, with the translations from `lookup` rather than the process's.
     public static func text(_ chinese: UIString, _ english: UIString, key: String? = nil, language: String,
-                            app: Bundle = .main) -> String {
+                            lookup: Lookup) -> String {
+        switch language {
+        case "zh-Hans": return chinese.text
+        case "en": return english.text
+        default: return lookup(key ?? english.format, language).flatMap { fill($0, english.arguments) } ?? english.text
+        }
+    }
+
+    /// `text`, with the translations in `app`'s `<language>.lproj`.
+    public static func text(_ chinese: UIString, _ english: UIString, key: String? = nil, language: String,
+                            app: Bundle) -> String {
         switch language {
         case "zh-Hans": return chinese.text
         case "en": return english.text
@@ -88,36 +131,112 @@ public enum InterfaceText {
     }
 
     /// `app`'s `<language>.lproj`, nil when it has none.
-    public static func bundle(_ language: String, app: Bundle = .main) -> Bundle? {
+    public static func bundle(_ language: String, app: Bundle) -> Bundle? {
         app.path(forResource: language, ofType: "lproj").flatMap(Bundle.init(path:))
     }
 
-    /// `format` with `arguments` filled in by String(format:), when its placeholders are only %@, %n$@ and %% and
-    /// refer to no more arguments than there are; else nil.
+    /// The translations in `app`'s `<code>.lproj` bundles (Apple platforms), each language's bundle found once.
+    public static func bundleLookup(app: Bundle) -> Lookup {
+        let bundles = Locked<(app: Bundle, found: [String: Bundle?])>((app, [:]))
+        return { key, language in
+            let lproj = bundles.update { state -> Bundle? in
+                if let found = state.found[language] { return found }
+                let found = bundle(language, app: state.app)
+                state.found[language] = found
+                return found
+            }
+            return lproj.flatMap { format(key, in: $0) }
+        }
+    }
+
+    /// The translations in `tables`, language → catalog key → translated format (`StringCatalog.tables`): for the
+    /// shells without `.lproj` bundles.
+    public static func tableLookup(_ tables: [String: [String: String]]) -> Lookup {
+        { key, language in tables[language]?[key] }
+    }
+
+    /// The translated format of `key` in `bundle`'s Localizable table; nil without an entry.
+    static func format(_ key: String, in bundle: Bundle) -> String? {
+        // Returned as is when the table has no entry; a translation can't be one control character.
+        let missing = "\u{1}"
+        let translation = bundle.localizedString(forKey: key, value: missing, table: "Localizable")
+        return translation == missing ? nil : translation
+    }
+
+    /// `format` with `arguments` filled in, when its placeholders are only %@ (the next argument), %n$@ (the n-th) and
+    /// %% (a "%"), and refer to no more arguments than there are; else nil. Filled in here rather than by
+    /// String(format:), whose handling differs between Apple's Foundation and swift-corelibs-foundation.
     public static func fill(_ format: String, _ arguments: [String]) -> String? {
         guard format.contains("%") else { return format }
-        var sequential = 0, highest = 0
+        var text = ""
+        var sequential = 0
         var scalars = format.unicodeScalars.makeIterator()
         while let scalar = scalars.next() {
-            guard scalar == "%" else { continue }
+            guard scalar == "%" else {
+                text.unicodeScalars.append(scalar)
+                continue
+            }
             var digits = ""
             var next = scalars.next()
             while let digit = next, ("0"..."9").contains(digit) {
                 digits.unicodeScalars.append(digit)
                 next = scalars.next()
             }
+            let index: Int
             switch (digits.isEmpty, next) {
-            case (true, "%"?): continue
+            case (true, "%"?):
+                text += "%"
+                continue
             case (true, "@"?):
+                index = sequential
                 sequential += 1
-                highest = max(highest, sequential)
             case (false, "$"?):
                 guard let position = Int(digits), position > 0, scalars.next() == "@" else { return nil }
-                highest = max(highest, position)
+                index = position - 1
             default: return nil
             }
+            guard index < arguments.count else { return nil }
+            text += arguments[index]
         }
-        guard highest <= arguments.count else { return nil }
-        return String(format: format, arguments: arguments.map { $0 as NSString })
+        return text
+    }
+}
+
+/// Interface text in one language, for code that has no `tr` of its own (the core's texts): `t.tr("中文", "English")`
+/// gives what the app's `tr` would in `language`, through `InterfaceText.lookup`.
+public struct InterfaceWords: Sendable {
+    /// The interface language's code (`InterfaceLanguage`): "zh-Hans", "en", …
+    public var language: String
+
+    public init(language: String) { self.language = language }
+
+    /// Simplified Chinese or English.
+    public init(chinese: Bool) { language = InterfaceLanguage.code(chinese: chinese) }
+
+    /// Whether the language is Chinese: what only comes in Chinese and English is Chinese then.
+    public var chinese: Bool { InterfaceLanguage.isChinese(language) }
+
+    /// The Chinese, the English, or the translation of the English (by `key`, if given).
+    public func tr(_ chinese: UIString, _ english: UIString, key: String? = nil) -> String {
+        InterfaceText.text(chinese, english, key: key, language: language)
+    }
+}
+
+/// A value behind a lock: the process-wide lookup, and the bundles a lookup has found.
+final class Locked<Value>: @unchecked Sendable {
+    private var stored: Value
+    private let lock = NSLock()
+
+    init(_ value: Value) { stored = value }
+
+    var value: Value {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); defer { lock.unlock() }; stored = newValue }
+    }
+
+    func update<T>(_ body: (inout Value) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&stored)
     }
 }
