@@ -568,8 +568,8 @@ make install
 2. 用一个有 `bedrock:InvokeModelWithResponseStream` 权限的 AWS profile：`~/.aws/credentials` 里的固定密钥，或者能拿到临时凭证的
    profile（`credential_process`、角色、SSO；见下面的「AWS profile」）。
 3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
-   选好 profile、区域和模型，点「测试连接」。设置窗口最上面的「界面语言」可以选简体中文或 English；默认「跟随系统」，也跟随在系统设置 → 通用 → 语言与地区 → 应用程序里单独给 AllInOneIME 选的语言
-   （系统的首选语言里中文排在英文前面时显示中文，否则显示英文）。设置窗口、候选框里的提示和输入法菜单都跟着它。
+   选好 profile、区域和模型，点「测试连接」。设置 →「通用」里的「界面语言」可以选简体中文或 English；默认「跟随系统」，跟随系统的首选语言（系统设置 → 通用 → 语言与地区）：用其中排在最前、App 带有的那一种，任何中文都显示简体中文，都没有时显示英文。
+   设置窗口、候选框里的提示和输入法菜单都跟着它。
    设置打开时先显示「助手」：用一句话改设置，检查问题、能修的点「修复」（见[设置 → 助手](#设置--助手新)）。
 
 <img src="docs/settings.png" width="420" alt="设置窗口">
@@ -726,14 +726,15 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 
 界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog
 `Resources/Localizable.xcstrings`（Makefile 用 Xcode 的 `xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为
-key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过）。同一句英文有两种意思时（它会列出来），给其中一个单独的
+key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过；自测 `*SelfTest.swift` 里的文字不拿去翻译）。同一句英文有两种意思时（`make strings` 会列出来，`make strings-check` 会不通过），给其中一个单独的
 key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", key: "remove.delete")`；catalog 里这个 key 的英文就是这句英文。加一种
-语言，就是在 catalog 里加它的一列。
+语言，就是在 catalog 里加它的一列。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
+`.lproj`；别的平台用 `StringCatalog` 读 catalog 里的表）。
 
 代码结构：
 
 - `Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
-- `Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
+- `Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
 - `Sources/AllInOneIMERime`：librime 封装
 - `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器

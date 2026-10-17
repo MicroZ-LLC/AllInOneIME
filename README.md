@@ -669,8 +669,8 @@ Translations and rewrites go to the AI provider picked in Settings → AI Provid
 2. Use an AWS profile allowed `bedrock:InvokeModelWithResponseStream`: static keys in `~/.aws/credentials`, or a profile
    that gets temporary credentials (`credential_process`, a role, SSO; see "AWS profiles" below).
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
-   Pick the profile, region and model, and click "Test Connection". "Interface language" at the top of the settings window can be English or 简体中文; by default ("Follow the system") it follows the system, including a language picked for AllInOneIME alone (System Settings → General → Language & Region → Applications)
-   (Chinese if Chinese comes before English in the system's preferred languages, English otherwise). The settings window, the hints in the candidate panel and the input menu all follow it.
+   Pick the profile, region and model, and click "Test Connection". "Interface language" in Settings → General can be English or 简体中文; by default ("Follow the system") it follows the system's preferred languages (System Settings → General → Language & Region): the first of them the app has, Simplified Chinese for any Chinese, English when none is.
+   The settings window, the hints in the candidate panel and the input menu all follow it.
    Settings opens on Assistant: change settings by describing them, and check for problems with a Fix for each (see
    [Settings → Assistant](#settings--assistant-new)).
 
@@ -846,14 +846,17 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
 from the String Catalog `Resources/Localizable.xcstrings` (compiled into each app by the Makefile with Xcode's
 `xcstringstool`), keyed by the English text with `%@` for each interpolation. After adding or changing text, run
-`make strings` (`make test` fails until then). Where one English text means two things (it reports them), give one a
-key of its own, a short dotted name for where or how it is used: `tr("删除", "Remove", key: "remove.delete")`; its English is the
-key's English value in the catalog. Adding a language is adding its column to the catalog.
+`make strings` (`make test` fails until then; the self-tests' text, in `*SelfTest.swift`, isn't for translators). Where
+one English text means two things (`make strings` reports them, and `make strings-check` fails on them), give one a key
+of its own, a short dotted name for where or how it is used: `tr("删除", "Remove", key: "remove.delete")`; its English is
+the key's English value in the catalog. Adding a language is adding its column to the catalog. The core's own texts take the
+interface language's code and look it up the same way (`InterfaceText.lookup`, which each app sets: its `.lproj` bundles
+on macOS; elsewhere `StringCatalog` reads the catalog's tables).
 
 Code layout:
 
 - `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
-- `Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`); all the settings launcher links (`AllInOneIMECore` re-exports it)
+- `Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
 - `Sources/AllInOneIMERime`: librime wrapper
 - `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher

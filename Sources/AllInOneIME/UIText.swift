@@ -2,10 +2,9 @@ import AllInOneIMECore
 import Foundation
 
 /// Interface language (settings window, candidate panel, notices, input menu): the one picked in the
-/// settings (config `uiLanguage`), else the system's, as macOS picks it among the languages the app ships
-/// (`InterfaceLanguage.pick`; System Settings → General → Language & Region, including the language picked there
-/// for AllInOneIME alone). Simplified Chinese and English come from the code (`tr`), the others from
-/// Resources/Localizable.xcstrings.
+/// settings (config `uiLanguage`), else the first of the system's preferred languages that the app ships
+/// (`InterfaceLanguage.pick`; System Settings → General → Language & Region). Simplified Chinese and English come from
+/// the code (`tr`), the others from Resources/Localizable.xcstrings.
 enum UIText {
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
     /// text field or the window opens); nil follows the system. Main thread only.

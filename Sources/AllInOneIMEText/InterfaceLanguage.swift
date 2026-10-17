@@ -2,8 +2,8 @@ import Foundation
 
 /// The language of the interface (the input method, AllInOneIME Settings and the installer): a language code
 /// ("en", "zh-Hans", "fr", "pt-BR"), one of the `.lproj` folders the app ships. The config's `uiLanguage` if it names
-/// one, else the one the system prefers, as macOS picks an app's language (System Settings → General → Language &
-/// Region, including the language chosen there for the app alone).
+/// one, else the first of the system's preferred languages (`Locale.preferredLanguages`: System Settings → General →
+/// Language & Region) that the app ships (`pick`).
 public enum InterfaceLanguage {
     /// The language codes that always ship: "en" and "zh-Hans".
     public static let builtIn = ["en", "zh-Hans"]
