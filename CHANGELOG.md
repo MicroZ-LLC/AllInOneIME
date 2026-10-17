@@ -22,6 +22,7 @@ English | [中文](CHANGELOG.zh-CN.md)
   (`translateAlways`). In an app with No AI or during secure input, text goes in as typed. Its request is one of its
   own: every other prompt is unchanged.
 - Script plugins get the input method's language: the app calls `run(input, {language})`, `language` being `"zh"` or `"en"` as its own interface shows (config `uiLanguage`, else the system's). Plugins with `run(input)` work as before; nothing else is passed.
+- `@agent` in Google Chrome takes the page along, so you can ask about what's in front of you: `@agent why is this blocked` on a pipeline page, `@agent why doesn't this work` in a sign-in form. After what you typed, the agent gets the address and title, the field you typed in (its label, whether it's marked invalid) with its form or section, ★ marking where you are, the selected text, and what's visible in the window; with the focus in the address bar, the section under the mouse pointer. Never a password field, never the whole page: the agent decides whether the question is about that spot or the page, and can open the address in your browser for more. It needs Accessibility; Chrome builds its page tree for it only while `@agent` is being written there (its accessibility is turned back off after). The notice says "with the page “…”". Settings → Agent → "@agent takes the Chrome page along" (`agentPageContext`, on). `AllInOneIME --page-context` prints what it would take along from the Chrome page in front.
 
 ### Changed
 
