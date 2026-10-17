@@ -4,8 +4,13 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+### Changed
+
+- Change settings in a sentence and Check for problems moved to Settings → Assistant, the page Settings now opens on (it no longer comes back to the page shown last). Write what you want ("translate into Japanese and English", "candidates in a column") and press Preview (or ⌘⏎): each change shows old → new, Apply writes them and Undo puts them back within 10 minutes. The checks run as the page appears; Check runs them again with Test Connection, and with something in "What's wrong? (optional)" the AI explains the likely cause. A row that can be fixed has a Fix button: settings changes go through the preview above, the rest act at once. The same checks, rules and privacy as before. The input menu's "Add Languages…" items open the page with the languages.
+
 ### Removed
 
+- `@config` and `@doctor`: use Settings → Assistant. Typed, they are now unknown commands, and a custom command, a plugin or a script extension may take the names.
 - The built-in `@calculate` is removed: the calculator is now the `@calculator` plugin in the plugin library (Settings → Plugins → Browse Library…). It works offline, with the same rules as before. Inside a sentence, write the expression without spaces or quote it: `@reply the total is @calculator 23*17 dollars`, `@calculator「2 * pi」`.
 
 ## 0.6.4 (2026-10-16)
