@@ -889,7 +889,7 @@ struct SettingsView: View {
     @State private var packToDelete: LanguagePack?
     /// Settings → Assistant's request, preview and checks: the process's own (`AssistantModel.shared`), so they stay while
     /// other pages are shown and the window is closed.
-    @ObservedObject private var assistant: AssistantModel
+    private let assistant: AssistantModel
 
     /// The README images: the key sheet drawn over the page, for this provider (a real sheet isn't in a page's image).
     private let keySheetShown: Provider?
