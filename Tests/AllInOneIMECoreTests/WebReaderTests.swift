@@ -17,6 +17,12 @@ struct WebReaderTests {
         <footer>© 2026 Example</footer></body></html>
         """
 
+    /// Blank space inside a line, spaces, tabs and no-break spaces, becomes one space; a full-width space is the text's.
+    @Test func tidyCollapsesBlankSpace() {
+        #expect(WebReader.tidy("  a  \t b\u{00A0}\u{00A0}c  \n\n\n  d \u{00A0} e \n\t\n") == "a b c\n\nd e")
+        #expect(WebReader.tidy("量子\u{3000}\u{3000}计算  利用") == "量子\u{3000}\u{3000}计算 利用")
+    }
+
     @Test func extractsTheMainText() throws {
         let text = try WebReader.extract(Data(page.utf8), contentType: "text/html; charset=utf-8",
                                          url: URL(string: "https://example.com/q")!)

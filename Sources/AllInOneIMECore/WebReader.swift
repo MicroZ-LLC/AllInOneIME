@@ -156,11 +156,14 @@ public enum WebReader {
         return out
     }
 
-    /// Each line trimmed, blank lines at most one in a row, trimmed. (Spaces inside a line were to be collapsed too, but
-    /// the pattern, `[ \t\u{00A0}]+`, never compiled in ICU, which reads `\x{00A0}`: Apple's Foundation left every line
-    /// as it was, and corelibs' made it empty. It's left out, so every platform does what the Mac always did.)
+    /// Runs of spaces, tabs and no-break spaces made one space, each line trimmed, blank lines at most one in a row,
+    /// trimmed. (ICU's pattern for a code point is `\x{00A0}`: the `\u{00A0}` this once had never compiled, so nothing
+    /// was collapsed on the Mac, and corelibs' Foundation emptied every line.)
     static func tidy(_ s: String) -> String {
-        let lines = s.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+        let lines = s.components(separatedBy: .newlines).map {
+            $0.replacingOccurrences(of: #"[ \t\x{00A0}]+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+        }
         var out: [String] = []
         for line in lines where !(line.isEmpty && (out.last?.isEmpty ?? true)) { out.append(line) }
         return out.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
