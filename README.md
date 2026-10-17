@@ -404,7 +404,8 @@ and named).
 
 - **What it can change:** the translation and input languages (and the default one), the rewrite styles, the candidate
   layout, typing results out (on/off, speed, speeding up and slowing down, typos), using the selection, remembering
-  questions, hiding sensitive information (on/off, what is hidden, words to add), checking for updates, per-app settings
+  questions, hiding sensitive information (on/off, what is hidden, words to add), checking for updates, syncing through
+  iCloud (on/off; what syncs only in Settings), per-app settings
   (an app named as you call it, found among your apps by name or bundle ID), and the AI provider: which one, the Bedrock
   profile (from `~/.aws`) and region, a model the app knows for it, and an OpenAI-compatible base URL (`https://` only).
 - **What it never touches:** API keys and anything in the keychain, custom commands, extension folders and sources,
@@ -426,14 +427,50 @@ and lists the results, a row each, ✗ problems first, then ⚠ warnings, then �
 the Bedrock profile's credentials found, never read or shown; Apple Intelligence), the permissions (Accessibility, the
 microphone if you dictate, controlling Notes, Reminders, Terminal and Messages, asked of macOS without a prompt), secure
 input, the language packs of your input languages, `config.json` (readable, unknown keys, values out of range, a language
-twice, more than 5 translation languages), extensions and plugins that didn't load, updates, and recent errors in the
-app's own logs. **Check** runs them again with Test Connection; with something in "What's wrong? (optional)" ("why doesn't
+twice, more than 5 translation languages), extensions and plugins that didn't load, updates, sync through iCloud (on or
+off, when it last synced, the last error, iCloud Drive not available, settings from iCloud not used here), and recent
+errors in the app's own logs. **Check** runs them again with Test Connection; with something in "What's wrong? (optional)" ("why doesn't
 translate work"), the AI then explains the likely cause from the results and marks the fixes it suggests.
 
 A row that can be fixed has a **Fix** button. Settings it repairs show in the section above as a preview, with Apply and
 Undo; the others act at once: enabling the input method again, opening a System Settings pane, downloading a language
 pack, Settings' key field, Check for Updates, or copying a command for Terminal ("Copied"). No fix deletes your data or
 touches a key.
+
+### Sync through iCloud (new)
+
+Settings → General → **Sync through iCloud** (off by default) keeps your settings, jargon list, custom commands and the
+words pinyin learned the same on all your Macs, through your own iCloud Drive: nothing else to sign in to, nothing through
+our servers. It needs iCloud Drive (System Settings → Apple Account → iCloud); without it the switch stays off and says
+so, with a button that opens that pane.
+
+| Switch | What syncs | Default |
+| --- | --- | --- |
+| Settings | the settings in `config.json`: languages, rewrite styles, the action key, typing out, per-app settings, hiding sensitive information (its switches), the AI provider and model (never a key) … | on |
+| Jargon and custom commands | your jargon list and `customCommands` | on |
+| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's own sync) | on |
+| Hidden words | the words you hide from the AI ("iCloud Drive is end-to-end encrypted only with Advanced Data Protection") | off |
+| Recent questions | `@question`'s recent questions and answers (while "Remember recent questions" is on) | off |
+
+`iCloud Drive/AllInOneIME/settings.json` holds each setting with when it changed and on which Mac (a random id), and per
+setting the newest change wins: a list (your custom commands, the rewrite styles) is one value, per-app settings go app
+by app, and removing an app's settings is a change too. It syncs when the input method starts, about 5 s after you change
+something, when iCloud brings a change from another Mac (and every 5 minutes), and on **Sync Now**; the learned words when
+the input method starts, every 30 minutes (after a pause in typing) and on Sync Now. The status line says "Last synced
+2 min ago", "Waiting for iCloud…" or the error.
+
+- Turning it on, a Mac takes what is in iCloud already; its own settings fill in only what isn't there yet.
+- A value from another Mac that this one can't use (a provider without a key here, an AWS profile it doesn't have, a value
+  out of range) isn't applied: the status line and `@doctor` say which.
+- A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
+  aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
+- Never synced: keys, tokens and passwords (they're in the keychain), extension sources (they run code: each Mac decides),
+  extension folders and plugins (paths on each Mac), the apps without typos and the recent apps, window state, and the
+  sync switches themselves (each Mac's own).
+- Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** (asked
+  first) moves the folder to the Trash and turns sync off on this Mac.
+- `@config sync through iCloud` turns it on or off; hidden words and recent questions are only chosen in Settings. In the
+  config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`).
 
 ## Menu bar panel
 
@@ -757,13 +794,23 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - For "Add App…" in Settings → Apps, the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
-- `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac, in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Turning off "Remember recent questions" in Settings → General deletes them too; turning it off through Settings → Assistant (`rememberQuestions` in the config) keeps them, so it can be undone exactly. "Clear" deletes them.
+- `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac (unless you choose to sync them through iCloud, see above), in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Turning off "Remember recent questions" in Settings → General deletes them too; turning it off through Settings → Assistant (`rememberQuestions` in the config) keeps them, so it can be undone exactly. "Clear" deletes them.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.
 - Extension sources: git runs on your Mac, as you, only for the sources you added: a fetch once a day for those that
   check by themselves (none for a pinned one), and when you click Check Now, Update or Re-clone. It talks only to the
   repository's host, signed in by your own git and SSH setup; nothing you type goes with it.
+- Sync through iCloud (off by default): only into your own iCloud Drive, `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/`,
+  which Apple syncs to your other Macs; nothing goes to the developer's servers. What goes there: `settings.json` (the
+  synced settings, each with when it changed and a random id per Mac; your custom commands, also those that run a
+  program, which still run only when you pick them), `jargon.txt` (your jargon list), `rime/` (each Mac's snapshot of
+  what pinyin learned; librime's sync also copies your own Rime setting files from the Rime folder there, as it always
+  does), and only if you turn them on, the words you hide from the AI (in `settings.json`) and `questions.json` (recent
+  questions and answers). Never: API keys, tokens or passwords, extension sources, extension folders and plugins, the
+  apps without typos, the recent apps, window state, the sync switches. iCloud Drive is end-to-end encrypted only with
+  Advanced Data Protection. This Mac's own record of what it synced is in
+  `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
 ## Development
