@@ -447,12 +447,6 @@ public struct Config: Codable, Equatable, Sendable {
         }
     }
 
-    /// Just `uiLanguage` from the config file, for the installer, which needs no more of it (`ConfigFile.uiLanguage`, as
-    /// AllInOneIME Settings reads it): nil when the file or the value isn't there, or can't be read.
-    public static func uiLanguageSetting(from url: URL = defaultURL) -> String? {
-        ConfigFile.uiLanguage(from: url)
-    }
-
     public func write(to url: URL = defaultURL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
