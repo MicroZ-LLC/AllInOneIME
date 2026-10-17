@@ -36,45 +36,74 @@ public struct ReminderDraft: Equatable, Sendable {
     /// When it is due, as the panel and the notice say it: 「明天 15:00」 (「明天 下午3:00」 with the 12-hour
     /// clock), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no date"), with 「只提醒这一次」 /
     /// "once only" when written to repeat, and 「已过」 / "overdue" once that time is over.
-    public func when(now: Date, calendar: Calendar = ReminderParser.localCalendar, chinese: Bool,
+    public func when(now: Date, calendar: Calendar = ReminderParser.localCalendar, language: String,
                      clock24: Bool = ReminderDraft.systemUses24HourClock) -> String {
-        guard let due, let date = calendar.date(from: due) else { return chinese ? "未设时间" : "no date" }
+        let t = InterfaceWords(language: language)
+        guard let due, let date = calendar.date(from: due) else { return t.tr("未设时间", "no date") }
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
         var text: String
         switch days {
-        case 0: text = chinese ? "今天" : "today"
-        case 1: text = chinese ? "明天" : "tomorrow"
-        case 2 where chinese: text = "后天"
-        case -1: text = chinese ? "昨天" : "yesterday"
+        case 0: text = t.tr("今天", "today")
+        case 1: text = t.tr("明天", "tomorrow")
+        case 2 where t.chinese: text = "后天"
+        case -1: text = t.tr("昨天", "yesterday")
         default:
-            // Fixed wording rather than the locale's formats: it sits next to the Chinese or English panel text.
+            // Fixed wording in Chinese and English rather than the locale's formats: it sits next to the panel's text.
             let weekday = calendar.component(.weekday, from: date) - 1
             let (year, month, day) = (calendar.component(.year, from: date), calendar.component(.month, from: date),
                                       calendar.component(.day, from: date))
             let otherYear = year != calendar.component(.year, from: now)
-            if chinese {
+            if t.chinese {
                 text = (otherYear ? "\(year)年" : "") + "\(month)月\(day)日 " + ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][weekday]
-            } else {
+            } else if language == "en" {
                 let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
                 text = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday] + ", \(months[month - 1]) \(day)"
                     + (otherYear ? ", \(year)" : "")
+            } else {
+                text = Self.formatted(date, template: otherYear ? "EEEMMMdy" : "EEEMMMd", language: language, calendar: calendar)
             }
         }
         if hasTime, let hour = due.hour, let minute = due.minute {
-            text += " " + Self.clock(hour: hour, minute: minute, chinese: chinese, clock24: clock24)
+            text += " " + Self.clock(hour: hour, minute: minute, language: language, clock24: clock24)
         }
         // 「每周一」 asked for more than this one: say that only this one is set.
-        if writtenAsRepeating { text += chinese ? " · 只提醒这一次" : " · once only" }
-        if isPast(now: now, calendar: calendar) { text += chinese ? " · 已过" : " · overdue" }
+        if writtenAsRepeating { text += t.tr(" · 只提醒这一次", " · once only") }
+        if isPast(now: now, calendar: calendar) { text += t.tr(" · 已过", " · overdue") }
         return text
     }
 
-    /// A time of day the way this Mac shows times: "15:00" with the 24-hour clock, else 「下午3:00」 / "3:00 PM".
-    public static func clock(hour: Int, minute: Int, chinese: Bool, clock24: Bool) -> String {
+    /// `when` in Simplified Chinese or English.
+    public func when(now: Date, calendar: Calendar = ReminderParser.localCalendar, chinese: Bool,
+                     clock24: Bool = ReminderDraft.systemUses24HourClock) -> String {
+        when(now: now, calendar: calendar, language: InterfaceLanguage.code(chinese: chinese), clock24: clock24)
+    }
+
+    /// A time of day the way this Mac shows times: "15:00" with the 24-hour clock, else 「下午3:00」 / "3:00 PM" (as
+    /// `language` writes it, in the others).
+    public static func clock(hour: Int, minute: Int, language: String, clock24: Bool) -> String {
         if clock24 { return String(format: "%d:%02d", hour, minute) }
         let time = String(format: "%d:%02d", hour % 12 == 0 ? 12 : hour % 12, minute)
-        if chinese { return (hour < 12 ? "上午" : "下午") + time }
-        return time + (hour < 12 ? " AM" : " PM")
+        if InterfaceLanguage.isChinese(language) { return (hour < 12 ? "上午" : "下午") + time }
+        if language == "en" { return time + (hour < 12 ? " AM" : " PM") }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let date = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: hour, minute: minute)) ?? Date()
+        return formatted(date, template: "hmma", language: language, calendar: calendar)
+    }
+
+    /// `clock` in Simplified Chinese or English.
+    public static func clock(hour: Int, minute: Int, chinese: Bool, clock24: Bool) -> String {
+        clock(hour: hour, minute: minute, language: InterfaceLanguage.code(chinese: chinese), clock24: clock24)
+    }
+
+    /// `date` by a date format template ("EEEMMMd") as `language` writes it.
+    static func formatted(_ date: Date, template: String, language: String, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: language)
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter.string(from: date)
     }
 
     /// Whether this Mac shows times with the 24-hour clock (System Settings → General → Date & Time).

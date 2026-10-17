@@ -107,21 +107,9 @@ enum UIText {
     static func name(_ language: OutputLanguage) -> String { language.name(in: self.language) }
 
     /// A rewrite preset's name in the window ("简洁" / "Concise"); the config keeps the Chinese name.
-    static func name(_ style: RewriteStyle) -> String { chinese ? style.name : english(style).name }
+    static func name(_ style: RewriteStyle) -> String { style.name(in: language) }
 
-    static func summary(_ style: RewriteStyle) -> String { chinese ? style.summary : english(style).summary }
-
-    private static func english(_ style: RewriteStyle) -> (name: String, summary: String) {
-        switch style.tag {
-        case "POLISH": return ("Polish", "Same tone, more natural")
-        case "CONCISE": return ("Concise", "Shorter, no filler")
-        case "FORMAL": return ("Formal", "For managers and clients")
-        case "CASUAL": return ("Casual", "Like chatting with a friend")
-        case "TACTFUL": return ("Tactful", "Politer and softer")
-        case "JARGON": return ("Jargon", "Big-tech speak, Amazon-style in English")
-        default: return (style.name, style.summary)
-        }
-    }
+    static func summary(_ style: RewriteStyle) -> String { style.summary(in: language) }
 
     /// What the action key does to a sentence in `input`: "翻译成英文 / 改写", "translate to English / rewrite", …
     static func action(input: Language, config: Config) -> String {
@@ -289,7 +277,7 @@ enum UIText {
     /// Mac's 12/24-hour setting, or `clock24`), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no
     /// date"), with 「已过」 / "overdue" once that time is over.
     static func when(_ reminder: ReminderDraft, now: Date = Date()) -> String {
-        reminder.when(now: now, chinese: chinese, clock24: clock24 ?? ReminderDraft.systemUses24HourClock)
+        reminder.when(now: now, language: language, clock24: clock24 ?? ReminderDraft.systemUses24HourClock)
     }
 
     /// Times shown with the 24-hour clock (true) or the 12-hour one (false) whatever the Mac uses; nil follows

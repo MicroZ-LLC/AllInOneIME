@@ -164,7 +164,10 @@ struct ExtensionSourcesSection: View {
             parts.append(branch)
         }
         if source.pin == nil {
-            parts.append(status.checked.map { tr("检查于 ", "checked ") + DashboardText.ago($0, now: Date(), chinese: UIText.chinese) }
+            parts.append(status.checked.map {
+                let ago = DashboardText.ago($0, now: Date(), language: UIText.language)
+                return tr("检查于 \(ago)", "checked \(ago)")
+            }
                          ?? tr("还没检查过", "not checked yet"))
             if !source.autoCheck { parts.append(tr("不自动检查", "not checked automatically")) }
         }
@@ -179,7 +182,7 @@ struct ExtensionSourcesSection: View {
                 HStack(spacing: 6) {
                     Text(commit.shortSHA).font(.caption.monospaced()).foregroundStyle(.secondary)
                     Text(commit.subject).font(.caption).lineLimit(1)
-                    Text("— " + commit.author + (commit.date.map { ", " + DashboardText.ago($0, now: Date(), chinese: UIText.chinese) } ?? ""))
+                    Text("— " + commit.author + (commit.date.map { ", " + DashboardText.ago($0, now: Date(), language: UIText.language) } ?? ""))
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }

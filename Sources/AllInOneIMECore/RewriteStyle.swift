@@ -124,3 +124,34 @@ public struct RewriteStyle: Equatable, Sendable {
         }
     }
 }
+
+extension RewriteStyle {
+    /// Its name in the interface language `language` ("简洁" / "Concise"); the config keeps the Chinese name. A style
+    /// that isn't one of the presets keeps its own name.
+    public func name(in language: String) -> String {
+        let t = InterfaceWords(language: language)
+        switch tag {
+        case "POLISH": return t.tr("润色", "Polish", key: "style.polish")
+        case "CONCISE": return t.tr("简洁", "Concise", key: "style.concise")
+        case "FORMAL": return t.tr("正式", "Formal", key: "style.formal")
+        case "CASUAL": return t.tr("口语", "Casual", key: "style.casual")
+        case "TACTFUL": return t.tr("委婉", "Tactful", key: "style.tactful")
+        case "JARGON": return t.tr("黑话", "Jargon", key: "style.jargon")
+        default: return name
+        }
+    }
+
+    /// Its one-line description in the interface language `language`.
+    public func summary(in language: String) -> String {
+        let t = InterfaceWords(language: language)
+        switch tag {
+        case "POLISH": return t.tr("语气不变，更自然通顺", "Same tone, more natural")
+        case "CONCISE": return t.tr("更短，去掉多余的话", "Shorter, no filler")
+        case "FORMAL": return t.tr("适合发给领导、客户", "For managers and clients")
+        case "CASUAL": return t.tr("像跟朋友聊天", "Like chatting with a friend")
+        case "TACTFUL": return t.tr("更客气，语气缓和", "Politer and softer")
+        case "JARGON": return t.tr("大厂黑话，英文是 Amazon 腔", "Big-tech speak, Amazon-style in English")
+        default: return summary
+        }
+    }
+}

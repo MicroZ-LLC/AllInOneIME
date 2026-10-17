@@ -146,7 +146,7 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
     }
 
     /// Its name in Chinese or English: "英文", "日语" / "English", "Japanese".
-    public func name(chinese: Bool) -> String { name(in: chinese ? "zh-Hans" : "en") }
+    public func name(chinese: Bool) -> String { name(in: InterfaceLanguage.code(chinese: chinese)) }
 
     /// Its name in the interface language `language` (`InterfaceLanguage`): "英文", "日语" / "English", "Japanese" /
     /// "anglais", "japonais".

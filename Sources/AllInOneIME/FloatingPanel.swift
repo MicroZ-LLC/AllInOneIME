@@ -853,7 +853,7 @@ final class FloatingPanel: ObservableObject {
             waiting = rows.filter { $0.progress == .needsYou }.count
         }
         return DashboardText.counts(reminders: reminderCount, moreReminders: more, running: running, waiting: waiting,
-                                    chinese: UIText.chinese)
+                                    language: UIText.language)
     }
 
     /// When a reminder is due, as @reminder says it (nil without a date).
@@ -1054,7 +1054,7 @@ struct FloatingPanelView: View {
                     HStack(spacing: 6) {
                         Text(title).font(.system(size: 13)).lineLimit(1)
                         Spacer(minLength: 6)
-                        Text(DashboardText.ago(note.saved, now: panel.now, chinese: UIText.chinese))
+                        Text(DashboardText.ago(note.saved, now: panel.now, language: UIText.language))
                             .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     .rowHover()
@@ -1183,7 +1183,7 @@ struct FloatingPanelView: View {
     private static let taskRowHeight: CGFloat = 38
 
     private func taskRow(_ row: AgentTaskRow) -> some View {
-        let ago = row.started.map { DashboardText.ago($0, now: panel.now, chinese: UIText.chinese) }
+        let ago = row.started.map { DashboardText.ago($0, now: panel.now, language: UIText.language) }
         return swipeable(.task(row.id)) { taskButton(row, ago: ago) }
     }
 
@@ -1217,7 +1217,7 @@ struct FloatingPanelView: View {
     private var scriptRuns: some View {
         ForEach(panel.scriptRuns) { run in
             let progress: AgentSession.Progress = run.outcome == .running ? .working : run.outcome == .done ? .done : .needsYou
-            let ago = DashboardText.ago(run.finished ?? run.started, now: panel.now, chinese: UIText.chinese)
+            let ago = DashboardText.ago(run.finished ?? run.started, now: panel.now, language: UIText.language)
             let line: String? = {
                 if case let .failed(message) = run.outcome { return message }
                 return run.output?.headline

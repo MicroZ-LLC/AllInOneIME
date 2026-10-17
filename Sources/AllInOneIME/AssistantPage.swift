@@ -87,8 +87,7 @@ final class AssistantModel: ObservableObject {
         cancelRequest()
         clearOutcome()
         dismissPreview()
-        let chinese = UIText.chinese
-        let text = AIConfig.Text(chinese: chinese)
+        let text = AIConfig.Text(language: UIText.language)
         let keys = AIConfig.droppingKeys(typed)
         // The key goes from the field too (and from this model, which outlives the window): what's left, if anything.
         if keys.dropped { request = keys.text.filter(\.isLetter).count < 2 ? "" : keys.text }
@@ -136,25 +135,26 @@ final class AssistantModel: ObservableObject {
         switch outcome {
         case let .success(preview):
             log.notice("assistant: \(preview.rows.count) rows, \(preview.edits.count) to apply")
-            show(preview, chinese: env.chinese)
+            show(preview, language: env.language)
         case let .failure(failure):
             log.notice("assistant: no preview (\(String(describing: failure), privacy: .public))")
             message = AIConfig.failureLine(failure, proposal: proposal, config: config, environment: env)
         }
     }
 
-    private func show(_ preview: AIConfig.Preview, chinese: Bool) {
+    private func show(_ preview: AIConfig.Preview, language: String) {
         self.preview = preview
         previewConfig = config()
-        lines = preview.rows.map { Self.line($0, chinese: chinese) }
+        lines = preview.rows.map { Self.line($0, language: language) }
     }
 
     /// A row as the page shows it: a key to enter says what Apply does here (the core's row speaks of ⏎ in the panel).
-    static func line(_ row: AIConfig.Row, chinese: Bool) -> String {
-        guard case let .needsKey(provider) = row.status, provider != .bedrock else { return row.text(chinese: chinese) }
-        let text = provider == .hosted ? (chinese ? "点「应用」后在 AI 服务里登录" : "Apply opens AI Provider to sign in")
-            : chinese ? "点「应用」后在 AI 服务里填（不会发给 AI）" : "Apply opens AI Provider to add it (never sent to the AI)"
-        return row.label + (chinese ? "：" : ": ") + text
+    static func line(_ row: AIConfig.Row, language: String) -> String {
+        guard case let .needsKey(provider) = row.status, provider != .bedrock else { return row.text(language: language) }
+        let t = InterfaceWords(language: language)
+        let text = provider == .hosted ? t.tr("点「应用」后在 AI 服务里登录", "Apply opens AI Provider to sign in")
+            : t.tr("点「应用」后在 AI 服务里填（不会发给 AI）", "Apply opens AI Provider to add it (never sent to the AI)")
+        return row.label + t.tr("：", ": ") + text
     }
 
     /// Over a preview whose request had a key typed into it: it was dropped before anything was sent.
@@ -219,7 +219,7 @@ final class AssistantModel: ObservableObject {
     }
 
     /// "已改 2 项" / "Changed 2 settings".
-    static func changed(_ count: Int) -> String { AIConfig.Text(chinese: UIText.chinese).applied(count) }
+    static func changed(_ count: Int) -> String { AIConfig.Text(language: UIText.language).applied(count) }
 
     /// Settings' own Test Connection on the config file as it is now; its line under the confirmation.
     private func testConnection() {
@@ -236,7 +236,7 @@ final class AssistantModel: ObservableObject {
 
     /// Undo: the values the last changes replaced, back (within ten minutes); a key changed since is left, and named.
     func undo() {
-        let text = AIConfig.Text(chinese: UIText.chinese)
+        let text = AIConfig.Text(language: UIText.language)
         defer {
             applied = nil
             appliedWritesSettings = false
@@ -335,13 +335,13 @@ final class AssistantModel: ObservableObject {
         checkTask = Task { @MainActor [weak self] in
             var facts = await DoctorSession.probe()
             guard let self, !Task.isCancelled else { return }
-            let chinese = UIText.chinese
+            let language = UIText.language
             if let tested = self.tested, tested.config == facts.config, tested.keySaved == facts.keySaved {
                 facts.connection = tested.connection
             }
             if connection, Doctor.canTestConnection(facts) {
                 facts.connection = .running
-                self.findings = Doctor.findings(facts, chinese: chinese)
+                self.findings = Doctor.findings(facts, language: language)
                 self.connectionTests += 1
                 let url = AIConfigSession.url
                 let outcome = try? await AIConfigService.withTimeout(DoctorSession.connectionTimeout) { @MainActor in
@@ -350,10 +350,10 @@ final class AssistantModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 let seconds = Int(DoctorSession.connectionTimeout)
                 facts.connection = outcome.map { $0.ok ? .ok($0.line) : .failed($0.line) }
-                    ?? .failed(chinese ? "\(seconds) 秒内没有回应" : "no answer within \(seconds) s")
+                    ?? .failed(tr("\(seconds) 秒内没有回应", "no answer within \(seconds) s"))
                 if let config = facts.config { self.tested = (config, facts.keySaved, facts.connection) }
             }
-            let findings = Doctor.findings(facts, chinese: chinese)
+            let findings = Doctor.findings(facts, language: language)
             self.findings = findings
             if !question.isEmpty {
                 do {
@@ -398,7 +398,7 @@ final class AssistantModel: ObservableObject {
                 guard let self, !Task.isCancelled else { return }
                 self.working = false
                 if let preview = Doctor.fixPreview([fix], config: self.config(), environment: env) {
-                    self.show(preview, chinese: env.chinese)
+                    self.show(preview, language: env.language)
                 } else {
                     self.message = tr("没有要修的", "Nothing to fix")
                 }

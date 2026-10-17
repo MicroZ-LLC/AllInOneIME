@@ -9,10 +9,10 @@ extension AIConfig {
 
         public var chinese: Bool {
             get { InterfaceLanguage.isChinese(language) }
-            set { language = newValue ? "zh-Hans" : "en" }
+            set { language = InterfaceLanguage.code(chinese: newValue) }
         }
 
-        public init(chinese: Bool) { language = chinese ? "zh-Hans" : "en" }
+        public init(chinese: Bool) { language = InterfaceLanguage.code(chinese: chinese) }
 
         public init(language: String) { self.language = language }
 
@@ -94,7 +94,7 @@ extension AIConfig {
 
         public func styles(_ names: [String]) -> String {
             let styles = RewriteStyle.resolve(names)
-            return styles.isEmpty ? tr("无", "none") : styles.map { chinese ? $0.name : Self.englishStyle($0) }.joined(separator: separator)
+            return styles.isEmpty ? tr("无", "none") : styles.map { $0.name(in: language) }.joined(separator: separator)
         }
 
         public func layout(_ layout: CandidateArrangement) -> String {
@@ -130,18 +130,8 @@ extension AIConfig {
         func appStyles(_ names: [String]?) -> String { names.map(styles) ?? everywhere }
         func appFlag(_ on: Bool?) -> String { on.map(onOff) ?? everywhere }
 
-        /// A style's name in English ("Concise"), as Settings shows it.
-        static func englishStyle(_ style: RewriteStyle) -> String {
-            switch style.tag {
-            case "POLISH": return "Polish"
-            case "CONCISE": return "Concise"
-            case "FORMAL": return "Formal"
-            case "CASUAL": return "Casual"
-            case "TACTFUL": return "Tactful"
-            case "JARGON": return "Jargon"
-            default: return style.name
-            }
-        }
+        /// A style's name in English ("Concise"), as the model is told it and may write it.
+        static func englishStyle(_ style: RewriteStyle) -> String { style.name(in: "en") }
 
         // MARK: Reasons
 

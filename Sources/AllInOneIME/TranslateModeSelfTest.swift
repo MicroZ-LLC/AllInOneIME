@@ -124,7 +124,7 @@ extension SelfTest {
         controller.activateServer(client)
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
-        let translating = tr("翻译中…", "Translating…")
+        let translating = tr("翻译中…", "Translating…", key: "translateMode.translating")
         func shift(_ down: Bool) {
             shiftIsDown = down
             _ = controller.handle(event("", code: VirtualKey.leftShift, flags: down ? .shift : [], type: .flagsChanged), client: client)

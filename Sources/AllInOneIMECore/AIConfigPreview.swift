@@ -19,7 +19,7 @@ extension AIConfig {
         public var language: String
         public var chinese: Bool {
             get { InterfaceLanguage.isChinese(language) }
-            set { language = newValue ? "zh-Hans" : "en" }
+            set { language = InterfaceLanguage.code(chinese: newValue) }
         }
         /// What the user typed (the sentence, a refine's lines): a new base URL's host must be in it, or known.
         public var typedText: String
@@ -41,7 +41,7 @@ extension AIConfig {
             self.knownModels = knownModels
             self.offeredProviders = offeredProviders
             self.hasKey = hasKey
-            self.language = language ?? (chinese ? "zh-Hans" : "en")
+            self.language = language ?? InterfaceLanguage.code(chinese: chinese)
             self.typedText = typedText
             self.knownHosts = knownHosts
             self.iCloudDriveAvailable = iCloudDriveAvailable
@@ -212,8 +212,8 @@ extension AIConfig {
 
         /// The row as the panel shows it: "Translation languages: English, Japanese → English, French"; a refused part
         /// "✕ Model ID: not one the app knows".
-        public func text(chinese: Bool) -> String {
-            let colon = chinese ? "：" : ": "
+        public func text(language: String) -> String {
+            let colon = InterfaceWords(language: language).tr("：", ": ")
             switch status {
             case .change: return label + colon + (old ?? "") + " → " + (new ?? "")
             case let .refused(reason): return "✕ " + label + colon + reason
@@ -221,6 +221,9 @@ extension AIConfig {
             case .action: return "→ " + label
             }
         }
+
+        /// `text` in Simplified Chinese or English.
+        public func text(chinese: Bool) -> String { text(language: InterfaceLanguage.code(chinese: chinese)) }
 
         public var isRefused: Bool { if case .refused = status { return true } else { return false } }
     }
@@ -290,7 +293,7 @@ extension AIConfig {
         let text = Text(language: env.language)
         if failure == .notAllowed, let proposal {
             let refused = check(proposal, config: config, environment: env).rows.filter(\.isRefused)
-            if refused.count == 1 { return refused[0].text(chinese: env.chinese) }
+            if refused.count == 1 { return refused[0].text(language: env.language) }
         }
         return text.failure(failure)
     }

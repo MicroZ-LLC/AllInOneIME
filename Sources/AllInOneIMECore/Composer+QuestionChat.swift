@@ -18,12 +18,18 @@ extension Composer {
         /// Secure input is on: nothing is handed over (copying still works).
         public var secureInput: String
 
-        public static let chinese = ChatMessages(
-            pasteIt: "对话已复制到剪贴板：粘贴进去接着聊", copiedConversation: "已复制对话",
-            secureInput: "系统安全输入已开启（密码框或锁屏），对话没有发出去")
-        public static let english = ChatMessages(
-            pasteIt: "The conversation is on the clipboard: paste it", copiedConversation: "Copied the conversation",
-            secureInput: "Secure input is on (a password field or the lock screen): the conversation wasn't sent")
+        /// What a hand-off says in the interface language `language` (`InterfaceLanguage`).
+        public static func make(language: String) -> ChatMessages {
+            let t = InterfaceWords(language: language)
+            return ChatMessages(
+                pasteIt: t.tr("对话已复制到剪贴板：粘贴进去接着聊", "The conversation is on the clipboard: paste it"),
+                copiedConversation: t.tr("已复制对话", "Copied the conversation"),
+                secureInput: t.tr("系统安全输入已开启（密码框或锁屏），对话没有发出去",
+                                  "Secure input is on (a password field or the lock screen): the conversation wasn't sent"))
+        }
+
+        public static let chinese = make(language: "zh-Hans")
+        public static let english = make(language: "en")
     }
 
     /// The results shown are an @question conversation (asked, or a saved one picked), up and answering or answered.

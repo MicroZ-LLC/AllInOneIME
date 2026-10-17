@@ -617,9 +617,9 @@ final class AllInOneIMEInputController: IMKInputController {
                                     disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
-        composer.messages = UIText.chinese ? .chinese : .english
+        composer.messages = .make(language: UIText.language)
         composer.messages.actionKeyName = UIText.name(config.actionKey)
-        composer.translateModeMessages = .make(chinese: UIText.chinese)
+        composer.translateModeMessages = .make(language: UIText.language)
         translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
         nameAgent()  // the messages were just reset
         applyChatSettings(config)
@@ -734,7 +734,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// hand-off's.
     @MainActor
     func nameAgent() {
-        let base = UIText.chinese ? Composer.Messages.chinese : .english
+        let base = Composer.Messages.make(language: UIText.language)
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         // Only once it has a command: otherwise the messages stay the language's own.

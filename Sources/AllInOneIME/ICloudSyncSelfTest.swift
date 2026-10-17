@@ -134,7 +134,7 @@ extension SelfTest {
         let rows = Doctor.findings({ var all = Doctor.Facts(); all.iCloudSync = facts; return all }(), chinese: false).filter { $0.area == .iCloudSync }
         check(rows.first?.title.hasPrefix("Synced through iCloud") == true, "the checks say: \(rows.first?.title ?? "nothing")")
         for chinese in [false, true] {
-            UIText.choice = chinese ? .chinese : .english
+            UIText.choice = chinese ? "zh" : "en"
             let model = SettingsModel(configURL: configURL, persists: false)
             let image = snapshotDirectory.appendingPathComponent("settings-general-icloud\(chinese ? "-zh" : "").png")
             try? fm.removeItem(at: image)

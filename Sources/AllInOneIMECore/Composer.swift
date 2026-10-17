@@ -285,45 +285,47 @@ public final class Composer {
             }
         }
 
-        public static let chinese = Messages(
-            notReady: "词库准备中，稍候可用", holdToTalk: "按住右 ⌥ 说话", didNotHear: "没听清，再说一次",
-            chineseMode: "中", englishMode: "英", noResult: "没有得到结果",
-            typeAfterCommand: "在命令后面写上内容", nothingFound: "没有找到", copied: "已复制",
-            openedTerminal: "已在终端打开 Claude Code",
-            secureInputTerminal: "系统安全输入已开启（密码框或锁屏），没有打开 Claude Code",
-            ranInTerminal: "已在终端运行",
-            startedInBackground: "已在后台开始，做完会通知你；@tasks 查看",
-            secureInputCommand: "系统安全输入已开启（密码框或锁屏），没有运行命令",
-            pasteTooLong: "剪贴板里的文字太长：最多 \(Composer.maxPasteLength) 字",
-            nothingToPaste: "剪贴板里没有能用的文字",
-            reminderWithoutTitle: "写上要提醒的事，比如「明天下午3点给张三打电话」",
-            noteTooLong: "剪贴板里的文字太长：最多 \(Composer.maxNoteLength) 字",
-            linkTooLong: "文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字",
-            noOutput: "代码没有输出：最后写一个表达式，或者把结果打印出来",
-            noteNotSaved: "笔记还没存，原文已复制到剪贴板")
-        public static let english = Messages(
-            notReady: "Loading the dictionaries, one moment", holdToTalk: "Hold right ⌥ to talk",
-            didNotHear: "Didn't catch that, try again", chineseMode: "Chinese", englishMode: "English",
-            noResult: "No result",
-            typeAfterCommand: "Type something after the command", nothingFound: "Nothing found", copied: "Copied",
-            openedTerminal: "Opened Claude Code in Terminal",
-            secureInputTerminal: "Secure input is on (a password field or the lock screen): Claude Code was not opened",
-            ranInTerminal: "Running in Terminal",
-            startedInBackground: "Started in the background; you'll be notified when it's done (@tasks)",
-            secureInputCommand: "Secure input is on (a password field or the lock screen): the command was not run",
-            pasteTooLong: "The clipboard text is too long: \(Composer.maxPasteLength) characters at most",
-            nothingToPaste: "No text on the clipboard to use",
-            reminderWithoutTitle: "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”",
-            noteTooLong: "The clipboard text is too long: \(Composer.maxNoteLength) characters at most",
-            linkTooLong: "Too long for a link: \(LinkTemplate.maxInputLength) characters at most",
-            noOutput: "The code printed nothing: end it with an expression, or print the result",
-            noteNotSaved: "The note wasn't saved; its text is on the clipboard",
-            pickRecipient: "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)",
-            codeNotRun: "@py, @js and the like in pasted or dictated text weren't run: kept as text",
-            frenchMode: "French", koreanMode: "Korean", hindiMode: "Hindi",
-            scriptNeeds: "Needs: ", scriptChoices: "Pick one of: ", confirmScript: "Run {title}? {key} again", scriptRan: "Ran ",
-            scriptStarted: "Running in the background, you'll be notified: ", cantOpen: "Can't open: ",
-            openedAgent: "Opened {agent} in Terminal")
+        /// What the composer says in the interface language `language` (`InterfaceLanguage`).
+        public static func make(language: String) -> Messages {
+            let t = InterfaceWords(language: language)
+            return Messages(
+                notReady: t.tr("词库准备中，稍候可用", "Loading the dictionaries, one moment"),
+                holdToTalk: t.tr("按住右 ⌥ 说话", "Hold right ⌥ to talk"),
+                didNotHear: t.tr("没听清，再说一次", "Didn't catch that, try again"),
+                chineseMode: t.tr("中", "Chinese"),
+                englishMode: t.tr("英", "English"),
+                noResult: t.tr("没有得到结果", "No result"),
+                typeAfterCommand: t.tr("在命令后面写上内容", "Type something after the command"),
+                nothingFound: t.tr("没有找到", "Nothing found"),
+                copied: t.tr("已复制", "Copied"),
+                openedTerminal: t.tr("已在终端打开 Claude Code", "Opened Claude Code in Terminal"),
+                secureInputTerminal: t.tr("系统安全输入已开启（密码框或锁屏），没有打开 Claude Code", "Secure input is on (a password field or the lock screen): Claude Code was not opened"),
+                ranInTerminal: t.tr("已在终端运行", "Running in Terminal"),
+                startedInBackground: t.tr("已在后台开始，做完会通知你；@tasks 查看", "Started in the background; you'll be notified when it's done (@tasks)"),
+                secureInputCommand: t.tr("系统安全输入已开启（密码框或锁屏），没有运行命令", "Secure input is on (a password field or the lock screen): the command was not run"),
+                pasteTooLong: t.tr("剪贴板里的文字太长：最多 \(Composer.maxPasteLength) 字", "The clipboard text is too long: \(Composer.maxPasteLength) characters at most"),
+                nothingToPaste: t.tr("剪贴板里没有能用的文字", "No text on the clipboard to use"),
+                reminderWithoutTitle: t.tr("写上要提醒的事，比如「明天下午3点给张三打电话」", "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”"),
+                noteTooLong: t.tr("剪贴板里的文字太长：最多 \(Composer.maxNoteLength) 字", "The clipboard text is too long: \(Composer.maxNoteLength) characters at most"),
+                linkTooLong: t.tr("文字太长，放不进链接：最多 \(LinkTemplate.maxInputLength) 字", "Too long for a link: \(LinkTemplate.maxInputLength) characters at most"),
+                noOutput: t.tr("代码没有输出：最后写一个表达式，或者把结果打印出来", "The code printed nothing: end it with an expression, or print the result"),
+                noteNotSaved: t.tr("笔记还没存，原文已复制到剪贴板", "The note wasn't saved; its text is on the clipboard"),
+                pickRecipient: t.tr("先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱）", "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)"),
+                codeNotRun: t.tr("粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字", "@py, @js and the like in pasted or dictated text weren't run: kept as text"),
+                frenchMode: t.tr("法", "French"),
+                koreanMode: t.tr("韩", "Korean"),
+                hindiMode: t.tr("印", "Hindi"),
+                scriptNeeds: t.tr("还要写：", "Needs: "),
+                scriptChoices: t.tr("只能是这几个之一：", "Pick one of: "),
+                confirmScript: t.tr("运行「{title}」？{key} 确认", "Run {title}? {key} again"),
+                scriptRan: t.tr("已运行：", "Ran "),
+                scriptStarted: t.tr("在后台运行，完成后通知你：", "Running in the background, you'll be notified: "),
+                cantOpen: t.tr("打不开：", "Can't open: "),
+                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"))
+        }
+
+        public static let chinese = make(language: "zh-Hans")
+        public static let english = make(language: "en")
     }
     /// The command of the request in level two (nil otherwise).
     public internal(set) var activeCommand: Command?

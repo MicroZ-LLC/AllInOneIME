@@ -342,16 +342,17 @@ public enum TranslateMode {
             return failedFormat.replacingOccurrences(of: "{reason}", with: line.count > 100 ? String(line.prefix(100)) + "…" : line)
         }
 
-        public static func make(chinese: Bool) -> Messages {
-            func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+        /// What the mode says in the interface language `language` (`InterfaceLanguage`).
+        public static func make(language: String) -> Messages {
+            let t = InterfaceWords(language: language)
             return Messages(
-                translating: tr("翻译中…", "Translating…"),
-                secureInput: tr("系统安全输入已开启（密码框或锁屏），没有发给 AI", "secure input is on (a password field or the lock screen), nothing was sent"),
-                failedFormat: tr("没翻译成：{reason}（⏎ 重试）", "Not translated: {reason} (⏎ to retry)"))
+                translating: t.tr("翻译中…", "Translating…", key: "translateMode.translating"),
+                secureInput: t.tr("系统安全输入已开启（密码框或锁屏），没有发给 AI", "secure input is on (a password field or the lock screen), nothing was sent"),
+                failedFormat: t.tr("没翻译成：{reason}（⏎ 重试）", "Not translated: {reason} (⏎ to retry)"))
         }
 
-        public static let chinese = make(chinese: true)
-        public static let english = make(chinese: false)
+        public static let chinese = make(language: "zh-Hans")
+        public static let english = make(language: "en")
     }
 
     /// The lines the mode asks for: one, the text in `target` (`Prompt.system`'s format for translations).
