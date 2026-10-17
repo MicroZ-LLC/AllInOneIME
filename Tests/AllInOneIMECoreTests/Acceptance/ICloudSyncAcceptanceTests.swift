@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-// Acceptance tests for "sync through iCloud" (spec-icloud-sync.md and the coordinator's decisions on it), written from
+// Acceptance tests for "sync through iCloud" (spec-icloud-sync.md and the coordinator's decisions on it, with the later
+// ones: a first join merges collections, turning sync back on is a rejoin, stamps from the future are accepted), written from
 // the spec by an independent reviewer; the implementer may not edit them. Each test's name says what it enforces:
 // "what" what syncs, "never" what never does, "merge" newest-wins per key, "join" a Mac turning sync on, "versions" keys
 // and names of a newer version, "files" placeholders, missing and corrupt files, "valid" checking incoming values, "off"
@@ -75,6 +76,33 @@ enum ICA {
         for (key, value) in new { fields[key] = merged(file: fields[key], before: old[key], after: value) }
         for key in old.keys where new[key] == nil { fields[key] = nil }
         return fields
+    }
+
+    /// A jargon list's lines (empty ones left out), in order.
+    static func lines(_ text: String?) -> [String] {
+        (text ?? "").split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// A question as the recent questions tell them apart: case and spacing aside.
+    static func normalized(_ question: String) -> String {
+        question.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
+    }
+
+    /// Mac B, set up by `setup`, joining what iCloud has for `category`: turning sync on with the category on (its first
+    /// sync), or, already syncing with the category off, turning it on later.
+    static func join(_ world: ICAWorld, firstSync: Bool, _ category: WritableKeyPath<ICloudSyncSettings, Bool>,
+                     _ setup: (inout Config) -> Void, before: (ICAMac) -> Void = { _ in }) -> ICAMac {
+        let b = world.mac("B") { c in
+            setup(&c)
+            c.iCloudSync[keyPath: category] = firstSync
+        }
+        before(b)
+        b.sync(at: 20)
+        if !firstSync {
+            b.edit(at: 30) { $0.iCloudSync[keyPath: category] = true }
+            b.sync(at: 40)
+        }
+        return b
     }
 
     static func touch(_ url: URL, _ date: Date) {
@@ -826,6 +854,30 @@ struct ICloudSyncAcceptanceTests {
         #expect(b.config.maxTokens == 2500)
     }
 
+    @Test("merge: a stamp from the future is accepted; a later change here is stamped just after it, and wins")
+    func futureStampAccepted() throws {
+        let (world, a, b) = ICA.pair()
+        let future = ICA.t(10 * 365 * 86_400)
+        world.put(["maxTokens": 1800], at: future, by: "MacWithAClockAhead")
+        a.sync(at: 100)
+        b.sync(at: 110)
+        #expect(a.config.maxTokens == 1800)
+        #expect(b.config.maxTokens == 1800)
+        a.edit(at: 200) { $0.maxTokens = 2500 }
+        a.sync(at: 210)
+        let stamp = ICA.date(world.entry("maxTokens")?["modified"])
+        #expect(stamp.map { $0 > future && $0 <= future.addingTimeInterval(1) } == true,
+                "stamped \(String(describing: stamp)); the value it replaced was stamped \(future)")
+        b.sync(at: 220)
+        #expect(b.config.maxTokens == 2500)
+        // And a change after that, on the other Mac, wins in turn.
+        b.edit(at: 300) { $0.maxTokens = 3000 }
+        b.sync(at: 310)
+        a.sync(at: 320)
+        #expect(a.config.maxTokens == 3000)
+        #expect(b.config.maxTokens == 3000)
+    }
+
     @Test("merge: settings.json holds each key with its value, an ISO 8601 time and the Mac that set it")
     func entryFormat() throws {
         let (world, a, b) = ICA.pair()
@@ -1036,7 +1088,7 @@ struct ICloudSyncAcceptanceTests {
         #expect(a.jargon == "B's jargon\n", "iCloud lacked a jargon list")
     }
 
-    @Test("join: turning a category on for the first time takes what iCloud has, as turning sync on does")
+    @Test("join: a category turned on for the first time: custom commands and the jargon list merge with iCloud's")
     func categoryTurnedOnLater() throws {
         let world = ICAWorld()
         let a = world.mac("A") { $0.customCommands = [ICA.command("alpha")] }
@@ -1053,10 +1105,74 @@ struct ICloudSyncAcceptanceTests {
         b.edit(at: 100) { $0.iCloudSync.jargon = true }
         b.sync(at: 110)
         a.sync(at: 120)
-        #expect(b.config.customCommands.map(\.name) == ["alpha"])
-        #expect(b.jargon == "A list\n")
-        #expect(a.config.customCommands.map(\.name) == ["alpha"], "turning the switch on put B's over iCloud's")
-        #expect(a.jargon == "A list\n", "turning the switch on put B's over iCloud's")
+        #expect(Set(b.config.customCommands.map(\.name)) == ["alpha", "bravo"])
+        #expect(Set(ICA.lines(b.jargon)) == ["A list", "B list"])
+        #expect(Set(a.config.customCommands.map(\.name)) == ["alpha", "bravo"], "the merge didn't reach A")
+        #expect(Set(ICA.lines(a.jargon)) == ["A list", "B list"], "the merge didn't reach A")
+    }
+
+    @Test("join: recent questions merge on a first join: both lists, newest first, a question once", arguments: [true, false])
+    func questionsMergeOnJoin(firstSync: Bool) throws {
+        let world = ICAWorld()
+        let a = world.mac("A") { $0.iCloudSync.recentQuestions = true }
+        a.ask("What is X?", at: 1)
+        a.ask("A only", at: 3)
+        a.sync(at: 10)
+        let b = ICA.join(world, firstSync: firstSync, \.recentQuestions, { _ in }) { b in
+            b.ask("what  is   X?", at: 2)
+            b.ask("B only", at: 4)
+        }
+        a.sync(at: 50)
+        for mac in [a, b] {
+            #expect(mac.questions.map(ICA.normalized) == ["b only", "a only", "what is x?"], "Mac \(mac.name): \(mac.questions)")
+        }
+    }
+
+    @Test("join: hidden words merge on a first join: a Mac never stops hiding a word it hid", arguments: [true, false])
+    func hiddenWordsMergeOnJoin(firstSync: Bool) throws {
+        let world = ICAWorld()
+        let a = world.mac("A") { $0.iCloudSync.hiddenWords = true; $0.redaction.customWords = ["Falcon", "Shared"] }
+        a.sync(at: 10)
+        let b = ICA.join(world, firstSync: firstSync, \.hiddenWords) { $0.redaction.customWords = ["Nightjar", "Shared"] }
+        a.sync(at: 50)
+        for mac in [a, b] {
+            let words = mac.config.redaction.customWords
+            #expect(Set(words) == ["Falcon", "Shared", "Nightjar"], "Mac \(mac.name): \(words)")
+            #expect(words.count == 3, "Mac \(mac.name): \(words)")
+        }
+    }
+
+    @Test("join: custom commands merge by name on a first join; on a clash iCloud's wins", arguments: [true, false])
+    func commandsMergeOnJoin(firstSync: Bool) throws {
+        let world = ICAWorld()
+        let a = world.mac("A") { $0.customCommands = [ICA.command("alpha"), ICA.command("beta")] }
+        a.sync(at: 10)
+        let b = ICA.join(world, firstSync: firstSync, \.jargon) { c in
+            c.customCommands = [CustomCommand(name: "alpha", type: .prompt, prompt: "B's own alpha"), ICA.command("gamma")]
+        }
+        a.sync(at: 50)
+        for mac in [a, b] {
+            let commands = mac.config.customCommands
+            #expect(commands.map(\.name).sorted() == ["alpha", "beta", "gamma"], "Mac \(mac.name): \(commands.map(\.name))")
+            #expect(commands.first { $0.name == "alpha" }?.prompt == ICA.command("alpha").prompt, "Mac \(mac.name): iCloud's alpha lost")
+        }
+    }
+
+    @Test("join: the jargon list merges on a first join: the lines of both, each once", arguments: [true, false])
+    func jargonMergesOnJoin(firstSync: Bool) throws {
+        let world = ICAWorld()
+        let a = world.mac("A")
+        a.writeJargon("赋能 = enable\n抓手 = lever\n", at: 1)
+        a.sync(at: 10)
+        let b = ICA.join(world, firstSync: firstSync, \.jargon, { _ in }) { b in
+            b.writeJargon("抓手 = lever\n闭环 = close the loop\n", at: 2)
+        }
+        a.sync(at: 50)
+        for mac in [a, b] {
+            let lines = ICA.lines(mac.jargon)
+            #expect(Set(lines) == ["赋能 = enable", "抓手 = lever", "闭环 = close the loop"], "Mac \(mac.name): \(lines)")
+            #expect(lines.count == 3, "Mac \(mac.name): \(lines)")
+        }
     }
 
     // MARK: Versions
@@ -1286,8 +1402,8 @@ struct ICloudSyncAcceptanceTests {
         world.download("jargon.txt", real)
         b.sync(at: 1200)
         a.sync(at: 1300)
-        #expect(b.jargon == "A's list\n")
-        #expect(a.jargon == "A's list\n")
+        #expect(Set(ICA.lines(b.jargon)) == ["A's list", "B's own list"])
+        #expect(Set(ICA.lines(a.jargon)) == ["A's list", "B's own list"])
     }
 
     @Test("files: an unreadable settings.json is set aside, never overwritten",
@@ -1424,6 +1540,43 @@ struct ICloudSyncAcceptanceTests {
         #expect(a.config.maxTokens == 3000)
         #expect(a.jargon == "B list\n")
         #expect(b.config.typeOut == true)
+    }
+
+    @Test("off: turned back on, a key changed both here (while off) and in iCloud takes iCloud's value, whichever change is newer",
+          arguments: [false, true])
+    func rejoinBothChangedICloudWins(offEditIsNewer: Bool) throws {
+        let (world, a, b) = ICA.pair()
+        a.edit(at: 100) { $0.iCloudSync.enabled = false }
+        a.sync(at: 110)
+        let (aAt, bAt): (TimeInterval, TimeInterval) = offEditIsNewer ? (300, 200) : (200, 300)
+        a.edit(at: aAt) { $0.maxTokens = 1500 }
+        b.edit(at: bAt) { $0.maxTokens = 2500 }
+        b.sync(at: 310)
+        a.edit(at: 400) { $0.iCloudSync.enabled = true }
+        a.sync(at: 410)
+        b.sync(at: 420)
+        #expect(a.config.maxTokens == 2500)
+        #expect(b.config.maxTokens == 2500, "the change A made while off went over iCloud's")
+        #expect(ICA.canon(world.value("maxTokens")) == "2500")
+    }
+
+    @Test("off: turned back on, a key only this Mac changed while off goes up, stamped when sync was turned back on")
+    func rejoinOnlyHereGoesUp() throws {
+        let (world, a, b) = ICA.pair()
+        a.edit(at: 100) { $0.iCloudSync.enabled = false }
+        a.sync(at: 110)
+        a.edit(at: 200) { $0.typeOut = true }
+        b.edit(at: 300) { $0.maxTokens = 2500 }
+        b.sync(at: 310)
+        a.edit(at: 400) { $0.iCloudSync.enabled = true }
+        a.sync(at: 410)
+        b.sync(at: 420)
+        #expect(a.config.typeOut == true)
+        #expect(b.config.typeOut == true)
+        #expect(a.config.maxTokens == 2500, "what iCloud changed meanwhile didn't come in")
+        let stamp = ICA.date(world.entry("typeOut")?["modified"])
+        #expect(stamp.map { $0 >= ICA.t(399) && $0 <= ICA.t(410) } == true,
+                "stamped \(String(describing: stamp)): changed at \(ICA.t(200)), sync back on at \(ICA.t(400))")
     }
 
     @Test("off: Remove from iCloud moves the folder to the Trash, and this Mac joins again as one that never synced")
