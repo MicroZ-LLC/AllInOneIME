@@ -5,8 +5,12 @@ import Foundation
 public enum ConfigFile {
     /// The user's config file, `~/.config/allinoneime/config.json`.
     public static var userURL: URL {
+        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true).appendingPathComponent(".config/allinoneime/config.json")
+        #else
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/allinoneime/config.json")
+        #endif
     }
 
     /// Just `uiLanguage` from the config file at `url`: nil when the file or the value isn't there, or can't be read

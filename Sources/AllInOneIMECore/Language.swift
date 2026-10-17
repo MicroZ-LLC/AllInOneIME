@@ -1,5 +1,4 @@
 import Foundation
-import NaturalLanguage
 
 /// The languages the input method types (`Config.inputLanguages`), and the two its own sentences are in
 /// (Chinese, English).
@@ -61,10 +60,7 @@ public enum Language: String, Codable, CaseIterable, Sendable {
         if scalars.contains(where: { (0xAC00...0xD7A3).contains($0.value) || (0x3131...0x318E).contains($0.value) }) { return .korean }
         if scalars.contains(where: { (0x0900...0x097F).contains($0.value) }) { return .hindi }
         guard french else { return .english }
-        let recognizer = NLLanguageRecognizer()
-        recognizer.languageConstraints = [.english, .french]
-        recognizer.processString(text)
-        return recognizer.dominantLanguage == .french ? .french : .english
+        return Platform.current.languages.dominantLanguage(of: text, among: ["en", "fr"])?.code == "fr" ? .french : .english
     }
 }
 

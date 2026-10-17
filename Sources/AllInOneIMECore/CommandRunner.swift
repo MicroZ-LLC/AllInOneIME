@@ -24,8 +24,8 @@ public enum CommandRunner {
         }
     }
 
-    /// `environment` nil: `ShellEnvironment.current` (asked for off the caller's thread: the first
-    /// time, the user's shell is started to read its PATH).
+    /// `environment` nil: the platform's (`ProcessLauncher.environment`; on the Mac `ShellEnvironment.current`, asked
+    /// for off the caller's thread: the first time, the user's shell is started to read its PATH).
     public static func run(_ command: CustomCommand, input: String,
                            environment: [String: String]? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         let launch = Launch(argv: command.arguments(for: input), stdin: command.standardInput(for: input), timeout: command.timeout)
@@ -72,7 +72,7 @@ public enum CommandRunner {
             let run = Run(launch: launch, continuation: continuation)
             continuation.onTermination = { _ in run.cancel() }
             DispatchQueue.global().async {
-                var environment = environment ?? ShellEnvironment.current
+                var environment = environment ?? Platform.current.processes.environment
                 if let extraPath, !(environment["PATH"] ?? "").split(separator: ":").contains(Substring(extraPath)) {
                     environment["PATH"] = (environment["PATH"].map { $0 + ":" } ?? "") + extraPath
                 }
@@ -102,7 +102,7 @@ public enum CommandRunner {
     public static let stopGrace: Double = 0.5
 
     /// The process groups of the programs running now (each runs in its own group: what it starts is in it too).
-    private static let groups = Locked(initialState: Set<pid_t>())
+    private static let groups = Locked(initialState: Set<Int32>())
 
     /// Stops every program still running, and what each started: the input method is quitting (an update,
     /// logging out). Returns once they're gone, or after `grace` seconds, when they're killed.
@@ -111,15 +111,16 @@ public enum CommandRunner {
     }
 
     /// The process groups of the programs running now.
-    static var runningGroups: Set<pid_t> { groups.withLock { $0 } }
+    static var runningGroups: Set<Int32> { groups.withLock { $0 } }
 
     /// Stops `running` (process groups): SIGTERM, then after `grace` seconds SIGKILL to what's left.
-    static func stop(groups running: Set<pid_t>, grace: Double) {
+    static func stop(groups running: Set<Int32>, grace: Double) {
         guard !running.isEmpty else { return }
-        for group in running { kill(-group, SIGTERM) }
+        let processes = Platform.current.processes
+        for group in running { processes.signal(.terminate, group: group) }
         let deadline = Date().addingTimeInterval(grace)
-        while Date() < deadline, running.contains(where: { kill(-$0, 0) == 0 }) { usleep(20_000) }
-        for group in running { kill(-group, SIGKILL) }
+        while Date() < deadline, running.contains(where: { processes.signal(.check, group: $0) }) { Thread.sleep(forTimeInterval: 0.02) }
+        for group in running { processes.signal(.kill, group: group) }
         groups.withLock { $0.subtract(running) }
     }
 
@@ -137,13 +138,15 @@ public enum CommandRunner {
         return nil
     }
 
-    /// Whether `program` would run here: it is found (`resolve`), and if it is one of the stand-ins macOS
-    /// keeps in /usr/bin for the developer tools (`python3`, `git`, …), Xcode or the command line tools
-    /// are installed (without them, the stand-in only offers to install them).
-    public static func isInstalled(_ program: String, path: String?,
-                                   developerFolders: [String] = DeveloperTools.folders) -> Bool {
-        guard let url = resolve(program, path: path) else { return false }
-        return !DeveloperTools.isStandIn(url) || DeveloperTools.installed(in: developerFolders)
+    /// Whether `program` would run here: programs can be started at all (`ProcessLauncher.canLaunch`: not on iOS or
+    /// Android, where the commands that need one aren't offered), it is found (`resolve`), and it really runs
+    /// (`ProcessLauncher.isRunnable`: on the Mac, a stand-in macOS keeps in /usr/bin for the developer tools,
+    /// `python3`, `git`, …, only with Xcode or the command line tools installed; without them it only offers to
+    /// install them).
+    public static func isInstalled(_ program: String, path: String?) -> Bool {
+        let processes = Platform.current.processes
+        guard processes.canLaunch, let url = resolve(program, path: path) else { return false }
+        return processes.isRunnable(url)
     }
 
     /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
@@ -176,7 +179,9 @@ public enum CommandRunner {
     private final class Run: @unchecked Sendable {
         private let launch: Launch
         private let continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation
-        private let process = Process()
+        private let processes = Platform.current.processes
+        /// Set once it started (under `lock`).
+        private var process: (any LaunchedProcess)?
         private let lock = NSLock()
         private var output = Data()
         private var errors = Data()
@@ -205,35 +210,33 @@ public enum CommandRunner {
                 continuation.finish(throwing: RunError.notFound(argv.first ?? ""))
                 return
             }
-            process.executableURL = url
-            process.arguments = Array(argv.dropFirst())
-            process.environment = environment
-            process.currentDirectoryURL = launch.directory ?? CorePaths.home
             let stdout = Pipe(), stderr = Pipe(), stdin = Pipe()
-            process.standardOutput = stdout
-            process.standardError = stderr
-            process.standardInput = stdin
             capture(stdout) { run, chunk in
                 run.output.append(chunk)
                 run.streamPending = run.launch.streams
             }
             capture(stderr) { $0.errors.append($1) }
-            process.terminationHandler = { [self] _ in
+            let spec = LaunchSpec(executable: url, arguments: Array(argv.dropFirst()), environment: environment,
+                                  directory: launch.directory ?? CorePaths.home, standardInput: .pipe(stdin),
+                                  standardOutput: .pipe(stdout), standardError: .pipe(stderr)) { [self] process in
                 // A program it started in the background may keep the pipes open: don't wait for that.
                 DispatchQueue.global().async { [self] in
                     _ = pipes.wait(timeout: .now() + 1)
-                    finish()
+                    finish(process)
                 }
             }
             do {
-                try process.run()
-                // Foundation starts it in a process group of its own (its id): stopping it reaches what it started.
+                let process = try processes.launch(spec)
+                // It runs in a process group of its own (its id): stopping it reaches what it started.
                 // Kept while it runs: under `lock`, as `finish` drops it, so one that's over already (a quick
                 // program) is never kept.
                 let group = process.processIdentifier
                 lock.lock()
+                self.process = process
+                let stopped = cancelled
                 if !finished { CommandRunner.groups.withLock { _ = $0.insert(group) } }
                 lock.unlock()
+                if stopped { stop(nil) }  // cancelled while it was starting
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
@@ -287,19 +290,20 @@ public enum CommandRunner {
         /// Stops the program (once): `reason` is reported, nil when the request was cancelled.
         private func stop(_ reason: RunError?) {
             lock.lock()
-            let running = !finished && stopReason == nil && process.isRunning
+            let process = process
+            let running = !finished && stopReason == nil && process?.isRunning == true
             if running, let reason { stopReason = reason }
             lock.unlock()
-            guard running else { return }
+            guard running, let group = process?.processIdentifier else { return }
             // Its whole group: a script that ignores SIGTERM, or something it started, doesn't outlive it.
-            let group = process.processIdentifier
-            kill(-group, SIGTERM)
+            let processes = processes
+            processes.signal(.terminate, group: group)
             DispatchQueue.global().asyncAfter(deadline: .now() + CommandRunner.stopGrace) {
-                kill(-group, SIGKILL)
+                processes.signal(.kill, group: group)
             }
         }
 
-        private func finish() {
+        private func finish(_ process: any LaunchedProcess) {
             lock.lock()
             guard !finished else { return lock.unlock() }
             finished = true
@@ -328,87 +332,5 @@ public enum CommandRunner {
                                                 firstTokenLatency: nil, fromCache: false))
             continuation.finish()
         }
-    }
-}
-
-/// The environment a program started from the input method gets: the input method's own, with the
-/// PATH of the user's login shell (an input method started by launchd only has the system folders,
-/// so `python3` from Homebrew, pyenv or nvm wouldn't be found). The shell is asked once.
-public enum ShellEnvironment {
-    public static let fallbackPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-
-    public static let current: [String: String] = {
-        var env = ProcessInfo.processInfo.environment
-        env["PATH"] = login["PATH"] ?? fallbackPath
-        return env
-    }()
-
-    /// The variables the input method reads from the user's shell: PATH, the providers' API keys
-    /// (`Provider.keyVariables`) and the web search key (`WebSearch.backend`), for a key that is set
-    /// there instead of in the keychain, the SSH agent and ssh command git uses (`ExtensionSources.gitEnvironment`), and
-    /// the AWS variables Bedrock's credentials may come from (`AWSEnvironment`).
-    public static let login: [String: String] = loginValues(["PATH"] + Provider.allCases.flatMap(\.keyVariables)
-                                                                + WebSearch.backend.keyVariables + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"]
-                                                                + AWSEnvironment.variables)
-
-    /// `names` as the user's interactive login shell sets them up (unset ones are left out); empty if
-    /// the shell couldn't be read in 3 seconds.
-    static func loginValues(_ names: [String]) -> [String: String] {
-        let shell = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/zsh"
-        let marker = "__AllInOneIME_\(UUID().uuidString)__"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
-        // Interactive too: pyenv, nvm and the like are usually set up in .zshrc. Each value is printed
-        // between markers, so whatever the shell's startup files print is skipped.
-        let script = names.map { "printf '\(marker)\($0)=%s' \"${\($0)}\"" }.joined(separator: "; ") + "; printf '\(marker)'"
-        process.arguments = ["-ilc", script]
-        process.currentDirectoryURL = CorePaths.home
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        let exited = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exited.signal() }
-        guard (try? process.run()) != nil else { return [:] }
-        if exited.wait(timeout: .now() + 3) == .timedOut {
-            process.terminate()
-            return [:]
-        }
-        let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        var values: [String: String] = [:]
-        for part in text.components(separatedBy: marker).dropFirst() {
-            guard let eq = part.firstIndex(of: "="), names.contains(String(part[..<eq])) else { continue }
-            let value = String(part[part.index(after: eq)...])
-            if !value.isEmpty { values[String(part[..<eq])] = value }
-        }
-        return values
-    }
-}
-
-/// The stand-ins macOS keeps in /usr/bin for the developer tools: `python3`, `git`, `make`, `swift` and
-/// the others are one small program (hard links of one file) that runs the real tool from Xcode or the
-/// command line tools, and without those only offers to install them.
-public enum DeveloperTools {
-    /// Where Xcode or the command line tools may be: the folder chosen with `xcode-select -s`, then the
-    /// default places.
-    public static var folders: [String] {
-        let chosen = try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link")
-        return (chosen.map { [$0] } ?? []) + ["/Applications/Xcode.app/Contents/Developer", "/Library/Developer/CommandLineTools"]
-    }
-
-    /// Whether one of `folders` has the tools.
-    static func installed(in folders: [String]) -> Bool {
-        folders.contains { folder in
-            var isFolder: ObjCBool = false
-            return FileManager.default.fileExists(atPath: folder + "/usr/bin", isDirectory: &isFolder) && isFolder.boolValue
-        }
-    }
-
-    /// Whether `url` (after symbolic links) is the same file as `standIn`: /usr/bin/python3 has been one
-    /// of the stand-ins on every macOS since 10.15.
-    static func isStandIn(_ url: URL, standIn: String = "/usr/bin/python3") -> Bool {
-        var file = stat(), known = stat()
-        guard stat(url.path, &file) == 0, stat(standIn, &known) == 0 else { return false }
-        return file.st_dev == known.st_dev && file.st_ino == known.st_ino
     }
 }

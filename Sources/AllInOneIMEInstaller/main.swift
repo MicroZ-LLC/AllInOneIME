@@ -2,7 +2,11 @@
 // Opened from Finder it asks first, then installs, updates or uninstalls AllInOneIME for this user
 // (see Installer). --install and --uninstall do the same from a terminal without asking.
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
+
+// What the core needs of the Mac, before anything uses it.
+Platform.current = .mac
 
 /// The interface language, as in the input method: the one picked in the settings (`uiLanguage`), else the
 /// system's among the languages this app ships (`InterfaceLanguage`).

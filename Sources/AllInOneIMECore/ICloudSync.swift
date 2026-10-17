@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 
 /// Sync through iCloud (「通过 iCloud 同步」, Settings → General): the settings, the jargon list and custom commands, the

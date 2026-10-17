@@ -144,7 +144,7 @@ public final class AppIndex: @unchecked Sendable {
     /// 下載項目 and "downloads" all find the Downloads folder. A Chinese interface shows the simplified name.
     /// The home folder keeps its own (the user's short name, as in Finder's sidebar); "Home" and 个人
     /// (Finder's Go menu) find it.
-    static func places(home: String, finderNames: (_ language: String) -> [String: String]) -> [App] {
+    public static func places(home: String, finderNames: (_ language: String) -> [String: String]) -> [App] {
         let english = finderNames("en"), simplified = finderNames("zh_CN")
         let traditional = [finderNames("zh_TW"), finderNames("zh_HK")]
         return placePaths(home: home).filter { isDirectory($0.path) }.map { place in

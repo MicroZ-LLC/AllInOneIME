@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -190,13 +186,11 @@ public struct LanguagePackLibrary: Sendable {
     /// The system's tar (bsdtar): refuses entries with ".." or an absolute path and doesn't extract
     /// through links; no owners, extended attributes or Mac metadata.
     static func unpack(_ archive: URL, into folder: URL) throws {
-        let tar = Process()
-        tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-        tar.arguments = ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs", "--no-mac-metadata", "--no-acls", "--no-fflags"]
         let errors = Pipe()
-        tar.standardError = errors
-        tar.standardOutput = FileHandle.nullDevice
-        try tar.run()
+        let tar = try Platform.current.processes.launch(LaunchSpec(
+            executable: URL(fileURLWithPath: "/usr/bin/tar"),
+            arguments: ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs", "--no-mac-metadata", "--no-acls", "--no-fflags"],
+            standardOutput: .null, standardError: .pipe(errors)))
         let message = errors.fileHandleForReading.readDataToEndOfFile()
         tar.waitUntilExit()
         guard tar.terminationStatus == 0 else {

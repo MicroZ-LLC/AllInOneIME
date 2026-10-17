@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -384,7 +380,9 @@ public enum AWSProcessRunner {
 
     private final class Run: @unchecked Sendable {
         private let lock = NSLock()
-        private let process = Process()
+        private let processes = Platform.current.processes
+        /// Set once it started (under `lock`).
+        private var process: (any LaunchedProcess)?
         private var output = Data(), errors = Data()
         private var timedOut = false, finished = false, started = false, cancelled = false
         private var continuation: CheckedContinuation<AWSProcessResult, Error>?
@@ -397,14 +395,7 @@ public enum AWSProcessRunner {
             let skip = cancelled
             lock.unlock()
             if skip { return finish(CancellationError()) }
-            process.executableURL = url
-            process.arguments = Array(request.arguments.dropFirst())
-            process.environment = request.environment
-            process.currentDirectoryURL = request.directory
-            process.standardInput = FileHandle.nullDevice
             let stdout = Pipe(), stderr = Pipe()
-            process.standardOutput = stdout
-            process.standardError = stderr
             let pipes = DispatchGroup()
             for (pipe, isOutput) in [(stdout, true), (stderr, false)] {
                 pipes.enter()
@@ -424,23 +415,29 @@ public enum AWSProcessRunner {
                     lock.unlock()
                 }
             }
-            process.terminationHandler = { [self] _ in
+            let spec = LaunchSpec(executable: url, arguments: Array(request.arguments.dropFirst()), environment: request.environment,
+                                  directory: request.directory, standardInput: .null, standardOutput: .pipe(stdout),
+                                  standardError: .pipe(stderr)) { [self] process in
                 // Something it started in the background may keep the pipes open: don't wait long for that.
                 DispatchQueue.global().async { [self] in
                     _ = pipes.wait(timeout: .now() + 1)
-                    finish(nil)
+                    finish(nil, status: process.terminationStatus)
                 }
             }
+            let process: any LaunchedProcess
             do {
-                try process.run()
+                process = try processes.launch(spec)
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
                 return finish(AWSProcessError.notFound(request.arguments.first ?? ""))
             }
             lock.lock()
+            self.process = process
             started = true
+            let stopped = cancelled && !finished
             lock.unlock()
+            if stopped { kill() }  // cancelled while it was starting
             DispatchQueue.global().asyncAfter(deadline: .now() + max(request.timeout, 0.1)) { [self] in
                 lock.lock()
                 let running = !finished
@@ -460,17 +457,17 @@ public enum AWSProcessRunner {
 
         /// Its process group (what it started too): SIGTERM, then SIGKILL half a second later.
         private func kill() {
-            let pid = process.processIdentifier
-            guard pid > 0 else { return }
-            Darwin.kill(-pid, SIGTERM)
-            Darwin.kill(pid, SIGTERM)
+            guard let pid = lock.withLock({ process?.processIdentifier }), pid > 0 else { return }
+            let processes = processes
+            processes.signal(.terminate, group: pid)
+            processes.signal(.terminate, process: pid)
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                Darwin.kill(-pid, SIGKILL)
-                Darwin.kill(pid, SIGKILL)
+                processes.signal(.kill, group: pid)
+                processes.signal(.kill, process: pid)
             }
         }
 
-        private func finish(_ error: Error?) {
+        private func finish(_ error: Error?, status: Int32 = 0) {
             lock.lock()
             guard !finished, let continuation else { return lock.unlock() }
             finished = true
@@ -480,7 +477,7 @@ public enum AWSProcessRunner {
             if let error { return continuation.resume(throwing: error) }
             if cancelled { return continuation.resume(throwing: CancellationError()) }
             if timedOut { return continuation.resume(throwing: AWSProcessError.timedOut(timeout)) }
-            continuation.resume(returning: AWSProcessResult(status: process.terminationStatus, standardOutput: output, standardError: errors))
+            continuation.resume(returning: AWSProcessResult(status: status, standardOutput: output, standardError: errors))
         }
     }
 }

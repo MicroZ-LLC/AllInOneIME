@@ -1,7 +1,3 @@
-#if canImport(CoreGraphics)
-// A public default argument (`pointer: { .zero }`) needs CGPoint's module imported here; elsewhere Foundation has it.
-import CoreGraphics
-#endif
 import Foundation
 
 // MARK: - Translate as You Type (a prototype)
@@ -270,9 +266,13 @@ public enum TranslateMode {
         private var toggled = false
 
         public init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-                    pointer: @escaping () -> CGPoint = { .zero }, stickyKeys: @escaping () -> Bool = { false }) {
+                    pointer: @escaping () -> CGPoint = ShiftHold.noPointer, stickyKeys: @escaping () -> Bool = { false }) {
             (self.now, self.pointer, self.stickyKeys) = (now, pointer, stickyKeys)
         }
+
+        /// No pointer: always at the origin. (A function of the core's own: a public default argument written
+        /// `{ .zero }` would need CGPoint's module, CoreGraphics on Apple platforms, imported here.)
+        @usableFromInline static func noPointer() -> CGPoint { .zero }
 
         /// How long Shift has been held on its own so far (nil: it isn't).
         public var held: TimeInterval? { pressedAt.map { max(now() - $0, 0) } }

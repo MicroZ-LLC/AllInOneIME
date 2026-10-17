@@ -218,17 +218,8 @@ public struct ReminderParser: Sendable {
         return calendar
     }
 
-    /// The system's date detection (NSDataDetector).
-    public static let dataDetector: @Sendable (String) -> [Match] = { text in
-        guard let detector = sharedDetector else { return [] }
-        return detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { result in
-            guard let date = result.date, let range = Range(result.range, in: text) else { return nil }
-            return Match(range: range, date: date)
-        }
-    }
-
-    /// Made once (that takes a few milliseconds) and shared: like any NSRegularExpression it is immutable.
-    private static let sharedDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
+    /// The system's date detection (`Platform.dates`: NSDataDetector on Apple platforms, none elsewhere).
+    public static let dataDetector: @Sendable (String) -> [Match] = { text in Platform.current.dates.dates(in: text) }
 
     /// Dates are read in the first this many characters of a text (its title is all of it): `parse` runs on the main
     /// thread, as `@reminder` ⏎ is pressed, and a long clipboard text full of dates would hold it up.

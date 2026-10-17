@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// The API keys of the Claude, Gemini and OpenAI-compatible providers, and of other services the
 /// user brings a key for (the web search, `WebSearch`). They are kept in the login keychain (never in
@@ -18,9 +17,9 @@ public enum APIKeys {
     static let cache = KeyCache()
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "keys")
 
-    /// The items of this service: the login keychain; tests and the self-test give an in-memory one
-    /// (`Keychain.inMemory`), so that nothing they do reaches the user's keychain.
-    nonisolated(unsafe) public static var keychain = Keychain.login
+    /// The items of this service: the platform's secret store (`Platform.secrets`: the login keychain on the Mac); tests
+    /// and the self-test give an in-memory one (`Keychain.inMemory`), so that nothing they do reaches the user's keychain.
+    nonisolated(unsafe) public static var keychain = Platform.current.secrets
 
     /// The key for `provider`: the keychain's, else the login shell's.
     public static func load(_ provider: Provider) -> String? {
@@ -56,7 +55,7 @@ public enum APIKeys {
     /// The key kept under `account`: the keychain's, else the first of `variables` the login shell sets.
     public static func load(account: String, variables: [String]) -> String? {
         if let key = keychainKey(account: account) { return key }
-        return variables.lazy.compactMap { ShellEnvironment.login[$0] }.first
+        return variables.lazy.compactMap { Platform.current.processes.loginEnvironment[$0] }.first
     }
 
     /// Where the key comes from, for the settings window.
@@ -72,7 +71,7 @@ public enum APIKeys {
 
     public static func source(account: String, variables: [String]) -> Source {
         if hasKeychainKey(account: account) { return .keychain }
-        if let name = variables.first(where: { ShellEnvironment.login[$0] != nil }) { return .environment(name) }
+        if let name = variables.first(where: { Platform.current.processes.loginEnvironment[$0] != nil }) { return .environment(name) }
         return .none
     }
 
@@ -116,9 +115,9 @@ public enum APIKeys {
         guard !key.isEmpty else { throw EmptyKey() }
         defer { cache.forget(account) }
         let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key))
-        guard status == errSecSuccess else {
-            log.error("key not saved: \(account) (\(status))")
-            throw KeychainError(status: status)
+        guard status == .ok else {
+            log.error("key not saved: \(account) (\(status.code))")
+            throw KeychainError(status: status.code, message: store.message(status.code))
         }
         log.notice("key saved: \(account)")
     }
@@ -132,11 +131,11 @@ public enum APIKeys {
     public static func remove(account: String, in store: Keychain = keychain) throws {
         defer { cache.forget(account) }
         let status = store.delete(account)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            log.error("key not removed: \(account) (\(status))")
-            throw KeychainError(status: status)
+        guard status == .ok || status == .notFound else {
+            log.error("key not removed: \(account) (\(status.code))")
+            throw KeychainError(status: status.code, message: store.message(status.code))
         }
-        if status == errSecSuccess { log.notice("key removed: \(account)") }
+        if status == .ok { log.notice("key removed: \(account)") }
     }
 
     /// The last 4 characters of `key`, kept with it as an attribute (not secret) so that Settings can say which key is
@@ -182,64 +181,55 @@ public enum APIKeys {
         return ending.count == 4 ? ending : nil
     }
 
-    /// The calls `APIKeys` makes on its service's items, by account.
+    /// How a change to an item went: the platform's own status codes are kept for the message (`KeychainError`).
+    public enum KeychainStatus: Equatable, Sendable {
+        case ok
+        case notFound
+        case failed(Int32)
+
+        /// The platform's code for it (the keychain's `OSStatus` on Apple platforms).
+        public var code: Int32 {
+            switch self {
+            case .ok: return 0
+            case .notFound: return -25300  // errSecItemNotFound
+            case let .failed(code): return code
+            }
+        }
+    }
+
+    /// The calls `APIKeys` makes on its service's items, by account (`SecretStore`, `Platform.secrets`).
     public struct Keychain: Sendable {
         /// The item's attributes (nil: there is none); its key isn't read, so nothing is asked.
         public var attributes: @Sendable (_ account: String) -> ItemAttributes?
         /// The key itself (may make macOS ask for the login password).
         public var read: @Sendable (_ account: String) -> String?
         /// Sets the key, its label, comment and ending: in place when there is an item, else a new one.
-        public var write: @Sendable (_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?) -> OSStatus
+        public var write: @Sendable (_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?) -> KeychainStatus
         /// Sets the comment alone.
-        public var setComment: @Sendable (_ account: String, _ comment: String) -> OSStatus
-        public var delete: @Sendable (_ account: String) -> OSStatus
+        public var setComment: @Sendable (_ account: String, _ comment: String) -> KeychainStatus
+        public var delete: @Sendable (_ account: String) -> KeychainStatus
+        /// What a failure's code means, in words (nil: the code is all there is).
+        public var message: @Sendable (_ code: Int32) -> String?
 
         public init(attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
-                    write: @escaping @Sendable (String, String, String, String, String?) -> OSStatus,
-                    setComment: @escaping @Sendable (String, String) -> OSStatus, delete: @escaping @Sendable (String) -> OSStatus) {
+                    write: @escaping @Sendable (String, String, String, String, String?) -> KeychainStatus,
+                    setComment: @escaping @Sendable (String, String) -> KeychainStatus,
+                    delete: @escaping @Sendable (String) -> KeychainStatus,
+                    message: @escaping @Sendable (Int32) -> String? = { _ in nil }) {
             self.attributes = attributes
             self.read = read
             self.write = write
             self.setComment = setComment
             self.delete = delete
+            self.message = message
         }
 
-        /// The user's login keychain.
-        public static let login = Keychain(
-            attributes: { account in
-                var query = baseQuery(account: account)
-                query[kSecReturnAttributes as String] = true
-                query[kSecMatchLimit as String] = kSecMatchLimitOne
-                var item: CFTypeRef?
-                guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let found = item as? [String: Any]
-                else { return nil }
-                return ItemAttributes(created: found[kSecAttrCreationDate as String] as? Date,
-                                      modified: found[kSecAttrModificationDate as String] as? Date,
-                                      comment: found[kSecAttrComment as String] as? String,
-                                      ending: APIKeys.ending(fromAttribute: found[kSecAttrGeneric as String] as? Data))
-            },
-            read: { account in
-                var query = baseQuery(account: account)
-                query[kSecReturnData as String] = true
-                query[kSecMatchLimit as String] = kSecMatchLimitOne
-                var item: CFTypeRef?
-                guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-                return String(data: data, encoding: .utf8)
-            },
-            write: { account, key, label, comment, ending in
-                let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
-                                             kSecAttrComment as String: comment,
-                                             kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
-                let status = SecItemUpdate(baseQuery(account: account) as CFDictionary, values as CFDictionary)
-                guard status == errSecItemNotFound else { return status }
-                return SecItemAdd(baseQuery(account: account).merging(values) { $1 } as CFDictionary, nil)
-            },
-            setComment: { account, comment in
-                SecItemUpdate(baseQuery(account: account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary)
-            },
-            delete: { account in SecItemDelete(baseQuery(account: account) as CFDictionary) })
+        /// No secret store on this platform (until its shell brings one): nothing is kept, a save fails.
+        public static let unavailable = Keychain(
+            attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
+            delete: { _ in .notFound }, message: { _ in "No secret store on this platform" })
 
-        /// Items kept in memory, for tests and the self-test: the user's keychain is never touched.
+    /// Items kept in memory, for tests and the self-test: the user's keychain is never touched.
         public static func inMemory() -> Keychain {
             final class Items: @unchecked Sendable {
                 let lock = NSLock()
@@ -260,26 +250,20 @@ public enum APIKeys {
                         let now = Date()
                         store.items[account] = (key, label, comment, ending, store.items[account]?.created ?? now, now)
                     }
-                    return errSecSuccess
+                    return .ok
                 },
                 setComment: { account, comment in
                     store.lock.withLock {
-                        guard store.items[account] != nil else { return errSecItemNotFound }
+                        guard store.items[account] != nil else { return .notFound }
                         store.items[account]?.comment = comment
                         store.items[account]?.modified = Date()
-                        return errSecSuccess
+                        return .ok
                     }
                 },
                 delete: { account in
-                    store.lock.withLock { store.items.removeValue(forKey: account) == nil ? errSecItemNotFound : errSecSuccess }
+                    store.lock.withLock { store.items.removeValue(forKey: account) == nil ? .notFound : .ok }
                 })
         }
-    }
-
-    private static func baseQuery(account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: service,
-         kSecAttrAccount as String: account]
     }
 
     /// The keys read from the keychain in this process, each with its item's stamp: one is read again only when
@@ -340,9 +324,15 @@ public enum APIKeys {
     }
 
     public struct KeychainError: Error, LocalizedError {
-        public let status: OSStatus
-        public var errorDescription: String? {
-            (SecCopyErrorMessageString(status, nil) as String?) ?? "Keychain error \(status)"
+        public let status: Int32
+        /// The store's words for it.
+        public let message: String?
+
+        public init(status: Int32, message: String? = nil) {
+            self.status = status
+            self.message = message
         }
+
+        public var errorDescription: String? { message ?? "Keychain error \(status)" }
     }
 }

@@ -11,23 +11,27 @@ let package = Package(
         .executable(name: "AllInOneIME", targets: ["AllInOneIME"]),
         .executable(name: "allinoneime-cli", targets: ["allinoneime-cli"]),
     ],
-    // CryptoKit's API off Apple platforms (on them the core uses CryptoKit itself).
+    // CryptoKit's API everywhere: on Apple platforms swift-crypto is CryptoKit itself (re-exported), elsewhere its own.
     dependencies: [.package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.0")],
     targets: [
         // The interface text and its language (UIString, InterfaceText, InterfaceLanguage) and the config's uiLanguage
         // (ConfigFile): all AllInOneIME Settings needs, so it doesn't link AllInOneIMECore. AllInOneIMECore re-exports it.
         .target(name: "AllInOneIMEText"),
 
-        // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps.
+        // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps. Platform-neutral:
+        // what it needs of the system goes through `Platform` (Sources/AllInOneIMECore/Platform/), with Apple's
+        // frameworks in Platform/Apple/ (each file under `#if canImport`); Scripts/check-core-portable.sh keeps it so.
         // FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
-            dependencies: [
-                "AllInOneIMEText",
-                .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux, .windows, .android])),
-            ],
+            dependencies: ["AllInOneIMEText", .product(name: "Crypto", package: "swift-crypto")],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"], .when(platforms: [.macOS]))]
         ),
+
+        // The macOS shell's library: what only the Mac has (Carbon key layouts, code signing, Spotlight, AppleScript,
+        // the login shell, git through posix_spawn, the updater's install) and `Platform.mac`, which the input method, its
+        // command line and the installer install at launch.
+        .target(name: "AllInOneIMEMac", dependencies: ["AllInOneIMECore"]),
 
         // librime's C API; header and dylib come from ThirdParty/librime.
         .systemLibrary(name: "CRime", path: "Sources/CRime"),
@@ -45,7 +49,7 @@ let package = Package(
         // annotations and every callback arrives on the main thread anyway.
         .executableTarget(
             name: "AllInOneIME",
-            dependencies: ["AllInOneIMECore", "AllInOneIMERime"],
+            dependencies: ["AllInOneIMECore", "AllInOneIMEMac", "AllInOneIMERime"],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [
                 .linkedFramework("AppKit"),
@@ -62,7 +66,9 @@ let package = Package(
         ),
 
         // Developer tool: run level two (translate/polish) from the terminal.
-        .executableTarget(name: "allinoneime-cli", dependencies: ["AllInOneIMECore"]),
+        .executableTarget(name: "allinoneime-cli", dependencies: [
+            "AllInOneIMECore", .target(name: "AllInOneIMEMac", condition: .when(platforms: [.macOS])),
+        ]),
 
         // AllInOneIME Settings (「AllInOneIME 设置」): a launcher in ~/Applications that opens the settings window.
         .executableTarget(name: "AllInOneIMESettings", dependencies: ["AllInOneIMEText"], swiftSettings: [.swiftLanguageMode(.v5)]),
@@ -71,15 +77,18 @@ let package = Package(
         // apps and installs them like `make install`; it uninstalls them too.
         .executableTarget(
             name: "AllInOneIMEInstaller",
-            dependencies: ["AllInOneIMECore"],
+            dependencies: ["AllInOneIMECore", "AllInOneIMEMac"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
 
+        // On the Mac they reach the shell's library too (MacShell.swift): tests from before it hold some of its code.
         .testTarget(
             name: "AllInOneIMECoreTests",
-            dependencies: ["AllInOneIMECore"],
+            dependencies: ["AllInOneIMECore", .target(name: "AllInOneIMEMac", condition: .when(platforms: [.macOS]))],
             resources: [.copy("Fixtures")]
         ),
+        // Timing, PackData and ComposerTestSupport are AllInOneIMECoreTests' (linked here).
+        .testTarget(name: "AllInOneIMEMacTests", dependencies: ["AllInOneIMEMac"]),
         .testTarget(
             name: "AllInOneIMERimeTests",
             dependencies: ["AllInOneIMERime"],
@@ -90,9 +99,13 @@ let package = Package(
 )
 
 // Elsewhere (Linux, Windows, Android) the package is the core, its tests and the CLI: the input method, its two
-// apps and librime (an official macOS build in ThirdParty) are macOS's.
+// apps, the macOS shell's library and librime (an official macOS build in ThirdParty) are macOS's.
 #if !os(macOS)
-let macOnly: Set = ["CRime", "AllInOneIMERime", "AllInOneIME", "AllInOneIMESettings", "AllInOneIMEInstaller", "AllInOneIMERimeTests"]
+let macOnly: Set = ["CRime", "AllInOneIMERime", "AllInOneIMEMac", "AllInOneIMEMacTests", "AllInOneIME", "AllInOneIMESettings",
+                    "AllInOneIMEInstaller", "AllInOneIMERimeTests"]
 package.targets.removeAll { macOnly.contains($0.name) }
 package.products.removeAll { $0.name == "AllInOneIME" }
+for target in package.targets where ["allinoneime-cli", "AllInOneIMECoreTests"].contains(target.name) {
+    target.dependencies = ["AllInOneIMECore"]
+}
 #endif

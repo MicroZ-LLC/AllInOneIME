@@ -1,4 +1,7 @@
 import AllInOneIMECore
+#if canImport(AllInOneIMEMac)
+import AllInOneIMEMac
+#endif
 import Foundation
 
 let usage = """
@@ -172,8 +175,14 @@ func rewriteStatus(_ line: CandidateLine?, original: String) -> String {
     return line.text.wordingKey == original.wordingKey ? "≈原文" : "改写"
 }
 
+#if canImport(AllInOneIMEMac)
+// The Mac's (programs with the login shell's environment); elsewhere the core's own.
+Platform.current = .mac
+#endif
 let options = parseOptions()
+#if canImport(AllInOneIMEMac)
 LegacyData.migrate()  // settings from the AIPinyin days move to ~/.config/allinoneime first
+#endif
 var config: Config
 do {
     config = try Config.load()

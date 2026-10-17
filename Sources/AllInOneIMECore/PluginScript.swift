@@ -2,7 +2,6 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import JavaScriptCore
 
 /// One request a plugin script makes with `fetch`, and its answer.
 public struct PluginRequest: Equatable, Sendable {
@@ -73,30 +72,28 @@ public enum PluginScript {
         return ["language": language.rawValue]
     }
 
-    public static func evaluate(source: String, input: String, language: Language? = nil, fetcher: PluginFetcher) throws -> String {
-        guard let context = JSContext() else { throw PluginScriptError.failed("JavaScript is not available") }
-        var thrown: String?
-        context.exceptionHandler = { _, exception in
-            thrown = exception?.toString() ?? "error"
-        }
-        let native: @convention(block) (JSValue, JSValue) -> [[String: Any]] = { urls, headers in
-            let list = (urls.toArray() ?? []).map { "\($0)" }
-            let fields = (headers.toDictionary() as? [String: Any] ?? [:]).mapValues { "\($0)" }
-            return fetcher.fetch(list.map { PluginRequest(url: $0, headers: fields) }).map { r in
+    public static func evaluate(source: String, input: String, language: Language? = nil, fetcher: PluginFetcher,
+                                engine: any ScriptEngine = Platform.current.scripts) throws -> String {
+        guard let context = engine.makeContext() else { throw PluginScriptError.failed("JavaScript is not available") }
+        var thrown: String? { context.exception.map { $0.toString() ?? "error" } }
+        let native = context.function { arguments in
+            let list = (arguments.first?.toArray() ?? []).map { "\($0)" }
+            let fields = ((arguments.count > 1 ? arguments[1].toDictionary() : nil) ?? [:]).mapValues { "\($0)" }
+            return fetcher.fetch(list.map { PluginRequest(url: $0, headers: fields) }).map { r -> [String: Any] in
                 var out: [String: Any] = ["status": r.status, "text": r.text]
                 if let error = r.error { out["error"] = error }
                 return out
             }
         }
-        context.setObject(native, forKeyedSubscript: "__fetch" as NSString)
-        context.evaluateScript(prelude)
-        context.evaluateScript(source)
+        context.setGlobal("__fetch", native)
+        context.evaluate(prelude)
+        context.evaluate(source)
         if let thrown { throw PluginScriptError.failed(thrown) }
-        guard let run = context.objectForKeyedSubscript("run"), run.isObject, !run.isUndefined else {
+        guard let run = context.global("run"), run.isObject, !run.isUndefined else {
             throw PluginScriptError.noRunFunction
         }
         // `run(input)` plugins work as before: JavaScript ignores the extra argument.
-        let value = run.call(withArguments: [input, Self.context(language: language)])
+        let value = run.call([input, Self.context(language: language)])
         if let thrown { throw PluginScriptError.failed(Self.clean(thrown)) }
         guard let value, value.isString, let text = value.toString() else {
             throw PluginScriptError.failed("run(input) must return text")
@@ -142,13 +139,14 @@ public final class URLSessionFetcher: NSObject, PluginFetcher, URLSessionTaskDel
     }
 
     public func fetch(_ requests: [PluginRequest]) -> [PluginResponse] {
-        var results = [PluginResponse](repeating: PluginResponse(error: "not sent"), count: requests.count)
+        // Filled in by the requests' completion handlers, which may run at once on other threads.
+        let results = Locked(initialState: [PluginResponse](repeating: PluginResponse(error: "not sent"), count: requests.count))
         let group = DispatchGroup()
-        let resultsLock = NSLock()
         for (index, request) in requests.enumerated() {
             let url = URL(string: request.url)
             guard allows(url), let url else {
-                results[index] = PluginResponse(error: "not allowed: \(url?.host ?? request.url) (the plugin lists \(hosts.sorted().joined(separator: ", ")))")
+                let error = "not allowed: \(url?.host ?? request.url) (the plugin lists \(hosts.sorted().joined(separator: ", ")))"
+                results.withLock { $0[index] = PluginResponse(error: error) }
                 continue
             }
             lock.lock()
@@ -156,7 +154,7 @@ public final class URLSessionFetcher: NSObject, PluginFetcher, URLSessionTaskDel
             let over = used > Self.maxRequests
             lock.unlock()
             if over {
-                results[index] = PluginResponse(error: "too many requests (at most \(Self.maxRequests))")
+                results.withLock { $0[index] = PluginResponse(error: "too many requests (at most \(Self.maxRequests))") }
                 continue
             }
             var urlRequest = URLRequest(url: url)
@@ -174,14 +172,12 @@ public final class URLSessionFetcher: NSObject, PluginFetcher, URLSessionTaskDel
                     result = PluginResponse(status: (response as? HTTPURLResponse)?.statusCode ?? 0,
                                             text: String(decoding: data ?? Data(), as: UTF8.self))
                 }
-                resultsLock.lock()
-                results[index] = result
-                resultsLock.unlock()
+                results.withLock { $0[index] = result }
                 group.leave()
             }.resume()
         }
         group.wait()
-        return results
+        return results.withLock { $0 }
     }
 
     /// Redirects stay within the plugin's hosts.

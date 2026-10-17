@@ -1,5 +1,4 @@
 import Foundation
-import JavaScriptCore
 
 /// `@py` and `@js`: a line of code, run REPL style. When the code ends with an expression, its value is
 /// the result (text as it is, anything else written as a literal: `[1, 'a']` in Python, `[1, "a"]` in
@@ -9,8 +8,8 @@ import JavaScriptCore
 /// The code always runs in a child process through `CommandRunner` (timeout, output limit, Esc, the
 /// user's shell PATH, the home folder as the working directory), never in the input method: a script
 /// that doesn't end couldn't be stopped there. `@py` runs the user's `python3`; `@js` runs in this
-/// app's own executable (`runJavaScriptHost`), in JavaScriptCore, which is part of macOS and has nothing
-/// but the language (no files, programs, network or timers).
+/// app's own executable (`runJavaScriptHost`), in the platform's JavaScript (`Platform.scripts`: JavaScriptCore,
+/// which is part of macOS), which has nothing but the language (no files, programs, network or timers).
 ///
 /// The code is what the user typed or pasted: it never contains the output of other commands
 /// (`Command.isCode`), let alone a model's.
@@ -138,43 +137,40 @@ public enum InlineCode {
         })
         """#
 
-    /// Runs `code` REPL style in a fresh JavaScriptCore context: `console.log` lines go to `print` as they
-    /// are logged, then the value of the last statement (the script's completion value, as in the browser
+    /// Runs `code` REPL style in a fresh JavaScript context (`Platform.scripts`): `console.log` lines go to `print` as
+    /// they are logged, then the value of the last statement (the script's completion value, as in the browser
     /// console; none for `undefined`); `console.warn` and `console.error` lines go to `warn`. Code in
     /// braces is an object literal when it can be one (`{a: 1}`), as in Node's REPL. Throws the error as
     /// one line. Only for the child process (`runJavaScriptHost`) and tests: a script that never ends
     /// can't be stopped in the process it runs in.
-    static func runJavaScript(_ code: String, print: @escaping (String) -> Void, warn: @escaping (String) -> Void) throws {
-        guard let context = JSContext() else { throw InlineCodeError("JavaScript is not available") }
-        var thrown: JSValue?
-        context.exceptionHandler = { _, exception in thrown = exception }
-        let write: @convention(block) (String, Bool) -> Void = { text, isWarning in isWarning ? warn(text) : print(text) }
-        guard let helpers = context.evaluateScript(javaScriptPrelude)?.call(withArguments: [write]), thrown == nil,
-              let show = helpers.objectForKeyedSubscript("show"), let describe = helpers.objectForKeyedSubscript("describe")
+    static func runJavaScript(_ code: String, print: @escaping (String) -> Void, warn: @escaping (String) -> Void,
+                              engine: any ScriptEngine = Platform.current.scripts) throws {
+        guard let context = engine.makeContext() else { throw InlineCodeError("JavaScript is not available") }
+        let write = context.function { arguments in
+            let text = arguments.first?.toString() ?? "undefined"
+            arguments.count > 1 && arguments[1].boolValue ? warn(text) : print(text)
+            return nil
+        }
+        guard let helpers = context.evaluate(javaScriptPrelude)?.call([write]), context.exception == nil,
+              let show = helpers.property("show"), let describe = helpers.property("describe")
         else { throw InlineCodeError("JavaScript is not available") }
 
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        let asObject = trimmed.hasPrefix("{") && trimmed.hasSuffix("}") && parses("(" + trimmed + ")", in: context)
-        let value = context.evaluateScript(asObject ? "(" + trimmed + ")" : code)
-        if thrown == nil, let value, !value.isUndefined {
-            let text = show.call(withArguments: [value])
-            if thrown == nil, let text = text?.toString() { print(text) }
+        let asObject = trimmed.hasPrefix("{") && trimmed.hasSuffix("}") && context.checkSyntax("(" + trimmed + ")")
+        let value = context.evaluate(asObject ? "(" + trimmed + ")" : code)
+        if context.exception == nil, let value, !value.isUndefined {
+            let text = show.call([value])
+            if context.exception == nil, let text = text?.toString() { print(text) }
         }
-        guard let exception = thrown else { return }
-        var message = describe.call(withArguments: [exception])?.toString() ?? "error"
+        guard let exception = context.exception else { return }
+        var message = describe.call([exception])?.toString() ?? "error"
         message = message.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
         if message.isEmpty { message = "error" }
-        if trimmed.contains(where: \.isNewline), let line = exception.objectForKeyedSubscript("line"), line.isNumber {
-            message += " (line \(line.toInt32()))"
+        if trimmed.contains(where: \.isNewline), let line = exception.property("line")?.numberValue {
+            // As JavaScript makes it a 32-bit integer (anything thrown may carry a `line`, NaN too).
+            message += " (line \(line.isFinite ? Int32(truncatingIfNeeded: Int64(line.truncatingRemainder(dividingBy: 4_294_967_296))) : 0))"
         }
         throw InlineCodeError(message)
-    }
-
-    /// Whether `source` is a valid script (nothing runs).
-    private static func parses(_ source: String, in context: JSContext) -> Bool {
-        let script = JSStringCreateWithCFString(source as CFString)
-        defer { JSStringRelease(script) }
-        return JSCheckScriptSyntax(context.jsGlobalContextRef, script, nil, 1, nil)
     }
 
     /// `runJavaScript`, with what it prints collected: one line each.

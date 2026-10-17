@@ -2,7 +2,6 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import PDFKit
 
 /// `@read <url>`: a web page's title and main text, as context for the AI (`@question 总结一下 @read https://…`).
 /// Only http and https; at most `maxBytes` downloaded and `maxChars` of text kept. The user typed the
@@ -64,9 +63,8 @@ public enum WebReader {
         let title: String
         let body: String
         if contentType.contains("pdf") || data.starts(with: Array("%PDF".utf8)) {
-            guard let document = PDFDocument(data: data) else { throw ReadError.unsupported("PDF") }
-            title = (document.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String) ?? ""
-            body = document.string ?? ""
+            guard let document = Platform.current.pdf.text(ofPDF: data) else { throw ReadError.unsupported("PDF") }
+            (title, body) = document
         } else if contentType.isEmpty || contentType.contains("html") || contentType.contains("xml") {
             let html = decode(data, contentType: contentType)
             (title, body) = Self.html(html)

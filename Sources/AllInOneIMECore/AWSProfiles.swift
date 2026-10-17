@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 
 /// Where the AWS CLI's files are: `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE` when set (`~` expanded), else

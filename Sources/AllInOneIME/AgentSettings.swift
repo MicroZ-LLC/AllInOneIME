@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import SwiftUI
 
 /// Settings → Agent: the coding agent `@agent` hands the text to (`Config.agent`, `AgentKind`), then a section for each

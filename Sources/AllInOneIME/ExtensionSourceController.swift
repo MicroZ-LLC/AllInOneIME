@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 
 // Extension sources in the input method (`ExtensionSources` in the core has the rules): what Settings shows of each
