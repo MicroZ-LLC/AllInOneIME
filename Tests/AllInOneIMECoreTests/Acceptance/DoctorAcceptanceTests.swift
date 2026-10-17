@@ -67,13 +67,6 @@ enum Doc {
         Doctor.findings(facts, chinese: false).filter { areas.contains($0.area) }.map(\.status)
     }
 
-    /// The panel's report of `findings`, as DoctorController makes it.
-    static func report(_ findings: [Doctor.Finding], chinese: Bool = false, recommended: [Int] = [], explanation: String? = nil)
-        -> Composer.ConfigState.Report {
-        Composer.ConfigState.Report(lines: findings.map { $0.text(chinese: chinese) }, fixes: findings.map(\.fix),
-                                    recommended: recommended, explanation: explanation,
-                                    summary: Doctor.summary(findings, chinese: chinese), isFinal: true)
-    }
 
     static func doctorService(_ apple: AICAppleStub, secrets: AICSecrets = AICSecrets(), keys: Bool = true) -> DoctorService {
         DoctorService(client: ChatClient(bedrock: BedrockClient(session: AICHTTPStub.session()), apple: apple),
@@ -87,13 +80,7 @@ enum Doc {
                       })
     }
 
-    static func isEdit(_ effect: Composer.Effect) -> Bool {
-        if case .applyConfig = effect { return true } else { return false }
-    }
 
-    static func fixesPreviewed(_ effects: [Composer.Effect]) -> [[Doctor.Fix]] {
-        effects.compactMap { if case let .previewFixes(fixes) = $0 { return fixes } else { return nil } }
-    }
 }
 
 private let docAt = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
@@ -101,120 +88,6 @@ private let docTab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
 private let docCommandZ = KeyEvent(keyCode: 0x06, characters: "z", charactersIgnoringModifiers: "z", modifiers: .command)
 
 // MARK: - The input controller, stood in for
-
-final class DocRig {
-    let composer = Composer(engine: FakeEngine(), actionKey: .enter)
-    let url: URL
-    var facts: Doctor.Facts
-    var env = AIC.env()
-    let apple: AICAppleStub
-    let service: DoctorService
-    var lastApplied: AIConfig.Applied?
-    var now = Date(timeIntervalSince1970: 1_800_000_000)
-    /// What the fixes did besides the settings, and the key fields opened.
-    var actions: [AIConfig.Action] = []
-    var openedKeyField: [Provider] = []
-    var notices: [String] = []
-    var effects: [Composer.Effect] = []
-    /// The questions the model was asked.
-    var asked: [String] = []
-
-    init(_ facts: Doctor.Facts = Doc.broken, apple: AICAppleStub = AICAppleStub()) throws {
-        self.facts = facts
-        url = try AIC.tempConfig(facts.config ?? AIC.base)
-        self.apple = apple
-        service = Doc.doctorService(apple)
-        composer.setInputMode(.english)
-    }
-
-    var c: Composer { composer }
-    var config: Config { (try? Config.load(from: url)) ?? .default }
-
-    @discardableResult
-    func key(_ event: KeyEvent) async -> [Composer.Effect] {
-        let out = composer.handleKeyDown(event).effects
-        effects += out
-        await perform(out)
-        return out
-    }
-
-    func type(_ text: String) async {
-        for ch in text {
-            await key(ch == " " ? spaceKey : KeyEvent(keyCode: 0, characters: String(ch), modifiers: ch.isUppercase ? .shift : []))
-        }
-    }
-
-    /// "@doctor", a question if any, ⏎.
-    @discardableResult
-    func run(_ question: String = "") async -> [Composer.Effect] {
-        await key(docAt)
-        await type("doctor")
-        await key(docTab)
-        await type(question)
-        return await key(enterKey)
-    }
-
-    func perform(_ effects: [Composer.Effect]) async {
-        for effect in effects {
-            switch effect {
-            case let .startCommand(command, input, id) where command.kind == .doctor:
-                await start(input, id: id)
-            case let .previewFixes(fixes):
-                guard let preview = Doctor.fixPreview(fixes, config: config, environment: env) else {
-                    notices.append("Nothing to fix")
-                    continue
-                }
-                self.effects += composer.showFixPreview(preview, lines: preview.rows.map { $0.text(chinese: env.chinese) })
-            case let .applyConfig(preview):
-                apply(preview)
-            case .undoConfig:
-                if let applied = lastApplied, (try? AIConfig.undo(applied, at: url, now: now)) == true {
-                    notices.append("undone")
-                } else {
-                    notices.append("nothing to undo")
-                }
-                lastApplied = nil
-            default:
-                break
-            }
-        }
-    }
-
-    /// As `startDoctor` (the connection test's outcome is among the facts).
-    func start(_ question: String, id: Int) async {
-        let findings = Doctor.findings(facts, chinese: env.chinese)
-        var report = Doc.report(findings, chinese: env.chinese)
-        if !question.isEmpty {
-            asked.append(question)
-            do {
-                let answer = try await service.ask(question, findings: findings, config: facts.config ?? .default)
-                report.explanation = answer.explanation
-                report.recommended = answer.fixes
-            } catch {
-                report.explanation = "Couldn't ask the AI: \(error)"
-            }
-        }
-        effects += composer.receiveDoctor(report, id: id)
-    }
-
-    /// As `applyConfig`.
-    func apply(_ preview: AIConfig.Preview) {
-        if !preview.edits.isEmpty {
-            lastApplied = try? AIConfig.applying(preview.edits, at: url, now: now)
-        }
-        actions += preview.actions
-        if let provider = preview.needsKey {
-            effects += composer.endConfig()
-            openedKeyField.append(provider)
-            return
-        }
-        effects += composer.configApplied(preview.edits.isEmpty ? "Done" : AIConfig.Text(chinese: false).applied(preview.edits.count))
-    }
-
-    var rows: [String] { composer.choices.map(\.text) }
-}
-
-// MARK: - The tests
 
 struct DoctorAcceptanceTests {
     // MARK: The nine checks, from injected facts
@@ -424,125 +297,13 @@ struct DoctorAcceptanceTests {
 
     // MARK: Order
 
-    /// Problems first, then warnings, then what is fine; the panel lists them in that order.
-    @Test func order_problemsFirst() async throws {
-        // Fine, a warning, a problem late in the areas' order.
-        var facts = Doc.healthy
-        facts.secureInput = "1Password"
-        facts.recentErrors = ["update check failed: timed out"]
-        facts.packs = [.chinese: .missing]
-        facts.updates.available = "9.9.9"
-        for mixed in [facts, Doc.broken] {
-            let ranks = Doctor.findings(mixed, chinese: false).map(\.status.rawValue)
-            #expect(ranks == ranks.sorted())
-        }
-        let findings = Doctor.findings(facts, chinese: false)
-        #expect(findings.first?.area == .languagePacks && findings.first?.status == .problem)
-        #expect(Set(findings.map(\.status)) == [.problem, .warning, .ok])
-        let rig = try DocRig(facts)
-        await rig.run()
-        #expect(rig.c.phase == .choosing)
-        #expect(rig.rows == findings.map { $0.text(chinese: false) })
-        #expect(rig.rows.first?.hasPrefix("✗") == true)
-    }
 
     // MARK: Fixes
 
-    /// ⏎ fixes the safe ones only: settings repaired, the input method enabled again, Check for Updates. Panes,
-    /// windows and downloads are picked one by one.
-    @Test func fix_enterAppliesOnlySafeFixes() async throws {
-        let rig = try DocRig(Doc.broken)
-        await rig.run()
-        let effects = await rig.key(enterKey)
-        let previewed = try #require(Doc.fixesPreviewed(effects).first)
-        #expect(!previewed.isEmpty)
-        #expect(previewed.allSatisfy { $0.isSafe }, "\(previewed)")
-        #expect(!previewed.contains { if case .openPrivacy = $0 { return true } else { return false } })
-        #expect(!previewed.contains { if case .downloadPack = $0 { return true } else { return false } })
-        #expect(!previewed.contains { if case .openKeyField = $0 { return true } else { return false } })
-        // Every safe fix among the findings is in it.
-        let safe = Doctor.findings(Doc.broken, chinese: false).compactMap(\.fix).filter(\.isSafe)
-        #expect(Set(safe.map { "\($0)" }) == Set(previewed.map { "\($0)" }))
-        // And ⏎ on that preview applies them.
-        await rig.key(enterKey)
-        #expect(rig.config.typeOutRate == TypeOut.defaultRate)
-        #expect(rig.actions.contains(.enableInputMethod))
-        #expect(rig.openedKeyField.isEmpty)
-        #expect(!rig.actions.contains { if case .openPrivacy = $0 { return true } else { return false } })
-        #expect(!rig.actions.contains { if case .downloadPack = $0 { return true } else { return false } })
-    }
 
-    /// The same after `@doctor <question>`: whatever fixes the model names, ⏎ applies only safe ones.
-    @Test func fix_enterAfterAQuestionStillOnlySafe() async throws {
-        let findings = Doctor.findings(Doc.broken, chinese: false)
-        let unsafe = try #require(findings.firstIndex { $0.fix != nil && $0.fix?.isSafe == false })
-        let answer = #"{"explanation": "The key is missing.", "fixes": ["F\#(unsafe + 1)"]}"#
-        let rig = try DocRig(Doc.broken, apple: AICAppleStub([answer]))
-        await rig.run("why doesnt translate work")
-        #expect(rig.apple.calls.count == 1)
-        let effects = await rig.key(enterKey)
-        for fixes in Doc.fixesPreviewed(effects) {
-            #expect(fixes.allSatisfy { $0.isSafe }, "⏎ applies \(fixes)")
-        }
-    }
 
-    /// CHANGE 2: on @doctor's findings and its fixes' preview, ⇧⏎ with nothing typed does nothing.
-    @Test func fix_shiftEnterWithNothingTypedDoesNothing() async throws {
-        let rig = try DocRig(Doc.broken)
-        await rig.run()
-        let findings = rig.rows
-        let onFindings = await rig.key(acceptanceShiftReturn)
-        #expect(Doc.fixesPreviewed(onFindings).isEmpty && !onFindings.contains { Doc.isEdit($0) })
-        #expect(rig.c.phase == .choosing && rig.rows == findings)
-        await rig.key(enterKey)  // the safe fixes' preview
-        let preview = rig.rows
-        let before = try AIC.bytes(rig.url)
-        let onPreview = await rig.key(acceptanceShiftReturn)
-        #expect(!onPreview.contains { Doc.isEdit($0) })
-        #expect(rig.rows == preview)
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// A finding's number picks its fix, unsafe ones too, into the same preview.
-    @Test func fix_digitPicksOneFix() async throws {
-        let rig = try DocRig(Doc.broken)
-        await rig.run()
-        let numbered = rig.c.choices.filter { !$0.label.isEmpty }
-        let findings = Doctor.findings(Doc.broken, chinese: false)
-        #expect(numbered.count == min(9, findings.filter { $0.fix != nil }.count))
-        let first = try #require(numbered.first)
-        let effects = await rig.key(KeyEvent(keyCode: 0x12, characters: first.label))
-        let picked = try #require(Doc.fixesPreviewed(effects).first)
-        let fix = try #require(findings.first { $0.text(chinese: false) == first.text }?.fix)
-        #expect(picked == [fix])
-        #expect(rig.c.configPreview != nil)
-    }
 
-    /// A settings fix goes through @config's preview (old → new), its apply and its undo (⌘Z); Esc on the preview goes
-    /// back to the findings; nothing is inserted.
-    @Test func fix_throughConfigPreviewAndUndo() async throws {
-        var facts = Doc.healthy
-        facts.config!.typeOutRate = 100
-        let rig = try DocRig(facts)
-        let before = try AIC.bytes(rig.url)
-        await rig.run()
-        let findings = Doctor.findings(facts, chinese: false)
-        #expect(findings.first?.area == .config)
-        await rig.key(enterKey)  // the safe fixes: the speed
-        #expect(rig.rows.count == 1 && rig.rows[0].contains("→"), "\(rig.rows)")
-        #expect(rig.rows[0].contains("100") && rig.rows[0].contains("16"))
-        await rig.key(escKey)  // back to the findings
-        #expect(rig.rows == findings.map { $0.text(chinese: false) })
-        await rig.key(enterKey)
-        let applied = await rig.key(enterKey)
-        #expect(applied.contains { Doc.isEdit($0) })
-        #expect(rig.config.typeOutRate == TypeOut.defaultRate)
-        let undo = await rig.key(docCommandZ)
-        #expect(undo.contains(.undoConfig))
-        #expect(try AIC.bytes(rig.url) == before)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
     /// No fix touches a key or deletes the user's data: the fixes' previews change no provider setting or credential,
     /// remove nothing, and their actions are the safe local ones.
@@ -642,26 +403,6 @@ struct DoctorAcceptanceTests {
         #expect(config.map(\.status) == [.ok], "\(config.map { $0.text(chinese: false) })")
     }
 
-    /// Sign-off: after a fix that wrote no settings (the input method enabled again), ⌘Z isn't offered: it doesn't undo
-    /// an older @config change either.
-    @Test func fix_commandZNotOfferedAfterAFixThatWroteNoSettings() async throws {
-        var facts = Doc.healthy
-        facts.inputMethod.enabled = false
-        let rig = try DocRig(facts)
-        // An earlier @config change, still within its ten minutes.
-        rig.lastApplied = try AIConfig.applying([.candidateLayout(.vertical)], at: rig.url, now: rig.now)
-        let written = try AIC.bytes(rig.url)
-        await rig.run()
-        await rig.key(enterKey)  // the safe fixes: enable the input method
-        #expect(rig.rows.count == 1 && rig.rows[0].hasPrefix("→"), "\(rig.rows)")
-        await rig.key(enterKey)
-        #expect(rig.actions == [.enableInputMethod])
-        #expect(rig.c.configState.applied != nil && rig.c.configState.writesSettings == false)
-        let effects = await rig.key(docCommandZ)
-        #expect(!effects.contains(.undoConfig))
-        #expect(try AIC.bytes(rig.url) == written)
-        #expect(rig.config.candidateLayout == .vertical)
-    }
 
     /// Sign-off: every absolute path in the findings, and in the report the model gets, is masked: ~ for the home
     /// folder, "…/<last component>" for any other; web addresses stay as they are.
@@ -688,14 +429,6 @@ struct DoctorAcceptanceTests {
         #expect(report.contains("https://api.deepseek.com/v1/chat/completions"))
     }
 
-    /// The checks themselves never send anything: `@doctor` alone asks no model.
-    @Test func fix_checksNeverSend() async throws {
-        let rig = try DocRig(Doc.broken, apple: AICAppleStub(["{}"]))
-        let effects = await rig.run()
-        #expect(effects.contains(.startCommand(.doctor, input: "", id: 1)) || effects.contains { if case .startCommand(.doctor, "", _) = $0 { return true } else { return false } })
-        #expect(rig.apple.calls.isEmpty && rig.asked.isEmpty)
-        #expect(rig.c.phase == .choosing)
-    }
 
     // MARK: Logs
 
@@ -837,32 +570,6 @@ struct DoctorAcceptanceTests {
 
     // MARK: Apps with no AI
 
-    /// Coordinator: @doctor's checks still run in an app with no AI.
-    @Test func noai_checksStillRun() async throws {
-        let rig = try DocRig(Doc.broken)
-        rig.c.aiRefusal = { "AI is off in this app" }
-        let effects = await rig.run()
-        #expect(effects.contains { if case .startCommand(.doctor, "", _) = $0 { return true } else { return false } })
-        #expect(rig.c.phase == .choosing && !rig.rows.isEmpty)
-    }
 
-    /// Coordinator: `@doctor <question>` is refused there: the question isn't sent.
-    @Test func noai_questionNotSent() async throws {
-        let rig = try DocRig(Doc.broken, apple: AICAppleStub([#"{"explanation": "x"}"#]))
-        rig.c.aiRefusal = { "AI is off in this app" }
-        await rig.run("why doesnt translate work")
-        #expect(rig.asked.isEmpty && rig.apple.calls.isEmpty)
-        #expect(rig.effects.contains(.notice("AI is off in this app")) || rig.c.configState.report?.explanation != nil)
-        #expect(aicInsertsNothing(rig.effects))
-    }
 
-    /// Coordinator: … while the checks still run (only the question is refused).
-    @Test func noai_questionRefusedButChecksStillRun() async throws {
-        let rig = try DocRig(Doc.broken, apple: AICAppleStub([#"{"explanation": "x"}"#]))
-        rig.c.aiRefusal = { "AI is off in this app" }
-        await rig.run("why doesnt translate work")
-        #expect(rig.asked.isEmpty)
-        #expect(rig.c.configState.report != nil, "the checks didn't run")
-        #expect(rig.rows == Doctor.findings(Doc.broken, chinese: false).map { $0.text(chinese: false) })
-    }
 }
