@@ -193,7 +193,7 @@ extension SelfTest {
         // A provider without a key isn't switched to: its row says so; Apply applies the rest and opens its key field.
         ask("use Gemini, candidates in a column",
             #"{"changes": [{"key": "provider", "value": "gemini"}, {"key": "candidateLayout", "value": "vertical"}]}"#)
-        check(assistant.lines == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：⏎ 打开设置去填（不会发给 AI），可以在那里换过去"],
+        check(assistant.lines == ["候选排列：横排 → 竖排", "Gemini API 需要 API key：点「应用」后在 AI 服务里填（不会发给 AI）"],
               "a provider without a key: the row says it's needed, no switch shown (\(assistant.lines))")
         assistant.apply()
         check(rig.file().provider == .anthropic && rig.file().candidateLayout == .vertical && rig.opened == [.anthropic, .gemini]

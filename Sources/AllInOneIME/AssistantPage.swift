@@ -134,7 +134,20 @@ final class AssistantModel: ObservableObject {
 
     private func show(_ preview: AIConfig.Preview, chinese: Bool) {
         self.preview = preview
-        lines = preview.rows.map { $0.text(chinese: chinese) }
+        lines = preview.rows.map { Self.line($0, chinese: chinese) }
+    }
+
+    /// A row as the page shows it: a key to enter says what Apply does here (the core's row speaks of ⏎ in the panel).
+    static func line(_ row: AIConfig.Row, chinese: Bool) -> String {
+        guard case let .needsKey(provider) = row.status, provider != .bedrock else { return row.text(chinese: chinese) }
+        let text = provider == .hosted ? (chinese ? "点「应用」后在 AI 服务里登录" : "Apply opens AI Provider to sign in")
+            : chinese ? "点「应用」后在 AI 服务里填（不会发给 AI）" : "Apply opens AI Provider to add it (never sent to the AI)"
+        return row.label + (chinese ? "：" : ": ") + text
+    }
+
+    /// Over a preview whose request had a key typed into it: it was dropped before anything was sent.
+    static var droppedKeyNote: String {
+        tr("别在这里打密钥：它没有发出去。密钥请在 AI 服务里填", "Don't type keys here: it wasn't sent. Add keys in AI Provider.")
     }
 
     /// Esc or Cancel while the request is on its way: nothing more comes of it.
@@ -418,7 +431,7 @@ struct AssistantPage: View {
                     previewRow(row, line: assistant.lines.indices.contains(index) ? assistant.lines[index] : "")
                 }
                 if preview.droppedKey {
-                    Label(AIConfig.Text(chinese: UIText.chinese).droppedKeyPreview, systemImage: "exclamationmark.triangle.fill")
+                    Label(AssistantModel.droppedKeyNote, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout).foregroundStyle(.orange)
                 }
                 if let note = preview.note {
