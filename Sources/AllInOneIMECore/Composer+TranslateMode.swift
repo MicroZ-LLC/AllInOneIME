@@ -1,18 +1,17 @@
 import Foundation
 
-// MARK: - Translation mode
+// MARK: - Translate as You Type
 
-/// Translation mode (`TranslateMode`) in the composer, while the controller has it on here (`translateMode`): what is
+/// Translate as You Type (「边打边译」, `TranslateMode`) in the composer, while the controller has it on here (`translateMode`): what is
 /// typed in another language than the one it translates into collects into a draft instead of going into the field,
 /// shown after its indicator ("中→英 › 你好"). ⏎ translates the draft (pinyin still being typed is picked first) and the
 /// translation goes in at once (`Effect.startTranslateMode`, `receive`); ⇧⏎ inserts it as typed. While it's translated
 /// the draft shows so ("中→英 › 你好 · 翻译中…"); Esc stops it, the draft kept, and typing on stops it and goes on with
 /// the draft. A failure keeps the draft, with a notice, and ⏎ tries again; so does secure input on at ⏎ (while it's on,
 /// nothing collects: text goes in as typed). A draft already in the target language goes in as typed, and so does one in
-/// an app with no AI, with a notice. An @ command typed at the start of a sentence works as anywhere (`@mode`, `@exit`
-/// among them).
+/// an app with no AI, with a notice. An @ command typed at the start of a sentence works as anywhere.
 extension Composer {
-    /// Translation mode takes what would go into the field now into its draft instead: it's on, nothing else is being
+    /// Translate as You Type takes what would go into the field now into its draft instead: it's on, nothing else is being
     /// written (an @ command, a command's selection, results), the language typed isn't the one it translates into,
     /// and secure input is off.
     var modeCollects: Bool {
@@ -159,18 +158,5 @@ extension Composer {
         result = .empty
         setLevelOnePhase()
         return [.updateMarkedText, .notice(translateModeMessages.failed(message))]
-    }
-
-    /// `@mode …` or `@exit` run: the mode on or off (the controller does it, for every field); a word `@mode` can't read
-    /// leaves the draft to fix, with a notice.
-    func startModeCommand(_ command: Command, input: String) -> Response {
-        let parsed: TranslateMode.Parsed = command == .exitMode ? .change(.leave) : TranslateMode.parse(input)
-        switch parsed {
-        case let .unknown(word):
-            return .consumed([.updateMarkedText, .notice(translateModeMessages.unknown(word))])
-        case let .change(change):
-            let usage = used(command)
-            return .consumed(finish(committing: "") + [.translateMode(change), usage])
-        }
     }
 }

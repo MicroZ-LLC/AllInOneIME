@@ -146,10 +146,7 @@ public final class Composer {
         case undoConfig
         /// `@doctor`: the preview of these fixes (`showFixPreview`).
         case previewFixes([Doctor.Fix])
-        /// Translation mode on or off (`@mode`, `@exit`): the controller keeps it for every text field and tells the
-        /// composer (`setTranslateMode`).
-        case translateMode(TranslateMode.Change)
-        /// Translate `input` for translation mode (`session`); the translation arrives via `receive` and goes in at once.
+        /// Translate `input` for Translate as You Type (`session`); the translation arrives via `receive` and goes in at once.
         case startTranslateMode(input: String, session: TranslateMode.Session, id: Int)
     }
 
@@ -336,7 +333,7 @@ public final class Composer {
     }
     /// The command of the request in level two (nil otherwise).
     public internal(set) var activeCommand: Command?
-    /// Translation mode in this field's app (Composer+TranslateMode.swift), as the controller sets it
+    /// Translate as You Type in this field's app (Composer+TranslateMode.swift), as the controller sets it
     /// (`setTranslateMode`); nil: off. Its request in flight, by id, and what it says.
     public internal(set) var translateMode: TranslateMode.Session?
     var modeRequestID: Int?
@@ -2039,7 +2036,7 @@ public final class Composer {
         }
         // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
         // Space only complete its name.
-        if run, command.script?.input == ScriptCommand.Input.none || command == .exitMode, palette?.nested != true {
+        if run, command.script?.input == ScriptCommand.Input.none, palette?.nested != true {
             draft = "@\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
@@ -2564,7 +2561,6 @@ public final class Composer {
         guard parsed != nil else { return .consumed() }
         resetRefine()
         let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let command = parsed?.command, command == .translationMode || command == .exitMode { return startModeCommand(command, input: typed) }
         // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
         // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
         // `@translate`, below, an instruction for the selection).

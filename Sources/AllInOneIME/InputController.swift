@@ -344,7 +344,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let app { recordApp(app) }
             ensureEngine()
             applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
-            translateModeActivated(app: app)  // another app leaves translation mode, unless it translates always
+            translateModeActivated(app: app)  // another app leaves Translate as You Type, unless it translates always
             // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
             // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
@@ -675,7 +675,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// `recheck` (a text field became active: something may have been installed meanwhile).
     @MainActor
     func setCommands(_ commands: [Command], recheck: Bool = false) {
-        composer.commands = Self.withTranslateModeCommands(commands.filter { !missingCommands.contains($0.name) })
+        composer.commands = commands.filter { !missingCommands.contains($0.name) }
         // Another agent picked is checked again too (its program may be missing).
         let checkedFor = [agent.rawValue] + agentCommand
         guard recheck || commands != checkedCommands || checkedFor != checkedAgent else { return }
@@ -701,7 +701,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 if self.composer.isComposing {
                     self.missingCheckWaiting = true
                 } else {
-                    self.composer.commands = Self.withTranslateModeCommands(commands.filter { !missing.contains($0.name) })
+                    self.composer.commands = commands.filter { !missing.contains($0.name) }
                 }
             }
         }
@@ -789,7 +789,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 setCommands(changed ? commands : checkedCommands)
             } else if missingCheckWaiting {
                 // A check of the programs that ended while a command was being written.
-                composer.commands = Self.withTranslateModeCommands(checkedCommands.filter { !missingCommands.contains($0.name) })
+                composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
             }
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
@@ -1041,8 +1041,6 @@ final class AllInOneIMEInputController: IMKInputController {
                 undoConfig()
             case let .previewFixes(fixes):
                 previewFixes(fixes)
-            case let .translateMode(change):
-                changeTranslateMode(change)
             case let .startTranslateMode(input, session, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 consume(translateModeStream(input, session: session, app: appID, id: id), id: id)
@@ -1967,7 +1965,6 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
-        if let hint = translateModeHint(command, how: how) { return hint }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
         if let selected = composer.selectionInUse {
             if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {

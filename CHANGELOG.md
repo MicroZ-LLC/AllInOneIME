@@ -6,14 +6,16 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
-- Translation mode (a prototype to try): hold Shift on its own for 0.8 s to turn it on or off (a hint at 0.4 s; a tap of
-  Shift still switches the input language). What you type collects into a draft shown after "中→英 ›", and ⏎ translates it
-  into your first translation language and inserts the translation at once, with no candidates and without sending it;
-  ⇧⏎ inserts the draft as typed, Esc while it's translated keeps the draft, and a failure keeps it with a notice (⏎ tries
-  again). The tone follows the app: its first rewrite style, else casual in chat apps, formal in mail apps, natural
-  elsewhere. `@mode en formal` turns it on with a language and tone, `@mode off` and `@exit` turn it off. Switching apps
-  turns it off unless the app has "Always translate" in Settings → Apps (`translateAlways`). In an app with No AI or during
-  secure input, text goes in as typed. Its request is one of its own: every other prompt is unchanged.
+- Translate as You Type (a prototype to try): hold Shift on its own for 1 s to turn it on or off (a hint at 0.5 s; a tap
+  of Shift still switches the input language), with a notice near the caret for about 1.5 s ("Translate as You Type on:
+  Chinese → English · hold Shift again to turn off"); while it's on, the menu bar icon carries a small dot. What you type
+  collects into a draft shown after "中→英 ›", and ⏎ translates it into your first translation language and inserts the
+  translation at once, with no candidates and without sending it; ⇧⏎ inserts the draft as typed, Esc while it's
+  translated keeps the draft, and a failure keeps it with a notice (⏎ tries again). The tone follows the app: its first
+  rewrite style, else casual in chat apps, formal in mail apps, natural elsewhere. There is no command for it. Switching
+  apps turns it off, with no notice, unless the app has "Always Translate as You Type" in Settings → Apps
+  (`translateAlways`). In an app with No AI or during secure input, text goes in as typed. Its request is one of its own:
+  every other prompt is unchanged.
 
 ## 0.6.4 (2026-10-16)
 

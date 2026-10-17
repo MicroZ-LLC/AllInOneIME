@@ -25,7 +25,7 @@ public final class Converter: Sendable {
     /// The user's jargon list for a config (only asked for when the jargon (黑话) style is on).
     public typealias JargonLoader = @Sendable (_ config: Config) -> [JargonEntry]
 
-    // Internal, not private: translation mode's request (TranslateMode.swift) goes through them too.
+    // Internal, not private: Translate as You Type's request (TranslateMode.swift) goes through them too.
     let client: ChatClient
     let loadConfig: ConfigLoader
     let loadCredentials: CredentialLoader

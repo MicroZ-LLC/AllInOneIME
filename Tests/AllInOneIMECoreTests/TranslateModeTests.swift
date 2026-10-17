@@ -29,14 +29,14 @@ struct ShiftHoldTests {
     @Test func aLongPressHintsAtAboutHalfwayThenTogglesOnce() {
         let h = HoldProbe()
         #expect(h.down())
-        h.wait(0.2)
+        h.wait(0.25)
         #expect(h.poll() == nil)
-        h.wait(0.2)  // 0.4 s
+        h.wait(0.25)  // 0.5 s
         #expect(h.poll() == .hint)
         #expect(h.poll() == nil)  // once
-        h.wait(0.3)  // 0.7 s
+        h.wait(0.4)  // 0.9 s
         #expect(h.poll() == nil)
-        h.wait(0.1)  // 0.8 s
+        h.wait(0.1)  // 1.0 s
         #expect(h.poll() == .toggle)
         h.wait(2)  // held on: still the one toggle
         #expect(h.poll() == nil)
@@ -49,7 +49,7 @@ struct ShiftHoldTests {
         // Both timers late: the toggle is due, and the hint, now past, isn't shown after it.
         let h = HoldProbe()
         #expect(h.down(VirtualKey.rightShift))
-        h.wait(1.2)
+        h.wait(1.4)
         #expect(h.poll() == .toggle)
         #expect(h.poll() == nil)
     }
@@ -67,11 +67,11 @@ struct ShiftHoldTests {
     @Test func releasedBeforeTheToggleNothingHappens() {
         let h = HoldProbe()
         #expect(h.down())
-        h.wait(0.5)
+        h.wait(0.6)
         #expect(h.poll() == .hint)
-        h.wait(0.2)  // 0.7 s: let go
+        h.wait(0.3)  // 0.9 s: let go
         #expect(!h.up())
-        h.wait(0.2)
+        h.wait(0.3)
         #expect(h.poll() == nil)
     }
 
@@ -86,7 +86,7 @@ struct ShiftHoldTests {
         // A capital typed slowly, after the hint: still no toggle, even held on.
         _ = h.up()
         #expect(h.down())
-        h.wait(0.45)
+        h.wait(0.55)
         #expect(h.poll() == .hint)
         h.key()
         h.wait(1)
@@ -115,20 +115,20 @@ struct ShiftHoldTests {
         // Caps Lock on doesn't count.
         _ = h.flags(VirtualKey.leftShift, [.capsLock])
         #expect(h.flags(VirtualKey.rightShift, [.shift, .capsLock]))
-        h.wait(0.8)
+        h.wait(1.0)
         #expect(h.poll() == .toggle)
     }
 
     @Test func aShiftClickIsNoLongPress() {
         let h = HoldProbe()
         #expect(h.down())
-        h.wait(0.9)
+        h.wait(1.1)
         #expect(h.poll(pointerUsed: true) == nil)
         #expect(h.poll() == nil)
     }
 
     @Test func theTimesOfTheSpec() {
-        #expect(TranslateMode.ShiftHold.hintAfter == 0.4 && TranslateMode.ShiftHold.toggleAfter == 0.8)
+        #expect(TranslateMode.ShiftHold.hintAfter == 0.5 && TranslateMode.ShiftHold.toggleAfter == 1.0)
     }
 
     /// The same Shift presses through the composer (its tap logic, unchanged) and the detector: a tap switches the input
@@ -150,7 +150,7 @@ struct ShiftHoldTests {
 
         #expect(!switched(true))
         #expect(h.down())
-        h.wait(0.8)
+        h.wait(1.0)
         #expect(h.poll() == .toggle)
         h.wait(0.1)
         #expect(!switched(false) && c.inputLanguage == .english)
@@ -165,11 +165,11 @@ struct TranslateModeComposerTests {
     let shiftEnter = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
     let hello = ConversionResult(translations: [Translation(language: .english, line: CandidateLine("Hello"))])
 
-    /// A composer with translation mode on into English (pinyin first), ⏎ as the action key.
+    /// A composer with Translate as You Type on into English (pinyin first), ⏎ as the action key.
     func composer(_ session: TranslateMode.Session? = TranslateMode.Session(target: .english)) -> (Composer, FakeEngine) {
         let engine = FakeEngine()
         let c = Composer(engine: engine, actionKey: .enter)
-        c.commands = Command.builtins + [.translationMode, .exitMode]
+        c.commands = Command.builtins
         if let session { _ = c.setTranslateMode(session) }
         return (c, engine)
     }
@@ -352,9 +352,9 @@ struct TranslateModeComposerTests {
         #expect(commits(c.handleKeyDown(spaceKey)) == ["你好"] && c.markedText.isEmpty)
         // A command's draft isn't the mode's: it stays when the mode goes.
         let (d, _) = composer()
-        type("@mo", d)
+        type("@impr", d)
         _ = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
-        #expect(commits(d.setTranslateMode(nil)).isEmpty && d.draft == "@mode ")
+        #expect(commits(d.setTranslateMode(nil)).isEmpty && d.draft == "@improve ")
     }
 
     @Test func typedOutWhereResultsAre() {
@@ -372,100 +372,10 @@ struct TranslateModeComposerTests {
         #expect(commits(c.handleKeyDown(spaceKey)) == ["你好"])
         #expect(!c.handleKeyDown(enterKey).handled)
     }
-}
 
-// MARK: - @mode and @exit
-
-struct TranslateModeCommandTests {
-    let japanese = OutputLanguage("ja")
-
-    func composer(on: Bool = false) -> Composer {
-        let c = Composer(engine: FakeEngine(), actionKey: .enter)
-        c.commands = Command.builtins + [.translationMode] + (on ? [.exitMode] : [])
-        if on { _ = c.setTranslateMode(TranslateMode.Session(target: .english)) }
-        return c
-    }
-
-    /// `text` typed (a space as the Space key), then ⏎.
-    func run(_ text: String, _ c: Composer) -> [Composer.Effect] {
-        text.forEach { _ = c.handleKeyDown($0 == " " ? spaceKey : k(String($0))) }
-        return c.handleKeyDown(enterKey).effects
-    }
-
-    func changes(_ effects: [Composer.Effect]) -> [TranslateMode.Change] {
-        effects.compactMap { if case let .translateMode(change) = $0 { return change } else { return nil } }
-    }
-
-    @Test func parsing() {
-        let enFormal = TranslateMode.Parsed.change(.enter(target: .english, tone: .formal))
-        #expect(TranslateMode.parse("en formal") == enFormal)
-        #expect(TranslateMode.parse("英文 正式") == enFormal)
-        #expect(TranslateMode.parse("formal  EN") == enFormal)
-        #expect(TranslateMode.parse("English, formal") == enFormal)
-        #expect(TranslateMode.parse("英，正式") == enFormal)
-        #expect(TranslateMode.parse("ja") == .change(.enter(target: japanese, tone: nil)))
-        #expect(TranslateMode.parse("日语 口语") == .change(.enter(target: japanese, tone: .casual)))
-        #expect(TranslateMode.parse("Japanese casual") == .change(.enter(target: japanese, tone: .casual)))
-        #expect(TranslateMode.parse("日") == .change(.enter(target: japanese, tone: nil)))
-        #expect(TranslateMode.parse("jp") == .change(.enter(target: japanese, tone: nil)))
-        #expect(TranslateMode.parse("zh-Hant") == .change(.enter(target: OutputLanguage("zh-Hant"), tone: nil)))
-        #expect(TranslateMode.parse("繁体中文") == .change(.enter(target: OutputLanguage("zh-Hant"), tone: nil)))
-        #expect(TranslateMode.parse("中文") == .change(.enter(target: .chinese, tone: nil)))
-        #expect(TranslateMode.parse("de 委婉") == .change(.enter(target: OutputLanguage("de"), tone: .tactful)))
-        #expect(TranslateMode.parse("") == .change(.enter(target: nil, tone: nil)))
-        #expect(TranslateMode.parse("casual") == .change(.enter(target: nil, tone: .casual)))
-        #expect(TranslateMode.parse("off") == .change(.leave) && TranslateMode.parse("OFF") == .change(.leave))
-        #expect(TranslateMode.parse("关闭") == .change(.leave))
-        #expect(TranslateMode.parse("en xyz") == .unknown("xyz"))
-        #expect(TranslateMode.parse("off en") == .unknown("off"))
-    }
-
-    @Test func modeTurnsItOnTypedInLetters() {
-        let c = composer()
-        _ = c.handleKeyDown(k("@"))
-        "mo".forEach { _ = c.handleKeyDown(k(String($0))) }
-        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
-        #expect(c.draft == "@mode " && c.inputLanguage == .english)  // letters for the language and tone
-        let effects = run("en formal", c)
-        #expect(changes(effects) == [.enter(target: .english, tone: .formal)] && c.draft.isEmpty && c.phase == .idle)
-        #expect(effects.contains(.commandUsed("mode")) && c.inputLanguage == .chinese)
-    }
-
-    @Test func modeAloneTakesTheDefaults() {
-        let c = composer()
-        #expect(changes(run("@mode ", c)) == [.enter(target: nil, tone: nil)])
-    }
-
-    @Test func modeOffAndExitLeaveIt() {
-        let c = composer(on: true)
-        let off = run("@mode off", c)
-        #expect(changes(off) == [.leave] && commits(off).isEmpty)
-        // "@ex" ⏎ in the command list: at once.
-        let d = composer(on: true)
-        "@ex".forEach { _ = d.handleKeyDown(k(String($0))) }
-        let exit = d.handleKeyDown(enterKey).effects
-        #expect(changes(exit) == [.leave] && d.draft.isEmpty)
-        // Typed in full.
-        let e = composer(on: true)
-        #expect(changes(run("@exit ", e)) == [.leave])
-    }
-
-    @Test func aWordItCantReadKeepsTheDraft() {
-        let c = composer()
-        let effects = run("@mode klingon", c)
-        #expect(changes(effects).isEmpty && c.draft == "@mode klingon")
-        #expect(effects.contains(.notice(TranslateMode.Messages.chinese.unknown("klingon"))))
-    }
-
-    @Test func inTheModeACommandIsNoDraftOfIt() {
-        let c = composer(on: true)
-        "@mode".forEach { _ = c.handleKeyDown(k(String($0))) }
-        _ = c.handleKeyDown(spaceKey)
-        #expect(c.draft == "@mode " && !c.inModeComposition && c.markedText == "mode › ")
-        "ja".forEach { _ = c.handleKeyDown(k(String($0))) }
-        let effects = c.handleKeyDown(enterKey).effects
-        #expect(changes(effects) == [.enter(target: japanese, tone: nil)]
-                && !effects.contains { if case .startTranslateMode = $0 { return true } else { return false } })
+    /// No command turns it on or off: only a long press of Shift, an app's setting, and switching apps.
+    @Test func noCommandForIt() {
+        #expect(!Command.builtins.contains { $0.name == "mode" || $0.name == "exit" })
     }
 }
 
@@ -504,12 +414,6 @@ struct TranslateModeToneTests {
         #expect(TranslateMode.tone(app: nil, config: config()) == .natural)
     }
 
-    @Test func anExplicitToneWins() {
-        let wechat = "com.tencent.xinWeChat"
-        #expect(TranslateMode.tone(app: wechat, config: config(), explicit: .formal) == .formal)
-        #expect(TranslateMode.tone(app: wechat, config: config([wechat: AppProfile(rewriteStyles: ["口语"])]), explicit: .concise) == .concise)
-    }
-
     @Test func theRequestSaysTheTone() {
         let request = Prompt.translateModeRequest(for: "你好", target: .english, tone: .casual, config: .default)
         #expect(request.system[0].text.hasSuffix("- " + TranslateMode.Tone.casual.rule))
@@ -527,9 +431,7 @@ final class StateProbe {
 
     func activated(_ app: String?) -> TranslateMode.State.Transition { state.activated(app: app, source: .chinese, config: config) }
     @discardableResult
-    func enter(_ target: OutputLanguage? = nil, tone: TranslateMode.Tone? = nil) -> TranslateMode.Session? {
-        state.enter(target: target, tone: tone, source: .chinese, config: config)
-    }
+    func enter() -> TranslateMode.Session? { state.enter(source: .chinese, config: config) }
     func leave() { state.leave() }
     var isOn: Bool { state.isOn }
 }
@@ -569,11 +471,10 @@ struct TranslateModeStateTests {
         // …and coming back from another app turns it on again.
         #expect(s.activated(notes) == .unchanged)
         #expect(s.activated(wechat) == .entered(english))
-        // On with a language and tone of its own: another app that translates always keeps it as it is.
-        let japanese = s.enter(OutputLanguage("ja"), tone: .formal)
-        #expect(s.activated(slack) == .unchanged && s.state.session == japanese && japanese != nil)
+        // Already on: another app that translates always keeps it as it is.
+        #expect(s.activated(slack) == .unchanged && s.state.session == english)
         // One that doesn't: off.
-        #expect(s.activated(notes) == .left(japanese!) && !s.isOn)
+        #expect(s.activated(notes) == .left(english) && !s.isOn)
     }
 
     @Test func aProfileThatDoesntSaySoIsAnyApp() {

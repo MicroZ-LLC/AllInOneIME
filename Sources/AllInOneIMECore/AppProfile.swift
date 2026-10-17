@@ -14,8 +14,8 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// No AI in the app: the commands that send its text to a model (`Command.usesAI`) refuse with a notice;
     /// typing and the other commands work as anywhere.
     public var noAI: Bool?
-    /// Translation mode (`TranslateMode`) whenever the app is typed in: switching to it turns the mode on, and doesn't
-    /// leave it (Settings → Apps: 「总是 中→英」).
+    /// Translate as You Type (`TranslateMode`) whenever the app is typed in: switching to it turns the mode on, and
+    /// doesn't leave it (Settings → Apps: 「总是边打边译」).
     public var translateAlways: Bool?
 
     public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,

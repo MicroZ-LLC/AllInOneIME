@@ -28,8 +28,6 @@ enum CommandIcons {
         case .doctor: return CandidateView.Icon(symbol: "stethoscope", color: .systemTeal)
         case .imessage: return CandidateView.Icon(symbol: "message.fill", color: .systemGreen)
         case .reportIssue: return CandidateView.Icon(symbol: "exclamationmark.bubble.fill", color: .systemOrange)
-        case .translationMode: return CandidateView.Icon(symbol: "character.bubble.fill", color: .systemBlue)
-        case .exitMode: return CandidateView.Icon(symbol: "xmark.circle.fill", color: .systemGray)
         default: return CandidateView.Icon(symbol: "command", color: .systemGray)
         }
     }

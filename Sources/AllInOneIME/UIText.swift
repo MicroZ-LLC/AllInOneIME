@@ -145,8 +145,6 @@ enum UIText {
         case .webSearch: return tr("搜索网页，可放在句中给 AI 当上下文", "Search the web; inside a sentence, context for the AI")
         case .imessage: return tr("发 iMessage：选联系人，写好后确认再发", "Send an iMessage: pick someone, write, confirm")
         case .reportIssue: return tr("报告问题：在 GitHub 上新建问题，附上版本等信息", "Report an issue on GitHub, with your versions and settings")
-        case .translationMode: return tr("翻译模式：⏎ 直接翻译上屏（@mode en formal；@mode off 关闭）", "Translation mode: ⏎ translates and inserts (@mode en formal; @mode off)")
-        case .exitMode: return tr("关闭翻译模式", "Turn translation mode off")
         default: return ""
         }
     }
@@ -264,8 +262,6 @@ enum UIText {
         case .webSearch: return tr("搜索网页", "search the web")
         case .imessage: return tr("确认后发送", "check, then send")
         case .reportIssue: return tr("看一下再在 GitHub 上新建问题", "check, then open a new issue on GitHub")
-        case .translationMode: return tr("打开翻译模式", "turn translation mode on")
-        case .exitMode: return tr("关闭翻译模式", "turn translation mode off")
         default: return ""
         }
     }

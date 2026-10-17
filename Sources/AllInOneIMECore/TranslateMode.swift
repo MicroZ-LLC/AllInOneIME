@@ -1,18 +1,18 @@
 import Foundation
 
-// MARK: - Translation mode (a prototype)
+// MARK: - Translate as You Type (a prototype)
 
-/// Translation mode: typed text collects into a draft, and ⏎ translates it into one language and inserts the
-/// translation at once, with no candidates to pick from (⇧⏎ inserts the draft as typed). A long press of Shift on its
-/// own turns it on and off (`ShiftHold`), and so do `@mode <language> [tone]`, `@mode off` and `@exit`. It translates
-/// into the first output language that isn't the language being typed, in a tone that follows the app (`tone(app:)`).
+/// Translate as You Type (「边打边译」): typed text collects into a draft, and ⏎ translates it into one language and
+/// inserts the translation at once, with no candidates to pick from (⇧⏎ inserts the draft as typed). A long press of
+/// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the first output
+/// language that isn't the language being typed, in a tone that follows the app (`tone(app:)`).
 /// It is one input method's state across its text fields (`State`): switching to another app leaves it, unless that
 /// app's profile translates always (`AppProfile.translateAlways`). The composer does the typing (Composer+TranslateMode.swift),
 /// the controller keeps the state and asks the model (`Converter.translateMode`, a request of its own:
 /// `Prompt.translateModeRequest`).
 public enum TranslateMode {
     /// The tone of a translation: the app's first rewrite style (`AppProfile.rewriteStyles`), else one for the kind of
-    /// app (`AppClass`), unless `@mode` named one.
+    /// app (`AppClass`).
     public enum Tone: String, CaseIterable, Equatable, Sendable {
         case natural, casual, formal, concise, tactful, jargon
 
@@ -40,34 +40,6 @@ public enum TranslateMode {
             case .jargon: tone = "playful big-tech corporate jargon where it fits naturally, the point still recognizable"
             }
             return "Tone of the translation: \(tone). The tone changes only the wording: keep the meaning, the facts and the intent."
-        }
-
-        /// Its name in the interface language: 「正式」 / "formal".
-        public func name(chinese: Bool) -> String {
-            switch self {
-            case .natural: return chinese ? "自然" : "natural"
-            case .casual: return chinese ? "口语" : "casual"
-            case .formal: return chinese ? "正式" : "formal"
-            case .concise: return chinese ? "简洁" : "concise"
-            case .tactful: return chinese ? "委婉" : "tactful"
-            case .jargon: return chinese ? "黑话" : "jargon"
-            }
-        }
-
-        /// The words `@mode` takes for it (any case): its English and Chinese names, and the rewrite style's.
-        static let words: [Tone: [String]] = [
-            .natural: ["natural", "neutral", "default", "polish", "自然", "默认", "润色"],
-            .casual: ["casual", "informal", "chat", "口语", "随意", "轻松"],
-            .formal: ["formal", "polite", "正式", "礼貌"],
-            .concise: ["concise", "short", "简洁", "简短"],
-            .tactful: ["tactful", "soft", "委婉"],
-            .jargon: ["jargon", "黑话"],
-        ]
-
-        /// The tone a word names ("formal", 「正式」), if any.
-        static func named(_ word: String) -> Tone? {
-            let key = word.lowercased()
-            return allCases.first { words[$0]?.contains(key) == true }
         }
     }
 
@@ -105,10 +77,8 @@ public enum TranslateMode {
         }
     }
 
-    /// The tone in `app`: `explicit` (`@mode en formal`), else the first of the app's own rewrite styles, else its
-    /// class's (`AppClass`).
-    public static func tone(app: String?, config: Config, explicit: Tone? = nil) -> Tone {
-        if let explicit { return explicit }
+    /// The tone in `app`: the first of the app's own rewrite styles, else its class's (`AppClass`).
+    public static func tone(app: String?, config: Config) -> Tone {
         if let first = config.profile(for: app)?.rewriteStyles.map(RewriteStyle.resolve)?.first { return Tone(style: first) }
         return AppClass(app: app).tone
     }
@@ -118,7 +88,7 @@ public enum TranslateMode {
         outputs.first { !source.matches($0) }
     }
 
-    /// One language as the mode's indicator writes it: 「英」, 「日」, 「繁」 …, else its Chinese name without 语 / 文.
+    /// One language as the draft's prefix writes it: 「英」, 「日」, 「繁」 …, else its Chinese name without 语 / 文.
     public static func short(_ language: OutputLanguage) -> String {
         let table = ["en": "英", "zh": "中", "zh-Hant": "繁", "ja": "日", "ko": "韩", "fr": "法", "de": "德", "es": "西",
                      "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼", "ar": "阿", "hi": "印"]
@@ -128,66 +98,18 @@ public enum TranslateMode {
         return name
     }
 
-    /// 「中→英」: the language typed (`from`; nil or the target itself: left out) and the one translated into.
+    /// 「中→英」, the draft's prefix: the language typed (`from`; nil or the target itself: left out) and the one translated into.
     public static func indicator(from source: Language?, to target: OutputLanguage) -> String {
         let from = source.flatMap { $0.matches(target) ? nil : short(OutputLanguage($0)) } ?? ""
         return from + "→" + short(target)
     }
 
-    /// One time the mode is on: what it translates into, and the tone `@mode` named (nil: the app's).
+    /// One time the mode is on: what it translates into.
     public struct Session: Equatable, Sendable {
         public var target: OutputLanguage
-        public var tone: Tone?
 
-        public init(target: OutputLanguage, tone: Tone? = nil) {
+        public init(target: OutputLanguage) {
             self.target = target
-            self.tone = tone
-        }
-    }
-
-    /// The mode turned on (into a language, nil: the default one; in a tone, nil: the app's) or off.
-    public enum Change: Equatable, Sendable {
-        case enter(target: OutputLanguage?, tone: Tone?)
-        case leave
-    }
-
-    /// What `@mode`'s text asks for, or the word it can't read.
-    public enum Parsed: Equatable, Sendable {
-        case change(Change)
-        case unknown(String)
-    }
-
-    /// The text after `@mode`: a language and a tone in either order, by code or name, in English or Chinese
-    /// ("en formal", 「英文 正式」, "ja", "casual"), either or both left out for the defaults; "off" (「关」) leaves the mode.
-    public static func parse(_ text: String) -> Parsed {
-        let words = text.split(whereSeparator: { $0.isWhitespace || $0 == "," || $0 == "，" || $0 == "、" }).map(String.init)
-        if words.count == 1, ["off", "exit", "stop", "关", "关闭", "退出"].contains(words[0].lowercased()) { return .change(.leave) }
-        var target: OutputLanguage?
-        var tone: Tone?
-        for word in words {
-            if let named = Tone.named(word) {
-                tone = named
-            } else if let language = language(named: word) {
-                target = language
-            } else {
-                return .unknown(word)
-            }
-        }
-        return .change(.enter(target: target, tone: tone))
-    }
-
-    /// The output language a word names: its code ("ja", "zh-Hant"), its name in English or Chinese ("Japanese",
-    /// 「日语」, 「日」), and a few common other spellings (jp, cn, 英语, 汉语, 繁体).
-    static func language(named word: String) -> OutputLanguage? {
-        let key = word.lowercased()
-        let aliases = ["jp": "ja", "cn": "zh", "kr": "ko", "英语": "en", "汉语": "zh", "简体": "zh", "简体中文": "zh",
-                       "繁体": "zh-Hant", "繁體": "zh-Hant", "zhhant": "zh-Hant", "traditional": "zh-Hant"]
-        if let code = aliases[key] { return OutputLanguage(code) }
-        return OutputLanguage.catalog.first { language in
-            let chinese = language.name(chinese: true)
-            return language.code.lowercased() == key || language.name(chinese: false).lowercased() == key
-                || chinese == word || short(language) == word
-                || (chinese.hasSuffix("语") || chinese.hasSuffix("文")) && String(chinese.dropLast()) == word
         }
     }
 
@@ -202,12 +124,12 @@ public enum TranslateMode {
 
         public var isOn: Bool { session != nil }
 
-        /// Turns it on: into `target`, else the first output language that isn't `source` (the language being
-        /// typed); in `tone`, else the app's. Nil, and nothing changes, when there's nothing to translate into.
+        /// Turns it on: into the first output language that isn't `source` (the language being typed). Nil, and
+        /// nothing changes, when there's nothing to translate into.
         @discardableResult
-        public mutating func enter(target: OutputLanguage? = nil, tone: Tone? = nil, source: Language, config: Config) -> Session? {
-            guard let target = target ?? TranslateMode.target(source: source, outputs: config.outputLanguages) else { return nil }
-            let session = Session(target: target, tone: tone)
+        public mutating func enter(source: Language, config: Config) -> Session? {
+            guard let target = TranslateMode.target(source: source, outputs: config.outputLanguages) else { return nil }
+            let session = Session(target: target)
             self.session = session
             return session
         }
@@ -244,8 +166,8 @@ public enum TranslateMode {
     /// once it has been held `hintAfter`, the toggle once `toggleAfter`, each once per press. Any key, another modifier,
     /// the release, or the pointer used meanwhile (a Shift-click) ends the press.
     public struct ShiftHold {
-        public static let hintAfter: TimeInterval = 0.4
-        public static let toggleAfter: TimeInterval = 0.8
+        public static let hintAfter: TimeInterval = 0.5
+        public static let toggleAfter: TimeInterval = 1.0
 
         public enum Due: Equatable, Sendable {
             case hint
@@ -311,24 +233,18 @@ public enum TranslateMode {
         public var secureInput: String
         /// A request that failed: the draft stays, ⏎ tries again; "{reason}" is what went wrong.
         public var failedFormat: String
-        /// `@mode` with a word that's neither a language nor a tone: "{word}".
-        public var unknownFormat: String
 
         public func failed(_ reason: String) -> String {
             let line = reason.split(whereSeparator: \.isNewline).first.map(String.init) ?? reason
             return failedFormat.replacingOccurrences(of: "{reason}", with: line.count > 100 ? String(line.prefix(100)) + "…" : line)
         }
 
-        public func unknown(_ word: String) -> String { unknownFormat.replacingOccurrences(of: "{word}", with: word) }
-
         public static func make(chinese: Bool) -> Messages {
             func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
             return Messages(
                 translating: tr("翻译中…", "Translating…"),
                 secureInput: tr("系统安全输入已开启（密码框或锁屏），没有发给 AI", "secure input is on (a password field or the lock screen), nothing was sent"),
-                failedFormat: tr("没翻译成：{reason}（⏎ 重试）", "Not translated: {reason} (⏎ to retry)"),
-                unknownFormat: tr("@mode 不认识「{word}」：试试 @mode en formal、@mode 日语 口语、@mode off",
-                                  "@mode doesn't know “{word}”: try @mode en formal, @mode ja casual, @mode off"))
+                failedFormat: tr("没翻译成：{reason}（⏎ 重试）", "Not translated: {reason} (⏎ to retry)"))
         }
 
         public static let chinese = make(chinese: true)
@@ -341,27 +257,19 @@ public enum TranslateMode {
     }
 }
 
-extension Command {
-    /// `@mode <language> [tone]`: translation mode on (`TranslateMode`); `@mode off` leaves it. Offered by the
-    /// controller, not a built-in (the composer on its own has none of these).
-    public static let translationMode = Command(name: "mode", kind: .terminal)
-    /// `@exit`: translation mode off; offered while it's on.
-    public static let exitMode = Command(name: "exit", kind: .terminal)
-}
-
 // MARK: - The request
 
 extension Prompt {
-    /// Bump when the wording of translation mode's request changes (part of its cache key). The other requests are
+    /// Bump when the wording of Translate as You Type's request changes (part of its cache key). The other requests are
     /// untouched by it: this one is built on its own (`translateModeRequest`).
     public static let translateModeVersion = 1
 
-    /// The instructions of translation mode: `system(plan)` for one translation line, then the tone.
+    /// The instructions of Translate as You Type: `system(plan)` for one translation line, then the tone.
     static func translateModeSystem(_ plan: WritingPlan, tone: TranslateMode.Tone) -> String {
         system(plan) + "\n- " + tone.rule
     }
 
-    /// Translation mode's request: `input` into `target`, one line, in `tone`. No few-shot turns: the examples are
+    /// Translate as You Type's request: `input` into `target`, one line, in `tone`. No few-shot turns: the examples are
     /// neutral in tone and only in English and Chinese.
     public static func translateModeRequest(for input: String, target: OutputLanguage, tone: TranslateMode.Tone,
                                             config: Config) -> ConverseRequest {
@@ -375,15 +283,15 @@ extension Prompt {
 }
 
 extension Converter {
-    /// Translation mode on `input`: into `target`, in `tone` (nil: the app's, `TranslateMode.tone`), with `app`'s
+    /// Translate as You Type on `input`: into `target`, in the app's tone (`TranslateMode.tone`), with `app`'s
     /// settings (nothing sent where it has no AI). Hidden values (`Redaction`) as for `@translate`. The translation
     /// arrives as the result's one translation line (or, if the model ignored the format, its first version).
-    public func translateMode(_ input: String, target: OutputLanguage, tone: TranslateMode.Tone? = nil,
+    public func translateMode(_ input: String, target: OutputLanguage,
                               app: String? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runTranslateMode(input, target: target, tone: tone, app: app, continuation: continuation)
+                    try await self.runTranslateMode(input, target: target, app: app, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -393,7 +301,7 @@ extension Converter {
         }
     }
 
-    private func runTranslateMode(_ input: String, target: OutputLanguage, tone explicit: TranslateMode.Tone?, app: String?,
+    private func runTranslateMode(_ input: String, target: OutputLanguage, app: String?,
                                   continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval {
@@ -401,7 +309,7 @@ extension Converter {
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
         let config = try Self.settings(try loadConfig(), app: app)
-        let tone = TranslateMode.tone(app: app, config: config, explicit: explicit)
+        let tone = TranslateMode.tone(app: app, config: config)
         var redaction = Redaction(config.redaction)
         let sent = redaction?.hide(input) ?? input
         let hidden = redaction?.count ?? 0
