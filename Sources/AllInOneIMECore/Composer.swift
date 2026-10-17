@@ -146,6 +146,11 @@ public final class Composer {
         case undoConfig
         /// `@doctor`: the preview of these fixes (`showFixPreview`).
         case previewFixes([Doctor.Fix])
+        /// Translation mode on or off (`@mode`, `@exit`): the controller keeps it for every text field and tells the
+        /// composer (`setTranslateMode`).
+        case translateMode(TranslateMode.Change)
+        /// Translate `input` for translation mode (`session`); the translation arrives via `receive` and goes in at once.
+        case startTranslateMode(input: String, session: TranslateMode.Session, id: Int)
     }
 
     public struct Response: Equatable, Sendable {
@@ -331,6 +336,11 @@ public final class Composer {
     }
     /// The command of the request in level two (nil otherwise).
     public internal(set) var activeCommand: Command?
+    /// Translation mode in this field's app (Composer+TranslateMode.swift), as the controller sets it
+    /// (`setTranslateMode`); nil: off. Its request in flight, by id, and what it says.
+    public internal(set) var translateMode: TranslateMode.Session?
+    var modeRequestID: Int?
+    public var translateModeMessages = TranslateMode.Messages.chinese
 
     // MARK: Refining results
 
@@ -537,7 +547,7 @@ public final class Composer {
     private var selectionFits = false
 
     /// Confirmed text waiting for level two: an @ command and the sentence after it.
-    public private(set) var draft = "" {
+    public internal(set) var draft = "" {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
         // highlight starts at the first again (`opensLiveResult`).
         didSet {
@@ -610,7 +620,7 @@ public final class Composer {
     private var hindiActive = false
 
     var highlightOverride: Int?
-    private var requestCounter = 0
+    var requestCounter = 0
     private var voiceCounter = 0
     /// The right Option key is down on its own and dictation hasn't started yet.
     private var voiceArmed = false
@@ -729,7 +739,7 @@ public final class Composer {
     private var beforeCursor: Substring { draft.dropLast(tail.count) }
 
     /// `text` into the draft at the cursor.
-    private func insertIntoDraft(_ text: String) {
+    func insertIntoDraft(_ text: String) {
         let after = tail
         draft = String(draft.dropLast(after.count)) + text + after
         cursorTail = after
@@ -777,6 +787,7 @@ public final class Composer {
     /// out of the composition. A lone "@" (maybe a mention) stays; what runs and what is inserted are
     /// the draft as typed.
     public var shownDraft: String {
+        if let shown = modeShownDraft { return shown }
         guard draft.contains("@") else { return draft }
         let chars = Array(draft)
         let names = commandsByName
@@ -827,7 +838,7 @@ public final class Composer {
     /// For `@question` / `@agent`: "0" the text sent and "1" the answer; for `@open`: the files found;
     /// for `@reminder`: "1" the reminder to add.
     public var choices: [Choice] {
-        guard isLevelTwo else { return [] }
+        guard isLevelTwo, !modeTranslating else { return [] }
         switch activeCommand?.kind {
         case .search?, .agents?:
             return searchResults.prefix(9).enumerated().map {
@@ -1200,6 +1211,7 @@ public final class Composer {
 
     /// Whether the candidate panel has something to show.
     public var wantsPanel: Bool {
+        if let wants = modeWantsPanel { return wants }
         if isLevelTwo || voice != .off { return true }
         if engineState.isComposing { return !engineState.candidates.isEmpty }
         return !draft.isEmpty
@@ -1261,7 +1273,7 @@ public final class Composer {
 
     /// Finished Hangul: into the command's text, or into the document.
     private func typeFinished(_ text: String) -> [Effect] {
-        guard !draft.isEmpty else { return [.commit(text)] }
+        guard !draft.isEmpty || modeCollects(text) else { return [.commit(text)] }
         appendTyped(text)
         setLevelOnePhase()
         return []
@@ -1328,14 +1340,14 @@ public final class Composer {
             pendingAccent = nil
             setLevelOnePhase()
             if let text = event.composed {
-                guard !draft.isEmpty else { return .done(.consumed([.commit(text)])) }
+                guard !draft.isEmpty || modeCollects(text) else { return .done(.consumed([.commit(text)])) }
                 appendTyped(text)
                 setLevelOnePhase()
                 return .done(.consumed([.updateMarkedText, .showPanel]))
             }
             // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
             if event.keyCode == VirtualKey.delete || event.keyCode == VirtualKey.escape { return .done(.consumed([.updateMarkedText])) }
-            guard !draft.isEmpty else { return .then([.commit(accent)]) }
+            guard !draft.isEmpty || modeCollects(accent) else { return .then([.commit(accent)]) }
             insertIntoDraft(accent)
             return .then([.updateMarkedText])
         }
@@ -1561,6 +1573,7 @@ public final class Composer {
 
     public func receive(_ newResult: ConversionResult, isFinal: Bool, id: Int) -> [Effect] {
         guard phase == .translating(id: id) else { return [] }
+        if id == modeRequestID { return receiveModeTranslation(newResult, isFinal: isFinal) }
         result = newResult
         if isFinal, activeCommand?.kind == .link {
             // The commands inside a link's text have run: open it with their outputs.
@@ -1595,6 +1608,7 @@ public final class Composer {
 
     public func fail(_ message: String, id: Int) -> [Effect] {
         guard phase == .translating(id: id) else { return [] }
+        if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }
         phase = .failed(message)
         return [.showPanel]
@@ -1655,7 +1669,7 @@ public final class Composer {
             setLevelOnePhase()
             return [.updateMarkedText, wantsPanel ? .showPanel : .hidePanel, .notice(messages.didNotHear)]
         }
-        guard !draft.isEmpty else {
+        guard !draft.isEmpty || modeCollects(spoken) else {
             setLevelOnePhase()
             return [.commit(spoken), wantsPanel ? .showPanel : .hidePanel]
         }
@@ -1757,7 +1771,7 @@ public final class Composer {
 
     // MARK: - Level one
 
-    private func handleLevelOne(_ event: KeyEvent, afterVoice: Bool = false) -> Response {
+    func handleLevelOne(_ event: KeyEvent, afterVoice: Bool = false) -> Response {
         guard let engine else {
             guard event.printableText != nil, !warnedNotReady else { return .passThrough }
             warnedNotReady = true
@@ -1765,6 +1779,7 @@ public final class Composer {
         }
         let composing = engine.snapshot().isComposing
         let modifiers = event.modifiers.subtracting(.capsLock)
+        if let response = handleModeKey(event) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.
         if event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter, modifiers.isEmpty,
@@ -1808,7 +1823,7 @@ public final class Composer {
         }
         guard let key = RimeKey.map(rimeEvent) else {
             // Characters librime has no key for (é, ß, other scripts) belong to the sentence too.
-            if !composing, !draft.isEmpty, let text = event.printableText {
+            if !composing, let text = event.printableText, !draft.isEmpty || modeCollects(text) {
                 appendTyped(text, afterVoice: afterVoice)
                 return .consumed([.updateMarkedText, .showPanel])
             }
@@ -1821,7 +1836,7 @@ public final class Composer {
         }
         engineState = engine.snapshot()
         var consumed = handled
-        if !handled, !engineState.isComposing, !draft.isEmpty, let text = event.printableText {
+        if !handled, !engineState.isComposing, let text = event.printableText, !draft.isEmpty || modeCollects(text) {
             // Digits, Latin-mode letters etc. continue the draft.
             appendTyped(text, afterVoice: afterVoice)
             consumed = true
@@ -2024,7 +2039,7 @@ public final class Composer {
         }
         // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
         // Space only complete its name.
-        if run, command.script?.input == ScriptCommand.Input.none, palette?.nested != true {
+        if run, command.script?.input == ScriptCommand.Input.none || command == .exitMode, palette?.nested != true {
             draft = "@\(command.name) "
             paletteHighlight = 0
             setLevelOnePhase()
@@ -2191,14 +2206,14 @@ public final class Composer {
             appendRefine(text)
             return []
         }
-        if !draft.isEmpty {
+        if !draft.isEmpty || modeCollects(text) {
             insertIntoDraft(text)
             return []
         }
         return [.commit(text)]
     }
 
-    private func setLevelOnePhase() {
+    func setLevelOnePhase() {
         phase = draft.isEmpty && !engineState.isComposing && hangul.isEmpty && pendingAccent == nil && voice == .off ? .idle : .drafting
         // Nothing pending (the app took the text, say): no selection is kept for a later command.
         if phase == .idle { selection = nil }
@@ -2336,6 +2351,7 @@ public final class Composer {
 
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
+        if let response = handleModeTranslatingKey(event) { return response }
         if let response = handleRefineKey(event) { return response }
         if inConfigFlow, let response = handleConfigKey(event) { return response }
         switch event.keyCode {
@@ -2548,6 +2564,7 @@ public final class Composer {
         guard parsed != nil else { return .consumed() }
         resetRefine()
         let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let command = parsed?.command, command == .translationMode || command == .exitMode { return startModeCommand(command, input: typed) }
         // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
         // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
         // `@translate`, below, an instruction for the selection).
@@ -2938,7 +2955,7 @@ public final class Composer {
     }
 
     /// Counts a run of `command` for the order of the command list.
-    private func used(_ command: Command) -> Effect {
+    func used(_ command: Command) -> Effect {
         commandUsage.record(command.name)
         return .commandUsed(command.name)
     }
@@ -3031,7 +3048,7 @@ public final class Composer {
         return commitChoice(at: highlighted)
     }
 
-    private func backToDraft() -> [Effect] {
+    func backToDraft() -> [Effect] {
         var effects: [Effect] = []
         if case .translating = phase { effects.append(.cancelConversion) }
         resetRefine()

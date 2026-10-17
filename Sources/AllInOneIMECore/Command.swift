@@ -142,7 +142,7 @@ public struct Command: Hashable, Sendable {
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
-    public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
+    public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || self == .translationMode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
     /// `program(agent:)` with Claude Code as the agent.
     public var program: String? { program(agent: .claude) }

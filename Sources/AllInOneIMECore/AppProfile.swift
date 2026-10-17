@@ -14,19 +14,26 @@ public struct AppProfile: Codable, Equatable, Sendable {
     /// No AI in the app: the commands that send its text to a model (`Command.usesAI`) refuse with a notice;
     /// typing and the other commands work as anywhere.
     public var noAI: Bool?
+    /// Translation mode (`TranslateMode`) whenever the app is typed in: switching to it turns the mode on, and doesn't
+    /// leave it (Settings → Apps: 「总是 中→英」).
+    public var translateAlways: Bool?
 
-    public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil) {
+    public init(inputLanguage: Language? = nil, rewriteStyles: [String]? = nil, typeOut: Bool? = nil, noAI: Bool? = nil,
+                translateAlways: Bool? = nil) {
         self.inputLanguage = inputLanguage
         self.rewriteStyles = rewriteStyles
         self.typeOut = typeOut
         self.noAI = noAI
+        self.translateAlways = translateAlways
     }
 
     /// Sets nothing: the app follows every setting.
-    public var isEmpty: Bool { inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true }
+    public var isEmpty: Bool {
+        inputLanguage == nil && rewriteStyles == nil && typeOut == nil && noAI != true && translateAlways != true
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case inputLanguage, rewriteStyles, typeOut, noAI
+        case inputLanguage, rewriteStyles, typeOut, noAI, translateAlways
     }
 
     /// Each key on its own: one of the wrong type, or a language code this version doesn't know, is left unset;
@@ -37,6 +44,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         rewriteStyles = (try? c.decodeIfPresent([String].self, forKey: .rewriteStyles)).flatMap { $0 }
         typeOut = (try? c.decodeIfPresent(Bool.self, forKey: .typeOut)).flatMap { $0 }
         noAI = (try? c.decodeIfPresent(Bool.self, forKey: .noAI)).flatMap { $0 }
+        translateAlways = (try? c.decodeIfPresent(Bool.self, forKey: .translateAlways)).flatMap { $0 }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -45,6 +53,7 @@ public struct AppProfile: Codable, Equatable, Sendable {
         try c.encodeIfPresent(rewriteStyles, forKey: .rewriteStyles)
         try c.encodeIfPresent(typeOut, forKey: .typeOut)
         try c.encodeIfPresent(noAI, forKey: .noAI)
+        try c.encodeIfPresent(translateAlways, forKey: .translateAlways)
     }
 
     /// `Config.appProfiles` from a config file: an entry that isn't an object, or whose key is no bundle id (empty, or

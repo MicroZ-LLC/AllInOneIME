@@ -326,6 +326,7 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 | `@improve` 在那里给哪些改写风格 | 邮件里正式、委婉，Slack 里口语 | `rewriteStyles` |
 | 逐字上屏开还是关 | 聊天 App 里开，邮件里关 | `typeOut` |
 | 这个 App 里不用 AI | `@improve`、`@translate`、`@question`、`@agent` 和你的提示词命令在那里不发给 AI，并提示一下；打字和别的命令照常 | `noAI` |
+| 总是 中→英 | 微信里一直开着翻译模式（见[翻译模式](#翻译模式)） | `translateAlways` |
 
 「添加 App…」列出最近打过字的 App，也可以在「应用程序」文件夹里选。输入法菜单里的「这个 App：<名字>」可以直接切换正在打字的
 App 的「不用 AI」「逐字上屏」和开始的输入语言。配置里在 `appProfiles` 下，按 bundle ID 写：
@@ -449,6 +450,24 @@ two-way door：可以随时撤回的决定
 最多读前 150 个词。勾上「黑话」时，词表会随请求一起发给 Bedrock。
 
 <img src="docs/panel-dark.png" width="420" alt="深色模式下的候选框">
+
+## 翻译模式
+
+试用的原型。单独按住 Shift 约 1 秒，打开（或关闭）翻译模式；轻按 Shift 照旧切换输入语言。按住约 0.4 秒时光标旁提示
+「继续按住 → 中→英」，到 0.8 秒显示「中→英 已开启」；在这之前松开，什么都不变。Shift 加字母（大写）或别的键不会打开它。
+
+打开后，打的字先存成草稿，显示在「中→英 ›」后面（箭头指向你的翻译语言里第一个不是正在打的那种：日语排第一就是「中→日 ›」）。
+按 ⏎ 翻译，译文直接上屏，不用再选：翻译时草稿后面显示「翻译中…」，上屏后不会发送（再按 ⏎ 才是 App 自己的回车）。⇧⏎ 原文上屏；
+翻译中按 Esc 取消，草稿留着；失败时（网络、被拒绝、系统安全输入）草稿留着，提示一行原因，再按 ⏎ 重试。用要翻译成的语言打字（按一下 Shift
+切到英文）就照原样上屏。
+
+- **语气**：跟着 App 走：设置 →「按 App 设置」里给这个 App 设了改写风格的，用第一个；没设的，聊天 App（微信、Slack、信息、
+  Telegram、Discord、Teams）口语，邮件 App（邮件、Outlook、Spark）正式，别的自然。
+- **命令**：`@mode en formal`（或 `@mode ja casual`、`@mode 英文 正式`；只打 `@mode` 用默认的）按这种语言和语气打开；`@mode off`
+  和 `@exit` 关闭。语言和语气默认用字母打（要打中文名，先按一下 Shift）。
+- **App**：切到别的 App 就关闭，除非那个 App 在「按 App 设置」里勾了「总是 中→英」（配置里是它的 `translateAlways`）：切过去会
+  自动打开。在「不用 AI」的 App 里不起作用：照原样上屏，并提示一下；系统安全输入开着（密码框）时打的字也照原样上屏。
+- **隐私**：和 `@translate` 一样：只在你按 ⏎ 时发给你自己的 AI 服务，开了「隐藏敏感信息」就先隐藏。
 
 ## 语音输入
 
@@ -627,7 +646,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
-| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（见「按 App 设置」） | `{}` |
+| `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`（见「按 App 设置」） | `{}` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
 ## 隐私

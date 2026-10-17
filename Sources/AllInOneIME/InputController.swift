@@ -344,6 +344,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let app { recordApp(app) }
             ensureEngine()
             applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
+            translateModeActivated(app: app)  // another app leaves translation mode, unless it translates always
             // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
             // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
@@ -606,6 +607,7 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
+        composer.translateModeMessages = .make(chinese: UIText.chinese)
         nameAgent()  // the messages were just reset
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
@@ -673,7 +675,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// `recheck` (a text field became active: something may have been installed meanwhile).
     @MainActor
     func setCommands(_ commands: [Command], recheck: Bool = false) {
-        composer.commands = commands.filter { !missingCommands.contains($0.name) }
+        composer.commands = Self.withTranslateModeCommands(commands.filter { !missingCommands.contains($0.name) })
         // Another agent picked is checked again too (its program may be missing).
         let checkedFor = [agent.rawValue] + agentCommand
         guard recheck || commands != checkedCommands || checkedFor != checkedAgent else { return }
@@ -699,7 +701,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 if self.composer.isComposing {
                     self.missingCheckWaiting = true
                 } else {
-                    self.composer.commands = commands.filter { !missing.contains($0.name) }
+                    self.composer.commands = Self.withTranslateModeCommands(commands.filter { !missing.contains($0.name) })
                 }
             }
         }
@@ -729,6 +731,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
         // then goes on as usual.
         if TerminalPaste.isOurs(event) { return false }  // a line break being pasted into a terminal
+        translateModeKeyDown()  // Shift held with a key is no long press of it
         if typingTask != nil {
             if event.keyCode == VirtualKey.escape {
                 stopTyping(insertingRest: false)
@@ -786,7 +789,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 setCommands(changed ? commands : checkedCommands)
             } else if missingCheckWaiting {
                 // A check of the programs that ended while a command was being written.
-                composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
+                composer.commands = Self.withTranslateModeCommands(checkedCommands.filter { !missingCommands.contains($0.name) })
             }
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
@@ -832,6 +835,7 @@ final class AllInOneIMEInputController: IMKInputController {
         perform(composer.handleFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags),
                                             timestamp: event.timestamp),
                 client: client)
+        translateModeFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags))
     }
 
     static func modifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
@@ -1037,6 +1041,11 @@ final class AllInOneIMEInputController: IMKInputController {
                 undoConfig()
             case let .previewFixes(fixes):
                 previewFixes(fixes)
+            case let .translateMode(change):
+                changeTranslateMode(change)
+            case let .startTranslateMode(input, session, id):
+                if refusedForSecureInput(id: id, client: target) { break }
+                consume(translateModeStream(input, session: session, app: appID, id: id), id: id)
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1958,6 +1967,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
+        if let hint = translateModeHint(command, how: how) { return hint }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
         if let selected = composer.selectionInUse {
             if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
@@ -2261,7 +2271,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
-                model.footer = tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
+                model.footer = translateModeFooter() ?? tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
             }
             if state.pageNumber > 0 || !state.isLastPage {
                 model.detail = tr("第 \(state.pageNumber + 1) 页", "page \(state.pageNumber + 1)")

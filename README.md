@@ -385,6 +385,7 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | The rewrite styles `@improve` offers there | Mail formal and tactful, Slack casual | `rewriteStyles` |
 | Type results out, or not | on in a chat app, off in Mail | `typeOut` |
 | No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
+| Always translate | WeChat always in translation mode (see [Translation mode](#translation-mode)) | `translateAlways` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
 quick switches for the app you're typing in (No AI, Type Results Out, the language it starts in). In the config they're
@@ -525,6 +526,30 @@ if you already have a list file, click "Choose File…" to use it where it is (`
 Only the first 150 terms are read. With "Jargon" checked, the list is sent to Bedrock along with each request.
 
 <img src="docs/en/panel-dark.png" width="420" alt="The candidate panel in dark mode">
+
+## Translation mode
+
+A prototype, to try. Hold Shift on its own for about a second to turn translation mode on (or off); a quick tap of Shift
+still switches the input language. At about 0.4 s a hint near the caret says "Keep holding → 中→英", at 0.8 s "中→英 on"
+confirms it; let go before then and nothing changes. Shift with a letter (a capital) or with another key never turns it on.
+
+While it's on, what you type collects into a draft shown after "中→英 ›" (the arrow points to your first translation
+language that isn't the one you type: "中→日 ›" with Japanese first). ⏎ translates it and the translation goes in at once,
+with no candidates to pick: the draft says "Translating…" meanwhile, and nothing is sent (⏎ again is the app's own). ⇧⏎
+inserts the draft as typed; Esc while it's translated stops it and keeps the draft; if it fails (the network, a refusal,
+secure input), the draft stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to
+English) goes in as typed.
+
+- **Tone**: it follows the app: the app's first rewrite style in Settings → Apps, else casual in chat apps (WeChat, Slack,
+  Messages, Telegram, Discord, Teams), formal in mail apps (Mail, Outlook, Spark), natural elsewhere.
+- **Commands**: `@mode en formal` (or `@mode ja casual`, `@mode 英文 正式`; `@mode` alone for the defaults) turns it on into
+  that language, in that tone; `@mode off` and `@exit` turn it off. The language and tone are typed in letters (tap Shift
+  for Chinese names).
+- **Apps**: switching to another app turns it off, unless that app has "Always translate" (「总是 中→英」) in Settings → Apps
+  (`translateAlways` in its profile): there it comes on by itself. In an app with No AI it does nothing: text goes in as
+  typed, with a notice; so does what you type while secure input is on (a password field).
+- **Privacy**: as for `@translate`: sent only when you press ⏎, to your own AI provider, with sensitive information hidden
+  when that's on.
 
 ## Voice input
 
@@ -720,7 +745,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
-| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
+| `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI`, `translateAlways` (see Per-app settings) | `{}` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 
 ## Privacy

@@ -25,12 +25,13 @@ public final class Converter: Sendable {
     /// The user's jargon list for a config (only asked for when the jargon (黑话) style is on).
     public typealias JargonLoader = @Sendable (_ config: Config) -> [JargonEntry]
 
-    private let client: ChatClient
-    private let loadConfig: ConfigLoader
-    private let loadCredentials: CredentialLoader
-    private let loadKey: ChatClient.KeyLoader
+    // Internal, not private: translation mode's request (TranslateMode.swift) goes through them too.
+    let client: ChatClient
+    let loadConfig: ConfigLoader
+    let loadCredentials: CredentialLoader
+    let loadKey: ChatClient.KeyLoader
     private let loadJargon: JargonLoader
-    private let cache = OSAllocatedUnfairLock(initialState: LRUCache(capacity: 64))
+    let cache = OSAllocatedUnfairLock(initialState: LRUCache(capacity: 64))
 
     public init(
         client: BedrockClient = BedrockClient(),
