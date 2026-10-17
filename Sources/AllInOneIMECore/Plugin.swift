@@ -111,7 +111,10 @@ public struct PluginManifest: Codable, Equatable, Hashable, Sendable {
         if let min = minAppVersion, SemVer.compare(appVersion, min) < 0 { return "needs AllInOneIME \(min) or later" }
         switch type {
         case .script:
-            guard let script, !script.isEmpty, !script.contains("/"), !script.hasPrefix(".") else { return "no script" }
+            // A file right in the plugin's folder: one part, no separator ("\" too on Windows), drive or "..".
+            guard let script, CorePaths.isPlainRelative(script), !script.contains(where: CorePaths.isSeparator), !script.hasPrefix(".") else {
+                return "no script"
+            }
             if hosts.contains(where: { $0.isEmpty || $0.contains("/") || $0.contains(":") }) { return "invalid hosts" }
         case .prompt:
             if (prompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "no prompt" }

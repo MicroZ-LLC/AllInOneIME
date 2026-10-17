@@ -446,7 +446,7 @@ extension ScriptCommand {
         let folder = file.deletingLastPathComponent()
         func path(_ value: String) -> URL {
             let expanded = (value as NSString).expandingTildeInPath
-            return (expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded) : folder.appendingPathComponent(expanded)).standardizedFileURL
+            return (CorePaths.isAbsolute(expanded) ? URL(fileURLWithPath: expanded) : folder.appendingPathComponent(expanded)).standardizedFileURL
         }
         var status: Status?
         if let value = keys["status"] {

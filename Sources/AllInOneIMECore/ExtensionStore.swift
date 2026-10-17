@@ -340,12 +340,12 @@ public enum ExtensionStore {
         var commands: [ScriptCommand] = []
         var skipped: [Skipped] = []
         for entry in entries {
-            guard let script = entry["script"], !script.hasPrefix("/"), !script.split(separator: "/").contains("..") else {
+            // A file of the bundle's folder as written (on every system's terms: no "..", "/x", "C:x", "..\x").
+            guard let script = entry["script"], let file = CorePaths.file(script, in: folder) else {
                 skipped.append(Skipped(file: folder.appendingPathComponent(ExtensionBundle.manifestName),
                                        problem: .badValue(key: "script", value: entry["script"] ?? "")))
                 continue
             }
-            let file = folder.appendingPathComponent(script)
             guard let found = read(file),
                   let launch = ScriptCommand.launch(for: file, firstLine: found.firstLine, executable: found.executable,
                                                     binary: found.binary) else {

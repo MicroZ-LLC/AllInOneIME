@@ -321,9 +321,10 @@ public enum ExtensionSources {
     /// The bundle's folder: the clone's, then `path` in it.
     public static func bundleFolder(for source: ExtensionSource, root: URL = directory) -> URL {
         let clone = cloneFolder(for: source.url, root: root)
-        let parts = (source.path ?? "").split(separator: "/").filter { $0 != "." }
-        // A path that climbs out ("..") names no folder of the clone: a hidden name that never exists, so nothing loads.
-        if parts.contains("..") { return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true) }
+        let parts = CorePaths.components(source.path ?? "").filter { $0 != "." }
+        // A path that climbs out ("..", and on Windows "..\", "C:") names no folder of the clone: a hidden name that
+        // never exists, so nothing loads.
+        if parts.contains(where: CorePaths.climbs) { return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true) }
         return parts.isEmpty ? clone : clone.appendingPathComponent(parts.joined(separator: "/"), isDirectory: true)
     }
 
@@ -486,8 +487,9 @@ public enum ExtensionSources {
     /// The bundle path to use in `clone`: `path` if it has an `extension.json`, else the only folder that has one.
     public static func resolveBundlePath(_ path: String?, in clone: URL) throws -> String {
         if let path, !path.isEmpty {
-            let cleaned = path.split(separator: "/").filter { $0 != "." }.joined(separator: "/")
-            guard !cleaned.split(separator: "/").contains(".."),
+            let parts = CorePaths.components(path).filter { $0 != "." }
+            let cleaned = parts.joined(separator: "/")
+            guard !parts.contains(where: CorePaths.climbs),
                   FileManager.default.fileExists(atPath: clone.appendingPathComponent(cleaned).appendingPathComponent(ExtensionBundle.manifestName).path)
             else { throw ExtensionSourceError.noBundle(path) }
             // A folder that is (or goes through) a link out of the repository isn't the repository's.

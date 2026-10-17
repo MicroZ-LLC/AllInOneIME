@@ -27,6 +27,48 @@ public enum CorePaths {
         #endif
     }
 
+    /// Whether `character` separates a path's parts: "/"; on Windows "\" too.
+    public static func isSeparator(_ character: Character) -> Bool {
+        #if os(Windows)
+        character == "/" || character == "\\"
+        #else
+        character == "/"
+        #endif
+    }
+
+    /// `path`'s parts, split on every separator (`isSeparator`), empty ones dropped.
+    public static func components(_ path: String) -> [Substring] { path.split(whereSeparator: isSeparator) }
+
+    /// Whether `part` of a path could lead out of its folder: "..", and on Windows what Windows reads as it or as
+    /// something else than a name: a part of dots and spaces only (it drops a name's trailing ones), or one with a ":"
+    /// (a drive, "C:", or a file's stream, "a:b").
+    public static func climbs(_ part: Substring) -> Bool {
+        #if os(Windows)
+        if part != ".", part.allSatisfy({ $0 == "." || $0 == " " }) || part.contains(":") { return true }
+        #endif
+        return part == ".."
+    }
+
+    /// Whether `path`, written relative to a folder (a manifest's script, a bundle in a repository), stays in it as
+    /// written, on every system alike: not absolute (`isAbsolute`), from no root ("/", "\"), drive ("C:", "C:x") or
+    /// share ("\\server"), and no part that climbs out (`climbs`). Links aren't followed: that is `file(_:in:)`'s
+    /// caller's to judge.
+    public static func isPlainRelative(_ path: String) -> Bool {
+        let start = Array(path.prefix(2))
+        guard let first = start.first, !path.contains("\0"), !isAbsolute(path), first != "/", first != "\\" else { return false }
+        if start.count == 2, first.isASCII, first.isLetter, start[1] == ":" { return false }
+        return !components(path).contains(where: climbs)
+    }
+
+    /// The file `path` names in `folder` when it is plainly relative (`isPlainRelative`) and not `folder` itself ("."):
+    /// with no part that climbs, root or drive, it is inside `folder` as written, by its parts alone (`standardizedFileURL`
+    /// can't tell: it drops "/private" only from paths that exist). nil otherwise. On Windows its "\" are written "/", as
+    /// Foundation's paths are.
+    public static func file(_ path: String, in folder: URL) -> URL? {
+        guard isPlainRelative(path), components(path).contains(where: { $0 != "." }) else { return nil }
+        return folder.appendingPathComponent(isSeparator("\\") ? path.replacingOccurrences(of: "\\", with: "/") : path)
+    }
+
     /// What the user edits: config.json, jargon.txt, plugins/, extensions/.
     public static var configDir: URL {
         #if os(macOS)

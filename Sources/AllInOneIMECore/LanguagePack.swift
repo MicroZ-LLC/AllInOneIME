@@ -198,8 +198,10 @@ public struct LanguagePackStore: Sendable {
 
     /// Folders of code an engine's data may come with (rime-ice's Lua): never taken from a pack.
     static let codeFolders = ["lua"]
-    /// Extensions of files that are code (scripts, libraries, executables): a pack with one is refused.
-    static let codeExtensions: Set<String> = ["lua", "dylib", "so", "bundle", "app", "framework", "sh", "py", "js", "rb", "pl", "command", "plugin"]
+    /// Extensions of files that are code (scripts, libraries, executables; Windows' too, as a pack is the same everywhere):
+    /// a pack with one is refused.
+    static let codeExtensions: Set<String> = ["lua", "dylib", "so", "bundle", "app", "framework", "sh", "py", "js", "rb", "pl", "command", "plugin",
+                                              "exe", "dll", "com", "bat", "cmd", "ps1", "psm1", "vbs", "wsf", "hta", "msi", "scr", "lnk"]
 
     /// A pack folder that is data only: plain files and folders (no links, no special files), nothing
     /// with code's extension, no code folder, every required file present, and a pack.json naming this pack.
