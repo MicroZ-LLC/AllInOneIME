@@ -2,12 +2,14 @@ import Foundation
 
 /// The words the key detector (`Redaction.isOrdinary`) knows: a string made mostly of them is text, not a key.
 enum RedactionWords {
-    /// English words: the system's word list (/usr/share/dict/words, Webster's), lowercased, read once when first
-    /// needed; with the few endings it leaves out (`isEnglish`).
+    /// English words: Webster's (web2, macOS's /usr/share/dict/words), lowercased, compiled into the core
+    /// (`RedactionWordList`, generated), so every system has them; parsed once when first needed. With the few endings
+    /// it leaves out (`isEnglish`).
     static let english: Set<String> = {
-        guard let text = try? String(contentsOfFile: "/usr/share/dict/words", encoding: .utf8) else { return [] }
-        var words = Set<String>()
-        for line in text.split(separator: "\n") where line.count >= 3 { words.insert(line.lowercased()) }
+        var words = Set<String>(minimumCapacity: RedactionWordList.count)
+        for letter in RedactionWordList.letters {
+            for word in letter.split(separator: "\n") { words.insert(String(word)) }
+        }
         return words
     }()
 

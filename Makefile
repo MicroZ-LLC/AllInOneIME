@@ -45,7 +45,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -95,6 +95,11 @@ strings:
 
 strings-check:
 	swift Scripts/strings.swift --check
+
+# Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy of
+# /usr/share/dict/web2 (Webster's Second International, public domain).
+redaction-words:
+	swift Scripts/make-redaction-words.swift
 
 app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	rm -rf "$(APP)"
