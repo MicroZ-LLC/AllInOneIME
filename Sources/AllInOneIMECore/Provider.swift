@@ -146,15 +146,15 @@ public enum ProviderError: Error, LocalizedError, Equatable {
     }
 
     /// What a signed-out or used-up AllInOneIME Cloud says to do (`errorDescription`). With Apple Intelligence on this
-    /// Mac (`onDevice`), `@config use Apple Intelligence` too: `@config` itself runs on it then. Without it, `@config`
-    /// would fail the same way, so only signing in or a key of one's own.
+    /// Mac (`onDevice`), switching to it in Settings → Assistant too: the Assistant itself runs on it then. Without it,
+    /// the Assistant would fail the same way, so only signing in or a key of one's own.
     public static func hostedAdvice(_ error: ProviderError, onDevice: Bool) -> String? {
         switch error {
         case .signedOut:
-            return onDevice ? "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence"
+            return onDevice ? "Sign in to AllInOneIME Cloud in the settings, or switch to Apple Intelligence in Settings → Assistant"
                 : "Sign in to AllInOneIME Cloud in the settings, or add your own API key"
         case .quotaExhausted:
-            return onDevice ? "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence"
+            return onDevice ? "No requests left today: subscribe or add your own API key in the settings, or switch to Apple Intelligence in Settings → Assistant"
                 : "No requests left today: subscribe, or add your own API key in the settings"
         default: return nil
         }

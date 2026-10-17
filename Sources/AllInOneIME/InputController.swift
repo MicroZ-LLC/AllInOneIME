@@ -814,7 +814,6 @@ final class AllInOneIMEInputController: IMKInputController {
         perform(response.effects, client: client)
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
-        prewarmConfigIfWritten()
         return response.handled
     }
 
@@ -894,24 +893,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
                 startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
             case let .startCommand(command, input, id):
-                // @doctor's checks stay on this Mac; only a question goes to the AI.
-                if command.kind == .doctor {
-                    // During secure input only the question is refused (one line); the checks still run, as in an app
-                    // with no AI.
-                    if !input.isEmpty, secureInputActive() {
-                        showNotice(tr("系统安全输入已开启：问题没有发给 AI，只做了检查", "Secure input is on: the question wasn't sent; the checks ran"),
-                                   client: target)
-                        startDoctor("", id: id)
-                        break
-                    }
-                    startDoctor(input, id: id)
-                    break
-                }
                 if refusedForSecureInput(id: id, client: target) { break }
-                if command.kind == .config {
-                    startConfigRequest(input, turns: [], id: id)
-                    break
-                }
                 startConversion(input, id: id, command: command)
             case let .startRefine(refinement, id):
                 // Sent to the model like the request it refines: refused during secure input the same way.
@@ -1031,12 +1013,6 @@ final class AllInOneIMEInputController: IMKInputController {
                 // Read here by the real clock (NSDataDetector and the parser's own rules), quick enough for
                 // a keystroke. Nothing leaves the Mac, so secure input doesn't hold it back either.
                 perform(composer.receiveReminder(parseReminder(input), id: id), client: target)
-            case let .applyConfig(preview):
-                applyConfig(preview)
-            case .undoConfig:
-                undoConfig()
-            case let .previewFixes(fixes):
-                previewFixes(fixes)
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1733,8 +1709,6 @@ final class AllInOneIMEInputController: IMKInputController {
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
                                                  improveTranslates: loadSettings().improveTranslates)
             stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
-        case let .command(command, input) where command.kind == .config:
-            return startConfigRequest(input, turns: refinement.turns, id: id)
         case let .command(command, input):
             stream = converter.generate(command, input: input, app: appID, fresh: refinement.fresh, turns: refinement.turns)
             generates = true
@@ -1959,8 +1933,6 @@ final class AllInOneIMEInputController: IMKInputController {
             return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
         }
         // A command with nothing after it yet: what to do (the action key alone only hints).
-        if composer.sentText.isEmpty, command.kind == .config { return configHint }
-        if composer.sentText.isEmpty, command.kind == .doctor { return doctorHint }
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
@@ -1973,9 +1945,7 @@ final class AllInOneIMEInputController: IMKInputController {
     func refineHeader() -> String? {
         let history = composer.refineHistory
         guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
-        // @config: a key typed into a step is never shown (nor sent: `startConfigRequest`).
-        let masks = composer.activeCommand?.kind == .config
-        let steps = history.map { Self.preview(masks ? AIConfig.maskingKeys($0) : $0, limit: 30) }.joined(separator: " · ")
+        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
         return tr("已修改：", "Refined: ") + steps
     }
 
@@ -2053,9 +2023,6 @@ final class AllInOneIMEInputController: IMKInputController {
             model.horizontal = composer.horizontalCandidates
             model.footer = composer.isQuestionChat
                 ? tr("空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音", "Space picks · ⇧⏎ ask · ⏎ insert the answer · Esc clear the pinyin")
-                // @config: ⏎ applies the proposal shown (nothing is inserted).
-                : composer.activeCommand?.kind == .config
-                ? tr("空格 选词 · ⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ apply · Esc clear the pinyin")
                 : tr("空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin")
         } else if composer.isLevelTwo {
             let choices = composer.choices
@@ -2134,13 +2101,9 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = composer.highlighted
             let command = composer.activeCommand
             switch composer.phase {
-            case .translating where command?.kind == .doctor:
-                doctorPanel(&model)
             case .translating:
                 let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
-                    : command?.kind == .config ? tr("AI 正在理解要改的设置…", "Working out the settings…")
-                    : command?.kind == .doctor ? tr("正在检查…", "Checking…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
                     ?? (command?.kind == .run ? tr("运行中…", "Running…")
@@ -2161,9 +2124,6 @@ final class AllInOneIMEInputController: IMKInputController {
                     : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
                                                "Refining… · type the next step meanwhile · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
-            case .choosing where command?.kind == .config || command?.kind == .doctor:
-                configPanel(&model)
-                doctorPanel(&model)
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
             case .choosing where command?.kind == .report:
@@ -2210,7 +2170,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 model.status = .error(message)
                 model.highlighted = nil  // Space retries; nothing is selected
                 // A reminder without anything to be reminded of: write it in.
-                model.footer = command == .reminder || command?.kind == .config || command?.kind == .doctor
+                model.footer = command == .reminder
                     ? tr("Esc 返回修改", "Esc back to edit")
                     : composer.actionKey == .enter
                     ? tr("空格 / ⏎ 重试 · 0 原文 · Esc 返回", "Space / ⏎ retry · 0 original · Esc back")

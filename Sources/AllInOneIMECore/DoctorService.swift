@@ -1,6 +1,6 @@
 import Foundation
 
-/// `@doctor <question>` ("why doesn't translate work"): the model explains the likely cause from the checks' findings and
+/// A question about the checks ("why doesn't translate work"): the model explains the likely cause from the checks' findings and
 /// names the fixes that would help. On Apple's on-device model whenever it is available (each area of the checks a tool
 /// it may call, the answer held to a schema), else on the configured provider with the findings in the instructions.
 /// What is sent is the findings (`Doctor.report`: no paths beyond ~, no keys, none of the user's text) and the question,

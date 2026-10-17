@@ -80,7 +80,7 @@ public struct AWSCredentialContext: Sendable {
     public static let offline: Send = { _ in throw URLError(.notConnectedToInternet) }
 }
 
-/// What the settings and `@doctor` show of a profile, read without running a program or going online: its kind and
+/// What the settings and their checks show of a profile, read without running a program or going online: its kind and
 /// region, the credentials held for it (when they expire), the SSO sign-in's end, a problem known in advance (a profile
 /// not found, an MFA code needed, an SSO sign-in expired …), and the last refresh's error.
 public struct AWSProfileStatus: Equatable, Sendable {
@@ -135,7 +135,7 @@ public struct AWSProfileStatus: Equatable, Sendable {
         return label + separator + detail
     }
 
-    /// The credentials held, as the status line and `@doctor` say it: "credentials expire at 15:30", "found the keys for
+    /// The credentials held, as the status line and the checks say it: "credentials expire at 15:30", "found the keys for
     /// this profile", or, nothing fetched yet, when they will be ("assumed when a request needs it").
     public func credentials(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
         func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }

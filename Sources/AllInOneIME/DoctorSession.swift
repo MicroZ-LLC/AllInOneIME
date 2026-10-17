@@ -3,10 +3,10 @@ import AppKit
 import Carbon
 import EventKit
 
-/// `@doctor` in the input controller (`Doctor`): the probes read what the app already knows (`--status`, Settings' Test
-/// Connection, the permission checks, the language pack manager, the update checker, the extension loader's skipped
-/// list, the app's own logs), never asking for a permission or a key; the findings show a row each, and the fixes go
-/// through `@config`'s preview, apply and undo.
+/// What Settings → Assistant's checks run with (`AssistantModel`, `Doctor`): the probes read what the app already knows
+/// (`--status`, Settings' Test Connection, the permission checks, the language pack manager, the update checker, the
+/// extension loader's skipped list, the app's own logs), never asking for a permission or a key; the findings show a row
+/// each, and the config fixes go through the request's preview, apply and undo.
 @MainActor
 enum DoctorSession {
     /// What the probes found (the self-test gives its own).
@@ -46,7 +46,7 @@ enum DoctorSession {
         let read = await Task.detached(priority: .userInitiated) { () -> Background in
             let data = try? Data(contentsOf: url)
             let config = Result { try Config.load(from: url) }
-            // As Settings and @config see them (the item's attributes: no key read, no prompt).
+            // As Settings and the Assistant's requests see them (the item's attributes: no key read, no prompt).
             let keyed = AIConfigSession.providersWithKey(lookup)
             var keys: [Provider: Bool] = [:]
             for provider in Provider.allCases where provider != .bedrock && provider != .apple {
@@ -175,119 +175,5 @@ enum DoctorSession {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(command, forType: .string)
         }
-    }
-}
-
-extension AllInOneIMEInputController {
-    /// `@doctor` (`question` empty) or `@doctor <question>`: the checks, a row each as they come (the connection test
-    /// shows as running), then all of them; with a question, the model's explanation and the fixes it names.
-    @MainActor
-    func startDoctor(_ question: String, id: Int) {
-        conversionTask?.cancel()
-        lastElapsed = nil
-        lastFromCache = false
-        let chinese = UIText.chinese
-        let started = Date()
-        log.notice("@doctor \(id) started (\(question.isEmpty ? "checks" : "with a question", privacy: .public))")
-        conversionTask = Task { @MainActor [weak self] in
-            var facts = await DoctorSession.probe()
-            guard let self, !Task.isCancelled else { return }
-            // Not without what it needs (a key, the profile's credentials …): the provider's row already says so.
-            let tests = Doctor.canTestConnection(facts)
-            if tests { facts.connection = .running }
-            let first = Self.report(Doctor.findings(facts, chinese: chinese), chinese: chinese, final: !tests && question.isEmpty)
-            self.perform(self.composer.receiveDoctor(first, id: id), client: nil)
-            if tests {
-                let url = AIConfigSession.url
-                let outcome = try? await AIConfigService.withTimeout(DoctorSession.connectionTimeout) { @MainActor in
-                    await AIConfigSession.testConnection(url)
-                }
-                guard !Task.isCancelled else { return }
-                let seconds = Int(DoctorSession.connectionTimeout)
-                facts.connection = outcome.map { $0.ok ? .ok($0.line) : .failed($0.line) }
-                    ?? .failed(chinese ? "\(seconds) 秒内没有回应" : "no answer within \(seconds) s")
-            }
-            let findings = Doctor.findings(facts, chinese: chinese)
-            var report = Self.report(findings, chinese: chinese, final: question.isEmpty)
-            if !question.isEmpty {
-                self.perform(self.composer.receiveDoctor(report, id: id), client: nil)
-                do {
-                    // The model reads the findings in English, in the same order as the panel's (the fixes' ids match).
-                    let english = Doctor.findings(facts, chinese: false)
-                    let answer = try await DoctorSession.service.ask(question, findings: english, config: facts.config ?? .default)
-                    guard !Task.isCancelled else { return }
-                    report.explanation = answer.explanation + (answer.onDevice ? "" : tr("（由你选的 AI 服务回答）", " (answered by your AI provider)"))
-                    report.recommended = answer.fixes
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    report.explanation = tr("没能问 AI：", "Couldn't ask the AI: ") + UIText.describe(error)
-                }
-                report.isFinal = true
-            }
-            self.lastElapsed = Date().timeIntervalSince(started)
-            // What the real-app test reads (`log stream`): the input method's own finding, and how many problems.
-            let inputMethod = findings.first { $0.area == .inputMethod }
-                .map { $0.status == .ok ? "ok" : $0.status == .warning ? "warning" : "problem" } ?? "-"
-            let (problems, warnings) = (findings.filter { $0.status == .problem }.count, findings.filter { $0.status == .warning }.count)
-            log.notice("doctor \(id) done: inputMethod=\(inputMethod, privacy: .public) problems=\(problems) warnings=\(warnings)")
-            self.perform(self.composer.receiveDoctor(report, id: id), client: nil)
-        }
-    }
-
-    /// The findings as the panel shows them.
-    static func report(_ findings: [Doctor.Finding], chinese: Bool, final: Bool) -> Composer.ConfigState.Report {
-        Composer.ConfigState.Report(lines: findings.map { $0.text(chinese: chinese) }, fixes: findings.map(\.fix),
-                                    summary: Doctor.summary(findings, chinese: chinese), isFinal: final)
-    }
-
-    /// A finding's fix picked (or ⏎: the safe ones): `@config`'s preview of what they do.
-    @MainActor
-    func previewFixes(_ fixes: [Doctor.Fix]) {
-        // The panel's own task: closing the panel (`.cancelConversion`) stops it, and nothing shows after that.
-        conversionTask?.cancel()
-        conversionTask = Task { @MainActor [weak self] in
-            let env = await AIConfigSession.environment("")
-            guard let self, !Task.isCancelled, self.composer.activeCommand?.kind == .doctor, self.composer.phase == .choosing,
-                  self.composer.configState.applied == nil else { return }
-            guard let preview = Doctor.fixPreview(fixes, config: self.loadSettings(), environment: env) else {
-                self.showNotice(tr("没有要修的", "Nothing to fix"), client: nil)
-                return
-            }
-            self.perform(self.composer.showFixPreview(preview, lines: preview.rows.map { $0.text(chinese: env.chinese) }), client: nil)
-        }
-    }
-
-    /// `@doctor`'s panel: the model's explanation (or the summary) over the findings, numbered where a fix can be picked.
-    @MainActor
-    func doctorPanel(_ model: inout CandidateView.Model) {
-        let state = composer.configState
-        guard state.applied == nil, state.fixPreview == nil, let report = state.report else {
-            if case .translating = composer.phase {
-                model.status = .loading(tr("正在检查…", "Checking…"))
-                model.footer = tr("检查中… · Esc 取消", "Checking… · Esc cancel")
-            }
-            return
-        }
-        // The fixes the model suggested are marked; ⏎ still applies only the safe ones (`Report.defaultFixes`).
-        model.rows = composer.choices.enumerated().map { index, choice in
-            CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                              comment: report.recommended.contains(index) ? tr("AI 建议", "suggested") : "",
-                              style: .candidate, pickable: !choice.label.isEmpty)
-        }
-        model.highlighted = nil
-        if let explanation = report.explanation {
-            model.status = .hint(explanation)
-        } else if !report.isFinal, report.recommended.isEmpty, composer.phase != .choosing {
-            model.status = .loading(tr("正在检查…", "Checking…"))
-        } else {
-            model.status = .hint(report.summary)
-        }
-        let fixable = report.fixes.contains { $0 != nil }
-        // "⏎ fix the safe ones" only when there are some (⏎ otherwise closes).
-        model.footer = !report.isFinal ? tr("检查中… · Esc 取消", "Checking… · Esc cancel")
-            : !fixable ? tr("⏎ / Esc 关闭", "⏎ / Esc close")
-            : report.defaultFixes.isEmpty ? tr("数字 修这一项 · ⏎ / Esc 关闭", "Digits fix one · ⏎ / Esc close")
-            : tr("数字 修这一项 · ⏎ 修安全的几项 · Esc 关闭", "Digits fix one · ⏎ fix the safe ones · Esc close")
-        model.detail = lastElapsed.map { String(format: "%.1fs", $0) }
     }
 }

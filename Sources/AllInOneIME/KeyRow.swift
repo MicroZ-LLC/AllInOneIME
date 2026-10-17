@@ -67,7 +67,7 @@ struct KeyRowContent: View {
     let save: (String) -> Void
     /// Nil: no Remove… (a key in the shell isn't ours to remove).
     let remove: (() -> Void)?
-    /// The paste field shown and focused (Replace…, or asked from outside: `@config` opening Settings at the key).
+    /// The paste field shown and focused (Replace…, or asked from outside: Settings → Assistant opening the key).
     @Binding var editing: Bool
     @State private var text = ""
     @State private var removing = false
@@ -127,7 +127,7 @@ struct KeyRowContent: View {
     }
 }
 
-/// Settings' sheet for the key of a provider other than the one in use (`@config`, `@doctor` asked for it): nothing
+/// Settings' sheet for the key of a provider other than the one in use (Settings → Assistant asked for it): nothing
 /// about that provider is drawn on the current one's page. Save keeps the key; Save and Use also switches to the
 /// provider and runs Test Connection; Cancel and Esc change nothing.
 struct KeySheet: View {

@@ -70,7 +70,7 @@ public enum AWSCredentialError: Error, LocalizedError, Equatable, Sendable {
 
     public var errorDescription: String? { message(chinese: false) }
 
-    /// What the settings, `@doctor` and the logs say.
+    /// What the settings, their checks and the logs say.
     public func message(chinese: Bool) -> String {
         func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
         switch self {

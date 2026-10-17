@@ -192,13 +192,13 @@ struct ProviderTests {
         #expect(HTTPProviders.httpError(provider: .hosted, status: 402, body: []) == .quotaExhausted)
     }
 
-    /// A signed-out or used-up AllInOneIME Cloud says `@config use Apple Intelligence` only where Apple Intelligence runs
-    /// (`@config` would fail the same way elsewhere); there, signing in or a key of one's own.
+    /// A signed-out or used-up AllInOneIME Cloud suggests switching to Apple Intelligence in Settings → Assistant only where
+    /// Apple Intelligence runs (the Assistant would fail the same way elsewhere); there, signing in or a key of one's own.
     @Test func theHostedAdviceNamesAppleIntelligenceOnlyWhereItRuns() {
         for error in [ProviderError.signedOut, .quotaExhausted] {
-            #expect(ProviderError.hostedAdvice(error, onDevice: true)?.contains("@config use Apple Intelligence") == true, "\(error)")
+            #expect(ProviderError.hostedAdvice(error, onDevice: true)?.contains("switch to Apple Intelligence in Settings → Assistant") == true, "\(error)")
             let without = ProviderError.hostedAdvice(error, onDevice: false) ?? ""
-            #expect(!without.contains("@config") && without.contains("your own API key"), "\(error): \(without)")
+            #expect(!without.contains("Assistant") && without.contains("your own API key"), "\(error): \(without)")
         }
         #expect(ProviderError.hostedAdvice(.signedOut, onDevice: false)?.hasPrefix("Sign in to AllInOneIME Cloud") == true)
         #expect(ProviderError.hostedAdvice(.missingKey(.anthropic), onDevice: true) == nil)

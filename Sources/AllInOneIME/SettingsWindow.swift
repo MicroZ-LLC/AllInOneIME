@@ -78,7 +78,7 @@ final class SettingsModel: ObservableObject {
     }
 
     /// "Remember recent questions" switched in the window: off deletes the ones kept. Only from the switch: a config read
-    /// again with it off (`@config` turned it off, and may still undo that) keeps them.
+    /// again with it off (the Assistant turned it off, and may still undo that) keeps them.
     func setRememberQuestions(_ on: Bool) {
         config.rememberQuestions = on
         if !on { clearRecentQuestions() }
@@ -133,7 +133,7 @@ final class SettingsModel: ObservableObject {
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
     /// (`AIConfig.writing`), down to an app's profile and each switch of hiding sensitive information: a value written
-    /// meanwhile by `@config` or by hand that the window hasn't read yet stays as it is, and so do keys this version
+    /// meanwhile by Settings → Assistant or by hand that the window hasn't read yet stays as it is, and so do keys this version
     /// doesn't know. Nothing is written when nothing changed (opening the window, moving through its fields, ⏎ on one
     /// left as it was, closing it). The window then shows the file as it now is.
     func save() {
@@ -244,7 +244,7 @@ final class SettingsModel: ObservableObject {
             return
         }
         keyLookups += 1
-        // As @config and @doctor look (`AIConfigSession.keySource`).
+        // As the Assistant's requests and checks look (`AIConfigSession.keySource`).
         let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
@@ -868,9 +868,9 @@ struct SettingsView: View {
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
     @State private var commandToDelete: Int?
-    /// The provider whose key row shows its paste field (Replace…, or `@config` opening Settings at the key).
+    /// The provider whose key row shows its paste field (Replace…, or the Assistant opening Settings at the key).
     @State private var editingKey: Provider?
-    /// The key sheet: a provider other than the one in use whose key `@config` or `@doctor` asked for.
+    /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
     @State private var keySheet: KeySheetRequest?
     /// The web search key row's paste field.
     @State private var editingSearchKey = false
@@ -1956,7 +1956,7 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
             page = .provider
-            model.reloadIfChanged()  // what @config just set
+            model.reloadIfChanged()  // what the Assistant just set
             guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
             // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page).
             if provider == model.config.provider {

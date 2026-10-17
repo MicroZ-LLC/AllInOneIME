@@ -19,7 +19,7 @@ struct CommandTests {
         #expect(Command.matching("ag") == [.agent])
         #expect(Command.matching("x").isEmpty)
         #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run,
-                                                      .agents, .settings, .config, .doctor, .message, .report])
+                                                      .agents, .settings, .message, .report])
     }
 
     @Test func notesAndRemindersAreBuiltIn() {
@@ -47,7 +47,7 @@ struct CommandTests {
             CustomCommand(name: "noargv", type: .run),
         ])
         #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "note", "reminder", "py", "js", "tasks",
-                                        "settings", "config", "doctor", "imessage", "reportissue", "python", "reply", "sh"])
+                                        "settings", "imessage", "reportissue", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
         #expect(Command.parse("@python print(1)", in: catalog)?.command.custom == python)

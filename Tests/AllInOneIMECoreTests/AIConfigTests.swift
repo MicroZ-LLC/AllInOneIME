@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// `@config`: the answer read strictly, each change checked as Settings checks it and shown old → new, refused parts with
-/// their reason, apply and undo through the config file, the prompt (its own, the others unchanged), the on-device model
-/// first, and the keys in the panel.
+/// Settings → Assistant's requests (`AIConfig`): the answer read strictly, each change checked as Settings checks it and
+/// shown old → new, refused parts with their reason, apply and undo through the config file, the prompt (its own, the
+/// others unchanged), the on-device model first, and keys never going out.
 struct AIConfigTests {
     var config: Config {
         var config = Config.default
@@ -126,7 +126,7 @@ struct AIConfigTests {
         #expect(try rows(#"{"changes": [{"key": "typeOutRate", "value": 0.17}]}"#).first?.new == "6 s each")
     }
 
-    /// Recent questions turned off by @config keep the saved ones (so undo puts back exactly what was): the row says
+    /// Recent questions turned off by the Assistant keep the saved ones (so undo puts back exactly what was): the row says
     /// so, and that Settings' "Clear" deletes them. Turned on, the row is as any other.
     @Test func rememberQuestionsOffSaysTheSavedOnesAreKept() throws {
         let off = #"{"changes": [{"key": "rememberQuestions", "value": false}]}"#
@@ -262,7 +262,7 @@ struct AIConfigTests {
         #expect(after.typeOut && after.typeOutRate == 8 && after.redaction.customWords == ["Falcon", "Osprey"])
         #expect(after.profile(for: "com.tencent.xinWeChat")?.inputLanguage == .chinese && after.profile(for: "com.apple.mail") == nil)
         #expect(after.provider == .anthropic && after.anthropic.model == "claude-sonnet-5-5")
-        // Another change meanwhile (not @config's) stays.
+        // Another change meanwhile (not the Assistant's) stays.
         var meanwhile = after
         meanwhile.useSelection = false
         try meanwhile.write(to: url)
@@ -325,7 +325,7 @@ struct AIConfigTests {
     }
 
     @Test func theOtherPromptsAreUnchanged() throws {
-        // `RefineTests` checks every normal request against release 0.6.3's; @config's own is none of them.
+        // `RefineTests` checks every normal request against release 0.6.3's; the Assistant's own is none of them.
         let url = try #require(Bundle.module.url(forResource: "prompts-release-0.6.3", withExtension: "json", subdirectory: "Fixtures"))
         let golden = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         // @question's gained the live-data rule since (`RefineTests`); without it, every request is as 0.6.3 built it.
@@ -445,94 +445,7 @@ struct AIConfigTests {
         #expect(!service.onDevice && stub.schemas.isEmpty)
     }
 
-    // MARK: - Keys in the panel
-
-    func drafted(_ text: String) -> Composer {
-        let c = Composer(engine: FakeEngine(), actionKey: .enter)
-        c.setInputMode(.english)
-        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
-        for ch in "config" { _ = c.handleKeyDown(k(String(ch))) }
-        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
-        for ch in text { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
-        return c
-    }
-
-    let answer = #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#
-
-    func previewed() throws -> (Composer, AIConfig.Preview) {
-        let c = drafted("column")
-        #expect(c.draft == "@config column")
-        let started = c.handleKeyDown(enterKey).effects
-        #expect(started.first == .startCommand(.config, input: "column", id: 1))
-        let preview = try preview(answer).get()
-        _ = c.receiveConfig(preview, lines: preview.rows.map { $0.text(chinese: false) }, answer: answer, id: 1)
-        return (c, preview)
-    }
-
-    @Test func nothingAfterItDoesNothing() {
-        let c = drafted("")
-        #expect(c.handleKeyDown(enterKey).effects.isEmpty && c.phase == .drafting)
-    }
-
-    @Test func enterOrOneAppliesAndNothingIsInserted() throws {
-        let (c, preview) = try previewed()
-        #expect(c.phase == .choosing && c.choices.map(\.text) == ["Candidate layout: Horizontal → Vertical"])
-        #expect(c.handleKeyDown(spaceKey).effects.isEmpty)  // Space doesn't apply (⏎ is the action key)
-        #expect(c.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
-        _ = c.configApplied("Changed 1 setting")
-        #expect(c.choices.map(\.text) == ["Changed 1 setting"])
-        _ = c.configStatus("✓ Connection works")
-        #expect(c.choices.map(\.text) == ["Changed 1 setting", "✓ Connection works"])
-        // ⌘Z undoes it and closes; nothing was ever inserted.
-        let undo = c.handleKeyDown(k("z", mods: .command)).effects
-        #expect(undo.last == .undoConfig && commits(undo).isEmpty && c.phase == .idle)
-        let (d, p) = try previewed()
-        #expect(d.handleKeyDown(k("1")).effects == [.applyConfig(p), .showPanel])
-    }
-
-    let shiftEnter = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
-
-    @Test func escCancelsAndTypingRefines() throws {
-        let (c, _) = try previewed()
-        #expect(commits(c.handleKeyDown(escKey)).isEmpty && c.phase == .drafting && c.draft == "@config column")
-        let (d, _) = try previewed()
-        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
-        #expect(d.refineText == "also" && d.phase == .choosing)
-        // ⇧⏎ sends the line (⏎ would apply the proposal, the line going with it).
-        let effects = d.handleKeyDown(shiftEnter).effects
-        let refine = effects.compactMap { if case let .startRefine(r, _) = $0 { return r } else { return nil } }.first
-        #expect(refine?.request == .command(.config, input: "column") && refine?.turns.first?.answer.versions.first?.text == answer)
-        // Its answer replaces the preview; Esc goes back to the one before.
-        let next = #"{"changes": [{"key": "typeOut", "value": true}]}"#
-        let p2 = try preview(next).get()
-        _ = d.receiveConfig(p2, lines: ["Type results out: off → on"], answer: next, id: 2)
-        #expect(d.choices.map(\.text) == ["Type results out: off → on"])
-        _ = d.handleKeyDown(escKey)
-        #expect(d.choices.map(\.text) == ["Candidate layout: Horizontal → Vertical"])
-    }
-
-    @Test func aFailureIsOneLineAndNothingGoesIn() throws {
-        let c = drafted("make it pink")
-        _ = c.handleKeyDown(enterKey)
-        _ = c.fail("Couldn't turn that into a setting", id: 1)
-        #expect(c.phase == .failed("Couldn't turn that into a setting"))
-        let back = c.handleKeyDown(enterKey).effects
-        #expect(commits(back).isEmpty && c.phase == .drafting)
-    }
-
-    @Test func undoIsTypedToo() {
-        let c = drafted("undo")
-        let effects = c.handleKeyDown(enterKey).effects
-        #expect(effects.contains(.undoConfig) && commits(effects).isEmpty && c.phase == .idle)
-    }
-
-    @Test func notInAnAppWithNoAI() {
-        let c = drafted("column")
-        c.aiRefusal = { "AI is off in this app" }
-        #expect(c.handleKeyDown(enterKey).effects.contains(.notice("AI is off in this app")) && c.phase == .drafting)
-    }
-
-    // MARK: - Secrets and the ⇧⏎ rule
+    // MARK: - Secrets
 
     let key = "sk-ant-" + "api03-Zx8Qw2Lm4Np6Rt0Vb3Yc5Hd7Jf9Kg1Ms2Pu4Wx6Ab8Cd"
 
@@ -561,20 +474,6 @@ struct AIConfigTests {
         let turns = [Refinement.Turn(answer: ConversionResult(versions: [CandidateLine("{\"changes\": []}")]), instruction: "use Claude with \(key)")]
         _ = try await service.ask("candidates in a column \(key)", turns: turns, context: .init(config: config))
         #expect(stub.prompts.allSatisfy { !$0.contains(key) } && stub.prompts.first == "<refine>use Claude with</refine>")
-    }
-
-    @Test func shiftReturnRefinesOnlyWithALine() throws {
-        // Nothing typed: ⇧⏎ does nothing (never "@config …" as typed), on the preview and on a failure.
-        let (c, _) = try previewed()
-        #expect(c.handleKeyDown(shiftEnter).effects.isEmpty && c.phase == .choosing)
-        let failed = drafted("pink")
-        _ = failed.handleKeyDown(enterKey)
-        _ = failed.fail("Couldn't turn that into a setting", id: 1)
-        #expect(commits(failed.handleKeyDown(shiftEnter).effects).isEmpty)
-        // A line typed: ⏎ applies the proposal (the line goes with it); ⇧⏎ refines (above).
-        let (d, preview) = try previewed()
-        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
-        #expect(d.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
     }
 
     // MARK: - Sign-off review fixes
@@ -701,14 +600,6 @@ struct AIConfigTests {
         #expect(try rows(known).first?.edit == .baseURL("https://api.deepseek.com/v1"))
     }
 
-    @Test func theRefineFooterSaysWhatTheKeysDo() throws {
-        // ⏎ applies the proposal shown even with a refine line typed; ⇧⏎ sends the line (`shiftReturnRefinesOnlyWithALine`).
-        let (d, preview) = try previewed()
-        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
-        #expect(d.refineLine == "also")
-        #expect(d.handleKeyDown(enterKey).effects == [.applyConfig(preview), .showPanel])
-    }
-
     @Test func typedHostsMatchExactly() throws {
         let hosts = AIConfig.typedHosts("use my server at https://user@MyLLM.example.com:8443/v1, or api.example.com.mine.dev. 用llm.corp.example作为地址")
         #expect(hosts == ["myllm.example.com", "api.example.com.mine.dev", "llm.corp.example"])
@@ -721,7 +612,7 @@ struct AIConfigTests {
                 == .baseURL("https://llm.example.com/v1"))
     }
 
-    /// A writer that read the file before another one wrote it (a Settings window not yet told of `@config`'s write)
+    /// A writer that read the file before another one wrote it (a Settings window not yet told of the Assistant's write)
     /// writes only what it changed, down to one app's profile and one switch of hiding sensitive information: the other
     /// writer's changes stay.
     @Test func aWriteKeepsWhatAnotherWroteMeanwhile() throws {
@@ -731,7 +622,7 @@ struct AIConfigTests {
         read.appProfiles = ["com.apple.mail": AppProfile(inputLanguage: .english), "com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese)]
         read.redaction = RedactionSettings(enabled: true, customWords: ["Atlas"])
         try read.write(to: url)
-        // @config: Mail typed out, emails no longer hidden.
+        // The Assistant: Mail typed out, emails no longer hidden.
         var other = read
         other.appProfiles["com.apple.mail"]?.typeOut = true
         other.redaction.emails = false
@@ -835,38 +726,5 @@ struct AIConfigTests {
         #expect(try Data(contentsOf: url) != before)
         _ = try AIConfig.undo(applied, at: url)
         #expect(try Data(contentsOf: url) == before)
-    }
-
-    @Test func returnWhileARequestIsPendingDoesNothing() throws {
-        // @config sent, its answer not in yet: ⏎ and ⇧⏎ do nothing (never send it again), Esc cancels.
-        let c = drafted("candidates in a row")
-        #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.config, input: "candidates in a row", id: 1))
-        for _ in 0..<3 {
-            let again = c.handleKeyDown(enterKey)
-            #expect(again.handled && again.effects.isEmpty && c.phase == .translating(id: 1))
-            let shifted = c.handleKeyDown(shiftEnter)
-            #expect(shifted.handled && shifted.effects.isEmpty && c.phase == .translating(id: 1))
-        }
-        #expect(c.handleKeyDown(escKey).effects.contains(.cancelConversion) && c.phase == .drafting)
-        // A refine on its way: the same.
-        let (d, _) = try previewed()
-        for ch in "also" { _ = d.handleKeyDown(k(String(ch))) }
-        let sent = d.handleKeyDown(shiftEnter).effects
-        #expect(sent.contains { if case .startRefine = $0 { return true } else { return false } } && d.isRefining)
-        for key in [enterKey, shiftEnter] {
-            let effects = d.handleKeyDown(key).effects
-            #expect(!effects.contains { if case .startRefine = $0 { return true } else { return false } }, "\(effects)")
-            #expect(!effects.contains { if case .startCommand = $0 { return true } else { return false } } && d.isRefining)
-        }
-        // @doctor's question on its way: the same.
-        let doctor = Composer(engine: FakeEngine(), actionKey: .enter)
-        doctor.setInputMode(.english)
-        _ = doctor.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
-        for ch in "doc" { _ = doctor.handleKeyDown(k(String(ch))) }
-        _ = doctor.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
-        for ch in "why" { _ = doctor.handleKeyDown(k(String(ch))) }
-        #expect(doctor.handleKeyDown(enterKey).effects.first == .startCommand(.doctor, input: "why", id: 1))
-        #expect(doctor.handleKeyDown(enterKey).effects.isEmpty && doctor.handleKeyDown(shiftEnter).effects.isEmpty)
-        #expect(doctor.phase == .translating(id: 1))
     }
 }

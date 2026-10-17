@@ -218,7 +218,7 @@ public struct Config: Codable, Equatable, Sendable {
         rewriteStyles: RewriteStyle.defaultNames
     )
 
-    /// Every key a config file may hold (`allKeys`: what `@doctor` and `@config` know as the config's own).
+    /// Every key a config file may hold (`allKeys`: what the Assistant's checks and changes know as the config's own).
     enum CodingKeys: String, CodingKey, CaseIterable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, improveTranslates, voiceInput, jargonFile, actionKey, uiLanguage, customCommands, claudeInBackground, agent, agentCommand

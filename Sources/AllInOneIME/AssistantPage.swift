@@ -324,7 +324,7 @@ final class AssistantModel: ObservableObject {
     var allFine: Bool { !findings.isEmpty && findings.allSatisfy { $0.status == .ok } }
 
     /// Fix on finding `index`: a config fix shows its changes in the preview above (Apply, Undo); the others act at once,
-    /// as `@doctor` did. The probes run again after.
+    /// as they did before. The probes run again after.
     func fix(_ index: Int) {
         guard findings.indices.contains(index), let fix = findings[index].fix else { return }
         switch fix {
@@ -509,6 +509,7 @@ struct AssistantPage: View {
         .onAppear {
             assistant.expireUndo()
             assistant.probe()
+            AIConfigSession.prewarmIfDue()  // the on-device model and the apps, before a request
             // The request field, once the page is up.
             DispatchQueue.main.async { requestFocused = true }
         }

@@ -139,8 +139,8 @@ extension AIConfig {
         func enterKey(_ provider: Provider) -> String {
             provider == .hosted ? tr("在设置里登录", "sign in in Settings") : tr("在设置里填（不会发给 AI）", "enter it in Settings (never sent to the AI)")
         }
-        /// "Gemini API needs an API key" (AllInOneIME Cloud: a sign-in): the row of a provider without one, in `@config`'s
-        /// preview and on `@doctor`'s fix.
+        /// "Gemini API needs an API key" (AllInOneIME Cloud: a sign-in): the row of a provider without one, in the
+        /// Assistant's preview, a request's or a finding's fix.
         public func needsKey(_ provider: Provider) -> String {
             let name = self.provider(provider)
             return provider == .hosted ? tr("\(name) 需要登录", "\(name) needs a sign-in")

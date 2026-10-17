@@ -175,7 +175,7 @@ extension AIConfig {
             case refused(String)
             /// The provider needs a key (or a sign-in): applying opens Settings at its key field.
             case needsKey(Provider)
-            /// Something applying does besides the settings (`@doctor`'s fixes: a pack downloaded, a pane opened).
+            /// Something applying does besides the settings (a finding's fixes: a pack downloaded, a pane opened).
             case action
         }
 

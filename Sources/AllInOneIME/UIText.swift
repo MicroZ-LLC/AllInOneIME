@@ -135,8 +135,6 @@ enum UIText {
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
         case .settings: return tr("打开设置", "Open the settings")
-        case .config: return tr("用一句话改设置", "Change settings by describing them")
-        case .doctor: return tr("检查设置，能修的帮你修", "Check your setup and fix what can be fixed")
         case .note: return tr("存到备忘录", "Save to Notes")
         case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
         case .py: return tr("运行 Python，结果可以直接上屏", "Run Python; insert the result")
@@ -251,8 +249,6 @@ enum UIText {
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
         case .settings: return tr("打开设置", "open the settings")
-        case .config: return tr("看一下再改设置", "check, then change the settings")
-        case .doctor: return tr("检查设置", "check the setup")
         case .note: return tr("存到备忘录", "save to Notes")
         case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
         case .py: return tr("运行 Python", "run Python")
@@ -370,16 +366,16 @@ enum UIText {
             case let .refused(p): return tr("\(name(p)) 拒绝了这个请求", "The \(name(p)) declined this request")
             case let .invalidResponse(p, detail):
                 return tr("\(name(p)) 的响应无法解析：\(detail)", "Couldn't read the \(name(p)) response: \(detail)")
-            // With Apple Intelligence here, @config can switch to it (it runs on it then); without, it would fail the same way.
+            // With Apple Intelligence here, Settings → Assistant can switch to it (it runs on it then); without, it would fail the same way.
             case .signedOut:
                 return AppleModel.system.availability == .available
-                    ? tr("请先在设置里登录 AllInOneIME 云，或者打 @config 用 Apple 智能",
-                         "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence")
+                    ? tr("请先在设置里登录 AllInOneIME 云，或者在设置 → 助手里改用 Apple 智能",
+                         "Sign in to AllInOneIME Cloud in the settings, or switch to Apple Intelligence in Settings → Assistant")
                     : tr("请先在设置里登录 AllInOneIME 云，或者填自己的 API key", "Sign in to AllInOneIME Cloud in the settings, or add your own API key")
             case .quotaExhausted:
                 return AppleModel.system.availability == .available
-                    ? tr("今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者打 @config 用 Apple 智能",
-                         "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence")
+                    ? tr("今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者在设置 → 助手里改用 Apple 智能",
+                         "No requests left today: subscribe or add your own API key in the settings, or switch to Apple Intelligence in Settings → Assistant")
                     : tr("今天的免费次数用完了：可以在设置里订阅，或者填自己的 API key",
                          "No requests left today: subscribe, or add your own API key in the settings")
             }

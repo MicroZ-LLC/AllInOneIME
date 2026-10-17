@@ -1,6 +1,7 @@
 import Foundation
 
-/// `@config`: settings changed by describing them ("@config output languages English and French", "@config 微信里用中文").
+/// Settings → Assistant's "Change settings in a sentence": settings changed by describing them ("output languages English
+/// and French", "微信里用中文").
 /// One AI request turns the sentence into changes (`AIConfigPrompt`, `AIConfigService`); the answer is JSON only, a list of
 /// `{ "key": <setting>, "value": <JSON> }` and an optional `"note"`, read strictly (`parse`). Each change is checked with
 /// the rules Settings uses (`preview`) and shown as a row, old → new, or refused with the reason; the user confirms, and
@@ -11,7 +12,7 @@ import Foundation
 public enum AIConfig {
     /// At most this many output (translation) languages.
     public static let maxOutputLanguages = 5
-    /// `@config undo` (and ⌘Z while the confirmation is up) restores the last changes within this many seconds.
+    /// Undo restores the last changes within this many seconds.
     public static let undoWindow: TimeInterval = 10 * 60
 
     // MARK: - The allowlist
@@ -291,7 +292,7 @@ public enum AIConfig {
         case baseURL(String?)
     }
 
-    /// What applying a preview does besides the settings: `@doctor`'s fixes.
+    /// What applying a preview does besides the settings: a finding's fixes.
     public enum Action: Equatable, Sendable {
         /// The repeated languages taken out of the config file, nothing else (`Doctor.removeRepeatedLanguages`).
         case resaveConfig
@@ -390,7 +391,7 @@ public enum AIConfig {
         }
     }
 
-    /// The edits that undo `applied` (from `apply`), as one value with when it was applied: `@config undo` within
+    /// The edits that undo `applied` (from `apply`), as one value with when it was applied: Undo within
     /// `undoWindow`.
     public struct Applied: Equatable, Sendable {
         public var undo: [Edit]
@@ -425,7 +426,7 @@ public enum AIConfig {
     /// What an undo did: how many keys it put back, and the edits it skipped because their key changed since.
     public struct UndoReport: Equatable, Sendable {
         public var undone: Int
-        /// The keys left as they are (changed since `@config` wrote them), as the edits that would have put them back.
+        /// The keys left as they are (changed since the Assistant wrote them), as the edits that would have put them back.
         public var skipped: [Edit]
     }
 
@@ -471,7 +472,7 @@ public enum AIConfig {
     /// key `config` no longer writes goes; every other key of the file stays as it was, its text untouched, one this
     /// version doesn't know too. Inside an object-valued key (`appProfiles` per app, `redaction` per field, `openai` …)
     /// only what changed from `old` to `config` is written (`merged`): a field written meanwhile by something else (a
-    /// Settings window's save over `@config`'s write, or the other way round) and fields this version doesn't know stay.
+    /// Settings window's save over the Assistant's write, or the other way round) and fields this version doesn't know stay.
     /// `old` is the config the writer last read or wrote. A missing file is written whole (`Config.write`).
     public static func writing(_ config: Config, from old: Config, keys: Set<String>, at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
