@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import PDFKit
 
 /// `@read <url>`: a web page's title and main text, as context for the AI (`@question 总结一下 @read https://…`).

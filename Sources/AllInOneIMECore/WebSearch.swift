@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// One web search result (`WebSearch`), cleaned for showing, inserting and the AI: no markup, no
 /// control characters or marks that reorder text, at most `WebSearch.maxTitleLength` /

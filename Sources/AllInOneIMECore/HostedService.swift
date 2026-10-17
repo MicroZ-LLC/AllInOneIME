@@ -4,6 +4,9 @@ import CryptoKit
 import Crypto
 #endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// The developer's own service (a separate, private repository): sign in with an email or Google (Cognito), a few free
 /// requests a day, more with a subscription (Stripe). Fill these in from `sam deploy`'s outputs and

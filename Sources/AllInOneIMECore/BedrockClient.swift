@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Request body for the Bedrock Converse / ConverseStream APIs (the subset we use).
 public struct ConverseRequest: Encodable, Equatable, Sendable {

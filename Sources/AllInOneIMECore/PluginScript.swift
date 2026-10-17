@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import JavaScriptCore
 
 /// One request a plugin script makes with `fetch`, and its answer.

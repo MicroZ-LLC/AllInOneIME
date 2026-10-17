@@ -4,6 +4,9 @@ import CryptoKit
 import Crypto
 #endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// `update.json` (https://allinoneime.com/update.json, from the site's public/ folder): the newest release, written
 /// and signed by `Scripts/build-update-manifest.swift` (`make update-manifest`) with the releases' own Ed25519

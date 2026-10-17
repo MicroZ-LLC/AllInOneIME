@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Where requests to the model go. Bedrock signs with AWS keys from ~/.aws; the others take an API
 /// key (`APIKeys`).

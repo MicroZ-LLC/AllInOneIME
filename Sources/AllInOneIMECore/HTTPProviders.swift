@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Requests to the API-key providers, and their streamed answers (server-sent events) as
 /// `BedrockStreamEvent`s. Each API has its own shape:
