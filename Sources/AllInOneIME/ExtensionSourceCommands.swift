@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import Foundation
 
 /// `--add-source`, `--update-sources`, `--list-extensions`: extension sources from a terminal or a script, as Settings

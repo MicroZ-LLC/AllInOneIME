@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import Foundation
 
 /// `@open`: files, folders and apps. A path ("~/Doc", "/Applications/") lists what is in that

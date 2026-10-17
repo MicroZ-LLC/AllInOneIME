@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 
 /// Text in English and Chinese: `"…"` or `{"en": "…", "zh": "…"}` in a manifest.

@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -345,12 +341,7 @@ public struct PluginLibrary: Sendable {
     /// into place. Whoever reads the plugins folder meanwhile sees the old plugin or the new, never half.
     static func moveIntoPlace(_ source: URL, _ destination: URL) throws {
         let exists = FileManager.default.fileExists(atPath: destination.path)
-        let result = source.withUnsafeFileSystemRepresentation { from in
-            destination.withUnsafeFileSystemRepresentation { to in
-                renamex_np(from, to, UInt32(exists ? RENAME_SWAP : RENAME_EXCL))
-            }
-        }
-        guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        try Platform.current.files.swap(source, into: destination, exists: exists)
         if exists { try? FileManager.default.removeItem(at: source) }  // now holds the old version
     }
 

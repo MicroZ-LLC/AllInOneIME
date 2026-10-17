@@ -114,23 +114,7 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
     /// `url` in one step: the questions are never in a file others can read, not even for a moment, and a file that was
     /// readable by others before is replaced, not reused.
     static func replace(_ url: URL, with data: Data) throws {
-        let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
-        let fd = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
-        guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: temporary.path]) }
-        var written = fchmod(fd, 0o600) == 0  // whatever the umask
-        data.withUnsafeBytes { bytes in
-            var offset = 0
-            while written, offset < bytes.count {
-                let n = Foundation.write(fd, bytes.baseAddress! + offset, bytes.count - offset)
-                if n <= 0 { written = false } else { offset += n }
-            }
-        }
-        written = fsync(fd) == 0 && written
-        close(fd)
-        guard written, rename(temporary.path, url.path) == 0 else {
-            unlink(temporary.path)
-            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
-        }
+        try Platform.current.files.writePrivate(data, to: url)
     }
 
     private static var encoder: JSONEncoder {

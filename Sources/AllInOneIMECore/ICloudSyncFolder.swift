@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 
 /// The folder the Macs share (`ICloudSync`): `AllInOneIME` in iCloud Drive (`iCloudDrive`), or any folder (the tests and
@@ -134,18 +130,25 @@ public struct ICloudSyncFolder: Sendable {
     /// "Remove from iCloud…": the folder goes to the Trash (iCloud Drive's own, where it can be put back for a while).
     public func remove() throws {
         guard exists else { return }
-        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        try Platform.current.files.trash(url)
     }
 
     /// Whether iCloud has `file` downloaded: true for a file that isn't in iCloud at all (a temporary folder).
+    /// (iCloud Drive is Apple's: elsewhere no file is in it.)
     static func isDownloaded(_ file: URL) -> Bool {
+        #if canImport(Darwin)
         guard let values = try? file.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
               values.isUbiquitousItem == true, let status = values.ubiquitousItemDownloadingStatus else { return true }
         return status == .current
+        #else
+        return true
+        #endif
     }
 
     static func startDownloading(_ file: URL) {
+        #if canImport(Darwin)
         try? FileManager.default.startDownloadingUbiquitousItem(at: file)
+        #endif
     }
 }
 

@@ -373,7 +373,7 @@ extension TypeOut {
         public static let qwerty = Keyboard { usKeys[$0] ?? "" }
 
         /// The keyboard `layout` types with (AZERTY, QWERTZ, Dvorak …).
-        public init(layout: KeyboardLayout) {
+        public init(layout: any KeyTranslator) {
             self.init { code in
                 var state: UInt32 = 0
                 return layout.translate(code, [], state: &state, deadKeys: false)

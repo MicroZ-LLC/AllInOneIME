@@ -46,13 +46,14 @@ public struct AWSCredentialContext: Sendable {
 
     public var locations: AWSFileLocations { files ?? AWSFileLocations(environment: environment()) }
 
-    /// The input method's: its own environment over the login shell's, the login shell's PATH for `credential_process`
-    /// (with the AWS files' variables, so the program reads the same files), HTTP through an ephemeral session.
+    /// The input method's: its own environment over the login shell's (`ProcessLauncher.loginEnvironment`), the login
+    /// shell's PATH for `credential_process` (`ProcessLauncher.environment`, with the AWS files' variables, so the program
+    /// reads the same files), HTTP through an ephemeral session.
     public static let live = AWSCredentialContext(
-        environment: { AWSEnvironment.merged(own: ProcessInfo.processInfo.environment, login: ShellEnvironment.login) },
+        environment: { AWSEnvironment.merged(own: ProcessInfo.processInfo.environment, login: Platform.current.processes.loginEnvironment) },
         processEnvironment: {
-            var environment = ShellEnvironment.current
-            let aws = AWSEnvironment.merged(own: ProcessInfo.processInfo.environment, login: ShellEnvironment.login)
+            var environment = Platform.current.processes.environment
+            let aws = AWSEnvironment.merged(own: ProcessInfo.processInfo.environment, login: Platform.current.processes.loginEnvironment)
             for name in ["AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE"] { environment[name] = aws[name] }
             return environment
         },

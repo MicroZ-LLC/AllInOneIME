@@ -1,0 +1,1 @@
+../AllInOneIMECoreTests/ComposerTestSupport.swift

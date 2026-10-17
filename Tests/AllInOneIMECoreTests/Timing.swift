@@ -13,9 +13,20 @@ enum Timing {
 
     /// The CPU time this thread spends in `body` (as `ContinuousClock.measure`, without the time spent waiting).
     static func cpuTime(_ body: () throws -> Void) rethrows -> Duration {
-        let start = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
+        let start = threadCPUNanoseconds()
         try body()
-        return .nanoseconds(Int64(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - start))
+        return .nanoseconds(Int64(threadCPUNanoseconds() - start))
+    }
+
+    /// This thread's CPU time so far, in nanoseconds.
+    static func threadCPUNanoseconds() -> UInt64 {
+        #if canImport(Darwin)
+        return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
+        #else
+        var time = timespec()
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time)
+        return UInt64(time.tv_sec) * 1_000_000_000 + UInt64(time.tv_nsec)
+        #endif
     }
 
     /// What `body` returns, and the CPU time this thread spent in it in seconds.

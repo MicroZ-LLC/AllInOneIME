@@ -47,36 +47,43 @@ final class StreamStub: URLProtocol, @unchecked Sendable {
     override func startLoading() {
         guard let url = request.url, let host = url.host else { return }
         let steps = Self.state.withLock { $0.scripts[host] ?? [.fail(.cannotFindHost)] }
-        DispatchQueue.global().async { [self] in
-            for step in steps {
-                if isStopped.withLock({ $0 }) { return }
-                switch step {
-                case let .respond(status):
-                    // With a type, so that URLSession doesn't hold the response back to sniff the body.
-                    let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1",
-                                                   headerFields: ["Content-Type": "application/json"])!
-                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-                case let .send(text):
-                    client?.urlProtocol(self, didLoad: Data(text.utf8))
-                case let .wait(gate):
-                    while gate.wait(timeout: .now() + 0.05) == .timedOut {
-                        if isStopped.withLock({ $0 }) { return }
-                    }
-                case let .fail(code):
-                    client?.urlProtocol(self, didFailWithError: URLError(code))
-                    return
-                case let .redirect(location):
-                    let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: "HTTP/1.1",
-                                                   headerFields: ["Location": location, "Content-Type": "application/json"])!
-                    client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: URL(string: location)!), redirectResponse: response)
-                    // A followed redirect stops this request meanwhile.
-                    Thread.sleep(forTimeInterval: 0.3)
+        #if canImport(Darwin)
+        let stub = self
+        #else
+        nonisolated(unsafe) let stub = self  // URLProtocol isn't Sendable off Apple platforms
+        #endif
+        DispatchQueue.global().async { stub.play(steps, url: url) }
+    }
+
+    private func play(_ steps: [Step], url: URL) {
+        for step in steps {
+            if isStopped.withLock({ $0 }) { return }
+            switch step {
+            case let .respond(status):
+                // With a type, so that URLSession doesn't hold the response back to sniff the body.
+                let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1",
+                                               headerFields: ["Content-Type": "application/json"])!
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            case let .send(text):
+                client?.urlProtocol(self, didLoad: Data(text.utf8))
+            case let .wait(gate):
+                while gate.wait(timeout: .now() + 0.05) == .timedOut {
                     if isStopped.withLock({ $0 }) { return }
-                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-                case .finish:
-                    client?.urlProtocolDidFinishLoading(self)
-                    return
                 }
+            case let .fail(code):
+                client?.urlProtocol(self, didFailWithError: URLError(code))
+                return
+            case let .redirect(location):
+                let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: "HTTP/1.1",
+                                               headerFields: ["Location": location, "Content-Type": "application/json"])!
+                client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: URL(string: location)!), redirectResponse: response)
+                // A followed redirect stops this request meanwhile.
+                Thread.sleep(forTimeInterval: 0.3)
+                if isStopped.withLock({ $0 }) { return }
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            case .finish:
+                client?.urlProtocolDidFinishLoading(self)
+                return
             }
         }
     }
@@ -88,6 +95,12 @@ final class StreamStub: URLProtocol, @unchecked Sendable {
 }
 
 struct HTTPStreamTests {
+    #if canImport(Darwin)
+    static let stubsCanRedirect = true
+    #else
+    static let stubsCanRedirect = false
+    #endif
+
     let session = StreamStub.session()
 
     func request(_ host: String) -> URLRequest {
@@ -180,7 +193,8 @@ struct HTTPStreamTests {
         #expect(await eventually { StreamStub.stopped("dropped.test") })
     }
 
-    @Test func redirectsAreFollowedUnlessRefused() async throws {
+    /// Apple's URLSession only: corelibs' (Linux, Windows) stops the process when a URLProtocol stub redirects.
+    @Test(.enabled(if: HTTPStreamTests.stubsCanRedirect)) func redirectsAreFollowedUnlessRefused() async throws {
         StreamStub.serve("moved.test", [.redirect("https://new.moved.test/"), .finish])
         StreamStub.serve("new.moved.test", [.respond(200), .send("here"), .finish])
         let (followed, response) = try await HTTPStream.bytes(for: request("moved.test"), session: session)

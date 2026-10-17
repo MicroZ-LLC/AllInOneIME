@@ -2062,11 +2062,20 @@ public final class Composer {
         let live = currentLiveResults
         guard live.indices.contains(liveHighlight) else { return [] }
         let result = live[liveHighlight]
-        draft = "@open " + (result.path as NSString).abbreviatingWithTildeInPath + (result.isFolder ? "/" : "")
+        draft = "@open " + Self.abbreviatingHome(result.path) + (result.isFolder ? "/" : "")
         liveResults = []
         liveResultsQuery = nil
         resetLiveHighlight()
         return [.updateMarkedText, .showPanel]
+    }
+
+    /// `path` with the home folder as "~": as Apple's Foundation abbreviates it, elsewhere `ExtensionStore.abbreviated`.
+    static func abbreviatingHome(_ path: String) -> String {
+        #if canImport(Darwin)
+        return (path as NSString).abbreviatingWithTildeInPath
+        #else
+        return ExtensionStore.abbreviated(path)
+        #endif
     }
 
     /// Leaves the palette: what was typed ("@", "@na") goes in as typed, then `event` acts as usual. A

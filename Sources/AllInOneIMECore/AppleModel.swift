@@ -1,8 +1,4 @@
 import Foundation
-import NaturalLanguage
-#if canImport(FoundationModels)
-import FoundationModels
-#endif
 
 /// Apple's on-device model (macOS 26's Foundation Models framework) as a provider (`Provider.apple`): no key, no cost,
 /// nothing leaves the Mac. The requests are the same as the other providers' (`Prompt`): the system prompt becomes the
@@ -15,13 +11,9 @@ public enum AppleModel {
     /// System Settings → Apple Intelligence & Siri, where it is turned on.
     public static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.Siri-Settings.extension")!
 
-    /// The model on this Mac, or a stand-in that is never available (macOS before 26, or built without the framework).
-    public static var system: any AppleModelBackend {
-        #if canImport(FoundationModels)
-        if #available(macOS 26, *) { return FoundationModelsBackend() }
-        #endif
-        return UnsupportedBackend()
-    }
+    /// The model on this Mac (`Platform.onDeviceModel`), or a stand-in that is never available (macOS before 26, or
+    /// built without the framework).
+    public static var system: any AppleModelBackend { Platform.current.onDeviceModel }
 
     /// Room kept for the answer when the examples are fitted into the context (`request`), in tokens.
     static let answerRoom = 1000
@@ -127,11 +119,9 @@ public enum AppleModel {
     /// Latin letters (pinyin reads as Indonesian or Vietnamese): it goes to the model.
     static func unsupportedLanguage(of text: String, supported: Set<String>) -> String? {
         guard !supported.isEmpty, text.filter(\.isLetter).count >= 10, !mostlyLatin(text) else { return nil }
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(text)
-        guard let language = recognizer.dominantLanguage,
-              let confidence = recognizer.languageHypotheses(withMaximum: 1)[language], confidence >= 0.8 else { return nil }
-        let code = String(language.rawValue.prefix { $0 != "-" && $0 != "_" })
+        guard let (language, confidence) = Platform.current.languages.dominantLanguage(of: text, among: []), confidence >= 0.8
+        else { return nil }
+        let code = String(language.prefix { $0 != "-" && $0 != "_" })
         return supported.contains(code) ? nil : code
     }
 
@@ -300,86 +290,3 @@ struct UnsupportedBackend: AppleModelBackend {
         AsyncThrowingStream { $0.finish(throwing: AppleModelError.unavailable(.unsupportedSystem)) }
     }
 }
-
-#if canImport(FoundationModels)
-/// `SystemLanguageModel` with a fresh session per request: its transcript is the instructions and the examples.
-@available(macOS 26, *)
-struct FoundationModelsBackend: AppleModelBackend {
-    var availability: AppleModelAvailability {
-        switch SystemLanguageModel.default.availability {
-        case .available: return .available
-        case .unavailable(.deviceNotEligible): return .deviceNotEligible
-        case .unavailable(.appleIntelligenceNotEnabled): return .appleIntelligenceNotEnabled
-        case .unavailable: return .modelNotReady
-        }
-    }
-
-    var contextSize: Int { SystemLanguageModel.default.contextSize }
-
-    var supportedLanguages: Set<String> {
-        Set(SystemLanguageModel.default.supportedLanguages.compactMap { $0.languageCode?.identifier })
-    }
-
-    func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    // The text is the user's own, to be rewritten or translated: the guardrails for transforming
-                    // text, so a sentence that merely mentions something sensitive isn't refused.
-                    let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
-                    func text(_ content: String) -> [Transcript.Segment] { [.text(Transcript.TextSegment(content: content))] }
-                    var entries: [Transcript.Entry] = [.instructions(Transcript.Instructions(segments: text(request.instructions),
-                                                                                             toolDefinitions: []))]
-                    for turn in request.examples {
-                        entries.append(.prompt(Transcript.Prompt(segments: text(turn.prompt))))
-                        entries.append(.response(Transcript.Response(assetIDs: [], segments: text(turn.response))))
-                    }
-                    let session = LanguageModelSession(model: model, tools: [], transcript: Transcript(entries: entries))
-                    let options = GenerationOptions(temperature: request.temperature,
-                                                    maximumResponseTokens: request.maximumResponseTokens)
-                    for try await snapshot in session.streamResponse(to: request.prompt, options: options) {
-                        var tokens: Int?
-                        if #available(macOS 27, *) { tokens = snapshot.usage.output.totalTokenCount }
-                        continuation.yield(AppleModelSnapshot(text: snapshot.content, outputTokens: tokens))
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: Self.mapped(error))
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    /// The framework's errors (macOS 26's `GenerationError`, macOS 27's `LanguageModelError`) as ours.
-    static func mapped(_ error: Error) -> Error {
-        if error is CancellationError { return error }
-        if #available(macOS 27, *) {
-            if let error = error as? LanguageModelError {
-                switch error {
-                case .contextSizeExceeded: return AppleModelError.contextExceeded
-                case .unsupportedLanguageOrLocale: return AppleModelError.unsupportedLanguage
-                case .guardrailViolation, .refusal: return ProviderError.refused(.apple)
-                case .rateLimited: return AppleModelError.busy
-                default: return AppleModelError.failed(error.localizedDescription)
-                }
-            }
-            if let error = error as? SystemLanguageModel.Error, case .assetsUnavailable = error {
-                return AppleModelError.unavailable(.modelNotReady)
-            }
-            if error is LanguageModelSession.Error { return AppleModelError.busy }
-        }
-        if let error = error as? LanguageModelSession.GenerationError {
-            switch error {
-            case .exceededContextWindowSize: return AppleModelError.contextExceeded
-            case .unsupportedLanguageOrLocale: return AppleModelError.unsupportedLanguage
-            case .guardrailViolation, .refusal: return ProviderError.refused(.apple)
-            case .rateLimited, .concurrentRequests: return AppleModelError.busy
-            case .assetsUnavailable: return AppleModelError.unavailable(.modelNotReady)
-            default: return AppleModelError.failed(error.localizedDescription)
-            }
-        }
-        return AppleModelError.failed((error as? LocalizedError)?.errorDescription ?? "\(error)")
-    }
-}
-#endif

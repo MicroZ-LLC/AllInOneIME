@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-import CryptoKit
-#else
 import Crypto
-#endif
 import Foundation
 
 /// A bundle of script extensions: a folder with an `extension.json` naming its commands, which may share code
@@ -395,22 +391,10 @@ public enum ExtensionStore {
             }
         }
     }
-
-    /// The Spotlight query for files with Raycast metadata (Raycast keeps its own list encrypted).
-    static let query = "kMDItemTextContent == \"*@raycast.schemaVersion*\"c"
-
-    /// The folders holding Raycast scripts on this Mac, by Spotlight: the parent folders of the files that have
-    /// Raycast metadata and are scripts (not code or notes that only mention it), as "~/…", sorted. Not those
-    /// in hidden folders or ~/Library (apps' caches and copies), nor templates. Slow (a Spotlight search, and
-    /// the files read): never on a keystroke.
-    public static func discover(spotlight: Spotlight = Spotlight(until: .now() + 20)) -> [String] {
-        guard let data = spotlight.mdfind([query]) else { return [] }
-        return folders(fromSpotlight: String(decoding: data, as: UTF8.self))
-    }
-
-    /// The folders of the files `mdfind` printed (one path a line) that are scripts (`isScript`).
-    static func folders(fromSpotlight output: String, home: String = NSHomeDirectory(),
-                        isScript: (URL) -> Bool = ExtensionStore.isScript) -> [String] {
+    /// The folders of the files `mdfind` printed (one path a line) that are scripts (`isScript`): what `discover` (the
+    /// macOS shell's) lists.
+    public static func folders(fromSpotlight output: String, home: String = NSHomeDirectory(),
+                               isScript: (URL) -> Bool = ExtensionStore.isScript) -> [String] {
         var folders = Set<String>()
         for line in output.split(separator: "\n") {
             let file = URL(fileURLWithPath: String(line))
@@ -426,7 +410,7 @@ public enum ExtensionStore {
 
     /// Whether `file` is there and is a Raycast script that loads (a file of a folder since removed, still in
     /// Spotlight's index, isn't: its folder is dropped).
-    static func isScript(_ file: URL) -> Bool {
+    @usableFromInline static func isScript(_ file: URL) -> Bool {
         guard let read = ExtensionCache().read(file), read.metadata?.front == .raycast,
               case .success? = ScriptCommand.read(read.metadata, firstLine: read.firstLine, file: file, executable: read.executable)
         else { return false }
@@ -472,7 +456,7 @@ public final class ExtensionCache: @unchecked Sendable {
     public func read(_ url: URL) -> File? {
         var info = stat()
         guard stat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
-        let date = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec) + TimeInterval(info.st_mtimespec.tv_nsec) / 1e9)
+        let date = Platform.current.files.modificationDate(atPath: url.path) ?? .distantPast
         let (size, mode) = (Int64(info.st_size), UInt16(info.st_mode))
         if let cached = lock.withLock({ files[url.path] }), cached.date == date, cached.size == size, cached.mode == mode { return cached }
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }

@@ -71,7 +71,9 @@ public struct BedrockClient: Sendable {
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
         configuration.httpCookieStorage = nil
-        configuration.waitsForConnectivity = false
+        #if canImport(Darwin)
+        configuration.waitsForConnectivity = false  // read-only elsewhere (and false there)
+        #endif
         configuration.timeoutIntervalForResource = 120
         return URLSession(configuration: configuration)
     }

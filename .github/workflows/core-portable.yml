@@ -1,0 +1,51 @@
+# Keeps the core (AllInOneIMECore) building off the Mac: on Linux, the core and its tests (with the CLI) must build, and
+# the lint guard (Scripts/check-core-portable.sh) and its self-test must pass. The tests aren't run here yet: some
+# still fail on Linux for known reasons (the word list, the tools in the image, Apple-only assumptions).
+name: Core on other platforms
+
+on:
+  pull_request:
+  push:
+    branches: [mainline, "release-*"]
+
+concurrency:
+  group: core-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: Scripts/check-core-portable-test.sh
+      - run: Scripts/check-core-portable.sh
+
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: linux-swift-6.4-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
+          restore-keys: linux-swift-6.4-${{ hashFiles('Package.resolved') }}-
+      - name: Build the core
+        run: swift build --target AllInOneIMECore
+      - name: Build the tests
+        run: swift build --build-tests
+
+  # TODO: Windows (a later step): the core and its tests on windows-latest, with Swift for Windows.
+  # windows:
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: compnerd/gha-setup-swift@main
+  #       with:
+  #         branch: swift-6.4-release
+  #         tag: 6.4-RELEASE
+  #     - run: swift build --target AllInOneIMECore
+  #     - run: swift build --build-tests

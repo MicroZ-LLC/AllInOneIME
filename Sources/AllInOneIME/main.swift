@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AllInOneIMECore
 import AllInOneIMERime
 import AppKit
@@ -404,6 +405,10 @@ func adoptPack(_ arguments: [String]) -> Int32 {
 // A command's program that exits before reading all it is sent (`@py`, a custom run command) closes its
 // pipe: writing to it must fail, not end the input method (and the text being typed) with SIGPIPE.
 signal(SIGPIPE, SIG_IGN)
+
+// What the core needs of the Mac (programs with the login shell's environment, the keychain, JavaScriptCore …),
+// before anything uses it: the plugin and `@js` processes below too.
+Platform.current = .mac
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 

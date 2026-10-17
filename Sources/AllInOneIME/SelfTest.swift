@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AllInOneIMERime
 import AppKit
 import AVFoundation

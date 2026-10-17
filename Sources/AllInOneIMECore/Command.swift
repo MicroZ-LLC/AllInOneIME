@@ -177,7 +177,7 @@ public struct Command: Hashable, Sendable {
         }
         // A built-in that's off isn't offered, but its name stays taken.
         let offered = builtins.filter { !off.contains($0) }
-        return offered + fromPlugins + custom.compactMap { definition in
+        let all = offered + fromPlugins + custom.compactMap { definition in
             let name = definition.name.lowercased()
             guard definition.isValid, taken.insert(name).inserted else {
                 if definition.isValid, builtinNames.contains(name) { logHidden("custom command", name) }
@@ -194,7 +194,13 @@ public struct Command: Hashable, Sendable {
         } + scripts.compactMap { script in
             script.names.first { taken.insert($0).inserted }.map { Command(name: $0, kind: .run, script: script) }
         }
+        // Without child processes (iOS, Android) the commands that run a program aren't offered.
+        return Platform.current.processes.canLaunch ? all : all.filter { !$0.needsChildProcess }
     }
+
+    /// It runs a program in a child process (`ProcessLauncher`): `@py`, `@js`, a custom `run` command, a script
+    /// extension, a plugin's script.
+    public var needsChildProcess: Bool { isCode || kind == .run && (custom != nil || script != nil || plugin != nil) }
 
     /// The extensions `catalog` leaves out because another command has their name (and alias), and which.
     public static func hiddenScripts(_ scripts: [ScriptCommand], custom: [CustomCommand],

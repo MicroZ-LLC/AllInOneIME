@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import SwiftUI
 
 /// A custom @ command being added (`index` nil) or edited in the settings.

@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 
 /// `@agent`: the coding agent picked in Settings (`AgentKind`) in a Terminal window, with the typed text as its first

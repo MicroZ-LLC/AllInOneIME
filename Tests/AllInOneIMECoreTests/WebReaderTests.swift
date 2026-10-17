@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(PDFKit)
 import PDFKit
+#endif
 import Testing
 @testable import AllInOneIMECore
 
@@ -14,6 +16,12 @@ struct WebReaderTests {
         <ul><li>叠加</li><li>纠缠</li></ul><!-- a comment --></article>
         <footer>© 2026 Example</footer></body></html>
         """
+
+    /// Blank space inside a line, spaces, tabs and no-break spaces, becomes one space; a full-width space is the text's.
+    @Test func tidyCollapsesBlankSpace() {
+        #expect(WebReader.tidy("  a  \t b\u{00A0}\u{00A0}c  \n\n\n  d \u{00A0} e \n\t\n") == "a b c\n\nd e")
+        #expect(WebReader.tidy("量子\u{3000}\u{3000}计算  利用") == "量子\u{3000}\u{3000}计算 利用")
+    }
 
     @Test func extractsTheMainText() throws {
         let text = try WebReader.extract(Data(page.utf8), contentType: "text/html; charset=utf-8",
@@ -37,7 +45,11 @@ struct WebReaderTests {
     }
 
     @Test func chineseEncodingsAndOtherContent() throws {
+        #if canImport(Darwin)
         let gb = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+        #else
+        let gb = WebReader.gb18030.rawValue  // CoreFoundation's function is Apple's; the number is the same
+        #endif
         let gbk = try #require("<html><head><meta charset=\"gb2312\"><title>新闻</title></head><body><p>今天天气很好</p></body></html>"
             .data(using: String.Encoding(rawValue: gb)))
         let text = try WebReader.extract(gbk, contentType: "text/html", url: URL(string: "https://news.example.cn/")!)
@@ -50,6 +62,7 @@ struct WebReaderTests {
         }
     }
 
+    #if canImport(PDFKit)
     @Test func pdfText() throws {
         // A one-page PDF with a line of text, made here.
         let data = NSMutableData()
@@ -64,6 +77,14 @@ struct WebReaderTests {
         let text = try WebReader.extract(data as Data, contentType: "application/pdf", url: URL(string: "https://a.test/doc.pdf")!)
         #expect(text.contains("Hello PDF reader"))
     }
+    #else
+    @Test func pdfsArentReadWithoutAReader() {
+        // No PDF reader on this platform (`UnsupportedPDFTextExtractor`): a PDF is content that can't be read.
+        #expect(throws: WebReader.ReadError.unsupported("PDF")) {
+            try WebReader.extract(Data("%PDF-1.4\n".utf8), contentType: "application/pdf", url: URL(string: "https://a.test/doc.pdf")!)
+        }
+    }
+    #endif
 
     @Test func longPagesAreCut() throws {
         let long = "<p>" + String(repeating: "字", count: WebReader.maxChars + 500) + "</p>"
