@@ -185,9 +185,7 @@ final class AssistantModel: ObservableObject {
     }
 
     /// "已改 2 项" / "Changed 2 settings".
-    static func changed(_ count: Int) -> String {
-        tr("已改 \(count) 项", count == 1 ? "Changed 1 setting" : "Changed \(count) settings")
-    }
+    static func changed(_ count: Int) -> String { AIConfig.Text(chinese: UIText.chinese).applied(count) }
 
     /// Settings' own Test Connection on the config file as it is now; its line under the confirmation.
     private func testConnection() {

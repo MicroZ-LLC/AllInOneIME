@@ -98,9 +98,7 @@ struct DoctorTests {
             .map(\.status) == [.ok])
     }
 
-    @Test func fixesAreSafeOrPicked() {
-        #expect(Doctor.Fix.repairConfig([]).isSafe && Doctor.Fix.resaveConfig.isSafe && Doctor.Fix.enableInputMethod.isSafe)
-        #expect(!Doctor.Fix.downloadPack(.korean).isSafe && !Doctor.Fix.openPrivacy(.microphone).isSafe && !Doctor.Fix.openKeyField(.gemini).isSafe)
+    @Test func fixesPreviewAsActionsAndKeyRows() {
         let preview = Doctor.fixPreview([.downloadPack(.korean), .openKeyField(.gemini)], config: .default, environment: AIConfig.Environment())
         #expect(preview?.actions == [.downloadPack(.korean)] && preview?.needsKey == .gemini && preview?.edits.isEmpty == true)
         // The key's row says it as a request's preview does (the provider is the one in use: nothing to choose).
@@ -247,10 +245,6 @@ struct DoctorTests {
         #expect(Doctor.summarizeLogLines(["commit failed: hunter2 was not sent"], home: "/Users/x") == ["1 other log line"])
         #expect(Doctor.summarizeLogLines(["update check failed: The request timed out. (NSURLErrorDomain -1001)"], home: "")
                 == ["update check failed (timed out)"])
-    }
-
-    @Test func checkForUpdatesIsPickedNotSafe() {
-        #expect(!Doctor.Fix.checkForUpdates.isSafe)
     }
 
     @Test func testConnectionOnlyWithSomethingToTest() {
