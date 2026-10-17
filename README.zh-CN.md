@@ -275,7 +275,7 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
 也有不运行代码的「链接」插件：把内容填进网址，在浏览器里打开，比如 `@x 今天天气不错` 打开 X 的发帖框、文字已经填好，发不发由你在网页上决定。
 插件库里有 `@x`、`@threads`、`@bsky`、`@weibo` 四个。
 还有 `@xe` 换算汇率：`@xe 100 USD CNY`、`@xe 1000 日元 人民币`，一行结果带汇率日期（汇率来自 ExchangeRate-API）。
-`@calculator` 是不联网也能用的计算器：`@calculator 23*17` → `391`（0.6.5 以前是内置的 `@calculate`）；`@calendar` 算日期：`@calendar +10` → 「Tue, Oct 27 · in 10 days」。
+`@calculator` 是不联网也能用的计算器：`@calculator 23*17` → `391`（0.6.5 以前是内置的 `@calculate`）；`@calendar` 算日期：`@calendar +10` → 「周二 10月27日 · 10天后」。
 写插件的说明见 [docs/plugins.md](docs/plugins.md)。
 
 查数据的命令（插件和「运行程序」）也可以写在句子中间：`@reply 告诉他 @stock AAPL 现在多少钱`。
