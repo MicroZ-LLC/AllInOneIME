@@ -448,8 +448,14 @@ public enum Doctor {
                                detail: unknown.prefix(5).joined(separator: ", ") + t.tr("（会被忽略）", " (ignored)")))
         }
         if config.typeOutRate < TypeOut.slowestRate * 0.999 || config.typeOutRate > TypeOut.fastestRate {
+            // What the file says, and the range Settings' slider allows (characters a second).
+            func number(_ value: Double) -> String {
+                value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
+            }
+            let (rate, slowest, fastest) = ("\(config.typeOutRate)", number(TypeOut.slowestRate), number(TypeOut.fastestRate))
             out.append(Finding(area: .config, status: .problem, title: t.tr("打字速度超出范围", "The typing speed is out of range"),
-                               detail: "\(config.typeOutRate)",
+                               detail: t.tr("每秒 \(rate) 个字（应在 \(slowest) 到 \(fastest) 之间）",
+                                            "\(rate) characters a second (should be between \(slowest) and \(fastest))"),
                                fix: .repairConfig([.init(key: .setting(.typeOutRate), value: .number(TypeOut.defaultRate))])))
         }
         if config.maxTokens < 1 || config.timeoutSeconds <= 0 || (config.temperature.map { $0 < 0 || $0 > 2 } ?? false) {

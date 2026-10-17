@@ -65,20 +65,20 @@ enum AIConfigSession {
         let installed = Set(Language.allCases.filter { LanguagePackManager.shared.isUsable($0) })
         let models = knownModels()
         let offered = Provider.offered
-        let chinese = UIText.chinese
+        let language = UIText.language
         let hosts = AIConfig.compatibleHosts.union(CompatibleService.all.compactMap { URL(string: $0.baseURL)?.host?.lowercased() })
         let others = RecentApps.apps + Array(((try? Config.load(from: url)) ?? .default).appProfiles.keys)
-        let cached = cachedApps.flatMap { Date().timeIntervalSince($0.date) < 60 ? $0.catalog : nil }
+        let cached = cachedApps.flatMap { Date().timeIntervalSince($0.date) < 60 && $0.language == language ? $0.catalog : nil }
         // Off it: the keychain items' attributes and the login shell's variables (`keySource`), the apps on disk.
         let lookup = keySource
         let (keyed, apps) = await Task.detached(priority: .userInitiated) {
-            (providersWithKey(lookup), cached ?? scanApps(adding: others))
+            (providersWithKey(lookup), cached ?? scanApps(adding: others, language: language))
         }.value
-        if cached == nil { cachedApps = (Date(), apps) }
+        if cached == nil { cachedApps = (Date(), language, apps) }
         let drive = ICloudSyncController.shared.engine.folder
         return AIConfig.Environment(
             packInstalled: { installed.contains($0) }, apps: apps, awsProfiles: { AIConfig.awsProfiles().map(\.name) },
-            knownModels: { models[$0] ?? [] }, offeredProviders: offered, hasKey: { keyed.contains($0) }, chinese: chinese,
+            knownModels: { models[$0] ?? [] }, offeredProviders: offered, hasKey: { keyed.contains($0) }, language: language,
             typedText: typed, knownHosts: hosts, iCloudDriveAvailable: { drive.isAvailable })
     }
 
@@ -92,12 +92,12 @@ enum AIConfigSession {
         return models
     }
 
-    private static var cachedApps: (date: Date, catalog: AIConfig.AppCatalog)?
+    private static var cachedApps: (date: Date, language: String, catalog: AIConfig.AppCatalog)?
 
     /// The apps in /Applications (and its Utilities), /System/Applications and ~/Applications, and `others` (typed in
     /// lately, with settings of their own), each with its names (as Finder shows it, its bundle's, in Chinese where the
     /// app has one: 微信). Off the main thread; kept for a minute.
-    nonisolated static func scanApps(adding others: [String]) -> AIConfig.AppCatalog {
+    nonisolated static func scanApps(adding others: [String], language: String) -> AIConfig.AppCatalog {
         var apps: [AIConfig.AppCatalog.App] = []
         var seen = Set<String>()
         let fm = FileManager.default
@@ -107,31 +107,42 @@ enum AIConfigSession {
             for name in (try? fm.contentsOfDirectory(atPath: folder)) ?? [] where name.hasSuffix(".app") {
                 let url = URL(fileURLWithPath: folder).appendingPathComponent(name)
                 guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier, seen.insert(id.lowercased()).inserted else { continue }
-                apps.append(AIConfig.AppCatalog.App(bundleID: id, names: names(of: bundle, at: url)))
+                apps.append(AIConfig.AppCatalog.App(bundleID: id, names: names(of: bundle, at: url, language: language)))
             }
         }
         for id in others where seen.insert(id.lowercased()).inserted {
             // Elsewhere on the Mac (or not installed): by its bundle's names where macOS knows it, else its id.
             let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
-            let names = url.flatMap { url in Bundle(url: url).map { names(of: $0, at: url) } } ?? [id]
+            let names = url.flatMap { url in Bundle(url: url).map { names(of: $0, at: url, language: language) } } ?? [id]
             apps.append(AIConfig.AppCatalog.App(bundleID: id, names: names))
         }
         return AIConfig.AppCatalog(apps: apps)
     }
 
-    /// An app's names: as Finder shows it, its bundle's display name and name, and its Chinese name if it has one.
-    nonisolated static func names(of bundle: Bundle, at url: URL) -> [String] {
+    /// An app's names: its name in the interface language `language` when the app has one there (the preview shows the
+    /// first: "微信" in the Chinese interface), as Finder shows it, its bundle's display name and name, and its Chinese
+    /// name if it has one.
+    nonisolated static func names(of bundle: Bundle, at url: URL, language: String = "en") -> [String] {
         var names = [FileManager.default.displayName(atPath: url.path), url.deletingPathExtension().lastPathComponent]
         let info = bundle.infoDictionary ?? [:]
         names += [info["CFBundleDisplayName"], info["CFBundleName"]].compactMap { $0 as? String }
-        for lproj in ["zh-Hans", "zh_CN", "zh-CN", "zh_Hans", "zh"] {
-            let strings = url.appendingPathComponent("Contents/Resources/\(lproj).lproj/InfoPlist.strings")
-            if let table = NSDictionary(contentsOf: strings) as? [String: Any] {
-                names += [table["CFBundleDisplayName"], table["CFBundleName"]].compactMap { $0 as? String }
-            }
-        }
+        let chinese = localizedNames(at: url, in: ["zh-Hans", "zh_CN", "zh-CN", "zh_Hans", "zh"])
+        names += chinese
+        // English: Finder's name, as before. Another language: the app's own name in it, where its bundle has one.
+        let interface = InterfaceLanguage.isChinese(language) ? chinese
+            : language == "en" ? [] : localizedNames(at: url, in: [language, language.replacingOccurrences(of: "-", with: "_")])
+        if let shown = interface.first { names.insert(shown, at: 0) }
         var seen = Set<String>()
         return names.map { $0.hasSuffix(".app") ? String($0.dropLast(4)) : $0 }.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    /// The display names and names in the app's `InfoPlist.strings` of `lprojs` (spellings of one language), in that order.
+    nonisolated static func localizedNames(at url: URL, in lprojs: [String]) -> [String] {
+        lprojs.flatMap { lproj -> [String] in
+            let strings = url.appendingPathComponent("Contents/Resources/\(lproj).lproj/InfoPlist.strings")
+            guard let table = NSDictionary(contentsOf: strings) as? [String: Any] else { return [] }
+            return [table["CFBundleDisplayName"], table["CFBundleName"]].compactMap { $0 as? String }
+        }
     }
 
     /// The lookups the on-device model may call: apps by name, the AWS profiles and their regions (read when it asks:
