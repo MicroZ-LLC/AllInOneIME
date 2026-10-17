@@ -25,7 +25,7 @@ public enum LegacyData {
     /// Moves every old folder that is still a real folder, if its new place is free. Cheap when
     /// there is nothing to do, so every entry point calls it before touching any data.
     @discardableResult
-    public static func migrate(home: URL = FileManager.default.homeDirectoryForCurrentUser)
+    public static func migrate(home: URL = CorePaths.home)
         -> [(path: String, outcome: Outcome)] {
         folders.map { old, new in
             ("~/" + new, move(from: home.appendingPathComponent(old), to: home.appendingPathComponent(new)))

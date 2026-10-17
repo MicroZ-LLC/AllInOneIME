@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 // Extension sources: script-extension bundles (docs/extensions.md §6) installed from a Git repository and updated from
@@ -247,8 +251,7 @@ public protocol GitRunning: Sendable {
 public enum ExtensionSources {
     /// Where the clones are: ~/Library/Application Support/AllInOneIME/Sources/<folderName>/.
     public static var directory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AllInOneIME/Sources",
-                                                                              isDirectory: true)
+        CorePaths.dataDir.appendingPathComponent("Sources", isDirectory: true)
     }
     public static let statusFileName = "sources.json"
     /// Seconds a git call may take.
@@ -983,7 +986,7 @@ public struct ProcessGitRunner: GitRunning {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 continuation.resume(with: Result {
-                    try Self.runNow(executable, arguments, directory: directory ?? FileManager.default.homeDirectoryForCurrentUser,
+                    try Self.runNow(executable, arguments, directory: directory ?? CorePaths.home,
                                     environment: environment, timeout: timeout)
                 })
             }

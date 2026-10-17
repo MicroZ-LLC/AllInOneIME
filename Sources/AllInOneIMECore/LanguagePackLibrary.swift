@@ -1,5 +1,12 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// The language pack library's `packs.json`: every pack version on offer, each an archive (.tar.xz) with
 /// its sha256. Signed with the plugin library's key and served next to its index; only ever built from

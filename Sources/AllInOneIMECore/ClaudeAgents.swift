@@ -34,7 +34,7 @@ public enum ClaudeAgents {
     }
 
     public static var projectsRoot: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects", isDirectory: true)
+        CorePaths.home.appendingPathComponent(".claude/projects", isDirectory: true)
     }
 
     /// The session's last reply (its last assistant text), from its transcript.

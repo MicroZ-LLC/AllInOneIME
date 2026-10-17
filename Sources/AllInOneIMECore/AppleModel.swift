@@ -1,6 +1,5 @@
 import Foundation
 import NaturalLanguage
-import os
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -150,7 +149,7 @@ public enum AppleModel {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unsupportedLanguage) }
         }
         return AsyncThrowingStream { continuation in
-            let lastActivity = OSAllocatedUnfairLock(initialState: ContinuousClock.now)
+            let lastActivity = Locked(initialState: ContinuousClock.now)
             let task = Task {
                 do {
                     var sent = String.UnicodeScalarView()

@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// Where the AWS CLI's files are: `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE` when set (`~` expanded), else
@@ -20,7 +24,7 @@ public struct AWSFileLocations: Equatable, Sendable {
 
     public init(environment: [String: String]) {
         let home = environment["HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.homeDirectoryForCurrentUser
+            ?? CorePaths.home
         func file(_ variable: String, _ fallback: String) -> URL {
             guard let value = environment[variable], !value.isEmpty else { return home.appendingPathComponent(fallback) }
             if value == "~" { return home }

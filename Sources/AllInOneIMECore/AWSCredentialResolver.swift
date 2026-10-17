@@ -1,5 +1,7 @@
 import Foundation
-import os
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// What the resolver reads and calls, so the tests and the self-test can give their own: the AWS variables, the files,
 /// how `credential_process` runs, the HTTP client for STS and SSO, and the clock.
@@ -214,7 +216,7 @@ public final class AWSCredentialResolver: Sendable {
         var fetches: [String: Int] = [:]
     }
 
-    private let state = OSAllocatedUnfairLock(initialState: State())
+    private let state = Locked(initialState: State())
 
     public init(context: AWSCredentialContext) {
         self.context = context

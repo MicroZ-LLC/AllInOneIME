@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// A bundle of script extensions: a folder with an `extension.json` naming its commands, which may share code
@@ -129,7 +133,7 @@ public struct ExtensionBundle: Hashable, Sendable {
             for (key, value) in entry {
                 switch value {
                 case let text as String: keys[key] = text
-                case let number as NSNumber where CFGetTypeID(number) == CFBooleanGetTypeID(): keys[key] = number.boolValue ? "true" : "false"
+                case let number as NSNumber where number.isBoolean: keys[key] = number.boolValue ? "true" : "false"
                 case let number as NSNumber: keys[key] = number.stringValue
                 default:
                     if let data = try? JSONSerialization.data(withJSONObject: value) { keys[key] = String(decoding: data, as: UTF8.self) }

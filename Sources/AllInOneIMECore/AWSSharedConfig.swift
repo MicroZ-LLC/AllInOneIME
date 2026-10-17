@@ -86,7 +86,7 @@ public enum AWSSharedConfig {
     }
 
     private static func sharedFiles(_ environment: [String: String]) -> (credentials: String?, config: String?) {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = CorePaths.home
         let credentialsPath = environment["AWS_SHARED_CREDENTIALS_FILE"]
             ?? home.appendingPathComponent(".aws/credentials").path
         let configPath = environment["AWS_CONFIG_FILE"]

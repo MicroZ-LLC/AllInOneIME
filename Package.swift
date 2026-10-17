@@ -11,12 +11,15 @@ let package = Package(
         .executable(name: "AllInOneIME", targets: ["AllInOneIME"]),
         .executable(name: "allinoneime-cli", targets: ["allinoneime-cli"]),
     ],
+    // CryptoKit's API off Apple platforms (on them the core uses CryptoKit itself).
+    dependencies: [.package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.0")],
     targets: [
         // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps.
         // FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"])]
+            dependencies: [.product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux, .windows, .android]))],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"], .when(platforms: [.macOS]))]
         ),
 
         // librime's C API; header and dylib come from ThirdParty/librime.
@@ -27,7 +30,7 @@ let package = Package(
             name: "AllInOneIMERime",
             dependencies: ["CRime", "AllInOneIMECore"],
             swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [.unsafeFlags(["-L\(rimeLib)"])]
+            linkerSettings: [.unsafeFlags(["-L\(rimeLib)"], .when(platforms: [.macOS]))]
         ),
 
         // The input method process (bundled into AllInOneIME.app by the Makefile).
@@ -47,7 +50,7 @@ let package = Package(
                 // @reminder: Apple Reminders.
                 .linkedFramework("EventKit"),
                 // librime.1.dylib is copied into Contents/Frameworks by the Makefile.
-                .unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
+                .unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"], .when(platforms: [.macOS])),
             ]
         ),
 
@@ -74,7 +77,15 @@ let package = Package(
             name: "AllInOneIMERimeTests",
             dependencies: ["AllInOneIMERime"],
             swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [.unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", rimeLib])]
+            linkerSettings: [.unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", rimeLib], .when(platforms: [.macOS]))]
         ),
     ]
 )
+
+// Elsewhere (Linux, Windows, Android) the package is the core, its tests and the CLI: the input method, its two
+// apps and librime (an official macOS build in ThirdParty) are macOS's.
+#if !os(macOS)
+let macOnly: Set = ["CRime", "AllInOneIMERime", "AllInOneIME", "AllInOneIMESettings", "AllInOneIMEInstaller", "AllInOneIMERimeTests"]
+package.targets.removeAll { macOnly.contains($0.name) }
+package.products.removeAll { $0.name == "AllInOneIME" }
+#endif

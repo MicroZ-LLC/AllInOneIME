@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// `AllInOneIME --run-plugin <folder>`: the child process a script plugin runs in. The text comes on
 /// standard input; the result goes to standard output, an error message to standard error (exit 1).

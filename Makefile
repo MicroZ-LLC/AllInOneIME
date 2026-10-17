@@ -246,6 +246,7 @@ update-manifest:
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
 test: deps
+	Scripts/check-core-portable.sh
 	swift test
 
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for

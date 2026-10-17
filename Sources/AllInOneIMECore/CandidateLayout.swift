@@ -1,4 +1,4 @@
-import CoreGraphics
+import Foundation
 
 /// The candidate panel's geometry that needs no drawing (the app's `CandidateView` measures and draws): where
 /// candidates in a row go, and which row a point is on, for a click or the pointer over the panel.

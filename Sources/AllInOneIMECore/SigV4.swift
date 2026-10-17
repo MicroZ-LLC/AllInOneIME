@@ -1,5 +1,12 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// AWS Signature Version 4 request signer (header-based, non-S3 services).
 public struct SigV4Signer: Sendable {

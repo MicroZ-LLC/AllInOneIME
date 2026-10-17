@@ -1,5 +1,12 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// The plugin library's `index.json` (see docs/plugins.md): every plugin version on offer, with the
 /// sha256 of each of its files. Only ever built from bytes whose signature was verified.

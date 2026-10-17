@@ -1,5 +1,15 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 
 // MARK: - credential_process
 
@@ -77,7 +87,7 @@ public enum AWSCredentialProcess {
         guard let object = try? JSONSerialization.jsonObject(with: output), let json = object as? [String: Any] else {
             throw OutputError(output.isEmpty ? "it printed nothing" : "it isn't a JSON object")
         }
-        guard let version = json["Version"] as? NSNumber, !(version === kCFBooleanTrue || version === kCFBooleanFalse),
+        guard let version = json["Version"] as? NSNumber, !version.isBoolean,
               version.doubleValue == 1 else {
             throw OutputError(json["Version"] == nil ? "\"Version\": 1 is missing" : "\"Version\" isn't 1")
         }

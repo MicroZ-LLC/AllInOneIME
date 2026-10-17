@@ -1,5 +1,12 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// `update.json` (https://allinoneime.com/update.json, from the site's public/ folder): the newest release, written
 /// and signed by `Scripts/build-update-manifest.swift` (`make update-manifest`) with the releases' own Ed25519
@@ -367,7 +374,8 @@ public struct Updater: Sendable {
         defer { session.finishTasksAndInvalidate() }
         var data = Data()
         do {
-            let (bytes, response) = try await session.bytes(from: url, delegate: ManifestRedirects(from: url, allowsLocalHTTP: allowsLocalHTTP))
+            let redirects = ManifestRedirects(from: url, allowsLocalHTTP: allowsLocalHTTP)
+            let (bytes, response) = try await HTTPStream.bytes(for: URLRequest(url: url), session: session, redirect: { redirects.request($0) })
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard status == 200 else { throw UpdateError.http(status: status, file: url.lastPathComponent) }
             guard response.expectedContentLength <= Int64(limit) else { throw UpdateError.tooLarge(url.lastPathComponent) }
@@ -388,7 +396,7 @@ public struct Updater: Sendable {
 
 /// The redirects the manifest and its signature may take (`UpdateURLPolicy.allowsManifestRedirect`); any other is
 /// refused, and the redirect's own answer is then what comes back (not 200: refused too).
-final class ManifestRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+struct ManifestRedirects: Sendable {
     let origin: URL
     let allowsLocalHTTP: Bool
 
@@ -397,8 +405,7 @@ final class ManifestRedirects: NSObject, URLSessionTaskDelegate, Sendable {
         self.allowsLocalHTTP = allowsLocalHTTP
     }
 
-    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                    newRequest request: URLRequest) async -> URLRequest? {
+    func request(_ request: URLRequest) -> URLRequest? {
         guard let url = request.url, UpdateURLPolicy.allowsManifestRedirect(to: url, from: origin, allowsLocalHTTP: allowsLocalHTTP)
         else { return nil }
         return request

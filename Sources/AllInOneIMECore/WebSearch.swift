@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// One web search result (`WebSearch`), cleaned for showing, inserting and the AI: no markup, no
 /// control characters or marks that reorder text, at most `WebSearch.maxTitleLength` /
@@ -194,10 +197,12 @@ public enum WebSearch {
         guard let url = request.url, url.scheme?.lowercased() == "https", url.host?.lowercased() == host else {
             throw URLError(.badURL)
         }
-        let bytes: URLSession.AsyncBytes
+        let bytes: HTTPStream.Body
         let response: URLResponse
         do {
-            (bytes, response) = try await session.bytes(for: request, delegate: RedirectBlocker.shared)
+            // Every redirect is refused: a request reaches the backend's host and nowhere else (the key travels in a
+            // header, which a followed redirect would carry along).
+            (bytes, response) = try await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil })
         } catch let error as URLError where [.cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(error.code) {
             throw SearchError.unreachable(service: backend.name)
         }
@@ -347,17 +352,6 @@ public enum WebSearch {
     static func percentEncoded(_ text: String) -> String {
         let unreserved = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
         return text.addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
-    }
-}
-
-/// Answers every redirect with "don't": a request reaches the backend's host and nowhere else (the key
-/// travels in a header, which a followed redirect would carry along).
-final class RedirectBlocker: NSObject, URLSessionTaskDelegate, Sendable {
-    static let shared = RedirectBlocker()
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                    newRequest request: URLRequest) async -> URLRequest? {
-        nil
     }
 }
 

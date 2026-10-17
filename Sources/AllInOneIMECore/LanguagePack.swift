@@ -122,8 +122,7 @@ public enum LanguagePackError: Error, LocalizedError, Equatable {
 /// (librime's shared data directory), with `install.json` saying where it came from.
 public struct LanguagePackStore: Sendable {
     public static var defaultDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/AllInOneIME/LanguagePacks", isDirectory: true)
+        CorePaths.dataDir.appendingPathComponent("LanguagePacks", isDirectory: true)
     }
 
     public var directory: URL
