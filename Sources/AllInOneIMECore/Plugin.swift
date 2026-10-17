@@ -183,7 +183,8 @@ public enum PluginStore {
         var plugins: [InstalledPlugin] = []
         var skipped: [Skipped] = []
         for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true,
+            // Not a hidden one either where hidden isn't a leading "." (Windows): a swap's aside, ".stock.swap-<UUID>".
+            guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true, !folder.lastPathComponent.hasPrefix("."),
                   !folder.lastPathComponent.hasSuffix(".tmp") else { continue }
             func skip(_ reason: String) { skipped.append(Skipped(folder: folder.lastPathComponent, reason: reason)) }
             guard let data = try? Data(contentsOf: folder.appendingPathComponent("plugin.json")),

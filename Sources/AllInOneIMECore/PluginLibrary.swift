@@ -338,8 +338,10 @@ public struct PluginLibrary: Sendable {
     }
 
     /// Puts `source` at `destination` in one step: swapped with the old folder (then removed), or renamed
-    /// into place. Whoever reads the plugins folder meanwhile sees the old plugin or the new, never half.
+    /// into place. Whoever reads the plugins folder meanwhile sees the old plugin or the new, never half. First, what
+    /// an interrupted swap left beside it is put right (on Windows, where a folder is renamed aside for a moment).
     static func moveIntoPlace(_ source: URL, _ destination: URL) throws {
+        Platform.current.files.recoverInterruptedSwaps(in: destination.deletingLastPathComponent())
         let exists = FileManager.default.fileExists(atPath: destination.path)
         try Platform.current.files.swap(source, into: destination, exists: exists)
         if exists { try? FileManager.default.removeItem(at: source) }  // now holds the old version

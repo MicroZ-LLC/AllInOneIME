@@ -16,8 +16,13 @@ import WinSDK
 public protocol FileOps: Sendable {
     /// Puts `source` at `destination` in one step: when `exists`, swapped with what is there (`source` then holds the
     /// old); else renamed into place, never over something that appeared meanwhile. Throws, changing nothing, when it
-    /// can't.
+    /// can't (`FileInUseError` when another program holds what is there open). Where the system has no swap of two
+    /// folders (Windows), the old one is renamed aside first (`SystemFileOps.swapAside`), so for a moment nothing is at
+    /// `destination`, and a process stopped then leaves it aside: `recoverInterruptedSwaps` puts it back.
     func swap(_ source: URL, into destination: URL, exists: Bool) throws
+    /// What an interrupted `swap` left in `folder` put right: an old folder or file left aside goes back in place when
+    /// nothing took it, else is deleted. Nothing to do where a swap is one step (Apple's systems, Linux, Android).
+    func recoverInterruptedSwaps(in folder: URL)
     /// Writes `data` to a new file in `url`'s folder that is the user's only from the start, then renames it over `url`
     /// in one step: the data is never in a file others can read, and a file that was readable by others is replaced,
     /// not reused.
@@ -26,6 +31,20 @@ public protocol FileOps: Sendable {
     func modificationDate(atPath path: String) -> Date?
     /// Moves `url` to the Trash where there is one (the user can put it back); elsewhere removes it.
     func trash(_ url: URL) throws
+}
+
+/// What another program holds open, so that it can't be moved (Windows: `ERROR_ACCESS_DENIED` or
+/// `ERROR_SHARING_VIOLATION`, the system's `code`), even after a few tries: closing it there and trying again may do.
+public struct FileInUseError: Error, Equatable, LocalizedError {
+    public var path: String
+    public var code: Int
+
+    public init(path: String, code: Int) {
+        self.path = path
+        self.code = code
+    }
+
+    public var errorDescription: String? { "\((path as NSString).lastPathComponent) is in use by another program (error \(code))" }
 }
 
 /// The system's own calls: `renamex_np` on Apple platforms, `renameat2` on Linux and Android, `MoveFileExW` on Windows;
@@ -63,11 +82,27 @@ public struct SystemFileOps: FileOps {
         // hard link, so the new file is renamed over the old in one step and `destination` is never missing; a folder
         // (which nothing replaces) is renamed aside, so there is a moment between two renames when it is. Each step that
         // fails undoes those before it.
+        // A folder another program has a file open in can't be renamed: a few tries over about 1.5 s (Explorer, an
+        // antivirus or the search indexer let go soon), then `FileInUseError`.
         guard exists else { return try Self.move(source, to: destination) }
-        let aside = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString)")
+        let aside = Self.swapAside(for: destination)
         let linked = Self.isPlainFile(source) && Self.isPlainFile(destination)
             && Self.path(aside, { new in Self.path(destination) { CreateHardLinkW(new, $0, nil) } })
-        if !linked { try Self.move(destination, to: aside) }
+        if !linked {
+            var wait = 0.1
+            while true {
+                do {
+                    try Self.move(destination, to: aside)
+                    break
+                } catch let error as CocoaError {
+                    guard let code = (error.userInfo[NSUnderlyingErrorKey] as? NSError)?.code,
+                          code == Int(ERROR_ACCESS_DENIED) || code == Int(ERROR_SHARING_VIOLATION) else { throw error }
+                    guard wait < 1 else { throw FileInUseError(path: destination.path, code: code) }
+                    Thread.sleep(forTimeInterval: wait)
+                    wait *= 2
+                }
+            }
+        }
         do {
             try Self.move(source, to: destination, replacing: linked)
         } catch {
@@ -77,6 +112,9 @@ public struct SystemFileOps: FileOps {
         do {
             try Self.move(aside, to: source)
         } catch {
+            // The new one is in place. Undone only while the old one is still aside: a recovery may have taken it
+            // meanwhile (`recoverInterruptedSwaps`, in another process), and then the new one stays, `source` empty.
+            guard Self.path(aside, { GetFileAttributesW($0) }) != INVALID_FILE_ATTRIBUTES else { return }
             try? Self.move(destination, to: source)
             try? Self.move(aside, to: destination)
             throw error
@@ -85,7 +123,7 @@ public struct SystemFileOps: FileOps {
         // Elsewhere (no system call of its own known here): a folder is moved aside, then the new one in.
         let files = FileManager.default
         guard exists else { return try files.moveItem(at: source, to: destination) }
-        let aside = destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString)")
+        let aside = Self.swapAside(for: destination)
         try files.moveItem(at: destination, to: aside)
         do {
             try files.moveItem(at: source, to: destination)
@@ -95,6 +133,37 @@ public struct SystemFileOps: FileOps {
         }
         try files.moveItem(at: aside, to: source)
         #endif
+    }
+
+    public func recoverInterruptedSwaps(in folder: URL) {
+        #if !(canImport(Darwin) || canImport(Glibc) || canImport(Musl) || canImport(Android))
+        let files = FileManager.default
+        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] {
+            guard let original = Self.swappedName(name) else { continue }
+            let aside = folder.appendingPathComponent(name), destination = folder.appendingPathComponent(original)
+            // Something in place (a link too, even a broken one): the aside is the old one, which the swap would have deleted.
+            if (try? files.attributesOfItem(atPath: destination.path)) != nil {
+                try? files.removeItem(at: aside)
+            } else {
+                try? files.moveItem(at: aside, to: destination)
+            }
+        }
+        #endif
+    }
+
+    /// Where `swap` puts what is at `destination` while the new one takes its place, beside it and hidden:
+    /// ".<name>.swap-<UUID>", which the plugins' listing skips (`PluginStore.load`) and leftovers' removal keeps
+    /// (`ExtensionSourceManager.removeLeftovers`).
+    public static func swapAside(for destination: URL) -> URL {
+        destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).swap-\(UUID().uuidString)")
+    }
+
+    /// The name the aside `name` (`swapAside`) was moved from: "stock" for ".stock.swap-<UUID>"; nil for any other.
+    public static func swappedName(_ name: String) -> String? {
+        guard name.hasPrefix("."), let marker = name.range(of: ".swap-", options: .backwards),
+              marker.lowerBound > name.index(after: name.startIndex), UUID(uuidString: String(name[marker.upperBound...])) != nil
+        else { return nil }
+        return String(name[name.index(after: name.startIndex)..<marker.lowerBound])
     }
 
     public func writePrivate(_ data: Data, to url: URL) throws {

@@ -797,7 +797,9 @@ public struct ExtensionSourceManager: Sendable {
             if old(staged) { try? fm.removeItem(at: staged) }
         }
         removeStagingIfEmpty()
-        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where name.hasPrefix(".tmp-") || name.hasPrefix(".old-") {
+        // Never a swap's aside (".tmp-x.swap-<UUID>" for a clone named "tmp-x"): `recoverInterruptedSwaps` puts it back.
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? []
+        where (name.hasPrefix(".tmp-") || name.hasPrefix(".old-")) && SystemFileOps.swappedName(name) == nil {
             let leftover = root.appendingPathComponent(name)
             if old(leftover) { try? fm.removeItem(at: leftover) }
         }
