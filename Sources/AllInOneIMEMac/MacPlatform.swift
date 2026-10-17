@@ -29,6 +29,4 @@ public struct MacProcessLauncher: ProcessLauncher {
     }
 
     public func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess { try base.launch(spec) }
-    public func signal(_ signal: ProcessSignal, group: Int32) -> Bool { base.signal(signal, group: group) }
-    public func signal(_ signal: ProcessSignal, process: Int32) -> Bool { base.signal(signal, process: process) }
 }

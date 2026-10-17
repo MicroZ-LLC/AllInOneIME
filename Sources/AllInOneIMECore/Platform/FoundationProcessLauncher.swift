@@ -2,9 +2,9 @@
 import Foundation
 
 /// Foundation's `Process`: the core's only use of it (the lint guard, `Scripts/check-core-portable.sh`, keeps it so).
-/// On macOS and Linux Foundation starts each program in a process group of its own, so signalling the group reaches
-/// what it started too. Windows has neither signals nor groups: nothing is signalled there (its shell is to stop
-/// programs with a job object).
+/// On macOS and Linux Foundation starts each program in a process group of its own, so stopping it (SIGTERM, SIGKILL to
+/// the group) reaches what it started too. Windows has neither signals nor groups: there the program alone is ended
+/// (`FoundationProcess`).
 public struct FoundationProcessLauncher: ProcessLauncher {
     public init() {}
 
@@ -37,32 +37,6 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         case let .file(handle): return handle
         }
     }
-
-    public func signal(_ signal: ProcessSignal, group: Int32) -> Bool {
-        #if os(Windows)
-        return false
-        #else
-        return kill(-group, Self.number(signal)) == 0
-        #endif
-    }
-
-    public func signal(_ signal: ProcessSignal, process: Int32) -> Bool {
-        #if os(Windows)
-        return false
-        #else
-        return kill(process, Self.number(signal)) == 0
-        #endif
-    }
-
-    #if !os(Windows)
-    private static func number(_ signal: ProcessSignal) -> Int32 {
-        switch signal {
-        case .terminate: return SIGTERM
-        case .kill: return SIGKILL
-        case .check: return 0
-        }
-    }
-    #endif
 }
 
 /// A `Process` once started. (It may be asked about from any thread; this says so to the compiler.)
@@ -75,5 +49,40 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     var isRunning: Bool { process.isRunning }
     var terminationStatus: Int32 { process.terminationStatus }
     func waitUntilExit() { process.waitUntilExit() }
+
+    #if os(Windows)
+    // Untested: never compiled yet. No signals or process groups: `Process.terminate()` (TerminateProcess) ends the
+    // program at once, but not what it started. TODO: start it in a job object (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE),
+    // so that its whole tree goes.
+    var treeIsRunning: Bool { process.isRunning }
+    func terminate() -> Bool { end() }
+    func kill() -> Bool { end() }
+
+    private func end() -> Bool {
+        guard process.isRunning else { return false }
+        process.terminate()
+        return true
+    }
+    #else
+    var treeIsRunning: Bool { groupExists(process.processIdentifier) }
+    func terminate() -> Bool { signalTree(process.processIdentifier, SIGTERM) }
+    func kill() -> Bool { signalTree(process.processIdentifier, SIGKILL) }
+    #endif
 }
+
+#if !os(Windows)
+/// Whether process group `pid` still has a process in it.
+private func groupExists(_ pid: Int32) -> Bool {
+    pid > 0 && kill(-pid, 0) == 0
+}
+
+/// `number` to process group `pid`, and to process `pid` alone when it has moved to another group (`setsid`); whether
+/// it went to any.
+private func signalTree(_ pid: Int32, _ number: Int32) -> Bool {
+    guard pid > 0 else { return false }
+    let group = kill(-pid, number) == 0
+    let own = getpgid(pid)
+    return (own >= 0 && own != pid && kill(pid, number) == 0) || group
+}
+#endif
 #endif

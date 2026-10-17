@@ -147,7 +147,8 @@ struct ExtensionRobustnessTests {
         let leader = getpgid(started)
         #expect(leader > 0 && leader != getpgrp() && CommandRunner.runningGroups.contains(leader))
         let child = started
-        CommandRunner.stop(groups: [leader], grace: 0.3)  // `stopAll` with only this test's group
+        // `stopAll` with only this test's program.
+        CommandRunner.stop(CommandRunner.runningPrograms.filter { $0.processIdentifier == leader }, grace: 0.3)
         #expect(await Timing.eventually { kill(child, 0) != 0 && kill(leader, 0) != 0 })
         _ = try? await task.value
     }

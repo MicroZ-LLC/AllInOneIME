@@ -102,27 +102,28 @@ public enum CommandRunner {
     /// How long a program stopped (Esc, its timeout) has to end before it and what it started are killed.
     public static let stopGrace: Double = 0.5
 
-    /// The process groups of the programs running now (each runs in its own group: what it starts is in it too).
-    private static let groups = Locked(initialState: Set<Int32>())
+    /// The programs running now (each with what it started: its process group, where there are groups).
+    private static let running = Locked(initialState: [ObjectIdentifier: any LaunchedProcess]())
 
     /// Stops every program still running, and what each started: the input method is quitting (an update,
     /// logging out). Returns once they're gone, or after `grace` seconds, when they're killed.
     public static func stopAll(grace: Double = stopGrace) {
-        stop(groups: runningGroups, grace: grace)
+        stop(runningPrograms, grace: grace)
     }
 
-    /// The process groups of the programs running now.
-    static var runningGroups: Set<Int32> { groups.withLock { $0 } }
+    /// The programs running now.
+    static var runningPrograms: [any LaunchedProcess] { running.withLock { Array($0.values) } }
+    /// Their process IDs, which are their process groups'.
+    static var runningGroups: Set<Int32> { Set(runningPrograms.map(\.processIdentifier)) }
 
-    /// Stops `running` (process groups): SIGTERM, then after `grace` seconds SIGKILL to what's left.
-    static func stop(groups running: Set<Int32>, grace: Double) {
-        guard !running.isEmpty else { return }
-        let processes = Platform.current.processes
-        for group in running { processes.signal(.terminate, group: group) }
+    /// Stops `programs` and what they started: asked to end (SIGTERM), then after `grace` seconds what's left is killed.
+    static func stop(_ programs: [any LaunchedProcess], grace: Double) {
+        guard !programs.isEmpty else { return }
+        for program in programs { program.terminate() }
         let deadline = Date().addingTimeInterval(grace)
-        while Date() < deadline, running.contains(where: { processes.signal(.check, group: $0) }) { Thread.sleep(forTimeInterval: 0.02) }
-        for group in running { processes.signal(.kill, group: group) }
-        groups.withLock { $0.subtract(running) }
+        while Date() < deadline, programs.contains(where: { $0.treeIsRunning }) { Thread.sleep(forTimeInterval: 0.02) }
+        for program in programs { program.kill() }
+        running.withLock { for program in programs { $0[ObjectIdentifier(program)] = nil } }
     }
 
     /// The program as it will be started: an absolute path, or the first match on `path`.
@@ -187,6 +188,8 @@ public enum CommandRunner {
         private var output = Data()
         private var errors = Data()
         private var stopReason: RunError?
+        /// A stop asked for after it started but before it was kept (`process`), applied once it is.
+        private var pendingStop: RunError?
         private var cancelled = false
         private var finished = false
         private let started = ContinuousClock.now
@@ -228,16 +231,18 @@ public enum CommandRunner {
             }
             do {
                 let process = try processes.launch(spec)
-                // It runs in a process group of its own (its id): stopping it reaches what it started.
-                // Kept while it runs: under `lock`, as `finish` drops it, so one that's over already (a quick
-                // program) is never kept.
-                let group = process.processIdentifier
+                // Stopping it reaches what it started (its process group). Kept while it runs: under `lock`, as
+                // `finish` drops it, so one that's over already (a quick program) is never kept.
                 lock.lock()
                 self.process = process
-                let stopped = cancelled
-                if !finished { CommandRunner.groups.withLock { _ = $0.insert(group) } }
+                let stopped = cancelled, pending = pendingStop
+                if !finished { CommandRunner.running.withLock { $0[ObjectIdentifier(process)] = process } }
                 lock.unlock()
-                if stopped { stop(nil) }  // cancelled while it was starting
+                if stopped {
+                    stop(nil)  // cancelled while it was starting
+                } else if let pending {
+                    stop(pending)  // too much output before it was kept
+                }
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
@@ -292,24 +297,22 @@ public enum CommandRunner {
         private func stop(_ reason: RunError?) {
             lock.lock()
             let process = process
+            // Started but not kept yet (output can come before `start` keeps it): stopped once it is.
+            if process == nil, !finished, let reason, pendingStop == nil { pendingStop = reason }
             let running = !finished && stopReason == nil && process?.isRunning == true
             if running, let reason { stopReason = reason }
             lock.unlock()
-            guard running, let group = process?.processIdentifier else { return }
-            // Its whole group: a script that ignores SIGTERM, or something it started, doesn't outlive it.
-            let processes = processes
-            processes.signal(.terminate, group: group)
-            DispatchQueue.global().asyncAfter(deadline: .now() + CommandRunner.stopGrace) {
-                processes.signal(.kill, group: group)
-            }
+            guard running, let process else { return }
+            // Its whole tree: a script that ignores SIGTERM, or something it started, doesn't outlive it.
+            process.terminate()
+            DispatchQueue.global().asyncAfter(deadline: .now() + CommandRunner.stopGrace) { process.kill() }
         }
 
         private func finish(_ process: any LaunchedProcess) {
             lock.lock()
             guard !finished else { return lock.unlock() }
             finished = true
-            let group = process.processIdentifier
-            CommandRunner.groups.withLock { _ = $0.remove(group) }
+            CommandRunner.running.withLock { $0[ObjectIdentifier(process)] = nil }
             let reason = stopReason, output = output, errors = errors, cancelled = cancelled
             lock.unlock()
             let status = process.terminationStatus

@@ -455,16 +455,11 @@ public enum AWSProcessRunner {
             if running { kill() }
         }
 
-        /// Its process group (what it started too): SIGTERM, then SIGKILL half a second later.
+        /// It and what it started (its process group): asked to end (SIGTERM), then killed half a second later.
         private func kill() {
-            guard let pid = lock.withLock({ process?.processIdentifier }), pid > 0 else { return }
-            let processes = processes
-            processes.signal(.terminate, group: pid)
-            processes.signal(.terminate, process: pid)
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                processes.signal(.kill, group: pid)
-                processes.signal(.kill, process: pid)
-            }
+            guard let process = lock.withLock({ process }) else { return }
+            process.terminate()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { process.kill() }
         }
 
         private func finish(_ error: Error?, status: Int32 = 0) {
