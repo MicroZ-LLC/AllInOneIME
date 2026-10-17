@@ -1,7 +1,8 @@
 import Foundation
 
 /// What the core needs from the system it runs on, in one place. A shell (the macOS app, later the Windows, iOS and
-/// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test.
+/// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
+/// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
 /// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), and
 /// elsewhere neutral stand-ins: a heuristic language guess, the date rules alone, and no JavaScript, on-device model,
 /// PDF text or secret store ("not supported on this platform").
@@ -38,8 +39,20 @@ public struct Platform: Sendable {
         self.files = files
     }
 
-    /// The platform in use. Set once, at launch, before anything else reads it.
-    nonisolated(unsafe) public static var current = Platform()
+    /// The platform in use: the task's `override` if it has one, else the installed one. Set (installed) at launch,
+    /// before anything else reads it.
+    public static var current: Platform {
+        get { override ?? installed.withLock { $0 } }
+        set { installed.withLock { $0 = newValue } }
+    }
+
+    /// A stand-in for what one task (and the tasks it starts) does, leaving the installed platform, and the tests running
+    /// beside it, alone: `Platform.$override.withValue(fake) { … }`. Work handed to another thread (a dispatch queue)
+    /// doesn't see it; the core reads `Platform.current` before it hands work off.
+    @TaskLocal public static var override: Platform?
+
+    /// The installed platform (`current`'s setter).
+    static let installed = Locked(initialState: Platform())
 }
 
 /// The secret store is the keychain seam `APIKeys` always had.

@@ -71,8 +71,9 @@ public enum CommandRunner {
         AsyncThrowingStream { continuation in
             let run = Run(launch: launch, continuation: continuation)
             continuation.onTermination = { _ in run.cancel() }
+            let processes = Platform.current.processes  // here: a task's `Platform.override` isn't on the queue
             DispatchQueue.global().async {
-                var environment = environment ?? Platform.current.processes.environment
+                var environment = environment ?? processes.environment
                 if let extraPath, !(environment["PATH"] ?? "").split(separator: ":").contains(Substring(extraPath)) {
                     environment["PATH"] = (environment["PATH"].map { $0 + ":" } ?? "") + extraPath
                 }

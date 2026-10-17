@@ -17,9 +17,13 @@ public enum APIKeys {
     static let cache = KeyCache()
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "keys")
 
-    /// The items of this service: the platform's secret store (`Platform.secrets`: the login keychain on the Mac); tests
-    /// and the self-test give an in-memory one (`Keychain.inMemory`), so that nothing they do reaches the user's keychain.
-    nonisolated(unsafe) public static var keychain = Platform.current.secrets
+    /// The items of this service: the platform's secret store (`Platform.secrets`: the login keychain on the Mac), read
+    /// through `Platform.current` each time; tests and the self-test give an in-memory one (`Keychain.inMemory`), so that
+    /// nothing they do reaches the user's keychain. Setting it installs it in the platform.
+    public static var keychain: Keychain {
+        get { Platform.current.secrets }
+        set { Platform.installed.withLock { $0.secrets = newValue } }
+    }
 
     /// The key for `provider`: the keychain's, else the login shell's.
     public static func load(_ provider: Provider) -> String? {

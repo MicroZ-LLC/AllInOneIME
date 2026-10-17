@@ -3,8 +3,24 @@ import Testing
 @testable import AllInOneIMECore
 
 /// The platform seams (`Platform`) as they behave where a system has nothing to offer, and the system file operations.
-/// Nothing here changes `Platform.current`: the stand-ins are used directly.
+/// Nothing here changes `Platform.current`: the stand-ins are used directly, or scoped to a task (`Platform.override`).
 struct PlatformTests {
+    /// A stand-in scoped to a task: what it runs, and the tasks it starts, see it; the installed platform doesn't change.
+    @Test func aStandInForOneTask() async {
+        var fake = Platform.current
+        fake.processes = NoProcessLauncher()
+        fake.secrets = .inMemory()
+        fake.secrets.message = { _ in "the test's" }
+        let installed = Platform.current.processes.canLaunch
+        await Platform.$override.withValue(fake) {
+            #expect(!Platform.current.processes.canLaunch && !CommandRunner.isInstalled("sh", path: "/bin"))
+            // The keys are read through it too (`APIKeys.keychain` keeps no copy).
+            #expect(APIKeys.keychain.message(0) == "the test's")
+            await Task { #expect(!Platform.current.processes.canLaunch) }.value
+        }
+        #expect(Platform.current.processes.canLaunch == installed)
+    }
+
     @Test func theHeuristicLanguageGuess() {
         let guess = HeuristicLanguageIdentifier()
         #expect(guess.dominantLanguage(of: "je me sens pas très bien", among: ["en", "fr"])?.code == "fr")
