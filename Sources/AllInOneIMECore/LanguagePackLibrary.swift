@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// The language pack library's `packs.json`: every pack version on offer, each an archive (.tar.xz) with

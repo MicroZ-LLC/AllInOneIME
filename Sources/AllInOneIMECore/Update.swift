@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// `update.json` (https://allinoneime.com/update.json, from the site's public/ folder): the newest release, written

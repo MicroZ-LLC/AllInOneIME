@@ -11,11 +11,14 @@ let package = Package(
         .executable(name: "AllInOneIME", targets: ["AllInOneIME"]),
         .executable(name: "allinoneime-cli", targets: ["allinoneime-cli"]),
     ],
+    // CryptoKit's API off Apple platforms (on them the core uses CryptoKit itself).
+    dependencies: [.package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.0")],
     targets: [
         // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps.
         // FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
+            dependencies: [.product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux, .windows, .android]))],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"], .when(platforms: [.macOS]))]
         ),
 

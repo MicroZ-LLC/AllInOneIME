@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// The developer's own service (a separate, private repository): sign in with an email or Google (Cognito), a few free

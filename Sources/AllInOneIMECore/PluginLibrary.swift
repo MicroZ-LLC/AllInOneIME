@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// The plugin library's `index.json` (see docs/plugins.md): every plugin version on offer, with the

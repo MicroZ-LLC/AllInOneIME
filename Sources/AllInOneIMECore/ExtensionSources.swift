@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 // Extension sources: script-extension bundles (docs/extensions.md §6) installed from a Git repository and updated from

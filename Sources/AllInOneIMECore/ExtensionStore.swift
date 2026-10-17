@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// A bundle of script extensions: a folder with an `extension.json` naming its commands, which may share code
