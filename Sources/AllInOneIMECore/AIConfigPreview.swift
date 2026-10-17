@@ -20,13 +20,16 @@ extension AIConfig {
         public var typedText: String
         /// The hosts of the services Settings offers (`compatibleHosts`): a base URL there needs no typing.
         public var knownHosts: Set<String>
+        /// Whether iCloud Drive is on (sync through iCloud is turned on only then).
+        public var iCloudDriveAvailable: @Sendable () -> Bool
 
         public init(packInstalled: @escaping @Sendable (Language) -> Bool = { _ in true }, apps: AppCatalog = AppCatalog(),
                     awsProfiles: @escaping @Sendable () -> [String] = { [] },
                     knownModels: @escaping @Sendable (Provider) -> [String] = { _ in [] },
                     offeredProviders: [Provider] = [.bedrock, .anthropic, .gemini, .openai],
                     hasKey: @escaping @Sendable (Provider) -> Bool = { _ in false }, chinese: Bool = false,
-                    typedText: String = "", knownHosts: Set<String> = AIConfig.compatibleHosts) {
+                    typedText: String = "", knownHosts: Set<String> = AIConfig.compatibleHosts,
+                    iCloudDriveAvailable: @escaping @Sendable () -> Bool = { true }) {
             self.packInstalled = packInstalled
             self.apps = apps
             self.awsProfiles = awsProfiles
@@ -36,6 +39,7 @@ extension AIConfig {
             self.chinese = chinese
             self.typedText = typedText
             self.knownHosts = knownHosts
+            self.iCloudDriveAvailable = iCloudDriveAvailable
         }
     }
 
@@ -297,7 +301,7 @@ extension AIConfig {
             func rank(_ key: Key) -> Int {
                 switch key {
                 case let .setting(setting): return order.firstIndex(of: setting) ?? 0
-                case .app: return order.count
+                case .app, .iCloudSync: return order.count
                 case .forbidden: return order.count + 1
                 }
             }
@@ -346,6 +350,8 @@ extension AIConfig {
         switch change.key {
         case let .setting(setting):
             (secretKey, label) = (false, text.label(setting))
+        case .iCloudSync:
+            (secretKey, label) = (false, text.iCloudSyncLabel)
         case let .app(name, field):
             (secretKey, label) = (looksLikeKey(name), text.appLabel(looksLikeKey(name) ? text.someApp : name, field))
         case let .forbidden(path, secret):
@@ -365,7 +371,9 @@ extension AIConfig {
         case let .forbidden(path, secret):
             // A secret's value is never shown, nor anything about it.
             return Row(key: path, label: secret ? text.keyLabel(nil) : path,
-                       status: .refused(secret ? text.secretRefused : text.notHere))
+                       status: .refused(secret ? text.secretRefused : path.hasPrefix("iCloudSync.") ? text.syncOnlyInSettings : text.notHere))
+        case .iCloudSync:
+            return checkICloudSync(change.value, in: config, env: env, text: text)
         case let .setting(setting):
             return checkSetting(setting, change.value, in: config, env: env, text: text)
         case let .app(name, field):

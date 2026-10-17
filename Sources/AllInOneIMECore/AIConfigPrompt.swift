@@ -131,6 +131,8 @@ public enum AIConfigPrompt {
         lines.append(line("redaction.customWords.add", "a list of words to hide as well (added; never removed here)", nil,
                           "\(config.redaction.customWords.count) words (not shown)"))
         lines.append(line("checkForUpdates", "true or false: look for a new version once a day", nil, json(config.checkForUpdates)))
+        lines.append(line("iCloudSync.enabled", "true or false: sync settings through the user's own iCloud Drive (what syncs is set only in Settings)",
+                          nil, json(config.iCloudSync.enabled)))
         let providers = context.offeredProviders.map(\.rawValue)
         lines.append(line("provider", "where AI requests go (a provider with a key gets the key in Settings, never here)",
                           providers.map { "\"\($0)\"" }.joined(separator: ", "), json(config.provider.rawValue)))
@@ -200,7 +202,7 @@ public enum AIConfigPrompt {
         let inputs = GuidedSchema.strings(name: "InputLanguage", Language.allCases.map(\.rawValue))
         let added = GuidedSchema.strings(name: "AddedInputLanguage", config.inputLanguages.map(\.rawValue))
         let styles = GuidedSchema.array(.strings(name: "Style", RewriteStyle.catalog.map(\.name)), min: 0, max: RewriteStyle.catalog.count)
-        let flags = AIConfig.Setting.allCases.filter(\.isFlag).map(\.path)
+        let flags = AIConfig.Setting.allCases.filter(\.isFlag).map(\.path) + [AIConfig.Key.iCloudSync.path]
         var choices: [GuidedSchema] = [
             change("OutputLanguages", ["outputLanguages"], .array(outputs, min: 1, max: AIConfig.maxOutputLanguages)),
             change("InputLanguages", ["inputLanguages"], .array(inputs, min: 1, max: Config.maxInputLanguages)),

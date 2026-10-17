@@ -125,6 +125,8 @@ public struct Config: Codable, Equatable, Sendable {
     public var appProfiles: [String: AppProfile]
     /// Emails, numbers, keys and the user's own words hidden from the AI before a request is sent (`Redaction`). Off by default.
     public var redaction: RedactionSettings
+    /// Sync through iCloud (`ICloudSync`) and what syncs: this Mac's own, never synced. Off by default.
+    public var iCloudSync: ICloudSyncSettings
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -208,6 +210,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.useSelection = true
         self.appProfiles = [:]
         self.redaction = RedactionSettings()
+        self.iCloudSync = ICloudSyncSettings()
         normalizeLanguages()
     }
 
@@ -231,6 +234,7 @@ public struct Config: Codable, Equatable, Sendable {
         case checkForUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
+        case iCloudSync
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -301,6 +305,7 @@ public struct Config: Codable, Equatable, Sendable {
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         extensionSources = ExtensionSource.decodeAll(c, forKey: .extensionSources)
+        iCloudSync = (try? c.decodeIfPresent(ICloudSyncSettings.self, forKey: .iCloudSync)).flatMap { $0 } ?? d.iCloudSync
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -390,6 +395,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(redaction, forKey: .redaction)
         // Only once a source is added: a file from before sources doesn't gain an empty key.
         if !extensionSources.isEmpty { try c.encode(extensionSources, forKey: .extensionSources) }
+        // Only once it was turned on: a file from before sync doesn't gain the key.
+        if iCloudSync != ICloudSyncSettings() { try c.encode(iCloudSync, forKey: .iCloudSync) }
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

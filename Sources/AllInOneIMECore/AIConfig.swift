@@ -79,9 +79,12 @@ public enum AIConfig {
         case app(String, AppField)
         /// A key of the config (or a secret) that can't be set here.
         case forbidden(String, secret: Bool)
+        /// Sync through iCloud on or off (`iCloudSync.enabled`); what syncs is only set in Settings.
+        case iCloudSync
 
         public var path: String {
             switch self {
+            case .iCloudSync: return "iCloudSync.enabled"
             case let .setting(setting): return setting.path
             case let .app(app, field): return "appProfiles.\(app).\(field.rawValue)"
             case let .forbidden(path, _): return path
@@ -94,6 +97,7 @@ public enum AIConfig {
             guard !path.isEmpty, !path.contains(where: \.isNewline) else { return nil }
             if looksSecret(path) { return .forbidden(path, secret: true) }
             if let setting = Setting(rawValue: path) { return .setting(setting) }
+            if path == Key.iCloudSync.path { return .iCloudSync }
             if path.hasPrefix("appProfiles.") {
                 let rest = path.dropFirst("appProfiles.".count)
                 guard let dot = rest.lastIndex(of: "."), dot > rest.startIndex else { return .forbidden(path, secret: false) }
@@ -290,6 +294,8 @@ public enum AIConfig {
         case model(Provider, String?)
         /// Nil: the default base URL.
         case baseURL(String?)
+        /// Sync through iCloud on or off.
+        case iCloudSync(Bool)
     }
 
     /// What applying a preview does besides the settings: a finding's fixes.
@@ -361,6 +367,7 @@ public enum AIConfig {
         case let .region(region): config.region = region
         case let .model(provider, model): setModel(model, of: provider, in: &config)
         case let .baseURL(url): config.openai.baseURL = url
+        case let .iCloudSync(on): config.iCloudSync.enabled = on
         }
     }
 
@@ -388,6 +395,7 @@ public enum AIConfig {
         case .region: return .region(config.region)
         case let .model(provider, _): return .model(provider, storedModel(of: provider, in: config))
         case .baseURL: return .baseURL(config.openai.baseURL)
+        case .iCloudSync: return .iCloudSync(config.iCloudSync.enabled)
         }
     }
 

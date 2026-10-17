@@ -23,7 +23,7 @@ public enum Doctor {
     /// What a check is about; also the on-device model's tools (`DoctorService`), one per area.
     public enum Area: String, CaseIterable, Sendable {
         case inputMethod, provider, connection, appleIntelligence, permissions, secureInput, languagePacks, config, extensions,
-             updates, recentErrors
+             updates, iCloudSync, recentErrors
     }
 
     /// A System Settings privacy pane.
@@ -132,6 +132,8 @@ public enum Doctor {
         public var updates = Updates()
         /// The last few error lines of the app's own logs, summarised (`summarizeLogLines`).
         public var recentErrors: [String] = []
+        /// Sync through iCloud (`ICloudSync`).
+        public var iCloudSync = ICloudSyncFacts()
 
         public init() {}
     }
@@ -162,6 +164,7 @@ public enum Doctor {
         out += packs(facts, t)
         out += extensions(facts, t)
         out += updates(facts, t)
+        out += iCloudSync(facts, t)
         // Lines no known event matches ("2 other log lines") aren't counted as errors.
         let errors = facts.recentErrors.filter { !isOtherLogLines($0) }.count
         if facts.recentErrors.isEmpty {
