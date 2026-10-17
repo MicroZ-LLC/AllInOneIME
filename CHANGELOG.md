@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Removed
+
+- The built-in `@calculate` is removed: the calculator is now the `@calculator` plugin in the plugin library (Settings → Plugins → Browse Library…). It works offline, with the same rules as before.
+
 ## 0.6.4 (2026-10-16)
 
 ### Added
