@@ -290,7 +290,7 @@ enum SelfTest {
     /// the field, which keeps its text and its selection through pinyin, Esc, ⇧⏎, the field left and secure input; a
     /// selection moved meanwhile gives the command up; the setting off, or secure input on, it isn't read (marked as
     /// before). A result picked replaces exactly the selection, by its range, and where the field ignores ranges, as
-    /// the selected text (`@calculate` here; `@improve` live on Bedrock).
+    /// the selected text (`@js` here; `@improve` live on Bedrock).
     static func testCommandsOnSelection(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("commands on the selected text", needs: .composing)
         let (document, inserted, secureBefore) = (client.document, client.inserted, controller.secureInputActive)
@@ -385,13 +385,13 @@ enum SelfTest {
             select(sum, (sum as NSString).range(of: "6*7"))
             client.ignoresRanges = ignores
             let replacementsBefore = client.replacements
-            command("calcu")
+            command("js")
             _ = enter(controller, client)
             _ = pump(timeout: 5) { controller.composer.phase == .choosing }
             _ = enter(controller, client)
             check(client.document == "Total: 42 apples" && client.marked.isEmpty
                   && (client.replacements > replacementsBefore) == !ignores,
-                  "@calculate on \"6*7\" selected: 42 replaces it \(ignores ? "where the field ignores ranges" : "by its range") ('\(client.document)')")
+                  "@js on \"6*7\" selected: 42 replaces it \(ignores ? "where the field ignores ranges" : "by its range") ('\(client.document)')")
             client.ignoresRanges = false
         }
 
@@ -1992,7 +1992,7 @@ enum SelfTest {
         CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)
     }
 
-    /// @calculate, @py, @js and @search through the controller, with ⏎ as the action key: results come back as
+    /// @py, @js and @search through the controller, with ⏎ as the action key: results come back as
     /// candidates (@py and @js from their child processes), output with several lines goes in as printed
     /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
     /// search key is a stand-in: the user's keychain is never read here.
@@ -2156,7 +2156,7 @@ enum SelfTest {
 
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
-        section("@calculate, @py, @js, @search", needs: .composing)
+        section("@py, @js, @search", needs: .composing)
         // These commands run nothing while secure input is on, and a locked screen holds it. Nothing typed
         // here is secret, and the secure input refusal has its own checks, so this section runs without it.
         let (secureInput, installed, commands, searchKey) =
@@ -2231,9 +2231,6 @@ enum SelfTest {
                 && client.marked.isEmpty && !controller.composer.isComposing
         }
 
-        check(insertsResult("calculate", "23*17", "391"), "@calculate 23*17 inserts 391 (\(client.inserted.last ?? ""))")
-        check(insertsResult("calculate", "0.1+0.2", "0.3"), "@calculate works in decimal: 0.1+0.2 inserts 0.3 (\(client.inserted.last ?? ""))")
-
         // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
         // another key types the rest at once. Short pauses here.
         let (typedBefore, mistakesBefore, sleepBefore) = (settings.typeOut, settings.typeOutMistakes, controller.typeOutSleep)
@@ -2241,16 +2238,16 @@ enum SelfTest {
         controller.applySettings()
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 40_000_000) }
         func typedOut(_ text: String) -> Bool {
-            guard start("calculate") else { return false }
+            guard start("js") else { return false }
             typeText(text)
             _ = act(controller, client)
-            guard finishConversion(controller, "@calculate \(text)") else { clear(); return false }
+            guard finishConversion(controller, "@js \(text)") else { clear(); return false }
             let before = client.inserted.count
             _ = enter(controller, client)
             return client.inserted.count == before && controller.isTypingOut  // nothing at once: it's being typed
         }
         var before = client.inserted.count
-        if typedOut("2^40") {  // 1099511627776
+        if typedOut("2**40") {  // 1099511627776
             _ = pump(timeout: 3) { !controller.isTypingOut }
             let typed = Array(client.inserted.dropFirst(before))
             check(typed.joined() == "1099511627776" && typed.allSatisfy { $0.count == 1 },
@@ -2259,7 +2256,7 @@ enum SelfTest {
             check(false, "the result starts typing out instead of going in at once")
         }
         before = client.inserted.count
-        if typedOut("2^40") {
+        if typedOut("2**40") {
             _ = pump(timeout: 0.2) { client.inserted.count >= before + 2 }
             _ = escape(controller, client)
             _ = pump(timeout: 0.3) { false }
@@ -2268,7 +2265,7 @@ enum SelfTest {
                   "Esc stops it there (\(typed))")
         }
         before = client.inserted.count
-        if typedOut("2^40") {
+        if typedOut("2**40") {
             _ = pump(timeout: 0.2) { client.inserted.count >= before + 2 }
             press(controller, client, "a", code: keyCodes["a"] ?? 0)  // another key: the rest at once, then the key
             let typed = client.inserted.dropFirst(before).joined()

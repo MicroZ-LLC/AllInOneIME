@@ -18,7 +18,7 @@ struct CommandTests {
         #expect(Command.matching("Q") == [.question])
         #expect(Command.matching("ag") == [.agent])
         #expect(Command.matching("x").isEmpty)
-        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run, .run,
+        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run,
                                                       .agents, .settings, .config, .doctor, .message, .report])
     }
 
@@ -46,7 +46,7 @@ struct CommandTests {
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "note", "reminder", "calculate", "py", "js", "tasks",
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "note", "reminder", "py", "js", "tasks",
                                         "settings", "config", "doctor", "imessage", "reportissue", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
@@ -136,6 +136,7 @@ struct CommandTests {
         #expect(CustomCommand(name: "", type: .prompt, prompt: "x").problem(among: []) == .emptyName)
         #expect(CustomCommand(name: "py3", type: .run, argv: ["python3"]).problem(among: []) == .nameNotLetters)
         #expect(CustomCommand(name: "Open", type: .run, argv: ["x"]).problem(among: []) == .nameTaken)  // built-in
+        #expect(CustomCommand(name: "calculate", type: .run, argv: ["bc", "-l"]).problem(among: []) == nil)  // no longer one
         #expect(ok.problem(among: [CustomCommand(name: "Reply", type: .prompt, prompt: "y")]) == .nameTaken)
         #expect(CustomCommand(name: "x", type: .prompt, prompt: "  ").problem(among: []) == .emptyPrompt)
         #expect(CustomCommand(name: "x", type: .terminal, argv: []).problem(among: []) == .emptyCommand)
@@ -162,7 +163,7 @@ struct CommandTests {
         let custom = ["calculate", "sh", "reply", "python", "japanese"].map {
             CustomCommand(name: $0, type: .run, argv: ["x"])
         }
-        let catalog = Command.catalog(custom)  // 14 built-in + 4 (the custom calc gives way to the built-in)
+        let catalog = Command.catalog(custom)  // 15 built-in + 5 ("calculate" is no built-in's name)
         // Nothing used yet: the first five in catalog order.
         #expect(Command.palette("", in: catalog, usage: CommandUsage(), now: now).map(\.name)
             == ["improve", "translate", "question", "agent", "open"])
@@ -178,7 +179,8 @@ struct CommandTests {
         #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["py", "python"])
         #expect(Command.palette("pyt", in: catalog, usage: usage, now: now).map(\.name) == ["python"])
         #expect(Command.palette("p", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py", "japanese", "improve", "open"])
-        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["agent", "japanese", "translate", "calculate", "tasks"])
+        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["agent", "japanese", "translate", "tasks", "imessage"])
+        #expect(Command.palette("calc", in: catalog, usage: usage, now: now).map(\.custom) == [custom[0]])  // the user's own
         #expect(Command.palette("o", in: catalog, usage: usage, now: now).map(\.name) == ["open", "python", "improve", "question", "note"])
         #expect(Command.palette("zz", in: catalog, usage: usage, now: now).isEmpty)
     }

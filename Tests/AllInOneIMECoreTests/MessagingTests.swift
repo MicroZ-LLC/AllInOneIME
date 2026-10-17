@@ -229,17 +229,17 @@ extension ComposerTests {
     }
 
     @Test func imessagePastedCodeCommandsStayText() {
-        // As everywhere else: in pasted text, commands that run code don't run; @calculate does.
+        // As everywhere else: in pasted text, commands that run code don't run; a plugin's (@calculator) does.
         let (c, _) = imessage()
-        c.commands = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+        c.commands = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])], plugins: [calculatorPlugin])
         _ = c.handleKeyDown(tab)
-        paste("@py「import os」 @stock AAPL @calculate 2*3", into: c)
+        paste("@py「import os」 @stock AAPL @calculator 2*3", into: c)
         let run = c.handleKeyDown(enterKey)
         guard case let .startPlan(outer, plan, _)? = run.effects.first else {
             Issue.record("expected a plan, got \(run.effects)")
             return
         }
-        #expect(outer == .imessage && plan.inner.map(\.command.name) == ["calculate"])
+        #expect(outer == .imessage && plan.inner.map(\.command.name) == ["calculator"])
         #expect(run.effects.contains(.notice(c.messages.codeNotRun)) && sends(run.effects).isEmpty)
         // Nothing else to run: the message is shown as it is, to confirm, with the notice.
         let (d, _) = imessage()

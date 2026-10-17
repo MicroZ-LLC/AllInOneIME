@@ -1668,13 +1668,6 @@ final class AllInOneIMEInputController: IMKInputController {
             openSettings(.writing)
             return
         }
-        // An @calculate inside the text is worked out here first: a mistake in it is reported at once and in the
-        // interface language (from inside the pipeline only its English description would arrive).
-        if let plan, let error = Calculator.failure(in: plan) {
-            log.notice("conversion \(id): @calculate inside the text failed")
-            perform(composer.fail("@calculate" + tr("：", ": ") + UIText.describe(error), id: id), client: nil)
-            return
-        }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
         let improveTranslates = loadSettings().improveTranslates
         // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
@@ -1686,7 +1679,6 @@ final class AllInOneIMEInputController: IMKInputController {
         // Not tied to the main actor: the pipeline calls it from its own task.
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
             if command == .read { return WebReader.stream(input) }
-            if command == .calc { return Calculator.stream(input) }
             // @py, @js: the code runs in a child process, like a custom program (never in this one).
             if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
             if command == .webSearch { return WebSearch.stream(input, output: searchList, loadKey: loadSearchKey) }

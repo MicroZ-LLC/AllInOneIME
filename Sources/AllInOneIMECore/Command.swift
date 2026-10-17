@@ -79,10 +79,6 @@ public struct Command: Hashable, Sendable {
     /// `@reminder 明天下午3点给张三打电话`.
     public static let reminder = Command(name: "reminder", kind: .reminder)
 
-    /// Arithmetic worked out on this Mac (`Calculator`): `@calculate 23*17` → `391`, also inside another
-    /// command's text: `@reply 总价是 @calculate 23*17 元`.
-    public static let calc = Command(name: "calculate", kind: .run)
-
     /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
     /// `@py 2**100`. It runs with the user's `python3`.
     public static let py = Command(name: "py", kind: .run)
@@ -120,7 +116,7 @@ public struct Command: Hashable, Sendable {
     /// Never offered in the list: the composer starts it (`Composer.selection`).
     public static let edit = Command(name: "edit", kind: .generate)
 
-    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .read, .note, .reminder, .calc,
+    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .read, .note, .reminder,
                                              .py, .js, .webSearch, .tasks, .settings, .config, .doctor, .imessage, .reportIssue]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
@@ -142,7 +138,7 @@ public struct Command: Hashable, Sendable {
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
-    public var typesLatin: Bool { self == .open || self == .read || self == .calc || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
+    public var typesLatin: Bool { self == .open || self == .read || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
     /// `program(agent:)` with Claude Code as the agent.
     public var program: String? { program(agent: .claude) }

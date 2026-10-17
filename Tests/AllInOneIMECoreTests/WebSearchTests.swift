@@ -536,7 +536,7 @@ struct WebSearchTests {
         type("nihao", c)
         _ = c.handleKeyDown(spaceKey)
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.map(\.name) == ["read", "calculate", "py", "js", "search"])  // the commands that run inside a text
+        #expect(c.paletteMatches.map(\.name) == ["read", "py", "js", "search"])  // the commands that run inside a text
         type("se", c)
         _ = c.handleKeyDown(tab)
         #expect(c.draft == "@question 你好@search " && !engine.ascii)

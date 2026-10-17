@@ -934,7 +934,7 @@ public final class Composer {
     }
 
     /// Whether `command` works on the selection (`selection`): the writing commands, the AI's (`@question`, a prompt
-    /// command), programs that print something to insert (`@calculate`, `@py`, a custom or plugin `run` command), a link
+    /// command), programs that print something to insert (`@py`, `@js`, a custom or plugin `run` command), a link
     /// (it goes in the address) and `@note` (it's saved). The others leave it alone, and it goes back once they're
     /// done: `@open`, `@tasks` and `@settings` have nothing to do with it; `@agent` and terminal commands would hand
     /// text the user didn't write to an agent or a shell; `@reminder`, `@imessage`, `@reportissue` and script

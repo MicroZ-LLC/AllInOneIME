@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AllInOneIMECore
 
@@ -226,8 +227,15 @@ extension ComposerTests {
 
 /// Commands that run code (`Command.runsCode`) never run from text the user didn't type.
 extension ComposerTests {
+    /// A script plugin from the library: it fetches nothing here, but it runs inside a text as plugins do.
+    var calculatorPlugin: InstalledPlugin {
+        InstalledPlugin(manifest: PluginManifest(name: "calculator", version: "1.0.0", type: .script, script: "main.js"),
+                        directory: URL(fileURLWithPath: "/tmp/calculator"), isLocal: false)
+    }
+
     @Test func pastedCodeCommandsStayText() {
-        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])],
+                                      plugins: [calculatorPlugin])
         // "@py …" in a paste: no plan, the text goes to @improve as it is, and the user is told.
         let (c, _) = improveDraft(key: .enter)
         c.commands = catalog
@@ -235,16 +243,17 @@ extension ComposerTests {
         let effects = c.handleKeyDown(enterKey).effects
         #expect(effects.first == .startConversion(input: "Bonjour @py「print(1)」 merci", id: 1))
         #expect(effects.contains(.notice(c.messages.codeNotRun)))
-        // Other commands in it still run (@calculate, a plugin's); a custom run command doesn't.
+        // Other commands in it still run (a plugin's, @calculator); a custom run command doesn't.
         let (s, _) = improveDraft(key: .enter)
         s.commands = catalog
-        paste("budget @calculate 1200*12 and @stock AAPL", into: s)
+        paste("budget @calculator 1200*12 and @stock AAPL", into: s)
         let started = s.handleKeyDown(enterKey).effects
         guard case let .startPlan(_, plan, _)? = started.first else {
             Issue.record("expected a plan, got \(started)")
             return
         }
-        #expect(plan.inner.map(\.command.name) == ["calculate"] && started.contains(.notice(s.messages.codeNotRun)))
+        #expect(plan.inner.map(\.command.name) == ["calculator"] && plan.inner.first?.argument == "1200*12"
+                && started.contains(.notice(s.messages.codeNotRun)))
         // A draft given back (a note that couldn't be saved) is outside text too.
         let r = Composer(engine: FakeEngine())
         r.commands = catalog
