@@ -403,7 +403,8 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 
 // A script plugin's own process (started by the input method): nothing else runs, nothing else is printed.
 if arguments.first == "--run-plugin" {
-    exit(arguments.count > 1 ? PluginHost.run(directory: arguments[1]) : 2)
+    guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
 }
 // The same for `@js` code (`InlineCode`): the code on standard input, what it prints on standard output.
 if arguments.first == InlineCode.javaScriptHostOption {

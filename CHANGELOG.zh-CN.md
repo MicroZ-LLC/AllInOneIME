@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.md) | 中文
 
+## Unreleased
+
+### 新增
+
+- 脚本插件能知道输入法的界面语言：调用 `run(input, {language})`，`language` 是 `"zh"` 或 `"en"`，和输入法自己界面用的一样（配置里的 `uiLanguage`，没选就跟随系统）。只写 `run(input)` 的插件照常可用；除此之外什么都不传。
+
 ## 0.6.4（2026-10-16）
 
 ### 新增

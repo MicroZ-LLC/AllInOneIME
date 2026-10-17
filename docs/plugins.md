@@ -23,7 +23,8 @@ A folder in `~/.config/allinoneime/plugins/<name>/`:
   `type` is `script` (JavaScript, below), `prompt` (an AI instruction in `prompt`, like a custom command) or
   `link` (a web address opened in the browser, below).
   `icon` (an SF Symbol name) and `color` (`blue`, `green`, … or `#RRGGBB`) draw it in the command list.
-- `main.js` for a script plugin: `function run(input) { return "one line" }`. A `throw` is the error shown.
+- `main.js` for a script plugin: `function run(input, context) { return "one line" }`. A `throw` is the error
+  shown. `context` is below; `function run(input)` works too.
 - `install.json`, written when installed from the library: `{version, files: {name: sha256}, source: "registry"}`.
   A folder without it is a **local** plugin (an author's, not reviewed).
 
@@ -59,10 +60,10 @@ browser. Nothing is inserted; the draft is cleared, as when `@open` opens someth
 
 ## How a script runs
 
-In JavaScriptCore (part of macOS: nothing to install), in a **child process**: `AllInOneIME --run-plugin <dir>`
-with the text on standard input, the result on standard output. JavaScriptCore can't stop a running script, so
-a stuck plugin must not run inside the input method; a child process is killed by the existing runner (timeout,
-output limit, Esc), the same path as custom `run` commands.
+In JavaScriptCore (part of macOS: nothing to install), in a **child process**:
+`AllInOneIME --run-plugin <dir> --language zh|en` with the text on standard input, the result on standard output.
+JavaScriptCore can't stop a running script, so a stuck plugin must not run inside the input method; a child
+process is killed by the existing runner (timeout, output limit, Esc), the same path as custom `run` commands.
 
 The script sees nothing but `fetch`:
 
@@ -78,6 +79,14 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 - The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings → AI Provider →
   Privacy) covers requests to the AI, so a `prompt` plugin, but not what a script or link plugin sends. Likewise an
   app set to "No AI in this app" (Settings → Apps) refuses `prompt` plugins and still runs script and link plugins.
+
+`run(input, context)` gets the text (trimmed) and a plain object, `context`:
+
+- `context.language` (from 0.6.5): `"zh"` or `"en"`, the language the input method's own interface is showing
+  (config `uiLanguage`, the settings window's "Interface language", else the system's), so a plugin can answer
+  in it. Older apps call `run(input)` alone (and an unknown language leaves `{}`), so don't rely on it: read
+  it as `(context && context.language) || "en"`.
+- Nothing else: not the app being typed in, the field, or anything about the user.
 
 ## The library (milestone 2, done)
 

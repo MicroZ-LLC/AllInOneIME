@@ -16,6 +16,9 @@ enum UIText {
 
     static var chinese: Bool { choice.map { $0 == .chinese } ?? systemPrefersChinese }
 
+    /// The same, as a language: what script plugins are told (`run(input, {language})`).
+    static var language: Language { chinese ? .chinese : .english }
+
     /// Whether Chinese comes before English in the preferred languages; English if neither is listed.
     static func prefersChinese(_ languages: [String]) -> Bool {
         for language in languages {

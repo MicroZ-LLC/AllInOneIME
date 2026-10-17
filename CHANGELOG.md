@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Added
+
+- Script plugins get the input method's language: the app calls `run(input, {language})`, `language` being `"zh"` or `"en"` as its own interface shows (config `uiLanguage`, else the system's). Plugins with `run(input)` work as before; nothing else is passed.
+
 ## 0.6.4 (2026-10-16)
 
 ### Added

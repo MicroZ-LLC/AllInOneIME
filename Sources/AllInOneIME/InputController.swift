@@ -240,8 +240,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// A `list` command's text being run (or waiting for its `queryDelay`), and that run.
     private var listRunKey: String?
     private var listTask: Task<Void, Never>?
-    /// A script plugin: runs in this program's own child process (`--run-plugin`).
-    var runPlugin: (InstalledPlugin, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { PluginRunner.run($0, input: $1) }
+    /// A script plugin: runs in this program's own child process (`--run-plugin`), told the interface language.
+    var runPlugin: (InstalledPlugin, String, Language) -> AsyncThrowingStream<ConversionUpdate, Error> = {
+        PluginRunner.run($0, input: $1, language: $2)
+    }
     /// `@search`'s key: the keychain's, else the login shell's (the self-test supplies its own: it never reads
     /// the user's keychain). Called in the search's own task, off the main thread.
     var loadSearchKey: @Sendable () -> String? = { WebSearch.loadKey() }
@@ -1677,6 +1679,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
         let improveTranslates = loadSettings().improveTranslates
+        // Script plugins get the language this conversion's own texts are in (read here: `UIText` is main-thread only).
+        let pluginLanguage = UIText.language
         // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
         let app = appID
         // A terminal runs each line it is given: there @search's list, and any command's output, goes in
@@ -1693,7 +1697,7 @@ final class AllInOneIMEInputController: IMKInputController {
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
-            if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input) }
+            if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input, pluginLanguage) }
             if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
             // @improve, @translate, or both written together: one request (`WritingMode`).
             if command == nil || command?.kind == .convert {
