@@ -123,8 +123,8 @@ struct ExtensionRobustnessTests {
         #expect(failure == .timedOut(1))
         #expect(Date().timeIntervalSince(started) < 10)
         let child = try #require(pid_t(String(decoding: try Data(contentsOf: pids), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(kill(child, 0) != 0, "the script's child \(child) is still running")
+        // Gone once it's reaped, which a busy test run can hold up (`Timing`).
+        #expect(await Timing.eventually { kill(child, 0) != 0 }, "the script's child \(child) is still running")
     }
 
     /// When the input method quits (`CommandRunner.stopAll`), a running program's group goes, children and all.
@@ -136,10 +136,11 @@ struct ExtensionRobustnessTests {
         let task = Task {
             for try await _ in CommandRunner.run(command, arguments: [], environment: ["PATH": "/usr/bin:/bin"]) {}
         }
+        // Started and its child's pid written, which a busy test run can take seconds to get to (`Timing`).
         var found: pid_t?
-        for _ in 0..<100 where found == nil {
-            try await Task.sleep(for: .milliseconds(20))
+        _ = await Timing.eventually {
             found = (try? Data(contentsOf: pids)).flatMap { pid_t(String(decoding: $0, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) }
+            return found != nil
         }
         let started = try #require(found)
         // Its group is the script's own (Foundation starts it in one), kept while it runs.
@@ -147,8 +148,7 @@ struct ExtensionRobustnessTests {
         #expect(leader > 0 && leader != getpgrp() && CommandRunner.runningGroups.contains(leader))
         let child = started
         CommandRunner.stop(groups: [leader], grace: 0.3)  // `stopAll` with only this test's group
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(kill(child, 0) != 0 && kill(leader, 0) != 0)
+        #expect(await Timing.eventually { kill(child, 0) != 0 && kill(leader, 0) != 0 })
         _ = try? await task.value
     }
 

@@ -596,7 +596,7 @@ struct QuestionHistoryAcceptanceTests {
         #expect(h.answerShown == "A2: AI 芯片的未来" && h.requests.count == 2)
         h.clock.now += 3600
         let mark = h.log.count
-        await h.press(k("r"))
+        await h.press(k("r", mods: .command))
         #expect(h.requests.count == 3)
         #expect(QHAcceptanceURLProtocol.question(in: h.requests[2]) == "AI 芯片的未来")
         #expect(h.requests[2].httpBody == h.requests[1].httpBody)  // the same request as when it was first asked
@@ -620,12 +620,12 @@ struct QuestionHistoryAcceptanceTests {
         #expect(h.answerShown == "A3: AI 芯片的未来" && h.requests.count == 3)
     }
 
-    /// Spec 4: Shift-R (caps) re-asks too.
+    /// Spec 4: ⌘⇧R (Shift held, or caps) re-asks too. (0.6.4: ⌘R and ⌘⇧R re-ask; R alone starts a follow-up.)
     @Test func capitalRReasks() async throws {
         let h = try QHHarness(history: QHHarness.history(["What is Rust?"]))
         await h.startQuestion()
         await h.press(k("1"))
-        await h.press(k("R", mods: .shift))
+        await h.press(k("R", mods: [.command, .shift]))
         #expect(h.requests.count == 1 && h.answerShown == "A1: What is Rust?")
         #expect(h.saved.entries.first?.answer == "A1: What is Rust?")
     }
@@ -640,7 +640,7 @@ struct QuestionHistoryAcceptanceTests {
         await h.startQuestion()
         await h.press(k("1"))
         h.clock.now += 3600
-        await h.press(k("r"))
+        await h.press(k("r", mods: .command))
         #expect(h.requests.count == 2)  // it was tried
         if case .failed = h.composer.phase {} else { Issue.record("expected a failure, got \(h.composer.phase)") }
         #expect(h.saved == before)
@@ -949,7 +949,7 @@ struct QuestionHistoryAcceptanceTests {
         var headers = request.allHTTPHeaderFields ?? [:]
         headers["Content-Length"] = nil
         return request.httpMethod == golden.method && url == golden.url && headers == golden.headers
-            && String(decoding: request.httpBody ?? Data(), as: UTF8.self) == golden.body
+            && AcceptanceLiveRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self), question: true) == golden.body
     }
 
     /// Spec 8: asking sends exactly the request 55d496e sends (Claude API and OpenAI-compatible), with or without
@@ -980,7 +980,7 @@ struct QuestionHistoryAcceptanceTests {
                     for _ in 0...found { await h.press(downKey) }
                     await h.press(enterKey)
                     #expect(h.composer.showsSavedAnswer && h.requests.count == 1)
-                    await h.press(k("r"))
+                    await h.press(k("r", mods: .command))
                     #expect(h.requests.count == 2)
                     if h.requests.count == 2 {
                         #expect(matches(h.requests[1], golden, host: h.host), "re-ask \(provider) \(golden.question)")
@@ -1014,7 +1014,7 @@ struct QuestionHistoryAcceptanceTests {
             #expect(requests.count == 2)
             for request in requests {
                 // The same JSON (Bedrock's body is encoded without sorted keys: the order of its keys varies by run).
-                let sent = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+                let sent = AcceptanceLiveRule.strip(String(decoding: request.httpBody ?? Data(), as: UTF8.self), question: true)
                 #expect(Self.sameJSON(sent, golden.body), "\(golden.question): sent \(sent)")
                 #expect(request.url?.absoluteString.replacingOccurrences(of: fixed.region!, with: "golden-1") == golden.url)
                 #expect(request.httpMethod == golden.method)

@@ -115,7 +115,7 @@ struct DashboardSources {
         -> [String: AgentReplyCache.Read]
     /// Whether AgentMonitor looks at the tasks every few seconds now (its looks reach the panel).
     var monitorWatching: @MainActor () -> Bool
-    /// The prompt @claude started a task with (short id), for one Claude Code hasn't named yet.
+    /// The prompt @agent started a task with (short id), for one Claude Code hasn't named yet.
     var prompt: @MainActor (_ id: String) -> String?
     var openAgent: @MainActor (_ id: String) -> Void
     var defaults: PanelDefaults
@@ -158,13 +158,13 @@ struct DashboardSources {
 }
 
 /// The panel dropped down from the menu bar icon (`MenuBarIcon`): what AllInOneIME started, the notes
-/// saved with @note, the reminders added with @reminder, @claude's background tasks. It never takes
+/// saved with @note, the reminders added with @reminder, @agent's background tasks. It never takes
 /// focus from the app being typed in (but for its tasks' search field), and closes on a click elsewhere.
 ///
 /// The notes @note saves are recorded from launch, shown or not (`recordSavedNotes`).
 /// While it's shown it listens for @reminder (AppEvents), for EventKit's changes and for AgentMonitor's
-/// looks at the tasks and the tasks @claude starts, and reads the reminders again every 60 s. It
-/// asks Claude Code itself when it's opened or refreshed and when @claude starts a task, and every
+/// looks at the tasks and the tasks @agent starts, and reads the reminders again every 60 s. It
+/// asks Claude Code itself when it's opened or refreshed and when @agent starts a task, and every
 /// 15 s only while it's expanded, a task it lists isn't done and AgentMonitor isn't looking anyway.
 /// Notes is asked (for edited titles and deleted notes) only when it's running already. Off,
 /// nothing else of it runs: no timers, no other observers, no window.
@@ -642,7 +642,7 @@ final class FloatingPanel: ObservableObject {
     // MARK: - Claude Code
 
     /// Asks Claude Code for the tasks, unless AgentMonitor looks every few seconds anyway (`force`:
-    /// asks all the same: when it's opened or refreshed, when @claude starts a task).
+    /// asks all the same: when it's opened or refreshed, when @agent starts a task).
     private func lookAtTasks(force: Bool) {
         if !force, sources.monitorWatching(), let sessions {
             readReplies(of: AgentTaskList.newest(sessions))
@@ -936,6 +936,7 @@ struct FloatingPanelView: View {
     @ObservedObject var panel: FloatingPanel
     /// A new version, as one quiet line at the top (`UpdateController`).
     @ObservedObject var updates: UpdateController = .shared
+    @ObservedObject var extensionSources: ExtensionSourceController = .shared
     @Environment(\.colorScheme) private var scheme
 
     private static let cornerRadius: CGFloat = 14
@@ -1028,9 +1029,10 @@ struct FloatingPanelView: View {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
             if let update = updates.available { updateNotice(update) }
+            ExtensionSourceNotice(sources: extensionSources) { panel.click { SettingsWindow.shared.show(page: .commands) } }
             section(tr("备忘录", "Notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
-            section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .claude)) { tasks }
+            section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .agent)) { tasks }
             if !panel.scriptRuns.isEmpty {
                 section(tr("后台命令", "Background Commands"), CommandIcons.scripts) { scriptRuns }
             }
@@ -1145,7 +1147,7 @@ struct FloatingPanelView: View {
         case let .failed(text):
             Text(text).font(.system(size: 11)).foregroundStyle(.red).lineLimit(3)
         case let .list(rows) where rows.isEmpty:
-            line(tr("用 @claude 交给后台的任务会显示在这里", "Tasks @claude runs in the background show up here"))
+            line(tr("用 @agent 交给 Claude Code 后台的任务会显示在这里", "Tasks @agent hands to Claude Code in the background show up here"))
         case let .list(rows):
             // A few at a time: the rest scroll into view, or a search finds them.
             let shown = AgentTaskList.matching(rows, panel.taskQuery)

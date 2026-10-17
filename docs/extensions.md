@@ -28,7 +28,8 @@ Extensions are read from folders:
 
 - `~/.config/allinoneime/extensions/` (in the list from the start),
 - folders added under Settings → Custom Commands → Script Extensions → Add Folder…,
-- folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden).
+- folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden),
+- bundles installed from a Git repository: extension sources (§10).
 
 A folder you add (and the first one) is read whole, as below. From a folder Spotlight found, only its Raycast Script
 Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
@@ -44,7 +45,8 @@ In each folder:
 
 - **A single script** is a file in the folder with metadata (§2). Files whose name contains `.template.`, and hidden
   files, are left out. Subfolders aren't read, except bundles.
-- **A bundle** is a subfolder with an `extension.json` (§6): its commands, and settings they share.
+- **A bundle** is a subfolder with an `extension.json` (§6): its commands, and settings they share. A folder added
+  that has an `extension.json` itself is that one bundle (this is how an extension source's bundle is loaded).
 - **Symbolic links** are followed: a linked folder, script or bundle is read as what it points to. A link to nothing
   is listed in Settings as such.
 
@@ -128,7 +130,7 @@ export (in `.zshrc`, say) don't arrive: a bundle's preferences are the way to pa
 | Variable | Value |
 |---|---|
 | `ALLINONEIME_PROTOCOL` | `1` |
-| `ALLINONEIME_VERSION` | the app's version, like `0.6.3` |
+| `ALLINONEIME_VERSION` | the app's version, like `0.6.4` |
 | `ALLINONEIME_LANGUAGE` | the interface language: `en` or `zh` |
 | `ALLINONEIME_INPUT_LANGUAGE` | the language being typed: `en`, `zh`, `fr`, `ko` or `hi` |
 | `ALLINONEIME_APP` | the bundle id of the app being typed in |
@@ -307,3 +309,101 @@ Raycast's keys are read as they are, and mean:
 | `hiddenExtensionFolders` | `[]` | found folders not used |
 | `disabledExtensions` | `[]` | commands (ids) and bundles (names) turned off |
 | `extensionPreferences` | `{}` | bundle → preference → value (not passwords) |
+| `extensionSources` | `[]` | Git repositories bundles are installed from (§10) |
+
+## 10. Extension sources
+
+A bundle can be installed from a Git repository and updated from there: Settings → Custom Commands → Extension
+Sources → Add from Link…, or `AllInOneIME --add-source <url>`.
+
+**The repository.** Any layout, as long as the bundle is a folder with its `extension.json` (§6) and the scripts it
+names:
+
+```
+my-extensions/                 the repository
+├── README.md
+└── extensions/team/           the bundle ("path": "extensions/team")
+    ├── extension.json
+    ├── standup.sh
+    └── lib/common.sh
+```
+
+With no `path`, the folder holding an `extension.json` is found (the root, or one up to four levels down; not inside
+hidden folders or `node_modules`); when there are several, Settings lists them to pick from and `--add-source` asks
+for `--path`. A source is one bundle, and an address is one source: bundles meant to be used together go in one
+bundle, others in a repository of their own.
+
+**The config.**
+
+```json
+"extensionSources": [
+  { "url": "git@github.com:you/my-extensions.git", "path": "extensions/team", "branch": "main", "pin": null,
+    "autoCheck": true, "authHint": "Optional: your own reminder of how to sign in, shown under a git error" }
+]
+```
+
+| Key | Meaning |
+|---|---|
+| `url` | `ssh://…`, `git@host:path`, `https://…`, or `file://…` (a repository on this Mac). `http://` isn't used, nor an https address with a user name, password or token in it (git's credential helper keeps those) |
+| `path` | the bundle's folder in the repository (none: found as above) |
+| `branch` | the branch followed (none: the repository's default) |
+| `pin` | a tag or commit the clone stays on; `null` follows the branch. A pinned source isn't checked for updates |
+| `autoCheck` | `true` (default): checked once a day and about 30 s after the input method starts |
+| `authHint` | shown under a git error |
+
+**What happens.**
+
+- **Git.** `/usr/bin/git` (Xcode's or the command line tools'; without them, a clear error instead of the installer)
+  runs as you, with your login shell's PATH and SSH agent, so your keys, `~/.ssh/config`, your own ssh command
+  (`GIT_SSH_COMMAND`, `core.sshCommand`, left exactly as they are) and credential helpers sign in; the app never sees a
+  password. Never interactively: git runs in a session of its own with no controlling terminal and standard input
+  closed, so ssh can't ask for a host key or a password (it fails, as "Host key verification failed." or "Permission
+  denied"), with `GIT_TERMINAL_PROMPT=0` and `SSH_ASKPASS_REQUIRE=never`, 60 seconds a call, hooks off
+  (`-c core.hooksPath=/dev/null`) for every call. Only the ssh, https and file transports (`GIT_ALLOW_PROTOCOL`).
+- **Names.** Every branch, tag or commit (the config's, Settings', a pin, and the repository's own default branch) has to
+  be a name `git check-ref-format --branch` accepts and can't start with `-`; git gets it after `--end-of-options`. A
+  repository whose default branch is named like an option is refused.
+- **Adding.** A shallow clone (`--depth 1`, the one branch, no tags; the pin fetched and checked out) into a hidden
+  staging folder (`Sources/.staging/`). Nothing of it is in place or loads until you've seen the review (the bundle,
+  each command's name, title, description and output, the programs it runs, a script that is a link out of the
+  repository, its preferences, the address and commit) and clicked Enable, which moves it into place as
+  `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of the address; in one step,
+  swapped with any older clone there) and adds the bundle's folder to `extensionFolders`. Cancel deletes the staged
+  clone, never one in place. A bundle folder that leads out of the repository (a link) is refused. A command whose name
+  is taken follows §7, and the review says so.
+- **Only reviewed code loads.** A folder of the sources folder in the load list that isn't a reviewed source's bundle
+  (a config copied from another Mac, a lost `sources.json`) isn't loaded, and is taken out of the load list when the
+  input method starts and when Settings shows the page.
+- **Trust** is per source and address: once enabled, its fast-forward updates don't need another review. A force push
+  is different: the rewritten history could be anything, so Re-clone shows the review again and only Enable puts it in
+  place (the reviewed clone keeps working meanwhile).
+- **Checking** (`autoCheck`, or Check Now): `git fetch` of the branch (100 commits deep), and the commits after the
+  clone's listed (subject, author, date). Nothing changes.
+- **Update** (only when you click it, or `--update-sources`): fetched again, then the clone is moved to the new commit
+  if it follows the clone's (a fast-forward; never a merge). If the history was rewritten (a force push, or more than
+  100 new commits), Update is refused: Re-clone stages a new clone and shows the review (from a terminal,
+  `--add-source` again). The loader reads the changed files as for any folder (§1).
+- **Pin.** Changing the pin checks that ref out first, and the config keeps it only when that worked; Unpin goes back to
+  the branch's newest commit (a fast-forward, as Update). When the pinned commit is further back than a check fetches,
+  Unpin clones the branch anew and shows the review; the pin is cleared only on Enable.
+- **Removing** moves the clone to the Trash and takes the source and its folder out of the config; the bundle's
+  `extensionPreferences` (and passwords in the keychain) stay, so adding it back restores them.
+- **State.** What's known of each clone (trusted, its branch and commit, the last check and error, what's new) is in
+  `sources.json` next to the clones. The command line writes it too; a running input method reads it again. An entry it
+  can't read is skipped; a file that isn't JSON is moved aside as `sources.json.bad-<date>`, never overwritten. Left-over
+  staging and temporary folders an hour old are removed when the input method starts (a younger one may be in use).
+- **A source's folder is only ever its bundle.** If its `extension.json` isn't a valid bundle (no `name`, say), the review
+  and Settings say what's wrong, and its other scripts aren't loaded as single scripts instead (§1's fallback is for
+  folders you add yourself).
+
+**Command line** (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`):
+
+| | |
+|---|---|
+| `--add-source URL [--path P] [--branch B] [--pin REF]` | clone into staging, print the review, put it in place and enable it (running it is the consent); also how a force-pushed source is reviewed again; non-zero on any error |
+| `--update-sources` | check every reviewed source that isn't pinned and fast-forward it (a force-pushed one isn't moved: it says to run `--add-source` again); print what changed; non-zero if any failed |
+| `--list-extensions` | the loaded commands (name, output, source or folder), those turned off or hidden, unreviewed source folders, and the files left out |
+
+They take only these options (and `--config FILE`, `--sources-dir DIR` for tests); any other is refused.
+
+There is no signature on a source: it runs what its repository holds, as you. Add only repositories you trust.

@@ -1346,15 +1346,15 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .claude, .open] && c.paletteMatches.count == 16)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 18)
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@q")
         #expect(c.handleKeyDown(tab).effects == [.updateMarkedText, .showPanel])
         #expect(c.draft == "@question " && c.paletteQuery == nil && c.draftCommand == .question)
         // Space, a digit or the action key pick too; ↑↓ move the highlight.
-        let (s, _) = palette("cl")
+        let (s, _) = palette("ag")
         _ = s.handleKeyDown(spaceKey)
-        #expect(s.draft == "@claude ")
+        #expect(s.draft == "@agent ")
         let (d, _) = palette()
         _ = d.handleKeyDown(k("5"))
         #expect(d.draft == "@open ")
@@ -1366,7 +1366,9 @@ struct ComposerTests {
         #expect(a.paletteHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.paletteHighlighted == 15 && a.paletteFirstVisible == 11)  // around to the last, scrolled to it
+        #expect(a.paletteHighlighted == 17 && a.paletteFirstVisible == 13)  // around to the last, scrolled to it
+        _ = a.handleKeyDown(upKey)
+        _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1380,9 +1382,9 @@ struct ComposerTests {
         let r = c.handleKeyDown(k("z"))
         #expect(commits(r) == ["@"] && r.handled && e.input == "z" && c.draft.isEmpty)
         // In English mode the letter then goes to the app.
-        let (d, _) = palette("cl", english: true)
+        let (d, _) = palette("ag", english: true)
         let r2 = d.handleKeyDown(k("x"))
-        #expect(commits(r2) == ["@cl"] && !r2.handled && d.draft.isEmpty)
+        #expect(commits(r2) == ["@ag"] && !r2.handled && d.draft.isEmpty)
         let (o, _) = palette(english: true)
         let r3 = o.handleKeyDown(k("w"))  // in no command's name ("j" is in @js, "k" in @tasks)
         #expect(commits(r3) == ["@"] && !r3.handled)
@@ -1431,7 +1433,7 @@ struct ComposerTests {
             return (c, tapOption(c, at: 5))
         }
         #expect(send("q", "nihao").1.first == .startCommand(.question, input: "你好", id: 1))
-        let (claude, terminal) = send("c", "nihao")
+        let (claude, terminal) = send("ag", "nihao")
         #expect(terminal.contains(.runInTerminal(prompt: "你好")) && commits(terminal).isEmpty)
         #expect(claude.phase == .idle && claude.markedText.isEmpty && !claude.isLevelTwo)  // the session has its own window
         let (open, search) = send("o", "nihao")
@@ -1464,7 +1466,7 @@ struct ComposerTests {
         p.commands = catalog
         _ = p.handleKeyDown(at)
         // At most five: the first built-in ones (nothing used yet).
-        #expect(p.paletteVisible.map(\.name) == ["improve", "translate", "question", "claude", "open"])
+        #expect(p.paletteVisible.map(\.name) == ["improve", "translate", "question", "agent", "open"])
         // @python: code is typed as letters, the program runs, and Chinese comes back after.
         let py = start("pyt")  // "py" alone is the built-in @py
         #expect(py.draft == "@python " && py.engineState.isAsciiMode)
@@ -1494,7 +1496,7 @@ struct ComposerTests {
         let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
         let reply = CustomCommand(name: "reply", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, reply]).map(\.program)
-            == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app", nil,
+            == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, nil, nil, "/System/Applications/Messages.app", nil,
                 "python3", nil])  // @py needs python3 too
     }
 
@@ -1514,7 +1516,7 @@ struct ComposerTests {
         d.commands = catalog
         d.commandUsage = c.commandUsage
         _ = d.handleKeyDown(at)
-        #expect(d.paletteVisible.map(\.name) == ["calculate", "improve", "translate", "question", "claude"])
+        #expect(d.paletteVisible.map(\.name) == ["calculate", "improve", "translate", "question", "agent"])
         _ = d.handleKeyDown(k("1"))
         #expect(d.draft == "@calculate ")
         // A command beyond the five is found by its letters.
@@ -1630,20 +1632,20 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.count == 17 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
+        #expect(c.paletteMatches.count == 19 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
         for _ in 0..<5 { _ = c.handleKeyDown(downKey) }  // past the fifth: scrolls by one
         #expect(c.paletteHighlighted == 5 && c.paletteFirstVisible == 1)
-        #expect(c.paletteVisible.map(\.name) == ["translate", "question", "claude", "open", "note"])
+        #expect(c.paletteVisible.map(\.name) == ["translate", "question", "agent", "open", "note"])
         _ = c.handleKeyDown(k("2"))  // the second row shown, not the second command
         #expect(c.draft == "@question ")
         // The wheel stops at the ends; a click picks among the rows shown.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 16 && d.paletteFirstVisible == 12)
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 18 && d.paletteFirstVisible == 14)
         #expect(d.paletteVisible.map(\.name) == ["imessage", "reportissue", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.paletteHighlighted == 14 && d.paletteFirstVisible == 12)  // still in view: no scrolling
+        #expect(d.paletteHighlighted == 16 && d.paletteFirstVisible == 14)  // still in view: no scrolling
         _ = d.choose(index: 2)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.
@@ -1652,11 +1654,11 @@ struct ComposerTests {
         _ = e.handleKeyDown(at)
         for _ in 0..<8 { _ = e.handleKeyDown(downKey) }
         type("a", e)
-        #expect(e.paletteHighlighted == 0 && e.paletteFirstVisible == 0 && e.paletteMatches.first?.name == "alpha")
+        #expect(e.paletteHighlighted == 0 && e.paletteFirstVisible == 0 && e.paletteMatches.first?.name == "agent")
     }
 
     @Test func claudeIsNotStartedWhileSecureInputIsOn() {
-        let (c, _) = palette("c")
+        let (c, _) = palette("ag")
         _ = c.handleKeyDown(tab)
         type("nihao", c)
         c.secureInputActive = { true }
@@ -1664,7 +1666,7 @@ struct ComposerTests {
         let refused = tapOption(c, at: 5)
         #expect(refused.contains(.notice("系统安全输入已开启（密码框或锁屏），没有打开 Claude Code")))
         #expect(refused.contains(.updateMarkedText) && !refused.contains(.runInTerminal(prompt: "你好")))
-        #expect(c.markedText == "claude › 你好" && c.draft == "@claude 你好" && !c.isLevelTwo)
+        #expect(c.markedText == "agent › 你好" && c.draft == "@agent 你好" && !c.isLevelTwo)
         c.secureInputActive = { false }
         #expect(tapOption(c, at: 7).contains(.runInTerminal(prompt: "你好")))
     }
@@ -1674,12 +1676,13 @@ struct ComposerTests {
         _ = c.handleKeyDown(tab)
         type("nihao", c)
         _ = tapOption(c)
-        #expect(c.choices.map(\.kind) == [.original] && c.highlighted == 1)
+        // An @question conversation (0.6.4): one row per round's answer, the latest selected; no row 0.
+        #expect(c.choices.map(\.kind) == [.answer] && c.highlighted == 0)
         _ = c.receive(ConversionResult(versions: [CandidateLine("你好的意思", isComplete: false)]), isFinal: false, id: 1)
         #expect(c.handleKeyDown(enterKey) == .consumed())  // still streaming
         _ = c.receive(ConversionResult(versions: [CandidateLine("“你好”是问候语。")]), isFinal: true, id: 1)
-        #expect(c.phase == .choosing && c.choices.map(\.kind) == [.original, .answer])
-        #expect(c.choices.first?.text == "你好")  // the question, without "@question"
+        #expect(c.phase == .choosing && c.choices.map(\.kind) == [.answer])
+        #expect(c.chatRounds.first?.question == "你好")  // the question, without "@question"
         #expect(commits(c.handleKeyDown(enterKey)) == ["“你好”是问候语。"])
         // 0 inserts the question; without an answer the request failed.
         let (d, _) = palette("q")

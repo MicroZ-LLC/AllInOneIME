@@ -19,9 +19,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.3</string>
+	<string>0.6.4</string>
 	<key>CFBundleVersion</key>
-	<string>9</string>
+	<string>10</string>
 	<key>InputMethodConnectionName</key>
 	<string>com.aipinyin.inputmethod.AIPinyin_Connection</string>
 	<key>InputMethodServerControllerClass</key>
@@ -31,7 +31,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>为 @claude 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。</string>
+	<string>为 @agent 和你自己加的「在终端运行」命令打开终端窗口；用 @note 时把文字存进「备忘录」（AllInOneIME 文件夹）；用 @imessage 确认发送后，让「信息」把消息发出去。</string>
 	<key>NSContactsUsageDescription</key>
 	<string>用 @imessage 时按名字、拼音、手机号或邮箱找收件人。只读取姓名、电话和邮箱，不会上传。</string>
 	<key>NSHumanReadableCopyright</key>

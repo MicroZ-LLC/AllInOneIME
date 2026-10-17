@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AWSCredentials: Equatable, Sendable {
+public struct AWSCredentials: Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
     public var accessKeyId: String
     public var secretAccessKey: String
     public var sessionToken: String?
@@ -10,6 +10,13 @@ public struct AWSCredentials: Equatable, Sendable {
         self.secretAccessKey = secretAccessKey
         self.sessionToken = sessionToken
     }
+
+    /// Printed or logged, only the key ID's last 4 characters: never the secret or the token.
+    public var description: String {
+        "AWSCredentials(…\(accessKeyId.suffix(4))\(sessionToken == nil ? "" : ", session token"))"
+    }
+
+    public var debugDescription: String { description }
 }
 
 public enum AWSConfigError: Error, LocalizedError, Equatable {
@@ -31,11 +38,27 @@ public enum AWSConfigError: Error, LocalizedError, Equatable {
 
 /// Reads static credentials and region from the AWS shared config files.
 /// Supports `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token` and `region`.
-/// SSO, assume-role and credential_process profiles are reported as unsupported.
+/// SSO, assume-role and credential_process profiles are reported as unsupported here: `AWSCredentialResolver`
+/// resolves every kind (and is what requests use).
 public enum AWSSharedConfig {
     public struct Resolved: Equatable, Sendable {
         public var credentials: AWSCredentials
         public var region: String?
+        /// When these credentials expire (nil: static keys, or a program that gave no expiration).
+        public var expiration: Date?
+        /// How the profile got them (nil: not said).
+        public var kind: AWSProfileKind?
+        /// Fresh ones after AWS refused these as expired; nil: load them again.
+        public var refresh: AWSCredentialRefresh?
+
+        public init(credentials: AWSCredentials, region: String?, expiration: Date? = nil, kind: AWSProfileKind? = nil,
+                    refresh: AWSCredentialRefresh? = nil) {
+            self.credentials = credentials
+            self.region = region
+            self.expiration = expiration
+            self.kind = kind
+            self.refresh = refresh
+        }
     }
 
     public static func load(
@@ -46,12 +69,20 @@ public enum AWSSharedConfig {
         return try resolve(profile: profile, credentialsFile: files.credentials, configFile: files.config)
     }
 
-    /// Profile names found in the shared files (names only; nothing secret is returned).
+    /// Profile names found in the shared files (names only; nothing secret is returned). `[sso-session …]` and
+    /// `[services …]` sections aren't profiles.
     public static func profileNames(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
         let files = sharedFiles(environment)
-        let names = Set((files.credentials.map { parseINI($0, isConfigFile: false) } ?? [:]).keys)
-            .union((files.config.map { parseINI($0, isConfigFile: true) } ?? [:]).keys)
-        return names.sorted { a, b in a == "default" ? true : b == "default" ? false : a < b }
+        return AWSProfileFiles(credentials: files.credentials, config: files.config).names
+    }
+
+    /// The profile's region: `AWS_REGION` or `AWS_DEFAULT_REGION` when set, else the shared files' (none read but the
+    /// files: no program, no network).
+    public static func region(profile: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        if let region = AWSEnvironment.region(environment) { return region }
+        let files = sharedFiles(environment)
+        let name = profile.trimmingCharacters(in: .whitespaces)
+        return AWSProfileFiles(credentials: files.credentials, config: files.config).region(name.isEmpty ? "default" : name)
     }
 
     private static func sharedFiles(_ environment: [String: String]) -> (credentials: String?, config: String?) {

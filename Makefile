@@ -98,7 +98,7 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
-	# @claude, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
+	# @agent, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
 	# (@imessage); the installer and `make dmg` ship this same build.
 	if [ -n "$(SIGN_HASH)" ]; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \
@@ -343,14 +343,15 @@ realtest-build:
 	swiftc -O -o "$(REALTEST_BIN)" Scripts/realapp-test.swift -framework AppKit -framework Carbon
 	codesign --force --sign - "$(REALTEST)"
 
-# Runs the already built harness; the input source is restored here too in case the test hung.
+# Runs the already built harness; the input source is restored here too in case the test hung. Only failures fail it:
+# checks skipped for secure input (a password field, the lock screen) don't, and the last line says what was skipped.
 realtest-run:
 	rm -rf "$(REALTEST_OUT)"
 	mkdir -p "$(REALTEST_OUT)"
 	open -W -n --stdout "$(REALTEST_OUT)/output.txt" --stderr "$(REALTEST_OUT)/stderr.txt" "$(REALTEST)" --args "$(REALTEST_OUT)"
 	@"$(REALTEST_BIN)" --restore-input-source "$(REALTEST_OUT)"
 	@cat "$(REALTEST_OUT)/output.txt"
-	@grep -q '^REALTEST PASSED' "$(REALTEST_OUT)/output.txt"
+	@grep -qE '^REALTEST (PASSED|INCOMPLETE|SKIPPED|BLOCKED)' "$(REALTEST_OUT)/output.txt"
 
 # Runs the real-app test automatically once the screen is unlocked (temporary launchd job, not
 # persisted across logins; it removes itself when done). Log: ~/Library/Logs/AllInOneIME/realtest-watch.log

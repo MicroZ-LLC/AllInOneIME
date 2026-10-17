@@ -5,6 +5,7 @@ extension SelfTest {
     /// The updater as the user sees it (nothing is checked, downloaded or installed): the About page's Updates
     /// card in each state, drawn offscreen (settings-about-update-*.png), and the input menu's item.
     static func testUpdates(_ controller: AllInOneIMEInputController, snapshotDirectory: URL) {
+        section("updates (nothing checked, downloaded or installed)")
         let updates = UpdateController.shared
         let before = (updates.state, updates.lastChecked, updates.lastResult, updates.updatesInPlace)
         defer { (updates.state, updates.lastChecked, updates.lastResult, updates.updatesInPlace) = before }

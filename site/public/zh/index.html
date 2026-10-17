@@ -80,11 +80,26 @@
   <section>
     <div class="wrap">
       <div class="section-head fade">
+        <h2>能接着问，说一句就设置好。</h2>
+        <p>答案出来可以接着问。改设置说一句就行，整套设置也能一句话查一遍。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">⇄</span>接着问</div><p><code>@question</code> 的答案出来后，接着打下一个问题再按 ⇧回车：候选框变成一段对话，最多 5 轮。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">↗</span>换个地方接着聊</div><p>按 ⌘1、⌘2… 把对话照你看到的样子带到你的编程 agent（Claude Code…）、Claude、ChatGPT 或 Gemini，连同你接着打的话。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">⚙︎</span>@config</div><p><code>@config 候选竖排</code>、<code>@config 用 Claude</code>：每项改动先列出原来 → 改成再应用，⌘Z 就能撤销。不碰你的密钥。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">✚</span>@doctor</div><p>检查输入法、AI 服务、权限和语言包，能安全修好的帮你修。也可以问它哪里不对。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
         <h2>能接着改，能保护隐私，能按你的习惯来。</h2>
         <p>结果不太对？说一句怎么改。有不想给 AI 看的内容？可以不发给它。</p>
       </div>
       <div class="grid fade">
-        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>修改结果</div><p>结果出来后打「更短」「更正式」再按回车，新结果就地替换，想改几次都行。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>修改结果</div><p>结果出来后打「更短」「更正式」再按 ⇧回车，新结果就地替换，想改几次都行。</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#14b8a6">▭</span>选中的文字</div><p>在任何 App 里选中一段文字，再打 <code>@improve</code> 或 <code>@translate</code>：选好的结果替换选中的文字。</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">?</span>最近的问题</div><p>单打 <code>@question</code> 列出最近 5 个问题，当时的答案马上就能看，不联网。</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#f59e0b">▦</span>按 App 设置</div><p>Slack 里用英文，微信里用拼音，邮件里正式、委婉，或者某个 App 里干脆不用 AI。</p></div>
@@ -103,7 +118,7 @@
         <p>每个命令都以 <code>@</code> 开头，在任何输入框里都能用。</p>
       </div>
       <div class="grid fade">
-        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">✦</span>@claude</div><p>把任务交给 Claude Code 在后台做，做完通知你。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">✦</span>@agent</div><p>把任务交给你的编程 agent（Claude Code、Gemini CLI、Kiro CLI…）；Claude Code 可以在后台做，做完通知你。</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#64748b">⌕</span>@open</div><p>边打边找文件、文件夹和 App，也能打开网址。</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#eab308">✎</span>@note</div><p>把文字存进「备忘录」，换行都保留。</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#ef4444">◷</span>@reminder</div><p>加一个提醒，时间直接写在里面：「明天下午3点给张三打电话」。</p></div>
@@ -122,6 +137,7 @@
           <span class="tag">脚本扩展</span>
           <h3>用脚本写你自己的 @ 命令。</h3>
           <p>任何语言的脚本，加几行元数据，就是一个 @ 命令：可以上屏输出、显示进度、边打字边给出 Alfred 那样的列表来选，或者在后台运行，完成后通知你。</p>
+          <p>也可以从 Git 仓库安装扩展包：启用前先看它会运行什么，之后点「更新」时从那里更新。</p>
           <p>Raycast 脚本命令拿来就能用。写法见 <a href="https://github.com/MicroZ-LLC/AllInOneIME/blob/mainline/docs/extensions.md">扩展协议</a>。</p>
         </div>
         <div class="shot"><img src="/images/extensions-zh.png" alt="设置：脚本扩展，扩展包和它们的命令" loading="lazy"></div>

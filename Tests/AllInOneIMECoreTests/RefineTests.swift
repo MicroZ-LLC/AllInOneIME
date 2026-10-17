@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// Refining AI results: while they are shown, a letter starts a follow-up instruction ("shorter"), ⏎ asks again with
+/// Refining AI results: while they are shown, a letter starts a follow-up instruction ("shorter"), ⇧⏎ asks again with
 /// the results as context, and the new ones replace them; Esc clears the line, then goes back one step, then to the
-/// draft. Digits, Space and ⏎ on an empty line pick as before.
+/// draft. Digits, Space and ⏎ on an empty line pick as before; ⏎ with a line typed inserts too (0.6.4).
 struct RefineTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
@@ -45,13 +45,13 @@ struct RefineTests {
 
     // MARK: - Keys
 
-    @Test func aLetterStartsTheRefineLineAndEnterRunsIt() {
+    @Test func aLetterStartsTheRefineLineAndShiftEnterRunsIt() {
         let (c, _) = results()
         let typed = type("shorter", c)
         // Nothing goes back to the draft, nothing is cancelled: the results stay, the line is in the panel.
         #expect(typed.allSatisfy { $0 == .showPanel } && c.phase == .choosing && c.refineText == "shorter")
         #expect(c.refineLine == "shorter" && c.choices.count == 5 && c.draft == "@improve hello")
-        let run = c.handleKeyDown(enterKey).effects
+        let run = c.handleKeyDown(shiftEnterKey).effects
         let expected = Refinement(request: .writing(.improve, input: "hello"),
                                   turns: [Refinement.Turn(answer: first, instruction: "shorter")])
         #expect(run == [.startRefine(expected, id: 2), .showPanel])
@@ -98,10 +98,10 @@ struct RefineTests {
         #expect(c.handleKeyDown(escKey).effects == [.showPanel] && c.refineText.isEmpty && c.phase == .choosing)
         #expect(c.result == first)
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         _ = c.receive(shorter, isFinal: true, id: 2)
         _ = type("more formal", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         _ = c.receive(formal, isFinal: true, id: 3)
         #expect(c.refineHistory == ["shorter", "more formal"] && c.result == formal)
         // Esc: one step back each time, the results as they were.
@@ -117,7 +117,7 @@ struct RefineTests {
     @Test func escDuringARefineStopsItAndKeepsTheResultsBefore() {
         let (c, _) = results()
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         // A line typed meanwhile doesn't change what Esc does: it stops the refine (the line goes with it).
         _ = type("warmer", c)
         #expect(c.isRefining && c.refineText == "warmer")
@@ -130,20 +130,20 @@ struct RefineTests {
     @Test func keysTypedWhileARefineRunsWriteTheNextStep() {
         let (c, _) = results()
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         // Typed while it streams: the next step's line; nothing is cancelled, the request goes on.
         var effects = type("more formal", c)
         effects += c.handleKeyDown(backspaceKey).effects + type("l", c)
         #expect(!effects.contains(.cancelConversion) && effects.allSatisfy { $0 == .showPanel })
         #expect(c.isRefining && c.refineText == "more formal" && c.refineLine == "more formal" && c.refineHistory == ["shorter"])
-        // ⏎ while it runs starts nothing (the line waits); a digit with a line is text, Space too.
-        #expect(started(c.handleKeyDown(enterKey).effects) == nil && c.isRefining && c.refineText == "more formal")
+        // ⇧⏎ while it runs starts nothing (the line waits); a digit with a line is text, Space too.
+        #expect(started(c.handleKeyDown(shiftEnterKey).effects) == nil && c.isRefining && c.refineText == "more formal")
         _ = c.receive(ConversionResult(versions: [CandidateLine("Hi!", isComplete: false)]), isFinal: false, id: 2)
         #expect(c.refineText == "more formal")
         _ = c.receive(shorter, isFinal: true, id: 2)
         #expect(c.phase == .choosing && c.result == shorter && c.refineText == "more formal")
-        // Once the results are in, ⏎ runs it on them.
-        let run = started(c.handleKeyDown(enterKey).effects)
+        // Once the results are in, ⇧⏎ runs it on them.
+        let run = started(c.handleKeyDown(shiftEnterKey).effects)
         #expect(run?.1 == 3 && run?.0.turns == [Refinement.Turn(answer: first, instruction: "shorter"),
                                                  Refinement.Turn(answer: shorter, instruction: "more formal")])
     }
@@ -153,7 +153,7 @@ struct RefineTests {
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         // Shift back to Chinese while it runs, and pinyin for the next step: its candidates show.
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 2)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 2.1)
@@ -166,7 +166,7 @@ struct RefineTests {
         #expect(c.phase == .choosing && c.result == first && c.refineText == "你好" && c.refineError == "timeout")
         // Esc on pinyin typed during a refine: back to the results before it, the pinyin gone with the line.
         _ = type("nihao", c)
-        _ = c.handleKeyDown(enterKey)  // runs "你好你好"
+        _ = c.handleKeyDown(shiftEnterKey)  // runs "你好你好"
         _ = type("wo", c)
         _ = c.handleKeyDown(escKey)
         #expect(c.phase == .choosing && c.result == first && c.refineText.isEmpty && !engine.snapshot().isComposing)
@@ -175,13 +175,13 @@ struct RefineTests {
     @Test func aFailedRefineLeavesTheResultsAndItsInstruction() {
         let (c, _) = results()
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         // Secure input (the controller refuses it like any request), the network …
         #expect(c.fail("Secure input is on", id: 2) == [.showPanel])
         #expect(c.phase == .choosing && c.result == first && c.refineText == "shorter" && c.refineError == "Secure input is on")
         #expect(c.refineHistory.isEmpty)
-        // ⏎ runs it again; an answer with nothing in it fails the same way.
-        let again = started(c.handleKeyDown(enterKey).effects)
+        // ⇧⏎ runs it again; an answer with nothing in it fails the same way.
+        let again = started(c.handleKeyDown(shiftEnterKey).effects)
         #expect(again?.1 == 3 && again?.0.turns == [Refinement.Turn(answer: first, instruction: "shorter")] && c.refineError == nil)
         _ = c.receive(.empty, isFinal: true, id: 3)
         #expect(c.phase == .choosing && c.result == first && c.refineError == c.messages.noResult)
@@ -193,10 +193,10 @@ struct RefineTests {
     @Test func refiningAgainSendsTheWholeConversation() {
         let (c, _) = results()
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         _ = c.receive(shorter, isFinal: true, id: 2)
         _ = type("more formal", c)
-        let run = started(c.handleKeyDown(enterKey).effects)
+        let run = started(c.handleKeyDown(shiftEnterKey).effects)
         #expect(run?.1 == 3)
         #expect(run?.0 == Refinement(request: .writing(.improve, input: "hello"), turns: [
             Refinement.Turn(answer: first, instruction: "shorter"), Refinement.Turn(answer: shorter, instruction: "more formal"),
@@ -229,9 +229,9 @@ struct RefineTests {
         _ = type("ni", c)
         _ = c.handleKeyDown(escKey)
         #expect(c.refineText == "你好窝我" && !engine.snapshot().isComposing)
-        // ⏎ on pinyin converts it and runs.
+        // ⇧⏎ on pinyin converts it and runs.
         _ = type("nihao", c)
-        let run = started(c.handleKeyDown(enterKey).effects)
+        let run = started(c.handleKeyDown(shiftEnterKey).effects)
         #expect(run?.0.turns.last?.instruction == "你好窝我你好" && !engine.snapshot().isComposing)
     }
 
@@ -259,11 +259,12 @@ struct RefineTests {
             let answer = ConversionResult(versions: [CandidateLine("Rust is a systems programming language.")])
             _ = c.receive(answer, isFinal: true, id: 1)
             _ = type("in Japanese", c)
-            let run = started(c.handleKeyDown(enterKey).effects)
+            let run = started(c.handleKeyDown(shiftEnterKey).effects)
             #expect(run?.0 == Refinement(request: .command(command, input: "what is rust"),
                                          turns: [Refinement.Turn(answer: answer, instruction: "in Japanese")]))
             _ = c.receive(ConversionResult(versions: [CandidateLine("Rust はシステム言語です。")]), isFinal: true, id: 2)
-            #expect(commits(c.handleKeyDown(k("1"))) == ["Rust はシステム言語です。"])
+            // An @question conversation numbers every round's answer (`QuestionChat`); a refine shows the new one as 1.
+            #expect(commits(c.handleKeyDown(k(command == .question ? "2" : "1"))) == ["Rust はシステム言語です。"])
         }
     }
 
@@ -305,7 +306,7 @@ struct RefineTests {
         _ = c.receive(answer, isFinal: true, id: 1)
         // Typing and running the refine touch nothing in the field.
         var effects = type("shorter", c)
-        effects += c.handleKeyDown(enterKey).effects
+        effects += c.handleKeyDown(shiftEnterKey).effects
         #expect(started(effects)?.0 == Refinement(request: .writing(.improve, input: selected),
                                                   turns: [Refinement.Turn(answer: answer, instruction: "shorter")]))
         effects += c.receive(ConversionResult(versions: [CandidateLine("It has an error.")]), isFinal: true, id: 2)
@@ -320,7 +321,7 @@ struct RefineTests {
         _ = c.handleKeyDown(escKey)
         #expect(c.result == answer && c.selection == selection)
         _ = type("shorter", c)
-        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(shiftEnterKey)
         _ = c.receive(ConversionResult(versions: [CandidateLine("It has an error.")]), isFinal: true, id: 3)
         let picked = c.handleKeyDown(enterKey).effects
         #expect(picked.contains(.replaceSelection("It has an error.", selection)) && commits(picked).isEmpty && c.phase == .idle)
@@ -339,19 +340,32 @@ struct RefineTests {
         let answer = ConversionResult(versions: [CandidateLine("First paragraph here.\n\nThe second one has errors.")])
         _ = c.receive(answer, isFinal: true, id: 1)
         _ = type("warmer", c)
-        #expect(started(c.handleKeyDown(enterKey).effects)?.0.request == .command(.edit, input: input))
+        #expect(started(c.handleKeyDown(shiftEnterKey).effects)?.0.request == .command(.edit, input: input))
     }
 
     // MARK: - Prompts
 
-    /// The requests @improve, @translate, @question and prompt commands send are byte for byte those of 0.6.3:
-    /// only a refine adds anything.
+    /// The requests @improve, @translate and prompt commands send are byte for byte those of 0.6.3: only a refine adds
+    /// anything. @question's are too, but for the rule about live data 0.6.4 added at the end of its system prompt.
     @Test func normalRequestsAreUnchangedSinceRelease063() throws {
         let url = try #require(Bundle.module.url(forResource: "prompts-release-0.6.3", withExtension: "json", subdirectory: "Fixtures"))
         let golden = try Data(contentsOf: url)
-        let now = try PromptGolden.json()
-        #expect(now == golden)
-        #expect(Prompt.version == 7 && Prompt.commandVersion == 3)
+        #expect(try PromptGolden.json(withoutLiveDataRule: true) == golden)
+        #expect(try PromptGolden.json() != golden)
+        #expect(Prompt.version == 7 && Prompt.commandVersion == 4)
+    }
+
+    /// @question says it can't check live data (the weather, news, prices, scores, "today's" anything) instead of
+    /// making it up; no other command's prompt has the rule.
+    @Test func questionRefusesToMakeUpLiveData() {
+        let system = Prompt.commandSystem(.question)
+        #expect(system.hasSuffix(" If you are not sure, say so briefly. " + Prompt.liveDataRule))
+        for word in ["weather", "news", "prices", "scores", "today", "can't check live information", "general guidance"] {
+            #expect(Prompt.liveDataRule.contains(word), "\(word)")
+        }
+        let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]).last!
+        for command in [Command.edit, .agent, reply] { #expect(!Prompt.commandSystem(command).contains(Prompt.liveDataRule)) }
+        #expect(!Prompt.system(styles: RewriteStyle.resolve(RewriteStyle.defaultNames)).contains("live information"))
     }
 
     @Test func theRefineRequestIsTheNormalOneThenTheConversation() {

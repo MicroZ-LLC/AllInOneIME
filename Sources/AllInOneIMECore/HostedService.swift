@@ -139,12 +139,12 @@ public struct HostedAccount: Codable, Equatable, Sendable {
         do {
             return try account(try await call("/me", method: "GET", body: nil, token: token, baseURL: baseURL, session: session), token: token)
         } catch ProviderError.signedOut {
-            try? APIKeys.save("", for: .hosted)
+            try? APIKeys.remove(.hosted)  // the service ended the session
             return nil
         }
     }
 
-    public static func signOut() throws { try APIKeys.save("", for: .hosted) }
+    public static func signOut() throws { try APIKeys.remove(.hosted) }
 
     static func account(_ object: [String: Any], token: String) throws -> HostedAccount {
         let data = try JSONSerialization.data(withJSONObject: object)

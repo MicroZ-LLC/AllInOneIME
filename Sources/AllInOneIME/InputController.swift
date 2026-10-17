@@ -54,10 +54,19 @@ enum LivePlugins {
 enum CommandUsageStore {
     private static let key = "commandUsage"
     static var usage: CommandUsage = {
+        // 0.6.4: @claude is @agent now. Once (also with nothing kept yet): a command of the user's own may be named
+        // "claude" afterwards.
+        let renamed = UserDefaults.standard.bool(forKey: renamedKey)
+        UserDefaults.standard.set(true, forKey: renamedKey)
         guard let data = UserDefaults.standard.data(forKey: key),
-              let usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
+              var usage = try? JSONDecoder().decode(CommandUsage.self, from: data) else { return CommandUsage() }
+        if !renamed {
+            usage.migrateRenamed(from: "claude", to: "agent")
+            if let data = try? JSONEncoder().encode(usage) { UserDefaults.standard.set(data, forKey: key) }
+        }
         return usage
     }()
+    private static let renamedKey = "commandUsageRenamedClaudeToAgent"
 
     static func save(_ new: CommandUsage) {
         usage = new
@@ -98,23 +107,26 @@ enum LiveJargon {
 /// thread, so entry points hop into main-actor code with `MainActor.assumeIsolated`.
 @objc(AllInOneIMEInputController)
 final class AllInOneIMEInputController: IMKInputController {
-    /// The input state machine. It asks `secureInputActive` before starting Claude Code.
+    /// The input state machine. It asks `secureInputActive` before starting the agent.
     lazy var composer: Composer = {
         let composer = Composer()
         composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
         composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
+        composer.characterBeforeCaret = { [weak self] in MainActor.assumeIsolated { self?.characterBeforeCaret() } }
         composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
         return composer
     }()
     private var session: RimeSession?
     /// Whether the app still has the text being typed (Slack may take it into a mention on its own).
     private var markedWatch = MarkedTextWatch()
-    private var conversionTask: Task<Void, Never>?
-    private var lastElapsed: TimeInterval?
-    private var lastFromCache = false
+    var conversionTask: Task<Void, Never>?
+    var lastElapsed: TimeInterval?
+    var lastFromCache = false
     /// How many values the last request hid from the AI (`Redaction`): the panel says so.
     var lastHidden = 0
-    private var notice: String?
+    /// The last answer's request left out parts of an @question conversation to fit the model (`QuestionChat.fit`).
+    var lastShortened = false
+    var notice: String?
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
     /// A dead key typed before the next key (`DeadKeyComposer`).
@@ -161,8 +173,18 @@ final class AllInOneIMEInputController: IMKInputController {
     }
     var loadOpenHistory: () -> OpenHistory = { OpenHistoryStore.history }
     var recordOpen: (String) -> Void = { OpenHistoryStore.record($0) }
-    /// `@claude`: starts Claude Code in Terminal (the self-test starts nothing).
-    var runInTerminal: (String) throws -> Void = { try TerminalLauncher.claude($0) }
+    /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in Terminal (the self-test
+    /// starts nothing).
+    var runInTerminal: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
+    /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`, `applyAgent`).
+    private(set) var agent = AgentKind.claude
+    private(set) var agentCommand: [String] = []
+    /// An `@question` conversation going on in a coding agent: its arguments (`AgentKind.terminalArguments`) with the
+    /// conversation in Terminal (`ChatHandoff`; the self-test starts nothing).
+    var continueInAgent: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
+    /// Whether an agent is on this Mac (a custom one by its command), for the `@question` hand-off's choices (the
+    /// self-test supplies its own). Main thread only.
+    var agentInstalled: (AgentKind, [String]) -> Bool = { AgentAvailability.installed($0, custom: $1) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
     var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
     /// `@note`: saves the text to Apple Notes (the self-test saves nothing).
@@ -180,18 +202,20 @@ final class AllInOneIMEInputController: IMKInputController {
     private(set) static weak var activeController: AllInOneIMEInputController?
     /// Whether a command's program is on this Mac (the self-test supplies its own). Called off the main thread.
     var programInstalled: @Sendable (String) -> Bool = { program in
+        if program.isEmpty { return false }  // a custom agent without a command
         if program == "claude", TerminalLauncher.claudePath != nil { return true }
         if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
         return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
     }
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
     private var checkedCommands: [Command] = []
+    private var checkedAgent: [String] = []
     private var missingCommands: Set<String> = []
     /// A check ended while a command was being written: its result applies once that's done.
     private var missingCheckWaiting = false
     /// The latest check (an older one that finishes later is ignored).
     private var programCheck = 0
-    /// Background `@claude` tasks: starting one, the list, opening one (the self-test supplies its own).
+    /// Background `@agent` tasks (Claude Code's): starting one, the list, opening one (the self-test supplies its own).
     var startAgent: (String) async throws -> String = { try await AgentMonitor.shared.start($0) }
     var listAgents: () async throws -> [(session: AgentSession, reply: String?)] = { try await AgentMonitor.shared.list() }
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
@@ -274,6 +298,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
     /// deleting the selected text (a Shift tap, a focus change).
     private var hasMarkedText = false
+    /// The last character the user typed into this text field (`characterBeforeCaret`).
+    private var lastTyped = LastTyped()
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a
     /// Shift-click or ⌥-click is no tap of the key. The self-test replaces this.
     var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { seconds in
@@ -309,6 +335,7 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated {
             markedWatch.reset()  // another text field, maybe another app
             hasMarkedText = false
+            lastTyped.forget()
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
@@ -319,6 +346,8 @@ final class AllInOneIMEInputController: IMKInputController {
             applySettings(app: app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
             // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs.
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
+            // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
+            composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
         }
@@ -377,6 +406,25 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
         selectionReported = target?.selectedRange()
         return Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
+    }
+
+    /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
+    /// typed into the field (`lastTyped`), unless the pointer was used since (a click may have moved the caret). A field
+    /// that tells its text (not a terminal) must have that character there, with nothing selected: what the app did with
+    /// its text meanwhile (cleared it, moved the caret) the input method doesn't see.
+    @MainActor
+    private func characterBeforeCaret() -> Character? {
+        guard let typed = lastTyped.character,
+              !pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
+        let target = keyClient ?? clientOverride ?? client()
+        guard let target, !Self.isTerminal(target) else { return typed }
+        let caret = target.selectedRange()
+        guard caret.location != NSNotFound else { return typed }  // a field that tells no caret
+        guard caret.length == 0, caret.location > 0 else { return nil }  // a selection (a command may work on it), the start
+        guard let before = target.attributedSubstring(from: NSRange(location: caret.location - 1, length: 1))?.string else {
+            return typed  // a field that reads nothing back
+        }
+        return before == String(typed) ? typed : nil
     }
 
     /// Whether the field's selection is no longer what it was when the command started on it (`selectionReported`).
@@ -540,7 +588,6 @@ final class AllInOneIMEInputController: IMKInputController {
         let app = app ?? appID
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
-        composer.claudeInBackground = config.claudeInBackground
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
@@ -552,12 +599,15 @@ final class AllInOneIMEInputController: IMKInputController {
                                               extensions: self.loadExtensions(config, false).commands.count)
         }
         (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
+        applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
         setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
+        nameAgent()  // the messages were just reset
+        applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
         // The Korean and Hindi packs' data, for their input (nil without the pack).
         composer.hangulTables = LanguagePackManager.shared.hangulTables()
@@ -592,18 +642,50 @@ final class AllInOneIMEInputController: IMKInputController {
         TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
-    /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@claude`
-    /// without Claude Code, a custom command's missing `argv[0]`): "@claude …" is then just text, like
+    /// The agent picked for `@agent`: only Claude Code runs in the background; the command list's summary names it.
+    @MainActor
+    func applyAgent(_ config: Config) {
+        agent = config.agent
+        agentCommand = config.agentCommand
+        composer.claudeInBackground = config.claudeInBackground && config.agent.supportsBackground
+        UIText.agentName = config.agent.displayName(custom: config.agentCommand)
+        nameAgent()
+    }
+
+    /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
+    /// hand-off's.
+    @MainActor
+    func nameAgent() {
+        let base = UIText.chinese ? Composer.Messages.chinese : .english
+        composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
+        composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
+        // Only once it has a command: otherwise the messages stay the language's own.
+        composer.messages.agentNames = AgentKind.custom.program(custom: agentCommand) == nil
+            ? [:] : [.custom: AgentKind.custom.displayName(custom: agentCommand)]
+    }
+
+    /// Whether the agent changed since its program was last checked (`setCommands`).
+    private var agentChanged: Bool { [agent.rawValue] + agentCommand != checkedAgent }
+
+    /// Takes over the commands "@" offers, without those whose program isn't on this Mac (`@agent`
+    /// without its agent, a custom command's missing `argv[0]`): "@agent …" is then just text, like
     /// "@name". Which are missing is checked in the background when the commands changed, or with
     /// `recheck` (a text field became active: something may have been installed meanwhile).
     @MainActor
     func setCommands(_ commands: [Command], recheck: Bool = false) {
         composer.commands = commands.filter { !missingCommands.contains($0.name) }
-        guard recheck || commands != checkedCommands else { return }
+        // Another agent picked is checked again too (its program may be missing).
+        let checkedFor = [agent.rawValue] + agentCommand
+        guard recheck || commands != checkedCommands || checkedFor != checkedAgent else { return }
         checkedCommands = commands
+        checkedAgent = checkedFor
         programCheck += 1
         let check = programCheck
-        let needed = commands.compactMap { command in command.program.map { (command.name, $0) } }
+        // A custom agent without a command needs a program that can't be found: `@agent` isn't offered.
+        let needed = commands.compactMap { command in
+            command == .agent ? (command.name, command.program(agent: agent, custom: agentCommand) ?? "")
+                : command.program.map { (command.name, $0) }
+        }
         let installed = programInstalled
         DispatchQueue.global().async { [weak self] in
             // The first check asks the user's shell for its PATH, which takes a moment.
@@ -620,6 +702,23 @@ final class AllInOneIMEInputController: IMKInputController {
                     self.composer.commands = commands.filter { !missing.contains($0.name) }
                 }
             }
+        }
+    }
+
+    /// An `@question` conversation handed to `kind` (`ChatHandoff`): started in Terminal as `@agent` starts it, the
+    /// conversation its first message. A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
+    @MainActor
+    private func handOff(_ prompt: String, to kind: AgentKind, client: IMKTextInput?) {
+        guard let arguments = kind.terminalArguments(custom: agentCommand) else {
+            log.error("@question: no command for the custom agent")
+            return
+        }
+        do {
+            try continueInAgent(arguments, prompt)
+            log.notice("@question: conversation handed to \(kind.rawValue, privacy: .public) (\(prompt.count) chars)")
+        } catch {
+            log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
+            showNotice(UIText.describe(error), client: client)
         }
     }
 
@@ -660,6 +759,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 perform([.notice(tr("安全输入中：输入法暂停，按键直接输入", "Secure input: the input method is paused, keys go straight in"))],
                         client: client)
             }
+            lastTyped.forget()
             return false
         }
         secureNoticeShown = false
@@ -670,6 +770,7 @@ final class AllInOneIMEInputController: IMKInputController {
            markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target)) {
             log.notice("the app took the marked text: starting over")
             perform(composer.appTookMarkedText(), client: client)
+            lastTyped.forget()
             return true
         }
         ensureEngine()
@@ -679,16 +780,18 @@ final class AllInOneIMEInputController: IMKInputController {
             let config = loadSettings()
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
                                                       index: loadExtensions(config, false), disabled: config.disabledExtensions)
-            if changed {
-                setCommands(commands)
+            applyAgent(config)
+            // Another agent picked in Settings: its program is checked (`setCommands` sees it changed).
+            if changed || agentChanged && !checkedCommands.isEmpty {
+                setCommands(changed ? commands : checkedCommands)
             } else if missingCheckWaiting {
                 // A check of the programs that ended while a command was being written.
                 composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
             }
             missingCheckWaiting = false
             composer.commandUsage = loadCommandUsage()  // another text field may have run commands
-            composer.claudeInBackground = loadSettings().claudeInBackground
             composer.remembersQuestions = loadSettings().rememberQuestions
+            applyChatSettings(loadSettings())
             composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
         }
         // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
@@ -709,6 +812,9 @@ final class AllInOneIMEInputController: IMKInputController {
         keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
+        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
+        lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
+        prewarmConfigIfWritten()
         return response.handled
     }
 
@@ -768,16 +874,44 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
+                lastTyped.forget()  // a key that typed it says so (`handleKeyDown`)
+            case let .commitAfterKey(text):
+                // Once this key is done: a terminal would send what is inserted during it in the key's place.
+                let session = fieldSession
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.fieldSession == session else { return }
+                    self.insert(text, into: target)
+                    self.lastTyped.forget()
+                }
             case let .replaceSelection(text, selection):
                 replaceSelection(text, selection, in: target)
+                lastTyped.forget()
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
+                lastTyped.forget()
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
                 startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
             case let .startCommand(command, input, id):
+                // @doctor's checks stay on this Mac; only a question goes to the AI.
+                if command.kind == .doctor {
+                    // During secure input only the question is refused (one line); the checks still run, as in an app
+                    // with no AI.
+                    if !input.isEmpty, secureInputActive() {
+                        showNotice(tr("系统安全输入已开启：问题没有发给 AI，只做了检查", "Secure input is on: the question wasn't sent; the checks ran"),
+                                   client: target)
+                        startDoctor("", id: id)
+                        break
+                    }
+                    startDoctor(input, id: id)
+                    break
+                }
                 if refusedForSecureInput(id: id, client: target) { break }
+                if command.kind == .config {
+                    startConfigRequest(input, turns: [], id: id)
+                    break
+                }
                 startConversion(input, id: id, command: command)
             case let .startRefine(refinement, id):
                 // Sent to the model like the request it refines: refused during secure input the same way.
@@ -833,7 +967,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     do {
                         _ = try await self?.startAgent(prompt)
                     } catch {
-                        log.error("@claude in the background failed: \(String(describing: error), privacy: .public)")
+                        log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
                         self?.showNotice(UIText.describe(error), client: nil)
                     }
                 }
@@ -859,13 +993,22 @@ final class AllInOneIMEInputController: IMKInputController {
                     self.perform(self.composer.receiveSearch(results, id: id), client: nil)
                 }
             case let .runInTerminal(prompt):
+                // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
+                guard let arguments = agent.terminalArguments(custom: agentCommand) else {
+                    log.error("@agent: no command for the custom agent")
+                    break
+                }
                 do {
-                    try runInTerminal(prompt)
-                    log.notice("@claude: Terminal session started (\(prompt.count) chars)")
+                    try runInTerminal(arguments, prompt)
+                    log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")
                 } catch {
-                    log.error("@claude: could not start Terminal: \(String(describing: error), privacy: .public)")
+                    log.error("@agent: could not start Terminal: \(String(describing: error), privacy: .public)")
                     showNotice(UIText.describe(error), client: target)
                 }
+            case let .continueInClaudeCode(prompt):
+                handOff(prompt, to: .claude, client: target)
+            case let .continueInAgent(kind, prompt):
+                handOff(prompt, to: kind, client: target)
             case .commandUsed:
                 saveCommandUsage(composer.commandUsage)
             case let .rememberQuestion(entry):
@@ -888,6 +1031,12 @@ final class AllInOneIMEInputController: IMKInputController {
                 // Read here by the real clock (NSDataDetector and the parser's own rules), quick enough for
                 // a keystroke. Nothing leaves the Mac, so secure input doesn't hold it back either.
                 perform(composer.receiveReminder(parseReminder(input), id: id), client: target)
+            case let .applyConfig(preview):
+                applyConfig(preview)
+            case .undoConfig:
+                undoConfig()
+            case let .previewFixes(fixes):
+                previewFixes(fixes)
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1505,6 +1654,7 @@ final class AllInOneIMEInputController: IMKInputController {
         lastElapsed = nil
         lastFromCache = false
         lastHidden = 0
+        lastShortened = false
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1581,7 +1731,9 @@ final class AllInOneIMEInputController: IMKInputController {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
-        log.notice("conversion \(id) started (refine, step \(refinement.turns.count))")
+        lastShortened = false
+        let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
+        log.notice("conversion \(id) started (\(step, privacy: .public))")
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         var generates = false
         switch refinement.request {
@@ -1589,8 +1741,10 @@ final class AllInOneIMEInputController: IMKInputController {
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
                                                  improveTranslates: loadSettings().improveTranslates)
             stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
+        case let .command(command, input) where command.kind == .config:
+            return startConfigRequest(input, turns: refinement.turns, id: id)
         case let .command(command, input):
-            stream = converter.generate(command, input: input, app: appID, turns: refinement.turns)
+            stream = converter.generate(command, input: input, app: appID, fresh: refinement.fresh, turns: refinement.turns)
             generates = true
         }
         // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
@@ -1606,6 +1760,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 for try await update in inserted {
                     guard let self, !Task.isCancelled else { return }
                     self.lastHidden = update.hidden
+                    self.lastShortened = update.shortened
                     if update.isFinal {
                         self.lastElapsed = update.elapsed
                         self.lastFromCache = update.fromCache
@@ -1722,6 +1877,12 @@ final class AllInOneIMEInputController: IMKInputController {
         panel.owner = self
         panel.onSelect = { [weak self] index in
             guard let self else { return }
+            // A conversation's rows are its questions and answers: a click picks an answer (`chatChoice`).
+            if self.composer.isQuestionChat, !self.composer.refineIsComposing {
+                guard let answer = Self.chatChoice(row: index) else { return }
+                self.perform(self.composer.choose(index: answer), client: nil)
+                return
+            }
             self.perform(self.composer.choose(index: index), client: nil)
         }
         panel.onScroll = { [weak self] steps in
@@ -1744,7 +1905,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// user has to act on (a permission), up longer; `lasting`: up this long instead, unless another notice
     /// replaces it first (a save under way, until its outcome).
     @MainActor
-    private func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false, lasting: TimeInterval? = nil) {
+    func showNotice(_ text: String, client: IMKTextInput?, long: Bool = false, lasting: TimeInterval? = nil) {
         let client = client ?? clientOverride ?? self.client()
         notice = text
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
@@ -1806,6 +1967,8 @@ final class AllInOneIMEInputController: IMKInputController {
             return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
         }
         // A command with nothing after it yet: what to do (the action key alone only hints).
+        if composer.sentText.isEmpty, command.kind == .config { return configHint }
+        if composer.sentText.isEmpty, command.kind == .doctor { return doctorHint }
         if composer.sentText.isEmpty {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
@@ -1817,8 +1980,10 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func refineHeader() -> String? {
         let history = composer.refineHistory
-        guard composer.isLevelTwo, !history.isEmpty else { return nil }
-        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
+        guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
+        // @config: a key typed into a step is never shown (nor sent: `startConfigRequest`).
+        let masks = composer.activeCommand?.kind == .config
+        let steps = history.map { Self.preview(masks ? AIConfig.maskingKeys($0) : $0, limit: 30) }.joined(separator: " · ")
         return tr("已修改：", "Refined: ") + steps
     }
 
@@ -1884,6 +2049,8 @@ final class AllInOneIMEInputController: IMKInputController {
     func panelModel() -> CandidateView.Model {
         var model = CandidateView.Model()
         let config = loadSettings()
+        // An @question conversation: its questions and answers, the next question's line (QuestionChatPanel.swift).
+        if composer.isQuestionChat, !composer.refineIsComposing { return chatPanelModel() }
         if composer.refineIsComposing {
             // Pinyin of a refine instruction: its candidates, as when typing (the results come back once it's picked).
             let state = composer.engineState
@@ -1892,7 +2059,12 @@ final class AllInOneIMEInputController: IMKInputController {
             }
             model.highlighted = state.highlighted
             model.horizontal = composer.horizontalCandidates
-            model.footer = tr("空格 选词 · ⏎ 按这句修改结果 · Esc 清除拼音", "Space picks · ⏎ refine · Esc clear the pinyin")
+            model.footer = composer.isQuestionChat
+                ? tr("空格 选词 · ⇧⏎ 追问 · ⏎ 上屏答案 · Esc 清除拼音", "Space picks · ⇧⏎ ask · ⏎ insert the answer · Esc clear the pinyin")
+                // @config: ⏎ applies the proposal shown (nothing is inserted).
+                : composer.activeCommand?.kind == .config
+                ? tr("空格 选词 · ⇧⏎ 修改 · ⏎ 全部应用 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ apply · Esc clear the pinyin")
+                : tr("空格 选词 · ⇧⏎ 按这句修改结果 · ⏎ 上屏 · Esc 清除拼音", "Space picks · ⇧⏎ refine · ⏎ insert · Esc clear the pinyin")
         } else if composer.isLevelTwo {
             let choices = composer.choices
             model.rows = choices.map { choice in
@@ -1970,9 +2142,13 @@ final class AllInOneIMEInputController: IMKInputController {
             model.highlighted = composer.highlighted
             let command = composer.activeCommand
             switch composer.phase {
+            case .translating where command?.kind == .doctor:
+                doctorPanel(&model)
             case .translating:
                 let polishing = config.language(of: composer.selectionInUse ?? composer.sentText).matches(config.outputLanguage)
                 let loading = command?.kind == .generate ? tr("AI 回答中…", "Answering…")
+                    : command?.kind == .config ? tr("AI 正在理解要改的设置…", "Working out the settings…")
+                    : command?.kind == .doctor ? tr("正在检查…", "Checking…")
                     : command == .webSearch ? tr("搜索中…", "Searching…")
                     : command?.script.map { tr("正在运行 \($0.title)…", "Running \($0.title)…") }
                     ?? (command?.kind == .run ? tr("运行中…", "Running…")
@@ -1993,6 +2169,9 @@ final class AllInOneIMEInputController: IMKInputController {
                     : composer.isRefining ? tr("修改中… · 可以接着打下一步要求 · Esc 回到上一版",
                                                "Refining… · type the next step meanwhile · Esc previous results")
                     : tr("生成中… · 0 原文 · Esc 返回", "Generating… · 0 original · Esc back")
+            case .choosing where command?.kind == .config || command?.kind == .doctor:
+                configPanel(&model)
+                doctorPanel(&model)
             case .choosing where command?.kind == .message:
                 model.footer = tr("⏎ 发送 · Esc 返回修改", "⏎ send · Esc back to editing")
             case .choosing where command?.kind == .report:
@@ -2006,11 +2185,6 @@ final class AllInOneIMEInputController: IMKInputController {
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
-            case .choosing where composer.showsSavedAnswer:
-                // A recent question's answer as it was saved (nothing was asked): R asks again for a fresh one.
-                model.footer = tr("空格 / ⏎ 上屏 · R 重新问 · 0 问题 · ⌘C 复制 · Esc 返回",
-                                  "Space / ⏎ insert · R re-ask · 0 question · ⌘C copy · Esc back")
-                model.detail = composer.savedAnswerDate.map { tr("保存于", "saved ") + UIText.ago($0) }
             case .choosing where command?.script != nil:
                 let picks = composer.choices.contains { if case .item = $0.kind { return true } else { return false } }
                 model.footer = command?.script?.output == .show && !picks
@@ -2024,14 +2198,15 @@ final class AllInOneIMEInputController: IMKInputController {
                     : command == .reminder
                     ? tr("⏎ / 空格 加到提醒事项 · Esc 返回修改 · ⌘C 复制", "⏎ / Space add to Reminders · Esc back to edit · ⌘C copy")
                     : composer.refineLine != nil
-                    ? tr("⏎ 按这句修改结果 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⏎ refine · ⌫ delete · Esc clear · ↑↓ choose")
+                    ? tr("⇧⏎ 修改 · ⏎ 上屏 · ⌫ 删字 · Esc 清除 · ↑↓ 选择", "⇧⏎ refine · ⏎ insert · ⌫ delete · Esc clear · ↑↓ choose")
                     : composer.canRefine
-                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`); 0 still picks the original.
+                    // AI results: a letter starts a follow-up instruction (`Composer.refineText`), ⇧⏎ sends it; 0 still
+                    // picks the original.
                     ? (composer.refineHistory.isEmpty
-                        ? tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字修改结果 · ⌘C 复制 · Esc 返回",
-                             "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back")
-                        : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · 打字再改 · Esc 上一版",
-                             "Space / ⏎ insert · digits pick · 0 original · type to refine · Esc previous"))
+                        ? tr("打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
+                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
+                        : tr("打字后 ⇧⏎ 再改 · 空格 / ⏎ 上屏 · 数字选择 · 0 原文 · Esc 上一版",
+                             "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · Esc previous"))
                     : tr("空格 / ⏎ 上屏 · 数字选择 · 0 原文 · ⌘C 复制 · Esc 返回",
                          "Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back")
                 // A refine that failed: the results before it stay, its instruction back in the line.
@@ -2043,7 +2218,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 model.status = .error(message)
                 model.highlighted = nil  // Space retries; nothing is selected
                 // A reminder without anything to be reminded of: write it in.
-                model.footer = command == .reminder ? tr("Esc 返回修改", "Esc back to edit")
+                model.footer = command == .reminder || command?.kind == .config || command?.kind == .doctor
+                    ? tr("Esc 返回修改", "Esc back to edit")
                     : composer.actionKey == .enter
                     ? tr("空格 / ⏎ 重试 · 0 原文 · Esc 返回", "Space / ⏎ retry · 0 original · Esc back")
                     : tr("空格 重试 · ⏎ 上屏原文 · Esc 返回", "Space retry · ⏎ insert original · Esc back")
@@ -2166,7 +2342,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
         }
         // The refine instruction being typed, as a line of input with its caret, in place of the command's.
-        model.input = composer.refineLine.map { tr("修改 › ", "refine › ") + $0 + "▏" } ?? panelInput()
+        // (An @question conversation's next question while its pinyin is typed.)
+        let line = composer.isQuestionChat ? tr("追问 › ", "question › ") : tr("修改 › ", "refine › ")
+        model.input = composer.refineLine.map { line + $0 + "▏" } ?? panelInput()
         let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }

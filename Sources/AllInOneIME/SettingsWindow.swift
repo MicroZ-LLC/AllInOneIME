@@ -56,8 +56,10 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var saveError: String?
     @Published private(set) var profiles: [String] = []
     @Published private(set) var testStatus: TestStatus = .idle
-    /// Where the API key of each provider comes from (refreshed when one is saved).
+    /// Where the API key of each provider comes from (refreshed when one is saved), and the last 4 characters kept
+    /// with a saved one (`APIKeys.keyEnding`: the key isn't read).
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
+    @Published private(set) var keyEndings: [Provider: String] = [:]
     @Published private(set) var keyError: String?
     /// The apps that get no typos (`TypoMemory`), as when the window opened or they were forgotten.
     @Published private(set) var typoApps: [String] = TypoMemory.apps
@@ -73,6 +75,13 @@ final class SettingsModel: ObservableObject {
     func clearRecentQuestions() {
         QuestionHistoryStore.clear()
         recentQuestions = 0
+    }
+
+    /// "Remember recent questions" switched in the window: off deletes the ones kept. Only from the switch: a config read
+    /// again with it off (`@config` turned it off, and may still undo that) keeps them.
+    func setRememberQuestions(_ on: Bool) {
+        config.rememberQuestions = on
+        if !on { clearRecentQuestions() }
     }
 
     /// Questions asked since the window opened.
@@ -94,6 +103,8 @@ final class SettingsModel: ObservableObject {
     /// Screenshots only: the name shown for the selected AWS profile. README images are public and a
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
     var profileShownAs: String?
+    /// The AWS profiles' kinds and the chosen one's status line (`AWSProfileSettings`).
+    let aws = AWSProfileModel()
 
     /// When the config file was last read or written here: changed since (the input method's menu, an
     /// editor), it is read again before the window shows it (`reloadIfChanged`).
@@ -105,6 +116,7 @@ final class SettingsModel: ObservableObject {
         fileDate = Self.modificationDate(configURL)
         do {
             config = try Config.load(from: configURL)
+            written = config
         } catch {
             // Keep the broken file untouched: the window shows the error instead of overwriting it.
             config = .default
@@ -116,10 +128,25 @@ final class SettingsModel: ObservableObject {
 
     var canSave: Bool { loadError == nil }
 
+    /// The config as the file has it (read or last written here): a save writes only what differs from it.
+    private var written: Config?
+
+    /// Writes the settings changed in the window since the file was read or last written here, and only those
+    /// (`AIConfig.writing`), down to an app's profile and each switch of hiding sensitive information: a value written
+    /// meanwhile by `@config` or by hand that the window hasn't read yet stays as it is, and so do keys this version
+    /// doesn't know. Nothing is written when nothing changed (opening the window, moving through its fields, ⏎ on one
+    /// left as it was, closing it). The window then shows the file as it now is.
     func save() {
-        guard canSave, persists else { return }
+        guard canSave, persists, config != written else { return }
         do {
-            try config.write(to: configURL)
+            if let written {
+                try AIConfig.writing(config, from: written, keys: AIConfig.changedKeys(written, config), at: configURL)
+            } else {
+                try config.write(to: configURL)
+            }
+            let now = (try? Config.load(from: configURL)) ?? config
+            written = now
+            if now != config { config = now }  // what was written elsewhere meanwhile, now shown
             fileDate = Self.modificationDate(configURL)
             saveError = nil
         } catch {
@@ -134,6 +161,7 @@ final class SettingsModel: ObservableObject {
         fileDate = date
         do {
             config = try Config.load(from: configURL)
+            written = config
             loadError = nil
         } catch {
             loadError = UIText.describe(error)
@@ -202,23 +230,67 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Provider
 
+    /// False in the self-test: none of its windows asks the user's keychain or shell which keys there are.
+    static var looksUpKeys = true
+    /// Bumped by each look: only the latest one's answer is shown.
+    private var keyLookups = 0
+
     func refreshKeys() {
         let providers = Provider.allCases.filter { $0 != .bedrock }
-        // A preview (the self-test's README images) shows no keys and never asks the user's keychain.
-        guard persists else {
-            keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) })
+        // A preview (the self-test's README images) shows no keys, or the sample ones given (`showKeys`), and never asks
+        // the user's keychain.
+        guard persists, Self.looksUpKeys else {
+            if !keysShown { keySources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.Source.none) }) }
             return
         }
+        keyLookups += 1
+        // As @config and @doctor look (`AIConfigSession.keySource`).
+        let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
-            let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, APIKeys.source($0)) })
-            await MainActor.run { [weak self] in self?.keySources = sources }
+            let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, lookup($0)) })
+            let endings = Dictionary(uniqueKeysWithValues: providers.compactMap { provider in
+                APIKeys.keyEnding(account: provider.rawValue).map { (provider, $0) }
+            })
+            await MainActor.run { [weak self] in
+                // One that started earlier (the window opening) never overwrites a later one's (a key just saved).
+                guard let self, self.keyLookups == generation else { return }
+                self.keySources = sources
+                self.keyEndings = endings
+            }
         }
     }
 
-    /// Stores (or with an empty key removes) the provider's API key in the keychain.
+    /// The README images: keys as given (`persists` false: nothing is looked up or saved).
+    func showKeys(_ sources: [Provider: APIKeys.Source], endings: [Provider: String] = [:]) {
+        keySources = sources
+        keyEndings = endings
+        keysShown = true
+    }
+    private var keysShown = false
+
+    /// Whether the provider's key is set, as its row shows it.
+    func keyState(_ provider: Provider) -> KeyState {
+        KeyState(keySources[provider], ending: keyEndings[provider])
+    }
+
+    /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.
+    func saveKeyAndUse(_ key: String, for provider: Provider) {
+        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        saveKey(key, for: provider)
+        guard keyError == nil else { return }
+        config.provider = provider
+        save()
+        if let testRunner { testRunner() } else { runTest() }
+    }
+
+    /// The self-test's stand-in for Test Connection after Save and Use (nil: the real one).
+    var testRunner: (() -> Void)?
+
+    /// Stores the provider's API key in the keychain. An empty or blank one does nothing: it never removes the key
+    /// saved (that's `removeKey`, after the user confirmed).
     func saveKey(_ key: String, for provider: Provider) {
-        guard persists else { return }
+        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         do {
             // Tied to the base URL it is saved with: it isn't sent to another one set later.
             try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
@@ -229,13 +301,22 @@ final class SettingsModel: ObservableObject {
         refreshKeys()
     }
 
-    func keyStatus(_ provider: Provider) -> String {
-        switch keySources[provider] {
-        case .keychain?: return tr("已保存在钥匙串里", "Saved in the keychain")
-        case let .environment(name)?: return tr("使用 shell 里的 \(name)", "Using \(name) from your shell")
-        case .none?: return tr("还没有 API key", "No API key yet")
-        case nil: return ""
+    /// Removes the provider's API key from the keychain: Remove Key…, confirmed.
+    func removeKey(_ provider: Provider) {
+        guard persists else { return }
+        do {
+            try APIKeys.remove(provider)
+            log.notice("Settings: the \(provider.rawValue, privacy: .public) key removed (Remove Key…, confirmed)")
+            keyError = nil
+        } catch {
+            keyError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
         }
+        refreshKeys()
+    }
+
+    /// "✓ Saved · ends in a1b2", "✓ From $OPENAI_API_KEY", "No API key yet".
+    func keyStatus(_ provider: Provider) -> String {
+        keyState(provider).text(missing: tr("还没有 API key", "No API key yet"))
     }
 
     /// The settings of an API-key provider as stored (unset fields use the defaults).
@@ -262,26 +343,31 @@ final class SettingsModel: ObservableObject {
 
     /// Where the web search key comes from (nil until looked up), the last save's error, and the test.
     @Published private(set) var searchKeySource: APIKeys.Source?
+    @Published private(set) var searchKeyEnding: String?
     @Published private(set) var searchKeyError: String?
     @Published private(set) var searchTestStatus: TestStatus = .idle
     private var searchTestTask: Task<Void, Never>?
 
     func refreshSearchKey() {
         // A preview (the self-test's README images) shows no key and never asks the user's keychain.
-        guard persists else {
+        guard persists, Self.looksUpKeys else {
             searchKeySource = APIKeys.Source.none
             return
         }
         Task.detached {
             // The first look asks the user's shell for its variables (BRAVE_API_KEY): not on the main thread.
             let source = WebSearch.keySource()
-            await MainActor.run { [weak self] in self?.searchKeySource = source }
+            let ending = APIKeys.keyEnding(account: WebSearch.backend.keyAccount)
+            await MainActor.run { [weak self] in
+                self?.searchKeySource = source
+                self?.searchKeyEnding = ending
+            }
         }
     }
 
-    /// Stores (or with an empty key removes) the web search key in the keychain; never in the config.
+    /// Stores the web search key in the keychain, never in the config; an empty one does nothing (`removeSearchKey`).
     func saveSearchKey(_ key: String) {
-        guard persists else { return }
+        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         do {
             try WebSearch.saveKey(key)
             searchKeyError = nil
@@ -292,14 +378,20 @@ final class SettingsModel: ObservableObject {
         refreshSearchKey()
     }
 
-    var searchKeyStatus: String {
-        switch searchKeySource {
-        case .keychain?: return tr("已保存在钥匙串里", "Saved in the keychain")
-        case let .environment(name)?: return tr("使用 shell 里的 \(name)", "Using \(name) from your shell")
-        case .none?: return tr("还没有 API key", "No API key yet")
-        case nil: return ""
+    /// Removes the web search key: Remove Key…, confirmed.
+    func removeSearchKey() {
+        guard persists else { return }
+        do {
+            try WebSearch.removeKey()
+            searchKeyError = nil
+        } catch {
+            searchKeyError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
         }
+        searchTestStatus = .idle
+        refreshSearchKey()
     }
+
+    var searchKeyState: KeyState { KeyState(searchKeySource, ending: searchKeyEnding) }
 
     /// One search with the key as it is kept, to see that it works.
     func testSearch() {
@@ -440,6 +532,8 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var hiddenExtensions: [String: ScriptCommand.Problem] = [:]
     /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
     @Published private(set) var passwordsSaved: Set<String> = []
+    /// Their last 4 characters, where kept ("bundle/name" → "a1b2").
+    @Published private(set) var passwordEndings: [String: String] = [:]
     @Published private(set) var extensionError: String?
 
     /// Reads the folders again; `discover`: Spotlight looks for Raycast script folders first, in the background
@@ -461,6 +555,12 @@ final class SettingsModel: ObservableObject {
                     ? bundle.name + "/" + preference.name : nil
             }
         }) : []
+        passwordEndings = persists ? Dictionary(index.bundles.flatMap { bundle in
+            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
+                APIKeys.keyEnding(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
+                    .map { (bundle.name + "/" + preference.name, $0) }
+            }
+        }, uniquingKeysWith: { first, _ in first }) : [:]
         if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
     }
 
@@ -519,10 +619,12 @@ final class SettingsModel: ObservableObject {
         config.extensionPreferences[bundle.name]?[preference.name] ?? preference.defaultValue ?? ""
     }
 
-    /// Saves a preference: a password in the keychain (empty: removed), anything else in the config file.
+    /// Saves a preference: a password in the keychain (an empty one does nothing: `removePassword` removes it),
+    /// anything else in the config file.
     func setPreference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference, _ value: String) {
         guard persists else { return }
         if preference.kind == .password {
+            guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             do {
                 try APIKeys.save(value, account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name),
                                  label: "AllInOneIME: \(bundle.title) – \(preference.title)")
@@ -533,6 +635,18 @@ final class SettingsModel: ObservableObject {
         } else {
             config.extensionPreferences[bundle.name, default: [:]][preference.name] = value
             save()
+        }
+        refreshExtensions()
+    }
+
+    /// Removes a password preference from the keychain: Remove…, confirmed.
+    func removePassword(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference) {
+        guard persists, preference.kind == .password else { return }
+        do {
+            try APIKeys.remove(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
+            extensionError = nil
+        } catch {
+            extensionError = tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ") + error.localizedDescription
         }
         refreshExtensions()
     }
@@ -603,19 +717,14 @@ final class SettingsModel: ObservableObject {
 
     /// Region shown when the field is empty: the profile's own region.
     var profileRegion: String {
-        (try? AWSSharedConfig.load(profile: config.awsProfile).region) ?? "us-east-1"
+        aws.status(for: config.awsProfile)?.region ?? AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
     }
 
-    static var credentialsFound: String { tr("已找到这个 profile 的密钥", "Found the keys for this profile") }
+    /// The profile's kind and when its credentials expire, or what's wrong ("Role via base: credentials expire at 15:30").
+    var credentialStatus: String { aws.line(profile: config.awsProfile) }
 
-    var credentialStatus: String {
-        do {
-            _ = try AWSSharedConfig.load(profile: config.awsProfile)
-            return Self.credentialsFound
-        } catch {
-            return UIText.describe(error)
-        }
-    }
+    /// Whether the profile's credentials can be had, as far as the files tell (`AWSProfileStatus.isReady`).
+    var credentialsReady: Bool { aws.status(for: config.awsProfile)?.isReady == true }
 
     // MARK: Voice
 
@@ -712,8 +821,12 @@ final class SettingsModel: ObservableObject {
         testTask?.cancel()
         testStatus = .running
         let snapshot = config
+        // Bedrock: the profile's credentials fetched again through its whole chain (a program, STS, SSO), not the cached ones.
+        let resolver = aws.resolver
         testTask = Task { [weak self] in
-            let converter = Converter(loadConfig: { snapshot })
+            defer { self?.aws.refresh(profile: snapshot.awsProfile) }
+            let converter = Converter(loadConfig: { snapshot },
+                                      loadCredentials: { try await resolver.resolve(profile: $0, forceRefresh: true) })
             // In the first input language: an English-only user sees an English test.
             let sample = switch snapshot.inputLanguages.first ?? .english {
             case .chinese: "我今天有点不舒服"
@@ -755,12 +868,12 @@ struct SettingsView: View {
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
     @State private var commandToDelete: Int?
-    /// The API key being typed (a saved key is never shown again: it stays in the keychain).
-    @State private var newKey = ""
-    @State private var removingKey: Provider?
-    /// The web search key being typed (likewise).
-    @State private var newSearchKey = ""
-    @State private var removingSearchKey = false
+    /// The provider whose key row shows its paste field (Replace…, or `@config` opening Settings at the key).
+    @State private var editingKey: Provider?
+    /// The key sheet: a provider other than the one in use whose key `@config` or `@doctor` asked for.
+    @State private var keySheet: KeySheetRequest?
+    /// The web search key row's paste field.
+    @State private var editingSearchKey = false
     /// The page shown (the window remembers the last one) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
@@ -768,6 +881,8 @@ struct SettingsView: View {
     @State private var inputTab: Language = .chinese
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
     @ObservedObject private var packs = LanguagePackManager.shared
+    /// The extension sources' new commits: a badge on the Custom Commands page.
+    @ObservedObject private var extensionSources = ExtensionSourceController.shared
     /// The pack of an input language just removed: the dialog offers to delete it too.
     @State private var packToRemove: LanguagePack?
     /// A pack the user asked to delete from its language's card (asked first, with its size).
@@ -776,8 +891,12 @@ struct SettingsView: View {
     static let pageKey = "settingsPage"
 
     /// `page`: shown as given and not remembered (the self-test's images); nil: the one shown last.
-    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil) {
+    /// The README images: the key sheet drawn over the page, for this provider (a real sheet isn't in a page's image).
+    private let keySheetShown: Provider?
+
+    init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Language? = nil, keySheetShown: Provider? = nil) {
         self.model = model
+        self.keySheetShown = keySheetShown
         if let inputTab { _inputTab = State(initialValue: inputTab) }
         remembersPage = page == nil
         _page = State(initialValue: page ?? UserDefaults.standard.string(forKey: Self.pageKey).flatMap(SettingsPage.init) ?? .general)
@@ -845,10 +964,6 @@ struct SettingsView: View {
                     .disabled(model.typoApps.isEmpty)
                 }
             }
-            Toggle(isOn: $model.config.claudeInBackground) {
-                titled(tr("@claude 在后台运行，做完通知我", "@claude runs in the background and notifies me"),
-                       tr("关掉就在终端打开 Claude Code 接着聊。", "Off: Claude Code opens in Terminal to talk."))
-            }
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
             Toggle(isOn: $model.config.useSelection) {
                 titled(tr("使用选中的文字", "Use the selected text"),
@@ -856,10 +971,10 @@ struct SettingsView: View {
                           "Select some text, then type @improve, @translate, @question … and ⏎: the command works on the selection (it stays selected and as it is while you type), and the result you pick replaces it; Esc changes nothing. Turn it off if it misbehaves in an app."))
             }
             // The recent @questions (`QuestionHistory`): kept only on this Mac; off forgets them too.
-            Toggle(isOn: $model.config.rememberQuestions) {
+            Toggle(isOn: Binding(get: { model.config.rememberQuestions }, set: { model.setRememberQuestions($0) })) {
                 titled(tr("记住最近的问题", "Remember recent questions"),
-                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
-                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
+                       tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题，选一个马上看到当时的答案（不联网），按 ⌘R 重新问。问题和答案只存在这台 Mac 上；安全输入时和对选中文字的提问不存。关掉会删掉已存的。",
+                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions; pick one to see its answer again at once (offline), ⌘R asks it again. Questions and answers stay on this Mac; nothing is kept during secure input or for questions on selected text. Turning it off deletes them."))
             }
             .disabled(!model.canSave)
             HStack {
@@ -870,6 +985,37 @@ struct SettingsView: View {
                 Button(tr("清除（\(model.recentQuestions)）", "Clear (\(model.recentQuestions))")) { model.clearRecentQuestions() }
                     .disabled(model.recentQuestions == 0)
             }
+            // Where an @question conversation goes on (`ChatHandoff`; QuestionChatSettings.swift): the chips under the title,
+            // the card's width for them (every agent installed, the web, Copy), scrolled sideways when there are more.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    titled(tr("对话接着在哪里聊", "Continue a conversation in"),
+                           tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，拖动排序，第一个是默认。对话会发给你选的服务。",
+                              "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there; drag to reorder, the first is the default. The conversation goes to the service you pick."))
+                    Spacer()
+                    let missing = model.missingContinueChoices
+                    if !missing.isEmpty {
+                        Menu(tr("添加…", "Add…")) {
+                            ForEach(missing, id: \.self) { destination in
+                                Button(AllInOneIMEInputController.name(destination, picked: model.config.agent,
+                                                                       custom: model.config.agentCommand)) {
+                                    model.addContinueIn(destination)
+                                }
+                            }
+                        }
+                        .fixedSize()
+                    }
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    // The agents by name (a custom one's from its command), `.atAgent` by @agent's.
+                    LanguageChips(items: model.continueChoices,
+                                  name: { AllInOneIMEInputController.shortName($0, picked: model.config.agent, custom: model.config.agentCommand) },
+                                  firstNote: tr("默认", "default"),
+                                  reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
+                        .fixedSize()
+                }
+            }
+            .disabled(!model.canSave)
         }
     }
 
@@ -1148,9 +1294,10 @@ struct SettingsView: View {
             }
             ForEach(bundle.preferences, id: \.name) { preference in
                 PreferenceField(preference: preference, value: model.preference(bundle, preference),
-                                saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name)) {
-                    model.setPreference(bundle, preference, $0)
-                }
+                                saved: model.passwordsSaved.contains(bundle.name + "/" + preference.name),
+                                save: { model.setPreference(bundle, preference, $0) },
+                                ending: model.passwordEndings[bundle.name + "/" + preference.name],
+                                remove: { model.removePassword(bundle, preference) })
                 .padding(.leading, 28)
             }
             if on {
@@ -1304,20 +1451,14 @@ struct SettingsView: View {
         if Command.webSearchOffered {
             // The key lives in the keychain, not in the config file: this works even when the file is broken.
             Section {
-                HStack {
-                    SecureField("API key", text: $newSearchKey,
-                                prompt: Text(tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key")))
-                        .onSubmit { saveSearchKey() }
-                    Button(tr("保存", "Save")) { saveSearchKey() }.disabled(newSearchKey.isEmpty)
-                    if model.searchKeySource == .keychain {
-                        Button(tr("删除", "Remove")) { removingSearchKey = true }
-                            .confirmationDialog(tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
-                                                isPresented: $removingSearchKey) {
-                                Button(tr("删除", "Remove"), role: .destructive) { model.saveSearchKey("") }
-                            }
-                    }
+                LabeledContent("API key") {
+                    KeyRowContent(state: model.searchKeyState, missing: tr("还没有 API key", "No API key yet"),
+                                  prompt: tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key"),
+                                  removeTitle: tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                  save: { model.saveSearchKey($0) },
+                                  remove: model.searchKeySource == .keychain ? { model.removeSearchKey() } : nil,
+                                  editing: $editingSearchKey)
                 }
-                Text(model.searchKeyStatus).font(.caption).foregroundStyle(.secondary)
                 if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
                 HStack {
                     Button(tr("测试", "Test")) { model.testSearch() }
@@ -1457,6 +1598,7 @@ struct SettingsView: View {
                             }
                         }
                         .padding(.vertical, 3)
+                        .badge(item == .commands ? extensionSources.updateCount(for: model.config.extensionSources) : 0)
                         .tag(item)
                     }
                 }
@@ -1655,6 +1797,20 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        settings.overlay {
+            if let keySheetShown {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    KeySheet(model: model, provider: keySheetShown) {}
+                        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
+                        .padding(.top, 70)
+                }
+            }
+        }
+    }
+
+    private var settings: some View {
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
@@ -1675,11 +1831,13 @@ struct SettingsView: View {
                     jargonSection
                 case .commands:
                     commandsSection
+                    ExtensionSourcesSection(model: model)
                     extensionsSection
                 case .plugins:
                     pluginsSection
                     webSearchSection
                 case .voice: voiceSection
+                case .agent: AgentSettingsPage(model: model)
                 case .provider:
                     providerSection
                     requestSection
@@ -1739,7 +1897,7 @@ struct SettingsView: View {
         .onChange(of: model.config.awsProfile) { model.save() }
         .onChange(of: model.config.provider) {
             customProviderModel = false
-            newKey = ""
+            editingKey = nil
             model.save()
         }
         .onChange(of: model.config.maxTokens) { model.save() }
@@ -1753,11 +1911,10 @@ struct SettingsView: View {
         .onChange(of: model.config.voiceInput) { model.save() }
         .onChange(of: model.config.actionKey) { model.save() }
         .onChange(of: model.config.claudeInBackground) { model.save() }
+        .onChange(of: model.config.agent) { model.save() }
+        .onChange(of: model.config.agentCommand) { model.save() }
         .onChange(of: model.config.useSelection) { model.save() }
-        .onChange(of: model.config.rememberQuestions) {
-            model.save()
-            if !model.config.rememberQuestions { model.clearRecentQuestions() }
-        }
+        .onChange(of: model.config.rememberQuestions) { model.save() }
         .onChange(of: model.config.typeOut) { model.save() }
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
@@ -1782,12 +1939,28 @@ struct SettingsView: View {
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
             model.refreshRecentQuestions()
+            // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
+            if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEShowSettingsPage)) { note in
             if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
             model.reloadIfChanged()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
+            page = .provider
+            model.reloadIfChanged()  // what @config just set
+            guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
+            // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page).
+            if provider == model.config.provider {
+                DispatchQueue.main.async { editingKey = provider }
+            } else if provider.needsKey {
+                keySheet = KeySheetRequest(provider: provider)
+            }
+        }
+        .sheet(item: $keySheet) { request in
+            KeySheet(model: model, provider: request.provider) { keySheet = nil }
         }
         .onDisappear { model.save() }
     }
@@ -1808,10 +1981,10 @@ struct SettingsView: View {
         let key = UIText.howToPress(model.config.actionKey)
         let languages = model.config.inputLanguages.map(AllInOneIMEInputController.inputName).joined(separator: tr("、", ", "))
         return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
-                      + "@claude 交给 Claude Code，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
+                      + "@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
                   "A regular input method: \(languages). "
                       + "Type @ first for commands: @improve polishes and rewrites, @translate "
-                      + "translates, @question asks, @claude hands it to Claude Code, @open finds files, @note saves to Notes, "
+                      + "translates, @question asks, @agent hands it to a coding agent (Claude Code …), @open finds files, @note saves to Notes, "
                       + "@reminder adds a reminder. When done, \(key).")
     }
 
@@ -1995,16 +2168,12 @@ struct SettingsView: View {
                       prompt: Text(tr("例如 ", "e.g. ") + "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
                 .onSubmit { model.save() }
         }
-        Picker("AWS Profile", selection: $model.config.awsProfile) {
-            ForEach(model.profiles, id: \.self) { name in
-                Text(name == model.config.awsProfile ? model.profileShownAs ?? name : name).tag(name)
-            }
-        }
+        AWSProfilePicker(selection: $model.config.awsProfile, names: model.profiles, shownAs: model.profileShownAs, aws: model.aws)
         TextField(tr("区域", "Region"), text: regionBinding,
                   prompt: Text(tr("留空用 profile 的区域（\(model.profileRegion)）",
                                   "Empty: the profile's region (\(model.profileRegion))")))
             .onSubmit { model.save() }
-        Text(model.credentialStatus).font(.caption).foregroundStyle(.secondary)
+        AWSProfileStatusRow(profile: model.config.awsProfile, aws: model.aws, shownAs: model.profileShownAs)
     }
 
     /// AllInOneIME Cloud: the Google account, today's free requests, the subscription.
@@ -2095,23 +2264,23 @@ struct SettingsView: View {
             }
         }
         if suggested.isEmpty || customProviderModel || !suggested.contains(where: { $0.id == settings.model }) {
+            // The default model, when there is one, is the placeholder: an empty field uses it, and is never saved as it.
             TextField(tr("模型 ID", "Model ID"), text: providerBinding(provider, \.model),
-                      prompt: Text(tr("例如 ", "e.g. ") + Self.modelExample(provider)))
+                      prompt: Text(ProviderSettings.defaults(for: provider).model ?? tr("例如 ", "e.g. ") + Self.modelExample(provider)))
                 .onSubmit { model.save() }
         }
-        HStack {
-            SecureField("API key", text: $newKey, prompt: Text(tr("粘贴新的 API key", "Paste a new API key")))
-                .onSubmit { saveKey(provider) }
-            Button(tr("保存", "Save")) { saveKey(provider) }.disabled(newKey.isEmpty)
-            if model.keySources[provider] == .keychain {
-                Button(tr("删除", "Remove")) { removingKey = provider }
-                    .confirmationDialog(tr("删除钥匙串里的 \(provider.displayName) API key？", "Remove the \(provider.displayName) API key from the keychain?"),
-                                        isPresented: Binding(get: { removingKey == provider }, set: { if !$0 { removingKey = nil } })) {
-                        Button(tr("删除", "Remove"), role: .destructive) { model.saveKey("", for: provider) }
-                    }
-            }
+        // Whether a key is set, in the row itself: with one, the paste field shows only after Replace….
+        LabeledContent("API key") {
+            KeyRowContent(state: model.keyState(provider), missing: tr("还没有 API key", "No API key yet"),
+                          prompt: tr("粘贴新的 API key", "Paste a new API key"),
+                          removeTitle: tr("从钥匙串里删除 \(UIText.name(provider)) 的 API key？",
+                                          "Remove the key for \(UIText.name(provider)) from the keychain?"),
+                          removeMessage: tr("删除后，要再粘贴一次 key 才能用 \(UIText.name(provider))。",
+                                            "To use \(UIText.name(provider)) again, you'll have to paste the key again."),
+                          save: { model.saveKey($0, for: provider) },
+                          remove: model.keySources[provider] == .keychain ? { model.removeKey(provider) } : nil,
+                          editing: Binding(get: { editingKey == provider }, set: { editingKey = $0 ? provider : nil }))
         }
-        Text(model.keyStatus(provider)).font(.caption).foregroundStyle(.secondary)
         if let error = model.keyError { Text(error).foregroundStyle(.red) }
         TextField(tr("Base URL", "Base URL"), text: providerBinding(provider, \.baseURL),
                   prompt: Text(ProviderSettings.defaults(for: provider).baseURL ?? ""))
@@ -2127,7 +2296,7 @@ struct SettingsView: View {
                     "Picking a service fills in its base URL; then enter its model under Custom…. Any other OpenAI-compatible address works too."))
                 .font(.caption).foregroundStyle(.secondary)
         }
-        Picker(tr("思考", "Thinking"), selection: providerBinding(provider, \.effort, empty: "")) {
+        Picker(tr("思考", "Thinking"), selection: providerBinding(provider, \.effort, empty: "", showsDefault: true)) {
             Text(tr("少（low，最快）", "Little (low, fastest)")).tag("low")
             Text("medium").tag("medium")
             Text("high").tag("high")
@@ -2145,19 +2314,6 @@ struct SettingsView: View {
         customProviderModel = true
     }
 
-    /// ⏎ in an empty key field does nothing: an empty key would remove the one saved (that's 删除 / Remove).
-    private func saveKey(_ provider: Provider) {
-        guard !newKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        model.saveKey(newKey, for: provider)
-        newKey = ""
-    }
-
-    private func saveSearchKey() {
-        guard !newSearchKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        model.saveSearchKey(newSearchKey)
-        newSearchKey = ""
-    }
-
     static func modelExample(_ provider: Provider) -> String {
         switch provider {
         case .anthropic: return "claude-sonnet-5-5"
@@ -2168,15 +2324,23 @@ struct SettingsView: View {
         }
     }
 
-    /// A text field for one string setting of a provider; an empty one falls back to the default.
+    /// One string setting of a provider, as set: a text field shows only what was set, the default being its placeholder
+    /// (an empty field falls back to it), so leaving the field, or ⏎ on it, never writes the default as if the user had
+    /// typed it. `showsDefault`: a picker, which shows the default as its selection. Nothing is written unless the value
+    /// changes.
     private func providerBinding(_ provider: Provider, _ key: WritableKeyPath<ProviderSettings, String?>,
-                                 empty: String? = nil) -> Binding<String> {
+                                 empty: String? = nil, showsDefault: Bool = false) -> Binding<String> {
         Binding(
-            get: { model.providerSettings(provider)[keyPath: key] ?? model.config.settings(for: provider)[keyPath: key] ?? "" },
+            get: {
+                model.providerSettings(provider)[keyPath: key]
+                    ?? (showsDefault ? model.config.settings(for: provider)[keyPath: key] : nil) ?? ""
+            },
             set: { value in
                 var settings = model.providerSettings(provider)
                 let trimmed = value.trimmingCharacters(in: .whitespaces)
-                settings[keyPath: key] = trimmed.isEmpty ? empty : trimmed
+                let new = trimmed.isEmpty ? empty : trimmed
+                guard settings[keyPath: key] != new else { return }
+                settings[keyPath: key] = new
                 model.setProviderSettings(settings, for: provider)
             })
     }
@@ -2353,6 +2517,7 @@ final class SettingsWindow {
     }
 
     func show() {
+        AgentAvailability.forget()  // an agent may have been installed meanwhile
         if window?.isVisible != true {
             // (Re)build so the window reflects the config file as it is now.
             window?.close()
@@ -2693,11 +2858,11 @@ struct SectionTitle: View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, input, writing, commands, plugins, voice, provider, advanced, about, apps
+    case general, input, writing, commands, plugins, voice, agent, provider, advanced, about, apps
 
     var id: String { rawValue }
 
-    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .provider], [.advanced, .about]]
+    static let groups: [[SettingsPage]] = [[.general, .input, .writing, .voice, .apps], [.commands, .plugins, .agent, .provider], [.advanced, .about]]
 
     var title: String {
         switch self {
@@ -2707,6 +2872,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return tr("自定义命令", "Custom Commands")
         case .plugins: return tr("插件", "Plugins")
         case .voice: return tr("语音输入", "Voice Input")
+        case .agent: return tr("Agent", "Agent")
         case .provider: return tr("AI 服务", "AI Provider")
         case .advanced: return tr("高级", "Advanced")
         case .about: return tr("关于", "About")
@@ -2722,6 +2888,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .commands: return CommandIcons.commands
         case .plugins: return CommandIcons.plugins
         case .voice: return CommandIcons.voice
+        case .agent: return CommandIcons.agent
         case .provider: return CommandIcons.provider
         case .advanced: return CommandIcons.advanced
         case .about: return CandidateView.Icon(symbol: "info", color: .systemBlue)
@@ -2732,13 +2899,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Words its settings go by, in both languages, for the search field.
     private var keywords: String {
         switch self {
-        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 claude background 后台 通知 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除"
+        case .general: return "action key return 执行键 回车 type out typing speed typos mistakes forget 逐字上屏 打字速度 打错 忘掉 menu bar panel 菜单栏 面板 interface language 界面语言 中文 english recent questions history @question clear 最近的问题 提问 记录 历史 清除 continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
-        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦"
+        case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
         case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
-        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
+        case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed not installed background notify tasks @tasks claude tasks 编程 交给 自定义 命令 终端 已安装 未安装 后台 通知 任务"
+        case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 sso role assume credential_process sts mfa 角色 登录 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
         case .advanced: return "config file rime folder 高级 配置文件 目录"
         case .about: return "about version website github license report issue bug feedback 关于 版本 网站 报告 问题 反馈"
         case .apps: return "apps per-app app profiles each app bundle id starting input language rewrite styles tone type out no ai off slack mail wechat 每个 应用 按 App 设置 开始 输入语言 改写 风格 语气 逐字上屏 不用 AI 关掉"
@@ -2757,9 +2925,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
 enum SettingsImage {
     @MainActor
-    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, to url: URL,
+    static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Language? = nil, keySheet: Provider? = nil, to url: URL,
                        appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
-        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)
@@ -2828,7 +2996,14 @@ private struct PreferenceField: View {
     /// A password: one is in the keychain.
     let saved: Bool
     let save: (String) -> Void
+    /// A saved password's last 4 characters, where kept.
+    var ending: String? = nil
+    /// A password's Remove…, once confirmed.
+    let remove: () -> Void
     @State private var text = ""
+    /// The text field was edited since it last showed `value`.
+    @State private var edited = false
+    @State private var editingPassword = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -2842,20 +3017,21 @@ private struct PreferenceField: View {
                 }
                 .labelsHidden().frame(maxWidth: 220)
             case .password:
-                HStack {
-                    SecureField("", text: $text, prompt: Text(saved ? tr("已存在钥匙串里", "Saved in the keychain") : tr("未设置", "Not set")))
-                        .labelsHidden().focused($focused)
-                        .onSubmit { commitPassword() }
-                        .onChange(of: focused) { if !focused { commitPassword() } }
-                        .frame(maxWidth: 220)
-                    if saved { Button(tr("移除", "Remove")) { save("") } }
-                }
+                // As an API key's row: whether it is saved, in the row; the field only after Replace… (or when not set).
+                KeyRowContent(state: saved ? .saved(ending: ending) : .missing, missing: tr("还没有设置", "Not set yet"),
+                              prompt: tr("粘贴", "Paste it"),
+                              removeTitle: tr("从钥匙串里删除「\(preference.title)」？", "Remove “\(preference.title)” from the keychain?"),
+                              save: save, remove: remove, editing: $editingPassword)
+                    .frame(maxWidth: 360)
             case .textfield:
-                TextField("", text: $text, prompt: preference.defaultValue.map { Text($0) })
+                // Saved only when edited here; not being edited, it follows the value (read again after a write elsewhere).
+                TextField("", text: Binding(get: { text }, set: { if $0 != text { text = $0; edited = true } }),
+                          prompt: preference.defaultValue.map { Text($0) })
                     .labelsHidden().focused($focused)
-                    .onSubmit { save(text) }
-                    .onChange(of: focused) { if !focused, text != value { save(text) } }
+                    .onSubmit(commitText)
+                    .onChange(of: focused) { if !focused { commitText() } }
                     .onAppear { text = value }
+                    .onChange(of: value) { if !edited { text = value } }
                     .frame(maxWidth: 220)
             }
         } label: {
@@ -2868,10 +3044,10 @@ private struct PreferenceField: View {
         }
     }
 
-    /// A password typed is saved (and the field emptied); an empty field leaves the saved one alone.
-    private func commitPassword() {
-        guard !text.isEmpty else { return }
-        save(text)
-        text = ""
+    /// The text field's edit, if there was one and it changed the value: saved.
+    private func commitText() {
+        guard edited else { return }
+        edited = false
+        if text != value { save(text) }
     }
 }

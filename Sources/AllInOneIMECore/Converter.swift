@@ -12,13 +12,16 @@ public struct ConversionUpdate: Equatable, Sendable {
     public var fromCache: Bool
     /// How many values were hidden from the AI in the request (`Redaction`); 0 when none or hiding is off.
     public var hidden: Int = 0
+    /// An `@question` conversation was too long for the model's context (the on-device model): earlier rounds were
+    /// shortened to fit (`QuestionChat.fit`).
+    public var shortened = false
 }
 
 /// Turns typed input into streamed `ConversionUpdate`s using the configured provider (`ChatClient`).
 /// Config and credentials are re-read for every conversion, so edits apply without a restart.
 public final class Converter: Sendable {
     public typealias ConfigLoader = @Sendable () throws -> Config
-    public typealias CredentialLoader = @Sendable (_ profile: String) throws -> AWSSharedConfig.Resolved
+    public typealias CredentialLoader = ChatClient.CredentialLoader
     /// The user's jargon list for a config (only asked for when the jargon (黑话) style is on).
     public typealias JargonLoader = @Sendable (_ config: Config) -> [JargonEntry]
 
@@ -32,7 +35,7 @@ public final class Converter: Sendable {
     public init(
         client: BedrockClient = BedrockClient(),
         loadConfig: @escaping ConfigLoader = { try Config.load() },
-        loadCredentials: @escaping CredentialLoader = { try AWSSharedConfig.load(profile: $0) },
+        loadCredentials: @escaping CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
         appleModel: any AppleModelBackend = AppleModel.system
@@ -163,24 +166,36 @@ public final class Converter: Sendable {
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
         let config = try Self.settings(try loadConfig(), app: app)
+        // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
+        // plain user and assistant turns, not as a refine.
+        let chat = command == .question && !turns.isEmpty
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
         // a refine's turns (as for `convert`).
         var redaction = Redaction(config.redaction)
         let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
-        let lastMessage = Self.hideTurns(turns, with: &redaction) ?? sent
+        let lastMessage = Self.hideTurns(turns, with: &redaction, wrap: chat ? { $0 } : Prompt.refineMessage) ?? sent
         let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
-            + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
+            + (turns.isEmpty ? "" : "|" + (chat ? QuestionChat.turnsKey(turns) : Prompt.turnsKey(turns)))
+        let request = chat ? QuestionChat.request(first: input, turns: turns, config: config)
+            : turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config)
+            : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
+        var protected = redaction?.protect(request, sent: lastMessage) ?? request
+        // The on-device model's context is small: a long conversation is fitted into it, older rounds shortened first
+        // (said for an answer from the cache too).
+        var shortened = false
+        if chat, config.provider == .apple {
+            (protected, shortened) = QuestionChat.fit(protected, contextSize: client.apple.contextSize,
+                                                      maxTokens: protected.inferenceConfig.maxTokens ?? config.maxTokens)
+        }
         if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
-                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden))
+                result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden,
+                shortened: shortened))
             return
         }
-        let request = turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config)
-            : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
-        let stream = client.stream(redaction?.protect(request, sent: lastMessage) ?? request, config: config,
-                                   loadCredentials: loadCredentials, loadKey: loadKey)
+        let stream = client.stream(protected, config: config, loadCredentials: loadCredentials, loadKey: loadKey)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
             let lines = Self.lines(text)
             return ConversionResult(versions: [CandidateLine(redaction?.restore(lines, complete: complete) ?? lines, isComplete: complete)])
@@ -201,7 +216,7 @@ public final class Converter: Sendable {
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden, shortened: shortened))
         }
         try Task.checkCancellation()
         // Cut off at the token limit, the text still reads as an answer: keep it, but don't cache it.
@@ -209,17 +224,19 @@ public final class Converter: Sendable {
         if !final.isEmpty, stopReason != "max_tokens" { cache.withLock { $0.set(key, final) } }
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
-            hidden: hidden))
+            hidden: hidden, shortened: shortened))
     }
 
     /// A refine's turns hidden (`Redaction.hide`) after the request's own texts, in the order sent: each answer's lines,
     /// then its instruction. A value already hidden keeps its placeholder; a new one (in an instruction) gets the next.
-    /// The last message as it is sent (the last instruction, hidden), or nil when there are no turns or hiding is off.
-    static func hideTurns(_ turns: [Refinement.Turn], with redaction: inout Redaction?) -> String? {
+    /// The last message as it is sent (the last instruction, hidden, in `wrap`: a refine's tags, or as it is for an
+    /// @question conversation's next question), or nil when there are no turns or hiding is off.
+    static func hideTurns(_ turns: [Refinement.Turn], with redaction: inout Redaction?,
+                          wrap: (String) -> String = Prompt.refineMessage) -> String? {
         guard !turns.isEmpty, redaction != nil else { return nil }
         let texts = turns.flatMap { Prompt.answerLines($0.answer) + [$0.instruction] }
         let sent = redaction!.hide(texts)
-        return sent.last.map(Prompt.refineMessage)
+        return sent.last.map(wrap)
     }
 
     /// `config` as it applies in `app` (`Config.applying`); nothing is sent from an app with no AI.

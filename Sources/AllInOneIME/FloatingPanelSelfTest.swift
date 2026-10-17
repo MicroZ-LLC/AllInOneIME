@@ -113,8 +113,8 @@ extension SelfTest {
     /// close button), that off means off (but for the record of saved notes); with the README render,
     /// Chinese and English.
     static func testFloatingPanel(_ controller: AllInOneIMEInputController, snapshotDirectory: URL) {
-        print("— menu bar panel (stand-ins for Notes, Reminders and Claude Code)")
-        let realConfig = try? Data(contentsOf: Config.defaultURL)
+        section("menu bar panel (stand-ins for Notes, Reminders and Claude Code)")
+        let realConfig = try? Data(contentsOf: Config.userURL)
         let stand = PanelStandIns()
         stand.sample(chinese: true)
         let panel = FloatingPanel(sources: stand.sources)
@@ -286,7 +286,7 @@ extension SelfTest {
         stand.sessions = sessions
         post(.allInOneIMEAgentStarted, ["id": "a1b2c3d4"])
         check(pump(timeout: 1) { stand.agentLooks > looks && taskRows().first?.progress == .working },
-              "@claude starts a task: it looks at once")
+              "@agent starts a task: it looks at once")
         looks = stand.agentLooks
         _ = pump(timeout: 1.1) { false }
         check(stand.agentLooks >= looks + 2, "…and by itself again while that runs (\(stand.agentLooks - looks) looks in 1.1 s)")
@@ -464,6 +464,6 @@ extension SelfTest {
         check(panel.notes.first?.id == "x-coredata://sample/p4", "dropped down, it lists the note saved while it was closed")
         panel.toggleDropDown(below: anchor)
         check(!panel.droppedDown && panel.isIdle, "the icon's second click closes it")
-        check((try? Data(contentsOf: Config.defaultURL)) == realConfig, "the real config file was not touched")
+        check((try? Data(contentsOf: Config.userURL)) == realConfig, "the real config file was not touched")
     }
 }

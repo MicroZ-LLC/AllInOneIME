@@ -130,11 +130,13 @@ enum UIText {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
         case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
-        case .claude: return tr("交给 Claude Code 去做", "Hand it to Claude Code")
+        case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
         case .open: return tr("找文件、文件夹或 App 并打开", "Find a file, folder or app and open it")
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
         case .settings: return tr("打开设置", "Open the settings")
+        case .config: return tr("用一句话改设置", "Change settings by describing them")
+        case .doctor: return tr("检查设置，能修的帮你修", "Check your setup and fix what can be fixed")
         case .note: return tr("存到备忘录", "Save to Notes")
         case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
         case .calc: return tr("在本机计算算式，结果可以直接上屏", "Calculate on this Mac; insert the result")
@@ -241,12 +243,17 @@ enum UIText {
         case .improve, .translate:
             return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
-        case .claude: return config.claudeInBackground ? tr("交给 Claude 在后台做", "hand it to Claude in the background")
-                                                       : tr("在终端打开 Claude Code", "open Claude Code in Terminal")
+        case .agent:
+            let agent = config.agent.displayName(custom: config.agentCommand)
+            return config.claudeInBackground && config.agent.supportsBackground
+                ? tr("交给 \(agent) 在后台做", "hand it to \(agent) in the background")
+                : tr("在终端打开 \(agent)", "open \(agent) in Terminal")
         case .open: return tr("搜索并打开", "search and open")
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
         case .settings: return tr("打开设置", "open the settings")
+        case .config: return tr("看一下再改设置", "check, then change the settings")
+        case .doctor: return tr("检查设置", "check the setup")
         case .note: return tr("存到备忘录", "save to Notes")
         case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
         case .calc: return tr("计算", "calculate")
@@ -271,15 +278,24 @@ enum UIText {
     /// same on every Mac. Main thread only.
     static var clock24: Bool?
 
-    /// The row comment of an answer: "回答" / "answer", "Claude".
+    /// The agent `@agent` hands the text to, by name (`AgentKind.displayName`; the controller sets it with the settings).
+    /// Main thread only.
+    static var agentName = AgentKind.claude.displayName()
+
+    /// The agent `config` picks, by name.
+    static func agentName(_ config: Config) -> String { config.agent.displayName(custom: config.agentCommand) }
+
+    /// The row comment of an answer: "回答" / "answer", the agent's name.
     static func answerLabel(_ command: Command?) -> String {
         if command == .webSearch { return tr("搜索结果", "results") }
         if command?.kind == .run { return command?.plugin.map { "@" + $0.name } ?? tr("输出", "output") }
-        return command == .claude ? "Claude" : tr("回答", "answer")
+        return command == .agent ? agentName : tr("回答", "answer")
     }
 
     /// An error as the settings window shows it.
     static func describe(_ error: Error) -> String {
+        // One line that says what to do ("SSO sign-in expired: run aws sso login --profile X").
+        if let error = error as? AWSCredentialError { return error.shortMessage(chinese: chinese) }
         if let error = error as? WebReader.ReadError {
             switch error {
             case let .invalidURL(text): return tr("不是网址：\(text)", "Not a web address: \(text)")
@@ -372,10 +388,18 @@ enum UIText {
             case let .refused(p): return tr("\(name(p)) 拒绝了这个请求", "The \(name(p)) declined this request")
             case let .invalidResponse(p, detail):
                 return tr("\(name(p)) 的响应无法解析：\(detail)", "Couldn't read the \(name(p)) response: \(detail)")
-            case .signedOut: return tr("请先在设置里登录 AllInOneIME 云", "Sign in to AllInOneIME Cloud in the settings")
+            // With Apple Intelligence here, @config can switch to it (it runs on it then); without, it would fail the same way.
+            case .signedOut:
+                return AppleModel.system.availability == .available
+                    ? tr("请先在设置里登录 AllInOneIME 云，或者打 @config 用 Apple 智能",
+                         "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence")
+                    : tr("请先在设置里登录 AllInOneIME 云，或者填自己的 API key", "Sign in to AllInOneIME Cloud in the settings, or add your own API key")
             case .quotaExhausted:
-                return tr("今天的免费次数用完了：可以在设置里订阅，或者填自己的 API key",
-                          "No requests left today: subscribe, or add your own API key in the settings")
+                return AppleModel.system.availability == .available
+                    ? tr("今天的免费次数用完了：可以在设置里订阅、填自己的 API key，或者打 @config 用 Apple 智能",
+                         "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence")
+                    : tr("今天的免费次数用完了：可以在设置里订阅，或者填自己的 API key",
+                         "No requests left today: subscribe, or add your own API key in the settings")
             }
         }
         if let error = error as? AppleModelError { return describe(error) }

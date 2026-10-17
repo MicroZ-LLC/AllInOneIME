@@ -35,7 +35,7 @@
 > [!NOTE]
 > 0.6.3부터 AllInOneIME는 Developer ID로 서명되고 Apple의 공증을 받습니다. 이제 System Settings → Privacy & Security(시스템 설정 → 개인정보 보호 및 보안)에서 허용할 필요가 없습니다. 이전 버전에서 업데이트한 뒤에는 AllInOneIME가 키체인에 저장한 키마다 macOS가 로그인 암호를 한 번씩 묻습니다. 암호를 입력하고 "Always Allow"(항상 허용)를 클릭하세요. AllInOneIME는 [GitHub Releases](https://github.com/MicroZ-LLC/AllInOneIME/releases) 또는 [allinoneime.com](https://allinoneime.com)에서만 내려받으세요.
 
-모든 텍스트 필드에서 AI 명령어를 쓸 수 있는 macOS 입력기입니다. 문장을 `@`로 시작하고, 다 쓰면 ⏎를 누르세요. `@improve`는 쓴 글을 다듬고 몇 가지 다시 쓰기를 제안하고, `@translate`는 고른 언어로 번역하고, `@question`은 질문을 하고, `@claude`는 Claude Code에 넘기고, `@open`은 파일과 앱을 찾거나 웹 주소를 엽니다. 오른쪽 ⌥를 누른 채 말할 수도 있습니다. `@`가 없으면 키 입력은 평소처럼 앱으로 갑니다. 중국어(병음, Rime과 rime-ice 기반), 프랑스어, 한국어(한글), 힌디어(라틴 문자로 데바나가리 입력)도 입력할 수 있고, 직접 만든 스크립트를 @ 명령어로 실행할 수도 있습니다.
+모든 텍스트 필드에서 AI 명령어를 쓸 수 있는 macOS 입력기입니다. 문장을 `@`로 시작하고, 다 쓰면 ⏎를 누르세요. `@improve`는 쓴 글을 다듬고 몇 가지 다시 쓰기를 제안하고, `@translate`는 고른 언어로 번역하고, `@question`은 질문을 하고, `@agent`는 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI …)에 넘기고, `@open`은 파일과 앱을 찾거나 웹 주소를 엽니다. 오른쪽 ⌥를 누른 채 말할 수도 있습니다. `@`가 없으면 키 입력은 평소처럼 앱으로 갑니다. 중국어(병음, Rime과 rime-ice 기반), 프랑스어, 한국어(한글), 힌디어(라틴 문자로 데바나가리 입력)도 입력할 수 있고, 직접 만든 스크립트를 @ 명령어로 실행할 수도 있습니다.
 
 ![@improve와 다듬지 않은 문장을 입력하고 ⏎: 다듬은 버전과 다시 쓰기](../en/improve.png)
 
@@ -50,12 +50,14 @@
 | 병음 입력, Space / 숫자 | 중국어 모드: 일반 병음 입력기처럼 단어를 고릅니다 |
 | `@`(문장 맨 앞에서) | 명령어 목록을 엽니다. 최근에 많이 쓴 것이 먼저 나오고, 한 번에 5개씩, ↑↓, 스크롤 휠, 트랙패드로 스크롤합니다. 글자를 입력해 찾을 수도 있습니다(전부 입력한 이름이 먼저, 그다음 그 글자로 시작하는 이름, 그다음 그 글자를 포함하는 이름). ⏎, Tab, Space, 숫자 키로 선택합니다 |
 | ⏎ | 명령어를 실행합니다. 병음을 아직 고르지 않았어도 됩니다. Space를 누를 때처럼 먼저 골라집니다 |
-| Space, ⏎ / 숫자 | 결과가 나타나면: 강조된 결과 / 해당 번호의 결과를 삽입합니다. 0은 원문입니다 |
+| Space, ⏎ / 숫자 | 결과가 나타나면: 강조된 결과 / 해당 번호의 결과를 삽입합니다. 0은 원문입니다. 후속 입력을 쓰다 말았어도 ⏎는 삽입합니다(쓰던 내용은 버려집니다) |
+| ⇧⏎ | AI 결과 뒤에 후속 입력을 했을 때: 그것을 보냅니다(`@question` 대화의 다음 질문, 또는 다듬기). 명령어를 입력하는 중이거나, AI 결과에서 아무것도 입력하지 않았을 때: 입력한 그대로, `@command`까지 포함해 삽입합니다. 다른 결과(`@open`, 미리 알림 …)에서는 ⏎처럼 강조된 행을 삽입합니다. `@config`와 `@doctor` 결과에서는 아무것도 입력하지 않고 ⇧⏎를 누르면 아무 일도 일어나지 않습니다 |
 | ⌘C | 강조된 결과를 복사합니다(`@open`에서는 경로). 후보 패널은 열린 채로 있습니다 |
 | ⌃V | 명령어 안에서(예: `@improve ` 뒤): 클립보드 텍스트를 앱에 붙여 넣는 대신, 입력한 내용 뒤에 덧붙입니다. 여러 줄은 한 줄로 합쳐지며, 한 번에 최대 2000자입니다(`@note`는 줄바꿈을 유지하며 최대 20000자). 어떤 앱에서든 작동하며, 명령어가 없으면 키는 평소처럼 앱으로 갑니다 |
 | ⌘V | ⌃V와 같지만, ⌘V를 직접 처리하는 앱(Ghostty, iTerm2, Terminal 같은 터미널과 Notes)에서는 평소처럼 앱에 붙여 넣습니다. 그런 앱에서는 ⌃V를 쓰세요 |
 | Esc, ⌫ | 문장으로 돌아가 계속 편집합니다. 결과가 나온 뒤 문장 부호나 숫자를 입력하면 문장을 이어 씁니다. 다듬은 뒤에는: 그 전의 결과로 돌아갑니다 |
-| AI 결과가 나온 뒤 입력하는 글자 | `shorter` 같은 후속 지시입니다. ⏎를 누르면 결과를 다듬습니다([결과 다듬기](#결과-다듬기-신규) 참고) |
+| AI 결과가 나온 뒤 입력하는 글자 | 후속 입력입니다. `@question` 뒤에서는 다음 질문([대화](#question으로-대화하기-신규) 참고), `@improve`나 프롬프트 명령어 뒤에서는 `shorter` 같은 지시([결과 다듬기](#결과-다듬기-신규) 참고)이며, ⇧⏎로 보냅니다. `@translate` 뒤에서는 글자가 문장을 이어 쓰고, ⏎를 누르면 다시 번역합니다 |
+| ⌘⏎, ⌘1–⌘9 | `@question` 대화에서: 이어서 할 수 있는 곳(설치된 코딩 에이전트, `@agent`가 넘기는 에이전트가 먼저; Claude, ChatGPT, Gemini; 또는 복사)을 보여 줍니다. ⌘1, ⌘2 …로 하나를 고릅니다 |
 | 행 클릭 | 후보 패널에서: 그 행의 숫자 키를 누른 것처럼 선택합니다(단어, 목록의 명령어, 결과, `@open` 파일, 받는 사람, 확장의 행). 포인터 아래의 행이 강조됩니다. 텍스트 필드는 포커스를 유지합니다 |
 | Shift 가볍게 누르기 | 입력 언어가 둘 이상일 때: 순서대로 다음 언어로 바꿉니다(영어 → 중국어 → 프랑스어 → …, 그다음 다시 처음으로) |
 | 오른쪽 ⌥ 누르고 있기 | 말하고, 떼면 멈춥니다. 입력 중인 언어(영어, 중국어, 프랑스어, 한국어, 힌디어)로 인식합니다. 명령어 안에서는 텍스트가 그 뒤에 들어가고, 그렇지 않으면 바로 삽입됩니다 |
@@ -66,10 +68,12 @@
 |---|---|
 | `@improve` | 다듬기: 1–3은 문장 원래 언어로 된 세 가지 버전, 4부터는 다시 쓰기 스타일(설정에서 추가하고 순서를 정함), 0은 원문입니다. 번역은 하지 않습니다. "@improve also translates"(@improve에서도 번역)를 켜면 `@translate @improve`처럼 작동합니다 |
 | `@translate` | 추가한 언어로 번역합니다(설정 → "Translate", 드래그로 순서 변경). 언어마다 한 줄이며, 언어가 하나뿐이면 세 가지 버전입니다. 문장 원래 언어는 건너뜁니다. `@translate @improve`를 함께 쓰면 한 번의 요청으로 번역과 다시 쓰기를 합니다 |
-| `@question` | 질문합니다. 답은 후보에 나타나며, ⏎ 또는 Space로 삽입하고 ⌘C로 복사합니다. 뒤에 아무것도 입력하지 않으면 최근 질문 5개를 최신순으로 보여 줍니다. 입력하면 범위가 좁혀집니다(질문 안 어디에 있는 단어든, 대소문자 구분 없이, 중국어도). 숫자 키, ↑↓ 후 ⏎, 또는 클릭하면 그 질문의 저장된 답을 오프라인으로 바로 보여 주며, 평소처럼 삽입하거나 복사할 수 있습니다. 거기서 R을 누르면 다시 질문해 새 답을 받습니다. 일치하는 것이 없거나 아무것도 고르지 않으면 ⏎는 입력한 내용을 질문합니다 |
-| `@claude` | 작업을 Claude Code에 넘깁니다. 기본적으로 백그라운드에서 실행되며, 끝나면 알림이 옵니다(클릭하면 Terminal에서 그 세션을 열어 이어서 할 수 있습니다). `@tasks`로 확인할 수도 있습니다. 여러분의 Claude Code(`claude` 명령어)를 그 자체의 로그인과 설정으로 사용합니다. 설정에서 "@claude runs in the background and notifies me"(@claude를 백그라운드에서 실행하고 끝나면 알림)를 끄면 예전처럼 Terminal에서 엽니다. 처음 Terminal을 열 때 macOS가 AllInOneIME가 Terminal을 제어하도록 허용할지 묻습니다. "OK"(확인)를 클릭하세요 |
+| `@question` | 질문합니다. 답은 후보에 나타나며, ⏎ 또는 Space로 삽입하고 ⌘C로 복사합니다. 계속 입력하고 ⇧⏎를 누르면 후속 질문을 합니다. 패널이 최대 5회차의 대화가 되고, 그다음에는 Claude나 다른 AI에서 이어 가자고 제안합니다. 뒤에 아무것도 입력하지 않으면 최근 질문 5개를 최신순으로 보여 줍니다. 입력하면 범위가 좁혀집니다(질문 안 어디에 있는 단어든, 대소문자 구분 없이, 중국어도). 숫자 키, ↑↓ 후 ⏎, 또는 클릭하면 그 질문의 저장된 답을 오프라인으로 바로 보여 주며, 평소처럼 삽입하거나 복사할 수 있습니다. 거기서 ⌘R을 누르면 다시 질문해 새 답을 받습니다. 일치하는 것이 없거나 아무것도 고르지 않으면 ⏎는 입력한 내용을 질문합니다 |
+| `@agent` | 작업을 Mac의 코딩 에이전트에 넘깁니다. 에이전트는 Settings → Agent에서 고릅니다: Claude Code(기본값), Gemini CLI, Kiro CLI, 또는 직접 만든 명령(입력한 내용이 마지막 인수로 붙습니다). 이 페이지에는 각 에이전트가 설치되어 있는지, 어떻게 시작하는지도 표시됩니다. Claude Code는 기본적으로 백그라운드에서 실행되며 끝나면 알림을 보내고(알림을 클릭하면 Terminal에서 세션을 열어 이어 갈 수 있음), `@tasks`에서도 볼 수 있습니다. 그 페이지의 Claude Code 아래에 있는 "Runs in the background and notifies me"(백그라운드에서 실행하고 끝나면 알림)를 끄면 Terminal에서 엽니다. 다른 에이전트는 Terminal에서 열리며, 입력한 내용이 첫 메시지가 됩니다. 각 에이전트는 자체 로그인과 설정을 씁니다. 처음 Terminal을 열 때 macOS가 AllInOneIME가 Terminal을 제어해도 되는지 묻습니다. "확인"을 클릭하세요. (0.6.4 이전에는 `@claude`였습니다.) |
 | `@tasks` | 백그라운드 Claude 작업(진행 중 / 완료 / 응답 대기)과 각각의 마지막 답장을 나열합니다. ⏎는 Terminal에서 열고, ⌘C는 답장을 복사합니다 |
 | `@settings` | 설정 창을 바로 엽니다(고르기만 하면 됩니다) |
+| `@config` | 말로 설명한 대로 설정을 바꿉니다: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎를 누르면 바뀌는 내용을 이전 → 이후로 보여 주고, ⏎(또는 1)로 적용, Esc로 취소, 더 입력하고 ⇧⏎를 누르면 다시 다듬습니다. ⌘Z 또는 `@config undo`로 되돌립니다. [말로 설정 바꾸기](#말로-설정-바꾸기-신규) 참고 |
+| `@doctor` | 이 Mac의 설정 상태를 점검하고 안전하게 고칠 수 있는 것은 고칩니다. ⏎를 누르면 결과를 문제부터 나열하고, 숫자로 그 항목을, ⏎로 안전한 항목들을 `@config`의 미리 보기를 거쳐 고칩니다. `@doctor why doesn't translate work`처럼 쓰면 AI가 가능한 원인도 설명합니다. [설정 점검하기](#설정-점검하기-신규) 참고 |
 | `@open` | 입력하는 대로 일치하는 파일, 폴더, 앱을 나열합니다(Spotlight). 공백으로 구분해 여러 키워드를 쓸 수 있습니다. 각 키워드는 경로에 있어야 하고, 적어도 하나는 이름에 있어야 합니다(표준 폴더의 이름은 그 안의 항목에도 적용됩니다. `downloads pdf`는 Downloads(다운로드) 안의 PDF를 찾습니다). 앱과 표준 폴더는 중국어 이름으로도 찾을 수 있고, 중국어 인터페이스에서는 그 이름으로 표시됩니다. `@open`으로 연 항목이 먼저 나오고, 그다음 앱과 그 폴더들, 그다음 최근에 사용하거나 변경한 파일이 나옵니다. 이름으로 찾은 파일이 두 개 이하이고 해당하는 앱이나 그 폴더가 없으면, 홈 폴더의 파일을 내용으로도 검색하며 그 행에는 "content"(내용)라고 표시됩니다. 그 밖에 아무것도 없으면, ⏎는 첫 항목을 여는 대신 그것들을 나열해 고를 수 있게 합니다. 웹 주소(`github.com`, `localhost:3000`, `https://…`)를 입력하면 첫 행은 "open in the browser"(브라우저에서 열기)이고 내용은 검색하지 않습니다. 정확히 그 이름의 파일(예: `MANIFEST.in`)이 있으면 그것이 먼저 나옵니다. `~/`나 `/`로 시작하는 텍스트는 경로입니다. Tab은 경로를 완성하며 폴더 안으로 들어가고, ⏎는 열고, ⌘C는 경로를 복사합니다 |
 | `@note` | 텍스트를 Notes 앱의 AllInOneIME라는 폴더(없으면 만듦)에 저장합니다. 아무것도 삽입되지 않습니다. 붙여 넣은 텍스트는 줄바꿈을 유지하며 최대 20000자입니다 |
 | `@reminder` | Reminders 앱의 AllInOneIME라는 목록에 미리 알림을 추가합니다. 시간은 텍스트 안에 쓰세요. 시간은 Mac에서 해석되며, 해석한 결과가 한 행에 표시됩니다. ⏎ 또는 Space로 추가하고, Esc로 편집으로 돌아갑니다. 시간이 있으면 그때 알림이 울리고, 날짜만 있으면 종일 일정이 됩니다 |
@@ -87,24 +91,37 @@
 
 ![@open은 입력하는 대로 앱을 찾음. /로 시작하면 경로: 폴더 내용이 나열되고 Tab으로 완성](../en/open.png)
 
-`@john`처럼 `@` 뒤에 명령어가 오지 않으면 `@`가 평소처럼 입력되므로, 채팅 앱에서 사람을 @멘션하는 것도 그대로 됩니다. `@question`, `@improve`, `@translate`는 실행 키를 눌렀을 때만 여러분의 Bedrock으로 보냅니다. `@open`은 이 Mac에서만 검색합니다. `@note`와 `@reminder`는 이 Mac의 Notes와 Reminders로만 갑니다. `@claude`는 Mac에 설치된 Claude Code(`claude` 명령어)와 그 계정을 사용하며, 파일을 바꾸거나 명령어를 실행하기 전에 평소처럼 먼저 묻습니다. Claude Code가 설치되어 있지 않으면 `@claude`는 제공되지 않습니다. `@imessage`는 이 Mac의 Contacts(이름, 전화번호, 이메일)만 읽으며, AI를 거치지 않고, 메시지는 Messages가 보냅니다. Messages 앱이 없으면 제공되지 않습니다.
+`@john`처럼 `@` 뒤에 명령어가 오지 않으면 `@`가 평소처럼 입력되므로, 채팅 앱에서 사람을 @멘션하는 것도 그대로 됩니다. 글자, 숫자, `.`, `_`, `-` 바로 뒤에 입력한 `@`는(`bob@example.com`이나 `ssh user@host`처럼) 그냥 텍스트입니다. 목록이 열리지 않으며, 터미널을 포함해 모든 앱에서 그렇습니다. 목록이 열려 있을 때 ← →나 명령어 이름에 들어갈 수 없는 키(`.`, `:`, `/`)를 누르면 목록이 닫히고 입력한 내용(`@`, `@im`)은 그대로 남습니다. 터미널에서는 이때 ← →가 목록만 닫습니다. `@question`, `@improve`, `@translate`는 실행 키를 눌렀을 때만 여러분의 Bedrock으로 보냅니다. `@open`은 이 Mac에서만 검색합니다. `@note`와 `@reminder`는 이 Mac의 Notes와 Reminders로만 갑니다. `@agent`는 Mac에 설치된 에이전트(기본값은 Claude Code의 `claude` 명령어)와 그 계정을 사용하며, 파일을 바꾸거나 명령어를 실행하기 전에 평소처럼 먼저 묻습니다. 그 에이전트가 설치되어 있지 않으면 `@agent`는 제공되지 않습니다. `@imessage`는 이 Mac의 Contacts(이름, 전화번호, 이메일)만 읽으며, AI를 거치지 않고, 메시지는 Messages가 보냅니다. Messages 앱이 없으면 제공되지 않습니다.
 
 `@calculate`는 이 Mac에서 오프라인으로 작동합니다. `+ - * /`(`× ÷`도 가능), 거듭제곱의 `^` 또는 `**`, 괄호, 퍼센트(`50%`는 0.5, `200*5%`는 10. 계산기처럼 더하거나 빼는 퍼센트는 앞의 값에 대한 것입니다: `100+10%`는 110, `100-10%`는 90), 함수 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`(`log`는 밑이 10, 각도는 라디안, `round(x, 2)`는 소수 둘째 자리까지), 상수 `pi`(`π`)와 `e`를 쓸 수 있습니다. 전각 숫자와 기호도 됩니다. 계산은 십진수로 정확하게 하므로 `0.1+0.2`는 `0.3`입니다. 결과는 유효 숫자 최대 15자리이며, 38자리까지의 정수는 생략 없이 표시됩니다(`2^100` → `1267650600228229401496703205376`).
 
 ### 선택한 텍스트에서 (신규)
 
-아무 앱에서나 텍스트를 선택하고(메모의 한 문장, Mail의 한 단락), `@improve`, `@translate`, `@question` 또는 텍스트를 받는 다른 명령어를 입력한 뒤 ⏎를 누르세요. 명령어가 선택 영역을 대상으로 동작하고, 고른 결과가 선택 영역을 대체합니다. 입력하는 동안 선택 영역은 그대로, 선택된 채로 남습니다. 명령어는 후보 패널에 적히며, 첫 줄은 입력하는 내용이고 다음 줄은 "On the selection: “…” (N characters)"(선택 영역에 대해: N자)입니다. Esc, ⇧⏎, 다른 곳 클릭은 텍스트를 원래대로 둡니다. 그사이 선택 영역을 바꿔도 마찬가지이며, 명령어는 취소됩니다. 명령어 뒤에 입력한 텍스트는 `@improve`와 `@translate`에서는 지시(`@translate ja`, `@improve more formal`), `@question`에서는 선택 영역에 대한 질문(`@question what does this mean`)이 됩니다. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`, `@imessage`, `@reportissue`, 터미널 명령어, 스크립트 확장은 선택 영역을 쓰지 않습니다. 이들은 입력한 내용만 받고, 선택 영역은 그대로 남습니다. 최대 5000자이며, 보안 입력 중이거나 터미널에서는 절대 읽지 않습니다. 어떤 앱에서 제대로 동작하지 않으면 Settings → General → "Use the selected text"(선택한 텍스트 사용)에서 끄세요.
+아무 앱에서나 텍스트를 선택하고(메모의 한 문장, Mail의 한 단락), `@improve`, `@translate`, `@question` 또는 텍스트를 받는 다른 명령어를 입력한 뒤 ⏎를 누르세요. 명령어가 선택 영역을 대상으로 동작하고, 고른 결과가 선택 영역을 대체합니다. 입력하는 동안 선택 영역은 그대로, 선택된 채로 남습니다. 명령어는 후보 패널에 적히며, 첫 줄은 입력하는 내용이고 다음 줄은 "On the selection: “…” (N characters)"(선택 영역에 대해: N자)입니다. Esc, ⇧⏎, 다른 곳 클릭은 텍스트를 원래대로 둡니다. 그사이 선택 영역을 바꿔도 마찬가지이며, 명령어는 취소됩니다. 명령어 뒤에 입력한 텍스트는 `@improve`와 `@translate`에서는 지시(`@translate ja`, `@improve more formal`), `@question`에서는 선택 영역에 대한 질문(`@question what does this mean`)이 됩니다. `@open`, `@agent`, `@tasks`, `@settings`, `@reminder`, `@imessage`, `@reportissue`, 터미널 명령어, 스크립트 확장은 선택 영역을 쓰지 않습니다. 이들은 입력한 내용만 받고, 선택 영역은 그대로 남습니다. 최대 5000자이며, 보안 입력 중이거나 터미널에서는 절대 읽지 않습니다. 어떤 앱에서 제대로 동작하지 않으면 Settings → General → "Use the selected text"(선택한 텍스트 사용)에서 끄세요.
 
 ### 결과 다듬기 (신규)
 
-`@improve`, `@translate`, `@question` 또는 프롬프트 명령어의 결과가 나와 있는 동안 바꿀 점을 입력하세요. 예를 들어 `shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese`, `用更口语的说法` 같은 것입니다(병음도 되고, Shift를 가볍게 누르면 언어가 바뀝니다). ⏎를 누르면 결과가 지시와 함께 다시 AI로 가고, 새 결과가 같은 패널에서 기존 결과를 대체합니다. 원하는 만큼 다시 다듬을 수 있습니다. 패널 맨 위 줄에 단계가 나열되고("Refined: shorter · more formal"), 언제든 평소처럼 행을 고를 수 있습니다. 글자를 입력하면 지시가 시작됩니다(패널 위쪽에 "refine › …"로 표시). 지시가 비어 있는 동안에는 숫자 키, Space, ⏎가 전처럼 선택에 쓰입니다. 다듬기는 결과가 모두 나온 뒤에 시작됩니다. 첫 결과가 아직 들어오는 동안 입력하면 전처럼 문장을 이어 씁니다. 다듬기가 진행되는 동안에도 다음 지시를 미리 입력할 수 있습니다. 다듬기는 계속 진행되고, 그 결과가 들어오면 ⏎로 다음 다듬기를 실행합니다. Esc는 지시를 지우고, 그다음 마지막 다듬기 전의 결과로 한 단계 돌아가며(다듬기 중이면 멈추고), 그다음 문장으로 돌아갑니다. 빈 줄에서 ⌫를 눌러도 같은 방식으로 돌아갑니다. 선택한 텍스트에서는 고른 결과가 여전히 정확히 선택 영역만 대체하며, 그때까지 선택 영역은 건드리지 않습니다. 실패한(또는 보안 입력 중에 거부된) 다듬기는 결과를 그대로 두고, 그 지시는 ⏎로 다시 시도할 수 있게 남겨 둡니다. 같은 결과에 대한 같은 다듬기는 캐시에서 답합니다.
+`@improve`, 프롬프트 명령어(직접 만든 것 또는 플러그인의 것), 또는 선택 영역 다시 쓰기의 결과가 나와 있는 동안 바꿀 점을 입력하세요. 예를 들어 `shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese`, `用更口语的说法` 같은 것입니다(병음도 되고, Shift를 가볍게 누르면 언어가 바뀝니다). ⇧⏎를 누르면 결과가 지시와 함께 다시 AI로 가고, 새 결과가 같은 패널에서 기존 결과를 대체합니다. ⏎는 선택된 결과를 삽입하며, 지시를 쓰다 말았어도 마찬가지입니다(쓰던 지시는 버려집니다). 원하는 만큼 다시 다듬을 수 있습니다. 패널 맨 위 줄에 단계가 나열되고("Refined: shorter · more formal"), 언제든 평소처럼 행을 고를 수 있습니다. 글자를 입력하면 지시가 시작됩니다(패널 위쪽에 "refine › …"로 표시). 지시가 비어 있는 동안에는 숫자 키, Space, ⏎가 전처럼 선택에 쓰이고, ⇧⏎는 입력한 그대로 삽입합니다. 다듬기는 결과가 모두 나온 뒤에 시작됩니다. 첫 결과가 아직 들어오는 동안 입력하면 전처럼 문장을 이어 씁니다. 다듬기가 진행되는 동안에도 다음 지시를 미리 입력할 수 있습니다. 다듬기는 계속 진행되고, 그 결과가 들어오면 ⇧⏎로 다음 다듬기를 실행합니다. Esc는 지시를 지우고, 그다음 마지막 다듬기 전의 결과로 한 단계 돌아가며(다듬기 중이면 멈추고), 그다음 문장으로 돌아갑니다. 빈 줄에서 ⌫를 눌러도 같은 방식으로 돌아갑니다. 선택한 텍스트에서는 고른 결과가 여전히 정확히 선택 영역만 대체하며, 그때까지 선택 영역은 건드리지 않습니다. 실패한(또는 보안 입력 중에 거부된) 다듬기는 결과를 그대로 두고, 그 지시는 ⇧⏎로 다시 시도할 수 있게 남겨 둡니다. 같은 결과에 대한 같은 다듬기는 캐시에서 답합니다. `@translate`에는 다듬기가 없습니다. 결과 뒤에 입력하면 문장을 이어 쓰고, ⏎를 누르면 다시 번역합니다.
+
+### @question으로 대화하기 (신규)
+
+`@question`이 답한 뒤에 입력하는 내용은 다음 질문이 됩니다. ⇧⏎를 누르면 지금까지의 질문과 답을 함께 붙여 질문하고, 패널은 대화 형태로 커집니다. 이전 회차는 흐리게 Q / A 행으로, 최신 답은 그 아래에 표시됩니다. 맨 위 줄은 다음이 몇 번째 회차인지 알려 줍니다("question 2/5 › …"). 어느 답이든 삽입할 수 있습니다. 해당 숫자(1–5), ↑↓ 후 ⏎, 또는 클릭입니다. 최신 답이 선택되어 있고, ⌘C는 선택된 답을 복사합니다. 질문을 쓰다 말았어도 ⏎는 답을 삽입합니다(쓰던 질문은 버려집니다). Esc는 입력한 내용을 지우고, 그다음 한 회차 돌아갑니다. 첫 회차에서는 전처럼 빠져나갑니다. 패널은 화면의 절반쯤까지 커진 뒤 스크롤되며, 최신 내용이 맨 아래에 옵니다.
+
+5회차가 지나면(설정 파일의 `questionRounds`, 2–10) 다음 질문 줄이 "5 rounds in: continue in Claude or another AI"(5회차 진행: Claude나 다른 AI에서 이어 가기)로 바뀌고, 선택지에 ⌘1, ⌘2 … 번호가 붙습니다. ⌘⏎를 누르면 어느 회차에서든 선택지를 볼 수 있습니다(답이 아직 들어오는 중이면 아무것도 하지 않으며, 앱으로 전달되지도 않습니다). 이때 입력하는 내용은 그곳에서의 첫 메시지가 되며, ⌘1, ⌘2 …만 그것을 보냅니다(⇧⏎는 더 이상 질문하지 않고 아무것도 열지 않습니다). 선택한 텍스트에 대한 질문은 그 텍스트를 별도의 인용 블록으로 함께 가져갑니다. 선택지:
+
+- 이 Mac에 **설치된 코딩 에이전트**, 각각 그 이름으로 표시됨: `@agent`가 넘기는 에이전트가 먼저(⌘1), 그다음 나머지(Claude Code, Gemini CLI, Kiro CLI, Settings → Agent에서 정한 직접 만든 명령). 각각 Terminal에서 대화형 세션을 열고, `@agent`가 시작하는 방식대로 시작해 대화 내용과 "Let's continue this discussion"으로 시작합니다. 설치되지 않은 것은 표시되지 않습니다.
+- 웹의 **Claude** 또는 **ChatGPT**, 대화가 채워진 상태로 열립니다(긴 대화는 클립보드로 가니 붙여 넣으세요).
+- 웹의 **Gemini**, 대화는 클립보드에 있으니 붙여 넣습니다.
+- **Copy the conversation**(대화 복사), Markdown 형식(**Q:** / **A:**)입니다.
+
+어떤 것을 어떤 순서로 보여 줄지(첫 번째가 기본값): Settings → General → "Continue a conversation in"(대화를 이어 갈 곳, 설정 파일의 `questionContinueIn`). 5개를 넘으면 나머지는 ⌘6 … ⌘9로 고릅니다. 거기의 "@agent's agent"(@agent의 에이전트)는 Settings → Agent에서 고른 에이전트이며, 그 이름으로 표시됩니다. 지금 설치되어 있지 않은 에이전트도 목록을 편집할 때 제자리를 유지합니다. 이 Mac의 Apple Intelligence를 쓰면 긴 대화는 작은 컨텍스트에 다 들어가지 않습니다. 가장 오래된 답부터 줄이고, 그다음 가장 오래된 회차를 빼며, 패널에 "earlier rounds shortened"(이전 회차 줄임)라고 표시합니다. 대화는 첫 질문으로 최근 질문에 저장되며, 고르면 이어 갈 수 있도록 각 회차가 표시됩니다.
 
 ### 최근 질문 (신규)
 
-뒤에 아무것도 입력하지 않은 `@question`은 최근 질문 5개를 최신순으로, 질문한 시각("3 hours ago")과 함께 보여 줍니다. 입력하면 범위가 좁혀집니다. 각 단어가 질문 안 어디에 있든, 대소문자 구분 없이 찾습니다(띄어쓰기 없는 중국어도). 숫자 키, ↑↓ 후 ⏎, 또는 클릭하면 그 질문의 저장된 답을 온라인에 접속하지 않고 바로 보여 줍니다. Space 또는 ⏎로 삽입, ⌘C로 복사, 0으로 질문 보기, R로 다시 질문해 새 답 받기, Esc로 목록으로 돌아갑니다. 일치하는 것이 없거나 아무것도 고르지 않으면 ⏎는 입력한 내용을 질문합니다. 같은 질문에 대한 새 답(다시 묻거나 다듬은 것)은 저장된 답을 대체합니다.
+뒤에 아무것도 입력하지 않은 `@question`은 최근 질문 5개를 최신순으로, 질문한 시각("3 hours ago")과 함께 보여 줍니다. 입력하면 범위가 좁혀집니다. 각 단어가 질문 안 어디에 있든, 대소문자 구분 없이 찾습니다(띄어쓰기 없는 중국어도). 숫자 키, ↑↓ 후 ⏎, 또는 클릭하면 그 질문의 저장된 답을 온라인에 접속하지 않고 바로 보여 줍니다. Space 또는 ⏎로 삽입, ⌘C로 복사, ⌘R로 다시 질문해 새 답 받기(대화라면 마지막 질문), Esc로 목록으로 돌아갑니다. 저장된 대화는 모든 회차를 보여 주며, 입력하면 이어서 대화할 수 있습니다. 일치하는 것이 없거나 아무것도 고르지 않으면 ⏎는 입력한 내용을 질문합니다. 같은 질문에 대한 새 답이나 이어진 대화는 저장된 것을 대체합니다.
 
 - 질문은 이 Mac에만 보관됩니다(개인정보 보호 참고). 보안 입력 중에는 보관하지 않고, 선택한 텍스트에 대한 질문은 절대 보관하지 않습니다.
-- Settings → General → "Remember recent questions"(최근 질문 기억)로 끌 수 있으며, 끄면 삭제됩니다(설정 파일의 `rememberQuestions`). "Clear (N)"(지우기)는 질문을 삭제합니다.
+- Settings → General → "Remember recent questions"(최근 질문 기억)로 끌 수 있습니다(설정 파일의 `rememberQuestions`). 거기서 끄면 질문도 삭제됩니다. `@config`로 끄면 질문이 남아 있어서, 되돌리면 정확히 이전 상태로 돌아갑니다(미리 보기에도 그렇게 표시됩니다). "Clear (N)"(지우기)는 질문을 삭제합니다.
 
 ### 메모와 미리 알림
 
@@ -172,11 +189,24 @@ echo "Flights from $1 to $2"
 
 Raycast의 모드는 다음과 같이 대응됩니다: `fullOutput` → `show`, `compact`와 `silent` → `silent`, `refreshTime`이 있는 `inline` → 상태. 전체 프로토콜은 [docs/extensions.md](../extensions.md)에 있으며, [Examples/extensions](../../Examples/extensions)에는 종류별 예제가 하나씩 있습니다. 확장 기능은 Mac에서 코드를 실행합니다. 신뢰하는 것만 쓰세요. 확장 기능은 실행할 때만 동작하고(상태나 목록은 입력하는 동안), 보안 입력 중에는 절대 동작하지 않으며, 입력기가 종료되면 멈춥니다.
 
+#### 확장 소스 (신규)
+
+번들은 내 Git 저장소나 팀의 Git 저장소에서 가져와 그곳에서 계속 최신 상태로 유지할 수 있습니다. "Settings → Custom Commands → Extension Sources → **Add from Link…**"(설정 → 사용자 지정 명령어 → 확장 소스 → 링크로 추가…)에서 저장소 주소를 붙여 넣으세요(`git@github.com:you/my-extensions.git`, `ssh://…`, `https://…`. 필요하면 브랜치, 저장소 안의 번들 폴더, 고정할 태그나 커밋도 지정합니다). AllInOneIME는 **사용자 자신의 git과 SSH 설정**(키, 에이전트, ~/.ssh/config, 자격 증명 도우미)으로 클론하므로, 비공개 저장소도 Terminal에서처럼 동작합니다. 앱은 암호를 묻거나 저장하지 않습니다. 클론은 `~/Library/Application Support/AllInOneIME/Sources/`에 들어갑니다. 먼저 숨겨진 준비 폴더에 들어가며, 확장 폴더로 바로 들어가는 일은 없습니다. (https 주소에 사용자 이름, 암호, 토큰을 넣지 마세요. 그런 것은 git의 자격 증명 도우미가 보관합니다.)
+
+- **먼저 검토합니다.** 무엇이든 불러오기 전에 번들, 각 명령어(이름, 제목, 설명, 출력), 명령어가 실행하는 프로그램, 번들의 환경설정, 커밋을 "This source isn't signed: it will run programs from <address>"(이 소스는 서명되지 않았습니다: 그 주소의 프로그램을 실행합니다)라는 경고 아래에서 보게 됩니다. **Enable**(활성화)을 눌러야만 추가되며, Cancel(취소)은 클론을 삭제합니다. 소스 검토는 한 번만 합니다.
+- **업데이트 적용은 사용자가 결정합니다.** 하루에 한 번(그리고 입력기가 시작된 직후) 소스를 가져와(fetch) 새로운 것이 있는지 확인합니다. 설정에 "N updates"(업데이트 N개)와 그 커밋(제목, 작성자, 날짜), 페이지의 배지가 표시됩니다. **Update**(업데이트)를 클릭하기 전까지는 아무것도 바뀌지 않으며, Update는 fast-forward만 하고 훅은 실행하지 않습니다. 강제 푸시가 있으면 소스를 다시 검토해야 합니다. **Re-clone**(다시 클론)이 검토 화면을 보여 주고, Enable을 눌러야만 다시 쓰인 기록으로 바뀝니다(그때까지는 검토한 버전이 계속 동작합니다). 태그나 커밋에 고정한 소스는 확인하지 않습니다. 매일 확인은 소스마다 끌 수 있습니다(`autoCheck`).
+- **오류**는 git의 메시지 그대로이며, "This uses your own git and SSH setup; check that `git ls-remote <url>` works in Terminal"(사용자 자신의 git과 SSH 설정을 사용합니다. Terminal에서 이 명령이 동작하는지 확인하세요)과, 설정했다면 그 아래에 사용자 자신의 안내 문구(설정 파일의 `authHint`)가 붙습니다.
+- **Remove**(제거)는 클론을 휴지통으로 옮깁니다. 번들의 환경설정은 다음을 위해 남겨 둡니다.
+- 터미널에서: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`(검토 내용을 출력하고 활성화합니다. 강제 푸시 뒤에도 다시 실행), `--update-sources`(고정되지 않은 검토된 소스를 모두 fast-forward), `--list-extensions`(실행 파일은 `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+- 검토된 코드만 불러옵니다. 불러오기 목록에 있어도 이 Mac에서 검토하지 않은 소스 폴더(복사해 온 설정 파일 등)는 제외됩니다. git은 응답을 기다리지 않습니다. 터미널도 프롬프트도 없으므로, 알 수 없는 호스트 키나 암호 요청은 바로 실패합니다.
+
+설정 파일에는 `extensionSources`로 저장됩니다. 저장소 구성은 [docs/extensions.md](../extensions.md#10-extension-sources)에 있습니다.
+
 ### 플러그인
 
 플러그인은 모든 사람에게 필요하지는 않은 기능을 위한 기성 `@` 명령어입니다. 예를 들어 `@stock AAPL 600519 700`은 주가를 보여 줍니다. 설치하면 다른 명령어처럼 작동합니다. 설정의 "Plugins"(플러그인)에서 설치된 플러그인과 각 플러그인이 텍스트를 어디로 보내는지 확인하고, 제거할 수 있습니다. 플러그인은 별도 프로세스에서 실행되는 JavaScript로, 선언한 웹사이트(HTTPS)에만 접속할 수 있고 파일을 읽거나 다른 프로그램을 실행할 수 없습니다. 설정의 "Plugins"에 있는 "Browse Library…"(라이브러리 둘러보기…)로 [플러그인 라이브러리](https://github.com/MicroZ-LLC/AllInOneIME-plugins)에서 설치합니다. 설치 전에 플러그인이 접속하는 웹사이트를 보여 주며, 라이브러리의 색인은 서명되어 있고 모든 파일이 색인과 일치해야 합니다. 새 버전이 있으면 "Update"(업데이트) 버튼이 나타나며, 저절로 업데이트되는 것은 없습니다. 직접 만든 플러그인은 `~/.config/allinoneime/plugins/`("Open Plugins Folder", 플러그인 폴더 열기)에 둡니다. 이것은 로컬 플러그인이며 라이브러리가 덮어쓰지 않습니다. "Link"(링크) 플러그인은 코드를 실행하지 않습니다. 텍스트를 웹 주소에 넣어 브라우저에서 열 뿐입니다. 예를 들어 `@x nice weather today`는 텍스트가 채워진 X의 작성 화면을 엽니다. 게시할지는 페이지에서 여러분이 정합니다. 라이브러리에는 네 개가 있습니다(`@x`, `@threads`, `@bsky`, `@weibo`). `@xe`는 통화를 환산합니다: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`. 결과는 환율 날짜와 함께 한 줄로 나옵니다(환율 제공: ExchangeRate-API). 플러그인 작성법: [docs/plugins.md](../plugins.md).
 
-무언가를 가져오는 명령어(플러그인과 프로그램)는 문장 안에서도 작동합니다: `@reply tell her @stock AAPL is up today`. 안쪽 명령어가 먼저 실행되어 그 출력이 자리를 대신하고, 바깥 명령어가 그 결과를 처리합니다. 인수는 명령어 뒤의 단어와, 그 바로 뒤에 오는 대문자 코드나 숫자입니다(`@stock AAPL TSLA`, `@stock 600519 700`). 소문자 단어가 나오면 끝납니다(`@stock SNDK is good to buy`는 SNDK를 조회합니다). 따옴표로 정확히 지정할 수 있습니다: `@stock "aapl tsla"`. `@calculate`도 문장 안에서 작동하며, 그 인수는 뒤에 오는 식 전체로, 공백을 포함해 다른 텍스트가 나올 때까지입니다: `@reply the total is @calculate 23 * 17 dollars`. `@claude`와 터미널 명령어 안에서는 실행되지 않습니다. 그런 명령어는 쓴 그대로의 텍스트를 받습니다(그 안에서 `@`를 입력해도 명령어 목록이 열리지 않습니다).
+무언가를 가져오는 명령어(플러그인과 프로그램)는 문장 안에서도 작동합니다: `@reply tell her @stock AAPL is up today`. 안쪽 명령어가 먼저 실행되어 그 출력이 자리를 대신하고, 바깥 명령어가 그 결과를 처리합니다. 인수는 명령어 뒤의 단어와, 그 바로 뒤에 오는 대문자 코드나 숫자입니다(`@stock AAPL TSLA`, `@stock 600519 700`). 소문자 단어가 나오면 끝납니다(`@stock SNDK is good to buy`는 SNDK를 조회합니다). 따옴표로 정확히 지정할 수 있습니다: `@stock "aapl tsla"`. `@calculate`도 문장 안에서 작동하며, 그 인수는 뒤에 오는 식 전체로, 공백을 포함해 다른 텍스트가 나올 때까지입니다: `@reply the total is @calculate 23 * 17 dollars`. `@agent`와 터미널 명령어 안에서는 실행되지 않습니다. 그런 명령어는 쓴 그대로의 텍스트를 받습니다(그 안에서 `@`를 입력해도 명령어 목록이 열리지 않습니다).
 
 ### 실행 키
 
@@ -201,12 +231,30 @@ Settings → Apps에서 앱마다 자체 설정을 줄 수 있으며, 모두 선
 | 그 앱의 텍스트 필드가 시작하는 입력 언어 | Slack은 영어, WeChat은 병음 | `inputLanguage` |
 | 그곳에서 `@improve`가 제공하는 다시 쓰기 스타일 | Mail은 격식 있고 정중하게, Slack은 편하게 | `rewriteStyles` |
 | 결과를 타이핑해 넣을지 여부 | 채팅 앱에서는 켜고, Mail에서는 끄기 | `typeOut` |
-| 이 앱에서는 AI 사용 안 함 | `@improve`, `@translate`, `@question`, `@claude`와 사용자의 프롬프트 명령어는 그곳에서 아무것도 보내지 않고 그렇다고 알립니다. 입력과 다른 명령어는 동작합니다 | `noAI` |
+| 이 앱에서는 AI 사용 안 함 | `@improve`, `@translate`, `@question`, `@agent`와 사용자의 프롬프트 명령어는 그곳에서 아무것도 보내지 않고 그렇다고 알립니다. 입력과 다른 명령어는 동작합니다 | `noAI` |
 
 "Add App…"(앱 추가)은 최근 입력한 앱을 보여 주거나 /Applications에서 하나를 고릅니다. 입력 메뉴의 "This App: <이름>"에는 입력 중인 앱을 위한 빠른 스위치가 있습니다(No AI, Type Results Out, 시작 언어). 설정 파일에서는 번들 ID별로 `appProfiles` 아래에 있습니다: `"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`. 번들 ID는 대소문자를 구분하지 않고 맞춥니다(`com.apple.Mail`은 Mail의 `com.apple.mail`입니다). `@reportissue`는 무언가를 설정한 앱의 수만 세고, 이름은 절대 밝히지 않습니다.
 
 - 시작 언어는 기본 입력 언어처럼 동작합니다. 텍스트 필드가 활성화될 때 그 언어로 시작하고, 이후 Shift로 바꾼 언어는 설정이 바뀔 때까지 그 앱의 필드에서 유지됩니다.
 - No AI에서도 AI 명령어는 @ 목록에 남아 있습니다. 실행하면 알림이 나오고, 쓴 내용은 그대로 남습니다. 사용자의 터미널 명령어(`"type": "terminal"`)는 AI가 아니라 프로그램을 실행하므로 그곳에서도 계속 동작합니다.
+
+### 말로 설정 바꾸기 (신규)
+
+`@config`는 문장을 설정으로 바꿉니다: `@config output languages English and French`, `@config 微信里用中文，邮件里语气正式一点`, `@config candidates in a column`, `@config turn off the typos`, `@config use Claude`. ⏎를 누르면 바뀌는 내용을 후보 패널에 한 줄에 하나씩, 이전 → 이후로, 설정에서 쓰는 이름으로 보여 줍니다("Translation languages: English, Japanese → English, French", "Apps · WeChat · Starts in: Same as everywhere → Chinese"). 아직은 아무것도 바뀌거나 입력되지 않습니다. ⏎(또는 1)로 모두 적용하고, Esc로 취소하며, 더 입력한 뒤 ⇧⏎를 누르면 제안을 다듬습니다("독일어도"처럼. 아무것도 입력하지 않고 ⇧⏎를 누르면 아무 일도 일어나지 않고, ⏎는 표시된 제안을 적용합니다). 적용한 뒤 확인 표시가 떠 있는 동안 ⌘Z를 누르거나, 10분 안에 `@config undo`를 실행하면 그 설정들이 원래 값으로 정확히 돌아갑니다.
+
+- **바꿀 수 있는 것:** 번역 언어와 입력 언어(그리고 기본 언어), 다시 쓰기 스타일, 후보 배치, 결과 타이핑(켜기/끄기, 속도, 빨라졌다 느려졌다, 오타), 선택 영역 사용, 질문 기억, 민감한 정보 숨기기(켜기/끄기, 숨길 대상, 추가할 단어), 업데이트 확인, 앱별 설정(사용자가 부르는 이름으로 지정한 앱을, 이름이나 번들 ID로 설치된 앱에서 찾음), 그리고 AI 제공업체: 어느 것을 쓸지, Bedrock 프로필(`~/.aws`에서)과 리전, 앱이 그 제공업체에 대해 아는 모델, OpenAI 호환 기본 URL(`https://`만).
+- **절대 건드리지 않는 것:** API 키와 키체인에 있는 모든 것, 사용자 지정 명령어, 확장 폴더와 소스, 플러그인, Jargon 용어 목록, 프로그램을 실행하는 모든 것, 그리고 그 밖의 모든 설정. 이런 행은 이유와 함께 거부되며, 나머지는 그대로 적용할 수 있습니다.
+- **설정에서처럼 확인합니다:** 언어가 아닌 언어, 5개를 넘는 번역 언어, 범위를 벗어난 값, 알아볼 수 없는 앱, 언어 팩이 설치되지 않은 언어("needs the Korean language pack: download it in Settings → Input", 즉 한국어 언어 팩이 필요하니 Settings → Input에서 내려받으라는 뜻)는 행마다 거부됩니다. 잘못된 설정 파일은 절대 쓰지 않습니다.
+- **키:** 키가 없는 제공업체(키체인에도 셸에도 없음)로는 절대 바꾸지 않습니다. 그 행에는 "Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there"(Gemini API에는 API 키가 필요합니다. ⏎로 설정을 열어 추가하세요. AI로는 절대 보내지 않습니다. 거기서 바꿀 수 있습니다)라고 표시되고, 적용하면 Settings → AI Provider가 열리면서 그 키를 위한 작은 시트가 나타나며("Save"로 저장, "Save and Use"로 저장하고 바꾸기), 나머지 행은 그대로 적용됩니다. 키가 있으면 제공업체가 바뀌고 Test Connection이 실행되어 그 결과가 확인 표시 아래에 나타납니다. 문장에 입력한 키는 무엇이든 보내기 전에 제거됩니다.
+- **이 Mac에서 먼저:** 이 Mac에 Apple Intelligence가 있으면(macOS 26), 어떤 제공업체를 골랐든, 심지어 제공업체를 설정하기 전이라도 항상 그것을 씁니다. 허용된 설정과 값으로 제한되며, 앱, AWS 프로필, 언어 팩을 조회할 수 있습니다. 없으면 사용자의 제공업체가 답합니다. 요청에는 허용된 설정과 그 현재 값만 들어 있으며(키나 숨기는 단어는 절대 없음), 민감한 정보 숨기기는 다른 요청과 마찬가지로 적용됩니다.
+
+### 설정 점검하기 (신규)
+
+`@doctor`에서 ⏎를 누르면 이 Mac의 설정 상태를 1–2초 안에 점검하고(그동안 연결 테스트가 표시됩니다), 결과를 후보 패널에 한 줄에 하나씩, ✗ 문제, ⚠ 경고, ✓ 정상 순으로, 각각 짧은 해결 방법과 함께 나열합니다. 점검 대상은 입력기(설치, 활성화, 입력 소스에 있는지), AI 제공업체(키가 저장되어 있는지, 또는 Bedrock 프로필의 자격 증명을 찾을 수 있는지. 읽거나 표시하지는 않습니다. Test Connection. Apple Intelligence), 권한(손쉬운 사용, 받아쓰기를 한다면 마이크, 메모·미리 알림·Terminal·메시지 제어. macOS에는 대화상자 없이 물어봅니다), 보안 입력, 입력 언어의 언어 팩, `config.json`(읽을 수 있는지, 알 수 없는 키, 범위를 벗어난 값, 중복된 언어, 5개를 넘는 번역 언어), 불러오지 못한 확장과 플러그인, 업데이트, 그리고 앱 자체 로그의 최근 오류입니다.
+
+해결 방법이 있는 행에는 번호가 붙습니다. 숫자(또는 클릭)를 누르면 그것이 무엇을 하는지 `@config`의 미리 보기로 보여 주고, ⏎로 적용합니다. 목록에서 ⏎를 누르면 안전한 것을 한꺼번에 모두 고칩니다(설정 복구, 중복된 언어 제거, 입력기 다시 활성화). 시스템 설정 패널 열기, 언어 팩 내려받기, Check for Updates(설정을 엽니다), 설정의 키 입력란은 하나씩 고릅니다. 설정 변경은 `@config`와 똑같이 되돌릴 수 있습니다(⌘Z, `@config undo`). 어떤 해결 방법도 데이터를 지우거나 키를 건드리지 않습니다.
+
+`@doctor <question>`(`@doctor why doesn't translate work`)은 점검을 실행한 뒤, AI가 그 결과로부터 가능한 원인을 설명하고 권하는 해결 방법에 표시합니다(⏎는 여전히 안전한 것만 적용하고, 나머지는 번호로 고릅니다). No AI로 설정한 앱에서도 점검은 실행되며, 질문만 거부됩니다. 이 Mac에 Apple Intelligence가 있으면 그것을 쓰며, 필요한 점검을 도구로 호출합니다. 없으면 사용자의 제공업체를 쓰고, 패널에 그렇게 표시합니다. 보내는 것은 점검 결과(`~` 너머의 경로, 키, 사용자의 텍스트는 없음)와 질문뿐입니다. 점검만 할 때는 Test Connection 요청(제공업체에 테스트할 키나 자격 증명이 있을 때만) 말고는 아무것도 보내지 않습니다.
 
 ## 메뉴 막대 패널
 
@@ -216,7 +264,7 @@ Settings → Apps에서 앱마다 자체 설정을 줄 수 있으며, 모두 선
 
 - Notes(메모): `@note`로 저장한 메모 중 최신 5개. 클릭하면 Notes에서 엽니다.
 - Reminders(미리 알림): Reminders의 AllInOneIME 목록에 있는 아직 완료하지 않은 미리 알림(`@reminder`가 이 목록에 추가합니다). 마감이 가까운 순으로 8개를 표시합니다. 동그라미를 클릭하면 완료 처리하고, 제목을 클릭하면 Reminders를 엽니다.
-- Claude Tasks(Claude 작업): `@tasks`처럼 백그라운드 Claude 작업(`@claude`가 넘긴 것)을 최대 30개, 한 번에 5개씩 표시합니다. 스크롤하면 더 볼 수 있고, 검색 상자에서 제목과 답장을 검색할 수도 있습니다. 진행 상황과 마지막 답장의 첫 줄도 함께 보입니다. 클릭하면 Terminal에서 열어 이어서 할 수 있습니다.
+- Claude Tasks(Claude 작업): `@tasks`처럼 백그라운드 Claude 작업(`@agent`가 Claude Code에 넘긴 것)을 최대 30개, 한 번에 5개씩 표시합니다. 스크롤하면 더 볼 수 있고, 검색 상자에서 제목과 답장을 검색할 수도 있습니다. 진행 상황과 마지막 답장의 첫 줄도 함께 보입니다. 클릭하면 Terminal에서 열어 이어서 할 수 있습니다.
 
 행(메모, 미리 알림, 작업)을 두 손가락으로 왼쪽으로 쓸어 넘기면 "Remove"(제거) 버튼이 나타나고, 끝까지 쓸어 넘기면 바로 제거됩니다. 마우스에서는 오른쪽 클릭하세요. 제거는 패널에서 빼는 것일 뿐입니다. 메모는 Notes에, 미리 알림은 Reminders에(완료되지 않은 채로), 작업은 Claude Code에 그대로 남습니다.
 
@@ -226,7 +274,7 @@ Settings → Apps에서 앱마다 자체 설정을 줄 수 있으며, 모두 선
 
 - Notes: 목록은 패널 자체의 기록이며(패널이 닫혀 있을 때도 유지), Notes를 실행시키는 일은 없습니다. Notes가 이미 실행 중이고 AllInOneIME가 이전에 Notes 제어를 허용받은 경우에만, 패널이 바뀐 제목과 삭제된 메모를 확인합니다.
 - Reminders: 패널이 열릴 때, 60초마다, 그리고 미리 알림이 바뀔 때 AllInOneIME 목록을 읽습니다. 패널이 스스로 macOS에 접근 권한을 묻게 하는 일은 없습니다. macOS가 아직 묻지 않았다면 "Allow Access to Reminders"(미리 알림 접근 허용)를 표시하며, 그 버튼만 권한을 요청합니다. 거부했다면 "Open System Settings"(시스템 설정 열기)를 표시합니다.
-- Claude 작업: 패널은 열려 있는 동안에만 `claude agents`를 실행합니다. 열릴 때 한 번, 새로 고침할 때, `@claude`가 작업을 넘길 때, 그리고 아직 끝나지 않은 작업이 있는 동안 15초마다 실행하며, 모두 끝나면 더 이상 실행하지 않습니다. 마지막 답장은 이 Mac에 있는 Claude Code 대화 기록(`~/.claude/projects`)의 끝부분에서, 기록이 바뀌었을 때만 읽습니다.
+- Claude 작업: 패널은 열려 있는 동안에만 `claude agents`를 실행합니다. 열릴 때 한 번, 새로 고침할 때, `@agent`가 작업을 넘길 때, 그리고 아직 끝나지 않은 작업이 있는 동안 15초마다 실행하며, 모두 끝나면 더 이상 실행하지 않습니다. 마지막 답장은 이 Mac에 있는 Claude Code 대화 기록(`~/.claude/projects`)의 끝부분에서, 기록이 바뀌었을 때만 읽습니다.
 - 패널이 닫혀 있는 동안에는 이 중 아무것도 실행되지 않습니다. `@note`가 저장한 메모의 기록만 남깁니다.
 
 ## 입력과 번역
@@ -302,7 +350,7 @@ Ctrl+Space로 AllInOneIME에 가지 않거나, 얼마 후 U.S.로 되돌아간�
 
 업데이트: Settings → About → Check for Updates(업데이트 확인). 새 버전이 있으면 About에 새로운 내용과 함께 표시되고(메뉴 막대 패널에도 한 줄 나타납니다), "Update to <version>"(<버전>으로 업데이트)을 누르면 내려받아 AllInOneIME의 릴리스 키로 서명된 업데이트 정보와 대조하고, 설치한 뒤 입력기를 다시 시작합니다. 설정, 언어 팩, 학습한 단어, 확장은 그대로 남고, 도중에 문제가 생기면 쓰던 버전으로 되돌립니다. AllInOneIME는 하루에 한 번 백그라운드에서 스스로 확인합니다(About의 "Check for updates automatically"로 끌 수 있습니다). 클릭하기 전에는 아무것도 설치하지 않습니다. 이 기능은 0.6.3부터 동작합니다. 더 오래된 버전을 업데이트하거나 원한다면, 제거하지 말고 새 버전의 디스크 이미지를 그 위에 설치하세요. 업그레이드하기 전에 [변경 기록](../../CHANGELOG.md)을 읽어 보세요. 버전별 변경 사항과 업그레이드 참고 사항이 있습니다.
 
-이전 버전에서 0.6.3으로 업데이트하는 경우: 0.6.3은 Developer ID로 서명된 첫 버전이라, 키체인은 아직 이 앱을 키를 저장한 앱으로 알아보지 못합니다. 저장된 각 키(API 키, AllInOneIME Cloud 로그인, 확장의 암호)가 처음 필요할 때 macOS가 로그인 암호를 묻습니다. 암호를 입력하고 "Always Allow"(항상 허용)를 클릭하세요. 그 뒤로는 이후 업데이트 후에도 다시 묻지 않습니다. Amazon Bedrock의 키는 `~/.aws/credentials`에 있어서 영향을 받지 않습니다.
+이전 버전에서 0.6.3으로 업데이트하는 경우: 0.6.3은 Developer ID로 서명된 첫 버전이라, 키체인은 아직 이 앱을 키를 저장한 앱으로 알아보지 못합니다. 저장된 각 키(API 키, AllInOneIME Cloud 로그인, 확장의 암호)가 처음 필요할 때 macOS가 로그인 암호를 묻습니다. 암호를 입력하고 "Always Allow"(항상 허용)를 클릭하세요. 그 뒤로는 이후 업데이트 후에도 다시 묻지 않습니다. Amazon Bedrock의 키는 `~/.aws/credentials`에 있어서 영향을 받지 않습니다. 터미널에 붙여 넣기와 선택 영역 읽기에 쓰이는 손쉬운 사용(시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용)도 한 단계가 필요합니다. AllInOneIME가 목록에 있으면 제거한 뒤, 요청이 나올 때 다시 켜세요.
 
 AIPinyin(AllInOneIME의 이전 이름)을 설치했었다면 그냥 설치하세요. 이전 AIPinyin.app과 그 설정 실행기는 제거되고, 입력 소스의 항목은 새 이름으로 바뀌므로 다시 추가할 필요가 없습니다. 설정, Jargon 목록, 학습한 단어는 처음 실행할 때 새 폴더(`~/.config/allinoneime` 등)로 옮겨지며, 이전 폴더는 각각 새 폴더를 가리키는 링크로 남습니다.
 
@@ -322,15 +370,36 @@ make install
 
 ## AI 설정
 
-번역과 다시 쓰기에는 여러분의 AI 제공업체를 사용하며, 비용은 여러분의 계정에 청구됩니다. 기본값은 AWS 계정의 Amazon Bedrock이며, Claude API, Gemini, OpenAI 호환 서비스도 쓸 수 있습니다(아래 "기타 AI 제공업체" 참고).
+번역과 다시 쓰기는 Settings → AI Provider에서 고른 AI 제공업체로 갑니다. 새로 설치하면 AllInOneIME Cloud로 시작합니다. 로그인하면 하루 20번의 무료 요청을 쓸 수 있습니다. Apple Intelligence를 지원하는 Mac에서는 대신 이 Mac에서, 계정 없이 실행할 수도 있습니다(아래 "이 Mac의 Apple Intelligence" 참고). 또는 비용을 여러분의 계정으로 내고 자신의 제공업체를 쓸 수 있습니다: AWS 계정의 Amazon Bedrock, Claude API, Gemini, OpenAI 호환 서비스(아래 "기타 AI 제공업체" 참고).
 
 ### Amazon Bedrock
 
 1. AWS 콘솔에서 Bedrock을 활성화하고, 선택한 모델을 쓸 수 있는지 확인하세요. 기본값은 Claude Haiku 4.5입니다. Anthropic 모델을 처음 쓸 때는 사용 사례 양식을 한 번 작성합니다.
-2. `bedrock:InvokeModelWithResponseStream` 권한이 있는 액세스 키를 만들어 `~/.aws/credentials`의 프로필에 넣으세요. 현재는 이런 정적 키만 지원하며, SSO나 assume-role은 지원하지 않습니다.
+2. `bedrock:InvokeModelWithResponseStream`이 허용된 AWS 프로필을 쓰세요. `~/.aws/credentials`의 정적 키, 또는 임시 자격 증명을 받아 오는 프로필(`credential_process`, 역할, SSO. 아래 "AWS 프로필" 참고)입니다.
 3. "AllInOneIME Settings"를 여세요. Spotlight나 응용 프로그램 폴더에서 찾거나, 메뉴 막대의 입력기 아이콘 → "Settings…"(설정…)에서 열 수 있습니다. 프로필, 리전, 모델을 고르고 "Test Connection"(연결 테스트)을 클릭하세요. 설정 창 맨 위의 "Language"(언어)는 영어 또는 중국어로 할 수 있으며, 기본값("System")은 시스템을 따릅니다(시스템의 선호하는 언어에서 중국어가 영어보다 앞이면 중국어, 아니면 영어). 설정 창, 후보 패널의 힌트, 입력 메뉴가 모두 이를 따릅니다.
 
 <img src="../en/settings.png" width="420" alt="설정 창">
+
+#### AWS 프로필
+
+AWS CLI가 아무것도 묻지 않고 쓸 수 있는 프로필이면 무엇이든 됩니다. `~/.aws/config`와 `~/.aws/credentials`(또는 셸의 `AWS_CONFIG_FILE`과 `AWS_SHARED_CREDENTIALS_FILE`이 가리키는 파일)에서 읽습니다. 한 프로필 안에서는 AWS CLI와 같은 순서로, 그 프로필에 있는 첫 번째 것을 씁니다(`role_arn`과 키가 둘 다 있는 프로필은 역할로 봅니다).
+
+| 종류 | 프로필 내용 | 갱신 |
+| --- | --- | --- |
+| 역할 | `role_arn`과 `source_profile`(여기에는 어떤 종류든 올 수 있고 연쇄도 가능하며, 자기 자신을 가리키는 프로필은 자기 키를 씀) 또는 `credential_source = Environment`. `role_session_name`, `external_id`, `duration_seconds` | 만료 5분 전에 STS `AssumeRole`로 다시 받음(프로필의 `region`, 없으면 us-east-1) |
+| SSO | `sso_account_id`, `sso_role_name`과 `sso_session` 및 그 `[sso-session …]` 섹션(또는 예전 방식의 `sso_start_url`, `sso_region`) | 만료 5분 전에 캐시된 로그인으로 다시 받음 |
+| 정적 키 | `~/.aws/credentials`의 `aws_access_key_id`, `aws_secret_access_key`(와 `aws_session_token`) | 요청할 때마다 다시 읽음 |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev`(셸 명령처럼 나누되 셸 없이 실행, 로그인 셸의 PATH로, 홈 폴더에서, 최대 60초) | `Expiration` 5분 전에 다시 실행. 없으면 AWS가 자격 증명을 거부할 때 |
+| 정적 키 | `~/.aws/config`에 있는 같은 키 | 요청할 때마다 다시 읽음 |
+
+프로필이 "default"이면(또는 고르지 않았으면) AWS CLI처럼 셸의 키가 먼저 쓰입니다: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`. 이름을 지정한 프로필은 이것들과 절대 섞이지 않습니다. 셸의 `AWS_REGION`(또는 `AWS_DEFAULT_REGION`)은 AWS CLI처럼 프로필의 `region`보다 우선하고, 설정의 Region 칸은 둘보다 우선합니다.
+
+- **자동:** 만료되는 자격 증명은 메모리에만 두고(디스크에는 절대 쓰지 않음) 만료 5분 전에 다시 받아 옵니다. 10분이 채 안 남았으면 요청은 기존 자격 증명을 쓰면서 백그라운드에서 새것을 받아 오므로, 타이핑이 기다리지 않습니다. 동시에 들어온 요청은 한 번의 받아 오기를 기다립니다. Bedrock이 자격 증명이 만료되었다고 답하면(`ExpiredTokenException` …) 다시 받아 와서 요청을 한 번 더 보냅니다.
+- **SSO:** AllInOneIME는 AWS CLI가 `~/.aws/sso/cache`에 보관하는 로그인을 쓰며(읽기만 함), 브라우저가 필요하기 때문에 대신 로그인할 수는 없습니다. 로그인이 끝나면 후보 패널에 "SSO sign-in expired: run aws sso login --profile X"(SSO 로그인 만료: aws sso login --profile X를 실행하세요)가 표시됩니다. Terminal에서 그 명령을 실행하면(설정에 "Copy Command"와 "Open in Terminal"이 있고, `@doctor`도 복사할 명령을 제공합니다) AllInOneIME가 새 로그인을 알아서 사용합니다.
+- **지원하지 않음:** `mfa_serial`(입력기는 MFA 코드를 물어볼 수 없습니다. `credential_process`나 SSO를 쓰거나, CLI가 자격 증명을 캐시하게 하세요), `credential_source = Ec2InstanceMetadata`나 `EcsContainer`(Mac에는 없음), 그리고 web identity.
+- **알려진 제한:** 로그인 셸에서 가져오는 것은 PATH와 AWS 파일 변수(`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`)뿐이며, `credential_process`에도 마찬가지입니다(나머지 환경 변수는 가져오지 않음). AllInOneIME는 `sso_session` 토큰을 갱신하지 않으므로(CLI의 갱신 토큰은 쓰지 않고, SSO 캐시는 읽기만 함), 캐시된 토큰이 만료되면 `aws sso login`을 실행하세요(AWS CLI를 쓸 때마다 갱신되기도 합니다).
+- **Settings → AI Provider**는 모든 프로필을 종류와 함께 나열하고("dev — Role via base"), 선택한 프로필에 대해 자격 증명이 언제 만료되는지("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") 또는 무엇을 해야 하는지 알려 줍니다. Test Connection은 체인 전체를 거쳐 새 자격 증명을 받아 오고, `@doctor`도 같은 내용을 보고합니다.
+- 프로그램을 실행하고 AWS에 자격 증명을 요청하는 것(`sts.<region>.amazonaws.com`, `portal.sso.<region>.amazonaws.com`)은 요청이나 Test Connection에 필요할 때뿐입니다. 프로필 목록을 보여 줄 때도, `@config`를 위해서도 절대 하지 않습니다.
 
 ### 기타 AI 제공업체: Claude API, Gemini, OpenAI 호환 서비스
 
@@ -343,6 +412,7 @@ AWS가 없어도 됩니다. 설정의 "AI Provider"(AI 제공업체)에서 하�
 | OpenAI 호환 | OpenAI의 `gpt-6-luna`(또는 `gpt-5.4-mini`). "Common Services…"(자주 쓰는 서비스…)에는 DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter, 이 Mac의 Ollama가 있으며, 하나를 고르면 Base URL이 채워지므로 이어서 모델을 입력합니다 | 해당 서비스의 키. Base URL을 그 주소로 설정합니다(예: `https://api.deepseek.com/v1`, 이 Mac의 Ollama는 `http://localhost:11434/v1`) |
 
 - API 키는 시스템 키체인에 보관되며, 설정 파일에는 절대 저장되지 않습니다. 키체인에 키가 없으면 셸의 `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`(또는 `GOOGLE_API_KEY`), `OPENAI_API_KEY`를 사용합니다.
+- API 키 행에는 키가 설정되어 있는지 표시됩니다: "✓ Saved · ends in a1b2"(저장됨 · 끝자리 a1b2: 마지막 4자를 키와 함께 저장해 두어, 표시할 때 키 자체를 읽지 않음)와 "Replace…"(교체), "Remove…"(제거), 셸에서 온 키라면 "✓ From $OPENAI_API_KEY"($OPENAI_API_KEY에서), 없으면 "No API key yet"(아직 API 키 없음)과 붙여 넣을 칸이 표시됩니다.
 - "Thinking"(사고)은 기본값이 낮음입니다. 입력기는 문장마다 기다리므로, 사고가 적을수록 빠릅니다. 이를 지원하지 않는 모델에는 "Not set"(설정 안 함)을 고르세요.
 - Claude Opus 5.5나 Sonnet 5.5를 고르면 요청에 Claude API의 거부 시 대체(`fallbacks: "default"`)가 포함됩니다. 안전 분류기가 거부하면 서버가 다른 모델로 다시 시도합니다.
 - 설정 파일에서: `provider`(`"bedrock"`, `"anthropic"`, `"gemini"`, `"openai"`), 그리고 `anthropic`, `gemini`, `openai` 아래의 `model`, `baseURL`, `effort`, `temperature`(설정하지 않은 것은 기본값 사용).
@@ -369,7 +439,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 | 직접 등록한 단어(대소문자 구분 없음) | `Project Atlas` 같은 코드명, 이름 | `customWords` |
 
 - `@improve`, `@translate`, `@question`, 사용자의 프롬프트 명령어와 프롬프트 플러그인, 그리고 그 결과 다듬기(같은 자리 표시자)에 적용되며, AllInOneIME Cloud와 Apple Intelligence를 포함한 모든 제공업체에서 동작합니다. 숨길 값이 들어 있는 Jargon 용어 목록 항목은 보내지 않습니다.
-- 형식이 있는 값은 알아보지만, 이름이나 주소는 알아보지 못하므로 그런 것은 직접 등록한 단어로 추가하세요. `@claude`, 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 자세한 내용은 개인정보 보호를 참고하세요.
+- 형식이 있는 값은 알아보지만, 이름이나 주소는 알아보지 못하므로 그런 것은 직접 등록한 단어로 추가하세요. `@agent`, 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 자세한 내용은 개인정보 보호를 참고하세요.
 - 설정 파일에서: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
 
 모든 설정은 `~/.config/allinoneime/config.json`에 저장됩니다. 바꾸면 재시작 없이 다음 번역부터 새 설정이 쓰입니다. 새로 추가된 키:
@@ -390,15 +460,22 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 | `fuzzyPinyin` | 퍼지 병음 쌍: `["z-zh", "n-l", "in-ing"]`(z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
 | `useSelection` | @ 명령어가 필드에서 선택한 텍스트를 대상으로 동작 ("선택한 텍스트에서" 참고) | `true` |
 | `checkForUpdates` | 하루에 한 번 백그라운드에서 새 버전을 찾음. 클릭하기 전에는 아무것도 설치하지 않음 | `true` |
+| `agent` | `@agent`가 텍스트를 넘기는 코딩 에이전트(Settings → Agent): `claude`(Claude Code), `gemini`(Gemini CLI), `kiro`(Kiro CLI) 또는 `custom` | `claude` |
+| `agentCommand` | 직접 만든 에이전트의 명령. 입력한 내용이 마지막 인수로 붙음. 예: `["muse", "--"]` | `[]` |
+| `claudeInBackground` | Claude Code를 쓰는 `@agent`를 백그라운드에서 실행하고 끝나면 알림(다른 에이전트는 항상 Terminal에서 열림) | `true` |
 | `rememberQuestions` | 최근 `@question` 질문 5개와 답을 이 Mac에 보관하고 `@question` 아래에 표시 ("최근 질문" 참고) | `true` |
+| `questionRounds` | `@question` 대화가 다른 곳에서 이어 가자고 제안하기 전까지 패널에서 진행하는 회차 수, 2–10 | `5` |
+| `questionContinueIn` | `@question` 대화를 이어 갈 수 있는 곳, 순서대로, 첫 번째가 기본값: `agent`(`@agent`가 넘기는 에이전트, 그 에이전트 자신의 항목 대신), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent`(각 에이전트, 설치된 경우에만), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, 설치된 다른 에이전트, Claude, ChatGPT, 복사 |
 | `appProfiles` | 앱 하나의 설정, 번들 ID별, 모두 선택 사항: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` ("앱별 설정" 참고) | `{}` |
 | `redaction` | 민감한 정보를 AI에게 숨김 (개인정보 보호 참고): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`. 각 감지기(`emails`, `phones`, `cards`, `keys`, `ips`)는 `false`로 두지 않는 한 켜져 있음 | `enabled: false` |
 
 ## 개인정보 보호
 
-- 타이핑(영어와 병음)과 `@calculate` 계산은 전적으로 로컬에서 이루어집니다. `@improve`, `@translate`, `@question`에서 실행 키를 눌렀을 때만 그 문장이 여러분이 고른 AI 제공업체(여러분의 Bedrock, 또는 키를 추가한 서비스)로 전송됩니다. "Jargon"을 체크하고 Jargon 목록을 설정했다면 목록도 함께 전송됩니다. 결과 다듬기(결과 뒤에 입력한 지시와 ⏎)는 표시된 결과와 지시를 붙여 같은 요청을 다시 보냅니다.
+- 타이핑(영어와 병음)과 `@calculate` 계산은 전적으로 로컬에서 이루어집니다. `@improve`, `@translate`, `@question`에서 실행 키를 눌렀을 때만 그 문장이 여러분이 고른 AI 제공업체(여러분의 Bedrock, 또는 키를 추가한 서비스)로 전송됩니다. "Jargon"을 체크하고 Jargon 목록을 설정했다면 목록도 함께 전송됩니다. 결과 다듬기(결과 뒤에 입력한 지시와 ⇧⏎)는 표시된 결과와 지시를 붙여 같은 요청을 다시 보냅니다. 후속 질문(⇧⏎)은 지금까지의 대화를 함께 보냅니다.
+- `@config`와 `@doctor <question>`은 ⏎를 누르면 모델로 텍스트를 보냅니다. 이 Mac에서 Apple Intelligence를 쓸 수 있으면 언제나 그것을 쓰고(아무것도 Mac 밖으로 나가지 않음), 아니면 사용자의 제공업체를 씁니다. `@config`는 사용자의 문장(그 안에 입력한 키는 먼저 제거됨)과 바꿀 수 있는 설정들의 현재 값을 보냅니다. 키나 AI에게 숨기는 단어는 절대 보내지 않으며(그 개수만 보냄), AWS 프로필 이름은 문장이 AWS나 Bedrock에 관한 것일 때만 보냅니다. `@doctor <question>`은 질문과 함께 가려진 점검 결과를 보냅니다. `~` 너머의 경로나 키는 없고, 로그 줄은 정해진 문구로 바뀝니다. 민감한 정보 숨기기는 다른 요청과 마찬가지로 둘 다에 적용됩니다. 점검만 할 때(뒤에 아무것도 없는 `@doctor`)는 Test Connection 요청 말고는 아무것도 보내지 않으며, 그것도 제공업체에 테스트할 키나 자격 증명이 있을 때만입니다.
+- `@question` 대화를 다른 곳에서 이어 가면(마지막 회차 뒤의 ⌘1 …, 또는 ⌘⏎) 대화가 입력한 내용과 함께, 고른 서비스로 웹 주소나 클립보드를 통해 전송됩니다: 이 Mac의 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI 또는 직접 만든 것, 각자 자신의 계정과 서비스를 씀), claude.ai, chatgpt.com, gemini.google.com. 대화는 보이던 그대로 전송됩니다. AI 요청에서 숨겼던 값(아래 참고)도 그대로 들어 있는데, 그곳으로 보내기로 한 것이 사용자이기 때문입니다. 하나를 고르기 전까지는 아무 데로도 전송되지 않습니다. "Copy the conversation"은 클립보드에 넣기만 합니다.
 - AllInOneIME Cloud를 쓰면 문장은 개발자의 서버를 거쳐 모델 제공업체로 갑니다(현재는 OpenRouter를 거침). 서버는 횟수만 보관하며, 텍스트는 절대 보관하지 않습니다. 로그인 시에는 이메일 주소만 보관합니다.
-- 민감한 정보 숨기기(Settings → AI Provider → Privacy, 기본값은 끔): 어떤 요청이든 나가기 전에(`@improve`, `@translate`, `@question`, 사용자의 프롬프트 명령어와 프롬프트 플러그인, AllInOneIME Cloud를 포함한 모든 제공업체), 이메일 주소, 전화번호, 결제 카드 번호(Luhn 검사), API 키와 토큰(`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…`, 긴 무작위 문자열), IP 주소, 직접 등록한 단어(코드명, 이름)를 Mac에서 `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]` 같은 자리 표시자로 바꿉니다. 같은 값에는 같은 자리 표시자가 붙습니다. 모델의 결과는 표시하거나 삽입하기 전에 실제 값을 되돌려 받으며, 패널에는 "2 items hidden from the AI"라고 표시됩니다. 모델이 자리 표시자를 알아볼 수 없을 만큼 바꾼 결과는 쓰인 그대로 보여 주고 "⚠ placeholder changed"로 표시합니다. 숨긴 값이 들어 있는 Jargon 용어 목록 항목은 보내지 않습니다. 종류마다 끌 수 있습니다. 전각 형태(`zhang＠example.com`, `１３８…`)도 찾아내며, 값이나 구절이 줄바꿈으로 나뉘어 있어도 됩니다. 이메일, 번호, 키처럼 형식이 있는 값은 알아보지만, 이름이나 주소(직접 등록한 단어로 추가하세요), 다른 문자 체계의 비슷하게 생긴 글자는 알아보지 못합니다. 사용자의 AI 서비스로 가는 요청에 적용됩니다. `@claude`, 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 설정 파일에서는 `redaction`(`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`)입니다.
+- 민감한 정보 숨기기(Settings → AI Provider → Privacy, 기본값은 끔): 어떤 요청이든 나가기 전에(`@improve`, `@translate`, `@question`, 사용자의 프롬프트 명령어와 프롬프트 플러그인, AllInOneIME Cloud를 포함한 모든 제공업체), 이메일 주소, 전화번호, 결제 카드 번호(Luhn 검사), API 키와 토큰(`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…`, 긴 무작위 문자열), IP 주소, 직접 등록한 단어(코드명, 이름)를 Mac에서 `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]` 같은 자리 표시자로 바꿉니다. 같은 값에는 같은 자리 표시자가 붙습니다. 모델의 결과는 표시하거나 삽입하기 전에 실제 값을 되돌려 받으며, 패널에는 "2 items hidden from the AI"라고 표시됩니다. 모델이 자리 표시자를 알아볼 수 없을 만큼 바꾼 결과는 쓰인 그대로 보여 주고 "⚠ placeholder changed"로 표시합니다. 숨긴 값이 들어 있는 Jargon 용어 목록 항목은 보내지 않습니다. 종류마다 끌 수 있습니다. 전각 형태(`zhang＠example.com`, `１３８…`)도 찾아내며, 값이나 구절이 줄바꿈으로 나뉘어 있어도 됩니다. 이메일, 번호, 키처럼 형식이 있는 값은 알아보지만, 이름이나 주소(직접 등록한 단어로 추가하세요), 다른 문자 체계의 비슷하게 생긴 글자는 알아보지 못합니다. 사용자의 AI 서비스로 가는 요청에 적용됩니다. `@agent`, 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 설정 파일에서는 `redaction`(`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`)입니다.
 - 음성은 오른쪽 ⌥를 누르고 있는 동안에만 녹음되며 Mac에서 인식됩니다. 인식된 텍스트는 위의 명령어에서 실행 키를 눌렀을 때만 전송됩니다.
 - 입력기는 명령어 안에서 ⌃V나 ⌘V를 누를 때만 클립보드 텍스트를 한 번 읽습니다. 암호 관리자가 숨김으로 표시한 내용은 읽지 않습니다. 텍스트는 먼저 명령어 안에 표시되며, 역시 실행 키를 눌렀을 때만 전송됩니다. 최근 macOS 버전은 AllInOneIME가 클립보드를 읽도록 허용할지 묻습니다. 허용하세요. 매번 묻지 않게 하려면 System Settings → Privacy & Security에서 AllInOneIME의 붙여넣기 권한을 항상 허용으로 설정하세요.
 - 암호 필드에서는 macOS가 자체 키보드(U.S. 또는 ABC)로 전환하고, 필드를 벗어나면 되돌립니다. 입력 중인 앱이 보안 입력을 유지하는 동안 AllInOneIME는 글자를 조합하지 않고 녹음도 할 수 없으며, 키는 입력한 그대로 들어갑니다. 또한 시스템이 보안 입력 상태인 동안(암호 필드, Terminal의 Secure Keyboard Entry(보안 키보드 입력) 등)에는 아무것도 AI로 전송되지 않습니다.
@@ -406,10 +483,11 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 - `@reportissue`(와 "Report an Issue…")는 스스로 아무것도 보내지 않습니다. 브라우저에서 GitHub의 새 issue 페이지를 열고, 입력한 제목과 위에 나열한 버전, 언어, 제공업체 종류, 개수를 붙이며, 이 내용은 먼저 후보 패널에 표시됩니다. 거기서 Submit을 클릭하지 않으면 GitHub에는 아무것도 전달되지 않습니다.
 - `@open`은 이 Mac에서만 검색합니다. 그것으로 연 항목(최근 200개)을 입력기 자체의 환경설정(config.json이 아님)에 기억해 두었다가 먼저 나열합니다.
 - Settings → Apps의 "Add App…"을 위해 입력기는 최근 입력한 앱 12개의 번들 ID를 자체 환경설정에 보관합니다. 그 앱에 관한 다른 정보는 보관하지 않습니다.
-- `@question`은 최근 질문 5개를 답과 질문한 시각과 함께 이 Mac의 `~/Library/Application Support/AllInOneIME/recent-questions.json`(사용자 계정만 읽을 수 있음)에만 기억해 두고 `@question` 아래에 보여 줍니다. 저장된 답은 온라인에 접속하지 않고 거기서 표시됩니다. 보안 입력 중에는 아무것도 보관하지 않으며, 선택한 텍스트에 대한 질문은 아예 보관하지 않습니다(그 답은 선택 영역에 관한 것이라, 보관하면 선택 영역이 디스크에 남게 됩니다). Settings → General → "Remember recent questions"로 끌 수 있으며, 끄면 삭제됩니다(설정 파일의 `rememberQuestions`). "Clear"는 질문을 삭제합니다.
+- `@question`은 최근 질문 5개를 답과 질문한 시각과 함께 이 Mac의 `~/Library/Application Support/AllInOneIME/recent-questions.json`(사용자 계정만 읽을 수 있음)에만 기억해 두고 `@question` 아래에 보여 줍니다. 저장된 답은 온라인에 접속하지 않고 거기서 표시됩니다. 보안 입력 중에는 아무것도 보관하지 않으며, 선택한 텍스트에 대한 질문은 아예 보관하지 않습니다(그 답은 선택 영역에 관한 것이라, 보관하면 선택 영역이 디스크에 남게 됩니다). Settings → General에서 "Remember recent questions"를 끄면 질문도 삭제되고, `@config`로 끄면(설정 파일의 `rememberQuestions`) 질문이 남아 있어 정확히 되돌릴 수 있습니다. "Clear"는 질문을 삭제합니다.
 - 메모를 나열하기 위해, 메뉴 막대 패널은 `@note`로 저장한 최근 30개 메모의 ID와 첫 줄(최대 80자)을 입력기 자체의 환경설정에 보관합니다. 패널이 꺼져 있을 때도 마찬가지입니다.
 - `@py`와 `@js`는 실행 키를 눌렀을 때만, 그리고 여러분이 직접 입력하거나 붙여 넣은 코드만 실행합니다. AI의 답이나 다른 명령어의 출력은 절대 코드로 실행되지 않습니다. `@py`는 Mac의 `python3`를 사용하므로 Terminal에서처럼 파일을 읽고 쓰고 온라인에 접속할 수 있습니다. `@js`는 별도 프로세스에서 실행되어 파일을 읽거나, 네트워크에 접근하거나, 다른 프로그램을 실행할 수 없습니다. 둘 다 보안 입력 중에는 실행되지 않습니다.
 - 업데이트 확인: 하루에 한 번("Check for updates automatically"가 꺼져 있지 않다면) AllInOneIME는 https://allinoneime.com/update.json과 그 서명을 내려받습니다. 요청에는 식별자도, 입력한 내용도 들어 있지 않습니다. 업데이트는 Update를 클릭했을 때만 GitHub 릴리스에서 내려받습니다.
+- 확장 소스: git은 사용자가 추가한 소스에 대해서만, 사용자의 Mac에서 사용자 권한으로 실행됩니다. 스스로 확인하는 소스에 대해 하루 한 번 가져오기(fetch)(고정한 소스는 없음), 그리고 Check Now, Update, Re-clone을 클릭할 때입니다. 통신하는 상대는 저장소의 호스트뿐이며, 사용자 자신의 git과 SSH 설정으로 로그인합니다. 입력한 내용은 함께 가지 않습니다.
 - 로그에는 입력 내용이 기록되지 않습니다. macOS는 모든 타사 입력기에 대해 "The developer can access anything you type with this input source"(개발자가 이 입력 소스로 입력하는 모든 내용에 접근할 수 있습니다)라고 경고하는데, 이는 시스템의 일반적인 경고입니다.
 
 ## 개발
@@ -426,6 +504,8 @@ make icon         # regenerates the app icon and the menu bar icon from Resource
 make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
+
+`make selftest`와 `make realtest`는 사용자의 설정에 영향을 받지 않습니다. 자체 테스트는 자체 설정 파일을 씁니다(Amazon Bedrock에 AWS 프로필과 리전은 사용자의 설정에서 가져오고, 나머지는 모두 기본값). 실제 앱 테스트는 실행하는 동안 제공업체를 Bedrock으로 바꾸고 끝나면 사용자의 것으로 되돌립니다. 그 순간 확인할 수 없는 것은 실패가 아니라 건너뜀으로 처리됩니다. 그 프로필의 자격 증명이 없을 때의 Bedrock 실시간 확인, 그리고 보안 입력이 켜져 있을 때(화면 잠금, 암호 입력란) 입력하는 모든 것입니다. 마지막 줄은 통과, 실패, 건너뛴 확인 수를 셉니다. 실패만 실행을 실패로 만들며, 건너뛴 것이 있는 실행은 INCOMPLETE로 끝나고, 타이핑하는 것이 하나도 실행되지 않았으면 SKIPPED로 끝납니다(BLOCKED: 실제 앱 테스트가 잠긴 화면에서 시작됨). PASSED로 끝나는 일은 없습니다.
 
 코드 구성:
 

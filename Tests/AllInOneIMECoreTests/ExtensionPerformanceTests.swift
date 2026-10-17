@@ -4,7 +4,8 @@ import Testing
 
 /// What the command list costs a keystroke with many script extensions: the composer's work for the key, and
 /// what the controller reads to draw the panel (`panelModel`, `refreshStatuses`, the marked text), measured
-/// over typed names and ⌫. Printed for the record; the bound is loose (machines differ).
+/// over typed names and ⌫, in the CPU time of the thread typing (`Timing`: the suite's load doesn't add to it). Printed
+/// for the record; the bound is loose (machines differ).
 struct ExtensionPerformanceTests {
     /// `count` extension commands with made-up names, titles and keywords.
     static func commands(_ count: Int) -> [Command] {
@@ -44,11 +45,10 @@ struct ExtensionPerformanceTests {
                      "fors", "yous", "beta1", "rstu", "efgh", "ijkl", "wxyz", "lmno", "ghij", "opqr"]
         var spent: Duration = .zero
         var pressed = 0
-        let clock = ContinuousClock()
         for word in words {
             let keys = [at] + word.map { k(String($0)) } + Array(repeating: backspaceKey, count: word.count + 1)
             for key in keys {
-                spent += clock.measure {
+                spent += Timing.cpuTime {
                     _ = c.handleKeyDown(key)
                     panelReads(c)
                 }
@@ -69,10 +69,9 @@ struct ExtensionPerformanceTests {
         }
         var spent: Duration = .zero
         var pressed = 0
-        let clock = ContinuousClock()
         for word in ["calc", "py", "js", "zz", "ca", "pyj", "jsx", "cal"] {
             for key in [at] + word.map({ k(String($0)) }) + Array(repeating: backspaceKey, count: word.count + 1) {
-                spent += clock.measure {
+                spent += Timing.cpuTime {
                     _ = c.handleKeyDown(key)
                     panelReads(c)
                 }
@@ -88,9 +87,8 @@ struct ExtensionPerformanceTests {
         let scripts = commands(count).compactMap(\.script)
         var index = ExtensionIndex(commands: scripts)
         index.generation = 1
-        let clock = ContinuousClock()
         var previous = Command.catalog([], scripts: scripts)
-        let rebuilt = clock.measure {
+        let rebuilt = Timing.cpuTime {
             for _ in 0..<50 {
                 let catalog = Command.catalog([], scripts: index.enabled([]))
                 if catalog != previous { previous = catalog }
@@ -98,7 +96,7 @@ struct ExtensionPerformanceTests {
         }
         var cache = CatalogCache()
         _ = cache.catalog([], plugins: [], index: index, disabled: [])
-        let cached = clock.measure {
+        let cached = Timing.cpuTime {
             for _ in 0..<50 { _ = cache.catalog([], plugins: [], index: index, disabled: []) }
         }
         func ms(_ d: Duration) -> Double { (Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15) / 50 }

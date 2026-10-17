@@ -38,7 +38,7 @@ No copying into a chat window, no switching apps. Your own AI provider, your own
 
 A macOS input method with AI commands in every text field. Start a sentence with `@` and press ⏎ when done:
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
-`@question` asks a question, `@claude` hands it to Claude Code, and `@open` finds files and apps or opens a web
+`@question` asks a question, `@agent` hands it to a coding agent (Claude Code, Gemini CLI, Kiro CLI …), and `@open` finds files and apps or opens a web
 address. You can also hold right ⌥ and talk. Without `@`, your keys go to the app as usual. It also types Chinese
 (pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
 your own scripts as @ commands.
@@ -58,12 +58,14 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
 | `@` (at the start of a sentence) | Opens the command list: the most used lately first, 5 at a time, scrolled with ↑↓, the wheel or the trackpad; or type letters to find one (a name typed in full first, then names starting with them, then names containing them). ⏎, Tab, Space or a digit chooses |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
-| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original |
+| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a follow-up half typed (it's dropped) |
+| ⇧⏎ | With a follow-up typed after AI results: sends it (the next question of an `@question` conversation, or a refine). While a command is typed, or on AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does. On `@config` and `@doctor` results, with nothing typed, it does nothing |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
 | ⌃V | In a command (e.g. after `@improve `): appends the clipboard text after what you've typed instead of pasting it into the app. Multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app; without a command, the key goes to the app as usual |
 | ⌘V | Like ⌃V, but some apps handle ⌘V themselves (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and paste into the app as usual; use ⌃V there |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
-| Letters, once AI results are up | A follow-up instruction, such as `shorter`: ⏎ refines the results (see [Refining the results](#refining-the-results-new)) |
+| Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
+| ⌘⏎, ⌘1–⌘9 | In an `@question` conversation: shows where to continue it (the coding agents installed, the one `@agent` hands to first; Claude, ChatGPT, Gemini; or copy it); ⌘1, ⌘2 … pick one |
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 | Hold right ⌥ | Talk, release to stop. In the language you're typing (English, Chinese, French, Korean or Hindi). In a command, the text goes after it; otherwise it's inserted directly |
@@ -74,10 +76,12 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 |---|---|
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
 | `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
-| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
-| `@claude` | Hands the task to Claude Code: in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`. It uses your own Claude Code (the `claude` command) with its own sign-in and settings. Turn off "@claude runs in the background and notifies me" in the settings to open it in Terminal as before. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK |
+| `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. Type on and ⇧⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; ⌘R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
+| `@agent` | Hands the task to a coding agent on your Mac, picked in Settings → Agent: Claude Code (the default), Gemini CLI, Kiro CLI, or a command of your own (what you typed is added as its last argument). The page also shows whether each is installed and how it starts. Claude Code runs in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`; turn off "Runs in the background and notifies me" under Claude Code there to open it in Terminal. The other agents open in Terminal with what you typed as their first message. Each uses its own sign-in and settings. The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK. (It was `@claude` before 0.6.4.) |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
+| `@config` | Changes settings as you describe them: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎ shows the changes, old → new; ⏎ (or 1) applies them, Esc cancels, type more and press ⇧⏎ to refine them; ⌘Z or `@config undo` puts them back. See [Settings by describing them](#settings-by-describing-them-new) |
+| `@doctor` | Checks your setup on this Mac and fixes what it safely can: ⏎ lists the results, problems first; a digit fixes that one, ⏎ the safe ones, through `@config`'s preview. `@doctor why doesn't translate work` also has the AI explain the likely cause. See [Checking your setup](#checking-your-setup-new) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
 | `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
 | `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
@@ -104,9 +108,12 @@ Not the other way round: the code of `@py` and `@js` always runs exactly as you 
 
 When `@` isn't followed by a command, as in `@john`, the `@` is inserted as usual, so @-mentioning
 people in chat apps still works.
+Typed right after a letter, a digit, `.`, `_` or `-`, as in `bob@example.com` or `ssh user@host`, `@` is just text: no
+list opens, in every app, terminals included. With the list open, ← → or a key that can't go on a command's name (`.`, `:`,
+`/`) close it and leave what you typed (`@`, `@im`) as it is; in a terminal ← → then only close the list.
 `@question`, `@improve` and `@translate` send to your own Bedrock only when you press the action key; `@open` searches only on this
-Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@claude` uses the Claude Code installed on your Mac (the `claude` command) and its own account, and it asks you
-first, as usual, before changing files or running commands. Without Claude Code installed, `@claude` isn't offered.
+Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@agent` uses the agent installed on your Mac (Claude Code's `claude` command by default) and its own account, and it asks
+you first, as usual, before changing files or running commands. Without the agent installed, `@agent` isn't offered.
 `@imessage` reads Contacts on this Mac only (names, phone numbers, emails), never goes through the AI, and Messages sends
 the message; without the Messages app it isn't offered.
 
@@ -124,38 +131,71 @@ it. The selection stays as it is, selected, while you type: the command is writt
 line is what you type and the next "On the selection: “…” (N characters)". Esc, ⇧⏎ or clicking elsewhere leave the text
 as it was; so does a selection you change meanwhile, which cancels the command. Text typed after the command is an
 instruction for `@improve` and `@translate` (`@translate ja`, `@improve more formal`) and the question for `@question`
-(`@question what does this mean`), about the selection. `@open`, `@claude`, `@tasks`, `@settings`, `@reminder`,
+(`@question what does this mean`), about the selection. `@open`, `@agent`, `@tasks`, `@settings`, `@reminder`,
 `@imessage`, `@reportissue`, terminal commands and script extensions don't use it: they take what you type, and the
 selection stays as it is. Up to 5000 characters; never read during secure input or in a
 terminal. Turn it off under Settings → General → "Use the selected text" if it misbehaves in an app.
 
 ### Refining the results (new)
 
-While the results of `@improve`, `@translate`, `@question` or a prompt command are up, type what to change, such as
-`shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese` or `用更口语的说法` (pinyin works, and a tap of Shift
-switches languages), and press ⏎: the results go to the AI again with your instruction, and the new ones replace them in
-the same panel. Refine again as often as you like; the panel's top line lists the steps ("Refined: shorter · more
-formal"), and you can pick a row at any time as usual. A letter starts the instruction (shown as "refine › …" at the top
-of the panel); while it's empty, digits, Space and ⏎ pick as before. Refining starts once the results are complete:
-typing while the first results still stream in continues the sentence, as before. While a refine runs you can already
-type the next instruction; the refine goes on, and ⏎ runs the next one once its results are in. Esc clears the
+While the results of `@improve`, a prompt command (your own or a plugin's) or the rewrite of a selection are up, type
+what to change, such as `shorter`, `warmer`, `more formal`, `add a joke`, `in Japanese` or `用更口语的说法` (pinyin works,
+and a tap of Shift switches languages), and press ⇧⏎: the results go to the AI again with your instruction, and the new
+ones replace them in the same panel. ⏎ inserts the selected result, also with an instruction half typed (it's dropped).
+Refine again as often as you like; the panel's top line lists the steps ("Refined: shorter · more formal"), and you can
+pick a row at any time as usual. A letter starts the instruction (shown as "refine › …" at the top of the panel); while
+it's empty, digits, Space and ⏎ pick as before, and ⇧⏎ inserts what you typed as is. Refining starts once the results are
+complete: typing while the first results still stream in continues the sentence, as before. While a refine runs you can
+already type the next instruction; the refine goes on, and ⇧⏎ runs the next one once its results are in. Esc clears the
 instruction, then goes back one step to the results before the last refine (during a refine: stops it), then back to the
 sentence; ⌫ on an empty line steps back the same way. On selected text, the result you pick still replaces
 exactly the selection, which stays untouched until then. A refine that fails (or is refused during secure input) leaves
-the results as they were, its instruction ready for ⏎ to try again. The same refine of the same results is answered from
-the cache.
+the results as they were, its instruction ready for ⇧⏎ to try again. The same refine of the same results is answered from
+the cache. `@translate` has no refine: typing after its results continues the sentence, and ⏎ translates it again.
+
+### Conversations with @question (new)
+
+Once `@question` has answered, what you type is the next question: ⇧⏎ asks it, with the questions and answers so far,
+and the panel grows into the conversation, the earlier rounds dimmed as Q / A rows, the latest answer below them. The
+line on top says which round comes next ("question 2/5 › …"). Every answer can be inserted: its digit (1–5), ↑↓ then ⏎, or
+a click; the latest is selected, and ⌘C copies the selected one. ⏎ inserts it even with a question half typed (it's
+dropped). Esc clears what you typed, then goes back one round; at the first, it leaves as before. The panel grows to
+about half the screen, then scrolls, the latest at the bottom.
+
+After 5 rounds (`questionRounds` in the config, 2–10) the next question's line becomes "5 rounds in: continue in Claude
+or another AI", with the choices numbered ⌘1, ⌘2 …; ⌘⏎ shows them at any round (while an answer is still coming in it
+does nothing, and never reaches the app). What you type then is the first message there; only ⌘1, ⌘2 … send it (⇧⏎
+asks nothing more, and opens nothing). A question about selected text takes that text along, quoted as a block of its
+own. The choices:
+
+- **The coding agents installed** on this Mac, each by its name: the one `@agent` hands to first (⌘1), then the others
+  (Claude Code, Gemini CLI, Kiro CLI, your own command from Settings → Agent). Each opens an interactive session in
+  Terminal, started as `@agent` starts it, beginning with the conversation and "Let's continue this discussion". One
+  that isn't installed isn't shown.
+- **Claude** or **ChatGPT** on the web, the conversation filled in (a long one goes on the clipboard: paste it).
+- **Gemini** on the web, the conversation on the clipboard to paste.
+- **Copy the conversation**, in Markdown (**Q:** / **A:**).
+
+Which ones, and in which order (the first is the default): Settings → General → "Continue a conversation in"
+(`questionContinueIn` in the config); with more than 5, ⌘6 … ⌘9 pick the rest. "@agent's agent" there is whichever
+agent Settings → Agent picks, by its name; an agent that isn't installed right now keeps its place in the list when you
+edit it. With Apple Intelligence on this Mac a long conversation doesn't fit its small context: the oldest answers are
+shortened, then the oldest rounds left out, and the panel says "earlier rounds shortened". A conversation is saved
+under its first question in the recent questions, and picking it shows the rounds to go on with.
 
 ### Recent questions (new)
 
 `@question` with nothing typed after it lists your last 5 questions, newest first, with when they were asked ("3 hours
 ago"). Typing narrows them down: every word anywhere in the question, in any case (Chinese without spaces too). A digit,
 ↑↓ then ⏎, or a click shows a question's saved answer at once, without going online: Space or ⏎ inserts it, ⌘C copies
-it, 0 shows the question, R asks it again for a fresh answer, Esc goes back to the list. With no match, or nothing
-picked, ⏎ asks what you typed. A new answer to the same question, asked again or refined, replaces the saved one.
+it, ⌘R asks it again for a fresh answer (a conversation: its latest question), Esc goes back to the list. A saved
+conversation shows all its rounds: type to go on with it. With no match, or nothing picked, ⏎ asks what you typed. A new answer to the same question, or a conversation
+that goes on, replaces the saved one.
 
 - They're kept only on this Mac (see Privacy): not while secure input is on, and never for questions on selected text.
-- Settings → General → "Remember recent questions" turns it off and deletes them (`rememberQuestions` in the config);
-  "Clear (N)" deletes them.
+- Settings → General → "Remember recent questions" turns it off (`rememberQuestions` in the config); turned off there,
+  it deletes them too. Turned off through `@config`, they're kept, so that undoing it puts back exactly what was (its
+  preview says so); "Clear (N)" deletes them.
 
 ### Notes and reminders
 
@@ -246,6 +286,36 @@ status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Exam
 has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
 or a list as you type it), never during secure input, and stop when the input method quits.
 
+#### Extension sources (new)
+
+A bundle can come from a Git repository, yours or your team's, and stay up to date from there. Settings → Custom
+Commands → Extension Sources → **Add from Link…**: paste the repository's address (`git@github.com:you/my-extensions.git`,
+`ssh://…`, `https://…`; optionally a branch, the bundle's folder in the repository, and a tag or commit to pin it to).
+AllInOneIME clones it with **your own git and SSH setup** (keys, agent, ~/.ssh/config, credential helpers), so a
+private repository works as it does in Terminal; the app never asks for or stores a password. The clone goes into
+`~/Library/Application Support/AllInOneIME/Sources/`: first into a hidden staging folder, never straight into an
+extensions folder. (Don't put a name, password or token in an https address: git's credential helper keeps them.)
+
+- **Review first.** Before anything loads you see the bundle, every command (name, title, description, output), the
+  programs they run, its preferences, and the commit, under the warning "This source isn't signed: it will run
+  programs from <address>". Only **Enable** adds it; Cancel deletes the clone. You review a source once.
+- **Updates are yours to apply.** Once a day (and soon after the input method starts) a source is fetched to see what's
+  new: Settings shows "N updates" with the commits (subject, author, date) and a badge on the page. Nothing changes
+  until you click **Update**, which only fast-forwards and runs no hooks. A force push makes the source need a review
+  again: **Re-clone** shows it, and only Enable puts the rewritten history in place (until then the reviewed version
+  keeps working).
+  A source pinned to a tag or commit isn't checked. Turn the daily check off per source (`autoCheck`).
+- **Errors** are git's own words, with "This uses your own git and SSH setup; check that `git ls-remote <url>` works in
+  Terminal", and your own reminder under it if you set one (`authHint` in the config).
+- **Remove** moves the clone to the Trash; the bundle's preferences are kept for next time.
+- From a terminal: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]` (prints the review and enables
+  it; again after a force push), `--update-sources` (fast-forwards every reviewed source that isn't pinned),
+  `--list-extensions` (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+- Only reviewed code loads: a source folder in the load list that wasn't reviewed on this Mac (a copied config) is left
+  out. git never waits for an answer: no terminal and no prompts, so an unknown host key or a password prompt fails at once.
+
+The config keeps them as `extensionSources`; the repository layout is in [docs/extensions.md](docs/extensions.md#10-extension-sources).
+
 ### Plugins
 
 Plugins are ready-made `@` commands for things not everyone needs, like `@stock AAPL 600519 700` for stock quotes.
@@ -267,7 +337,7 @@ the word after the command, plus the uppercase codes or numbers right after it (
 a lowercase word ends it (`@stock SNDK is good to buy` looks up SNDK). Quotes mark it exactly: `@stock "aapl tsla"`.
 `@calculate` works inside a sentence too; its argument is the whole expression after it, spaces included, up to other text:
 `@reply the total is @calculate 23 * 17 dollars`.
-Inside `@claude` and terminal commands they aren't run: those get the text as written (typing `@` there doesn't open the command list).
+Inside `@agent` and terminal commands they aren't run: those get the text as written (typing `@` there doesn't open the command list).
 
 ### Action key
 
@@ -314,7 +384,7 @@ Settings → Apps gives an app settings of its own, each optional; what an app d
 | The input language its text fields start in | Slack in English, WeChat in pinyin | `inputLanguage` |
 | The rewrite styles `@improve` offers there | Mail formal and tactful, Slack casual | `rewriteStyles` |
 | Type results out, or not | on in a chat app, off in Mail | `typeOut` |
-| No AI in this app | `@improve`, `@translate`, `@question`, `@claude` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
+| No AI in this app | `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | `noAI` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications. The input menu's "This App: <name>" has
 quick switches for the app you're typing in (No AI, Type Results Out, the language it starts in). In the config they're
@@ -328,6 +398,61 @@ something, never naming them.
 - With No AI, the AI commands stay in the @ list; running one shows the notice and keeps what you wrote. Your own
   terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
 
+### Settings by describing them (new)
+
+`@config` turns a sentence into settings: `@config output languages English and French`, `@config 微信里用中文，邮件里语气正式一点`,
+`@config candidates in a column`, `@config turn off the typos`, `@config use Claude`. ⏎ shows the changes in the candidate
+panel, a row each, old → new, with the labels Settings uses ("Translation languages: English, Japanese → English, French",
+"Apps · WeChat · Starts in: Same as everywhere → Chinese"); nothing is changed or typed yet. ⏎ (or 1) applies them all, Esc
+cancels, and typing more then ⇧⏎ refines the proposal ("also German"; ⇧⏎ with nothing typed does nothing, and
+⏎ applies the proposal shown). Once applied, ⌘Z while the confirmation is up, or
+`@config undo` within the next 10 minutes, puts back exactly the values those settings had.
+
+- **What it can change:** the translation and input languages (and the default one), the rewrite styles, the candidate
+  layout, typing results out (on/off, speed, speeding up and slowing down, typos), using the selection, remembering
+  questions, hiding sensitive information (on/off, what is hidden, words to add), checking for updates, per-app settings
+  (an app named as you call it, found among your apps by name or bundle ID), and the AI provider: which one, the Bedrock
+  profile (from `~/.aws`) and region, a model the app knows for it, and an OpenAI-compatible base URL (`https://` only).
+- **What it never touches:** API keys and anything in the keychain, custom commands, extension folders and sources,
+  plugins, the jargon list, anything that runs programs, and every other setting. Those rows are refused, with the
+  reason, and the rest can still be applied.
+- **Checked like Settings:** a language that isn't one, more than 5 translation languages, a value out of range, an app
+  it can't tell, or a language whose pack isn't installed ("needs the Korean language pack: download it in Settings →
+  Input") is refused row by row; an invalid config is never written.
+- **Keys:** it never switches to a provider that has no key (none in the keychain or your shell): the row says "Gemini
+  API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there", and applying
+  opens Settings → AI Provider with a small sheet for that key (Save, or Save and Use to switch to it), while the other
+  rows still apply. With a key, the provider switches, Test Connection runs and its result shows under the confirmation.
+  A key typed into the sentence is dropped before anything is sent.
+- **On this Mac first:** it uses Apple Intelligence whenever this Mac has it (macOS 26), whatever provider you chose and
+  even before one is set up, held to the allowed settings and values, with lookups for your apps, AWS profiles and
+  language packs. Without it, your provider answers. The request holds only the allowed settings and their current
+  values (never a key, nor the words you hide), and hiding sensitive information applies as for any request.
+
+### Checking your setup (new)
+
+`@doctor` ⏎ checks the setup on this Mac in a second or two (the connection test shows while it runs) and lists the
+results in the candidate panel, a row each, ✗ problems first, then ⚠ warnings, then ✓ what is fine, each with a short
+fix: the input method (installed, enabled, in your input sources), the AI provider (its key saved or the Bedrock profile's
+credentials found, never read or shown; Test Connection; Apple Intelligence), the permissions (Accessibility, the
+microphone if you dictate, controlling Notes, Reminders, Terminal and Messages, asked of macOS without a prompt), secure
+input, the language packs of your input languages, `config.json` (readable, unknown keys, values out of range, a language
+twice, more than 5 translation languages), extensions and plugins that didn't load, updates, and recent errors in the
+app's own logs.
+
+The rows with a fix are numbered: a digit (or a click) shows what it does in `@config`'s preview, and ⏎ applies it; ⏎ on
+the list fixes all the safe ones at once (settings repaired, repeated languages removed, the input method enabled again).
+Opening a System Settings pane, downloading a language pack, Check for Updates (it opens Settings) and Settings' key
+field are picked one by one. Settings
+changes undo like `@config`'s (⌘Z, `@config undo`). No fix deletes your data or touches a key.
+
+`@doctor <question>` (`@doctor why doesn't translate work`) runs the checks, then the AI explains the likely cause from
+their results and marks the fixes it suggests (⏎ still applies only the safe ones; the others by their number). In an
+app with No AI the checks still run and only the question is refused. On Apple Intelligence when this Mac has it, which calls the checks
+it needs as tools; otherwise your provider, and the panel says so. Only the check results (no paths beyond `~`, no keys,
+none of your text) and your question are sent; the checks send nothing except the Test Connection request (only when
+the provider has a key or credentials to test).
+
 ## Menu bar panel
 
 <img src="docs/en/panel-swipe.png" width="520" alt="The menu bar panel: frosted glass, with notes, reminders and Claude tasks on cards; a row swiped left shows its Remove button">
@@ -336,7 +461,7 @@ Click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark, without a box
 
 - Notes: the notes saved with `@note`, the newest 5; click one to open it in Notes.
 - Reminders: the reminders not done yet in the AllInOneIME list of Reminders (`@reminder` adds to that list), the soonest due first, 8 shown; click the circle to tick one off, or the title to open Reminders.
-- Claude Tasks: like `@tasks`, the background Claude tasks (what `@claude` hands off), up to 30, 5 shown at a time: scroll for more, or search their titles and replies in the search box; with their progress and the first line of the last reply; click one to open it in Terminal and go on.
+- Claude Tasks: like `@tasks`, the background Claude tasks (what `@agent` hands off to Claude Code), up to 30, 5 shown at a time: scroll for more, or search their titles and replies in the search box; with their progress and the first line of the last reply; click one to open it in Terminal and go on.
 
 Swipe a row (a note, a reminder or a task) to the left with two fingers to show its Remove button, or all the way to remove it at once; with a mouse, right-click it. Removing only takes it off the panel: the note stays in Notes, the reminder in Reminders (not completed), the task in Claude Code.
 
@@ -348,7 +473,7 @@ What it reads, and when:
 
 - Notes: the list is the panel's own record (kept while it's closed too), and Notes is never launched: only when Notes is running already, and AllInOneIME was allowed to control it before, does the panel check it for edited titles and deleted notes.
 - Reminders: the AllInOneIME list is read when the panel drops down, every 60 seconds and when reminders change. The panel never makes macOS ask for access by itself: if macOS hasn't asked you yet, it shows "Allow Access to Reminders", and only that button asks; if you said no, it shows "Open System Settings".
-- Claude tasks: the panel runs `claude agents` only while it's down: once when it drops down, on Refresh, and when `@claude` hands off a task; and every 15 seconds while a task isn't done yet, no longer once they're all done. The last replies are read from the end of Claude Code's transcripts on this Mac (`~/.claude/projects`), and only when a transcript has changed.
+- Claude tasks: the panel runs `claude agents` only while it's down: once when it drops down, on Refresh, and when `@agent` hands off a task; and every 15 seconds while a task isn't done yet, no longer once they're all done. The last replies are read from the end of Claude Code's transcripts on this Mac (`~/.claude/projects`), and only when a transcript has changed.
 - While it's closed, none of this runs; it only keeps a record of the notes `@note` saves.
 
 ## Input and translation
@@ -471,18 +596,57 @@ The app it installs has no Chinese dictionaries (they're the Chinese language pa
 
 ## Setting up the AI
 
-Translations and rewrites use your own AI provider, and the costs go to your account: Amazon Bedrock in your AWS account by default, or the Claude API, Gemini or an OpenAI-compatible service (see "Other AI providers" below).
+Translations and rewrites go to the AI provider picked in Settings → AI Provider. A new install starts on AllInOneIME Cloud: sign in, and there are 20 free requests a day. On a Mac with Apple Intelligence, it can run on this Mac instead, with no account (see "Apple Intelligence on this Mac" below). Or use your own provider, the costs on your account: Amazon Bedrock in your AWS account, the Claude API, Gemini or an OpenAI-compatible service (see "Other AI providers" below).
 
 ### Amazon Bedrock
 
 1. Enable Bedrock in the AWS console and make sure you can use the chosen model. The default is Claude Haiku 4.5; the first time you use an Anthropic model, you fill in a use-case form once.
-2. Create an access key with the `bedrock:InvokeModelWithResponseStream` permission and put it in a profile in `~/.aws/credentials`.
-   Only such static keys are supported for now, not SSO or assume-role.
+2. Use an AWS profile allowed `bedrock:InvokeModelWithResponseStream`: static keys in `~/.aws/credentials`, or a profile
+   that gets temporary credentials (`credential_process`, a role, SSO; see "AWS profiles" below).
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
    Pick the profile, region and model, and click "Test Connection". "Language" at the top of the settings window can be English or Chinese; by default ("System") it follows the system
    (Chinese if Chinese comes before English in the system's preferred languages, English otherwise). The settings window, the hints in the candidate panel and the input menu all follow it.
 
 <img src="docs/en/settings.png" width="420" alt="The settings window">
+
+#### AWS profiles
+
+Any profile the AWS CLI can use without asking you anything works, from `~/.aws/config` and `~/.aws/credentials` (or the
+files `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE` name in your shell). Within a profile, the first of these that
+it has is used, in the AWS CLI's order (a profile with both `role_arn` and keys is a role):
+
+| Kind | In the profile | Refreshed |
+| --- | --- | --- |
+| Role | `role_arn` with `source_profile` (any kind here, chains too; a profile naming itself uses its own keys) or `credential_source = Environment`; `role_session_name`, `external_id`, `duration_seconds` | STS `AssumeRole` (in the profile's `region`, else us-east-1) again 5 minutes before they expire |
+| SSO | `sso_account_id`, `sso_role_name` with `sso_session` and its `[sso-session …]` section (or the older `sso_start_url`, `sso_region`) | fetched again with your cached sign-in 5 minutes before they expire |
+| Static keys | `aws_access_key_id`, `aws_secret_access_key` (and `aws_session_token`) in `~/.aws/credentials` | read again for each request |
+| `credential_process` | `credential_process = /usr/local/bin/my-creds --profile dev` (split like a shell command, run without a shell, with your login shell's PATH, in your home folder, 60 s at most) | run again 5 minutes before its `Expiration`; with none, when AWS refuses the credentials |
+| Static keys | the same keys in `~/.aws/config` | read again for each request |
+
+With the profile "default" (or none chosen), the keys in your shell come first, as the AWS CLI takes them:
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. A profile you name is never mixed with them.
+`AWS_REGION` (or `AWS_DEFAULT_REGION`) in your shell wins over a profile's `region`, as in the AWS CLI; the Region field
+in Settings wins over both.
+
+- **Automatic:** credentials that expire are kept in memory (never written to disk) and fetched again 5 minutes before
+  they do; with less than 10 minutes left, a request uses them and fetches new ones in the background, so typing doesn't
+  wait for it. Requests at the same time wait for one fetch. When Bedrock answers that the credentials expired
+  (`ExpiredTokenException` …), they're fetched again and the request is sent again, once.
+- **SSO:** AllInOneIME uses the sign-in the AWS CLI keeps in `~/.aws/sso/cache` (only reads it) and can't sign in for you,
+  since that needs a browser. When the sign-in ends, the candidate panel says "SSO sign-in expired: run aws sso login
+  --profile X": run that in Terminal (Settings has Copy Command and Open in Terminal; `@doctor` offers the command to
+  copy), and AllInOneIME picks the new sign-in up by itself.
+- **Not supported:** `mfa_serial` (an input method can't ask you for an MFA code: use `credential_process` or SSO, or let
+  your CLI cache credentials), `credential_source = Ec2InstanceMetadata` or `EcsContainer` (not on a Mac), and web identity.
+- **Known limits:** only PATH and the AWS file variables (`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`) come from
+  your login shell, for `credential_process` too (not the rest of its environment). AllInOneIME doesn't renew
+  `sso_session` tokens (the CLI's refresh token isn't used: the SSO cache is only read), so when the cached token lapses,
+  run `aws sso login` (the AWS CLI also renews it whenever you use it).
+- **Settings → AI Provider** lists every profile with its kind ("dev — Role via base") and says of the chosen one when
+  its credentials expire ("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") or what to do.
+  Test Connection fetches fresh credentials through the whole chain; `@doctor` reports the same.
+- Programs run and AWS is asked for credentials (`sts.<region>.amazonaws.com`, `portal.sso.<region>.amazonaws.com`) only
+  when a request or Test Connection needs them: never to list profiles, never for `@config`.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
@@ -495,6 +659,7 @@ You don't need AWS: pick one under "AI Provider" in the settings, paste an API k
 | OpenAI-compatible | OpenAI's `gpt-6-luna` (or `gpt-5.4-mini`); "Common Services…" has DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter and Ollama on this Mac: picking one fills in its base URL, then enter its model | The service's key; set the Base URL to its address, e.g. `https://api.deepseek.com/v1`, or `http://localhost:11434/v1` for Ollama on this Mac |
 
 - API keys are kept in the system keychain, never in the config file. Without one there, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and `OPENAI_API_KEY` from your shell are used.
+- The API key row says whether a key is set: "✓ Saved · ends in a1b2" (its last 4 characters, kept with it so the key itself isn't read to show them) with Replace… and Remove…, "✓ From $OPENAI_API_KEY" for one in your shell, or "No API key yet" with the field to paste it.
 - "Thinking" is low by default: the input method waits on every sentence, and less thinking is faster. Choose "Not set" for models that don't take it.
 - With Claude Opus 5.5 or Sonnet 5.5 chosen, requests carry the Claude API's refusal fallback (`fallbacks: "default"`): when a safety classifier declines, the server retries on another model.
 - In the config file: `provider` (`"bedrock"`, `"anthropic"`, `"gemini"`, `"openai"`), and `model`, `baseURL`, `effort` and `temperature` under `anthropic`, `gemini` and `openai` (unset ones use the defaults).
@@ -526,7 +691,7 @@ hidden from the AI". Each kind can be turned off:
 - It applies to `@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, and refining their results
   (the same placeholders), with every provider, including AllInOneIME Cloud and Apple Intelligence. Jargon list entries
   holding a value to hide aren't sent.
-- It recognizes formatted values; it can't recognize names or addresses, so add those as your own words. `@claude`,
+- It recognizes formatted values; it can't recognize names or addresses, so add those as your own words. `@agent`,
   plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. More
   under Privacy.
 - In the config: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
@@ -549,15 +714,22 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
 | `useSelection` | @ commands work on the text selected in the field (see On the selected text) | `true` |
 | `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |
+| `agent` | The coding agent `@agent` hands the text to (Settings → Agent): `claude` (Claude Code), `gemini` (Gemini CLI), `kiro` (Kiro CLI) or `custom` | `claude` |
+| `agentCommand` | The custom agent's command, what you typed added as its last argument, e.g. `["muse", "--"]` | `[]` |
+| `claudeInBackground` | `@agent` with Claude Code runs in the background and notifies you (other agents always open in Terminal) | `true` |
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
+| `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
+| `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI` (see Per-app settings) | `{}` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 
 ## Privacy
 
-- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⏎) sends the same request again with the results shown and your instruction.
+- Typing (English and pinyin) and `@calculate` calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⇧⏎) sends the same request again with the results shown and your instruction; a follow-up question (⇧⏎) sends the conversation so far with it.
+- `@config` and `@doctor <question>` send text to a model when you press ⏎: Apple Intelligence on this Mac whenever it's available (nothing leaves the Mac), else your provider. `@config` sends your sentence (a key typed into it is taken out first) with the current values of the settings it may change: never a key, nor the words you hide from the AI (only how many there are), and your AWS profiles' names only when the sentence is about AWS or Bedrock. `@doctor <question>` sends your question with the check results, masked: no paths beyond `~`, no keys, log lines as fixed phrases. Hiding sensitive information applies to both, as to any request. The checks alone (`@doctor` with nothing after it) send nothing but the Test Connection request, and that only when the provider has a key or credentials to test.
+- Continuing an `@question` conversation elsewhere (⌘1 … after the last round, or ⌘⏎) sends it, with what you typed, to the service you pick: a coding agent on this Mac (Claude Code, Gemini CLI, Kiro CLI or your own, each with its own account and service), claude.ai, chatgpt.com or gemini.google.com, in the web address or through the clipboard. It goes as you saw it: values hidden from the AI's requests (see below) are in it as they are, since you choose to send it there. Nothing goes anywhere until you pick one; "Copy the conversation" only puts it on the clipboard.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
-- Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@claude`, plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
+- Hide sensitive information (Settings → AI Provider → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be turned off. Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent`, plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Voice is recorded only while you hold right ⌥ and is recognized on the Mac; the recognized text is sent only in the commands above, when you press the action key.
 - The input method reads the clipboard text, once, only when you press ⌃V or ⌘V in a command; content that password managers mark as concealed isn't read. The text is shown in the command first and, again, is sent only when you press the action key. Recent macOS versions ask whether AllInOneIME may read the clipboard: allow it. To stop being asked every time, set AllInOneIME's paste permission to always allow in System Settings → Privacy & Security.
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text and can't record: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
@@ -565,10 +737,13 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@reportissue` (and "Report an Issue…") sends nothing itself: it opens GitHub's new-issue page in your browser with the title you typed and the versions, languages, provider kind and counts listed above, shown in the candidate panel first. Nothing reaches GitHub unless you click Submit there.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - For "Add App…" in Settings → Apps, the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
-- `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac, in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Settings → General → "Remember recent questions" turns it off and deletes them (`rememberQuestions` in the config); "Clear" deletes them.
+- `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac, in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Turning off "Remember recent questions" in Settings → General deletes them too; turning it off through `@config` (`rememberQuestions` in the config) keeps them, so it can be undone exactly. "Clear" deletes them.
 - To list your notes, the menu bar panel keeps the id and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
 - Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.
+- Extension sources: git runs on your Mac, as you, only for the sources you added: a fetch once a day for those that
+  check by themselves (none for a pinned one), and when you click Check Now, Update or Re-clone. It talks only to the
+  repository's host, signed in by your own git and SSH setup; nothing you type goes with it.
 - Logs don't record what you type. For every third-party input method, macOS warns "The developer can access anything you type with this input source"; it's a generic system warning.
 
 ## Development
@@ -585,6 +760,8 @@ make icon         # regenerates the app icon and the menu bar icon from Resource
 make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
+
+`make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, and anything typed while secure input is on (the screen locked, a password field). The last line counts passed, failed and skipped checks; only failures fail the run, and a run with skips ends in INCOMPLETE, or SKIPPED when nothing that types ran (BLOCKED: the real-app test started on a locked screen), never PASSED.
 
 Code layout:
 

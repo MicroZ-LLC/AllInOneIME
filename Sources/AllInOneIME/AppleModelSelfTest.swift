@@ -7,7 +7,7 @@ extension SelfTest {
     /// rendered (`apple-settings*.png`). Elsewhere it says why it was skipped. Nothing is written to the config file.
     static func testAppleModel(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         let availability = AppleModel.system.availability
-        print("— Apple Intelligence on this Mac (\(availability.rawValue))")
+        section("Apple Intelligence on this Mac (\(availability.rawValue))")
         check(Provider.offered.contains(.apple) == availability.isOffered,
               "the provider list has it on macOS 26 and later (\(Provider.offered.map(\.rawValue)))")
         let pickedBefore = UIText.choice
@@ -22,6 +22,7 @@ extension SelfTest {
             print("  skipped: the on-device model isn't available here")
             return
         }
+        needing(.composing)  // the on-device model, not Bedrock
         let (converterBefore, settingsBefore) = (controller.converter, settings)
         defer {
             (controller.converter, settings) = (converterBefore, settingsBefore)
@@ -69,6 +70,7 @@ extension SelfTest {
         controller.commitComposition(client)
 
         // The settings window with it chosen: Test Connection asks the on-device model; the page as the README shows it.
+        needing([])
         defer { UIText.choice = pickedBefore }
         for chinese in [true, false] {
             UIText.choice = chinese ? .chinese : .english

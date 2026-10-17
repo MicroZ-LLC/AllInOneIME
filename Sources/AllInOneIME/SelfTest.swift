@@ -137,25 +137,31 @@ final class StandInSender: MessageSender, @unchecked Sendable {
 @MainActor
 enum SelfTest {
     static var failures = 0
-    /// What the controller under test reads as its settings (the real config, adjusted per section).
+    /// What the controller under test reads as its settings (the self-test's own config, adjusted per section).
     static var settings: Config = {
         var config = Config.default
-        config.claudeInBackground = false  // @claude records a Terminal launch here; nothing starts in the background
+        config.claudeInBackground = false  // @agent records a Terminal launch here; nothing starts in the background
         config.setOrder([Language.chinese, .english])  // pinyin first, Shift to English (a new install has English only)
         return config
     }()
-    /// Live Bedrock calls with the real config (model, credentials, styles), the translation languages pinned to English then Chinese
-    /// like `settings`: the user may have picked any output language (Japanese, say), and the checks and
-    /// the README images read English versions.
+    /// Live Bedrock calls with the self-test's own config (`useOwnConfig`), the translation languages English then
+    /// Chinese like `settings`: the checks and the README images read English versions.
     static let liveConverter = Converter(loadConfig: {
         var config = try Config.load()
         config.setOrder([OutputLanguage.english, .chinese])
         return config
     })
 
+    /// Counts a check, or, while this Mac can't give the section what it needs (`needing`), reports it skipped.
     static func check(_ condition: Bool, _ message: String) {
+        if let skipping {
+            print("– \(message) — skipped: \(skipping)")
+            skipped[skipping, default: 0] += 1
+            return
+        }
         print("\(condition ? "✓" : "✗") \(message)")
-        if !condition { failures += 1 }
+        if condition { passed += 1 } else { failures += 1 }
+        if !needs.isEmpty { checkedWithNeeds += 1 }
     }
 
     static let keyCodes: [Character: UInt16] = [
@@ -254,7 +260,7 @@ enum SelfTest {
     /// Selected text survives a Shift tap and a field change (nothing of ours is marked, so no empty marked
     /// text is sent, which NSTextView puts in the selection's place); a Shift-click isn't a tap.
     static func testSelectionKept(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        print("— Selected text left alone")
+        section("Selected text left alone", needs: .composing)
         let (document, inserted) = (client.document, client.inserted)
         defer { (client.document, client.inserted, client.selection, client.insertionPoint) = (document, inserted, nil, nil) }
         let latin = controller.composer.engineState.isAsciiMode
@@ -286,7 +292,7 @@ enum SelfTest {
     /// before). A result picked replaces exactly the selection, by its range, and where the field ignores ranges, as
     /// the selected text (`@calculate` here; `@improve` live on Bedrock).
     static func testCommandsOnSelection(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        print("— commands on the selected text")
+        section("commands on the selected text", needs: .composing)
         let (document, inserted, secureBefore) = (client.document, client.inserted, controller.secureInputActive)
         defer {
             (client.document, client.inserted, client.selection, client.insertionPoint, client.ignoresRanges) = (document, inserted, nil, nil, false)
@@ -390,6 +396,7 @@ enum SelfTest {
         }
 
         // @improve on it (live Bedrock): row 0 is the selection; the version picked replaces only it.
+        needing([.composing, .bedrock])
         select()
         command("i")
         _ = enter(controller, client)
@@ -524,26 +531,29 @@ enum SelfTest {
     }
 
     static func testSettingsWindow(snapshotDirectory: URL) {
-        print("— settings window")
+        section("settings window")
         let dir = snapshotDirectory.appendingPathComponent("settings-config")
         try? FileManager.default.removeItem(at: dir)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("config.json")
-        let real = (try? Config.load()) ?? .default
-        try? real.write(to: url)
-        let realBefore = try? Data(contentsOf: Config.defaultURL)
+        let own = (try? Config.load()) ?? .default  // the self-test's (`useOwnConfig`)
+        try? own.write(to: url)
+        let realBefore = try? Data(contentsOf: Config.userURL)
 
         let model = SettingsModel(configURL: url)
-        check(model.canSave && model.config == real, "loads the config")
+        check(model.canSave && model.config == own, "loads the config")
         // A custom command named like a built-in (a `note` from before @note was built in) is hidden by it: the
         // custom commands list marks it 「和内置命令重名，不会生效，请改名」.
         func custom(_ name: String) -> CustomCommand { CustomCommand(name: name, type: .prompt, prompt: "Reply.") }
         check(["note", "Reminder", "open", "settings"].map(custom).allSatisfy(SettingsView.hiddenByBuiltIn)
               && !["notes", "reply", "remind"].map(custom).contains(where: SettingsView.hiddenByBuiltIn),
               "custom commands a built-in hides are marked in the list, the others aren't")
-        check(model.profiles.contains(real.awsProfile), "profile picker lists \(real.awsProfile) (\(model.profiles))")
-        check(model.credentialStatus == SettingsModel.credentialsFound, "credentials found: \(model.credentialStatus)")
+        check(model.profiles.contains(own.awsProfile), "profile picker lists \(own.awsProfile) (\(model.profiles))")
+        needing(.bedrock)
+        model.aws.load(profile: model.config.awsProfile)
+        check(model.credentialsReady, "credentials found: \(model.credentialStatus)")
+        needing([])
         let casual = RewriteStyle.named("口语")!
         let wasOn = model.isStyleOn(casual)
         model.setStyle(casual, on: !wasOn)
@@ -571,6 +581,7 @@ enum SelfTest {
         }
 
         // The test button makes a live request with the window's settings.
+        needing(.bedrock)
         model.runTest()
         _ = pump(timeout: 20) { model.testStatus != .running }
         if case let .passed(text) = model.testStatus {
@@ -578,9 +589,10 @@ enum SelfTest {
         } else {
             check(false, "测试连接 failed: \(model.testStatus)")
         }
+        needing([])
 
         // Rendered offscreen (nothing appears on screen) for a visual check and the README: the
-        // real config, read-only, with a live Test Connection (测试连接) result.
+        // self-test's config, read-only, with a live Test Connection (测试连接) result.
         let list = dir.appendingPathComponent("jargon.txt")
         try? Data("# 我们组的\nbandwidth：精力\nLP\tLeadership Principles\n抓手 - 着力点\n".utf8).write(to: list)
         model.config.jargonFile = list.path
@@ -595,8 +607,9 @@ enum SelfTest {
         defer { UIText.choice = pickedBefore }
         for picked in [Language.english, .chinese] {
             model.setUILanguage(picked)
+            // The profile's line (keys found, where they are) in that language too.
             check(UIText.chinese == (picked == .chinese) && (try? Config.load(from: url))?.uiLanguage == picked
-                  && model.credentialStatus == SettingsModel.credentialsFound,
+                  && model.credentialsReady == bedrockReady,
                   "界面语言 \(picked.rawValue): applies at once and is saved (\(model.credentialStatus))")
         }
         model.setUILanguage(nil)
@@ -635,7 +648,7 @@ enum SelfTest {
         check(!broken.canSave && broken.loadError != nil
               && (try? String(contentsOf: url, encoding: .utf8)) == "{ broken",
               "a broken config file is reported, not overwritten")
-        check((try? Data(contentsOf: Config.defaultURL)) == realBefore, "the real config file was not touched")
+        check((try? Data(contentsOf: Config.userURL)) == realBefore, "the real config file was not touched")
     }
 
     /// Runs `work` while pumping the main run loop (the self-test is synchronous main-thread code).
@@ -663,11 +676,11 @@ enum SelfTest {
         return controller.composer.phase == .choosing
     }
 
-    /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⏎ asks again with
+    /// Refining the results: @improve a long English sentence, then "shorter" typed in level two and ⇧⏎ asks again with
     /// the results as context; the new versions are shorter, the header names the step, Esc goes back to the results
     /// before it, secure input refuses a refine like any request, and a pick inserts the refined text.
     static func testRefine(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— refine the results: shorter (live Bedrock)")
+        section("refine the results: shorter (live Bedrock)", needs: [.composing, .bedrock])
         func versions() -> [String] { controller.composer.choices.filter { $0.kind == .version }.map(\.text) }
         func average(_ lines: [String]) -> Double { lines.isEmpty ? 0 : Double(lines.map(\.count).reduce(0, +)) / Double(lines.count) }
         tapShift(controller, client)  // English: the sentence and the instruction are typed as letters
@@ -686,9 +699,9 @@ enum SelfTest {
         let typing = controller.panelModel()
         check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
               "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
-        check(typing.footer.hasPrefix("⏎ 按这句修改结果"), "the footer says ⏎ refines (\(typing.footer))")
+        check(typing.footer.hasPrefix("⇧⏎ 修改 · ⏎ 上屏"), "the footer says ⇧⏎ refines, ⏎ inserts (\(typing.footer))")
         readmeSnapshot("refine-typing", controller, client, in: snapshotDirectory)  // release notes
-        check(enter(controller, client) && controller.composer.isRefining, "⏎ runs the refine")
+        check(shiftEnter(controller, client) && controller.composer.isRefining, "⇧⏎ runs the refine")
         if finishConversion(controller, "refine: shorter") {
             let after = versions()
             check(after.count >= 2 && average(after) < average(before),
@@ -703,13 +716,13 @@ enum SelfTest {
                   && controller.composer.phase == .choosing, "Esc goes back to the results before the refine")
             // The same refine again comes from the cache.
             type("shorter", controller, client)
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)
             _ = pump(timeout: 2) { controller.composer.phase == .choosing }
             check(controller.composer.phase == .choosing && versions() == after, "the same refine again is answered from the cache")
             // Secure input refuses a refine like any request: the results stay, the instruction comes back.
             controller.secureInputActive = { true }
             type("warmer", controller, client)
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)
             let refusal = controller.composer.refineError ?? ""
             check(refusal.contains("安全输入") && versions() == after && controller.composer.refineText == "warmer"
                   && controller.panelModel().status == .error(refusal), "secure input refuses the refine (\(refusal))")
@@ -729,7 +742,7 @@ enum SelfTest {
     /// 黑话); Chinese output; the default input mode.
     static func testEnglishAndOutput(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                      snapshotDirectory: URL) {
-        print("— English input → English polish + 黑话 (live Bedrock)")
+        section("English input → English polish + 黑话 (live Bedrock)", needs: [.composing, .bedrock])
         settings.rewriteStyles = ["润色", "简洁", "黑话"]
         let english = settings
         controller.converter = Converter(loadConfig: { english })
@@ -762,7 +775,7 @@ enum SelfTest {
             check(rewrites.contains { $0.kind == .rewrite("黑话") }, "黑话 rewrite present")
             readmeSnapshot("7-english-light", controller, client, in: snapshotDirectory)
             // The user's own jargon list: the jargon (黑话) row notes what the list's terms in it mean.
-            let jargonFile = snapshotDirectory.appendingPathComponent("jargon.txt")
+            let jargonFile = snapshotDirectory.appendingPathComponent("jargon.txt"), jargonBefore = settings.jargonFile
             try? Data("bandwidth：精力、时间\nminor issue：小问题（其实很严重）\n".utf8).write(to: jargonFile)
             settings.jargonFile = jargonFile.path
             if let row = choices.firstIndex(where: { $0.kind == .rewrite(RewriteStyle.jargonName) }) {
@@ -770,14 +783,14 @@ enum SelfTest {
                 let comment = controller.panelModel().rows[row].comment
                 check(comment == (note.map { "黑话 · \($0)" } ?? "黑话"), "黑话 row explains the user's terms: \(comment)")
             }
-            settings.jargonFile = nil
+            settings.jargonFile = jargonBefore  // the self-test's (none), never the user's
             try? FileManager.default.removeItem(at: jargonFile)
             _ = space(controller, client)
             check(client.inserted.last == versions.first?.text, "Space inserts the first polished version")
         }
         tapShift(controller, client)
 
-        print("— output Chinese (live Bedrock)")
+        section("output Chinese (live Bedrock)", needs: [.composing, .bedrock])
         settings.outputLanguage = .chinese
         settings.rewriteStyles = ["简洁", "黑话"]
         let chinese = settings
@@ -801,7 +814,7 @@ enum SelfTest {
         if controller.composer.isComposing { controller.commitComposition(client) }  // after a failure
         settings.outputLanguage = .english
 
-        print("— default input mode")
+        section("default input mode", needs: .composing)
         settings.defaultInput = .english
         controller.applySettings()
         check(controller.composer.engineState.isAsciiMode, "changing the default to English switches an idle field")
@@ -817,7 +830,7 @@ enum SelfTest {
     /// microphone) is recognized on the Mac and inserted, or continues an @improve draft.
     static func testVoice(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                           snapshotDirectory: URL) {
-        print("— voice input (on-device recognition of synthesized speech)")
+        section("voice input (on-device recognition of synthesized speech)", needs: .composing)
         guard #available(macOS 26.0, *), VoiceInput.isSupported else {
             print("  SpeechAnalyzer not available on this macOS; skipped")
             return
@@ -927,6 +940,7 @@ enum SelfTest {
         }
 
         // Chinese mode: Chinese speech continues an @improve draft, the action key translates it.
+        needing([.composing, .bedrock])
         improve(controller, client)
         let before = controller.composer.draft
         if dictate(chineseAudio, snapshotName: "8-voice") {
@@ -959,6 +973,7 @@ enum SelfTest {
         tapShift(controller, client)
         settings.actionKey = .enter
         controller.applySettings()
+        needing(.composing)
 
         // An ⌥ shortcut (a key while right ⌥ is down) is not dictation.
         controller.voiceFile = (chineseAudio, speed: 1)
@@ -978,17 +993,18 @@ enum SelfTest {
     }
 
     /// @ commands through the controller, with ⏎ as the action key: the palette, @question (live
-    /// Bedrock) and ⌘C, @claude (starts nothing here), @open as you type (real Spotlight and folder
+    /// Bedrock) and ⌘C, @agent (starts nothing here), @open as you type (real Spotlight and folder
     /// listings; nothing is opened), and "@name" mentions.
     static func testCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @ commands (live Bedrock, Spotlight)")
+        section("@ commands (live Bedrock, Spotlight)", needs: .composing)
         var opened: [String] = [], terminal: [String] = [], copied: [String] = []
         let saved = (openItem: controller.openItem, runInTerminal: controller.runInTerminal, copyText: controller.copyText)
         controller.openItem = { opened.append($0) }
-        controller.runInTerminal = { terminal.append($0) }
+        var agentArguments: [[String]] = []
+        controller.runInTerminal = { agentArguments.append($0); terminal.append($1) }
         controller.startAgent = { _ in "selftest" }  // never a real background task
         controller.copyText = { copied.append($0) }
-        controller.programInstalled = { _ in true }  // @claude runs here even without Claude Code
+        controller.programInstalled = { _ in true }  // @agent runs here even without its agent
         controller.setCommands(Command.catalog(controller.loadSettings().customCommands), recheck: true)
         controller.composer.commands = Command.catalog(controller.loadSettings().customCommands)
         defer {
@@ -1008,17 +1024,18 @@ enum SelfTest {
         settle()
         at()
         let commands = controller.panelModel().rows.map(\.text)
-        check(client.marked == "@" && commands == ["@improve", "@translate", "@question", "@claude", "@open"],
+        check(client.marked == "@" && commands == ["@improve", "@translate", "@question", "@agent", "@open"],
               "@ opens the command palette (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
         _ = enter(controller, client)
         check(client.marked == "question › ", "⏎ picks @question ('\(client.marked)')")
         type("shenmeshiliangzijisuan", controller, client)  // 什么是量子计算: what is quantum computing
+        needing([.composing, .bedrock])
         _ = enter(controller, client)  // converts the pinyin and asks
         if finishConversion(controller, "@question") {
             let answer = controller.composer.choices.last
-            check(answer?.kind == .answer && answer?.text.containsHan == true && controller.composer.choices.first?.text.hasPrefix("什么") == true,
+            check(answer?.kind == .answer && answer?.text.containsHan == true && controller.composer.chatRounds.first?.question.hasPrefix("什么") == true,
                   "a Chinese answer to the question: \(answer?.text.prefix(50) ?? "")")
             readmeSnapshot("11-question", controller, client, in: snapshotDirectory)
             copy()
@@ -1027,30 +1044,48 @@ enum SelfTest {
             check(client.inserted.last == answer?.text && client.marked.isEmpty, "⏎ inserts the answer")
         }
         controller.commitComposition(client)
+        needing(.composing)
 
         at()
-        type("cl", controller, client)
+        type("ag", controller, client)
         _ = space(controller, client)
         type("bangwoxiegeshellxiaojiaoben", controller, client)  // 帮我写个shell小脚本: write me a small shell script
         let insertedBefore = client.inserted
         _ = enter(controller, client)
         check(terminal.count == 1 && terminal.first?.hasPrefix("帮我写") == true && client.inserted == insertedBefore
               && client.marked.isEmpty && !controller.composer.isComposing,
-              "@claude starts a Claude Code session with the text, inserts nothing (\(terminal) | \(controller.panelModel().detail ?? "-"))")
+              "@agent starts a Claude Code session with the text, inserts nothing (\(terminal) | \(controller.panelModel().detail ?? "-"))")
+        check(agentArguments.first == ["claude", "--"], "…as `claude -- <text>` (\(agentArguments))")
         // While secure input is on it doesn't start: the text stays in the draft until it is off.
         let secureInput = controller.secureInputActive
         controller.secureInputActive = { true }
         at()
-        type("cl", controller, client)
+        type("ag", controller, client)
         _ = space(controller, client)
         type("nihao", controller, client)
         _ = enter(controller, client)
-        check(terminal.count == 1 && client.marked == "claude › 你好",
-              "@claude doesn't start Claude Code while secure input is on (\(client.marked))")
+        check(terminal.count == 1 && client.marked == "agent › 你好",
+              "@agent doesn't start Claude Code while secure input is on (\(client.marked))")
         controller.secureInputActive = secureInput
         _ = enter(controller, client)
         check(terminal.count == 2 && terminal.last == "你好" && client.marked.isEmpty,
               "…and starts it once secure input is off (\(terminal))")
+        // Another agent picked in Settings whose program isn't on this Mac: @agent goes with the next key, without the
+        // text field becoming active again; picked back, it's there again.
+        let installedBefore = controller.programInstalled
+        controller.programInstalled = { $0 == "claude" }
+        func nextKey() {
+            type("a", controller, client)
+            controller.commitComposition(client)
+        }
+        SelfTest.settings.agent = .gemini
+        nextKey()
+        let goneForGemini = pump(timeout: 3) { !controller.composer.commands.contains(.agent) }
+        SelfTest.settings.agent = .claude
+        nextKey()
+        let backForClaude = pump(timeout: 3) { controller.composer.commands.contains(.agent) }
+        check(goneForGemini && backForClaude, "@agent is offered for the agent picked: not for Gemini CLI missing, again for Claude Code")
+        controller.programInstalled = installedBefore
         check(TerminalLauncher.shellQuote("it's $HOME `x`") == "'it'\\''s $HOME `x`'", "the prompt is passed as one quoted word")
 
         settle()
@@ -1210,7 +1245,7 @@ enum SelfTest {
     /// typed or its text field is gone.
     static func testNotesAndReminders(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                       snapshotDirectory: URL) {
-        print("— @note, @reminder (stand-ins for Notes and Reminders)")
+        section("@note, @reminder (stand-ins for Notes and Reminders)", needs: .composing)
         var notes: [String] = [], reminders: [ReminderDraft] = [], copied: [String] = []
         var failure: Error?
         var held = false  // a save waits while this is set (something is typed meanwhile)
@@ -1583,7 +1618,7 @@ enum SelfTest {
     /// `@reportissue`: ⏎ shows what the page will hold (versions, kinds, counts: nothing of the user's), Esc goes back
     /// to the title, ⏎ ⏎ opens GitHub's new-issue page with it (recorded here, never opened); nothing is inserted.
     static func testReportIssue(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @reportissue (nothing opened)")
+        section("@reportissue (nothing opened)", needs: .composing)
         _ = pump(timeout: 8) { controller.panelModel().detail == nil }  // a notice from before: not in the image
         var opened: [String] = []
         let saved = controller.openItem
@@ -1624,7 +1659,7 @@ enum SelfTest {
     }
 
     static func testIMessage(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
-        print("— @imessage (stand-in contacts and sender)")
+        section("@imessage (stand-in contacts and sender)", needs: .composing)
         let sender = StandInSender()
         var recent: [String] = []
         var contacts: [Contact]? = [Contact(name: "张三", handles: ["+1 555 0100", "zhangsan@example.com"]),
@@ -1729,7 +1764,7 @@ enum SelfTest {
     /// highlight and ↑↓ turn the page; in a column, → stays librime's (the cursor in the pinyin). Nothing is picked,
     /// so nothing is learned.
     static func testHorizontalCandidates(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— candidates in a row")
+        section("candidates in a row", needs: .composing)
         let panel = CandidatePanel.shared
         func arrow(_ code: UInt16) { press(controller, client, "", code: code) }
         type("nihao", controller, client)
@@ -1783,6 +1818,10 @@ enum SelfTest {
         // The setting is on the Input page (with the input languages), and the search finds it there.
         check(SettingsPage.input.matches("candidate layout") && SettingsPage.input.matches("横排") && !SettingsPage.general.matches("横排"),
               "searching for the candidate layout finds the Input page, not General")
+        // @agent's settings are on a page of their own.
+        check(SettingsPage.agent.matches("kiro") && SettingsPage.agent.matches("后台 通知") && SettingsPage.agent.matches("claude tasks")
+              && !SettingsPage.general.matches("kiro") && !SettingsPage.general.matches("后台"),
+              "searching for the agents or Claude Code's background finds the Agent page, not General")
     }
 
     /// Height of the content of the outermost scroll view in `view` (what a SwiftUI form scrolls).
@@ -1810,6 +1849,7 @@ enum SelfTest {
     /// @translate with nothing to translate into but the sentence's own language (a new user whose system
     /// has no other language): no request, a notice, and the settings open on Translate & Rewrite.
     static func testNothingToTranslateInto(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
+        section("@translate with nothing to translate into", needs: .composing)
         let (settingsBefore, loadBefore, openBefore) = (settings, controller.loadSettings, controller.openSettings)
         var opened: [SettingsPage] = []
         defer {
@@ -1819,7 +1859,7 @@ enum SelfTest {
             controller.composer.setInputMode(settings.defaultInput)
         }
         settings = (try? Config.load()) ?? .default
-        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([Language.english])
         settings.setOrder([OutputLanguage.english])
         settings.uiLanguage = .english
@@ -1848,6 +1888,7 @@ enum SelfTest {
     /// started with come back afterwards.
     static func englishReadmeScenes(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                     in snapshotDirectory: URL) {
+        section("the English README's scenes (live Bedrock)", needs: [.composing, .bedrock])
         let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
         defer {
             controller.commitComposition(client)
@@ -1857,7 +1898,7 @@ enum SelfTest {
         }
         let languages = ["es", "fr", "de"].map(OutputLanguage.init)
         settings = (try? Config.load()) ?? .default
-        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([Language.english])
         settings.setOrder(languages)
         settings.uiLanguage = .english
@@ -2115,7 +2156,7 @@ enum SelfTest {
 
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
-        print("— @calculate, @py, @js, @search")
+        section("@calculate, @py, @js, @search", needs: .composing)
         // These commands run nothing while secure input is on, and a locked screen holds it. Nothing typed
         // here is secret, and the secure input refusal has its own checks, so this section runs without it.
         let (secureInput, installed, commands, searchKey) =
@@ -2262,7 +2303,9 @@ enum SelfTest {
                 controller.activateServer(client)
                 check(insertsResult("py", "print(1);print(2)", "1 2"),
                       "…and goes in as one line in a terminal (\(shown(client.inserted.last)))")
+                let local = needing([.composing, .bedrock])  // a live @question
                 testAnswerLinesInTerminal(controller, client, start: start, typeText: typeText, clear: clear)
+                needing(local)
                 client.bundleIDOverride = nil
                 controller.activateServer(client)
             } else {
@@ -2298,7 +2341,7 @@ enum SelfTest {
     /// the script; a background one notifies when it's done.
     static func testExtensions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, start: (String) -> Bool,
                                typeText: (String) -> Void, waitForEnd: () -> Void, clear: () -> Void) {
-        print("— script extensions (a temporary folder)")
+        section("script extensions (a temporary folder)", needs: .composing)
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-selftest-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: folder.appendingPathComponent("stbundle"), withIntermediateDirectories: true)
         let (loadExtensions, notify, ask) = (controller.loadExtensions, controller.scriptTasks.notify, controller.scriptTasks.askToNotify)
@@ -2437,6 +2480,14 @@ enum SelfTest {
         // Voice tests play audio files; the microphone and its permission prompt are never used.
         AllInOneIMEInputController.microphoneAllowed = false
         try? FileManager.default.createDirectory(at: snapshotDirectory, withIntermediateDirectories: true)
+        // A config of its own (`useOwnConfig`): the user's is read for its AWS profile and region, and to check that
+        // nothing touched it; its settings windows never ask the user's keychain or shell which keys there are.
+        let userConfig = try? Data(contentsOf: Config.userURL)
+        useOwnConfig(in: snapshotDirectory)
+        SettingsModel.looksUpKeys = false
+        // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched.
+        APIKeys.keychain = .inMemory()
+        _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""
         check(NSClassFromString(className) == AllInOneIMEInputController.self,
@@ -2482,7 +2533,7 @@ enum SelfTest {
             print("✗ could not create AllInOneIMEInputController")
             return 1
         }
-        // The user's settings, but results inserted at once: checks read what went in right away (the
+        // The self-test's config, but results inserted at once: checks read what went in right away (the
         // typing-out section turns it on for itself).
         controller.loadSettings = {
             var config = LiveConfig.current
@@ -2500,15 +2551,17 @@ enum SelfTest {
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
+        giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
-        // README image the live requests translate into English only (three versions), whatever the user added.
+        // README image the live requests translate into English only (three versions).
         // It runs before `settings` is pinned below: its own settings here (the README's Chinese interface,
-        // English only), and the user's back afterwards.
+        // English only), and the self-test's back afterwards.
+        section("@translate for the README (live Bedrock)", needs: [.composing, .bedrock])
         let (converterBefore, settingsBefore, loadBefore) = (controller.converter, settings, controller.loadSettings)
         settings = (try? Config.load()) ?? .default
-        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([OutputLanguage.english])  // the hint under the draft says the same
-        settings.setOrder([Language.chinese, .english])  // pinyin, whatever the user's own default input is
+        settings.setOrder([Language.chinese, .english])  // pinyin first
         settings.uiLanguage = .chinese
         controller.loadSettings = { SelfTest.settings }
         controller.applySettings()
@@ -2525,7 +2578,7 @@ enum SelfTest {
         _ = enter(controller, client)
         if finishConversion(controller, "@translate") {
             readmeSnapshot("3-translate", controller, client, in: snapshotDirectory)
-            // The requests use the real config's languages: three versions with one, a line each with several.
+            // Three versions with one translation language, a line each with several.
             let lines = controller.composer.choices.filter {
                 if case .translation = $0.kind { return true }
                 return $0.kind == .version
@@ -2552,17 +2605,18 @@ enum SelfTest {
         controller.messageSender = StandInSender()
         controller.loadRecentHandles = { [] }
         controller.saveRecentHandles = { _ in }
-        // The real config (model, styles, credentials) with the new options pinned to known values;
-        // sections below change `settings` and the controller follows (nothing is written to disk).
+        // The self-test's config (Bedrock with the user's AWS profile and region, all else the defaults) with the
+        // options the checks rely on pinned; sections below change `settings` and the controller follows (nothing
+        // is written to disk).
         settings = (try? Config.load()) ?? .default
-        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // the user's own may type out, with typos
+        (settings.typeOut, settings.typeOutMistakes) = (false, false)  // inserted at once, no typos
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])  // Shift switches
-        settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
+        settings.claudeInBackground = false  // @agent records a Terminal launch; nothing starts in the background
         settings.voiceInput = true
         settings.actionKey = .enter  // the default; the action key section tries the others
         settings.uiLanguage = .chinese  // README images; the interface language section tries English
-        settings.claudeInBackground = false  // @claude records a Terminal launch; nothing starts in the background
+        settings.claudeInBackground = false  // @agent records a Terminal launch; nothing starts in the background
         // In a column (horizontal is the default): the checks and README images below read the candidates one under
         // the other; `testHorizontalCandidates` tries the row.
         settings.candidateLayout = .vertical
@@ -2572,6 +2626,7 @@ enum SelfTest {
         let clockBefore = UIText.clock24
         UIText.clock24 = true
         defer { UIText.clock24 = clockBefore }
+        section("the Rime session")
         controller.ensureEngine()
         controller.applySettings()
         check(controller.composer.engine != nil, "Rime session created")
@@ -2581,13 +2636,16 @@ enum SelfTest {
         panel.alphaValue = 0
         panel.ignoresMouseEvents = true
 
-        print("— secure input (password fields)")
+        section("secure input (password fields)")
         if SecureInput.ownerPID() != nil {
-            // Another app (e.g. the lock screen) holds it: that must not stop us from composing here.
+            // Another app (e.g. the lock screen) holds it: that must not stop us from composing here. When macOS
+            // can't tell who holds it, composing stops everywhere (`SecureInput.blocksComposing`): nothing to check.
             print("  secure input is \(SecureInput.ownerDescription()); checking it doesn't block other apps")
+            if SecureInput.ownerPID() == -1 { skipping = secureInputOn }
             type("ni", controller, client)
             check(client.marked == "ni" || client.marked == "n i", "composing still works (\(client.marked))")
             _ = escape(controller, client)
+            skipping = nil
         } else {
             _ = EnableSecureEventInput()
             if SecureInput.ownerPID() != getpid() {
@@ -2608,13 +2666,13 @@ enum SelfTest {
         controller.commitComposition(client)  // start the next section from a clean state
         client.inserted.removeAll()
 
-        print("— pass-through when idle")
+        section("pass-through when idle", needs: .composing)
         check(!press(controller, client, "1", code: 0x12), "digit passes through")
         check(!press(controller, client, "c", code: 0x08, flags: .command), "⌘C passes through")
         check(!enter(controller, client), "Enter passes through")
         check(press(controller, client, ",", code: 0x2B) && client.inserted.last == "，", "',' types a Chinese comma")
 
-        print("— regular input method, @improve (live Bedrock)")
+        section("regular input method, @improve (live Bedrock)", needs: .composing)
         type("nihao", controller, client)
         _ = space(controller, client)
         check(client.inserted.last == "你好" && client.marked.isEmpty, "Space inserts 你好 straight into the text")
@@ -2629,6 +2687,7 @@ enum SelfTest {
         type("wojintianyoudianbushufu", controller, client)
         check(controller.panelModel().footer == "空格 选词 · ⏎ 润色 / 改写", "the footer names the command (\(controller.panelModel().footer))")
         readmeSnapshot("1b-sentence-pinyin", controller, client, in: snapshotDirectory)
+        needing([.composing, .bedrock])
         _ = enter(controller, client)  // converts the pinyin and runs @improve
         if finishConversion(controller, "@improve") {
             // @improve polishes in the sentence's own language (a version only re-punctuating it is hidden).
@@ -2644,7 +2703,7 @@ enum SelfTest {
         controller.commitComposition(client)
 
         // ⌘V in the command: the clipboard's text (a fake one here) goes into it, not the document.
-        print("— @improve + ⌘V (live Bedrock)")
+        section("@improve + ⌘V (live Bedrock)", needs: .composing)
         let clipboard = "这个项目的进度太慢了\n我们需要尽快想办法"
         controller.readClipboard = { clipboard }
         press(controller, client, "@", code: 0x13, flags: .shift)
@@ -2655,6 +2714,7 @@ enum SelfTest {
         _ = pump(timeout: 1) { client.marked != "improve › " }  // the clipboard is read once the key is answered
         check(client.marked == "improve › 这个项目的进度太慢了我们需要尽快想办法" && client.inserted.count == insertedBefore,
               "the clipboard's text goes into the command, as one line ('\(client.marked)')")
+        needing([.composing, .bedrock])
         _ = enter(controller, client)
         if finishConversion(controller, "@improve on pasted text") {
             check(controller.composer.choices.first?.text == "这个项目的进度太慢了我们需要尽快想办法"
@@ -2665,6 +2725,7 @@ enum SelfTest {
         controller.readClipboard = { nil }
         check(!press(controller, client, "v", code: 0x09, flags: .command), "⌘V with nothing pending is the app's")
         controller.commitComposition(client)
+        needing(.composing)
         // In a terminal (it pastes on ⌘V itself) ⌘V stays the terminal's. ⏎ on the empty command only hints:
         // the clipboard isn't read (⌃V brings its text in).
         client.bundleIDOverride = "com.mitchellh.ghostty"
@@ -2717,7 +2778,7 @@ enum SelfTest {
 
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }
 
-        print("— level one: local pinyin")
+        section("level one: local pinyin", needs: .composing)
         type("nihao", controller, client)
         let state = controller.composer.engineState
         check(state.candidates.first?.text == "你好", "first candidate for 'nihao' is 你好 (\(state.candidates.prefix(5).map(\.text)))")
@@ -2751,7 +2812,7 @@ enum SelfTest {
         check(shiftEnter(controller, client) && client.inserted.last == "@improve 你好" && client.marked.isEmpty,
               "⇧⏎ inserts the command as typed")
 
-        print("— ⇧Space is Space")
+        section("⇧Space is Space", needs: .composing)
         func shiftSpace() -> Bool { press(controller, client, " ", code: VirtualKey.space, flags: .shift) }
         type("nihao", controller, client)
         check(shiftSpace() && client.inserted.last == "你好" && client.marked.isEmpty, "⇧Space picks 你好, like Space")
@@ -2764,7 +2825,7 @@ enum SelfTest {
               "in a command ⇧Space picks, then types a space ('\(controller.composer.draft)')")
         _ = escape(controller, client)
 
-        print("— Shift switches Chinese / English")
+        section("Shift switches Chinese / English", needs: .composing)
         tapShift(controller, client)
         check(controller.composer.engineState.isAsciiMode, "Shift alone switches to English")
         check(!press(controller, client, "a", code: 0x00), "letters go straight to the app")
@@ -2780,7 +2841,7 @@ enum SelfTest {
         tapShift(controller, client)
         check(!controller.composer.engineState.isAsciiMode, "Shift alone switches back to Chinese")
 
-        print("— no AI while secure input is on")
+        section("no AI while secure input is on", needs: .composing)
         controller.secureInputActive = { true }
         improve(controller, client)
         type("nihao", controller, client)
@@ -2795,7 +2856,7 @@ enum SelfTest {
         controller.secureInputActive = { false }
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the 中/英 (Chinese/English) notice, not in the README images
 
-        print("— level two: translate + polish (live Bedrock)")
+        section("level two: translate + polish (live Bedrock)", needs: [.composing, .bedrock])
         improve(controller, client)
         type("wojintianyoudianbushufu", controller, client)
         let sentence = controller.composer.engineState.candidates.first?.text ?? ""
@@ -2820,7 +2881,7 @@ enum SelfTest {
         check(finished, String(format: "translation finished in %.2fs", Date().timeIntervalSince(started)))
         if case let .failed(message) = controller.composer.phase {
             check(false, "translation failed: \(message)")
-            return 1
+            if skipping == nil { return 1 }  // what follows reads its results (skipped, it runs on, counting nothing)
         }
         let choices = controller.composer.choices
         for choice in choices { print("  \(choice.label) \(choice.text)") }
@@ -2836,7 +2897,7 @@ enum SelfTest {
         check(client.inserted.last == second && !second.isEmpty, "digit 2 commits '\(second)'")
         check(client.marked.isEmpty && !panel.isVisible, "marked text cleared and panel hidden")
 
-        print("— cache hit + Space commits")
+        section("cache hit + Space commits", needs: [.composing, .bedrock])
         improve(controller, client)
         type("wojintianyoudianbushufu", controller, client)
         check(act(controller, client) && controller.composer.sentText == sentence,
@@ -2844,11 +2905,11 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         check(controller.composer.phase == .choosing, "same sentence answered from cache")
         _ = space(controller, client)
-        check(client.inserted.last == choices[1].text, "Space commits the highlighted English")
+        check(choices.count > 1 && client.inserted.last == choices[1].text, "Space commits the highlighted English")
 
         testRefine(controller, client, snapshotDirectory: snapshotDirectory)
 
-        print("— typing more in level two continues the sentence")
+        section("typing more in level two continues the sentence", needs: [.composing, .bedrock])
         improve(controller, client)
         type("nihao", controller, client)
         _ = space(controller, client)
@@ -2861,7 +2922,7 @@ enum SelfTest {
         check(client.inserted.last == "@improve 你好吗", "⇧⏎ inserts it as typed")
 
         // The cached sentence again, so these need no requests.
-        print("— action key setting: a tap of ⌥, ⌥Space, Space")
+        section("action key setting: a tap of ⌥, ⌥Space, Space", needs: [.composing, .bedrock])
         improve(controller, client)
         type("nihao", controller, client)
         _ = space(controller, client)
@@ -2890,7 +2951,7 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         check(controller.composer.phase == .choosing && controller.composer.sentText == sentence,
               "⌥空格: converts the pinyin and sends it")
-        check(optionSpace(controller, client) && client.inserted.last == choices[1].text,
+        check(optionSpace(controller, client) && choices.count > 1 && client.inserted.last == choices[1].text,
               "⌥空格 again inserts the highlighted line")
         settings.actionKey = .space
         controller.applySettings()
@@ -2909,7 +2970,7 @@ enum SelfTest {
 
         // The cached sentence once more, with the interface in English (an English system, or the
         // Interface language setting, 界面语言, set to English).
-        print("— interface language: English")
+        section("interface language: English", needs: [.composing, .bedrock])
         settings.uiLanguage = .english
         controller.applySettings()
         improve(controller, client)
@@ -2924,7 +2985,7 @@ enum SelfTest {
         _ = pump(timeout: 2) { controller.composer.phase == .choosing }
         let english = controller.panelModel()
         let styleNames = english.rows.dropFirst().map { $0.comment.components(separatedBy: " · ")[0] }
-        check(english.footer == "Space / ⏎ insert · digits pick · 0 original · type to refine · ⌘C copy · Esc back"
+        check(english.footer == "Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · 0 original · ⌘C copy · Esc back"
               && english.rows.first?.comment == "original" && !styleNames.joined().containsHan,
               "English results panel: \(english.footer) | \(english.rows.map(\.comment))")
         snapshot("9-english-ui", in: snapshotDirectory)
@@ -2953,12 +3014,18 @@ enum SelfTest {
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
+        testAtAfterAWord(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
+        testQuestionChat(controller, client, snapshotDirectory: snapshotDirectory)
+        testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
+        testAIConfig(controller, client, snapshotDirectory: snapshotDirectory)
+        testDoctor(controller, client, snapshotDirectory: snapshotDirectory)
+        testAWSCredentials(snapshotDirectory: snapshotDirectory)
 
-        print("— error display")
+        section("error display (an invalid Bedrock model)", needs: [.composing, .bedrock])
         controller.converter = Converter(loadConfig: {
             var config = try Config.load()
             config.modelId = "allinoneime.invalid-model-for-selftest"
@@ -2983,10 +3050,12 @@ enum SelfTest {
         controller.commitComposition(client)
         check(client.inserted.last == "@improve 测试" && controller.composer.phase == .idle, "commitComposition inserts the draft")
 
+        section("commitComposition, the input menu", needs: .composing)
         type("nihao", controller, client)
         controller.commitComposition(client)
         check(client.inserted.last == "你好", "commitComposition converts pending pinyin")
 
+        needing([])
         let menu = controller.menu()
         let menuTitles = menu?.items.map(\.title) ?? []
         check(menuTitles.count > 2 && menuTitles[2].hasPrefix("模型："), "menu shows the model right after 设置… (\(menuTitles.prefix(3)))")
@@ -3037,9 +3106,11 @@ enum SelfTest {
         testFloatingPanel(controller, snapshotDirectory: snapshotDirectory)
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
+        testExtensionSources(snapshotDirectory: snapshotDirectory)
         controller.deactivateServer(client)
 
-        print(failures == 0 ? "SELFTEST PASSED" : "SELFTEST FAILED (\(failures))")
-        return failures == 0 ? 0 : 1
+        section("the user's config")
+        check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config file was not touched by the whole run")
+        return summary()
     }
 }

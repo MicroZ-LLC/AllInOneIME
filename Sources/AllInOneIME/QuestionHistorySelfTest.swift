@@ -3,10 +3,10 @@ import AppKit
 
 extension SelfTest {
     /// `@question`'s recent questions: one asked (live) is kept, in the self-test's own file (`QuestionHistoryStore.url`,
-    /// set by `run`); "@question " lists it, a digit shows its saved answer at once (nothing asked), R asks again, a
+    /// set by `run`); "@question " lists it, a digit shows its saved answer at once (nothing asked), ⌘R asks again, a
     /// question during secure input isn't kept, Clear empties the list, and with the setting off there's none.
     static func testRecentQuestions(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— @question: recent questions (live Bedrock)")
+        section("@question: recent questions (live Bedrock)", needs: [.composing, .bedrock])
         let settingsBefore = settings
         defer {
             controller.commitComposition(client)
@@ -46,7 +46,7 @@ extension SelfTest {
         type("1", controller, client)
         let saved = controller.panelModel()
         check(controller.composer.showsSavedAnswer && controller.composer.phase == .choosing
-              && controller.composer.choices.last?.text == answer && saved.footer.contains("R 重新问") && saved.detail?.hasPrefix("保存于") == true,
+              && controller.composer.choices.last?.text == answer && saved.footer.contains("⌘R 重新问") && saved.detail?.hasPrefix("保存于") == true,
               "1 shows the saved answer at once, no request (\(saved.footer) | \(saved.detail ?? "-"))")
         snapshot("question-saved", in: snapshotDirectory)
         _ = escape(controller, client)
@@ -63,8 +63,8 @@ extension SelfTest {
         question()
         type("1", controller, client)
         let before = QuestionHistoryStore.history.entries.first?.date
-        _ = press(controller, client, "r", code: 0x0F)
-        check(controller.composer.isLevelTwo && !controller.composer.showsSavedAnswer, "R asks the question again")
+        _ = press(controller, client, "r", code: 0x0F, flags: .command)
+        check(controller.composer.isLevelTwo && !controller.composer.showsSavedAnswer, "⌘R asks the question again")
         if finishConversion(controller, "@question asked again") {
             let again = QuestionHistoryStore.history.entries
             check(again.count == 1 && again.first?.question == "一加一等于几" && again.first?.date != before,

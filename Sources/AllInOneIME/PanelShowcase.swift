@@ -124,13 +124,16 @@ enum PanelShowcase {
 /// `settings-<page>.png`, from the config file as it is (nothing is saved), with sample apps and hidden words.
 @MainActor
 enum SettingsPageImages {
-    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil) -> Never {
+    static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil,
+                    agent: String? = nil) -> Never {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         UIText.choice = chinese ? .chinese : .english
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.profileShownAs = "default"  // not the user's own profile name
+        // AWS profiles: samples of every kind in a folder of their own, never the user's ~/.aws (`AWSProfileSamples`).
+        AWSProfileSamples.use(in: model)
         // Fuzzy pinyin shown on, with its pairs (the model saves nothing).
         if !model.config.inputLanguages.contains(.chinese) { model.config.setOrder(model.config.inputLanguages + [.chinese]) }
         if model.config.fuzzyPinyin.isEmpty { model.config.fuzzyPinyin = SettingsModel.fuzzyDefaults }
@@ -138,6 +141,11 @@ enum SettingsPageImages {
         model.config.appProfiles = AppProfileSamples.profiles
         // Hiding sensitive information shown on, with its switches and sample words, never the user's own.
         model.config.redaction = RedactionSettings(enabled: true, customWords: ["Project Atlas", "Phoenix"])
+        // Extension sources: samples, never the user's (their statuses only shown, never saved).
+        model.config.extensionSources = ExtensionSourceSamples.sources
+        for source in model.config.extensionSources { ExtensionSources.enable(source, in: &model.config) }
+        ExtensionSourceController.shared.show(ExtensionSourceSamples.statuses())
+        ExtensionSourcesSection.shownLoaded = ExtensionSourceSamples.loaded
         // Public examples rather than the user's own folders, when given (`extensions=<folder>[,<found folder>…]`:
         // the first as added, any others as if Spotlight had found them).
         if let extensions {
@@ -146,6 +154,13 @@ enum SettingsPageImages {
             model.config.findRaycastScripts = paths.count > 1
             model.config.hiddenExtensionFolders = []
             LiveExtensions.shownFound = Array(paths.dropFirst())
+        }
+        // `@agent` handing the text to another agent (`agent=gemini`, `agent=custom:muse --`).
+        if let agent {
+            let (kind, command) = agent.firstIndex(of: ":").map { (String(agent[..<$0]), String(agent[agent.index(after: $0)...])) }
+                ?? (agent, "")
+            model.config.agent = AgentKind(rawValue: kind) ?? .claude
+            model.config.agentCommand = CustomCommand.arguments(fromCommandLine: command) ?? []
         }
         // The Updates card in a state of its own (nothing is checked or downloaded).
         if let update {
@@ -166,6 +181,18 @@ enum SettingsPageImages {
             SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
+        // provider: sample states, no keychain asked.
+        let provider = model.config.provider
+        model.showKeys([.openai: .keychain, .anthropic: .none, .gemini: .none], endings: [.openai: "a1b2"])
+        for (shown, sheet, name) in [(Provider.openai, nil, "key-saved"), (.gemini, nil, "key-missing"), (.bedrock, Provider.gemini, "key-sheet")] {
+            model.config.provider = shown
+            SettingsImage.render(model, page: .provider, keySheet: sheet, to: output.appendingPathComponent("settings-provider-\(name).png"),
+                                 appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
+        }
+        model.config.provider = provider
+        // Bedrock with a role, an SSO profile, and an SSO sign-in that expired.
+        AWSProfileSamples.render(model, to: output, appearance: dark ? .darkAqua : .aqua)
         // The Input page with each input language's tab picked.
         for language in model.config.inputLanguages {
             SettingsImage.render(model, page: .input, inputTab: language,

@@ -141,8 +141,22 @@ public enum ProviderError: Error, LocalizedError, Equatable {
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
         case let .refused(p): return p == .apple ? "Apple Intelligence declined this request" : "The \(p.displayName) declined this request"
         case let .invalidResponse(p, detail): return "Couldn't read the \(p.displayName) response: \(detail)"
-        case .signedOut: return "Sign in to AllInOneIME Cloud in the settings"
-        case .quotaExhausted: return "No requests left today: subscribe, or add your own API key in the settings"
+        case .signedOut, .quotaExhausted: return Self.hostedAdvice(self, onDevice: AppleModel.system.availability == .available)
+        }
+    }
+
+    /// What a signed-out or used-up AllInOneIME Cloud says to do (`errorDescription`). With Apple Intelligence on this
+    /// Mac (`onDevice`), `@config use Apple Intelligence` too: `@config` itself runs on it then. Without it, `@config`
+    /// would fail the same way, so only signing in or a key of one's own.
+    public static func hostedAdvice(_ error: ProviderError, onDevice: Bool) -> String? {
+        switch error {
+        case .signedOut:
+            return onDevice ? "Sign in to AllInOneIME Cloud in the settings, or type @config use Apple Intelligence"
+                : "Sign in to AllInOneIME Cloud in the settings, or add your own API key"
+        case .quotaExhausted:
+            return onDevice ? "No requests left today: subscribe or add your own API key in the settings, or type @config use Apple Intelligence"
+                : "No requests left today: subscribe, or add your own API key in the settings"
+        default: return nil
         }
     }
 }
@@ -160,19 +174,17 @@ public struct ChatClient: Sendable {
         self.apple = apple
     }
 
-    public typealias CredentialLoader = @Sendable (_ profile: String) throws -> AWSSharedConfig.Resolved
+    /// The profile's credentials (`AWSCredentialResolver.shared` by default): fetched when the profile's kind needs it.
+    public typealias CredentialLoader = @Sendable (_ profile: String) async throws -> AWSSharedConfig.Resolved
     /// The key for `provider` to send to `host` (nil: none); throws when that key isn't for `host`.
     public typealias KeyLoader = @Sendable (_ provider: Provider, _ host: String) throws -> String?
 
-    public func stream(_ body: ConverseRequest, config: Config, loadCredentials: CredentialLoader,
+    public func stream(_ body: ConverseRequest, config: Config, loadCredentials: @escaping CredentialLoader,
                        loadKey: KeyLoader) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         do {
             switch config.provider {
             case .bedrock:
-                let resolved = try loadCredentials(config.awsProfile)
-                return bedrock.converseStream(
-                    body, modelId: config.modelId, region: config.region ?? resolved.region ?? "us-east-1",
-                    credentials: resolved.credentials, timeout: config.timeoutSeconds)
+                return bedrockStream(body, config: config, loadCredentials: loadCredentials)
             case .anthropic, .gemini, .openai, .hosted:
                 let provider = config.provider
                 let settings = config.settings(for: provider)

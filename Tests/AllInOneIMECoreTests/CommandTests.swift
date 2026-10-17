@@ -6,7 +6,7 @@ struct CommandTests {
     @Test func parse() {
         #expect(Command.parse("@question 量子计算是什么")! == (.question, "量子计算是什么"))
         #expect(Command.parse("@Open calc")! == (.open, "calc"))
-        #expect(Command.parse("@claude ")! == (.claude, ""))
+        #expect(Command.parse("@agent ")! == (.agent, ""))
         #expect(Command.parse("@question") == nil)  // name not finished
         #expect(Command.parse("@john hi") == nil)  // not a command
         #expect(Command.parse("hi @question x") == nil)
@@ -16,10 +16,10 @@ struct CommandTests {
     @Test func matching() {
         #expect(Command.matching("") == Command.builtins)
         #expect(Command.matching("Q") == [.question])
-        #expect(Command.matching("cl") == [.claude])
+        #expect(Command.matching("ag") == [.agent])
         #expect(Command.matching("x").isEmpty)
         #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run, .run,
-                                                      .agents, .settings, .message, .report])
+                                                      .agents, .settings, .config, .doctor, .message, .report])
     }
 
     @Test func notesAndRemindersAreBuiltIn() {
@@ -46,8 +46,8 @@ struct CommandTests {
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "translate", "question", "claude", "open", "note", "reminder", "calculate", "py", "js", "tasks",
-                                        "settings", "imessage", "reportissue", "python", "reply", "sh"])
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "note", "reminder", "calculate", "py", "js", "tasks",
+                                        "settings", "config", "doctor", "imessage", "reportissue", "python", "reply", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
         #expect(Command.parse("@python print(1)", in: catalog)?.command.custom == python)
@@ -165,7 +165,7 @@ struct CommandTests {
         let catalog = Command.catalog(custom)  // 14 built-in + 4 (the custom calc gives way to the built-in)
         // Nothing used yet: the first five in catalog order.
         #expect(Command.palette("", in: catalog, usage: CommandUsage(), now: now).map(\.name)
-            == ["improve", "translate", "question", "claude", "open"])
+            == ["improve", "translate", "question", "agent", "open"])
         // The most used first, the rest in catalog order.
         var usage = CommandUsage()
         for _ in 0..<3 { usage.record("python", now: now) }
@@ -178,7 +178,7 @@ struct CommandTests {
         #expect(Command.palette("py", in: catalog, usage: usage, now: now).map(\.name) == ["py", "python"])
         #expect(Command.palette("pyt", in: catalog, usage: usage, now: now).map(\.name) == ["python"])
         #expect(Command.palette("p", in: catalog, usage: usage, now: now).map(\.name) == ["python", "py", "japanese", "improve", "open"])
-        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["japanese", "translate", "claude", "calculate", "tasks"])
+        #expect(Command.palette("a", in: catalog, usage: usage, now: now).map(\.name) == ["agent", "japanese", "translate", "calculate", "tasks"])
         #expect(Command.palette("o", in: catalog, usage: usage, now: now).map(\.name) == ["open", "python", "improve", "question", "note"])
         #expect(Command.palette("zz", in: catalog, usage: usage, now: now).isEmpty)
     }

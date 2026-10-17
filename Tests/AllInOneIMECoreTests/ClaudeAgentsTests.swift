@@ -97,7 +97,7 @@ struct ClaudeAgentsTests {
         let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
         let enter = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r")
         _ = c.handleKeyDown(at)
-        for ch in "cl" { _ = c.handleKeyDown(k(String(ch))) }
+        for ch in "ag" { _ = c.handleKeyDown(k(String(ch))) }
         _ = c.handleKeyDown(tab)
         for ch in "nihao" { _ = c.handleKeyDown(k(String(ch))) }
         let started = c.handleKeyDown(enter).effects
@@ -117,7 +117,7 @@ struct ClaudeAgentsTests {
         // Off: Terminal as before.
         let d = Composer(engine: FakeEngine())
         _ = d.handleKeyDown(at)
-        for ch in "cl" { _ = d.handleKeyDown(k(String(ch))) }
+        for ch in "ag" { _ = d.handleKeyDown(k(String(ch))) }
         _ = d.handleKeyDown(tab)
         for ch in "nihao" { _ = d.handleKeyDown(k(String(ch))) }
         #expect(d.handleKeyDown(enter).effects.contains(.runInTerminal(prompt: "你好")))

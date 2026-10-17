@@ -30,6 +30,12 @@ let usage = """
                         download, verify and install the update as About's Update button does; with
                         --target-dir, into DIR/Input Methods and DIR/Applications (a test install:
                         nothing is registered, the user's apps are left alone)
+      --add-source URL [--path FOLDER] [--branch BRANCH] [--pin TAG-OR-COMMIT]
+                        clone an extension source (ssh://, git@host:, https://, file://) with your
+                        git, print what it holds and runs, and enable it (running this is the consent)
+      --update-sources  fetch every extension source that isn't pinned, fast-forward it, print what changed
+      --list-extensions list the extensions' commands (name, output, source or folder) and those left out
+                        (these three also take --config FILE and --sources-dir DIR, for tests)
     """
 
 func printError(_ message: String) {
@@ -133,7 +139,7 @@ func runServer(showSettings: Bool = false) -> Never {
     DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
-    // Background @claude tasks: notifications, and tasks from before a restart watched again.
+    // Background @agent tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
     // The menu bar icon (on by default) and its panel, once the server and Rime are up. The notes @note
     // saves are recorded whether the panel is shown or not, so that it lists them when it drops down.
@@ -150,6 +156,8 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
     // What the last update did, and a look for the next one if a day has passed (in the background).
     MainActor.assumeIsolated { UpdateController.shared.start() }
+    // Extension sources: checked about 30 s from now, then once a day, if they check by themselves (only ever noted).
+    MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }
@@ -283,13 +291,12 @@ func printStatus() -> Int32 {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
             print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
-        } else { do {
-            let resolved = try AWSSharedConfig.load(profile: config.awsProfile)
-            let region = config.region ?? resolved.region ?? "us-east-1"
-            print("aws:         profile \(config.awsProfile), region \(region), credentials found")
-        } catch {
-            print("aws:         ✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
-        } }
+        } else {
+            // Read from the files and the SSO sign-in only: no program run, nothing fetched.
+            let status = AWSCredentialResolver.shared.status(profile: config.awsProfile)
+            let region = config.region ?? status.region ?? "us-east-1"
+            print("aws:         " + (status.isReady ? "profile \(config.awsProfile), region \(region), " : "✗ ") + status.line(chinese: false))
+        }
     } catch {
         print("config:      ✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
     }
@@ -451,8 +458,10 @@ case "--settings-image":
         let extensions = arguments.first { $0.hasPrefix("extensions=") }.map { String($0.dropFirst("extensions=".count)) }
         // `update=available|current|downloading|failed`: the About page's Updates card in that state.
         let update = arguments.first { $0.hasPrefix("update=") }.map { String($0.dropFirst("update=".count)) }
+        // `agent=gemini|kiro|custom:<command>`: the agent `@agent` hands the text to.
+        let agent = arguments.first { $0.hasPrefix("agent=") }.map { String($0.dropFirst("agent=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
-                               extensions: extensions, update: update)
+                               extensions: extensions, update: update, agent: agent)
     }
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
@@ -462,6 +471,12 @@ case "--check-update":
     exit(UpdateCommands.check(Array(arguments.dropFirst())))
 case "--install-update":
     exit(UpdateCommands.install(Array(arguments.dropFirst())))
+case "--add-source":
+    exit(ExtensionSourceCommands.add(Array(arguments.dropFirst())))
+case "--update-sources":
+    exit(ExtensionSourceCommands.update(Array(arguments.dropFirst())))
+case "--list-extensions":
+    exit(ExtensionSourceCommands.list(Array(arguments.dropFirst())))
 case "--apply-update":
     // The updater's helper (`UpdateHelper`), started by the input method on an update it staged.
     exit(UpdateHelper.run(Array(arguments.dropFirst())))

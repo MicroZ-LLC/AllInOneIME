@@ -80,11 +80,26 @@
   <section>
     <div class="wrap">
       <div class="section-head fade">
+        <h2>Keep asking. Set it up by saying so.</h2>
+        <p>An answer leads to the next question. A setting is a sentence away, and so is a check of your whole setup.</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">⇄</span>Conversations</div><p>After an <code>@question</code> answer, type the next question and press ⇧Return: the panel becomes the conversation, up to five rounds.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">↗</span>Hand it off</div><p>⌘1, ⌘2 … take the conversation, as you saw it, to your coding agent (Claude Code …), Claude, ChatGPT or Gemini, with what you type next.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">⚙︎</span>@config</div><p><code>@config candidates in a column</code>, <code>@config use Claude</code>: each change shown old → new before it's applied, and undone with ⌘Z. Never your keys.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">✚</span>@doctor</div><p>Checks the input method, your AI provider, permissions and language packs, and fixes what it safely can. Ask it why something fails.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
         <h2>Refine it. Keep it private. Make it yours.</h2>
         <p>The answer isn't quite right? Say what to change. Something in it is private? It needn't reach the AI.</p>
       </div>
       <div class="grid fade">
-        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>Refine</div><p>Type <code>shorter</code> or <code>more formal</code> after the results and press Return: new ones replace them in place, as often as you like.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>Refine</div><p>Type <code>shorter</code> or <code>more formal</code> after the results and press ⇧Return: new ones replace them in place, as often as you like.</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#14b8a6">▭</span>On the selection</div><p>Select text in any app, then type <code>@improve</code> or <code>@translate</code>: the result you pick replaces the selection.</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">?</span>Recent questions</div><p><code>@question</code> on its own lists your last five questions; a saved answer shows at once, offline.</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#f59e0b">▦</span>Per app</div><p>Slack in English, WeChat in pinyin, Mail formal and tactful, or no AI at all in an app.</p></div>
@@ -103,7 +118,7 @@
         <p>Not just writing. Each one starts with <code>@</code>, in any text field.</p>
       </div>
       <div class="grid fade">
-        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">✦</span>@claude</div><p>Hands a task to Claude Code in the background and notifies you when it's done.</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">✦</span>@agent</div><p>Hands a task to your coding agent (Claude Code, Gemini CLI, Kiro CLI …); Claude Code can work in the background and notify you when it's done.</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#64748b">⌕</span>@open</div><p>Finds files, folders and apps as you type, or opens a web address.</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#eab308">✎</span>@note</div><p>Saves the text to Notes, line breaks and all.</p></div>
         <div class="card"><div class="cmd"><span class="dot" style="background:#ef4444">◷</span>@reminder</div><p>Adds a reminder, reading the time you wrote: "call Bob tomorrow at 3pm".</p></div>
@@ -122,6 +137,7 @@
           <span class="tag">Script extensions</span>
           <h3>Your own @ commands, from scripts.</h3>
           <p>A script in any language with a few lines of metadata becomes an @ command: it can insert its output, show progress, offer an Alfred-style list to pick from as you type, or run in the background and notify you.</p>
+          <p>Or install a bundle from a Git repository: you see what it runs before it's enabled, and it updates from there when you click Update.</p>
           <p>Raycast Script Commands work as they are. See <a href="https://github.com/MicroZ-LLC/AllInOneIME/blob/mainline/docs/extensions.md">how to write one</a>.</p>
         </div>
         <div class="shot"><img src="/images/extensions.png" alt="Settings: script extensions, with bundles and their commands" loading="lazy"></div>

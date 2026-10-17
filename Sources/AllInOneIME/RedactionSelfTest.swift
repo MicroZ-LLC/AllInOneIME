@@ -56,7 +56,7 @@ extension SelfTest {
     /// logging proxy) holds placeholders, never the values; the versions have the values back; the panel says how
     /// many were hidden; the version picked goes in with them.
     static func testRedaction(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
-        print("— hiding sensitive information from the AI (live)")
+        section("hiding sensitive information from the AI (live Bedrock)", needs: [.composing, .bedrock])
         let (converterBefore, document, inserted) = (controller.converter, client.document, client.inserted)
         defer {
             controller.converter = converterBefore

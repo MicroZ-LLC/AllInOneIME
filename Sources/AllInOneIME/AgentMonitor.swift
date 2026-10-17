@@ -2,7 +2,7 @@ import AllInOneIMECore
 import AppKit
 import UserNotifications
 
-/// `@claude` in the background: starts Claude Code background sessions, looks at them every few seconds
+/// `@agent` in the background: starts Claude Code background sessions, looks at them every few seconds
 /// while any is running, and notifies when one is done (or waits for the user). Clicking the
 /// notification opens the session in Terminal (`claude attach`). The tasks being watched survive a
 /// restart of the input method.
@@ -62,7 +62,7 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         }.value
     }
 
-    /// Whether it looks at the tasks every few seconds now (one started with @claude isn't done yet);
+    /// Whether it looks at the tasks every few seconds now (one started with @agent isn't done yet);
     /// each look is posted as `.allInOneIMEAgentsPolled`.
     var isWatching: Bool { timer != nil && currentInterval == Self.interval }
 
@@ -233,7 +233,7 @@ extension Notification.Name {
     /// AgentMonitor looked at the background tasks (every few seconds while it watches some). userInfo:
     /// "sessions" ([AgentSession], as `claude agents --json --all` listed them). Posted on the main thread.
     static let allInOneIMEAgentsPolled = Notification.Name("AllInOneIMEAgentsPolled")
-    /// @claude started a background task (the menu bar panel looks at once). userInfo: "id" (String, its
+    /// @agent started a background task (the menu bar panel looks at once). userInfo: "id" (String, its
     /// short id). Posted on the main thread.
     static let allInOneIMEAgentStarted = Notification.Name("AllInOneIMEAgentStarted")
 }

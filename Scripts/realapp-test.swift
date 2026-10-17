@@ -73,11 +73,11 @@ final class RequestLog: @unchecked Sendable {
     private var partial = ""
 
     /// Streaming (it stops by itself after a few minutes, should the test end without stopping it); nil if it can't.
-    static func start() -> RequestLog? {
+    static func start(prefix: String = "conversion ") -> RequestLog? {
         let log = RequestLog()
         log.process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
         log.process.arguments = ["stream", "--style", "compact", "--timeout", "3m", "--predicate",
-                                 "subsystem == \"\(imeID)\" AND eventMessage BEGINSWITH \"conversion \""]
+                                 "subsystem == \"\(imeID)\" AND eventMessage BEGINSWITH \"\(prefix)\""]
         let pipe = Pipe()
         log.process.standardOutput = pipe
         log.process.standardError = FileHandle.nullDevice
@@ -106,11 +106,21 @@ final class RequestLog: @unchecked Sendable {
         return (id, line.contains("cache=true"))
     }
 
+    /// Whether a request started after line `mark` says `text` ("@question round 2").
+    func started(after mark: Int, saying text: String) -> Bool {
+        lock.withLock { lines.dropFirst(mark).contains { $0.contains("] conversion ") && $0.contains(" started (") && $0.contains(text) } }
+    }
+
     /// The request id in "conversion 12 <word> …".
     private static func request(_ line: String, _ word: String) -> Int? {
         guard let range = line.range(of: "] conversion ") else { return nil }
         let rest = line[range.upperBound...], digits = rest.prefix(while: \.isNumber)
         return rest.dropFirst(digits.count).hasPrefix(" \(word)") ? Int(digits) : nil
+    }
+
+    /// The lines after `mark` holding `text`.
+    func lines(after mark: Int, containing text: String) -> [String] {
+        lock.withLock { lines.dropFirst(mark).filter { $0.contains(text) } }
     }
 
     func stop() {
@@ -123,7 +133,7 @@ let keyCodes: [Character: UInt16] = [
     "c": 0x08, "v": 0x09, "b": 0x0B, "q": 0x0C, "w": 0x0D, "e": 0x0E, "r": 0x0F, "y": 0x10,
     "t": 0x11, "1": 0x12, "2": 0x13, "3": 0x14, "4": 0x15, "6": 0x16, "5": 0x17, "9": 0x19,
     "7": 0x1A, "8": 0x1C, "0": 0x1D, "o": 0x1F, "u": 0x20, "i": 0x22, "p": 0x23, "l": 0x25,
-    "j": 0x26, "k": 0x28, "n": 0x2D, "m": 0x2E, ",": 0x2B, ".": 0x2F,
+    "j": 0x26, "k": 0x28, "n": 0x2D, "m": 0x2E, ",": 0x2B, ".": 0x2F, " ": 0x31,
 ]
 let spaceCode: UInt16 = 0x31, returnCode: UInt16 = 0x24, escapeCode: UInt16 = 0x35, tabCode: UInt16 = 0x30
 let deleteCode: UInt16 = 0x33, leftShiftCode: UInt16 = 0x38, leftOptionCode: UInt16 = 0x3A
@@ -132,15 +142,76 @@ final class Harness: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var textView: NSTextView!
     var failures = 0
+    /// Checks that counted, and the ones skipped, by reason (`section`).
+    var passed = 0
+    var skipped: [String: Int] = [:]
+    /// Why the checks from here on are skipped (nil: they count), and how many counted in a section (none while some
+    /// were skipped: nothing that types through the input method ran).
+    var skipping: String?
+    var inSection = false
+    var checkedInSections = 0
     var originalSource: String?
     /// Window is key (normal desktop): dispatch through NSApp like real typing. Otherwise (e.g. the
     /// screen is locked) hand events to the text view, which forwards them to its input context.
     var dispatchThroughApp = true
 
     func check(_ ok: Bool, _ message: String) {
-        print("\(ok ? "✓" : "✗") \(message)")
+        if let skipping {
+            print("– \(message) — skipped: \(skipping)")
+            skipped[skipping, default: 0] += 1
+        } else {
+            print("\(ok ? "✓" : "✗") \(message)")
+            if ok { passed += 1 } else { failures += 1 }
+            if inSection { checkedInSections += 1 }
+        }
         fflush(stdout)
-        if !ok { failures += 1 }
+    }
+
+    // MARK: - Secure input
+
+    static let secureInputSkip = "secure input (screen locked?)"
+    /// How long a section waits for secure input held elsewhere to go, and how long the run waits for it in all (the
+    /// watchdog's six minutes hold a test of about two, and this).
+    let secureInputWait: TimeInterval = 30
+    var secureInputWaitLeft: TimeInterval = 90
+    /// It was still on when a section stopped waiting: the next ones don't wait again while it stays.
+    var secureInputStayed = false
+
+    /// Secure input held by another process (a password field, a terminal's Secure Keyboard Entry) refuses every
+    /// request; on the lock screen no keys reach an input method at all.
+    func secureInputHeld() -> Bool { IsSecureEventInputEnabled() || screenIsLocked() }
+
+    /// Whether secure input is off, or goes within `secureInputWait` seconds (not waited for again while it stays on).
+    func secureInputGoes() -> Bool {
+        guard secureInputHeld() else {
+            secureInputStayed = false
+            return true
+        }
+        guard !secureInputStayed, secureInputWaitLeft > 0 else { return false }
+        let wait = min(secureInputWait, secureInputWaitLeft)
+        let pid = (CGSessionCopyCurrentDictionary() as? [String: Any])?["kCGSSessionSecureInputPID"]
+        note("secure input is on (pid \(pid ?? "?"))\(screenIsLocked() ? ", the screen is locked" : ""): waiting up to \(Int(wait)) s for it to go")
+        let started = Date()
+        while secureInputHeld(), Date().timeIntervalSince(started) < wait { pump(0.2) }
+        secureInputWaitLeft -= Date().timeIntervalSince(started)
+        secureInputStayed = secureInputHeld()
+        return !secureInputStayed
+    }
+
+    /// Starts a section (they all type through the input method): while secure input stays on, its checks are skipped,
+    /// not failed. One that counts after a skipped one starts from an empty text view.
+    func section(_ title: String) {
+        print("— \(title)")
+        fflush(stdout)
+        inSection = true
+        let wasSkipping = skipping != nil
+        skipping = nil
+        if !secureInputGoes() { skipping = Self.secureInputSkip }
+        if let skipping { note("skipped: \(skipping)") }
+        if wasSkipping, skipping == nil {
+            reset()
+            textView.string = ""
+        }
     }
 
     func note(_ message: String) {
@@ -176,7 +247,8 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     @discardableResult
     func waitUntil(_ timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
+        // A skipped section counts nothing: it runs on without waiting for what won't come.
+        let deadline = Date().addingTimeInterval(skipping == nil ? timeout : min(timeout, 0.3))
         while !condition() {
             if Date() >= deadline { return false }
             pump(0.05)
@@ -222,12 +294,24 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.04)
     }
 
+    /// Types `text` key by key (a space with the Space key). A character with no key in `keyCodes` is a bug in the test:
+    /// it fails the run (key code 0 would have typed an "a" in its place, as it did for the spaces of "candidates in a row").
     func type(_ text: String) {
-        for ch in text { key(String(ch), keyCodes[ch] ?? 0) }
+        for ch in text {
+            guard let code = keyCodes[ch] else {
+                print("✗ type(\"\(text)\"): no key for '\(ch)' in keyCodes")
+                fflush(stdout)
+                failures += 1
+                continue
+            }
+            key(String(ch), code)
+        }
     }
 
     func space(_ flags: NSEvent.ModifierFlags = []) { key(" ", spaceCode, flags) }
     func enter() { key("\r", returnCode) }
+    /// ⇧⏎: sends a follow-up typed on AI results (a refine, an @question conversation's next question).
+    func shiftEnter() { key("\r", returnCode, .shift) }
     func escape() { key("\u{1B}", escapeCode) }
     func backspace() { key("\u{7F}", deleteCode) }
 
@@ -284,6 +368,36 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Whether letters go straight into the text view (English) or into pinyin, asked by typing "a" into an empty text
+    /// view and taking it back; nil if neither happened. Leaves the text view empty.
+    func typesEnglish() -> Bool? {
+        textView.string = ""
+        type("a")
+        _ = waitUntil(2) { !self.marked.isEmpty || !self.committed.isEmpty }
+        let english: Bool? = !marked.isEmpty ? false : committed == "a" ? true : nil
+        reset()
+        textView.string = ""
+        return english
+    }
+
+    /// English or Chinese (pinyin) as asked: Shift only when the field isn't in it already (a tap toggles, so it isn't
+    /// taken on trust). Whether the field is in it now.
+    func switchTo(english: Bool) -> Bool {
+        for _ in 0..<3 {
+            guard let now = typesEnglish() else { return false }
+            if now == english { return true }
+            tapShift()
+            pump(0.3)
+        }
+        return typesEnglish() == english
+    }
+
+    /// The candidate panel is up (one of the input method's windows, not the menu bar icon).
+    func imePanelShown() -> Bool {
+        let top = NSScreen.screens.first.map { $0.frame.maxY - 40 } ?? .greatestFiniteMagnitude
+        return imePanelFrames().contains { $0.maxY < top }
+    }
+
     /// The input method's action key (config `actionKey`): Return unless set otherwise.
     lazy var actionKey = configValue("actionKey") as? String ?? "enter"
 
@@ -312,6 +426,10 @@ final class Harness: NSObject, NSApplicationDelegate {
     }
 
     static func hasHan(_ s: String) -> Bool { s.unicodeScalars.contains { $0.properties.isIdeographic } }
+    /// Hiragana or katakana (half-width too): Japanese, which shares its Han characters with Chinese.
+    static func hasKana(_ s: String) -> Bool {
+        s.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x31F0...0x31FF).contains($0.value) || (0xFF66...0xFF9D).contains($0.value) }
+    }
     static func looksEnglish(_ s: String) -> Bool {
         !s.isEmpty && !hasHan(s) && s.unicodeScalars.filter { CharacterSet.letters.contains($0) && $0.isASCII }.count >= 3
     }
@@ -341,7 +459,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // Safety net if something hangs. TIS may only be used on the main thread, so the input
         // source is restored afterwards by `RealTest --restore-input-source` (run by make).
-        DispatchQueue.global().asyncAfter(deadline: .now() + 300) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 360) {
             print("✗ watchdog: test took too long")
             print("REALTEST FAILED (timeout)")
             fflush(stdout)
@@ -351,7 +469,9 @@ final class Harness: NSObject, NSApplicationDelegate {
     }
 
     func finish() -> Never {
+        (skipping, inSection) = (nil, false)
         reset()
+        finishing = true
         restoreConfig()
         restoreQuestions()
         if let extensionFolder { try? FileManager.default.removeItem(at: extensionFolder) }
@@ -371,7 +491,20 @@ final class Harness: NSObject, NSApplicationDelegate {
             note("text view snapshot: \(out.path)/textview.png")
         }
         print("--- document ---\n\(textView.string)\n----------------")
-        print(failures == 0 ? "REALTEST PASSED" : "REALTEST FAILED (\(failures))")
+        // Only failures fail the run; skipped checks never make it pass.
+        let skippedCount = skipped.values.reduce(0, +)
+        let counts = "\(passed) passed, \(failures) failed, \(skippedCount) skipped"
+        let reasons = skipped.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+        if failures > 0 {
+            print("REALTEST FAILED (\(failures)): \(counts)\(reasons.isEmpty ? "" : " (\(reasons))")")
+        } else if skippedCount == 0 {
+            print("REALTEST PASSED: \(counts)")
+        } else if checkedInSections == 0 {
+            print("Everything that types through the input method was skipped (\(reasons)): this run doesn't show it works.")
+            print("REALTEST SKIPPED: \(counts) (\(reasons))")
+        } else {
+            print("REALTEST INCOMPLETE: \(counts) (\(reasons))")
+        }
         fflush(stdout)
         exit(failures == 0 ? 0 : 1)
     }
@@ -380,10 +513,11 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     func run() {
         // While the lock screen is up, macOS routes no app's keys to input methods (verified: keys go
-        // straight into the text view and the input method never sees them), so the test can't run.
-        if screenIsLocked() {
-            print("✗ the screen is locked: unlock the Mac, then run `make realtest` again")
-            print("REALTEST BLOCKED (screen locked)")
+        // straight into the text view and the input method never sees them), so the test can't run: a while for it
+        // to be unlocked, else nothing runs (not a failure; the unlock watcher waits for the next unlock).
+        if !secureInputGoes(), screenIsLocked() {
+            print("The screen is locked: nothing ran. Unlock the Mac, then run `make realtest` again.")
+            print("REALTEST BLOCKED (screen locked): 0 passed, 0 failed, everything skipped")
             fflush(stdout)
             exit(4)
         }
@@ -407,11 +541,13 @@ final class Harness: NSObject, NSApplicationDelegate {
         let secure = (CGSessionCopyCurrentDictionary() as? [String: Any])?["kCGSSessionSecureInputPID"]
         note("secure input: \(IsSecureEventInputEnabled() ? "ON (pid \(secure ?? "?")) — translations will be refused" : "off")")
 
-        // The test's own settings, whatever the user's (theirs come back after: `restoreConfig`): Chinese first, so it
-        // starts in pinyin; results inserted at once, not typed out; @improve polishes without translating, and
-        // Chinese translates into English. None of the user's script extensions is offered: they run programs of
-        // their own.
+        // The test's own settings, whatever the user's (theirs come back after: `restoreConfig`): Amazon Bedrock (the
+        // live checks expect its answers, not an on-device model's or another provider's), with the user's profile,
+        // region and model; Chinese first, so it starts in pinyin; results inserted at once, not typed out; @improve
+        // polishes without translating, and Chinese translates into English. None of the user's script extensions is
+        // offered: they run programs of their own.
         check(setConfig {
+            $0["provider"] = "bedrock"
             $0["inputLanguages"] = ["zh", "en"]
             $0["defaultInput"] = "zh"
             $0["typeOut"] = false
@@ -463,13 +599,15 @@ final class Harness: NSObject, NSApplicationDelegate {
             }
             pump(1)
         }
+        // Secure input held by a process macOS can't name stops composing everywhere: then nothing can be checked.
+        if !reachable, secureInputHeld() { skipping = Self.secureInputSkip }
         check(reachable, String(format: "input method answers (%.1fs, process running: %@)",
                                 Date().timeIntervalSince(warmStart), imeIsRunning() ? "yes" : "no"))
         guard reachable else { finish() }
         textView.string = ""
 
         // 1. Level one: local pinyin; without a command Space inserts the Chinese, like any input method.
-        print("— level one: pinyin")
+        section("level one: pinyin")
         type("nihao")
         check(waitUntil(3) { self.marked.replacingOccurrences(of: " ", with: "") == "nihao" },
               "pinyin is marked inline (\(marked))")
@@ -487,7 +625,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         check(waitUntil(3) { self.committed == "你好" && self.marked.isEmpty }, "Space inserts 你好 (document: '\(committed)')")
 
         // 2. Keys the input method doesn't need still reach the app.
-        print("— pass-through")
+        section("pass-through")
         key(",", keyCodes[","]!)
         check(waitUntil(2) { self.committed == "你好，" }, "',' types a Chinese comma")
         enter()
@@ -500,7 +638,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // 3. Level two: the action key on a finished @improve sentence polishes it, in Chinese (the language it
         //    was written in); Space inserts the first version.
-        print("— level two: @improve polishes (live Bedrock, key: \(actionKey))")
+        section("level two: @improve polishes (live Bedrock, key: \(actionKey))")
         textView.string = ""
         command("i")
         check(waitUntil(2) { self.marked == "improve › " }, "@i Tab picks @improve (marked: '\(marked)')")
@@ -526,7 +664,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         // 4. @translate translates into English (the test's output languages: English, Chinese), and a digit picks
         //    another version. With ⌥Space or a tap of ⌥ the key goes right on the pinyin (it is converted first);
         //    with Space the sentence is confirmed first.
-        print("— level two: @translate, digit 2")
+        section("level two: @translate, digit 2")
         textView.string = ""
         command("tr")
         check(waitUntil(2) { self.marked == "translate › " }, "@tr Tab picks @translate (marked: '\(marked)')")
@@ -544,7 +682,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         reset()
 
         // 5. In level two, 0 keeps the Chinese and Esc goes back to the draft.
-        print("— level two: 0 / Esc")
+        section("level two: 0 / Esc")
         textView.string = ""
         command("i")
         type("nihao")
@@ -570,7 +708,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         reset()
 
         // 6. ⇧Space is Space: it picks the candidate, and with nothing pending the app types a space.
-        print("— ⇧Space")
+        section("⇧Space")
         textView.string = ""
         type("nihao")
         space(.shift)
@@ -582,7 +720,7 @@ final class Harness: NSObject, NSApplicationDelegate {
 
         // 7. Shift alone switches to English and back. English letters go straight in; after
         //    @improve they collect into the command and the action key polishes them.
-        print("— Shift: English / Chinese")
+        section("Shift: English / Chinese")
         textView.string = ""
         tapShift()
         type("abc")
@@ -597,7 +735,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("e")
         check(waitUntil(2) { self.marked.hasSuffix(" café") }, "⌥E E types é in a command's text (\(marked))")
         reset()
-        print("— English @improve (live Bedrock)")
+        section("English @improve (live Bedrock)")
         textView.string = ""
         command("i")
         let words = ["this", "is", "a", "blocker", "bug", "your", "team", "need", "fix", "it", "asap"]
@@ -624,10 +762,14 @@ final class Harness: NSObject, NSApplicationDelegate {
         selectionCommands()
         refineResults()
         horizontalAndReport()
+        atAfterAWord()
         recentQuestions()
+        questionConversation()
         extensions()
         perAppSettings()
         redaction()
+        aiConfig()
+        doctor()
         frenchAndKorean()
         finish()
     }
@@ -637,7 +779,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     ///     and after level two) and ⇧Return leave it so; the action key works on it, and the first version picked
     ///     replaces exactly the selection (live Bedrock). A selection moved meanwhile gives the command up.
     func selectionCommands() {
-        print("— commands on the selected text (live Bedrock)")
+        section("commands on the selected text (live Bedrock)")
         let text = "Dear team, this sentance have a error. Thanks!"
         let part = "this sentance have a error."
         let range = (text as NSString).range(of: part)
@@ -715,11 +857,11 @@ final class Harness: NSObject, NSApplicationDelegate {
 
     /// 6a'. Refining the results: @improve a long English sentence and, once all its results are in (the input
     ///     method's log says so, `RequestLog`), pick row 1 (V1); the same sentence again (the cache answers at once,
-    ///     all in), "shorter" typed while the results are up and ⏎ asks again with them as context; the draft stays as
+    ///     all in), "shorter" typed while the results are up and ⇧⏎ asks again with them as context; the draft stays as
     ///     it was (the letters went to the refine line, not the sentence), and 1 inserts the refined version, which is
     ///     shorter than V1 (live Bedrock).
     func refineResults() {
-        print("— refine the results: shorter (live Bedrock)")
+        section("refine the results: shorter (live Bedrock)")
         reset()
         textView.string = ""
         tapShift()  // English: the sentence and the instruction are typed as letters
@@ -792,7 +934,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         type("shorter")
         pump(0.3)
         check(marked == "improve › " + sentence + " ", "'shorter' goes to the refine line: the sentence is as it was (\(marked))")
-        enter()
+        shiftEnter()  // ⇧⏎ sends a refine; ⏎ would insert the version selected
         let refining = Date()
         let picked = waitUntil(25) {
             if self.committed.isEmpty { self.key("1", keyCodes["1"]!); self.pump(0.3) }  // ignored until row 1 is complete
@@ -800,19 +942,19 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
         let refined = committed
         check(picked && Self.looksEnglish(refined) && marked.isEmpty && refined != first && refined.count < first.count,
-              String(format: "⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
+              String(format: "⇧⏎ refines and 1 inserts the refined version after %.1fs: '%@' (%d characters, was %d)",
                      Date().timeIntervalSince(refining), refined, refined.count, first.count))
         endSection()
     }
 
     /// 5b. Apple Intelligence on this Mac (`provider: "apple"`), where its model is available: @improve on English and on
-    ///     pinyin with the on-device model, through the installed input method; then the user's provider again.
+    ///     pinyin with the on-device model, through the installed input method; then the test's provider (Bedrock) again.
     func appleModel() {
         var available = false
         #if canImport(FoundationModels)
         if #available(macOS 26, *) { available = SystemLanguageModel.default.isAvailable }
         #endif
-        print("— Apple Intelligence on this Mac (on-device model)")
+        section("Apple Intelligence on this Mac (on-device model)")
         guard available else {
             note("skipped: Apple Intelligence isn't available on this Mac")
             return
@@ -878,7 +1020,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     ///     dictionary. Then `@reportissue`: the action key shows what the page would hold, and Esc goes back; the page
     ///     is never opened (⏎ isn't pressed on it).
     func horizontalAndReport() {
-        print("— candidates in a row, @reportissue's preview")
+        section("candidates in a row, @reportissue's preview")
         // The same candidates in a column first (the test's config leaves the layout as the user has it: set it).
         _ = setConfig { $0["candidateLayout"] = "vertical" }
         window.makeFirstResponder(nil)
@@ -940,11 +1082,69 @@ final class Harness: NSObject, NSApplicationDelegate {
         pump(0.8)
     }
 
+    /// 6d. "@" right after a word is text (an email address, `ssh user@host`): in English "bob@example.com" goes in as
+    ///     typed, no command list. After a space or at the start "@" opens the list, and → on it leaves the "@" as typed
+    ///     and the key moves the caret on, as before. (A terminal's → only ends the list, the "@" going in after it: the
+    ///     self-test checks that on a fake Ghostty line; this is a text view.) The address is typed once no panel of the
+    ///     input method is up, and the list is watched for from the "@" on, key by key.
+    func atAfterAWord() {
+        section("@ after a word, → on a lone @")
+        textView.string = ""
+        guard switchTo(english: true) else {
+            check(false, "the field types English letters, for the address")
+            return
+        }
+        let at = { self.key("@", keyCodes["2"]!, .shift) }
+        // Every panel of the input method down first: the Shift's mode notice (英 / English, about 1.3 s) was still up
+        // when the address had been typed, and read as the list.
+        check(waitUntil(5) { !self.imePanelShown() }, "no input method panel up before the address")
+        // The list must never show: watched between "@" and the next key, and after each key after it.
+        var listShown = false, markedSeen = ""
+        func watch(_ seconds: TimeInterval) {
+            let until = Date().addingTimeInterval(seconds)
+            repeat {
+                listShown = listShown || imePanelShown()
+                if markedSeen.isEmpty { markedSeen = marked }
+                pump(0.02)
+            } while Date() < until
+        }
+        type("bob")
+        at()
+        watch(0.4)
+        let afterAt = committed
+        for ch in "example.com" {
+            type(String(ch))
+            watch(0.05)
+        }
+        check(waitUntil(2) { self.committed == "bob@example.com" } && marked.isEmpty && !listShown && markedSeen.isEmpty,
+              "an email address goes in as typed, the list never shown ('\(committed)', '\(afterAt)' after the @; "
+                + "marked '\(marked)'\(markedSeen.isEmpty ? "" : ", '\(markedSeen)' on the way")\(listShown ? ", a panel shown" : ""))")
+        space()
+        at()
+        check(waitUntil(2) { self.marked == "@" }, "after a space, @ opens the list (marked '\(marked)')")
+        reset()
+        // At the start of "ab" (← ← take the caret there): "@", then → puts the "@" in and moves the caret past "a".
+        textView.string = ""
+        type("ab")
+        key("", 0x7B)  // ←
+        key("", 0x7B)
+        at()
+        check(waitUntil(2) { self.marked == "@" }, "at the start of the text @ opens the list (marked '\(marked)')")
+        key("", 0x7C)  // →
+        check(waitUntil(2) { self.committed == "@ab" && self.marked.isEmpty } && waitUntil(2) { !self.imePanelShown() },
+              "→ leaves the @ as typed and the list closes ('\(committed)')")
+        type("x")
+        check(waitUntil(2) { self.committed == "@axb" }, "…and the caret moved on: x lands after the a ('\(committed)')")
+        reset()
+        textView.string = ""
+        _ = switchTo(english: false)
+    }
+
     /// 7a. Hiding sensitive information (`redaction` on in the test's config): `@improve` on a selected sentence with
     ///     an email and a phone number (live). The version picked replaces it with the real values in it, no
     ///     placeholder left ("[EMAIL_1]" is what the model saw).
     func redaction() {
-        print("— hiding sensitive information from the AI (live)")
+        section("hiding sensitive information from the AI (live)")
         let before = configValue("redaction")
         guard setConfig({ $0["redaction"] = ["enabled": true] }) else {
             check(false, "config file readable, to turn on hiding sensitive information")
@@ -993,7 +1193,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     ///    input is only completed by Tab and runs on the action key; what it prints is inserted, or typed out with
     ///    typos fixed on the way.
     func extensions() {
-        print("— script extensions (a temporary folder)")
+        section("script extensions (a temporary folder)")
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-realtest-\(UUID().uuidString)")
         extensionFolder = folder
         let scripts = [
@@ -1110,7 +1310,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     /// 7c. Settings for this app (`appProfiles`, by this harness's bundle id): its text field starts in English though
     ///     Chinese is the default, and @improve sends nothing (no AI), its draft kept; without them, pinyin again.
     func perAppSettings() {
-        print("— per-app settings (this app: English, no AI)")
+        section("per-app settings (this app: English, no AI)")
         let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
         guard setConfig({ $0["appProfiles"] = [me: ["inputLanguage": "en", "noAI": true]] }) else {
             check(false, "config file readable, to give this app its own settings")
@@ -1145,14 +1345,151 @@ final class Harness: NSObject, NSApplicationDelegate {
         textView.string = ""
     }
 
+    /// 7d. `@config` (live: the on-device model if this Mac has it, else the configured provider): "candidates in a row"
+    ///     shows its preview, ⏎ applies it to the config file (the test's config has them in a column) and nothing is
+    ///     inserted; ⌘Z on the confirmation puts the column back (else `@config undo`). The config is the test's own.
+    ///     English is asked of the field before the sentence is typed, and a draft that isn't exactly the sentence is
+    ///     given up unsent; ⏎ only once the preview is up (the input method's log), then once. When the on-device model
+    ///     makes nothing of the sentence ("notUnderstood"), it is asked once more, plainly ("candidate layout horizontal"),
+    ///     and the check says so; a second notUnderstood fails.
+    func aiConfig() {
+        section("@config: candidates in a row, and undo (live)")
+        guard setConfig({ $0["candidateLayout"] = "vertical" }) else {
+            check(false, "config file readable, to lay the candidates out in a column first")
+            return
+        }
+        reset()
+        textView.string = ""
+        func layout() -> String? { configValue("candidateLayout") as? String }
+        // English (the sentence is typed as letters), asked of the field, not taken on trust from a Shift tap.
+        let wasEnglish = typesEnglish()
+        guard switchTo(english: true) else {
+            check(false, "@config: letters can't be typed as English here (nothing sent)")
+            return
+        }
+        defer { _ = switchTo(english: wasEnglish ?? false) }
+        let requests = RequestLog.start(prefix: "@config")
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
+        defer { requests?.stop() }
+        guard let requests else {
+            check(false, "@config: the input method's log can't be read, so the preview can't be waited for")
+            reset()
+            textView.string = ""
+            return
+        }
+        // Where the lines of the request sent last start (`ask`).
+        var mark = requests.count
+        func logged(_ text: String) -> String? { requests.lines(after: mark, containing: text).first }
+        // Or it failed ("@config N failed: …", "@config N: the answer wasn't readable"): no use waiting the 60 s out.
+        func noPreview() -> String? { logged(": no preview") ?? logged(" failed: ") ?? logged("wasn't readable") }
+        func shown(_ line: String?) -> String { (line ?? "no answer within 60 s").components(separatedBy: "] ").last ?? "-" }
+        /// "@config <sentence>" drafted and sent; then the preview's rows (the input method logs "@config N: … rows"), or
+        /// why there are none ("@config N: no preview (…)"), waited for up to 60 s: the on-device model may take a while to
+        /// load the first time. ⏎ while it's pending does nothing. False: the draft wasn't exactly the sentence (✗, and
+        /// nothing sent: anything else, a letter lost or pinyin, would be sent as it is).
+        func ask(_ sentence: String) -> Bool {
+            command("conf")
+            type(sentence)
+            let drafted = waitUntil(2) { self.marked == "config › " + sentence }
+            check(drafted, "@config drafted (\(marked))")
+            guard drafted else { return false }
+            mark = requests.count
+            act()
+            _ = waitUntil(60) { logged(" rows, ") != nil || noPreview() != nil }
+            return true
+        }
+        let started = Date()
+        guard ask("candidates in a row") else {
+            reset()
+            textView.string = ""
+            return
+        }
+        // The small on-device model now and then makes nothing of the sentence ("notUnderstood"): once, the same request
+        // said plainly. A second notUnderstood fails like any other answer without a preview.
+        var retried: String?
+        if logged(" rows, ") == nil, let first = noPreview(), first.contains("notUnderstood") {
+            retried = shown(first)
+            note("@config made nothing of \"candidates in a row\" (\(retried ?? "-")): once more, as \"candidate layout horizontal\"")
+            reset()
+            textView.string = ""
+            guard ask("candidate layout horizontal") else {
+                reset()
+                textView.string = ""
+                return
+            }
+        }
+        let previewed = logged(" rows, ")
+        check(previewed != nil,
+              String(format: "@config shows its preview after %.1fs (%@)%@", Date().timeIntervalSince(started),
+                     shown(previewed ?? noPreview()),
+                     retried.map { ", on the second try, \"candidate layout horizontal\" (the first: \($0))" } ?? ""))
+        guard previewed != nil else {
+            reset()
+            textView.string = ""
+            return
+        }
+        pump(0.3)  // the rows drawn
+        enter()
+        let applied = waitUntil(10) { logged("changes applied") != nil && layout() == "horizontal" }
+        check(applied && committed.isEmpty,
+              String(format: "⏎ once applies it: candidateLayout = horizontal after %.1fs; nothing inserted ('%@')",
+                     Date().timeIntervalSince(started), committed))
+        guard applied else {
+            reset()
+            textView.string = ""
+            return
+        }
+        key("z", keyCodes["z"]!, .command)
+        var undone = waitUntil(5) { layout() == "vertical" }
+        if !undone {
+            note("⌘Z found the confirmation closed: @config undo instead")
+            reset()
+            command("conf")
+            type("undo")
+            act()
+            undone = waitUntil(5) { layout() == "vertical" }
+        }
+        check(undone && committed.isEmpty && marked.isEmpty, "undo puts the column back (\(layout() ?? "-")), nothing inserted")
+        reset()
+        textView.string = ""
+    }
+
+    /// 7e. `@doctor`: its checks run on this Mac (nothing sent) and find the input method installed and enabled (✓, read
+    ///     from its log: the panel can't be read from outside); nothing is inserted, Esc closes it.
+    func doctor() {
+        section("@doctor: the input method is fine")
+        reset()
+        textView.string = ""
+        let requests = RequestLog.start(prefix: "doctor ")
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }  // its header: streaming
+        tapShift()  // English
+        command("doc")
+        check(waitUntil(2) { self.marked == "doctor › " }, "@doctor drafted (\(marked))")
+        let mark = requests?.count ?? 0
+        act()
+        let done = waitUntil(30) { !(requests?.lines(after: mark, containing: " done: ").isEmpty ?? true) }
+        let line = requests?.lines(after: mark, containing: " done: ").first ?? ""
+        check(done && line.contains("inputMethod=ok") && committed.isEmpty,
+              "@doctor shows ✓ for the input method, nothing inserted (\(line.components(separatedBy: "] ").last ?? "no log"))")
+        requests?.stop()
+        escape()
+        pump(0.3)
+        check(marked.isEmpty && committed.isEmpty, "Esc closes it")
+        reset()
+        textView.string = ""
+        tapShift()  // back to Chinese
+    }
+
     /// 8. French types with its own keyboard layout (AZERTY), dead keys too; Korean composes Hangul; Shift goes
-    ///    through the input languages in order. The config gets them for the test and is restored after.
+    ///    through the input languages in order. The config gets them for the section, and the test's languages back after.
     func frenchAndKorean() {
-        print("— French (AZERTY), Korean, Hindi")
+        section("French (AZERTY), Korean, Hindi")
+        let before = configValues(["inputLanguages", "defaultInput", "keyboardLayouts"])
         guard addTestLanguages() else {
             check(false, "config file readable, to add French and Korean for the test")
             return
         }
+        defer { putBack(before) }
         // The text field again, so the input method reads the languages and starts in French (the default).
         window.makeFirstResponder(nil)
         pump(0.5)
@@ -1191,8 +1528,9 @@ final class Harness: NSObject, NSApplicationDelegate {
                 return !self.committed.isEmpty
             }
             let line = committed
+            // The Chinese line: Han characters, and no kana (a Japanese line has Han characters too).
             check(inserted && marked.isEmpty
-                  && (english ? Self.looksEnglish(line) : Self.hasHan(line) && !Self.hasLatinLetter(line) && !line.contains("요")),
+                  && (english ? Self.looksEnglish(line) : Self.hasHan(line) && !Self.hasKana(line) && !Self.hasLatinLetter(line) && !line.contains("요")),
                   "@translate from Korean: \(digit) inserts the \(english ? "English" : "Chinese") line: '\(line)'")
             reset()
         }
@@ -1215,15 +1553,14 @@ final class Harness: NSObject, NSApplicationDelegate {
         textView.string = ""
         type("q")
         check(waitUntil(2) { self.committed == "q" }, "Shift again: English, the system's layout ('\(committed)')")
-        restoreConfig()
     }
 
     /// 6c. `@question`'s recent questions (live Bedrock): a question asked is kept in the file; "@question " lists it,
-    ///     1 shows its saved answer at once (nothing is asked) and Space inserts the same text; R asks it again for a fresh
+    ///     1 shows its saved answer at once (nothing is asked) and Space inserts the same text; ⌘R asks it again for a fresh
     ///     answer, which takes its place. The user's own recent questions are put back afterwards (the input method reads
     ///     the file again once it changed).
     func recentQuestions() {
-        print("— @question: recent questions (live Bedrock)")
+        section("@question: recent questions (live Bedrock)")
         _ = setConfig { $0["rememberQuestions"] = true }
         savedQuestions = (try? Data(contentsOf: Self.questionsURL)) ?? Data()  // empty: there was no file
         try? FileManager.default.removeItem(at: Self.questionsURL)
@@ -1262,13 +1599,92 @@ final class Harness: NSObject, NSApplicationDelegate {
         key("1", keyCodes["1"]!)
         pump(0.3)
         let before = kept()
-        key("r", keyCodes["r"]!)
+        key("r", keyCodes["r"]!, .command)
         let again = insertAnswer(25)
-        check(again && Self.hasHan(committed) && marked.isEmpty, "R asks again, Space inserts the fresh answer: '\(committed.prefix(40))'")
+        check(again && Self.hasHan(committed) && marked.isEmpty, "⌘R asks again, Space inserts the fresh answer: '\(committed.prefix(40))'")
         check(waitUntil(2) { kept() != before } && kept().components(separatedBy: "\"question\"").count == 2,
               "the fresh answer takes the old one's place (one question kept)")
         reset()
         textView.string = ""
+    }
+
+    /// 6d. An @question conversation (live Bedrock): a question asked, a follow-up typed and sent with ⇧⏎ as round 2 (the
+    ///     input method's log says so) while the panel grows; with `questionRounds` 2 in the test's config the row of where
+    ///     to go on is then up, and its copy choice (⌘1 here: `questionContinueIn` ["copy", "chatgpt"]) puts the
+    ///     conversation on the clipboard in Markdown, nothing inserted. Nothing is handed to Claude or a browser; the
+    ///     user's clipboard and the three keys it set are put back, and nothing is kept in the recent questions.
+    func questionConversation() {
+        section("@question: a conversation (live Bedrock)")
+        let before = configValues(["questionRounds", "questionContinueIn", "rememberQuestions"])
+        _ = setConfig {
+            $0["questionRounds"] = 2
+            $0["questionContinueIn"] = ["copy", "chatgpt"]
+            $0["rememberQuestions"] = false
+        }
+        let pasteboard = NSPasteboard.general
+        let clipboard = pasteboard.string(forType: .string)
+        defer {
+            pasteboard.clearContents()
+            if let clipboard { pasteboard.setString(clipboard, forType: .string) }
+            reset()
+            textView.string = ""
+            tapShift()  // back to Chinese
+            putBack(before)  // only these: the rest stays the test's (the user's comes back in `finish`)
+        }
+        reset()
+        textView.string = ""
+        pump(1)  // the config read again by the input method
+        tapShift()  // English: the questions are typed as letters
+        let requests = RequestLog.start()
+        _ = waitUntil(5) { (requests?.count ?? 1) > 0 }
+        defer { requests?.stop() }
+        /// Until the request started after `mark` is done (from the input method's log; without it, the panel settled).
+        func answered(after mark: Int, _ timeout: TimeInterval) -> Bool {
+            guard let requests else {
+                var last = imePanelFrames(), since = Date()
+                return waitUntil(timeout) {
+                    let now = imePanelFrames()
+                    if now != last { last = now; since = Date() }
+                    return !now.isEmpty && Date().timeIntervalSince(since) >= 3
+                }
+            }
+            let done = waitUntil(timeout) { requests.done(after: mark) != nil }
+            pump(0.5)
+            return done
+        }
+        func height() -> CGFloat { imePanelFrames().map(\.height).max() ?? 0 }
+        command("q")
+        for (index, word) in ["what", "is", "the", "capital", "of", "france"].enumerated() {
+            if index > 0 { space() }
+            type(word)
+        }
+        let first = requests?.count ?? 0
+        act()
+        check(answered(after: first, 25) && marked.hasPrefix("question › what is the capital of france") && committed.isEmpty,
+              "round 1 answered, the panel up (\(marked))")
+        let one = height()
+        for (index, word) in ["and", "its", "population"].enumerated() {
+            if index > 0 { space() }
+            type(word)
+        }
+        pump(0.3)
+        check(committed.isEmpty && marked.hasPrefix("question › what is the capital of france"),
+              "the follow-up goes to the next question's line, not the text (\(marked))")
+        let second = requests?.count ?? 0
+        shiftEnter()
+        let roundTwo = answered(after: second, 25)
+        check(roundTwo && (requests?.started(after: second, saying: "@question round 2") ?? true) && committed.isEmpty,
+              "⇧⏎ asks it as round 2 of the conversation")
+        let two = height()
+        check(two > one, "the panel grows with the conversation (\(Int(one)) → \(Int(two)) points)")
+        // Round 2 of 2: where to go on is up; ⌘1, its copy choice, copies the conversation.
+        pasteboard.clearContents()
+        key("1", keyCodes["1"]!, .command)
+        let copied = waitUntil(3) { pasteboard.string(forType: .string)?.contains("**A:**") == true }
+        let text = pasteboard.string(forType: .string) ?? ""
+        check(copied && text.hasPrefix("**Q:** what is the capital of france") && text.contains("**Q:** and its population")
+              && text.components(separatedBy: "**A:** ").count == 3 && committed.isEmpty && marked.isEmpty,
+              "after round 2 the hand-off row is up and ⌘1 (copy) puts both rounds on the clipboard, nothing inserted")
     }
 
     /// The user's recent questions while the test asks its own (`recentQuestions`): empty when there was no file.
@@ -1312,7 +1728,26 @@ final class Harness: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The values `keys` have now (nil: not set), for `putBack` after a section that changes them.
+    func configValues(_ keys: [String]) -> [(key: String, value: Any?)] { keys.map { ($0, configValue($0)) } }
+
+    /// Puts back what `configValues` read (a key that wasn't set is removed again); the rest stays the test's.
+    func putBack(_ values: [(key: String, value: Any?)]) {
+        _ = setConfig { json in for (key, value) in values { json[key] = value } }
+    }
+
+    /// Set by `finish`, the only place the user's own config comes back: back any earlier, every section after it would
+    /// run on the user's settings (their provider, languages, default input), not the test's.
+    var finishing = false
+
     func restoreConfig() {
+        guard finishing else {
+            // A bug in the test, not in the input method: fail loudly, whatever the section's state, and keep the test's config.
+            print("✗ restoreConfig() before finish(): a section must put back only the keys it changed (`putBack`)")
+            fflush(stdout)
+            failures += 1
+            return
+        }
         guard let savedConfig else { return }
         try? savedConfig.write(to: Self.configURL, options: .atomic)
         try? FileManager.default.removeItem(at: configBackupFile)

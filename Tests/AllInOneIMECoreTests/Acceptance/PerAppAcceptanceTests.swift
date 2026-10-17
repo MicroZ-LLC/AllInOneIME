@@ -414,7 +414,8 @@ struct PerAppAcceptanceTests {
                 func check(_ app: String?, _ golden: String) async throws {
                     let sent = await send(run, config: config, app: app, provider: provider)
                     #expect(sent.error == nil, "\(golden) \(app ?? "nil")")
-                    let body = try #require(sent.bodies.first, "\(golden) \(app ?? "nil")")
+                    let body = AcceptanceLiveRule.strip(try #require(sent.bodies.first, "\(golden) \(app ?? "nil")"),
+                                                        question: runName.hasPrefix("question"))
                     let row = try #require(perAppAccGoldens[golden])
                     let want = provider == .anthropic ? row.anthropic : row.openai
                     #expect(PerAppAccGolden.sha256(body) == want.sha && body.count == want.length,
@@ -478,7 +479,7 @@ struct PerAppAcceptanceTests {
             ("@translate @improve hello", "@translate @improve hello"),
             ("@question what is this", "@question what is this"),
             ("@reply thanks a lot", "@reply thanks a lot"),
-            ("@claude fix the bug", "@claude fix the bug"),
+            ("@agent fix the bug", "@agent fix the bug"),
             ("@improve total @calculate 2*3", "@improve total @calculate 2*3"),
         ]
         for (typed, draft) in cases {
@@ -505,9 +506,20 @@ struct PerAppAcceptanceTests {
         let (c, _) = field(Self.bank, config)
         c.claudeInBackground = true
         c.setInputMode(.english)
+        typeKeys("@agent fix the bug", c)
+        let effects = c.handleKeyDown(enterKey).effects
+        #expect(!sendsToAI(effects) && notices(effects).contains(Self.refusalNotice) && c.draft == "@agent fix the bug")
+    }
+
+    /// 0.6.5: `@claude` became `@agent`; "@claude …" is plain text now, not an AI command to refuse.
+    @Test func claudeIsNoLongerAnAICommandToRefuse() {
+        let config = base([Self.bank: AppProfile(noAI: true)])
+        let (c, _) = field(Self.bank, config)
+        c.claudeInBackground = true
+        c.setInputMode(.english)
         typeKeys("@claude fix the bug", c)
         let effects = c.handleKeyDown(enterKey).effects
-        #expect(!sendsToAI(effects) && notices(effects).contains(Self.refusalNotice) && c.draft == "@claude fix the bug")
+        #expect(!sendsToAI(effects) && !notices(effects).contains(Self.refusalNotice), "\(effects)")
     }
 
     @Test func noAIRefusesCommandsOnASelection() {
@@ -824,11 +836,13 @@ struct PerAppAcceptanceTests {
     @Test func thePromptStructureIsByteIdenticalToBefore() throws {
         for c in PerAppAccGolden.cases {
             let row = try #require(perAppAccGoldens[c.name])
-            #expect(PerAppAccGolden.sha256(try PerAppAccGolden.structure(c)) == row.structure, "\(c.name)")
+            // An @question case without 0.6.4's live-data rule; the others as they are.
+            let question = c.name.split(separator: "/").last?.hasPrefix("question") == true
+            #expect(PerAppAccGolden.sha256(AcceptanceLiveRule.strip(try PerAppAccGolden.structure(c), question: question)) == row.structure, "\(c.name)")
             // With profiles in the config (for other apps), the same.
             var profiled = c
             profiled.config.appProfiles = [Self.slack: AppProfile(inputLanguage: .english, rewriteStyles: ["口语"], typeOut: true, noAI: true)]
-            #expect(PerAppAccGolden.sha256(try PerAppAccGolden.structure(profiled)) == row.structure, "\(c.name) with profiles")
+            #expect(PerAppAccGolden.sha256(AcceptanceLiveRule.strip(try PerAppAccGolden.structure(profiled), question: question)) == row.structure, "\(c.name) with profiles")
         }
     }
 
@@ -856,7 +870,8 @@ struct PerAppAcceptanceTests {
                 for provider in [Provider.anthropic, .openai] {
                     let sent = await send(c.run, config: config, app: app, provider: provider)
                     #expect(sent.error == nil, "\(c.name), \(label): \(String(describing: sent.error))")
-                    let body = try #require(sent.bodies.first, "\(c.name), \(label)")
+                    let body = AcceptanceLiveRule.strip(try #require(sent.bodies.first, "\(c.name), \(label)"),
+                                                        question: c.name.split(separator: "/").last?.hasPrefix("question") == true)
                     let want = provider == .anthropic ? row.anthropic : row.openai
                     #expect(sent.bodies.count == 1)
                     #expect(PerAppAccGolden.sha256(body) == want.sha && body.count == want.length,

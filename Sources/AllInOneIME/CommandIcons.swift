@@ -13,7 +13,7 @@ enum CommandIcons {
         case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
         case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
         case .question: return CandidateView.Icon(symbol: "questionmark.bubble.fill", color: .systemBlue)
-        case .claude: return CandidateView.Icon(symbol: "sparkles", color: .systemOrange)
+        case .agent: return CandidateView.Icon(symbol: "sparkles", color: .systemOrange)
         case .open: return CandidateView.Icon(symbol: "magnifyingglass", color: .systemGray)
         case .read: return CandidateView.Icon(symbol: "doc.richtext.fill", color: .systemTeal)
         case .note: return CandidateView.Icon(symbol: "note.text", color: .systemYellow)
@@ -24,6 +24,8 @@ enum CommandIcons {
         case .webSearch: return CandidateView.Icon(symbol: "globe", color: .systemCyan)
         case .tasks: return CandidateView.Icon(symbol: "checklist", color: .systemGreen)
         case .settings: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
+        case .config: return CandidateView.Icon(symbol: "slider.horizontal.3", color: .systemIndigo)
+        case .doctor: return CandidateView.Icon(symbol: "stethoscope", color: .systemTeal)
         case .imessage: return CandidateView.Icon(symbol: "message.fill", color: .systemGreen)
         case .reportIssue: return CandidateView.Icon(symbol: "exclamationmark.bubble.fill", color: .systemOrange)
         default: return CandidateView.Icon(symbol: "command", color: .systemGray)
@@ -93,6 +95,8 @@ enum CommandIcons {
     static let plugins = CandidateView.Icon(symbol: "puzzlepiece.extension.fill", color: .systemPink)
     static let voice = CandidateView.Icon(symbol: "mic.fill", color: .systemRed)
     static let provider = CandidateView.Icon(symbol: "cpu.fill", color: .systemTeal)
+    /// Settings → Agent: `@agent`'s own.
+    static var agent: CandidateView.Icon { icon(for: .agent) }
     static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
     static let panel = CandidateView.Icon(symbol: "rectangle.on.rectangle", color: .systemTeal)
     static let webSearch = CandidateView.Icon(symbol: "globe", color: .systemCyan)

@@ -195,11 +195,15 @@ public enum ExtensionStore {
         /// scripts, no broken links reported).
         public var found: Bool
         public var hidden: Bool
+        /// Only ever the one bundle it is (an extension source's folder, or one being reviewed): an `extension.json` that
+        /// isn't a valid bundle's is reported, and its scripts aren't read as single scripts instead.
+        public var bundleOnly: Bool
 
-        public init(path: String, found: Bool, hidden: Bool = false) {
+        public init(path: String, found: Bool, hidden: Bool = false, bundleOnly: Bool = false) {
             self.path = path
             self.found = found
             self.hidden = hidden
+            self.bundleOnly = bundleOnly
         }
 
         public var url: URL { URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true) }
@@ -231,7 +235,8 @@ public enum ExtensionStore {
     }
 
     /// Reads `folders` (not those hidden): each one's bundles (subfolders with `extension.json`) and scripts,
-    /// by name, not deeper (as Raycast does); from a folder found (`Folder.found`), its Raycast scripts only.
+    /// by name, not deeper (as Raycast does); an added folder with an `extension.json` of its own is that one
+    /// bundle; from a folder found (`Folder.found`), its Raycast scripts only.
     /// Symbolic links are followed: a linked folder, script or bundle is read as the one it points to (a link to
     /// nothing is reported). A script or bundle byte for byte the same as one before it, under the same name (a
     /// second checkout of a repository, a copied folder), is left out quietly (`ExtensionIndex.identical`); one
@@ -259,7 +264,18 @@ public enum ExtensionStore {
             return true
         }
         for folder in folders where !folder.hidden {
-            for item in items(in: folder.url) {
+            // An added folder that is a bundle itself (an extension source's, `ExtensionSources`) is read as that bundle;
+            // one whose extension.json isn't a bundle's (another tool's file, a broken one) is read as a folder, as before,
+            // unless it is only ever a bundle (`bundleOnly`): then what's wrong with it is reported.
+            let manifest = folder.url.appendingPathComponent(ExtensionBundle.manifestName)
+            if folder.bundleOnly, !folder.found, read(manifest)?.json == nil {
+                skipped.append(Skipped(file: manifest, problem: .missing(ExtensionBundle.manifestName)))
+                continue
+            }
+            let isBundle = !folder.found && (folder.bundleOnly || read(manifest)?.json.map {
+                if case .success = ExtensionBundle.read($0, folder: folder.url) { return true } else { return false }
+            } == true)
+            for item in isBundle ? [(url: folder.url, kind: ItemKind.folder)] : items(in: folder.url) {
                 switch item.kind {
                 case .brokenLink:
                     if !folder.found { skipped.append(Skipped(file: item.url, problem: .brokenLink)) }

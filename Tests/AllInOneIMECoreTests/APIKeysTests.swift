@@ -119,16 +119,17 @@ struct KeyCacheTests {
             _ = cache.key("hosted", stamp: saved, read: read)
             done.signal()
         }
-        #expect(started.wait(timeout: .now() + 5) == .success)
+        // The waits only catch a hang (the first read is held until it's released): long enough for a busy test run.
+        #expect(started.wait(timeout: .now() + 20) == .success)
         // Another account's key comes while the first's read (its prompt) is still up.
         let otherDone = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             #expect(cache.key("anthropic", stamp: saved, read: other.read) == "sk-one")
             otherDone.signal()
         }
-        #expect(otherDone.wait(timeout: .now() + 2) == .success)
+        #expect(otherDone.wait(timeout: .now() + 20) == .success)
         release.signal()
-        #expect(done.wait(timeout: .now() + 5) == .success)
+        #expect(done.wait(timeout: .now() + 20) == .success)
         #expect(held.made == 1 && other.made == 1)
     }
 
@@ -141,12 +142,67 @@ struct KeyCacheTests {
             #expect(cache.key("anthropic", stamp: saved, read: read) == "sk-one")  // that request gets what it read
             done.signal()
         }
-        #expect(started.wait(timeout: .now() + 5) == .success)
+        #expect(started.wait(timeout: .now() + 20) == .success)
         cache.forget("anthropic")  // as `APIKeys.save` does
         release.signal()
-        #expect(done.wait(timeout: .now() + 5) == .success)
+        #expect(done.wait(timeout: .now() + 20) == .success)
         reads.value = "sk-new"
         #expect(cache.key("anthropic", stamp: saved, read: reads.read) == "sk-new")
         #expect(reads.made == 2)
+    }
+}
+
+/// A key is removed only by `APIKeys.remove` (Settings' Remove Key…, confirmed): a save with an empty or blank key —
+/// a key field submitted, left or closed empty — never removes it. In an in-memory keychain: the user's isn't touched.
+struct KeyRemovalTests {
+    let label = "AllInOneIME: Gemini API"
+
+    @Test func anEmptyOrBlankSaveNeverRemovesAKey() throws {
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-gemini", account: "gemini", label: label, in: store)
+        for empty in ["", " ", "   ", "\n", "\t \n"] {
+            #expect(throws: APIKeys.EmptyKey.self) { try APIKeys.save(empty, account: "gemini", label: label, in: store) }
+        }
+        #expect(store.read("gemini") == "sk-test-gemini")
+        #expect(APIKeys.hasKeychainKey(account: "gemini", in: store))
+        // Nor is one made for an account without a key.
+        #expect(throws: APIKeys.EmptyKey.self) { try APIKeys.save("", account: "openai", label: label, in: store) }
+        #expect(!APIKeys.hasKeychainKey(account: "openai", in: store))
+    }
+
+    @Test func onlyRemoveRemovesAndOnlyThatKey() throws {
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-gemini", account: "gemini", label: label, in: store)
+        try APIKeys.save("sk-test-openai", account: "openai", label: label, in: store)
+        try APIKeys.remove(account: "gemini", in: store)
+        #expect(!APIKeys.hasKeychainKey(account: "gemini", in: store) && store.read("openai") == "sk-test-openai")
+        try APIKeys.remove(account: "gemini", in: store)  // none there: nothing to do, no error
+    }
+
+    /// Settings says which key is saved by its last 4 characters, kept with it at save time (an attribute: the key isn't
+    /// read to show it); none for a key shorter than 12, nor for one saved before endings were kept.
+    @Test func aSavedKeyKeepsItsLast4ForTheStatus() throws {
+        #expect(APIKeys.ending(of: "sk-test-abcdef-a1b2") == "a1b2")
+        #expect(APIKeys.ending(of: "  sk-test-abcdef-a1b2\n") == "a1b2")
+        #expect(APIKeys.ending(of: "short-a1b2") == nil && APIKeys.ending(of: "12345678901") == nil)
+        #expect(APIKeys.ending(of: "123456789012") == "9012")
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-abcdef-a1b2", account: "openai", label: label, in: store)
+        #expect(APIKeys.keyEnding(account: "openai", in: store) == "a1b2")
+        try APIKeys.save("short-c3d4", account: "openai", label: label, in: store)  // replaced by a short one: no ending
+        #expect(APIKeys.keyEnding(account: "openai", in: store) == nil)
+        #expect(APIKeys.keyEnding(account: "gemini", in: store) == nil)
+        // The attribute as the keychain keeps it: only "ends:" and 4 characters count.
+        #expect(APIKeys.ending(fromAttribute: APIKeys.endingAttribute("a1b2")) == "a1b2")
+        #expect(APIKeys.ending(fromAttribute: APIKeys.endingAttribute(nil)) == nil)
+        #expect(APIKeys.ending(fromAttribute: Data("ends:a1b2c3".utf8)) == nil && APIKeys.ending(fromAttribute: nil) == nil)
+    }
+
+    @Test func aSaveReplacesTheKeyInPlace() throws {
+        let store = APIKeys.Keychain.inMemory()
+        try APIKeys.save("sk-test-one", account: "gemini", label: label, host: "Generativelanguage.googleapis.com", in: store)
+        let created = store.attributes("gemini")?.created
+        try APIKeys.save("  sk-test-two \n", account: "gemini", label: label, in: store)
+        #expect(store.read("gemini") == "sk-test-two" && store.attributes("gemini")?.created == created)
     }
 }

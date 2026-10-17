@@ -146,7 +146,7 @@ struct InlineCodeTests {
         let missing = Set(Command.builtins.compactMap { command in
             command.program.flatMap { CommandRunner.isInstalled($0, path: "/nowhere") ? nil : command.name }
         })
-        #expect(missing == ["claude", "py"])  // @js needs no program
+        #expect(missing == ["agent", "py"])  // @js needs no program
         let c = Composer(engine: FakeEngine())
         c.commands = Command.builtins.filter { !missing.contains($0.name) }
         // …so the list doesn't offer @py, and "@py …" is plain text.

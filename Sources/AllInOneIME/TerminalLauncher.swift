@@ -1,8 +1,8 @@
 import AllInOneIMECore
 import AppKit
 
-/// `@claude`: a Claude Code session in a Terminal window, with the typed text as its first message.
-/// Claude Code asks before it changes files or runs commands, as it always does.
+/// `@agent`: the coding agent picked in Settings (`AgentKind`) in a Terminal window, with the typed text as its first
+/// message. The agent asks before it changes files or runs commands, as it always does.
 enum TerminalLauncher {
     /// Where the `claude` command was found (absolute, so the window doesn't depend on PATH).
     static let claudePath: String? = {
@@ -11,21 +11,46 @@ enum TerminalLauncher {
                 "/usr/local/bin/claude"].first { FileManager.default.isExecutableFile(atPath: $0) }
     }()
 
-    /// Opens a new Terminal window in the home folder that runs `claude <prompt>`. The script deletes
-    /// itself when it starts; the prompt is passed as one quoted argument, never as shell code.
-    static func claude(_ prompt: String) throws {
-        // "--": the prompt is the prompt, even when it starts with "-" (`--dangerously-skip-permissions`).
-        try launch([claudePath ?? "claude", "--", prompt], name: "claude")
+    /// Opens a new Terminal window in the home folder that runs `arguments` (`AgentKind.terminalArguments`) with
+    /// `prompt`, however long, as the last argument. Claude Code by the path it was found at. The text goes in a file
+    /// only the user can read; the script reads it into one argument and deletes it, so it is never part of a shell
+    /// command (the script deletes itself too).
+    static func agent(_ arguments: [String], prompt: String) throws {
+        guard !arguments.isEmpty else { return }
+        var argv = arguments
+        if argv[0] == "claude", let claudePath { argv[0] = claudePath }
+        let files = FileManager.default
+        let folder = files.temporaryDirectory.appendingPathComponent("AllInOneIME", isDirectory: true)
+        try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        // Prompts of earlier launches whose script never ran (Terminal closed first …): gone after an hour.
+        let hourAgo = Date().addingTimeInterval(-3600)
+        for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] where (name.hasPrefix("agent-prompt-") || name.hasPrefix("claude-prompt-")) && name.hasSuffix(".txt") {
+            let url = folder.appendingPathComponent(name)
+            if let modified = (try? files.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date, modified < hourAgo {
+                try? files.removeItem(at: url)
+            }
+        }
+        let file = folder.appendingPathComponent("agent-prompt-\(UUID().uuidString).txt")
+        guard files.createFile(atPath: file.path, contents: Data(prompt.utf8), attributes: [.posixPermissions: 0o600]) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: file.path])
+        }
+        do {
+            try launch(argv, name: "agent", promptFile: file)
+        } catch {
+            try? files.removeItem(at: file)  // nothing will read it
+            throw error
+        }
     }
 
     /// Opens a new Terminal window in `directory` (else the home folder) that runs `argv` (a custom
-    /// `terminal` command), each argument quoted as one word, with the login shell's PATH.
+    /// `terminal` command), each argument quoted as one word, with the login shell's PATH. `promptFile`: its text is the
+    /// last argument, read when the script runs (the file is deleted then).
     ///
     /// Terminal is asked to open a window and then to run the script there, again until the script
     /// says it started: a login shell that starts a wrapper first (the Kiro CLI's `kiro-cli-term`)
     /// drops what is typed before it is ready, and a `.command` file is typed in exactly then.
     /// Without permission to control Terminal, the `.command` file is used as before.
-    static func launch(_ argv: [String], name: String = "command", directory: String? = nil) throws {
+    static func launch(_ argv: [String], name: String = "command", directory: String? = nil, promptFile: URL? = nil) throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("AllInOneIME", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let base = folder.appendingPathComponent("\(name)-\(UUID().uuidString)")
@@ -33,13 +58,17 @@ enum TerminalLauncher {
         let marker = base.appendingPathExtension("started")
         let path = ShellEnvironment.current["PATH"] ?? ShellEnvironment.fallbackPath
         let changeDirectory = directory.map { "cd \(shellQuote($0)) 2>/dev/null || cd ~ || exit 1" } ?? "cd ~ || exit 1"
+        // The file's text as it is, trailing line breaks too (the "x" keeps them from `$(…)`).
+        let readPrompt = promptFile.map {
+            "prompt=\"$(cat -- \(shellQuote($0.path)); printf x)\"; prompt=\"${prompt%x}\"; rm -f -- \(shellQuote($0.path))\n"
+        } ?? ""
         let script = """
             #!/bin/zsh -f
             : > \(shellQuote(marker.path))
             rm -f -- "$0"
             export PATH=\(shellQuote(path))
             \(changeDirectory)
-            exec \(argv.map(shellQuote).joined(separator: " "))
+            \(readPrompt)exec \(argv.map(shellQuote).joined(separator: " "))\(promptFile == nil ? "" : " \"$prompt\"")
 
             """
         try Data(script.utf8).write(to: scriptURL, options: .atomic)
