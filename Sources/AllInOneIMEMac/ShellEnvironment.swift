@@ -88,6 +88,6 @@ extension CommandRunner {
     /// `developerFolders`.
     public static func isInstalled(_ program: String, path: String?, developerFolders: [String]) -> Bool {
         guard let url = resolve(program, path: path) else { return false }
-        return !DeveloperTools.isStandIn(url) || DeveloperTools.installed(in: developerFolders)
+        return MacProcessLauncher(developerFolders: { developerFolders }).isRunnable(url)
     }
 }

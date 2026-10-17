@@ -32,6 +32,13 @@ struct DeveloperToolsTests {
         #expect(CommandRunner.isInstalled("python3", path: "/usr/bin", developerFolders: [tools.path])
             == fm.isExecutableFile(atPath: "/usr/bin/python3"))
         #expect(CommandRunner.isInstalled("sh", path: "/bin", developerFolders: []))  // a program of its own
+        // The Mac's launcher itself (`Platform.mac`, which `isInstalled` asks), the tools looked for where it's told.
+        let python = URL(fileURLWithPath: "/usr/bin/python3"), toolsPath = tools.path
+        if fm.isExecutableFile(atPath: python.path) {
+            #expect(!MacProcessLauncher(developerFolders: { [] }).isRunnable(python))
+            #expect(MacProcessLauncher(developerFolders: { [toolsPath] }).isRunnable(python))
+        }
+        #expect(MacProcessLauncher(developerFolders: { [] }).isRunnable(URL(fileURLWithPath: "/bin/sh")))
         #expect(!CommandRunner.isInstalled("no-such-program-here", path: "/bin:/usr/bin"))
     }
 }

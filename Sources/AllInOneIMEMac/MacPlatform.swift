@@ -17,15 +17,19 @@ extension Platform {
 /// and a developer-tools stand-in in /usr/bin counted only with Xcode or the command line tools (`DeveloperTools`).
 public struct MacProcessLauncher: ProcessLauncher {
     private let base = FoundationProcessLauncher()
+    /// Where Xcode or the command line tools are looked for, each time (`DeveloperTools.folders`; tests give their own).
+    private let developerFolders: @Sendable () -> [String]
 
-    public init() {}
+    public init(developerFolders: @escaping @Sendable () -> [String] = { DeveloperTools.folders }) {
+        self.developerFolders = developerFolders
+    }
 
     public var canLaunch: Bool { true }
     public var environment: [String: String] { ShellEnvironment.current }
     public var loginEnvironment: [String: String] { ShellEnvironment.login }
 
     public func isRunnable(_ program: URL) -> Bool {
-        !DeveloperTools.isStandIn(program) || DeveloperTools.installed(in: DeveloperTools.folders)
+        !DeveloperTools.isStandIn(program) || DeveloperTools.installed(in: developerFolders())
     }
 
     public func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess { try base.launch(spec) }
