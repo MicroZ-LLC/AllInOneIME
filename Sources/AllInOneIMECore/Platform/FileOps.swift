@@ -3,6 +3,10 @@ import Foundation
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(Android)
+import Android
 #endif
 
 /// The file operations that differ by system: swapping two folders in one step, writing a file only the user can read,
@@ -22,8 +26,9 @@ public protocol FileOps: Sendable {
     func trash(_ url: URL) throws
 }
 
-/// The system's own calls: `renamex_np` on Apple platforms, `renameat2` on Linux; POSIX `open`/`fchmod`/`fsync`/`rename`
-/// for private writes (Windows: an atomic write in the user's own folder); `stat`'s nanosecond times.
+/// The system's own calls: `renamex_np` on Apple platforms, `renameat2` on Linux and Android; POSIX
+/// `open`/`fchmod`/`fsync`/`rename` for private writes (Windows: an atomic write in the user's own folder); `stat`'s
+/// nanosecond times.
 public struct SystemFileOps: FileOps {
     public init() {}
 
@@ -35,10 +40,13 @@ public struct SystemFileOps: FileOps {
             }
         }
         guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-        #elseif canImport(Glibc)
-        // renameat2 (Linux 3.15, glibc 2.28) found at run time: not every glibc header declares it to Swift.
+        #elseif canImport(Glibc) || canImport(Musl) || canImport(Android)
+        // renameat2 (Linux 3.15; glibc 2.28, musl, Android's bionic from API 30) found at run time: not every C library's
+        // headers declare it to Swift.
         typealias RenameAt2 = @convention(c) (Int32, UnsafePointer<CChar>?, Int32, UnsafePointer<CChar>?, UInt32) -> Int32
-        guard let symbol = dlsym(dlopen(nil, RTLD_NOW), "renameat2") else { throw POSIXError(.ENOSYS) }
+        guard let program = dlopen(nil, RTLD_NOW) else { throw POSIXError(.ENOSYS) }
+        defer { dlclose(program) }
+        guard let symbol = dlsym(program, "renameat2") else { throw POSIXError(.ENOSYS) }
         let renameat2 = unsafeBitCast(symbol, to: RenameAt2.self)
         let (atCurrentDirectory, noReplace, exchange): (Int32, UInt32, UInt32) = (-100, 1, 2)  // AT_FDCWD, RENAME_NOREPLACE, RENAME_EXCHANGE
         let result = source.withUnsafeFileSystemRepresentation { from in
