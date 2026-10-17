@@ -33,6 +33,10 @@ extension RimeEngineTests {
         let mine = shared.appendingPathComponent(id).appendingPathComponent("rime_ice.userdb.txt")
         let snapshot = try String(contentsOf: mine, encoding: .utf8)
         #expect(snapshot.contains("你好"))
+        // Only the learned words: none of the user's own .yaml or .txt files (custom phrases, settings) is copied there.
+        try Data("你好\tnh\n".utf8).write(to: RimeFixture.userData.appendingPathComponent("custom_phrase.txt"))
+        defer { try? FileManager.default.removeItem(at: RimeFixture.userData.appendingPathComponent("custom_phrase.txt")) }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: shared.appendingPathComponent(id).path).allSatisfy { $0.hasSuffix(".userdb.txt") })
         // The installation id is still this one's.
         let after = try String(contentsOf: RimeFixture.userData.appendingPathComponent("installation.yaml"), encoding: .utf8)
         #expect(after.contains(id) && RimeSync.syncDir(in: after) == shared.path)
@@ -52,6 +56,8 @@ extension RimeEngineTests {
         #expect(RimeService.shared.waitUntilReady(timeout: 60))
         let merged = try String(contentsOf: mine, encoding: .utf8)
         #expect(merged.contains("拟好") && merged.contains("你好"), "\(merged.prefix(600))")
+        let copied = try FileManager.default.contentsOfDirectory(atPath: shared.appendingPathComponent(id).path)
+        #expect(copied == ["rime_ice.userdb.txt"], "only the learned words are in the sync folder: \(copied)")
         #expect(try String(contentsOf: otherFolder.appendingPathComponent("rime_ice.userdb.txt"), encoding: .utf8) == other,
                 "another Mac's snapshot is only read")
         #expect(RimeService.shared.makeSession() != nil)
