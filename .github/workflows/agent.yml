@@ -1,0 +1,65 @@
+# Builds or fixes an issue with Claude Code agents on the Mac mini (.github/agent/pipeline.py), when a maintainer
+# labels it agent:build (a feature) or agent:fix (a bug); what the verifier passes merges into the open release
+# branch by itself. agent-queue.yml starts queued issues again, and it can be started by hand for one issue.
+# The agents run on the Max plan through the Mac mini's Claude Code sign-in: no API key.
+name: Agent
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+      base:
+        description: A branch to build on instead of the open release branch (for testing the pipeline)
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  # On GitHub's machine, so nothing reaches the Mac mini before the label is known to be a maintainer's.
+  gate:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'agent:build' || github.event.label.name == 'agent:fix'
+    runs-on: ubuntu-latest
+    outputs:
+      issue: ${{ steps.check.outputs.issue }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SENDER: ${{ github.event.sender.login }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = issues ]; then
+            permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$SENDER/permission" --jq .permission || echo none)
+            case $permission in
+              admin|maintain) ;;
+              *) echo "::notice::labelled by $SENDER ($permission), not a maintainer: ignored"; exit 0 ;;
+            esac
+          fi
+          case $ISSUE in ''|*[!0-9]*) echo "::error::not an issue number: $ISSUE"; exit 1 ;; esac
+          echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: gate
+    if: needs.gate.outputs.issue != ''
+    runs-on: [self-hosted, macmini-agent]
+    timeout-minutes: 600
+    concurrency:
+      group: agent-issue-${{ needs.gate.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Build or fix the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.gate.outputs.issue }}
+          AGENT_BASE: ${{ inputs.base }}
+        run: python3 .github/agent/pipeline.py "$ISSUE"

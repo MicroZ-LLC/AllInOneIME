@@ -1,6 +1,6 @@
 # Keeps the wiki's Chinese pages in step with its English ones: when a wiki page is edited (or by hand),
 # Scripts/translate-wiki.py translates each English page that changed and the result is pushed to the wiki.
-# Needs the repository secret ANTHROPIC_API_KEY.
+# Runs on the Mac mini, on the Max plan through its Claude Code sign-in (no API key).
 name: Translate the wiki into Chinese
 
 on:
@@ -21,20 +21,14 @@ permissions:
 
 jobs:
   translate:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macmini-agent]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0   # screenshots are pinned to commits; any of them may be looked up
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install anthropic
       - name: Clone the wiki
         run: git clone "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git" wiki
       - name: Translate
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python3 Scripts/translate-wiki.py wiki ${{ inputs.force && '--force' || '' }}
       - name: Push
         working-directory: wiki

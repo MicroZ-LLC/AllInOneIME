@@ -11,14 +11,16 @@
 # English is unchanged is skipped. The previous translation goes along with the English, so wording that still fits
 # is kept and a small change makes a small diff. .github/workflows/wiki-zh.yml runs this when the wiki is edited.
 
+from __future__ import annotations
+
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-
-import anthropic
 
 MODEL = "claude-opus-5-5"
 
@@ -78,23 +80,25 @@ def chinese_screenshots(repo: Path, page: str) -> str:
     return re.sub(r"raw\.githubusercontent\.com/MicroZ-LLC/AllInOneIME/([0-9a-f]{7,40})/docs/en/([\w.-]+)", swap, page)
 
 
-def translate(client, english_name: str, english: str, previous: str | None, glossary: str) -> str:
+def translate(english_name: str, english: str, previous: str | None, glossary: str) -> str:
     links = ", ".join(f"{en} → {zh}" for en, zh in PAGES.items())
     parts = [f"English page: {english_name}\n\n<english>\n{english}\n</english>"]
     if previous:
         parts.append(f"<previous_translation>\n{previous}\n</previous_translation>")
     if glossary:
         parts.append(f"<glossary>\n{glossary}\n</glossary>")
-    with client.messages.stream(
-        model=MODEL,
-        max_tokens=32000,
-        system=SYSTEM.format(links=links),
-        messages=[{"role": "user", "content": "\n\n".join(parts)}],
-    ) as stream:
-        message = stream.get_final_message()
-    if message.stop_reason != "end_turn":
-        raise RuntimeError(f"{english_name}: stopped with {message.stop_reason}")
-    return "".join(block.text for block in message.content if block.type == "text").strip()
+    # Claude Code with no tools: only the text goes in and only the page comes out.
+    result = subprocess.run(
+        ["claude", "-p", "--model", MODEL, "--system-prompt", SYSTEM.format(links=links), "--tools", "",
+         "--output-format", "json", "--no-session-persistence"],
+        input="\n\n".join(parts), capture_output=True, text=True, cwd=tempfile.gettempdir(), timeout=1800)
+    try:
+        reply = json.loads(result.stdout)
+    except ValueError:
+        reply = {}
+    if result.returncode or reply.get("is_error") or reply.get("subtype") != "success":
+        raise RuntimeError(f"{english_name}: {reply.get('result') or result.stderr.strip()[-1000:]}")
+    return reply["result"].strip()
 
 
 def main() -> int:
@@ -106,7 +110,6 @@ def main() -> int:
     args = parser.parse_args()
     repo = Path(__file__).resolve().parent.parent
 
-    client = None if args.dry_run else anthropic.Anthropic()
     changed = 0
     for english_name, chinese_name in PAGES.items():
         if args.page and english_name not in args.page:
@@ -123,7 +126,7 @@ def main() -> int:
         if args.dry_run:
             continue
         previous_body = MARKER.sub("", previous) if previous else None
-        page = translate(client, english_name, english, previous_body, ui_glossary(repo, english))
+        page = translate(english_name, english, previous_body, ui_glossary(repo, english))
         page = chinese_screenshots(repo, page)
         chinese_file.write_text(f"{page}\n\n<!-- translated from {english_name}.md sha256:{digest} -->\n")
     print(f"{changed} page(s) {'to translate' if args.dry_run else 'translated'}")
