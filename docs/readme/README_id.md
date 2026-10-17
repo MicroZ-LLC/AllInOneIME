@@ -15,6 +15,7 @@ Tanpa menyalin ke jendela chat, tanpa berpindah aplikasi. Penyedia AI Anda sendi
 
 [![Rilis](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)](#instalasi)
+[![Dinotarisasi oleh Apple](https://img.shields.io/badge/Apple-notarized-0a84ff?logo=apple&logoColor=white)](#instalasi)
 [![Apple silicon dan Intel](https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-555)](#instalasi)
 [![Lisensi: FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-f59e0b)](../../LICENSE)
 [![Unduhan](https://img.shields.io/github/downloads/MicroZ-LLC/AllInOneIME/total?color=22c55e)](https://github.com/MicroZ-LLC/AllInOneIME/releases)
