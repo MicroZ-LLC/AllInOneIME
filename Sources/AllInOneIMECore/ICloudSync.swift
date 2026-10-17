@@ -1,4 +1,8 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 /// Sync through iCloud (「通过 iCloud 同步」, Settings → General): the settings, the jargon list and custom commands, the
@@ -224,7 +228,7 @@ public enum ICloudSync {
     public struct State: Equatable, Sendable {
         /// A random id for this Mac (`Stamp.by`): nothing about the Mac or the user.
         public var macID: String
-        /// The Mac the record was made on (`ICloudSync.machineID`: a hash, never the hardware id itself).
+        /// The Mac the record was made on (`ICloudSync.machineID(platformUUID:)`: a hash, never the hardware id itself).
         public var machine: String?
         public var entries: [String: Entry] = [:]
         public var lastSync: Date?
@@ -312,10 +316,10 @@ public enum ICloudSync {
             try encoder.encode(AIConfig.JSONValue.object(fields)).write(to: url, options: .atomic)
         }
 
-        /// ~/Library/Application Support/AllInOneIME/iCloudSync/state.json
+        /// iCloudSync/state.json in the app's data folder (`CorePaths.dataDir`: ~/Library/Application Support/AllInOneIME
+        /// on a Mac).
         public static var defaultURL: URL {
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Application Support/AllInOneIME/iCloudSync/state.json")
+            CorePaths.dataDir.appendingPathComponent("iCloudSync/state.json")
         }
     }
 

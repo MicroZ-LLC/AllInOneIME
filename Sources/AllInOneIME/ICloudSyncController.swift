@@ -41,7 +41,7 @@ final class ICloudSyncController: ObservableObject {
     @Published private(set) var running = false
 
     /// What the runs use: iCloud Drive and the user's files; the self-test gives temporary ones.
-    var engine = ICloudSyncEngine(folder: .iCloudDrive(), environment: liveEnvironment)
+    var engine = ICloudSyncEngine(folder: .iCloudDrive(), environment: liveEnvironment, machineID: MachineIdentity.syncID)
     /// Rime's sync with `sync_dir` set to `folder` (the self-test's Rime runs in a folder of its own); false when Rime
     /// couldn't start it now.
     var syncRime: @MainActor (URL) -> Bool = { folder in

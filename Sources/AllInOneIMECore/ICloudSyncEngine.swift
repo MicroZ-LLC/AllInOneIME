@@ -17,9 +17,10 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
     public var questionsURL: URL
     public var environment: ICloudSync.Environment
     public var now: () -> Date
-    /// This Mac's hardware (a hash of its platform UUID, `ICloudSync.machineID`): a record made on another Mac (copied by
-    /// Migration Assistant) gets a Mac id of its own. The tests give their own.
-    public var machineID: () -> String? = { ICloudSync.machineID() }
+    /// This Mac's hardware (a hash of its platform UUID, `ICloudSync.machineID(platformUUID:)`): a record made on another
+    /// Mac (copied by Migration Assistant) gets a Mac id of its own. The app gives it (the core can't read the hardware);
+    /// the tests give their own. Nil: not known, and the record is taken as this Mac's.
+    public var machineID: () -> String?
     /// How the config file is written (`ICloudSync.writeConfig`: a key changed in the file since the run read it is
     /// skipped); the keys written. The app writes it on the main thread, as Settings does, and tells Settings at once.
     public var writeConfig: (_ config: Config, _ old: Config, _ keys: Set<String>, _ url: URL) throws -> Set<String> = { config, old, keys, url in
@@ -28,8 +29,9 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
 
     public init(folder: ICloudSyncFolder, configURL: URL = Config.defaultURL, stateURL: URL = ICloudSync.State.defaultURL,
                 questionsURL: URL = QuestionHistory.defaultURL, environment: ICloudSync.Environment = .init(),
-                now: @escaping () -> Date = Date.init) {
+                now: @escaping () -> Date = Date.init, machineID: @escaping () -> String? = { nil }) {
         self.folder = folder
+        self.machineID = machineID
         self.configURL = configURL
         self.stateURL = stateURL
         self.questionsURL = questionsURL

@@ -2487,7 +2487,7 @@ enum SelfTest {
         ICloudSyncController.shared.engine = ICloudSyncEngine(
             folder: ICloudSyncFolder(url: snapshotDirectory.appendingPathComponent("icloud-unused/CloudDocs/AllInOneIME")),
             configURL: Config.defaultURL, stateURL: snapshotDirectory.appendingPathComponent("icloud-unused/state.json"),
-            questionsURL: QuestionHistoryStore.url)
+            questionsURL: QuestionHistoryStore.url, machineID: MachineIdentity.syncID)
         // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched.
         APIKeys.keychain = .inMemory()
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go

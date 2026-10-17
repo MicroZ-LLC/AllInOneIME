@@ -1,6 +1,9 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
-import IOKit
 
 /// The folder the Macs share (`ICloudSync`): `AllInOneIME` in iCloud Drive (`iCloudDrive`), or any folder (the tests and
 /// the self-test use a temporary one, two "Macs" at once). iCloud Drive is plain files in the user's Library, so the
@@ -16,12 +19,12 @@ public struct ICloudSyncFolder: Sendable {
     public init(url: URL) { self.url = url }
 
     /// ~/Library/Mobile Documents/com~apple~CloudDocs: iCloud Drive itself.
-    public static func iCloudDriveRoot(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+    public static func iCloudDriveRoot(home: URL = CorePaths.home) -> URL {
         home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
     }
 
     /// iCloud Drive's AllInOneIME folder.
-    public static func iCloudDrive(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> ICloudSyncFolder {
+    public static func iCloudDrive(home: URL = CorePaths.home) -> ICloudSyncFolder {
         ICloudSyncFolder(url: iCloudDriveRoot(home: home).appendingPathComponent(ICloudSync.folderName, isDirectory: true))
     }
 
@@ -147,15 +150,11 @@ public struct ICloudSyncFolder: Sendable {
 }
 
 extension ICloudSync {
-    /// This Mac's hardware, as a hash of its platform UUID (never the UUID itself): a sync record copied from another Mac
-    /// by Migration Assistant is told by it. Nil when it can't be read.
-    public static func machineID() -> String? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
-        guard service != 0 else { return nil }
-        defer { IOObjectRelease(service) }
-        guard let uuid = IORegistryEntryCreateCFProperty(service, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0)?
-            .takeRetainedValue() as? String else { return nil }
-        return SHA256.hash(data: Data(("AllInOneIME sync machine " + uuid).utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
+    /// This Mac's hardware as the sync record keeps it: a hash of its platform UUID (never the UUID itself), so that a
+    /// record copied from another Mac by Migration Assistant is told by it. The app reads the UUID (IOKit on a Mac:
+    /// `MachineIdentity` in the input method) and gives it to the engine (`ICloudSyncEngine.machineID`).
+    public static func machineID(platformUUID uuid: String) -> String {
+        SHA256.hash(data: Data(("AllInOneIME sync machine " + uuid).utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 }
 

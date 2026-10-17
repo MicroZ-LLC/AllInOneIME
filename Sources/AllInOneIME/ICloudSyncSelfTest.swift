@@ -49,7 +49,8 @@ extension SelfTest {
         }
         sync.engine = ICloudSyncEngine(folder: folder, configURL: configURL, stateURL: dir.appendingPathComponent("this-mac/state.json"),
                                        questionsURL: dir.appendingPathComponent("this-mac/questions.json"),
-                                       environment: ICloudSync.Environment(hasKey: { _ in false }, awsProfiles: nil))
+                                       environment: ICloudSync.Environment(hasKey: { _ in false }, awsProfiles: nil),
+                                       machineID: MachineIdentity.syncID)
         sync.applyChanges = { applied.append($0) }
         let otherDir = dir.appendingPathComponent("other-mac")
         try? fm.createDirectory(at: otherDir, withIntermediateDirectories: true)
