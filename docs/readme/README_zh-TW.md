@@ -51,7 +51,7 @@
 | `@`（在句子開頭） | 開啟指令清單：最近最常用的排在前面，一次 5 個，可用 ↑↓、滾輪或觸控式軌跡板捲動；或輸入字母來尋找（完整輸入的名稱優先，其次是以這些字母開頭的名稱，再其次是包含它們的）。按 ⏎、Tab、Space 或數字鍵選定 |
 | ⏎ | 執行指令。拼音尚未選定時也可以：會先選定，就像按 Space 一樣 |
 | Space、⏎／數字鍵 | 結果出現後：插入反白的／對應編號的那一項；0 是原文。後續內容只打了一半時按 ⏎ 也會插入（打的內容會捨棄） |
-| ⇧⏎ | AI 結果出現後又輸入了後續內容時：把它送出（`@question` 對話的下一個問題，或修改要求）。正在輸入指令時，或 AI 結果出現後什麼都沒輸入時：照你輸入的原樣插入，連同 `@command`。在其他結果上（`@open`、提醒事項…）插入反白的那一列，和 ⏎ 一樣。在 `@config` 和 `@doctor` 的結果上，什麼都沒輸入時按 ⇧⏎ 不做任何事 |
+| ⇧⏎ | AI 結果出現後又輸入了後續內容時：把它送出（`@question` 對話的下一個問題，或修改要求）。正在輸入指令時，或 AI 結果出現後什麼都沒輸入時：照你輸入的原樣插入，連同 `@command`。在其他結果上（`@open`、提醒事項…）插入反白的那一列，和 ⏎ 一樣 |
 | ⌘C | 拷貝反白的結果（`@open` 則是路徑）；候選視窗保持開啟 |
 | ⌃V | 在指令中（例如 `@improve ` 之後）：把剪貼簿的文字接在你輸入的內容後面，而不是貼到 App 裡。多行會合併成一行，每次最多 2000 個字元（`@note` 會保留換行，最多 20000 個）。在任何 App 中都可用；沒有指令時，按鍵照常送到 App |
 | ⌘V | 和 ⌃V 一樣，但有些 App 會自行處理 ⌘V（Ghostty、iTerm2、Terminal 等終端機，以及 Notes），照常貼到 App 裡；在這些 App 中請用 ⌃V |
@@ -72,8 +72,6 @@
 | `@agent` | 把任務交給你 Mac 上的程式設計 agent，在 Settings → Agent 中選擇：Claude Code（預設）、Gemini CLI、Kiro CLI，或你自己的指令（你輸入的內容會作為最後一個引數加在後面）。這一頁也會顯示每個 agent 是否已安裝、如何啟動。Claude Code 預設在背景執行，完成時會發出通知（按一下通知即可在 Terminal 中打開該工作階段繼續），也可以用 `@tasks` 查看；關閉那裡 Claude Code 下方的「Runs in the background and notifies me」（在背景執行並在完成時通知我）就會改在 Terminal 中打開。其他 agent 會在 Terminal 中打開，你輸入的內容就是第一則訊息。每個 agent 都使用自己的登入和設定。第一次打開 Terminal 時，macOS 會詢問是否允許 AllInOneIME 控制 Terminal：按一下「好」。（0.6.4 之前叫 `@claude`。） |
 | `@tasks` | 列出背景中的 Claude 任務（進行中／已完成／等你回應），以及它們最後的回覆；按 ⏎ 在 Terminal 中開啟，⌘C 拷貝回覆 |
 | `@settings` | 立即開啟設定視窗（選取它就夠了） |
-| `@config` | 依你的描述修改設定：`@config output languages English and French`、`@config use Chinese in WeChat`、`@config candidates in a column`。按 ⏎ 顯示要改的地方（原本 → 改為）；⏎（或 1）套用，Esc 取消，接著輸入再按 ⇧⏎ 可以再調整；⌘Z 或 `@config undo` 會還原。見[用描述的方式修改設定](#用描述的方式修改設定新) |
-| `@doctor` | 檢查這台 Mac 上的設定，能安全修好的就幫你修好：按 ⏎ 列出結果，問題在前；按數字修正那一項，按 ⏎ 修正可安全修正的幾項，都會先在 `@config` 的預覽中顯示。`@doctor why doesn't translate work` 還會讓 AI 解釋可能的原因。見[檢查你的設定](#檢查你的設定新) |
 | `@open` | 邊輸入邊列出符合的檔案、資料夾和 App（Spotlight）。可以輸入多個關鍵字，以空格分隔：每個都必須出現在路徑中，且至少一個出現在名稱中（標準資料夾的名稱也適用於其中的項目：`downloads pdf` 會找到 Downloads（下載項目）中的 PDF）。App 和標準資料夾也能用中文名稱找到，中文介面下也以中文名稱顯示。用 `@open` 開啟過的項目排最前面，接著是 App 和那些資料夾，然後是最近使用或修改過的檔案；若名稱只找到兩個以下的檔案，且沒有符合的 App 或那些資料夾，也會依內容搜尋你個人專屬資料夾中的檔案，這些列標示為「content」（內容）；若沒有其他結果，按 ⏎ 會列出它們讓你挑選，而不是直接開啟第一個。輸入網址時（`github.com`、`localhost:3000`、`https://…`），第一列是「open in the browser」（在瀏覽器中開啟），且不搜尋內容；名稱與其完全相同的檔案（例如 `MANIFEST.in`）排在最前面。以 `~/` 或 `/` 開頭的文字是路徑：Tab 會補全並進入資料夾；⏎ 開啟，⌘C 拷貝路徑 |
 | `@note` | 把文字存到 Notes App 中名為 AllInOneIME 的資料夾（不存在時會建立）；不會插入任何內容。貼上的文字保留換行，最多 20000 個字元 |
 | `@reminder` | 在 Reminders App 名為 AllInOneIME 的列表中加入提醒事項。把時間寫在文字裡；時間在 Mac 上解析，並有一列顯示解析結果：按 ⏎ 或 Space 加入，Esc 返回編輯。有時間的話，會在那時響起提醒；只有日期的話，就是整天 |
@@ -118,7 +116,7 @@
 `@question` 後面沒有輸入任何內容時，會列出你最近的 5 個問題，最新的在前，並註明提問時間（「3 hours ago」）。接著輸入就能篩選：每個字詞出現在問題中任何位置都算，不分大小寫（不含空格的中文也可以）。按數字鍵、↑↓ 再按 ⏎，或按一下，會立刻顯示該問題已儲存的答案，不需連網：Space 或 ⏎ 插入，⌘C 拷貝，⌘R 重新提問以取得新的答案（對話則是重新提出最後一個問題），Esc 回到清單。已儲存的對話會顯示所有輪次：接著輸入就能繼續聊。沒有符合的項目，或沒有選取任何項目時，⏎ 會提出你輸入的問題。同一個問題有了新答案，或對話又繼續聊下去，就會取代已儲存的那個。
 
 - 它們只存放在這台 Mac 上（見「隱私」）：處於安全輸入狀態時不存，對選取文字提出的問題一律不存。
-- Settings → General →「Remember recent questions」（記住最近的問題）可以關閉此功能（設定檔中的 `rememberQuestions`）；在那裡關閉時也會刪除它們。透過 `@config` 關閉時則會保留它們，讓還原時能完全回到原本的狀態（它的預覽會說明這點）；「Clear (N)」（清除）會刪除它們。
+- Settings → General →「Remember recent questions」（記住最近的問題）可以關閉此功能（設定檔中的 `rememberQuestions`）；在那裡關閉時也會刪除它們。透過 Settings → Assistant 關閉時則會保留它們，讓還原時能完全回到原本的狀態（它的預覽會說明這點）；「Clear (N)」（清除）會刪除它們。
 
 ### 備忘錄與提醒事項
 
@@ -235,23 +233,13 @@ Settings → Apps 可以為某個 App 提供自己的設定，每一項都是選
 - 一開始的語言和預設輸入語言的運作方式一樣：文字欄位啟用時採用它，之後用 Shift 切換的語言會在該 App 的欄位中保持，直到設定改變為止。
 - 開啟 No AI 時，AI 指令仍然留在 @ 清單中；執行時會顯示提示，並保留你寫的內容。你自己的終端機指令（`"type": "terminal"`）執行的是程式而不是 AI，所以在那裡照樣能用。
 
-### 用描述的方式修改設定（新）
+### Settings → Assistant（新）
 
-`@config` 把一句話變成設定：`@config output languages English and French`、`@config 微信里用中文，邮件里语气正式一点`、`@config candidates in a column`、`@config turn off the typos`、`@config use Claude`。按 ⏎ 會在候選視窗中列出要改的地方，一項一列，原本 → 改為，使用設定中的名稱（「Translation languages: English, Japanese → English, French」、「Apps · WeChat · Starts in: Same as everywhere → Chinese」）；這時還沒有改動或輸入任何東西。⏎（或 1）全部套用，Esc 取消，接著輸入再按 ⇧⏎ 可以調整提議（「也加德文」；什麼都沒輸入時按 ⇧⏎ 不做任何事，⏎ 則套用目前顯示的提議）。套用之後，在確認訊息還顯示時按 ⌘Z，或在接下來 10 分鐘內輸入 `@config undo`，就能把這些設定恢復成原本的值。
+設定視窗打開時會先顯示 **Assistant**，一頁分成兩部分（0.6.5 以前它們是 `@config` 和 `@doctor` 兩個指令）。
 
-- **可以修改的：** 翻譯語言和輸入語言（以及預設的那一種）、改寫風格、候選排列、逐字輸出結果（開關、速度、時快時慢、打錯再改）、使用選取的文字、記住問題、隱藏敏感資訊（開關、隱藏哪些、要加入的詞）、檢查更新、依 App 設定（App 用你稱呼它的名字，依名稱或 bundle ID 在你的 App 中尋找），以及 AI 供應商：用哪一個、Bedrock 的設定檔（來自 `~/.aws`）和區域、App 知道適用於它的模型，以及相容 OpenAI 服務的 Base URL（僅限 `https://`）。
-- **絕不碰的：** API 金鑰和鑰匙圈中的任何東西、自訂指令、擴充功能資料夾和來源、外掛程式、術語表、任何會執行程式的東西，以及其他所有設定。這些列會被拒絕並註明原因，其餘的仍可套用。
-- **和設定中一樣檢查：** 不是語言的語言、超過 5 種翻譯語言、超出範圍的值、無法辨認的 App，或語言套件尚未安裝的語言（「needs the Korean language pack: download it in Settings → Input」，即需要韓文語言套件，請在 Settings → Input 中下載）都會逐列拒絕；絕不會寫入無效的設定檔。
-- **金鑰：** 它絕不會切換到沒有金鑰的供應商（鑰匙圈和 shell 中都沒有）：那一列會寫「Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there」（Gemini API 需要 API 金鑰：按 ⏎ 打開設定加入，絕不會送給 AI；你可以在那裡切換過去），套用時會打開 Settings → AI Provider，並跳出輸入這把金鑰的小視窗（「Save」儲存，或「Save and Use」儲存並切換過去），其他列照常套用。有金鑰時，供應商會切換，接著執行 Test Connection，結果顯示在確認訊息下方。句子中輸入的金鑰會在送出任何內容之前去除。
-- **先用本機：** 只要這台 Mac 有 Apple Intelligence（macOS 26）就使用它，不論你選了哪個供應商，甚至在還沒設定任何供應商之前也一樣；它只能提出允許的設定和值，並能查詢你的 App、AWS 設定檔和語言套件。沒有的話，由你的供應商回答。請求中只有允許的設定及其目前的值（絕不包含金鑰，也不包含你要隱藏的詞），隱藏敏感資訊也和其他請求一樣適用。
+**用一句話修改設定**（「Change settings in a sentence」）：寫下你想怎麼改（「translate into Japanese and English」、「candidates in a column」、「use Claude」），按 Preview（或 ⌘⏎）。每項變更以原本 → 改為顯示；Apply 套用，Undo 在 10 分鐘內可以還原。API 金鑰、自訂指令、外掛和任何會執行程式的東西在這裡都不會被修改；沒有金鑰的供應商會打開 Settings → AI Provider 中的金鑰欄位，更換供應商後會執行 Test Connection。這台 Mac 有 Apple Intelligence 時就用它，否則用你的供應商。
 
-### 檢查你的設定（新）
-
-`@doctor` 按 ⏎ 會在一兩秒內檢查這台 Mac 上的設定（執行時會顯示連線測試），並在候選視窗中列出結果，一項一列，✗ 問題在前，接著是 ⚠ 警告，最後是 ✓ 正常的項目，每項附上簡短的修正方式：輸入法（是否安裝、啟用、在你的輸入方式中）、AI 供應商（金鑰是否已儲存，或 Bedrock 設定檔的憑證是否找得到，絕不讀出或顯示；Test Connection；Apple Intelligence）、權限（輔助使用、你聽寫時用的麥克風、控制備忘錄、提醒事項、Terminal 和訊息，向 macOS 查詢時不會跳出詢問）、安全輸入、你的輸入語言的語言套件、`config.json`（能否讀取、不認得的鍵、超出範圍的值、重複的語言、超過 5 種翻譯語言）、沒有載入的擴充功能和外掛程式、更新，以及 App 自己記錄檔中最近的錯誤。
-
-有修正方式的列會編號：按數字（或按一下）會在 `@config` 的預覽中顯示它要做什麼，按 ⏎ 套用；在清單上按 ⏎ 會一次修正所有可安全修正的項目（修復設定、移除重複的語言、重新啟用輸入法）。打開系統設定的某個面板、下載語言套件、Check for Updates（會打開設定）以及設定中的金鑰欄位，都要逐項選取。設定的變更可以像 `@config` 的一樣還原（⌘Z、`@config undo`）。任何修正都不會刪除你的資料，也不會碰金鑰。
-
-`@doctor <question>`（`@doctor why doesn't translate work`）會先執行檢查，再由 AI 根據檢查結果解釋可能的原因，並標出它建議的修正（⏎ 仍然只套用可安全修正的項目；其他的按編號修正）。在設為 No AI 的 App 中，檢查照樣執行，只有提問會被拒絕。這台 Mac 有 Apple Intelligence 時就用它，它會把需要的檢查當作工具呼叫；否則用你的供應商，候選視窗會註明。送出的只有檢查結果（路徑只到 `~` 為止、沒有金鑰、沒有你輸入的文字）和你的問題；單獨執行檢查時，除了 Test Connection 的那一次請求（只在供應商有金鑰或憑證可測試時）之外，什麼都不送出。
+**檢查問題**（「Check for problems」）：頁面打開時會在這台 Mac 上檢查輸入法、AI 供應商、權限、安全輸入、語言套件、`config.json`、延伸功能、更新和最近的錯誤，問題在前（全都正常時顯示「Everything looks good」）。Check 會連同 Test Connection 再檢查一次；在「What's wrong? (optional)」中寫下問題的話，AI 會解釋可能的原因。可以修正的列有 Fix 按鈕：設定的變更會顯示在上方的預覽中，可以 Apply 和 Undo；其他的會立即執行。
 
 ## 選單列面板
 
@@ -373,7 +361,7 @@ make install
 
 1. 在 AWS 主控台中啟用 Bedrock，並確認你能使用選定的模型。預設是 Claude Haiku 4.5；第一次使用 Anthropic 的模型時，需要填寫一次使用案例表單。
 2. 使用一個允許 `bedrock:InvokeModelWithResponseStream` 的 AWS 設定檔（profile）：`~/.aws/credentials` 中的靜態金鑰，或能取得臨時憑證的設定檔（`credential_process`、角色、SSO；見下方的「AWS 設定檔」）。
-3. 打開「AllInOneIME Settings」：你可以在 Spotlight 或「應用程式」中找到它，或從選單列中輸入法的圖像 →「Settings…」（設定…）打開。選擇設定檔、區域和模型，然後按一下「Test Connection」（測試連線）。設定視窗頂端的「Language」（語言）可以是英文或中文；預設（「System」）跟隨系統（系統偏好語言中中文排在英文前面時為中文，否則為英文）。設定視窗、候選視窗中的提示和輸入選單都會跟隨這項設定。
+3. 打開「AllInOneIME Settings」：你可以在 Spotlight 或「應用程式」中找到它，或從選單列中輸入法的圖像 →「Settings…」（設定…）打開。選擇設定檔、區域和模型，然後按一下「Test Connection」（測試連線）。設定視窗頂端的「Language」（語言）可以是英文或中文；預設（「System」）跟隨系統（系統偏好語言中中文排在英文前面時為中文，否則為英文）。設定視窗、候選視窗中的提示和輸入選單都會跟隨這項設定。設定視窗打開時會先顯示 Assistant 頁面：用描述的方式修改設定，以及檢查問題（見下方的 Settings → Assistant）。
 
 <img src="../en/settings.png" width="420" alt="設定視窗">
 
@@ -392,11 +380,11 @@ make install
 設定檔為「default」（或未選擇）時，會和 AWS CLI 一樣優先使用 shell 中的金鑰：`AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY` 和 `AWS_SESSION_TOKEN`。你指定名稱的設定檔絕不會和它們混用。shell 中的 `AWS_REGION`（或 `AWS_DEFAULT_REGION`）和 AWS CLI 一樣優先於設定檔的 `region`；設定中的「Region」欄位又優先於這兩者。
 
 - **自動：** 會過期的憑證只保存在記憶體中（絕不寫入磁碟），並在到期前 5 分鐘重新取得；剩下不到 10 分鐘時，請求會先使用現有的憑證，同時在背景取得新的，所以打字不必等待。同時發出的請求只會等待同一次取得。Bedrock 回應憑證已過期（`ExpiredTokenException` 等）時，會重新取得憑證並再送出一次請求，只重試一次。
-- **SSO：** AllInOneIME 使用 AWS CLI 存放在 `~/.aws/sso/cache` 中的登入（只讀取），無法替你登入，因為那需要瀏覽器。登入過期時，候選視窗會顯示「SSO sign-in expired: run aws sso login --profile X」（SSO 登入已過期：請執行 aws sso login --profile X）：在 Terminal 中執行它（設定中有「Copy Command」和「Open in Terminal」；`@doctor` 也會提供可拷貝的指令），之後 AllInOneIME 會自動使用新的登入。
+- **SSO：** AllInOneIME 使用 AWS CLI 存放在 `~/.aws/sso/cache` 中的登入（只讀取），無法替你登入，因為那需要瀏覽器。登入過期時，候選視窗會顯示「SSO sign-in expired: run aws sso login --profile X」（SSO 登入已過期：請執行 aws sso login --profile X）：在 Terminal 中執行它（設定中有「Copy Command」和「Open in Terminal」；Settings → Assistant 也會提供可拷貝的指令），之後 AllInOneIME 會自動使用新的登入。
 - **不支援：** `mfa_serial`（輸入法無法向你要 MFA 驗證碼：請改用 `credential_process` 或 SSO，或讓你的 CLI 快取憑證）、`credential_source = Ec2InstanceMetadata` 或 `EcsContainer`（Mac 上沒有），以及 web identity。
 - **已知限制：** 只有 PATH 和 AWS 檔案的變數（`AWS_CONFIG_FILE`、`AWS_SHARED_CREDENTIALS_FILE`）來自你的登入 shell，`credential_process` 也一樣（不帶入其他環境變數）。AllInOneIME 不會續期 `sso_session` 的權杖（不使用 CLI 的 refresh token：SSO 快取只讀不寫），所以快取的權杖過期後，請執行 `aws sso login`（平常使用 AWS CLI 時它也會自動續期）。
-- **Settings → AI Provider** 會列出每個設定檔及其種類（「dev — Role via base」），並說明所選設定檔的憑證何時到期（「Role via base: credentials expire at 15:30」、「SSO (signed in until 18:00)」）或該怎麼做。Test Connection 會沿著整條鏈取得新的憑證；`@doctor` 也會回報同樣的內容。
-- 只有在請求或 Test Connection 需要憑證時，才會執行程式、向 AWS 要求憑證（`sts.<region>.amazonaws.com`、`portal.sso.<region>.amazonaws.com`）：列出設定檔時絕不會，`@config` 也絕不會。
+- **Settings → AI Provider** 會列出每個設定檔及其種類（「dev — Role via base」），並說明所選設定檔的憑證何時到期（「Role via base: credentials expire at 15:30」、「SSO (signed in until 18:00)」）或該怎麼做。Test Connection 會沿著整條鏈取得新的憑證；Settings → Assistant 也會回報同樣的內容。
+- 只有在請求或 Test Connection 需要憑證時，才會執行程式、向 AWS 要求憑證（`sts.<region>.amazonaws.com`、`portal.sso.<region>.amazonaws.com`）：列出設定檔時絕不會，Settings → Assistant 也絕不會。
 
 ### 其他 AI 供應商：Claude API、Gemini、與 OpenAI 相容的服務
 
@@ -469,7 +457,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 ## 隱私
 
 - 打字（英文和拼音）以及 `@calculator` 外掛程式的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。修改結果（在結果出現後輸入要求，再按 ⇧⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求；追問（⇧⏎）則會連同到目前為止的對話一起送出。
-- `@config` 和 `@doctor <question>` 會在你按 ⏎ 時把文字送給模型：只要這台 Mac 能用 Apple Intelligence 就用它（不會有任何內容離開 Mac），否則用你的供應商。`@config` 會送出你的句子（句子中輸入的金鑰會先去除），以及它可以修改的那些設定的目前值：絕不包含金鑰，也不包含你對 AI 隱藏的詞（只送出有幾個），AWS 設定檔的名稱也只在句子與 AWS 或 Bedrock 有關時才送出。`@doctor <question>` 會送出你的問題和遮蔽過的檢查結果：路徑只到 `~` 為止、沒有金鑰、記錄檔的內容改為固定的說法。隱藏敏感資訊對兩者都適用，和其他請求一樣。單獨執行檢查時（`@doctor` 後面什麼都不接），除了 Test Connection 的請求之外什麼都不送出，而且只在供應商有金鑰或憑證可測試時才送。
+- Settings → Assistant 只有在你按 Preview，或寫了問題再按 Check 時，才會把文字送給模型：只要這台 Mac 能用 Apple Intelligence 就用它（不會有任何內容離開 Mac），否則用你的供應商。修改設定的請求會送出你的句子（句子中輸入的金鑰會先去除），以及它可以修改的那些設定的目前值：絕不包含金鑰，也不包含你對 AI 隱藏的詞（只送出有幾個），AWS 設定檔的名稱也只在句子與 AWS 或 Bedrock 有關時才送出。問題會連同遮蔽過的檢查結果一起送出：路徑只到 `~` 為止，沒有金鑰，記錄只留下固定的詞句。兩者都會套用隱藏敏感資訊的設定。單純檢查什麼都不送；Check 另外會送出 Test Connection 的那一次請求，而且只在供應商有金鑰或憑證可測試時才送。
 - 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上的程式設計 agent（Claude Code、Gemini CLI、Kiro CLI 或你自己的，各自使用自己的帳號和服務）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
 - 使用 AllInOneIME Cloud 時，句子會經由開發者的伺服器送到模型供應商（目前經由 OpenRouter）：伺服器只保留計數，絕不保留文字。登入只會保留你的電子郵件地址。
 - 隱藏敏感資訊（Settings → AI Provider → Privacy，預設關閉）：任何請求送出之前（`@improve`、`@translate`、`@question`、你的提示詞指令和提示詞外掛程式，所有供應商皆然，包括 AllInOneIME Cloud），電子郵件地址、電話號碼、付款卡號（經 Luhn 檢查）、API 金鑰和權杖（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…` 和很長的隨機字串）、IP 位址以及你自己的字詞（代號、名字）會先在 Mac 上換成 `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` 這類預留位置；同一個值使用同一個預留位置。模型的結果在顯示或插入之前會換回真實內容，候選視窗會顯示「2 items hidden from the AI」。模型把預留位置改得無法辨認的結果，會照原樣顯示並標上「⚠ placeholder changed」。術語表中含有被隱藏內容的項目不會送出。每一類都能個別關閉。全形寫法（`zhang＠example.com`、`１３８…`）也找得到，值或片語中間換行也可以。它能辨識有固定格式的值，例如電子郵件、號碼和金鑰；無法辨識人名或地址（請把它們加為你自己的字詞），也無法辨識其他字母系統中外形相似的字母。只適用於送往你的 AI 服務的請求；`@agent`、從網站擷取資料（`@stock`）或開啟網站（`@x`）的外掛程式，以及腳本擴充功能，會照原樣送出文字。設定檔中為 `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）。
@@ -480,7 +468,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 - `@reportissue`（以及「Report an Issue…」）本身不傳送任何內容：它在瀏覽器中開啟 GitHub 的新 issue 頁面，附上你輸入的標題，以及上面列出的版本、語言、供應商種類和數量，這些會先顯示在候選視窗中。除非你在那裡按一下 Submit，否則不會有任何內容送到 GitHub。
 - `@open` 只在這台 Mac 上搜尋。它會記住你用它開啟過的項目（最近 200 個），存放在輸入法自己的偏好設定中（不在 config.json 中），以便把它們排在前面。
 - 為了 Settings → Apps 中的「Add App…」，輸入法會在它自己的偏好設定中保留你最近打過字的 12 個 App 的 bundle ID；關於它們的其他資訊一概不保留。
-- `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。在 Settings → General 關閉「Remember recent questions」也會刪除它們；透過 `@config` 關閉（設定檔中的 `rememberQuestions`）則會保留，以便能完全還原。「Clear」會刪除它們。
+- `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。在 Settings → General 關閉「Remember recent questions」也會刪除它們；透過 Settings → Assistant 關閉（設定檔中的 `rememberQuestions`）則會保留，以便能完全還原。「Clear」會刪除它們。
 - 為了列出你的備忘錄，選單列面板會在輸入法自己的偏好設定中，保存最近 30 則用 `@note` 儲存的備忘錄的 ID 和第一行（最多 80 個字元），面板關閉時也一樣。
 - `@py` 和 `@js` 只在你按下執行鍵時才執行，而且只執行你自己輸入或貼上的程式碼：AI 的答案和其他指令的輸出絕不會被當作程式碼執行。`@py` 使用你 Mac 上的 `python3`，它能像在 Terminal 中一樣讀寫檔案和連上網路；`@js` 在獨立的行程中執行，無法讀取檔案、連上網路或執行其他程式。兩者都不會在安全輸入期間執行。
 - 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。

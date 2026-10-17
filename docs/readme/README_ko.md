@@ -51,7 +51,7 @@
 | `@`(문장 맨 앞에서) | 명령어 목록을 엽니다. 최근에 많이 쓴 것이 먼저 나오고, 한 번에 5개씩, ↑↓, 스크롤 휠, 트랙패드로 스크롤합니다. 글자를 입력해 찾을 수도 있습니다(전부 입력한 이름이 먼저, 그다음 그 글자로 시작하는 이름, 그다음 그 글자를 포함하는 이름). ⏎, Tab, Space, 숫자 키로 선택합니다 |
 | ⏎ | 명령어를 실행합니다. 병음을 아직 고르지 않았어도 됩니다. Space를 누를 때처럼 먼저 골라집니다 |
 | Space, ⏎ / 숫자 | 결과가 나타나면: 강조된 결과 / 해당 번호의 결과를 삽입합니다. 0은 원문입니다. 후속 입력을 쓰다 말았어도 ⏎는 삽입합니다(쓰던 내용은 버려집니다) |
-| ⇧⏎ | AI 결과 뒤에 후속 입력을 했을 때: 그것을 보냅니다(`@question` 대화의 다음 질문, 또는 다듬기). 명령어를 입력하는 중이거나, AI 결과에서 아무것도 입력하지 않았을 때: 입력한 그대로, `@command`까지 포함해 삽입합니다. 다른 결과(`@open`, 미리 알림 …)에서는 ⏎처럼 강조된 행을 삽입합니다. `@config`와 `@doctor` 결과에서는 아무것도 입력하지 않고 ⇧⏎를 누르면 아무 일도 일어나지 않습니다 |
+| ⇧⏎ | AI 결과 뒤에 후속 입력을 했을 때: 그것을 보냅니다(`@question` 대화의 다음 질문, 또는 다듬기). 명령어를 입력하는 중이거나, AI 결과에서 아무것도 입력하지 않았을 때: 입력한 그대로, `@command`까지 포함해 삽입합니다. 다른 결과(`@open`, 미리 알림 …)에서는 ⏎처럼 강조된 행을 삽입합니다 |
 | ⌘C | 강조된 결과를 복사합니다(`@open`에서는 경로). 후보 패널은 열린 채로 있습니다 |
 | ⌃V | 명령어 안에서(예: `@improve ` 뒤): 클립보드 텍스트를 앱에 붙여 넣는 대신, 입력한 내용 뒤에 덧붙입니다. 여러 줄은 한 줄로 합쳐지며, 한 번에 최대 2000자입니다(`@note`는 줄바꿈을 유지하며 최대 20000자). 어떤 앱에서든 작동하며, 명령어가 없으면 키는 평소처럼 앱으로 갑니다 |
 | ⌘V | ⌃V와 같지만, ⌘V를 직접 처리하는 앱(Ghostty, iTerm2, Terminal 같은 터미널과 Notes)에서는 평소처럼 앱에 붙여 넣습니다. 그런 앱에서는 ⌃V를 쓰세요 |
@@ -72,8 +72,6 @@
 | `@agent` | 작업을 Mac의 코딩 에이전트에 넘깁니다. 에이전트는 Settings → Agent에서 고릅니다: Claude Code(기본값), Gemini CLI, Kiro CLI, 또는 직접 만든 명령(입력한 내용이 마지막 인수로 붙습니다). 이 페이지에는 각 에이전트가 설치되어 있는지, 어떻게 시작하는지도 표시됩니다. Claude Code는 기본적으로 백그라운드에서 실행되며 끝나면 알림을 보내고(알림을 클릭하면 Terminal에서 세션을 열어 이어 갈 수 있음), `@tasks`에서도 볼 수 있습니다. 그 페이지의 Claude Code 아래에 있는 "Runs in the background and notifies me"(백그라운드에서 실행하고 끝나면 알림)를 끄면 Terminal에서 엽니다. 다른 에이전트는 Terminal에서 열리며, 입력한 내용이 첫 메시지가 됩니다. 각 에이전트는 자체 로그인과 설정을 씁니다. 처음 Terminal을 열 때 macOS가 AllInOneIME가 Terminal을 제어해도 되는지 묻습니다. "확인"을 클릭하세요. (0.6.4 이전에는 `@claude`였습니다.) |
 | `@tasks` | 백그라운드 Claude 작업(진행 중 / 완료 / 응답 대기)과 각각의 마지막 답장을 나열합니다. ⏎는 Terminal에서 열고, ⌘C는 답장을 복사합니다 |
 | `@settings` | 설정 창을 바로 엽니다(고르기만 하면 됩니다) |
-| `@config` | 말로 설명한 대로 설정을 바꿉니다: `@config output languages English and French`, `@config use Chinese in WeChat`, `@config candidates in a column`. ⏎를 누르면 바뀌는 내용을 이전 → 이후로 보여 주고, ⏎(또는 1)로 적용, Esc로 취소, 더 입력하고 ⇧⏎를 누르면 다시 다듬습니다. ⌘Z 또는 `@config undo`로 되돌립니다. [말로 설정 바꾸기](#말로-설정-바꾸기-신규) 참고 |
-| `@doctor` | 이 Mac의 설정 상태를 점검하고 안전하게 고칠 수 있는 것은 고칩니다. ⏎를 누르면 결과를 문제부터 나열하고, 숫자로 그 항목을, ⏎로 안전한 항목들을 `@config`의 미리 보기를 거쳐 고칩니다. `@doctor why doesn't translate work`처럼 쓰면 AI가 가능한 원인도 설명합니다. [설정 점검하기](#설정-점검하기-신규) 참고 |
 | `@open` | 입력하는 대로 일치하는 파일, 폴더, 앱을 나열합니다(Spotlight). 공백으로 구분해 여러 키워드를 쓸 수 있습니다. 각 키워드는 경로에 있어야 하고, 적어도 하나는 이름에 있어야 합니다(표준 폴더의 이름은 그 안의 항목에도 적용됩니다. `downloads pdf`는 Downloads(다운로드) 안의 PDF를 찾습니다). 앱과 표준 폴더는 중국어 이름으로도 찾을 수 있고, 중국어 인터페이스에서는 그 이름으로 표시됩니다. `@open`으로 연 항목이 먼저 나오고, 그다음 앱과 그 폴더들, 그다음 최근에 사용하거나 변경한 파일이 나옵니다. 이름으로 찾은 파일이 두 개 이하이고 해당하는 앱이나 그 폴더가 없으면, 홈 폴더의 파일을 내용으로도 검색하며 그 행에는 "content"(내용)라고 표시됩니다. 그 밖에 아무것도 없으면, ⏎는 첫 항목을 여는 대신 그것들을 나열해 고를 수 있게 합니다. 웹 주소(`github.com`, `localhost:3000`, `https://…`)를 입력하면 첫 행은 "open in the browser"(브라우저에서 열기)이고 내용은 검색하지 않습니다. 정확히 그 이름의 파일(예: `MANIFEST.in`)이 있으면 그것이 먼저 나옵니다. `~/`나 `/`로 시작하는 텍스트는 경로입니다. Tab은 경로를 완성하며 폴더 안으로 들어가고, ⏎는 열고, ⌘C는 경로를 복사합니다 |
 | `@note` | 텍스트를 Notes 앱의 AllInOneIME라는 폴더(없으면 만듦)에 저장합니다. 아무것도 삽입되지 않습니다. 붙여 넣은 텍스트는 줄바꿈을 유지하며 최대 20000자입니다 |
 | `@reminder` | Reminders 앱의 AllInOneIME라는 목록에 미리 알림을 추가합니다. 시간은 텍스트 안에 쓰세요. 시간은 Mac에서 해석되며, 해석한 결과가 한 행에 표시됩니다. ⏎ 또는 Space로 추가하고, Esc로 편집으로 돌아갑니다. 시간이 있으면 그때 알림이 울리고, 날짜만 있으면 종일 일정이 됩니다 |
@@ -118,7 +116,7 @@
 뒤에 아무것도 입력하지 않은 `@question`은 최근 질문 5개를 최신순으로, 질문한 시각("3 hours ago")과 함께 보여 줍니다. 입력하면 범위가 좁혀집니다. 각 단어가 질문 안 어디에 있든, 대소문자 구분 없이 찾습니다(띄어쓰기 없는 중국어도). 숫자 키, ↑↓ 후 ⏎, 또는 클릭하면 그 질문의 저장된 답을 온라인에 접속하지 않고 바로 보여 줍니다. Space 또는 ⏎로 삽입, ⌘C로 복사, ⌘R로 다시 질문해 새 답 받기(대화라면 마지막 질문), Esc로 목록으로 돌아갑니다. 저장된 대화는 모든 회차를 보여 주며, 입력하면 이어서 대화할 수 있습니다. 일치하는 것이 없거나 아무것도 고르지 않으면 ⏎는 입력한 내용을 질문합니다. 같은 질문에 대한 새 답이나 이어진 대화는 저장된 것을 대체합니다.
 
 - 질문은 이 Mac에만 보관됩니다(개인정보 보호 참고). 보안 입력 중에는 보관하지 않고, 선택한 텍스트에 대한 질문은 절대 보관하지 않습니다.
-- Settings → General → "Remember recent questions"(최근 질문 기억)로 끌 수 있습니다(설정 파일의 `rememberQuestions`). 거기서 끄면 질문도 삭제됩니다. `@config`로 끄면 질문이 남아 있어서, 되돌리면 정확히 이전 상태로 돌아갑니다(미리 보기에도 그렇게 표시됩니다). "Clear (N)"(지우기)는 질문을 삭제합니다.
+- Settings → General → "Remember recent questions"(최근 질문 기억)로 끌 수 있습니다(설정 파일의 `rememberQuestions`). 거기서 끄면 질문도 삭제됩니다. Settings → Assistant로 끄면 질문이 남아 있어서, 되돌리면 정확히 이전 상태로 돌아갑니다(미리 보기에도 그렇게 표시됩니다). "Clear (N)"(지우기)는 질문을 삭제합니다.
 
 ### 메모와 미리 알림
 
@@ -235,23 +233,13 @@ Settings → Apps에서 앱마다 자체 설정을 줄 수 있으며, 모두 선
 - 시작 언어는 기본 입력 언어처럼 동작합니다. 텍스트 필드가 활성화될 때 그 언어로 시작하고, 이후 Shift로 바꾼 언어는 설정이 바뀔 때까지 그 앱의 필드에서 유지됩니다.
 - No AI에서도 AI 명령어는 @ 목록에 남아 있습니다. 실행하면 알림이 나오고, 쓴 내용은 그대로 남습니다. 사용자의 터미널 명령어(`"type": "terminal"`)는 AI가 아니라 프로그램을 실행하므로 그곳에서도 계속 동작합니다.
 
-### 말로 설정 바꾸기 (신규)
+### Settings → Assistant (신규)
 
-`@config`는 문장을 설정으로 바꿉니다: `@config output languages English and French`, `@config 微信里用中文，邮件里语气正式一点`, `@config candidates in a column`, `@config turn off the typos`, `@config use Claude`. ⏎를 누르면 바뀌는 내용을 후보 패널에 한 줄에 하나씩, 이전 → 이후로, 설정에서 쓰는 이름으로 보여 줍니다("Translation languages: English, Japanese → English, French", "Apps · WeChat · Starts in: Same as everywhere → Chinese"). 아직은 아무것도 바뀌거나 입력되지 않습니다. ⏎(또는 1)로 모두 적용하고, Esc로 취소하며, 더 입력한 뒤 ⇧⏎를 누르면 제안을 다듬습니다("독일어도"처럼. 아무것도 입력하지 않고 ⇧⏎를 누르면 아무 일도 일어나지 않고, ⏎는 표시된 제안을 적용합니다). 적용한 뒤 확인 표시가 떠 있는 동안 ⌘Z를 누르거나, 10분 안에 `@config undo`를 실행하면 그 설정들이 원래 값으로 정확히 돌아갑니다.
+설정 창은 두 부분으로 된 **Assistant** 페이지로 열립니다(0.6.5 이전에는 `@config`와 `@doctor` 명령어였습니다).
 
-- **바꿀 수 있는 것:** 번역 언어와 입력 언어(그리고 기본 언어), 다시 쓰기 스타일, 후보 배치, 결과 타이핑(켜기/끄기, 속도, 빨라졌다 느려졌다, 오타), 선택 영역 사용, 질문 기억, 민감한 정보 숨기기(켜기/끄기, 숨길 대상, 추가할 단어), 업데이트 확인, 앱별 설정(사용자가 부르는 이름으로 지정한 앱을, 이름이나 번들 ID로 설치된 앱에서 찾음), 그리고 AI 제공업체: 어느 것을 쓸지, Bedrock 프로필(`~/.aws`에서)과 리전, 앱이 그 제공업체에 대해 아는 모델, OpenAI 호환 기본 URL(`https://`만).
-- **절대 건드리지 않는 것:** API 키와 키체인에 있는 모든 것, 사용자 지정 명령어, 확장 폴더와 소스, 플러그인, Jargon 용어 목록, 프로그램을 실행하는 모든 것, 그리고 그 밖의 모든 설정. 이런 행은 이유와 함께 거부되며, 나머지는 그대로 적용할 수 있습니다.
-- **설정에서처럼 확인합니다:** 언어가 아닌 언어, 5개를 넘는 번역 언어, 범위를 벗어난 값, 알아볼 수 없는 앱, 언어 팩이 설치되지 않은 언어("needs the Korean language pack: download it in Settings → Input", 즉 한국어 언어 팩이 필요하니 Settings → Input에서 내려받으라는 뜻)는 행마다 거부됩니다. 잘못된 설정 파일은 절대 쓰지 않습니다.
-- **키:** 키가 없는 제공업체(키체인에도 셸에도 없음)로는 절대 바꾸지 않습니다. 그 행에는 "Gemini API needs an API key: ⏎ opens Settings to add it (never sent to the AI); you can switch to it there"(Gemini API에는 API 키가 필요합니다. ⏎로 설정을 열어 추가하세요. AI로는 절대 보내지 않습니다. 거기서 바꿀 수 있습니다)라고 표시되고, 적용하면 Settings → AI Provider가 열리면서 그 키를 위한 작은 시트가 나타나며("Save"로 저장, "Save and Use"로 저장하고 바꾸기), 나머지 행은 그대로 적용됩니다. 키가 있으면 제공업체가 바뀌고 Test Connection이 실행되어 그 결과가 확인 표시 아래에 나타납니다. 문장에 입력한 키는 무엇이든 보내기 전에 제거됩니다.
-- **이 Mac에서 먼저:** 이 Mac에 Apple Intelligence가 있으면(macOS 26), 어떤 제공업체를 골랐든, 심지어 제공업체를 설정하기 전이라도 항상 그것을 씁니다. 허용된 설정과 값으로 제한되며, 앱, AWS 프로필, 언어 팩을 조회할 수 있습니다. 없으면 사용자의 제공업체가 답합니다. 요청에는 허용된 설정과 그 현재 값만 들어 있으며(키나 숨기는 단어는 절대 없음), 민감한 정보 숨기기는 다른 요청과 마찬가지로 적용됩니다.
+**한 문장으로 설정 바꾸기**("Change settings in a sentence"): 원하는 것을 쓰고("translate into Japanese and English", "candidates in a column", "use Claude") Preview(또는 ⌘⏎)를 누르세요. 변경마다 이전 → 이후로 표시되고, Apply로 적용하며, Undo로 10분 안에 되돌릴 수 있습니다. API 키, 직접 만든 명령어, 플러그인, 프로그램을 실행하는 것은 여기서 절대 바뀌지 않습니다. 키가 없는 제공자는 Settings → AI Provider에서 키 입력란을 열고, 제공자를 바꾼 뒤에는 Test Connection이 실행됩니다. 이 Mac에 Apple Intelligence가 있으면 그것으로, 없으면 선택한 제공자로 동작합니다.
 
-### 설정 점검하기 (신규)
-
-`@doctor`에서 ⏎를 누르면 이 Mac의 설정 상태를 1–2초 안에 점검하고(그동안 연결 테스트가 표시됩니다), 결과를 후보 패널에 한 줄에 하나씩, ✗ 문제, ⚠ 경고, ✓ 정상 순으로, 각각 짧은 해결 방법과 함께 나열합니다. 점검 대상은 입력기(설치, 활성화, 입력 소스에 있는지), AI 제공업체(키가 저장되어 있는지, 또는 Bedrock 프로필의 자격 증명을 찾을 수 있는지. 읽거나 표시하지는 않습니다. Test Connection. Apple Intelligence), 권한(손쉬운 사용, 받아쓰기를 한다면 마이크, 메모·미리 알림·Terminal·메시지 제어. macOS에는 대화상자 없이 물어봅니다), 보안 입력, 입력 언어의 언어 팩, `config.json`(읽을 수 있는지, 알 수 없는 키, 범위를 벗어난 값, 중복된 언어, 5개를 넘는 번역 언어), 불러오지 못한 확장과 플러그인, 업데이트, 그리고 앱 자체 로그의 최근 오류입니다.
-
-해결 방법이 있는 행에는 번호가 붙습니다. 숫자(또는 클릭)를 누르면 그것이 무엇을 하는지 `@config`의 미리 보기로 보여 주고, ⏎로 적용합니다. 목록에서 ⏎를 누르면 안전한 것을 한꺼번에 모두 고칩니다(설정 복구, 중복된 언어 제거, 입력기 다시 활성화). 시스템 설정 패널 열기, 언어 팩 내려받기, Check for Updates(설정을 엽니다), 설정의 키 입력란은 하나씩 고릅니다. 설정 변경은 `@config`와 똑같이 되돌릴 수 있습니다(⌘Z, `@config undo`). 어떤 해결 방법도 데이터를 지우거나 키를 건드리지 않습니다.
-
-`@doctor <question>`(`@doctor why doesn't translate work`)은 점검을 실행한 뒤, AI가 그 결과로부터 가능한 원인을 설명하고 권하는 해결 방법에 표시합니다(⏎는 여전히 안전한 것만 적용하고, 나머지는 번호로 고릅니다). No AI로 설정한 앱에서도 점검은 실행되며, 질문만 거부됩니다. 이 Mac에 Apple Intelligence가 있으면 그것을 쓰며, 필요한 점검을 도구로 호출합니다. 없으면 사용자의 제공업체를 쓰고, 패널에 그렇게 표시합니다. 보내는 것은 점검 결과(`~` 너머의 경로, 키, 사용자의 텍스트는 없음)와 질문뿐입니다. 점검만 할 때는 Test Connection 요청(제공업체에 테스트할 키나 자격 증명이 있을 때만) 말고는 아무것도 보내지 않습니다.
+**문제 점검하기**("Check for problems"): 입력기, AI 제공자, 권한, 보안 입력, 언어 팩, `config.json`, 확장 프로그램, 업데이트, 최근 오류를 페이지가 열릴 때 이 Mac에서 점검하고, 문제를 먼저 보여 줍니다(모두 정상이면 "Everything looks good"). Check는 Test Connection과 함께 다시 점검하며, "What's wrong? (optional)"에 질문을 쓰면 AI가 가능한 원인을 설명합니다. 고칠 수 있는 행에는 Fix 버튼이 있습니다. 설정 변경은 위의 미리 보기에 Apply와 Undo와 함께 표시되고, 나머지는 바로 실행됩니다.
 
 ## 메뉴 막대 패널
 
@@ -373,7 +361,7 @@ make install
 
 1. AWS 콘솔에서 Bedrock을 활성화하고, 선택한 모델을 쓸 수 있는지 확인하세요. 기본값은 Claude Haiku 4.5입니다. Anthropic 모델을 처음 쓸 때는 사용 사례 양식을 한 번 작성합니다.
 2. `bedrock:InvokeModelWithResponseStream`이 허용된 AWS 프로필을 쓰세요. `~/.aws/credentials`의 정적 키, 또는 임시 자격 증명을 받아 오는 프로필(`credential_process`, 역할, SSO. 아래 "AWS 프로필" 참고)입니다.
-3. "AllInOneIME Settings"를 여세요. Spotlight나 응용 프로그램 폴더에서 찾거나, 메뉴 막대의 입력기 아이콘 → "Settings…"(설정…)에서 열 수 있습니다. 프로필, 리전, 모델을 고르고 "Test Connection"(연결 테스트)을 클릭하세요. 설정 창 맨 위의 "Language"(언어)는 영어 또는 중국어로 할 수 있으며, 기본값("System")은 시스템을 따릅니다(시스템의 선호하는 언어에서 중국어가 영어보다 앞이면 중국어, 아니면 영어). 설정 창, 후보 패널의 힌트, 입력 메뉴가 모두 이를 따릅니다.
+3. "AllInOneIME Settings"를 여세요. Spotlight나 응용 프로그램 폴더에서 찾거나, 메뉴 막대의 입력기 아이콘 → "Settings…"(설정…)에서 열 수 있습니다. 프로필, 리전, 모델을 고르고 "Test Connection"(연결 테스트)을 클릭하세요. 설정 창 맨 위의 "Language"(언어)는 영어 또는 중국어로 할 수 있으며, 기본값("System")은 시스템을 따릅니다(시스템의 선호하는 언어에서 중국어가 영어보다 앞이면 중국어, 아니면 영어). 설정 창, 후보 패널의 힌트, 입력 메뉴가 모두 이를 따릅니다. 설정 창은 Assistant 페이지로 열립니다. 말로 설정을 바꾸고 문제를 점검할 수 있습니다(아래 Settings → Assistant 참고).
 
 <img src="../en/settings.png" width="420" alt="설정 창">
 
@@ -392,11 +380,11 @@ AWS CLI가 아무것도 묻지 않고 쓸 수 있는 프로필이면 무엇이�
 프로필이 "default"이면(또는 고르지 않았으면) AWS CLI처럼 셸의 키가 먼저 쓰입니다: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`. 이름을 지정한 프로필은 이것들과 절대 섞이지 않습니다. 셸의 `AWS_REGION`(또는 `AWS_DEFAULT_REGION`)은 AWS CLI처럼 프로필의 `region`보다 우선하고, 설정의 Region 칸은 둘보다 우선합니다.
 
 - **자동:** 만료되는 자격 증명은 메모리에만 두고(디스크에는 절대 쓰지 않음) 만료 5분 전에 다시 받아 옵니다. 10분이 채 안 남았으면 요청은 기존 자격 증명을 쓰면서 백그라운드에서 새것을 받아 오므로, 타이핑이 기다리지 않습니다. 동시에 들어온 요청은 한 번의 받아 오기를 기다립니다. Bedrock이 자격 증명이 만료되었다고 답하면(`ExpiredTokenException` …) 다시 받아 와서 요청을 한 번 더 보냅니다.
-- **SSO:** AllInOneIME는 AWS CLI가 `~/.aws/sso/cache`에 보관하는 로그인을 쓰며(읽기만 함), 브라우저가 필요하기 때문에 대신 로그인할 수는 없습니다. 로그인이 끝나면 후보 패널에 "SSO sign-in expired: run aws sso login --profile X"(SSO 로그인 만료: aws sso login --profile X를 실행하세요)가 표시됩니다. Terminal에서 그 명령을 실행하면(설정에 "Copy Command"와 "Open in Terminal"이 있고, `@doctor`도 복사할 명령을 제공합니다) AllInOneIME가 새 로그인을 알아서 사용합니다.
+- **SSO:** AllInOneIME는 AWS CLI가 `~/.aws/sso/cache`에 보관하는 로그인을 쓰며(읽기만 함), 브라우저가 필요하기 때문에 대신 로그인할 수는 없습니다. 로그인이 끝나면 후보 패널에 "SSO sign-in expired: run aws sso login --profile X"(SSO 로그인 만료: aws sso login --profile X를 실행하세요)가 표시됩니다. Terminal에서 그 명령을 실행하면(설정에 "Copy Command"와 "Open in Terminal"이 있고, Settings → Assistant도 복사할 명령을 제공합니다) AllInOneIME가 새 로그인을 알아서 사용합니다.
 - **지원하지 않음:** `mfa_serial`(입력기는 MFA 코드를 물어볼 수 없습니다. `credential_process`나 SSO를 쓰거나, CLI가 자격 증명을 캐시하게 하세요), `credential_source = Ec2InstanceMetadata`나 `EcsContainer`(Mac에는 없음), 그리고 web identity.
 - **알려진 제한:** 로그인 셸에서 가져오는 것은 PATH와 AWS 파일 변수(`AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`)뿐이며, `credential_process`에도 마찬가지입니다(나머지 환경 변수는 가져오지 않음). AllInOneIME는 `sso_session` 토큰을 갱신하지 않으므로(CLI의 갱신 토큰은 쓰지 않고, SSO 캐시는 읽기만 함), 캐시된 토큰이 만료되면 `aws sso login`을 실행하세요(AWS CLI를 쓸 때마다 갱신되기도 합니다).
-- **Settings → AI Provider**는 모든 프로필을 종류와 함께 나열하고("dev — Role via base"), 선택한 프로필에 대해 자격 증명이 언제 만료되는지("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") 또는 무엇을 해야 하는지 알려 줍니다. Test Connection은 체인 전체를 거쳐 새 자격 증명을 받아 오고, `@doctor`도 같은 내용을 보고합니다.
-- 프로그램을 실행하고 AWS에 자격 증명을 요청하는 것(`sts.<region>.amazonaws.com`, `portal.sso.<region>.amazonaws.com`)은 요청이나 Test Connection에 필요할 때뿐입니다. 프로필 목록을 보여 줄 때도, `@config`를 위해서도 절대 하지 않습니다.
+- **Settings → AI Provider**는 모든 프로필을 종류와 함께 나열하고("dev — Role via base"), 선택한 프로필에 대해 자격 증명이 언제 만료되는지("Role via base: credentials expire at 15:30", "SSO (signed in until 18:00)") 또는 무엇을 해야 하는지 알려 줍니다. Test Connection은 체인 전체를 거쳐 새 자격 증명을 받아 오고, Settings → Assistant도 같은 내용을 보고합니다.
+- 프로그램을 실행하고 AWS에 자격 증명을 요청하는 것(`sts.<region>.amazonaws.com`, `portal.sso.<region>.amazonaws.com`)은 요청이나 Test Connection에 필요할 때뿐입니다. 프로필 목록을 보여 줄 때도, Settings → Assistant를 위해서도 절대 하지 않습니다.
 
 ### 기타 AI 제공업체: Claude API, Gemini, OpenAI 호환 서비스
 
@@ -469,7 +457,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 ## 개인정보 보호
 
 - 타이핑(영어와 병음)과 `@calculator` 플러그인의 계산은 전적으로 로컬에서 이루어집니다. `@improve`, `@translate`, `@question`에서 실행 키를 눌렀을 때만 그 문장이 여러분이 고른 AI 제공업체(여러분의 Bedrock, 또는 키를 추가한 서비스)로 전송됩니다. "Jargon"을 체크하고 Jargon 목록을 설정했다면 목록도 함께 전송됩니다. 결과 다듬기(결과 뒤에 입력한 지시와 ⇧⏎)는 표시된 결과와 지시를 붙여 같은 요청을 다시 보냅니다. 후속 질문(⇧⏎)은 지금까지의 대화를 함께 보냅니다.
-- `@config`와 `@doctor <question>`은 ⏎를 누르면 모델로 텍스트를 보냅니다. 이 Mac에서 Apple Intelligence를 쓸 수 있으면 언제나 그것을 쓰고(아무것도 Mac 밖으로 나가지 않음), 아니면 사용자의 제공업체를 씁니다. `@config`는 사용자의 문장(그 안에 입력한 키는 먼저 제거됨)과 바꿀 수 있는 설정들의 현재 값을 보냅니다. 키나 AI에게 숨기는 단어는 절대 보내지 않으며(그 개수만 보냄), AWS 프로필 이름은 문장이 AWS나 Bedrock에 관한 것일 때만 보냅니다. `@doctor <question>`은 질문과 함께 가려진 점검 결과를 보냅니다. `~` 너머의 경로나 키는 없고, 로그 줄은 정해진 문구로 바뀝니다. 민감한 정보 숨기기는 다른 요청과 마찬가지로 둘 다에 적용됩니다. 점검만 할 때(뒤에 아무것도 없는 `@doctor`)는 Test Connection 요청 말고는 아무것도 보내지 않으며, 그것도 제공업체에 테스트할 키나 자격 증명이 있을 때만입니다.
+- Settings → Assistant는 Preview를 누르거나, 질문을 쓰고 Check를 누를 때만 모델에 텍스트를 보냅니다. 이 Mac에서 Apple Intelligence를 쓸 수 있으면 항상 그것으로(아무것도 Mac 밖으로 나가지 않음), 아니면 선택한 제공자로 보냅니다. 요청은 문장(그 안에 입력한 키는 먼저 제거됨)과 바꿀 수 있는 설정의 현재 값을 보냅니다. 키나 AI에게 숨기는 단어는 절대 보내지 않으며(개수만 보냄), AWS 프로필 이름은 문장이 AWS나 Bedrock에 관한 것일 때만 보냅니다. 질문은 가린 점검 결과와 함께 보냅니다. `~` 너머의 경로나 키는 없고, 로그 줄은 정해진 문구로 바뀝니다. 민감한 정보 숨기기는 둘 다에 적용됩니다. 점검만으로는 아무것도 보내지 않으며, Check는 Test Connection 요청도 보내는데, 그것도 제공자에게 시험할 키나 자격 증명이 있을 때뿐입니다.
 - `@question` 대화를 다른 곳에서 이어 가면(마지막 회차 뒤의 ⌘1 …, 또는 ⌘⏎) 대화가 입력한 내용과 함께, 고른 서비스로 웹 주소나 클립보드를 통해 전송됩니다: 이 Mac의 코딩 에이전트(Claude Code, Gemini CLI, Kiro CLI 또는 직접 만든 것, 각자 자신의 계정과 서비스를 씀), claude.ai, chatgpt.com, gemini.google.com. 대화는 보이던 그대로 전송됩니다. AI 요청에서 숨겼던 값(아래 참고)도 그대로 들어 있는데, 그곳으로 보내기로 한 것이 사용자이기 때문입니다. 하나를 고르기 전까지는 아무 데로도 전송되지 않습니다. "Copy the conversation"은 클립보드에 넣기만 합니다.
 - AllInOneIME Cloud를 쓰면 문장은 개발자의 서버를 거쳐 모델 제공업체로 갑니다(현재는 OpenRouter를 거침). 서버는 횟수만 보관하며, 텍스트는 절대 보관하지 않습니다. 로그인 시에는 이메일 주소만 보관합니다.
 - 민감한 정보 숨기기(Settings → AI Provider → Privacy, 기본값은 끔): 어떤 요청이든 나가기 전에(`@improve`, `@translate`, `@question`, 사용자의 프롬프트 명령어와 프롬프트 플러그인, AllInOneIME Cloud를 포함한 모든 제공업체), 이메일 주소, 전화번호, 결제 카드 번호(Luhn 검사), API 키와 토큰(`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…`, 긴 무작위 문자열), IP 주소, 직접 등록한 단어(코드명, 이름)를 Mac에서 `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]` 같은 자리 표시자로 바꿉니다. 같은 값에는 같은 자리 표시자가 붙습니다. 모델의 결과는 표시하거나 삽입하기 전에 실제 값을 되돌려 받으며, 패널에는 "2 items hidden from the AI"라고 표시됩니다. 모델이 자리 표시자를 알아볼 수 없을 만큼 바꾼 결과는 쓰인 그대로 보여 주고 "⚠ placeholder changed"로 표시합니다. 숨긴 값이 들어 있는 Jargon 용어 목록 항목은 보내지 않습니다. 종류마다 끌 수 있습니다. 전각 형태(`zhang＠example.com`, `１３８…`)도 찾아내며, 값이나 구절이 줄바꿈으로 나뉘어 있어도 됩니다. 이메일, 번호, 키처럼 형식이 있는 값은 알아보지만, 이름이나 주소(직접 등록한 단어로 추가하세요), 다른 문자 체계의 비슷하게 생긴 글자는 알아보지 못합니다. 사용자의 AI 서비스로 가는 요청에 적용됩니다. `@agent`, 웹사이트에서 데이터를 가져오거나(`@stock`) 웹사이트를 여는(`@x`) 플러그인, 스크립트 확장은 입력한 그대로 텍스트를 보냅니다. 설정 파일에서는 `redaction`(`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`)입니다.
@@ -480,7 +468,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 - `@reportissue`(와 "Report an Issue…")는 스스로 아무것도 보내지 않습니다. 브라우저에서 GitHub의 새 issue 페이지를 열고, 입력한 제목과 위에 나열한 버전, 언어, 제공업체 종류, 개수를 붙이며, 이 내용은 먼저 후보 패널에 표시됩니다. 거기서 Submit을 클릭하지 않으면 GitHub에는 아무것도 전달되지 않습니다.
 - `@open`은 이 Mac에서만 검색합니다. 그것으로 연 항목(최근 200개)을 입력기 자체의 환경설정(config.json이 아님)에 기억해 두었다가 먼저 나열합니다.
 - Settings → Apps의 "Add App…"을 위해 입력기는 최근 입력한 앱 12개의 번들 ID를 자체 환경설정에 보관합니다. 그 앱에 관한 다른 정보는 보관하지 않습니다.
-- `@question`은 최근 질문 5개를 답과 질문한 시각과 함께 이 Mac의 `~/Library/Application Support/AllInOneIME/recent-questions.json`(사용자 계정만 읽을 수 있음)에만 기억해 두고 `@question` 아래에 보여 줍니다. 저장된 답은 온라인에 접속하지 않고 거기서 표시됩니다. 보안 입력 중에는 아무것도 보관하지 않으며, 선택한 텍스트에 대한 질문은 아예 보관하지 않습니다(그 답은 선택 영역에 관한 것이라, 보관하면 선택 영역이 디스크에 남게 됩니다). Settings → General에서 "Remember recent questions"를 끄면 질문도 삭제되고, `@config`로 끄면(설정 파일의 `rememberQuestions`) 질문이 남아 있어 정확히 되돌릴 수 있습니다. "Clear"는 질문을 삭제합니다.
+- `@question`은 최근 질문 5개를 답과 질문한 시각과 함께 이 Mac의 `~/Library/Application Support/AllInOneIME/recent-questions.json`(사용자 계정만 읽을 수 있음)에만 기억해 두고 `@question` 아래에 보여 줍니다. 저장된 답은 온라인에 접속하지 않고 거기서 표시됩니다. 보안 입력 중에는 아무것도 보관하지 않으며, 선택한 텍스트에 대한 질문은 아예 보관하지 않습니다(그 답은 선택 영역에 관한 것이라, 보관하면 선택 영역이 디스크에 남게 됩니다). Settings → General에서 "Remember recent questions"를 끄면 질문도 삭제되고, Settings → Assistant로 끄면(설정 파일의 `rememberQuestions`) 질문이 남아 있어 정확히 되돌릴 수 있습니다. "Clear"는 질문을 삭제합니다.
 - 메모를 나열하기 위해, 메뉴 막대 패널은 `@note`로 저장한 최근 30개 메모의 ID와 첫 줄(최대 80자)을 입력기 자체의 환경설정에 보관합니다. 패널이 꺼져 있을 때도 마찬가지입니다.
 - `@py`와 `@js`는 실행 키를 눌렀을 때만, 그리고 여러분이 직접 입력하거나 붙여 넣은 코드만 실행합니다. AI의 답이나 다른 명령어의 출력은 절대 코드로 실행되지 않습니다. `@py`는 Mac의 `python3`를 사용하므로 Terminal에서처럼 파일을 읽고 쓰고 온라인에 접속할 수 있습니다. `@js`는 별도 프로세스에서 실행되어 파일을 읽거나, 네트워크에 접근하거나, 다른 프로그램을 실행할 수 없습니다. 둘 다 보안 입력 중에는 실행되지 않습니다.
 - 업데이트 확인: 하루에 한 번("Check for updates automatically"가 꺼져 있지 않다면) AllInOneIME는 https://allinoneime.com/update.json과 그 서명을 내려받습니다. 요청에는 식별자도, 입력한 내용도 들어 있지 않습니다. 업데이트는 Update를 클릭했을 때만 GitHub 릴리스에서 내려받습니다.
