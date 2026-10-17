@@ -84,6 +84,13 @@ final class CandidatePanel: NSPanel {
         invalidateShadow()
     }
 
+    /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
+    func shows(_ model: CandidateView.Model, anchor: NSRect) -> Bool {
+        guard isVisible, view.model == model else { return false }
+        let size = view.contentSize
+        return frame == NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
+    }
+
     func hide() {
         if isVisible { orderOut(nil) }
     }

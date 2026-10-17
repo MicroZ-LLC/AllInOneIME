@@ -537,26 +537,28 @@ confirms it for about 1.5 s (turning it off:
 Shift with a letter (a capital) or with another key never turns it on. While it's on, the menu bar icon carries a small
 dot. There is no command for it.
 
-While it's on, what you type collects into a draft, with the languages on the chip by it ("中 → 英"). It translates into the language you picked last
-on its chip (below), in every app and after a restart; until you pick one, into your first translation language in
-Settings (and back to that one when the language picked is no longer among them). The language you're typing when it
-comes on doesn't change it. ⏎ translates the draft and the translation goes in at once,
-with no candidates to pick: the draft says "Translating…" meanwhile, and nothing is sent (⏎ again is the app's own). ⇧⏎
-inserts the draft as typed; Esc while it's translated stops it and keeps the draft; if it fails (the network, a refusal,
-secure input), the draft stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to
-English) goes in as typed.
+While it's on, what you type collects into a draft, with the languages on the chip by it ("ZH → EN"; 「中 → 英」 in the
+Chinese interface). It translates into the language you picked last on its chip (below), in every app and after a
+restart; until you pick one, into your first translation language in Settings (and back to that one when the language
+picked is no longer among them). The language you're typing when it comes on doesn't change it. ⏎ translates the draft
+and the translation goes in at once, with no candidates to pick: the draft says "Translating…" meanwhile, and nothing is
+sent (⏎ again is the app's own). ⇧⏎ inserts the draft as typed; Esc while it's translating stops it and keeps the draft
+(⌫ stops it too, and deletes a character as on the draft); if it fails (the network, a refusal, secure input), the draft
+stays with a one-line notice and ⏎ tries again. Text typed in the language it translates into (tap Shift to English)
+goes in as typed.
 
-While it's on, a small chip "中 → 英" shows under the line you're typing in, in the input method's own panel (the
-candidate panel: on top of the candidates while you type pinyin), so it never takes the focus from the app. Click "中" to
-switch the input language, as a tap of Shift does. Click "英" for a short list of your translation languages, the current
-one checked, and click one: it's what it translates into at once (the chip and the next
-translation follow) and from then on. The keys work as before; one closes the list.
+While it's on, a small chip "ZH → EN" (「中 → 英」 in the Chinese interface) shows under the line you're typing in, in the
+input method's own panel (the candidate panel: on top of the candidates while you type pinyin), so it never takes the
+focus from the app. Click "ZH" to switch the input language, as a tap of Shift does. Click "EN" for a short list of your
+translation languages, the current one checked, and click one: it's what it translates into at once (the chip and the
+next translation follow) and from then on. The keys work as before; one closes the list.
 
 - **Tone**: it follows the app: the app's first rewrite style in Settings → Apps, else casual in chat apps (WeChat, Slack,
   Messages, Telegram, Discord, Teams), formal in mail apps (Mail, Outlook, Spark), natural elsewhere.
-- **Apps**: switching to another app turns it off, with no notice, unless that app has "Always Translate as You Type"
-  (「总是边打边译」) in Settings → Apps (`translateAlways` in its profile): there it comes on by itself. In an app with No AI it does nothing: text goes in as
-  typed, with a notice; so does what you type while secure input is on (a password field).
+- **Apps**: switching to another app (one with no text field too) turns it off, with no notice, and coming back leaves
+  it off, unless that app has "Always Translate as You Type" (「总是边打边译」) in Settings → Apps (`translateAlways` in its
+  profile): there it comes on by itself. In an app with No AI it does nothing: text goes in as typed, with a notice; so
+  does what you type while secure input is on (a password field).
 - **Privacy**: as for `@translate`: sent only when you press ⏎, to your own AI provider, with sensitive information hidden
   when that's on.
 

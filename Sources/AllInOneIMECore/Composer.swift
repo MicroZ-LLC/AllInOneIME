@@ -544,7 +544,7 @@ public final class Composer {
     private var selectionFits = false
 
     /// Confirmed text waiting for level two: an @ command and the sentence after it.
-    public internal(set) var draft = "" {
+    public private(set) var draft = "" {
         // A pick among the `@open` results as you type was made for the text as it was: once that changes, the
         // highlight starts at the first again (`opensLiveResult`).
         didSet {
@@ -2961,7 +2961,7 @@ public final class Composer {
     }
 
     /// Counts a run of `command` for the order of the command list.
-    func used(_ command: Command) -> Effect {
+    private func used(_ command: Command) -> Effect {
         commandUsage.record(command.name)
         return .commandUsed(command.name)
     }

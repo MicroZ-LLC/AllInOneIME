@@ -609,6 +609,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.messages = UIText.chinese ? .chinese : .english
         composer.messages.actionKeyName = UIText.name(config.actionKey)
         composer.translateModeMessages = .make(chinese: UIText.chinese)
+        translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
         nameAgent()  // the messages were just reset
         applyChatSettings(config)
         // Only the languages whose pack is installed: Chinese is no input mode while its pack downloads.
@@ -785,6 +786,7 @@ final class AllInOneIMEInputController: IMKInputController {
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
                                                       index: loadExtensions(config, false), disabled: config.disabledExtensions)
             applyAgent(config)
+            translateModeFollow(config)
             // Another agent picked in Settings: its program is checked (`setCommands` sees it changed).
             if changed || agentChanged && !checkedCommands.isEmpty {
                 setCommands(changed ? commands : checkedCommands)
@@ -836,7 +838,10 @@ final class AllInOneIMEInputController: IMKInputController {
         perform(composer.handleFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags),
                                             timestamp: event.timestamp),
                 client: client)
-        translateModeFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags))
+        // fn held with Shift is no long press of it either (only Translate as You Type is told of fn).
+        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
+        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
+        translateModeFlagsChanged(keyCode: event.keyCode, modifiers: modifiers)
     }
 
     static func modifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
@@ -1936,7 +1941,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Takes `text` down if it is still the notice here: a save's progress, once its outcome is told in another
     /// text field.
     @MainActor
-    private func endNotice(_ text: String) {
+    func endNotice(_ text: String) {
         guard notice == text else { return }
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
         noticeExpired()

@@ -12,6 +12,9 @@ public struct KeyModifiers: OptionSet, Sendable, Hashable {
     /// Which Option key is down (device-dependent bits, only set for modifier-change events).
     public static let leftOption = KeyModifiers(rawValue: 1 << 5)
     public static let rightOption = KeyModifiers(rawValue: 1 << 6)
+    /// fn (🌐) is down: only set for Translate as You Type's long press of Shift (`TranslateMode.ShiftHold`); the
+    /// system sets it on arrow and function keys too, so key-downs don't carry it.
+    public static let function = KeyModifiers(rawValue: 1 << 7)
 }
 
 /// A key-down as the input method receives it from AppKit.

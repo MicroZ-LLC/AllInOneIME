@@ -5,8 +5,8 @@ import Foundation
 /// Translate as You Type (「边打边译」, `TranslateMode`) in the composer, while the controller has it on here (`translateMode`): what is
 /// typed in another language than the one it translates into collects into a draft instead of going into the field,
 /// shown as typed, the chip by it naming the languages ("中 → 英"). ⏎ translates the draft (pinyin still being typed is picked first) and the
-/// translation goes in at once (`Effect.startTranslateMode`, `receive`); ⇧⏎ inserts it as typed. While it's translated
-/// the draft shows so ("你好 · 翻译中…"); Esc stops it, the draft kept, and typing on stops it and goes on with
+/// translation goes in at once (`Effect.startTranslateMode`, `receive`); ⇧⏎ inserts it as typed. While it's translating
+/// the draft shows so ("你好 · 翻译中…"); Esc stops it, the draft kept, and typing on (⌫ too) stops it and goes on with
 /// the draft. A failure keeps the draft, with a notice, and ⏎ tries again; so does secure input on at ⏎ (while it's on,
 /// nothing collects: text goes in as typed). A draft already in the target language goes in as typed, and so does one in
 /// an app with no AI, with a notice. An @ command typed at the start of a sentence works as anywhere.
@@ -40,13 +40,6 @@ extension Composer {
         return modeCollects && (engineState.isComposing || !hangul.isEmpty || pendingAccent != nil)
     }
 
-    /// The indicator of the mode on: 「中→英」, from the language typed (or, typed on in the target, the draft's).
-    public var translateModeIndicator: String? {
-        guard let session = translateMode else { return nil }
-        let typed = inputLanguage.matches(session.target) ? Language.of(draft, french: inputLanguages.contains(.french)) : inputLanguage
-        return TranslateMode.indicator(from: typed, to: session.target)
-    }
-
     /// Translate as You Type's chip here (「中 → 英」, `TranslateMode.Chip`): the language typed and the one it translates
     /// into, with `choices` listed under it. Nil while it's off here.
     public func translateModeChip(choices: [OutputLanguage]? = nil) -> TranslateMode.Chip? {
@@ -55,7 +48,7 @@ extension Composer {
     }
 
     /// The draft as marked in the field: any "@" full-width (an app may take "@…" for a mention), and while it's
-    /// translated, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
+    /// translating, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
     var modeShownDraft: String? {
         guard inModeComposition, translateMode != nil else { return nil }
         let text = draft.replacingOccurrences(of: "@", with: "＠").replacingOccurrences(of: "\n", with: Self.lineBreak)
@@ -71,8 +64,7 @@ extension Composer {
     }
 
     /// Turns the mode on here (`session`) or off (nil), as the controller has it. Off, its draft goes in as typed (pinyin
-    /// being typed picked first, a request stopped); the marked text shows the indicator, or no longer. Another target
-    /// (picked on the chip) keeps the draft, after the new indicator.
+    /// being typed picked first, a request stopped). Another target (picked on the chip) keeps the draft.
     public func setTranslateMode(_ session: TranslateMode.Session?) -> [Effect] {
         guard session != translateMode else { return [] }
         var effects: [Effect] = []
@@ -131,14 +123,18 @@ extension Composer {
         return effects + finish(committing: draft)
     }
 
-    /// Keys while the draft is translated: Esc (or ⌫) stops it and keeps the draft; ⇧⏎ inserts the draft as typed; ⏎
-    /// waits; a key that types stops it and goes on with the draft. Nil outside the mode's request.
+    /// Keys while the draft is translating: Esc stops it and keeps the draft; ⇧⏎ inserts the draft as typed; ⏎ waits;
+    /// a key that types, or ⌫, stops it and goes on with the draft (⌫ deletes as it does there). Nil outside the mode's
+    /// request.
     func handleModeTranslatingKey(_ event: KeyEvent) -> Response? {
         guard modeTranslating else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
         switch event.keyCode {
-        case VirtualKey.escape, VirtualKey.delete:
+        case VirtualKey.escape:
             return .consumed(backToDraft())
+        case VirtualKey.delete:
+            let back = backToDraft()
+            return .consumed(back + handleLevelOne(event).effects)
         case VirtualKey.returnKey, VirtualKey.keypadEnter:
             return .consumed(modifiers == .shift ? finish(committing: draft) : [])
         default:

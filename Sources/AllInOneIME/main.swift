@@ -158,6 +158,8 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { UpdateController.shared.start() }
     // Extension sources: checked about 30 s from now, then once a day, if they check by themselves (only ever noted).
     MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
+    // Translate as You Type goes off when another app becomes active, a text field in it or not.
+    MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }

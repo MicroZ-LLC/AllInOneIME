@@ -71,7 +71,10 @@ extension SelfTest {
         section("Translate as You Type (canned translations)", needs: .composing)
         let (notes, chat, mail) = ("com.example.notes", "com.example.chat", "com.example.mail")
         let saved = (converter: controller.converter, settings: settings, shiftHeld: TranslateModeShared.shiftHeld,
-                     defaults: TranslateModeShared.defaults)
+                     defaults: TranslateModeShared.defaults, pointer: TranslateModeShared.pointer,
+                     stickyKeys: TranslateModeShared.stickyKeys)
+        // The mouse left alone and Sticky Keys off, whatever this Mac's are, while Shift is "held".
+        (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = ({ .zero }, { false })
         // The language picked last: in the self-test's own defaults (the user's stay as they are).
         let suite = "com.aipinyin.selftest.translatemode"
         UserDefaults.standard.removePersistentDomain(forName: suite)
@@ -82,6 +85,7 @@ extension SelfTest {
             controller.commitComposition(client)
             (controller.converter, settings, TranslateModeShared.shiftHeld) = (saved.converter, saved.settings, saved.shiftHeld)
             TranslateModeShared.defaults = saved.defaults
+            (TranslateModeShared.pointer, TranslateModeShared.stickyKeys) = (saved.pointer, saved.stickyKeys)
             TranslateModeShared.listOpen = false
             UserDefaults.standard.removePersistentDomain(forName: suite)
             client.bundleIDOverride = nil
@@ -211,6 +215,7 @@ extension SelfTest {
         settings.setOrder([OutputLanguage.english, japanese, .chinese])
         let panel = CandidatePanel.shared
         func chip() -> String { panel.isVisible ? panel.view.model.chip.map { "\($0.source) → \($0.target)" } ?? "none" : "hidden" }
+        let (zhEn, enEn, zhJa) = (tr("中 → 英", "ZH → EN"), tr("英 → 英", "EN → EN"), tr("中 → 日", "ZH → JA"))
         /// A click on a part of the chip, through the panel's own mouse handling.
         func click(_ part: CandidateView.ChipPart) {
             guard let frames = panel.view.chipFrames else { return check(false, "the chip is in the panel to click") }
@@ -224,28 +229,28 @@ extension SelfTest {
         }
         controller.notice = nil
         controller.refreshTranslateChip()
-        check(chip() == "中 → 英" && panel.view.model.rows.isEmpty && !panel.canBecomeKey && !panel.isKeyWindow
+        check(chip() == zhEn && panel.view.model.rows.isEmpty && !panel.canBecomeKey && !panel.isKeyWindow
               && panel.styleMask.contains(.nonactivatingPanel), "the chip near the caret while it's on: \(chip())")
         snapshot("translate-mode-chip", in: snapshotDirectory)
         type("nihao", controller, client)
-        check(chip() == "中 → 英" && panel.view.model.rows.first?.text == "你好", "…on top of the mode's candidates")
+        check(chip() == zhEn && panel.view.model.rows.first?.text == "你好", "…on top of the mode's candidates")
         snapshot("translate-mode-chip-pinyin", in: snapshotDirectory)
         _ = space(controller, client)
-        check(chip() == "中 → 英" && client.marked == "你好", "…and over the draft (\(chip()))")
+        check(chip() == zhEn && client.marked == "你好", "…and over the draft (\(chip()))")
         // Its source part: as a tap of Shift.
         click(.source)
-        check(controller.composer.inputLanguage == .english && chip() == "英 → 英" && client.marked == "你好",
+        check(controller.composer.inputLanguage == .english && chip() == enEn && client.marked == "你好",
               "a click on 「中」 switches the input language, as a tap of Shift: \(chip())")
         click(.source)
-        check(controller.composer.inputLanguage == .chinese && chip() == "中 → 英", "…and back (\(chip()))")
+        check(controller.composer.inputLanguage == .chinese && chip() == zhEn, "…and back (\(chip()))")
         // Its target part: the output languages, the target checked; Japanese clicked is the target at once.
         click(.target)
         let listed = panel.view.model.rows
         check(listed.map(\.text) == [OutputLanguage.english, japanese, .chinese].map(UIText.name) && listed.map(\.label) == ["✓", "", ""]
-              && chip() == "中 → 英", "a click on 「英」 lists the output languages, English checked: \(listed.map { $0.label + $0.text })")
+              && chip() == zhEn, "a click on 「英」 lists the output languages, English checked: \(listed.map { $0.label + $0.text })")
         snapshot("translate-mode-chip-list", in: snapshotDirectory)
         panel.onSelect?(1)
-        check(controller.composer.translateMode?.target == japanese && chip() == "中 → 日" && panel.view.model.rows.isEmpty
+        check(controller.composer.translateMode?.target == japanese && chip() == zhJa && panel.view.model.rows.isEmpty
               && client.marked == "你好" && TranslateModeShared.defaults.string(forKey: "translateModeTarget") == "ja",
               "Japanese clicked: the target at once, the chip \(chip()), the draft '\(client.marked)', kept as the last pick")
         _ = enter(controller, client)
@@ -253,10 +258,10 @@ extension SelfTest {
         // A key closes the list, and does what it does.
         click(.target)
         type("ni", controller, client)
-        check(!TranslateModeShared.listOpen && chip() == "中 → 日" && panel.view.model.rows.first?.label == "1",
+        check(!TranslateModeShared.listOpen && chip() == zhJa && panel.view.model.rows.first?.label == "1",
               "a key closes the list: the candidates again, under the chip")
         _ = escape(controller, client)
-        check(pump(timeout: 1) { chip() == "中 → 日" && panel.view.model.rows.isEmpty }, "…the chip alone again (\(chip()))")
+        check(pump(timeout: 1) { chip() == zhJa && panel.view.model.rows.isEmpty }, "…the chip alone again (\(chip()))")
 
         // A long press again: off, the chip gone.
         let off = longPress(hint: offHint)
@@ -291,11 +296,11 @@ extension SelfTest {
         controller.commitComposition(client)
         controller.notice = nil
         controller.deactivateServer(client)
-        check(chip() != "中 → 英", "the field left: the chip goes (\(chip()))")
+        check(chip() != zhEn, "the field left: the chip goes (\(chip()))")
         client.bundleIDOverride = chat
         controller.activateServer(client)
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && controller.notice == nil
-              && !MenuBarIcon.shared.translating && chip() != "中 → 英", "switching to another app leaves it, with no notice and no chip")
+              && !MenuBarIcon.shared.translating && chip() != zhEn, "switching to another app leaves it, with no notice and no chip")
         client.bundleIDOverride = mail
         controller.activateServer(client)
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // MARK: - Translate as You Type (a prototype)
@@ -7,8 +8,9 @@ import Foundation
 /// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the language picked
 /// last on its chip (`Chip`), at first the first output language (`target(last:outputs:)`), in a tone that follows the
 /// app (`tone(app:)`).
-/// It is one input method's state across its text fields (`State`): switching to another app leaves it, unless that
-/// app's profile translates always (`AppProfile.translateAlways`). The composer does the typing (Composer+TranslateMode.swift),
+/// It is one input method's state across its text fields (`State`): switching to another app leaves it (`appActivated`,
+/// a text field or not), unless that app's profile translates always (`AppProfile.translateAlways`), where its field
+/// keeps it on or turns it on. The composer does the typing (Composer+TranslateMode.swift),
 /// the controller keeps the state and asks the model (`Converter.translateMode`, a request of its own:
 /// `Prompt.translateModeRequest`).
 public enum TranslateMode {
@@ -90,7 +92,8 @@ public enum TranslateMode {
         last.flatMap { last in outputs.first { $0 == last } } ?? outputs.first
     }
 
-    /// One language as the draft's prefix writes it: 「英」, 「日」, 「繁」 …, else its Chinese name without 语 / 文.
+    /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 …, else its Chinese name
+    /// without 语 / 文.
     public static func short(_ language: OutputLanguage) -> String {
         let table = ["en": "英", "zh": "中", "zh-Hant": "繁", "ja": "日", "ko": "韩", "fr": "法", "de": "德", "es": "西",
                      "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼", "ar": "阿", "hi": "印"]
@@ -100,10 +103,9 @@ public enum TranslateMode {
         return name
     }
 
-    /// 「中→英」, the draft's prefix: the language typed (`from`; nil or the target itself: left out) and the one translated into.
-    public static func indicator(from source: Language?, to target: OutputLanguage) -> String {
-        let from = source.flatMap { $0.matches(target) ? nil : short(OutputLanguage($0)) } ?? ""
-        return from + "→" + short(target)
+    /// One language as the chip writes it in the English interface: its code in capitals, "EN", "ZH", "ZH-HANT".
+    public static func tag(_ language: OutputLanguage) -> String {
+        language.code.uppercased()
     }
 
     /// One time the mode is on: what it translates into.
@@ -118,7 +120,8 @@ public enum TranslateMode {
     /// The mode across the input method's text fields: on or off, and the app typed in last.
     public struct State: Equatable, Sendable {
         public private(set) var session: Session?
-        /// The app of the text field that became active last (`activated`).
+        /// The app of the text field that became active last (`activated`); nil once another app became active
+        /// (`appActivated`).
         public private(set) var app: String?
         private var sawApp = false
 
@@ -148,6 +151,15 @@ public enum TranslateMode {
             return session
         }
 
+        /// The settings were read again (`outputs`, the output languages now): a target no longer among them (removed in
+        /// the settings) gives way at once to the first of them; with none left it leaves. True: the session changed.
+        @discardableResult
+        public mutating func follow(outputs: [OutputLanguage]) -> Bool {
+            guard let session, !outputs.contains(session.target) else { return false }
+            self.session = outputs.first.map(Session.init(target:))
+            return true
+        }
+
         public enum Transition: Equatable, Sendable {
             case unchanged
             case entered(Session)
@@ -169,11 +181,25 @@ public enum TranslateMode {
             leave()
             return .left(session)
         }
+
+        /// Another application became active (`app`, its bundle id), a text field in it or not: it leaves. Nothing
+        /// changes when a field of that app became active first (`activated` has had its say), nor for an app that
+        /// translates always (its field, once active, keeps it on or turns it on: `activated`). Coming back to the app
+        /// left is switching to another app again: its field doesn't count as the same app's (`activated`).
+        public mutating func appActivated(_ app: String?, config: Config) -> Transition {
+            guard !sawApp || app?.lowercased() != self.app?.lowercased(),
+                  config.profile(for: app)?.translateAlways != true else { return .unchanged }
+            (self.app, sawApp) = (nil, false)
+            guard let session else { return .unchanged }
+            leave()
+            return .left(session)
+        }
     }
 
-    /// The chip near the caret while it's on (「中 → 英」, in the input method's own panel: the app's marked text can't be
-    /// clicked). A click on its source part switches the input language, as a tap of Shift does; one on its target part
-    /// lists the output languages (`choices`), the target checked, and the one clicked is the target from then on.
+    /// The chip near the caret while it's on (「中 → 英」, "ZH → EN" in the English interface; in the input method's own
+    /// panel: the app's marked text can't be clicked). A click on its source part switches the input language, as a tap
+    /// of Shift does; one on its target part lists the output languages (`choices`), the target checked, and the one
+    /// clicked is the target from then on.
     public struct Chip: Equatable, Sendable {
         /// The language being typed.
         public var source: Language
@@ -192,6 +218,10 @@ public enum TranslateMode {
         public var targetText: String { TranslateMode.short(target) }
         /// 「中 → 英」.
         public var text: String { sourceText + " → " + targetText }
+        /// "ZH", the source part in the English interface.
+        public var sourceTag: String { TranslateMode.tag(OutputLanguage(source)) }
+        /// "EN", the target part in the English interface.
+        public var targetTag: String { TranslateMode.tag(target) }
 
         /// Whether `language` is checked in the list: the target.
         public func checks(_ language: OutputLanguage) -> Bool { language == target }
@@ -205,13 +235,16 @@ public enum TranslateMode {
 
     /// Tells a long press of Shift on its own from a tap (which switches the input language, `Composer`), from Shift
     /// with a letter (a capital) and from Shift with another modifier (a shortcut). Pure timing on `now` (the clock
-    /// the modifier changes and the timers go by; tests set their own): Shift down alone arms it (`flagsChanged` says
-    /// so), and the controller asks `poll` after `hintAfter` and after `toggleAfter`: the hint ("keep holding") is due
-    /// once it has been held `hintAfter`, the toggle once `toggleAfter`, each once per press. Any key, another modifier,
-    /// the release, or the pointer used meanwhile (a Shift-click) ends the press.
+    /// the modifier changes and the timers go by; tests set their own): Shift going down alone, from no Shift, arms it
+    /// (`flagsChanged` says so), and the controller asks `poll` after `hintAfter` and after `toggleAfter`: the hint
+    /// ("keep holding") is due once it has been held `hintAfter`, the toggle once `toggleAfter`, each once per press.
+    /// Any key, another modifier (fn too), the release, or the pointer used or moved meanwhile (a Shift-click, aimed)
+    /// ends the press. With Sticky Keys on there is none: a Shift it latches looks held.
     public struct ShiftHold {
         public static let hintAfter: TimeInterval = 0.5
         public static let toggleAfter: TimeInterval = 1.0
+        /// How far (in points) the pointer may move while Shift is held: further, it's a Shift-click being aimed.
+        public static let pointerSlack: CGFloat = 5
 
         public enum Due: Equatable, Sendable {
             case hint
@@ -219,24 +252,37 @@ public enum TranslateMode {
         }
 
         let now: () -> TimeInterval
+        /// Where the pointer is (the controller's: the mouse, in screen points; tests set their own).
+        let pointer: () -> CGPoint
+        /// Whether Sticky Keys is on (the controller reads the system's setting; tests set their own).
+        let stickyKeys: () -> Bool
         /// When Shift went down on its own (nil: it isn't held so).
         public private(set) var pressedAt: TimeInterval?
+        /// Where the pointer was then.
+        private var pressedPointer = CGPoint.zero
+        /// Whether Shift was down after the last modifier change: the other Shift pressed or let go meanwhile starts
+        /// no press.
+        private var shiftDown = false
         private var hinted = false
         private var toggled = false
 
-        public init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
-            self.now = now
+        public init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                    pointer: @escaping () -> CGPoint = { .zero }, stickyKeys: @escaping () -> Bool = { false }) {
+            (self.now, self.pointer, self.stickyKeys) = (now, pointer, stickyKeys)
         }
 
         /// How long Shift has been held on its own so far (nil: it isn't).
         public var held: TimeInterval? { pressedAt.map { max(now() - $0, 0) } }
 
-        /// A modifier changed: `keyCode` the key, `modifiers` those down now. True when Shift went down on its own
-        /// (nothing else held but Caps Lock): poll after `hintAfter` and `toggleAfter`. Anything else ends a press.
+        /// A modifier changed: `keyCode` the key, `modifiers` those down now (fn as `.function`). True when Shift went
+        /// down on its own (no Shift before, nothing else held but Caps Lock) and Sticky Keys is off: poll after
+        /// `hintAfter` and `toggleAfter`. Anything else ends a press.
         public mutating func flagsChanged(keyCode: UInt16, modifiers: KeyModifiers) -> Bool {
             let isShift = keyCode == VirtualKey.leftShift || keyCode == VirtualKey.rightShift
-            if isShift, modifiers.contains(.shift), modifiers.subtracting([.shift, .capsLock]).isEmpty, pressedAt == nil {
-                (pressedAt, hinted, toggled) = (now(), false, false)
+            let wasDown = shiftDown
+            shiftDown = modifiers.contains(.shift)
+            if isShift, shiftDown, !wasDown, modifiers.subtracting([.shift, .capsLock]).isEmpty, !stickyKeys() {
+                (pressedAt, pressedPointer, hinted, toggled) = (now(), pointer(), false, false)
                 return true
             }
             cancel()  // released, the other Shift too, or another modifier: no long press of Shift alone
@@ -249,10 +295,12 @@ public enum TranslateMode {
         public mutating func cancel() { pressedAt = nil }
 
         /// What is due now (a timer went off): the hint, then the toggle, each once. `pointerUsed`: a mouse button, a
-        /// drag or the wheel since Shift went down: a Shift-click, never a long press.
+        /// drag or the wheel since Shift went down: a Shift-click, never a long press; so is the pointer moved further
+        /// than `pointerSlack` since then.
         public mutating func poll(pointerUsed: Bool = false) -> Due? {
             guard let held else { return nil }
-            if pointerUsed {
+            let at = pointer()
+            if pointerUsed || hypot(at.x - pressedPointer.x, at.y - pressedPointer.y) > Self.pointerSlack {
                 cancel()
                 return nil
             }

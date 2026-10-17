@@ -2,9 +2,11 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// A clock the tests move by hand (`TranslateMode.ShiftHold`'s).
+/// A clock the tests move by hand (`TranslateMode.ShiftHold`'s), with the pointer and Sticky Keys it reads.
 final class HandClock: @unchecked Sendable {
     var now: TimeInterval = 100
+    var pointer = CGPoint(x: 500, y: 300)
+    var stickyKeys = false
 }
 
 // MARK: - The long press of Shift
@@ -12,7 +14,8 @@ final class HandClock: @unchecked Sendable {
 /// `TranslateMode.ShiftHold` on a clock moved by hand, through a class (its mutating calls inside `#expect`).
 final class HoldProbe {
     let clock = HandClock()
-    lazy var hold = TranslateMode.ShiftHold(now: { [clock] in clock.now })
+    lazy var hold = TranslateMode.ShiftHold(now: { [clock] in clock.now }, pointer: { [clock] in clock.pointer },
+                                            stickyKeys: { [clock] in clock.stickyKeys })
 
     /// A modifier change; true: armed.
     func flags(_ keyCode: UInt16 = VirtualKey.leftShift, _ modifiers: KeyModifiers) -> Bool {
@@ -22,6 +25,7 @@ final class HoldProbe {
     func up(_ keyCode: UInt16 = VirtualKey.leftShift) -> Bool { flags(keyCode, []) }
     func key() { hold.keyDown() }
     func wait(_ seconds: TimeInterval) { clock.now += seconds }
+    func move(_ dx: CGFloat, _ dy: CGFloat = 0) { clock.pointer.x += dx; clock.pointer.y += dy }
     func poll(pointerUsed: Bool = false) -> TranslateMode.ShiftHold.Due? { hold.poll(pointerUsed: pointerUsed) }
 }
 
@@ -127,6 +131,85 @@ struct ShiftHoldTests {
         #expect(h.poll() == nil)
     }
 
+    /// Shift held while the mouse moves to where a Shift-click will go: no hint, no toggle. A hand resting on the
+    /// mouse (a point or two) is still a long press.
+    @Test func aShiftClickBeingAimedIsNoLongPress() {
+        let h = HoldProbe()
+        #expect(h.down())
+        h.move(40, -25)
+        h.wait(0.5)
+        #expect(h.poll() == nil)
+        h.wait(0.5)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        // Moved after the hint: no toggle.
+        _ = h.up()
+        #expect(h.down())
+        h.wait(0.5)
+        #expect(h.poll() == .hint)
+        h.move(0, 120)
+        h.wait(0.5)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        // Barely moved: on as ever.
+        _ = h.up()
+        #expect(h.down())
+        h.move(2, 2)
+        h.wait(0.5)
+        #expect(h.poll() == .hint)
+        h.move(-1, 1)
+        h.wait(0.5)
+        #expect(h.poll() == .toggle)
+        #expect(TranslateMode.ShiftHold.pointerSlack < 10)
+    }
+
+    /// Only Shift going down from no Shift starts a press: the other Shift pressed and let go while one is held starts
+    /// none, held on.
+    @Test func theOtherShiftLetGoStartsNoPress() {
+        let h = HoldProbe()
+        #expect(h.down())
+        h.wait(0.2)
+        #expect(!h.flags(VirtualKey.rightShift, .shift))  // the right one down too
+        h.wait(0.1)
+        #expect(!h.flags(VirtualKey.rightShift, .shift))  // …and up, the left one still down
+        h.wait(1)
+        #expect(h.poll() == nil && h.hold.held == nil)
+        // Let go of both: the next press counts again.
+        #expect(!h.up())
+        #expect(h.down(VirtualKey.rightShift))
+        h.wait(1)
+        #expect(h.poll() == .toggle)
+        // A capital typed, then the other Shift pressed and let go: still no press.
+        _ = h.up(VirtualKey.rightShift)
+        #expect(h.down())
+        h.key()
+        #expect(!h.flags(VirtualKey.rightShift, .shift) && !h.flags(VirtualKey.rightShift, .shift))
+        h.wait(1)
+        #expect(h.poll() == nil)
+    }
+
+    /// fn (🌐) held with Shift, before or after it, is no long press; neither is a Shift that Sticky Keys latches.
+    @Test func fnOrStickyKeysNeverToggle() {
+        let fnKey: UInt16 = 0x3F
+        let h = HoldProbe()
+        #expect(!h.flags(VirtualKey.leftShift, [.shift, .function]))
+        h.wait(1)
+        #expect(h.poll() == nil)
+        _ = h.up()
+        #expect(h.down())
+        #expect(!h.flags(fnKey, [.shift, .function]))
+        h.wait(1)
+        #expect(h.poll() == nil)
+        _ = h.up()
+        // Sticky Keys on: Shift pressed once stays down until the next key, as if held.
+        let sticky = HoldProbe()
+        sticky.clock.stickyKeys = true
+        #expect(!sticky.down())
+        sticky.wait(1.5)
+        #expect(sticky.poll() == nil)
+        _ = sticky.up()
+        sticky.clock.stickyKeys = false
+        #expect(sticky.down())
+    }
+
     @Test func theTimesOfTheSpec() {
         #expect(TranslateMode.ShiftHold.hintAfter == 0.5 && TranslateMode.ShiftHold.toggleAfter == 1.0)
     }
@@ -197,7 +280,7 @@ struct TranslateModeComposerTests {
         _ = c.handleKeyDown(spaceKey)
     }
 
-    @Test func pinyinCollectsIntoADraftAfterTheIndicator() {
+    @Test func pinyinCollectsIntoADraftShownAsTyped() {
         let (c, _) = composer()
         type("nihao", c)
         #expect(c.markedText == "nihao" && c.wantsPanel)  // the candidates
@@ -271,12 +354,29 @@ struct TranslateModeComposerTests {
         _ = c.handleKeyDown(enterKey)
         let typed = c.handleKeyDown(k("w"))
         #expect(typed.effects.contains(.cancelConversion) && c.phase == .drafting && c.markedText == "你好w")
-        // ⇧⏎ while it's translated: as typed.
+        // ⇧⏎ while it's translating: as typed.
         type("o", c)
         _ = c.handleKeyDown(spaceKey)
         _ = c.handleKeyDown(enterKey)
         let asTyped = c.handleKeyDown(shiftEnter)
         #expect(commits(asTyped) == ["你好我"] && asTyped.effects.contains(.cancelConversion))
+    }
+
+    /// ⌫ while it's translating: stopped, and one character deleted, as ⌫ does on the draft.
+    @Test func deleteWhileTranslatingStopsItAndDeletes() {
+        let (onDraft, _) = composer()
+        draftNihao(onDraft)
+        _ = onDraft.handleKeyDown(backspaceKey)
+        #expect(onDraft.draft == "你")
+        let (c, _) = composer()
+        draftNihao(c)
+        let id = request(c.handleKeyDown(enterKey).effects)!.id
+        let delete = c.handleKeyDown(backspaceKey)
+        #expect(delete.handled && delete.effects.contains(.cancelConversion) && commits(delete).isEmpty)
+        #expect(c.phase == .drafting && c.draft == onDraft.draft && c.markedText == "你")
+        // The answer arriving late goes nowhere; ⏎ translates what's left.
+        #expect(c.receive(hello, isFinal: true, id: id).isEmpty && c.draft == "你")
+        #expect(request(c.handleKeyDown(enterKey).effects)?.input == "你")
     }
 
     @Test func aFailureKeepsTheDraftAndReturnRetries() {
@@ -411,7 +511,7 @@ struct TranslateModeComposerTests {
         #expect(one.shiftTapped().isEmpty && one.inputLanguage == .chinese)
     }
 
-    /// Another target picked on the chip: the draft stays, after the new indicator, and ⏎ translates into it.
+    /// Another target picked on the chip: the draft stays, the chip names the new one, and ⏎ translates into it.
     @Test func anotherTargetKeepsTheDraft() {
         let (c, _) = composer()
         draftNihao(c)
@@ -501,11 +601,13 @@ final class StateProbe {
     func enter() -> TranslateMode.Session? { state.enter(last: last, config: config) }
     func leave() { state.leave() }
     func retarget(_ target: OutputLanguage) -> TranslateMode.Session? { state.retarget(target) }
+    func appActivated(_ app: String?) -> TranslateMode.State.Transition { state.appActivated(app, config: config) }
     var isOn: Bool { state.isOn }
 }
 
 struct TranslateModeStateTests {
     let wechat = "com.tencent.xinWeChat", notes = "com.apple.Notes", mail = "com.apple.mail", slack = "com.tinyspeck.slackmacgap"
+    let finder = "com.apple.finder"
     let english = TranslateMode.Session(target: .english)
 
     var config: Config {
@@ -524,6 +626,69 @@ struct TranslateModeStateTests {
         // Another app.
         #expect(s.activated(mail) == .left(english) && !s.isOn)
         #expect(s.activated(notes) == .unchanged && !s.isOn)
+    }
+
+    /// Another app becoming active (`appActivated`) leaves it, a text field in it or not, whichever of the app and its
+    /// field comes first; coming back doesn't turn it on again.
+    @Test func anotherAppActiveLeavesTheModeFieldOrNot() {
+        let s = StateProbe(config)
+        _ = s.activated(notes)
+        s.enter()
+        // Its own app, after its field: nothing changes.
+        #expect(s.appActivated(notes) == .unchanged && s.isOn)
+        // Finder, with no text field: off.
+        #expect(s.appActivated(finder) == .left(english) && !s.isOn)
+        // Back: still off.
+        #expect(s.appActivated(notes) == .unchanged && s.activated(notes) == .unchanged && !s.isOn)
+        // Another app, its field first: off; its activation then changes nothing.
+        s.enter()
+        #expect(s.activated(mail) == .left(english) && s.appActivated(mail) == .unchanged && !s.isOn)
+        // …or the app first.
+        s.enter()
+        #expect(s.appActivated(notes) == .left(english) && s.activated(notes) == .unchanged && !s.isOn)
+        // Off: nothing to leave.
+        #expect(s.appActivated(finder) == .unchanged)
+    }
+
+    /// An app that translates always: becoming active doesn't leave it (its field keeps it on, or turns it on).
+    @Test func anAppThatTranslatesAlwaysBecomingActive() {
+        var config = config
+        config.appProfiles = [wechat: AppProfile(translateAlways: true)]
+        let s = StateProbe(config)
+        _ = s.activated(notes)
+        s.enter()
+        // Switched to, the app first: on as it was.
+        #expect(s.appActivated(wechat) == .unchanged && s.activated(wechat) == .unchanged && s.state.session == english)
+        // To Finder: off. Back: on again once its field is active.
+        #expect(s.appActivated(finder) == .left(english) && !s.isOn)
+        #expect(s.appActivated(wechat) == .unchanged && !s.isOn)
+        #expect(s.activated(wechat) == .entered(english))
+        // Turned off there by hand: it becoming active again (from the input method's own window) leaves it off.
+        s.leave()
+        #expect(s.appActivated(wechat) == .unchanged && s.activated(wechat) == .unchanged && !s.isOn)
+    }
+
+    /// The target removed from the output languages in the settings while it's on: the first of them at once (none left:
+    /// off), the draft kept and the chip following.
+    @Test func aTargetRemovedInTheSettingsGivesWayToTheFirst() throws {
+        let ja = OutputLanguage("ja")
+        var state = TranslateMode.State()
+        #expect(!state.follow(outputs: [.english]) && !state.isOn)  // off: nothing
+        var config = Config.default
+        config.setOrder([OutputLanguage.english, ja, .chinese])
+        state.enter(last: ja, config: config)
+        #expect(!state.follow(outputs: [.chinese, ja]) && state.session?.target == ja)  // still offered
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        _ = c.setTranslateMode(state.session)
+        type("nihao", c)
+        _ = c.handleKeyDown(spaceKey)
+        #expect(state.follow(outputs: [.english, .chinese]) && state.session == english)
+        #expect(commits(c.setTranslateMode(state.session)).isEmpty && c.draft == "你好" && c.translateModeChip()?.text == "中 → 英")
+        #expect(state.follow(outputs: []) && !state.isOn)  // none left
+    }
+
+    func type(_ text: String, _ c: Composer) {
+        for ch in text { _ = c.handleKeyDown(k(String(ch))) }
     }
 
     @Test func anAppThatTranslatesAlways() {
@@ -615,13 +780,13 @@ struct TranslateModeStateTests {
         #expect(again.profile(for: wechat)?.translateAlways == true)
     }
 
-    @Test func theIndicator() {
-        #expect(TranslateMode.indicator(from: .chinese, to: .english) == "中→英")
-        #expect(TranslateMode.indicator(from: .chinese, to: OutputLanguage("ja")) == "中→日")
-        #expect(TranslateMode.indicator(from: .english, to: .chinese) == "英→中")
-        #expect(TranslateMode.indicator(from: .chinese, to: OutputLanguage("zh-Hant")) == "中→繁")
-        #expect(TranslateMode.indicator(from: .english, to: .english) == "→英" && TranslateMode.indicator(from: nil, to: .english) == "→英")
-        #expect(TranslateMode.short(OutputLanguage("bn")) == "孟加拉")
+    /// The chip's languages: short Chinese names in the Chinese interface, tags in the English one ("ZH → EN").
+    @Test func theChipsNamesAndTags() {
+        #expect(TranslateMode.short(OutputLanguage("bn")) == "孟加拉" && TranslateMode.short(OutputLanguage("zh-Hant")) == "繁")
+        #expect(TranslateMode.tag(.english) == "EN" && TranslateMode.tag(.chinese) == "ZH" && TranslateMode.tag(OutputLanguage("zh-Hant")) == "ZH-HANT")
+        let chip = TranslateMode.Chip(source: .chinese, target: .english)
+        #expect(chip.text == "中 → 英" && chip.sourceTag == "ZH" && chip.targetTag == "EN")
+        #expect(TranslateMode.Chip(source: .korean, target: OutputLanguage("ja")).sourceTag == "KO")
     }
 }
 
