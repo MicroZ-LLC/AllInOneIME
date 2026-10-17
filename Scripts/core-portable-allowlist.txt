@@ -1,3 +1,2 @@
 # Core files that still import an Apple-only module outside `#if canImport(...)` (Scripts/check-core-portable.sh).
 # This list only shrinks: don't add to it; take a line out once its import is gone or guarded.
-AppBundles.swift Security
