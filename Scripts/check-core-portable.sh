@@ -1,24 +1,28 @@
 #!/bin/sh
-# Keeps Sources/AllInOneIMECore platform-neutral: fails when a core file imports an Apple-only module
-# outside `#if canImport(...)`. The files that still do are listed in Scripts/core-portable-allowlist.txt
-# ("File.swift module"). That list only shrinks: a new import fails, and so does an entry that's no
-# longer needed (remove it from the list).
+# Keeps Sources/AllInOneIMECore (all of it, subfolders too) platform-neutral. It fails when
+#   - a core file imports an Apple-only module anywhere but Sources/AllInOneIMECore/Platform/Apple/, guarded or not;
+#   - a file in Platform/Apple/ imports one outside `#if canImport(...)`, or isn't wholly inside one: its first line of
+#     code is the `#if canImport(...)`, its last the `#endif`;
+#   - a core file starts a program itself (`Process(`, `posix_spawn`) instead of through the ProcessLauncher (only
+#     Platform/FoundationProcessLauncher.swift does).
 #
 #   Scripts/check-core-portable.sh            check (run by `make test`)
-#   Scripts/check-core-portable.sh --list     print today's offenders, in the list's format
+#   Scripts/check-core-portable.sh --list     print every offence, one a line
 set -eu
 export LC_ALL=C
 
 cd "$(dirname "$0")/.."
 CORE=Sources/AllInOneIMECore
-ALLOWLIST=Scripts/core-portable-allowlist.txt
-MODULES='AppKit|Carbon|Security|JavaScriptCore|FoundationModels|NaturalLanguage|PDFKit|os|CoreGraphics|CryptoKit|EventKit|InputMethodKit|SwiftUI|Combine'
+APPLE=$CORE/Platform/Apple
+LAUNCHERS="$CORE/Platform/FoundationProcessLauncher.swift"
+MODULES='AppKit|Carbon|Security|JavaScriptCore|FoundationModels|NaturalLanguage|PDFKit|os|CoreGraphics|CryptoKit|EventKit|InputMethodKit|SwiftUI|Combine|AVFoundation|Speech|Contacts|CoreServices|ApplicationServices|UIKit|WebKit|IOKit'
 
-# "File.swift module" for each unguarded import. An import is guarded inside the first branch of an
-# `#if canImport(...)` or an `#elseif canImport(...)`; multi-line string literals (""") are skipped.
-offenders() {
-    for file in "$CORE"/*.swift; do
-        awk -v name="$(basename "$file")" -v modules="^($MODULES)$" '
+# "path: import Module (why)" for each Apple-only import that isn't allowed. An import is guarded inside the first
+# branch of an `#if canImport(...)` or an `#elseif canImport(...)`; multi-line string literals (""") are skipped.
+imports() {
+    find "$CORE" -name '*.swift' | sort | while read -r file; do
+        case "$file" in "$APPLE"/*) apple=1 ;; *) apple=0 ;; esac
+        awk -v path="$file" -v apple="$apple" -v modules="^($MODULES)$" '
             {
                 line = $0
                 quotes = gsub(/"""/, "&", line)
@@ -32,40 +36,46 @@ offenders() {
             /^[ \t]*(@[A-Za-z_]+[ \t]+)*import[ \t]/ {
                 guarded = 0
                 for (i = 1; i <= depth; i++) if (guard[i]) guarded = 1
-                if (guarded) next
                 sub(/^[ \t]*(@[A-Za-z_]+[ \t]+)*import[ \t]+/, "")
                 sub(/^(typealias|struct|class|enum|protocol|let|var|func)[ \t]+/, "")
                 module = $0
                 sub(/[ \t.;\/].*$/, "", module)
-                if (module ~ modules) print name " " module
+                if (module !~ modules) next
+                if (!apple) print path ": import " module " (Apple modules belong in Platform/Apple/)"
+                else if (!guarded) print path ": import " module " (outside #if canImport)"
             }
         ' "$file"
-    done | sort -u
+    done
 }
 
+# Each Platform/Apple/ file is wholly inside one `#if canImport(...)`: its first line of code opens it, its last closes it.
+wholly_guarded() {
+    find "$APPLE" -name '*.swift' 2>/dev/null | sort | while read -r file; do
+        code=$(grep -v -e '^[[:space:]]*$' -e '^[[:space:]]*//' "$file" || true)
+        first=$(printf '%s\n' "$code" | head -n 1)
+        last=$(printf '%s\n' "$code" | tail -n 1)
+        case "$first" in "#if canImport("*) ;; *) echo "$file: not wholly inside #if canImport(...) (first line: $first)" ;; esac
+        case "$last" in "#endif"*) ;; *) echo "$file: not wholly inside #if canImport(...) (last line: $last)" ;; esac
+    done
+}
+
+# Programs started anywhere but the ProcessLauncher implementation (comments aside).
+processes() {
+    find "$CORE" -name '*.swift' | sort | while read -r file; do
+        case " $LAUNCHERS " in *" $file "*) continue ;; esac
+        grep -n -E '(^|[^A-Za-z0-9_])(Process\(|posix_spawn)' "$file" | grep -v -E '^[0-9]+:[[:space:]]*//' \
+            | sed "s|^\([0-9]*\):.*|$file:\1: starts a program (use Platform.current.processes, a ProcessLauncher)|" || true
+    done
+}
+
+found=$( { imports; wholly_guarded; processes; } )
 if [ "${1:-}" = "--list" ]; then
-    offenders
+    [ -n "$found" ] && echo "$found"
     exit 0
 fi
-
-found=$(mktemp)
-allowed=$(mktemp)
-trap 'rm -f "$found" "$allowed"' EXIT
-offenders > "$found"
-grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$ALLOWLIST" | sed 's/[[:space:]][[:space:]]*/ /g; s/ $//' | sort -u > "$allowed"
-
-status=0
-new=$(comm -23 "$found" "$allowed")
-if [ -n "$new" ]; then
-    echo "error: Apple-only imports in $CORE (guard them with #if canImport(...), or keep them out of the core):" >&2
-    echo "$new" | sed 's/^/  /' >&2
-    status=1
+if [ -n "$found" ]; then
+    echo "error: $CORE isn't platform-neutral:" >&2
+    echo "$found" | sed 's/^/  /' >&2
+    exit 1
 fi
-stale=$(comm -13 "$found" "$allowed")
-if [ -n "$stale" ]; then
-    echo "error: $ALLOWLIST lists imports that are gone; remove these lines:" >&2
-    echo "$stale" | sed 's/^/  /' >&2
-    status=1
-fi
-[ $status -eq 0 ] && echo "core-portable: $(wc -l < "$found" | tr -d ' ') allowlisted Apple-only imports, no new ones"
-exit $status
+echo "core-portable: no Apple-only import outside Platform/Apple/ (each guarded), no program started outside the ProcessLauncher"

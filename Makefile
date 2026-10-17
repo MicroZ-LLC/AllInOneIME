@@ -45,7 +45,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check dmg update-zip update-manifest update-test test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -267,9 +267,14 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-test: deps strings-check
+test: deps strings-check check-ios
 	Scripts/check-core-portable.sh
 	swift test
+
+# The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
+# (Scripts/check-core-portable.sh checks its imports). Needs Xcode's iOS SDK; built in .build/ios.
+check-ios:
+	xcodebuild -scheme AllInOneIMECore -destination generic/platform=iOS -derivedDataPath .build/ios -quiet build
 
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for
 # Scripts/build-packs-index.swift. The minimum app version is this one.

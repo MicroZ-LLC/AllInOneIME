@@ -10,6 +10,8 @@ let package = Package(
     products: [
         .executable(name: "AllInOneIME", targets: ["AllInOneIME"]),
         .executable(name: "allinoneime-cli", targets: ["allinoneime-cli"]),
+        // The platform-neutral core, for the other platforms' shells (and its own scheme: `make check-ios`).
+        .library(name: "AllInOneIMECore", targets: ["AllInOneIMECore"]),
     ],
     // CryptoKit's API everywhere: on Apple platforms swift-crypto is CryptoKit itself (re-exported), elsewhere its own.
     dependencies: [.package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.0")],
@@ -97,6 +99,9 @@ let package = Package(
         ),
     ]
 )
+
+// The core builds for iOS too (`make check-ios`).
+package.platforms?.append(.iOS(.v17))
 
 // Elsewhere (Linux, Windows, Android) the package is the core, its tests and the CLI: the input method, its two
 // apps, the macOS shell's library and librime (an official macOS build in ThirdParty) are macOS's.
