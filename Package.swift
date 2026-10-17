@@ -83,13 +83,9 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
 
-        // On the Mac they reach the shell's library too (MacShell.swift): tests from before it hold some of its code.
-        .testTarget(
-            name: "AllInOneIMECoreTests",
-            dependencies: ["AllInOneIMECore", .target(name: "AllInOneIMEMac", condition: .when(platforms: [.macOS]))],
-            resources: [.copy("Fixtures")]
-        ),
-        // Timing, PackData and ComposerTestSupport are AllInOneIMECoreTests' (linked here).
+        // The core alone: what tests the macOS shell's library is in AllInOneIMEMacTests.
+        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore"], resources: [.copy("Fixtures")]),
+        // Timing, PackData, ComposerTestSupport and ScriptFolder are AllInOneIMECoreTests' (linked here).
         .testTarget(name: "AllInOneIMEMacTests", dependencies: ["AllInOneIMEMac"]),
         .testTarget(
             name: "AllInOneIMERimeTests",
@@ -112,7 +108,7 @@ package.targets.removeAll { macOnly.contains($0.name) }
 package.products.removeAll { $0.name == "AllInOneIME" }
 package.targets.first { $0.name == "allinoneime-cli" }?.dependencies = ["AllInOneIMECore"]
 // The core's tests as they are: what they import of Apple's (os's lock, CryptoKit, CoreGraphics) is shimmed
-// (Tests/LinuxShims), and those that need the Mac's git (`ProcessGitRunner`) are left out.
+// (Tests/LinuxShims), and the one that needs Darwin's posix_spawn is left out.
 package.targets += [
     .target(name: "os", path: "Tests/LinuxShims/os"),
     .target(name: "CryptoKit", dependencies: [.product(name: "Crypto", package: "swift-crypto")], path: "Tests/LinuxShims/CryptoKit"),
@@ -120,7 +116,6 @@ package.targets += [
 ]
 if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" }) {
     tests.dependencies = ["AllInOneIMECore", "os", "CryptoKit", "CoreGraphics"]
-    tests.exclude += ["Acceptance/ExtensionSourcesAcceptanceTests.swift", "Acceptance/PluginLanguageAcceptanceTests.swift",
-                      "ExtensionSourcesTests.swift"]
+    tests.exclude += ["Acceptance/PluginLanguageAcceptanceTests.swift"]
 }
 #endif
