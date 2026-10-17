@@ -241,7 +241,9 @@ public struct LanguagePackStore: Sendable {
     public func linkCode(_ pack: LanguagePack, from code: URL?) throws {
         let link = folder(pack).appendingPathComponent("lua")
         let fm = FileManager.default
-        if let current = try? fm.destinationOfSymbolicLink(atPath: link.path), current == code?.path { return }
+        // On Windows a link's target reads back with "\" ("C:\…\rime-lua"), a URL's path with "/": spelled alike first.
+        if let current = try? fm.destinationOfSymbolicLink(atPath: link.path),
+           (CorePaths.isSeparator("\\") ? current.replacingOccurrences(of: "\\", with: "/") : current) == code?.path { return }
         if (try? fm.attributesOfItem(atPath: link.path)) != nil {
             // Only ever our link: a real folder here would be code that didn't come from the app.
             try fm.removeItem(at: link)

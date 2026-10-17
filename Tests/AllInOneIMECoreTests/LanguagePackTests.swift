@@ -215,13 +215,17 @@ struct LanguagePackTests {
         #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("lua").path))
         #expect(FileManager.default.fileExists(atPath: old.appendingPathComponent("lua/date.lua").path))  // the source is left as it was
 
-        // The app's Lua is linked in, and followed when the app moves.
+        // The app's Lua is linked in, and followed when the app moves. (On Windows a link's target reads back with "\".)
+        func target() throws -> String {
+            let link = try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("lua").path)
+            return CorePaths.isSeparator("\\") ? link.replacingOccurrences(of: "\\", with: "/") : link
+        }
         let code = lib.root.appendingPathComponent("App.app/Contents/SharedSupport/rime-lua", isDirectory: true)
         try lib.store.linkCode(.chinesePinyin, from: code)
-        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("lua").path) == code.path)
+        #expect(try target() == code.path)
         let moved = lib.root.appendingPathComponent("Moved.app/Contents/SharedSupport/rime-lua", isDirectory: true)
         try lib.store.linkCode(.chinesePinyin, from: moved)
-        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("lua").path) == moved.path)
+        #expect(try target() == moved.path)
         try lib.store.linkCode(.chinesePinyin, from: nil)
         #expect((try? FileManager.default.attributesOfItem(atPath: folder.appendingPathComponent("lua").path)) == nil)
     }
