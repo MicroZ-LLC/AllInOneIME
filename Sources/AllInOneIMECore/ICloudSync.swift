@@ -7,11 +7,13 @@ import Foundation
 /// server of ours, and no sign-in or iCloud entitlement is needed.
 ///
 /// `settings.json` there holds each synced key with its own stamp, `{ "key": { "value": …, "modified": ISO 8601,
-/// "by": "<Mac id>" } }`; a key deleted (an app's settings removed) is a stamped tombstone, `{ "deleted": true, … }`. Each
-/// Mac keeps, on its own (`State`), the value every key had when it last synced and that value's stamp: a key whose value
-/// changed since is a local change, stamped now; a key in iCloud with a newer stamp than this Mac's comes in, if it passes
-/// the checks Settings makes (`problem`). Key by key, the newest wins (`plan`); lists (`customCommands`, the styles) are
-/// whole values, and `appProfiles` is a key per app. Only the keys that changed are written into `settings.json`, the
+/// "by": "<Mac id>" } }`; a key deleted (an app's settings removed) is a stamped tombstone, `{ "deleted": true, … }`
+/// (`Entry`). Each Mac keeps, on its own (`State`), the value every key had when it last synced and that value's stamp: a
+/// key whose value changed since is a local change, stamped when its file changed; a key in iCloud with a newer stamp
+/// than this Mac's comes in, if it passes the checks Settings makes (`problem`). Key by key, the newest wins (`plan`);
+/// lists (`customCommands`, the styles) are whole values, and `appProfiles` is a key per app. A Mac's first sync of a
+/// category joins (`Mode.joining`: iCloud's values win, collections merge); one turned back on rejoins
+/// (`Mode.rejoining`). Only the keys that changed are written into `settings.json`, the
 /// others' text and keys this version doesn't know left as they are, and into `config.json` the same way
 /// (`AIConfig.writing`). The whole run is `ICloudSyncEngine`; this is its model.
 public enum ICloudSync {
@@ -89,7 +91,9 @@ public enum ICloudSync {
 
     // MARK: - Stamps
 
-    /// When a value was set, and on which Mac (`State.macID`): the newer wins; at the same time, the larger Mac id.
+    /// When a value was set, and on which Mac (`State.macID`): the newer wins; at the same time, the larger Mac id. A stamp
+    /// from a Mac whose clock is ahead (even years) is accepted as it is; a later change on this Mac is then stamped 1 ms
+    /// after it (`plan`), so it still wins, and so on.
     public struct Stamp: Equatable, Comparable, Sendable {
         public var modified: Date
         public var by: String
@@ -103,14 +107,19 @@ public enum ICloudSync {
             a.modified != b.modified ? a.modified < b.modified : a.by < b.by
         }
 
-        /// What a Mac's values carry when it starts syncing and never changed them since: older than any change, so that
-        /// a Mac turning sync on takes what is in iCloud already rather than putting its own (or the defaults) over it.
+        /// What a joining Mac's values carry when they go up because iCloud has none (`Mode.joining`): older than any
+        /// change, so that they never beat a real stamp (a fresh Mac's defaults over another Mac's settings). Only in the
+        /// joining sync itself; a Mac that has synced restamps its own with now when it puts them up again.
         public static func joining(_ mac: String) -> Stamp { Stamp(modified: Date(timeIntervalSince1970: 0), by: mac) }
 
         public var isJoining: Bool { modified.timeIntervalSince1970 == 0 }
     }
 
     /// One key: its value as the config file writes it, or nil when it was deleted (a tombstone), and its stamp.
+    ///
+    /// In `settings.json`: `{ "value": <the value>, "modified": "2026-10-16T18:00:00.000Z", "by": "<Mac id>" }`; a
+    /// tombstone (an app's settings removed, `questionRounds` back to its default, which the config leaves out) is
+    /// `{ "deleted": true, "modified": …, "by": … }`, with no value. An entry with both, or neither, isn't read.
     public struct Entry: Equatable, Sendable {
         public var value: AIConfig.JSONValue?
         public var stamp: Stamp
@@ -212,8 +221,23 @@ public enum ICloudSync {
         public var rejected: [String: Rejection] = [:]
         /// The unreadable `settings.json` last set aside, by its new name.
         public var setAside: String?
+        /// The categories this Mac has synced (its first sync of each done: it joined); the others join on their next sync.
+        public var joined: Set<Category> = []
+        /// The categories it had synced and stopped syncing (sync turned off, or the category's switch): turned on
+        /// again, they rejoin (`Mode.rejoining`).
+        public var paused: Set<Category> = []
+        /// The config file's modification date right after this Mac's sync wrote it: a change can't be dated by a write
+        /// that was sync's own.
+        public var ownConfigWrite: Date?
+        /// The recent questions as they were when this Mac last synced them (a hash of each question's key, never the
+        /// text, and when it was asked), to tell a Clear here; and the newest Clear known (`questionsFile`).
+        public var questionsSeen: [String: Date] = [:]
+        public var questionsCleared: Date?
 
         public init(macID: String = UUID().uuidString) { self.macID = macID }
+
+        /// Whether this Mac has finished a sync of anything since it started syncing (or since Remove from iCloud).
+        public var hasSynced: Bool { !joined.isEmpty }
 
         public struct Rejection: Equatable, Sendable {
             public var stamp: Stamp
@@ -230,6 +254,13 @@ public enum ICloudSync {
             if case let .string(text)? = fields["lastSync"] { state.lastSync = ICloudSync.date(text) }
             if case let .string(text)? = fields["lastError"] { state.lastError = text }
             if case let .string(text)? = fields["setAside"] { state.setAside = text }
+            if let names = fields["joined"]?.strings { state.joined = Set(names.compactMap(Category.init(rawValue:))) }
+            if let names = fields["paused"]?.strings { state.paused = Set(names.compactMap(Category.init(rawValue:))) }
+            if case let .string(text)? = fields["ownConfigWrite"] { state.ownConfigWrite = ICloudSync.date(text) }
+            if case let .object(seen)? = fields["questionsSeen"] {
+                state.questionsSeen = seen.compactMapValues { if case let .string(text) = $0 { return ICloudSync.date(text) } else { return nil } }
+            }
+            if case let .string(text)? = fields["questionsCleared"] { state.questionsCleared = ICloudSync.date(text) }
             if case let .object(rejected)? = fields["rejected"] {
                 for (key, value) in rejected {
                     guard case let .object(f) = value, case let .string(modified)? = f["modified"], let date = ICloudSync.date(modified),
@@ -246,6 +277,11 @@ public enum ICloudSync {
             if let lastSync { fields["lastSync"] = .string(ICloudSync.dateText(lastSync)) }
             if let lastError { fields["lastError"] = .string(lastError) }
             if let setAside { fields["setAside"] = .string(setAside) }
+            if !joined.isEmpty { fields["joined"] = .array(joined.map(\.rawValue).sorted().map { .string($0) }) }
+            if !paused.isEmpty { fields["paused"] = .array(paused.map(\.rawValue).sorted().map { .string($0) }) }
+            if let ownConfigWrite { fields["ownConfigWrite"] = .string(ICloudSync.dateText(ownConfigWrite)) }
+            if !questionsSeen.isEmpty { fields["questionsSeen"] = .object(questionsSeen.mapValues { .string(ICloudSync.dateText($0)) }) }
+            if let questionsCleared { fields["questionsCleared"] = .string(ICloudSync.dateText(questionsCleared)) }
             if !rejected.isEmpty {
                 fields["rejected"] = .object(rejected.mapValues { rejection in
                     .object(["modified": .string(ICloudSync.dateText(rejection.stamp.modified)), "by": .string(rejection.stamp.by),
@@ -296,6 +332,25 @@ public enum ICloudSync {
 
     // MARK: - The merge
 
+    /// How a category syncs in a run.
+    public enum Mode: Equatable, Sendable {
+        /// Its first sync on this Mac (sync turned on, or the category's switch, for the first time): what iCloud has
+        /// wins, and this Mac's values go up only where iCloud has none, with a joining stamp (`Stamp.joining`), so that
+        /// they never beat a real change. Collections (`mergedOnJoin`) are merged with iCloud's instead.
+        case joining
+        /// Synced before, then turned off, now on again: a key iCloud changed meanwhile takes iCloud's value (also when
+        /// this Mac changed it too); a key only this Mac changed goes up, stamped now; a collection this Mac changed
+        /// meanwhile is merged with iCloud's, so that it never drops what it added.
+        case rejoining
+        /// Each key's newest change wins.
+        case normal
+    }
+
+    /// The collections a joining (or rejoining) Mac merges with iCloud's rather than taking iCloud's: its custom
+    /// commands (by name, iCloud's on a clash), hidden words and jargon lines (each once). Recent questions are always
+    /// merged (`ICloudSyncEngine`).
+    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, jargonKey]
+
     /// What one run does with the keys: what comes into this Mac's config, what goes into `settings.json`, and this Mac's
     /// record afterwards.
     public struct Plan: Equatable, Sendable {
@@ -307,73 +362,179 @@ public enum ICloudSync {
         /// entry; `kept` is what to record instead when it isn't put in (refused, or a file not downloaded yet).
         public var entries: [String: Entry] = [:]
         public var kept: [String: Entry] = [:]
-        /// Keys changed on this Mac since it last synced and in iCloud too, by another Mac, whichever is newer (the newer
-        /// wins all the same; recent questions are merged instead).
-        public var bothChanged: Set<String> = []
+        /// Collections to merge with iCloud's (`mergedOnJoin`), with iCloud's entry: joining, or changed here while off.
+        public var merges: [String: Entry] = [:]
     }
 
     /// The merge, key by key, of this Mac's values `local`, its record `known` (the keys' values and stamps when it last
-    /// synced) and `remote` (`settings.json`'s entries; nil when it can't be read now: nothing comes in or goes out, and
-    /// local changes are stamped, to go out next time), for the keys of `categories` (the others' records are kept).
+    /// synced) and `remote` (`settings.json`'s entries; nil when it can't be read now: nothing comes in or goes out),
+    /// for the keys of `categories`, each category in its mode (`modes`; normal when not given). The records of the
+    /// categories not synced now are kept.
     ///
-    /// - A value that differs from the record is a local change, stamped by `mac` when its file changed (`changedAt`, at
-    ///   most `now`) or `now` (a key gone: a tombstone, except for keys in `ignoringLocalAbsence`, a file never created
-    ///   on this Mac).
-    /// - A key this Mac never synced carries a joining stamp (`Stamp.joining`): what iCloud has for it wins, also later
-    ///   while it isn't changed here (it may have been recorded while iCloud couldn't be read).
-    /// - Otherwise the newer stamp wins: iCloud's comes in (`incoming`), this Mac's goes out (`outgoing`).
+    /// Normal: a value that differs from the record is a local change, stamped by `mac` when its file changed
+    /// (`changedAt`, at most `now`; `now` when not known), and always after the value it replaces (a stamp from a Mac
+    /// whose clock is ahead is accepted, and a change here is stamped 1 ms after it); a key gone is a tombstone, except
+    /// for keys in `ignoringLocalAbsence` (a file never created, or deleted, on this Mac); a key new since the last sync
+    /// is stamped the same way. Then the newer stamp wins. A Mac that has synced before never lets joining stamps (a
+    /// fresh Mac's values, put up while iCloud had lost its settings) over a value it synced: it puts its own back up,
+    /// with a real stamp; so it does for any value iCloud no longer has. A value of iCloud's refused here (`refused`, by its
+    /// stamp) is checked again each run, and this Mac's never goes over it unless changed here.
     public static func plan(local: [String: AIConfig.JSONValue], known: [String: Entry], remote: [String: Entry]?,
-                            categories: Set<Category>, mac: String, now: Date, changedAt: (String) -> Date? = { _ in nil },
-                            ignoringLocalAbsence: Set<String> = []) -> Plan {
+                            categories: Set<Category>, modes: [Category: Mode] = [:], mac: String, now: Date,
+                            changedAt: (String) -> Date? = { _ in nil }, ignoringLocalAbsence: Set<String> = [],
+                            refused: [String: Stamp] = [:]) -> Plan {
         var plan = Plan()
         var all = Set(local.keys).union(known.keys)
         if let remote { all.formUnion(remote.keys) }
+        func real(_ entry: Entry) -> Entry {
+            entry.stamp.isJoining ? Entry(value: entry.value, stamp: Stamp(modified: now, by: mac)) : entry
+        }
         for key in all.sorted() {
             guard let category = category(of: key), categories.contains(category) else {
-                // Not synced now: the record stays as it was, and a change made meanwhile goes out once it is again.
+                // Not synced now: the record stays as it was.
                 if let record = known[key] { plan.entries[key] = record }
                 continue
             }
             let value = local[key]
             let record = known[key]
-            var mine: Entry?
-            if let record {
-                let unchanged = record.value == value || (value == nil && ignoringLocalAbsence.contains(key))
-                // Stamped when the file changed if that is known (a change made while sync was off), never before the
-                // value it replaces.
-                let at = max(min(changedAt(key) ?? now, now), record.stamp.modified.addingTimeInterval(0.001))
-                mine = unchanged ? record : Entry(value: value, stamp: Stamp(modified: at, by: mac))
-            } else if let value {
-                mine = Entry(value: value, stamp: .joining(mac))
-            }
-            guard let remote else {
-                plan.entries[key] = mine
-                continue
-            }
-            guard let theirs = remote[key] else {
-                if let mine {
-                    plan.outgoing[key] = mine
-                    plan.entries[key] = mine
+            let theirs = remote?[key]
+            let absent = value == nil && ignoringLocalAbsence.contains(key)
+            switch modes[category] ?? .normal {
+            case .joining:
+                // Nothing recorded until iCloud can be read: the category stays joining.
+                guard remote != nil else { continue }
+                if let theirs {
+                    if let value, theirs.value != nil, value != theirs.value, mergedOnJoin.contains(key) {
+                        plan.merges[key] = theirs
+                        continue
+                    }
+                    plan.entries[key] = theirs
+                    if theirs.value != value, !(theirs.value == nil && absent) {
+                        plan.incoming[key] = theirs
+                        if let value { plan.kept[key] = Entry(value: value, stamp: .joining(mac)) }
+                    }
+                } else if let value {
+                    let entry = Entry(value: value, stamp: .joining(mac))
+                    plan.outgoing[key] = entry
+                    plan.entries[key] = entry
                 }
-                continue
-            }
-            if let mine, let record, mine != record, theirs.stamp != record.stamp { plan.bothChanged.insert(key) }
-            // Joining: this Mac never synced the key, or only as it was when it started syncing (not changed since).
-            let joining = record == nil || (record?.stamp.isJoining == true && mine == record)
-            if let mine, !joining, mine.stamp >= theirs.stamp {
-                // This Mac's is newer (or the same).
-                if mine != theirs { plan.outgoing[key] = mine }
-                plan.entries[key] = mine
-                continue
-            }
-            // iCloud's: newer, or this Mac is joining.
-            plan.entries[key] = theirs
-            if theirs.value != value {
-                plan.incoming[key] = theirs
-                if let mine { plan.kept[key] = mine }
+            case .rejoining:
+                guard remote != nil else {
+                    if let record { plan.entries[key] = record }
+                    continue
+                }
+                let changedHere = absent ? false : record.map { $0.value != value } ?? (value != nil)
+                let changedThere = theirs.map { $0.stamp != record?.stamp } ?? false
+                if changedHere, let value, let theirs, theirs.value != nil, value != theirs.value, mergedOnJoin.contains(key) {
+                    plan.merges[key] = theirs
+                } else if let theirs, changedThere {
+                    plan.entries[key] = theirs
+                    if theirs.value != value, !(theirs.value == nil && absent) {
+                        plan.incoming[key] = theirs
+                        if let mine = record ?? value.map({ Entry(value: $0, stamp: Stamp(modified: now, by: mac)) }) { plan.kept[key] = mine }
+                    }
+                } else if changedHere {
+                    let entry = Entry(value: value, stamp: Stamp(modified: now, by: mac))
+                    plan.outgoing[key] = entry
+                    plan.entries[key] = entry
+                } else if let record {
+                    let entry = theirs == nil ? real(record) : record
+                    if theirs == nil { plan.outgoing[key] = entry }
+                    plan.entries[key] = entry
+                }
+            case .normal:
+                var mine: Entry?
+                if let record {
+                    // Stamped when the file changed if that is known, never later than now nor before the value it
+                    // replaces.
+                    let at = max(min(changedAt(key) ?? now, now), record.stamp.modified.addingTimeInterval(0.001))
+                    mine = record.value == value || absent ? record : Entry(value: value, stamp: Stamp(modified: at, by: mac))
+                } else if let value {
+                    mine = Entry(value: value, stamp: Stamp(modified: min(changedAt(key) ?? now, now), by: mac))
+                }
+                guard remote != nil else {
+                    plan.entries[key] = mine
+                    continue
+                }
+                guard let theirs else {
+                    // iCloud doesn't have it (lost, or never sent): this Mac's goes up, with a real stamp.
+                    if let mine {
+                        plan.outgoing[key] = real(mine)
+                        plan.entries[key] = real(mine)
+                    }
+                    continue
+                }
+                if let mine, mine == record, refused[key] == theirs.stamp {
+                    // Refused here before and not changed here since: checked again, never put over it.
+                    plan.entries[key] = mine
+                    plan.incoming[key] = theirs
+                    plan.kept[key] = mine
+                    continue
+                }
+                if let mine, let record, theirs.stamp.isJoining, theirs.stamp != record.stamp {
+                    // A fresh Mac's value over one this Mac synced (iCloud had lost it): this Mac's goes back up.
+                    let entry = real(mine)
+                    if entry != theirs { plan.outgoing[key] = entry }
+                    plan.entries[key] = entry
+                    continue
+                }
+                if let mine, mine.stamp >= theirs.stamp {
+                    // The same stamp is the same change (as this version wrote it: a name it doesn't know left out).
+                    if mine.stamp > theirs.stamp { plan.outgoing[key] = mine }
+                    plan.entries[key] = mine
+                    continue
+                }
+                plan.entries[key] = theirs
+                if theirs.value != value, !(theirs.value == nil && absent) {
+                    plan.incoming[key] = theirs
+                    if let mine { plan.kept[key] = mine }
+                }
             }
         }
         return plan
+    }
+
+    // MARK: - Merging collections
+
+    /// Custom commands merged: iCloud's (`theirs`), then this Mac's whose name iCloud's lack; on a name in both, iCloud's.
+    /// The names of this Mac's commands that iCloud's replaced (they differed).
+    public static func mergedCommands(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue) -> (value: AIConfig.JSONValue, replaced: [String]) {
+        guard case let .array(icloud) = theirs, case let .array(local) = mine else { return (theirs, []) }
+        func name(_ command: AIConfig.JSONValue) -> String? {
+            if case let .object(fields) = command, case let .string(name)? = fields["name"] { return name.lowercased() }
+            return nil
+        }
+        var out = icloud
+        var names = Set(icloud.compactMap(name))
+        var replaced: [String] = []
+        for command in local {
+            guard let key = name(command) else { continue }
+            if names.insert(key).inserted {
+                out.append(command)
+            } else if !icloud.contains(command) {
+                replaced.append(key)
+            }
+        }
+        return (.array(out), replaced)
+    }
+
+    /// Hidden words merged: iCloud's, then this Mac's that iCloud's lack (ignoring case, as they are matched).
+    public static func mergedWords(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue) -> AIConfig.JSONValue {
+        let icloud = theirs.strings ?? [], local = mine.strings ?? []
+        var seen = Set(icloud.map { $0.lowercased() })
+        return .array((icloud + local.filter { seen.insert($0.lowercased()).inserted }).map { .string($0) })
+    }
+
+    /// A jargon list merged: iCloud's text, then this Mac's lines that iCloud's lacks (each once, spaces at the ends aside).
+    public static func mergedJargon(_ theirs: String, _ mine: String) -> String {
+        var seen = Set(theirs.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) })
+        let added = mine.components(separatedBy: .newlines).filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return !trimmed.isEmpty && seen.insert(trimmed).inserted
+        }
+        guard !added.isEmpty else { return theirs }
+        let base = theirs.isEmpty || theirs.hasSuffix("\n") ? theirs : theirs + "\n"
+        return base + added.joined(separator: "\n") + "\n"
     }
 
     /// `remote` with one entry per app where several spell its bundle id differently (two Macs added it at once): the
@@ -620,9 +781,16 @@ public enum ICloudSync {
                 }
             }
             guard let data = try? JSONEncoder().encode(AIConfig.JSONValue.object(file)),
-                  let next = try? JSONDecoder().decode(Config.self, from: data) else {
+                  var next = try? JSONDecoder().decode(Config.self, from: data) else {
                 rejected[key] = .wrongType
                 continue
+            }
+            // Style names a newer version added are left out here (iCloud keeps them for the Macs that know them), as
+            // the config leaves out a language it doesn't know.
+            if key == "rewriteStyles" { next.rewriteStyles = next.rewriteStyles.filter { RewriteStyle.named($0) != nil } }
+            if key.hasPrefix(appPrefix), let app = next.profileKey(for: String(key.dropFirst(appPrefix.count))),
+               let styles = next.appProfiles[app]?.rewriteStyles {
+                next.appProfiles[app]?.rewriteStyles = styles.filter { RewriteStyle.named($0) != nil }
             }
             current = next
             applied.append(key)

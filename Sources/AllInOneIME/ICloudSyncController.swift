@@ -150,6 +150,9 @@ final class ICloudSyncController: ObservableObject {
         for (key, problem) in report.rejected.sorted(by: { $0.key < $1.key }) {
             log.notice("iCloud sync: \(key, privacy: .public) from iCloud not applied: \(problem.rawValue, privacy: .public)")
         }
+        if !report.replacedCommands.isEmpty {
+            log.notice("iCloud sync: custom commands merged; iCloud's of the same name kept over this Mac's: \(report.replacedCommands.joined(separator: ", "), privacy: .public)")
+        }
         if let aside = report.setAside {
             log.error("iCloud sync: settings.json couldn't be read; set aside as \(aside, privacy: .public)")
         }

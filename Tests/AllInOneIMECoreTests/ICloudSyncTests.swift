@@ -244,16 +244,21 @@ struct ICloudSyncTests {
         #expect(waiting.outcome == .waiting && waiting.applied.isEmpty && waiting.uploaded.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: real.path), "nothing written over the placeholder")
         #expect(try Data(contentsOf: b.configURL) == before)
-        // A change on B meanwhile is stamped and goes up once the file is there.
+        // B hasn't joined yet: a change meanwhile is part of its join, where iCloud's settings win.
         try b.edit(at: t(2)) { $0.useSelection = false }
         #expect(b.sync(at: t(3)).outcome == .waiting)
         try saved.write(to: real)
         try FileManager.default.removeItem(at: folder.appendingPathComponent(".settings.json.icloud"))
         let report = b.sync(at: t(4))
         #expect(report.outcome == .synced && report.applied.contains("typeOut") && report.applied.contains("candidateLayout"))
-        #expect(report.uploaded == ["useSelection"])
+        #expect(report.uploaded.isEmpty)
         let config = try b.config()
-        #expect(config.typeOut && config.candidateLayout == .horizontal && !config.useSelection)
+        #expect(config.typeOut && config.candidateLayout == .horizontal && config.useSelection)
+        // Joined: a change now goes up, with a real stamp.
+        try b.edit(at: t(5)) { $0.useSelection = false }
+        #expect(b.sync(at: t(6)).uploaded == ["useSelection"])
+        a.sync(at: t(7))
+        #expect(try !a.config().useSelection)
     }
 
     @Test func aCorruptFileIsSetAsideNeverOverwritten() throws {
@@ -641,5 +646,283 @@ struct ICloudSyncTests {
         facts.iCloudSync.lastError = nil
         facts.iCloudSync.refused = ["provider": .noKey]
         #expect(rows().map(\.status) == [.warning, .ok] && rows()[0].text(chinese: false).contains("provider (no key for it on this Mac)"))
+    }
+}
+
+/// The coordinator's decisions on joining, rejoining, lost files, clears, stamps from the future and newer names.
+@Suite(.serialized)
+struct ICloudSyncJoinTests {
+    let t0 = SyncRig.t0
+    func t(_ minutes: Double) -> Date { t0.addingTimeInterval(minutes * 60) }
+
+    /// Two Macs that have both synced: A first, then B, then A again.
+    func pair(_ rig: SyncRig, _ change: (inout Config) -> Void = { _ in }) throws -> (SyncMac, SyncMac) {
+        let a = try rig.mac("A", change), b = try rig.mac("B")
+        a.sync(at: t(0))
+        b.sync(at: t(1))
+        a.sync(at: t(2))
+        return (a, b)
+    }
+
+    func entry(_ rig: SyncRig, _ key: String) throws -> ICloudSync.Entry? {
+        let data = try Data(contentsOf: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))
+        return try ICloudSync.RemoteSettings.parse(data).entries[key]
+    }
+
+    func ask(_ mac: SyncMac, _ question: String, at date: Date) throws {
+        var history = QuestionHistory.load(from: mac.engine.questionsURL)
+        history.record(.init(question: question, answer: "Answer to \(question)", date: date))
+        try history.write(to: mac.engine.questionsURL)
+    }
+
+    func questions(_ mac: SyncMac) -> [String] { QuestionHistory.load(from: mac.engine.questionsURL).entries.map(\.question) }
+
+    // MARK: Joining stamps only while joining
+
+    @Test func aKeyWithoutARecordAtJoinGetsARealStampLater() throws {
+        let rig = try SyncRig()
+        let (a, b) = try pair(rig)
+        #expect(a.state.joined.contains(.settings) && b.state.joined.contains(.jargon))
+        // Neither had a jargon list nor Mail settings when they joined.
+        try Data("A's list\n".utf8).write(to: a.jargonURL)
+        try a.touch(a.jargonURL, at: t(10))
+        try a.edit(at: t(10)) { $0.appProfiles["com.apple.mail"] = AppProfile(typeOut: true) }
+        try Data("B's list\n".utf8).write(to: b.jargonURL)
+        try b.touch(b.jargonURL, at: t(20))
+        try b.edit(at: t(20)) { $0.appProfiles["com.apple.mail"] = AppProfile(noAI: true) }
+        a.sync(at: t(30))
+        #expect(try entry(rig, ICloudSync.jargonKey)?.stamp == .init(modified: t(10), by: a.state.macID))
+        b.sync(at: t(31))
+        a.sync(at: t(32))
+        for mac in [a, b] {
+            #expect(try String(contentsOf: mac.jargonURL, encoding: .utf8) == "B's list\n", "the newer list lost")
+            #expect(try mac.config().appProfiles["com.apple.mail"] == AppProfile(noAI: true))
+        }
+    }
+
+    // MARK: Lost settings.json
+
+    @Test(arguments: [false, true])
+    func lostSettingsComeBackFromSyncedMacsWithRealStamps(corrupt: Bool) throws {
+        let rig = try SyncRig()
+        let (a, b) = try pair(rig) { $0.maxTokens = 2000 }
+        let url = rig.folder.url.appendingPathComponent(ICloudSync.settingsFile)
+        if corrupt { try Data("{ lost".utf8).write(to: url) } else { try FileManager.default.removeItem(at: url) }
+        // A synced Mac puts what it knows back up, with real stamps (its joining ones became "now").
+        let report = a.sync(at: t(10))
+        #expect(report.uploaded.contains("maxTokens"))
+        let up = try #require(try entry(rig, "maxTokens"))
+        #expect(!up.stamp.isJoining && up.value == .number(2000))
+        // A fresh Mac joining now takes them; its defaults never go over them.
+        let c = try rig.mac("C")
+        c.sync(at: t(20))
+        b.sync(at: t(21))
+        #expect(try c.config().maxTokens == 2000 && b.config().maxTokens == 2000)
+    }
+
+    @Test func twoJoiningStampsNeverOverwriteWhatASyncedMacHolds() throws {
+        let rig = try SyncRig()
+        let (a, _) = try pair(rig) { $0.maxTokens = 2000 }
+        // settings.json lost; a fresh Mac gets there first, its defaults stamped as joining.
+        try FileManager.default.removeItem(at: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))
+        let c = try rig.mac("C")
+        c.sync(at: t(10))
+        #expect(try entry(rig, "maxTokens")?.stamp.isJoining == true)
+        // A's own (also joining-stamped when it was first sent) isn't overwritten: it goes back up, real.
+        let report = a.sync(at: t(11))
+        #expect(report.applied.isEmpty && report.uploaded.contains("maxTokens"))
+        #expect(try a.config().maxTokens == 2000)
+        c.sync(at: t(12))
+        #expect(try c.config().maxTokens == 2000)
+    }
+
+    @Test func aJoiningMacsRefusedValueNeverGoesOverICloudsLater() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A") { $0.provider = .anthropic }
+        a.sync(at: t(0))
+        let b = try rig.mac("B", environment: .init(hasKey: { _ in false }))
+        #expect(b.sync(at: t(1)).rejected == ["provider": .noKey])
+        // Joined now, but its own provider (refused iCloud's) never goes up over iCloud's.
+        #expect(b.sync(at: t(2)).uploaded.isEmpty)
+        #expect(try entry(rig, "provider")?.value == .string("anthropic"))
+        a.sync(at: t(3))
+        #expect(try a.config().provider == .anthropic)
+    }
+
+    // MARK: Questions: a Clear is a dated event
+
+    @Test func aClearDropsWhatWasAskedBeforeItEverywhereAndKeepsWhatCameAfter() throws {
+        let rig = try SyncRig()
+        let on = ICloudSyncSettings(enabled: true, recentQuestions: true)
+        let a = try rig.mac("A") { $0.iCloudSync = on }, b = try rig.mac("B") { $0.iCloudSync = on }
+        try ask(a, "Quokka one", at: t(1))
+        try ask(a, "Quokka two", at: t(2))
+        a.sync(at: t(3))
+        b.sync(at: t(4))
+        try QuestionHistory().write(to: a.engine.questionsURL)  // Clear on A
+        try ask(b, "Quokka three", at: t(5))  // on B, before the Clear reached it
+        a.sync(at: t(6))
+        let file = try Data(contentsOf: rig.folder.url.appendingPathComponent(ICloudSync.questionsFile))
+        let cleared = try #require((try JSONSerialization.jsonObject(with: file) as? [String: Any])?["cleared"] as? String)
+        #expect(ICloudSync.date(cleared) == t(2), "dated by the newest question cleared")
+        b.sync(at: t(7))
+        a.sync(at: t(8))
+        #expect(questions(a) == ["Quokka three"] && questions(b) == ["Quokka three"])
+        // The record keeps hashes, never the questions.
+        let state = try String(contentsOf: a.engine.stateURL, encoding: .utf8)
+        #expect(!state.contains("Quokka"))
+    }
+
+    @Test func questionsPushedOutByNewerOnesAreNoClear() throws {
+        let rig = try SyncRig()
+        let on = ICloudSyncSettings(enabled: true, recentQuestions: true)
+        let a = try rig.mac("A") { $0.iCloudSync = on }, b = try rig.mac("B") { $0.iCloudSync = on }
+        try ask(a, "old", at: t(1))
+        a.sync(at: t(2))
+        b.sync(at: t(3))
+        try ask(b, "kept on B", at: t(4))
+        for n in 0..<QuestionHistory.limit { try ask(a, "new \(n)", at: t(10 + Double(n))) }
+        a.sync(at: t(20))
+        #expect(a.state.questionsCleared == nil)
+        b.sync(at: t(21))
+        #expect(questions(b).count == QuestionHistory.limit && questions(b).first == "new 4")
+    }
+
+    // MARK: First join merges collections
+
+    @Test func aFirstJoinMergesCollectionsAndKeepsScalarsFromICloud() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A") { config in
+            config.iCloudSync = ICloudSyncSettings(enabled: true, hiddenWords: true)
+            config.maxTokens = 2000
+            config.redaction.customWords = ["Falcon"]
+            config.customCommands = [CustomCommand(name: "alpha", type: .prompt, prompt: "A's")]
+        }
+        try Data("A line\n".utf8).write(to: a.jargonURL)
+        a.sync(at: t(0))
+        let b = try rig.mac("B") { config in
+            config.iCloudSync = ICloudSyncSettings(enabled: true, hiddenWords: true)
+            config.maxTokens = 3000
+            config.redaction.customWords = ["falcon", "Nightjar"]
+            config.customCommands = [CustomCommand(name: "ALPHA", type: .prompt, prompt: "B's"), CustomCommand(name: "gamma", type: .prompt, prompt: "B's")]
+        }
+        try Data("B line\nA line\n".utf8).write(to: b.jargonURL)
+        let report = b.sync(at: t(1))
+        #expect(report.replacedCommands == ["alpha"])
+        a.sync(at: t(2))
+        for mac in [a, b] {
+            let config = try mac.config()
+            #expect(config.maxTokens == 2000, "scalars: iCloud's")
+            #expect(config.redaction.customWords == ["Falcon", "Nightjar"])
+            #expect(config.customCommands.map(\.name) == ["alpha", "gamma"] && config.customCommands[0].prompt == "A's")
+            #expect(try String(contentsOf: mac.jargonURL, encoding: .utf8) == "A line\nB line\n")
+        }
+    }
+
+    // MARK: Rejoining
+
+    @Test func turnedBackOnARejoinTakesICloudsChangesAndSendsOnlyItsOwn() throws {
+        let rig = try SyncRig()
+        let (a, b) = try pair(rig)
+        try a.edit(at: t(10)) { $0.iCloudSync.enabled = false }
+        #expect(a.sync(at: t(11)).outcome == .off && a.state.paused.contains(.settings))
+        try a.edit(at: t(12)) { $0.maxTokens = 1500; $0.typeOut = true }  // both changed maxTokens; only A typeOut
+        try b.edit(at: t(13)) { $0.maxTokens = 2500; $0.useSelection = false }
+        b.sync(at: t(14))
+        try a.edit(at: t(20)) { $0.iCloudSync.enabled = true }
+        let report = a.sync(at: t(21))
+        #expect(Set(report.applied) == ["maxTokens", "useSelection"] && report.uploaded == ["typeOut"])
+        #expect(try entry(rig, "typeOut")?.stamp == .init(modified: t(21), by: a.state.macID), "stamped when it rejoined")
+        #expect(a.state.paused.isEmpty)
+        b.sync(at: t(22))
+        for mac in [a, b] {
+            let config = try mac.config()
+            #expect(config.maxTokens == 2500 && config.typeOut && !config.useSelection)
+        }
+    }
+
+    @Test func aRejoiningMacNeverDropsWhatItAddedToItsCollections() throws {
+        let rig = try SyncRig()
+        let on = ICloudSyncSettings(enabled: true, hiddenWords: true, recentQuestions: true)
+        let (a, b) = try pair(rig) { $0.iCloudSync = on; $0.redaction.customWords = ["Falcon"] }
+        try b.edit(at: t(3)) { $0.iCloudSync = on }
+        b.sync(at: t(4))
+        a.sync(at: t(5))
+        try a.edit(at: t(10)) { $0.iCloudSync.enabled = false }
+        a.sync(at: t(11))
+        // Off on A: it adds to each collection; B changes them too.
+        try a.edit(at: t(12)) { $0.redaction.customWords.append("Nightjar"); $0.customCommands = [CustomCommand(name: "mine", type: .prompt, prompt: "x")] }
+        try Data("A's line\n".utf8).write(to: a.jargonURL)
+        try ask(a, "asked on A while off", at: t(12))
+        try b.edit(at: t(13)) { $0.redaction.customWords.append("Heron"); $0.customCommands = [CustomCommand(name: "theirs", type: .prompt, prompt: "y")] }
+        try Data("B's line\n".utf8).write(to: b.jargonURL)
+        try ask(b, "asked on B", at: t(13))
+        b.sync(at: t(14))
+        try a.edit(at: t(20)) { $0.iCloudSync.enabled = true }
+        a.sync(at: t(21))
+        b.sync(at: t(22))
+        for mac in [a, b] {
+            let config = try mac.config()
+            #expect(Set(config.redaction.customWords) == ["Falcon", "Heron", "Nightjar"])
+            #expect(Set(config.customCommands.map(\.name)) == ["theirs", "mine"])
+            #expect(Set(try String(contentsOf: mac.jargonURL, encoding: .utf8).split(separator: "\n")) == ["B's line", "A's line"])
+            #expect(Set(questions(mac)) == ["asked on A while off", "asked on B"])
+        }
+    }
+
+    @Test func aCategoryTurnedOffAndOnAgainRejoinsToo() throws {
+        let rig = try SyncRig()
+        let (a, b) = try pair(rig)
+        try a.edit(at: t(10)) { $0.iCloudSync.settings = false }
+        a.sync(at: t(11))
+        #expect(a.state.paused == [.settings])
+        try b.edit(at: t(12)) { $0.typeOut = true }
+        b.sync(at: t(13))
+        try a.edit(at: t(14)) { $0.typeOut = false; $0.candidateLayout = .vertical }  // typeOut unchanged from its record
+        try a.edit(at: t(20)) { $0.iCloudSync.settings = true }
+        let report = a.sync(at: t(21))
+        #expect(report.applied == ["typeOut"] && report.uploaded == ["candidateLayout"])
+    }
+
+    // MARK: Stamps, names, the record
+
+    @Test func aStampFromTheFutureIsAcceptedAndAChangeHereFollowsIt() throws {
+        let rig = try SyncRig()
+        let (a, _) = try pair(rig)
+        let future = t(60 * 24 * 365 * 5)
+        var file = try JSONSerialization.jsonObject(with: Data(contentsOf: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))) as! [String: Any]
+        file["maxTokens"] = ["value": 1800, "modified": ICloudSync.dateText(future), "by": "AHEAD"]
+        try JSONSerialization.data(withJSONObject: file).write(to: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))
+        #expect(a.sync(at: t(10)).applied == ["maxTokens"])
+        try a.edit(at: t(11)) { $0.maxTokens = 2500 }
+        a.sync(at: t(12))
+        let stamp = try #require(try entry(rig, "maxTokens")?.stamp.modified)
+        #expect(stamp > future && stamp.timeIntervalSince(future) < 0.01)
+    }
+
+    @Test func aStyleANewerVersionAddedStaysInICloudOnly() throws {
+        let rig = try SyncRig()
+        let (a, b) = try pair(rig)
+        var file = try JSONSerialization.jsonObject(with: Data(contentsOf: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))) as! [String: Any]
+        file["rewriteStyles"] = ["value": ["正式", "Future"], "modified": ICloudSync.dateText(t(5)), "by": "NEWER"]
+        file["appProfiles.com.apple.mail"] = ["value": ["rewriteStyles": ["Future", "简洁"]], "modified": ICloudSync.dateText(t(5)), "by": "NEWER"]
+        try JSONSerialization.data(withJSONObject: file).write(to: rig.folder.url.appendingPathComponent(ICloudSync.settingsFile))
+        b.sync(at: t(10))
+        b.sync(at: t(11))
+        #expect(try b.config().rewriteStyles == ["正式"] && b.config().appProfiles["com.apple.mail"]?.rewriteStyles == ["简洁"])
+        #expect(try !String(contentsOf: b.configURL, encoding: .utf8).contains("Future"))
+        #expect(try entry(rig, "rewriteStyles")?.value == .array([.string("正式"), .string("Future")]), "kept for the newer Macs")
+        _ = a
+    }
+
+    @Test func syncsOwnWriteIsRemembered() throws {
+        let rig = try SyncRig()
+        let (a, b) = try pair(rig)
+        try a.edit(at: t(10)) { $0.typeOut = true }
+        a.sync(at: t(11))
+        b.sync(at: t(12))
+        let date = try FileManager.default.attributesOfItem(atPath: b.configURL.path)[.modificationDate] as? Date
+        let written = try #require(b.state.ownConfigWrite), modified = try #require(date)
+        #expect(abs(written.timeIntervalSince(modified)) < 0.002)
     }
 }
