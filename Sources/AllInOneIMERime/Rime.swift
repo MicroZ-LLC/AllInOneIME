@@ -27,6 +27,8 @@ public final class RimeService {
 
     private let syncLock = NSLock()
     private var syncing = false
+    /// A redeploy asked for while the learned words were syncing.
+    private var redeployWanted = false
     /// The learned words' sync is running (on a thread of its own).
     public var isSyncing: Bool { syncLock.lock(); defer { syncLock.unlock() }; return syncing }
     private func setSyncing(_ on: Bool) { syncLock.lock(); syncing = on; syncLock.unlock() }
@@ -71,6 +73,11 @@ public final class RimeService {
     /// Session ids are reused by librime, so the generation marks every older session as dead.
     public func redeploy() {
         guard isStarted else { return }
+        // Not while the learned words sync on their thread: done when that ends.
+        guard !isSyncing else {
+            redeployWanted = true
+            return
+        }
         generation += 1
         api.pointee.cleanup_all_sessions()
         _ = api.pointee.start_maintenance(1)
@@ -79,9 +86,11 @@ public final class RimeService {
     /// The learned words on every Mac (`RimeSync`): librime's user-dictionary sync alone, on a thread of its own. It
     /// reads `sync_dir` from the user folder's `installation.yaml` (`installation_update`), merges into this installation's
     /// user dictionaries the snapshots the other installations left there, and writes this one's own in its folder there,
-    /// named by its `installation_id` (`user_dict_sync`). Not librime's whole `sync_user_data`, which also copies the
-    /// user's own `.yaml` and `.txt` files (custom phrases, settings) into that folder. Sessions are dropped first, as
-    /// for a redeploy; `isReady` is false until it is done. False when Rime isn't ready (deploying, or syncing already).
+    /// named by its `installation_id` (`user_dict_sync`). Not librime's whole `sync_user_data`, whose
+    /// `backup_config_files` task also copies the user's own `.yaml` and `.txt` files (custom phrases, settings) into
+    /// that folder: that task is never run here. Sessions are dropped first, as for a redeploy; `isReady` is false until
+    /// it is done, and a redeploy asked for meanwhile waits for it. False when Rime isn't ready (deploying, or syncing
+    /// already).
     @discardableResult
     public func syncUserData(done: ((Bool) -> Void)? = nil) -> Bool {
         guard isReady else { return false }
@@ -92,7 +101,13 @@ public final class RimeService {
         DispatchQueue.global(qos: .utility).async {
             let ok = api.pointee.run_task("installation_update") != 0 && api.pointee.run_task("user_dict_sync") != 0
             self.setSyncing(false)
-            if let done { DispatchQueue.main.async { done(ok) } }
+            DispatchQueue.main.async {
+                if self.redeployWanted {
+                    self.redeployWanted = false
+                    self.redeploy()
+                }
+                done?(ok)
+            }
         }
         return true
     }

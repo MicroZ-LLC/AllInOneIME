@@ -62,4 +62,19 @@ extension RimeEngineTests {
                 "another Mac's snapshot is only read")
         #expect(RimeService.shared.makeSession() != nil)
     }
+
+    /// A redeploy asked for while the learned words sync (fuzzy pinyin changed meanwhile) waits for the sync, then runs.
+    @Test func aRedeployWaitsForTheLearnedWordsSync() throws {
+        _ = try RimeFixture.startup.get()
+        #expect(RimeService.shared.waitUntilReady(timeout: 60))
+        var finished = false
+        #expect(RimeService.shared.syncUserData { _ in finished = true })
+        let generation = RimeService.shared.generation
+        RimeService.shared.redeploy()
+        #expect(RimeService.shared.generation == generation, "not while syncing")
+        let deadline = Date().addingTimeInterval(60)
+        while !finished, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+        #expect(finished && RimeService.shared.generation == generation + 1, "run once the sync ended")
+        #expect(RimeService.shared.waitUntilReady(timeout: 60))
+    }
 }
