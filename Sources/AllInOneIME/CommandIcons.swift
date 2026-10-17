@@ -18,7 +18,6 @@ enum CommandIcons {
         case .read: return CandidateView.Icon(symbol: "doc.richtext.fill", color: .systemTeal)
         case .note: return CandidateView.Icon(symbol: "note.text", color: .systemYellow)
         case .reminder: return CandidateView.Icon(symbol: "bell.fill", color: .systemRed)
-        case .calc: return CandidateView.Icon(symbol: "plus.forwardslash.minus", color: .systemOrange)
         case .py: return CandidateView.Icon(symbol: "chevron.left.forwardslash.chevron.right", color: .systemBlue)
         case .js: return CandidateView.Icon(symbol: "curlybraces", color: .systemYellow)
         case .webSearch: return CandidateView.Icon(symbol: "globe", color: .systemCyan)

@@ -77,13 +77,12 @@
 | `@open` | 邊輸入邊列出符合的檔案、資料夾和 App（Spotlight）。可以輸入多個關鍵字，以空格分隔：每個都必須出現在路徑中，且至少一個出現在名稱中（標準資料夾的名稱也適用於其中的項目：`downloads pdf` 會找到 Downloads（下載項目）中的 PDF）。App 和標準資料夾也能用中文名稱找到，中文介面下也以中文名稱顯示。用 `@open` 開啟過的項目排最前面，接著是 App 和那些資料夾，然後是最近使用或修改過的檔案；若名稱只找到兩個以下的檔案，且沒有符合的 App 或那些資料夾，也會依內容搜尋你個人專屬資料夾中的檔案，這些列標示為「content」（內容）；若沒有其他結果，按 ⏎ 會列出它們讓你挑選，而不是直接開啟第一個。輸入網址時（`github.com`、`localhost:3000`、`https://…`），第一列是「open in the browser」（在瀏覽器中開啟），且不搜尋內容；名稱與其完全相同的檔案（例如 `MANIFEST.in`）排在最前面。以 `~/` 或 `/` 開頭的文字是路徑：Tab 會補全並進入資料夾；⏎ 開啟，⌘C 拷貝路徑 |
 | `@note` | 把文字存到 Notes App 中名為 AllInOneIME 的資料夾（不存在時會建立）；不會插入任何內容。貼上的文字保留換行，最多 20000 個字元 |
 | `@reminder` | 在 Reminders App 名為 AllInOneIME 的列表中加入提醒事項。把時間寫在文字裡；時間在 Mac 上解析，並有一列顯示解析結果：按 ⏎ 或 Space 加入，Esc 返回編輯。有時間的話，會在那時響起提醒；只有日期的話，就是整天 |
-| `@calculate` | 在這台 Mac 上計算；結果出現在候選中，按 ⏎ 或 Space 插入：`@calculate 23*17` → `391`。也能在句子中使用：`@reply the total is @calculate 23*17 dollars` |
 | `@py` | 執行一行 Python（Mac 上的 `python3`）並插入結果：程式碼最後一個運算式的值，例如 `@py 2**100`、`@py import math; math.sqrt(2)`，否則就是它印出的內容。沒有 `python3` 時不提供（Xcode 的命令列工具內含） |
 | `@js` | 執行一行 JavaScript 並同樣插入結果：最後一個運算式的值，或 `console.log` 印出的內容，例如 `@js [1, 2, 3].map(x => x * 2)`。它使用 macOS 內建的 JavaScriptCore，不需要安裝任何東西；它無法讀取檔案、連上網路或執行其他程式 |
 | `@reportissue` | 回報問題：在瀏覽器中開啟 GitHub 的新 issue 頁面，把指令後面輸入的內容當作標題，並附上「What happened / What you expected」（發生了什麼／你預期的結果）讓你填寫。它會加上 App 和 macOS 的版本、Mac 的架構、介面與輸入語言、已安裝的語言包、AI 供應商的種類（若是公開模型則附上模型名稱，否則寫「custom」）、執行鍵，以及你有幾個自訂指令、外掛程式和擴充功能，但絕不包含它們的名稱、你的文字、路徑或金鑰。按 ⏎（或你的執行鍵）會先在候選視窗中顯示這些內容；再按一次 ⏎，或按一下那一列，才會開啟網頁，你在那裡看過後按一下 Submit（使用你的 GitHub 帳號）；Esc 返回。輸入選單（「Report an Issue…」）和 Settings → About 中也有 |
 | `@imessage` | 傳送 iMessage：輸入姓名、電話號碼或電子郵件（中文姓名也可以用拼音，全拼或首字母皆可），在候選視窗中選擇收件人（最近傳過訊息的排在前面；完整的號碼或地址也可以），然後寫訊息（其中的指令如 `@stock AAPL` 會先執行）。按 ⏎ 會在視窗中顯示「Send to Alex (…): message」，再按一次 ⏎ 送出，Esc 返回編輯；不會在文字欄位中輸入任何內容。第一次使用時，macOS 會詢問是否允許 AllInOneIME 取用 Contacts（聯絡人）及控制 Messages（訊息）：兩個都按一下「OK」 |
 
-範例：`@q` ⏎，輸入 `what is quantum computing`，⏎。`@note books to read: The Three-Body Problem` ⏎ 會儲存一則備忘錄。`@reminder call Bob tomorrow at 3pm` ⏎，確認它解析出的時間，再按一次 ⏎ 加入。選定指令後，也可以按住右側 ⌥ 說話。在中文模式下，`@open` 和 `@calculate` 會暫時切換為英文字母，完成後再回到中文。
+範例：`@q` ⏎，輸入 `what is quantum computing`，⏎。`@note books to read: The Three-Body Problem` ⏎ 會儲存一則備忘錄。`@reminder call Bob tomorrow at 3pm` ⏎，確認它解析出的時間，再按一次 ⏎ 加入。選定指令後，也可以按住右側 ⌥ 說話。在中文模式下，`@open` 會暫時切換為英文字母，完成後再回到中文。
 
 `@py` 和 `@js` 的程式碼以英文字母輸入，全形標點（來自中文模式）會轉成 ASCII；請寫在同一行，敘述之間用 `;` 分隔。程式碼在獨立的行程中執行，10 秒後或隨時按 Esc 即停止；出錯時會顯示錯誤的第一行，例如 `ZeroDivisionError: division by zero`。多行輸出會照印出的樣子插入；在終端機中則合併成一行插入（終端機會執行收到的每一行）。編輯器內的終端機（VS Code、Cursor、JetBrains）無法與編輯器本身區分，因此在那裡，任何指令的多行輸出都會原樣插入。兩者也都能在其他指令的句子中使用：`@reply the answer is @py 2**100`；含空格的程式碼請加上引號：`@question explain @py "sum(x * x for x in range(10))"`。反過來則不行：`@py` 和 `@js` 的程式碼一定完全照你輸入的內容執行，其中的 `@commands` 不會先執行。
 
@@ -92,8 +91,6 @@
 ![@open 邊輸入邊尋找 App；以 / 開頭則是路徑：列出資料夾內容，Tab 補全](../en/open.png)
 
 `@` 後面接的不是指令時（例如 `@john`），`@` 會照常插入，所以在聊天 App 中 @ 提及別人仍然可用。緊接在字母、數字、`.`、`_` 或 `-` 後面輸入時（例如 `bob@example.com`、`ssh user@host`），`@` 就只是普通文字：不會打開清單，在任何 App 中都一樣，終端機也是。清單打開時，按 ← → 或指令名稱中不可能出現的鍵（`.`、`:`、`/`）會關閉清單，並保留你輸入的內容（`@`、`@im`）原樣不動；在終端機中，← → 這時只會關閉清單。`@question`、`@improve` 和 `@translate` 只在你按下執行鍵時才送到你自己的 Bedrock；`@open` 只在這台 Mac 上搜尋；`@note` 和 `@reminder` 只送到這台 Mac 上的 Notes 和 Reminders；`@agent` 使用安裝在你 Mac 上的 agent（預設是 Claude Code 的 `claude` 指令）及其自己的帳號，並且和平常一樣，在修改檔案或執行指令前會先詢問你。沒有安裝該 agent 時，不提供 `@agent`。`@imessage` 只讀取這台 Mac 上的 Contacts（姓名、電話號碼、電子郵件），絕不經過 AI，訊息由 Messages 傳送；沒有 Messages App 時不提供。
-
-`@calculate` 在這台 Mac 上離線計算：`+ - * /`（也可用 `× ÷`）、`^` 或 `**` 表示次方、括號、百分比（`50%` 是 0.5，`200*5%` 是 10；和計算機一樣，加上或減去的百分比是相對於前面的數：`100+10%` 是 110，`100-10%` 是 90）、函式 `sqrt abs round floor ceil ln log exp sin cos tan min max pow`（`log` 以 10 為底，角度單位為弧度，`round(x, 2)` 保留兩位小數），以及常數 `pi`（`π`）和 `e`。全形數字和符號也能用。運算以十進位精確計算，所以 `0.1+0.2` 是 `0.3`；結果最多 15 位有效數字，38 位以內的整數會完整寫出（`2^100` → `1267650600228229401496703205376`）。
 
 ### 對選取的文字使用指令（新）
 
@@ -204,9 +201,9 @@ Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent`
 
 ### 外掛程式
 
-外掛程式是現成的 `@` 指令，用於不是每個人都需要的功能，例如用 `@stock AAPL 600519 700` 查詢股價。安裝後，它們和其他指令一樣使用；設定中的「Plugins」（外掛程式）會顯示已安裝的外掛程式、各自把你的文字送到哪裡，並可移除它們。外掛程式是在獨立行程中執行的 JavaScript：它們只能連到自己宣告的網站（HTTPS），無法讀取檔案或執行其他程式。設定中「Plugins」下的「Browse Library…」（瀏覽程式庫…）可從[外掛程式庫](https://github.com/MicroZ-LLC/AllInOneIME-plugins)安裝外掛程式：安裝前會顯示外掛程式會連到哪些網站；程式庫的索引經過簽署，每個檔案都必須與索引相符。有新版本時會顯示「Update」（更新）按鈕；不會自動更新任何東西。你自己的外掛程式放在 `~/.config/allinoneime/plugins/`（「Open Plugins Folder」，打開外掛程式資料夾）：這些是本機外掛程式，絕不會被程式庫覆寫。「Link」（連結）外掛程式不執行任何程式碼：它們把文字放進網址並在瀏覽器中開啟，例如 `@x nice weather today` 會開啟 X 的撰文畫面並填好文字；要不要發佈由你在頁面上決定。程式庫中有四個（`@x`、`@threads`、`@bsky`、`@weibo`）。`@xe` 換算貨幣：`@xe 100 USD CNY`、`@xe 1000 JPY EUR`，結果為一行，附上匯率日期（匯率來自 ExchangeRate-API）。撰寫外掛程式：[docs/plugins.md](../plugins.md)。
+外掛程式是現成的 `@` 指令，用於不是每個人都需要的功能，例如用 `@stock AAPL 600519 700` 查詢股價。安裝後，它們和其他指令一樣使用；設定中的「Plugins」（外掛程式）會顯示已安裝的外掛程式、各自把你的文字送到哪裡，並可移除它們。外掛程式是在獨立行程中執行的 JavaScript：它們只能連到自己宣告的網站（HTTPS），無法讀取檔案或執行其他程式。設定中「Plugins」下的「Browse Library…」（瀏覽程式庫…）可從[外掛程式庫](https://github.com/MicroZ-LLC/AllInOneIME-plugins)安裝外掛程式：安裝前會顯示外掛程式會連到哪些網站；程式庫的索引經過簽署，每個檔案都必須與索引相符。有新版本時會顯示「Update」（更新）按鈕；不會自動更新任何東西。你自己的外掛程式放在 `~/.config/allinoneime/plugins/`（「Open Plugins Folder」，打開外掛程式資料夾）：這些是本機外掛程式，絕不會被程式庫覆寫。「Link」（連結）外掛程式不執行任何程式碼：它們把文字放進網址並在瀏覽器中開啟，例如 `@x nice weather today` 會開啟 X 的撰文畫面並填好文字；要不要發佈由你在頁面上決定。程式庫中有四個（`@x`、`@threads`、`@bsky`、`@weibo`）。`@xe` 換算貨幣：`@xe 100 USD CNY`、`@xe 1000 JPY EUR`，結果為一行，附上匯率日期（匯率來自 ExchangeRate-API）。`@calculator` 是離線也能用的計算機：`@calculator 23*17` → `391`（0.6.5 以前是內建的 `@calculate`）；`@calendar` 計算日期：`@calendar +10` → 「周二 10月27日 · 10天后」。撰寫外掛程式：[docs/plugins.md](../plugins.md)。
 
-會擷取資料的指令（外掛程式和程式）也能在句子中使用：`@reply tell her @stock AAPL is up today`。內層的指令先執行，它們的輸出取代它們原本的位置，外層的指令再處理結果。引數是指令後面的那個詞，加上緊接其後的大寫代碼或數字（`@stock AAPL TSLA`、`@stock 600519 700`）；遇到小寫的詞就結束（`@stock SNDK is good to buy` 查詢的是 SNDK）。引號可以精確標出引數：`@stock "aapl tsla"`。`@calculate` 也能在句子中使用；它的引數是後面的整個運算式，包括空格，直到其他文字為止：`@reply the total is @calculate 23 * 17 dollars`。在 `@agent` 和終端機指令中，它們不會執行：這些指令收到的是照寫的文字（在其中輸入 `@` 也不會開啟指令清單）。
+會擷取資料的指令（外掛程式和程式）也能在句子中使用：`@reply tell her @stock AAPL is up today`。內層的指令先執行，它們的輸出取代它們原本的位置，外層的指令再處理結果。引數是指令後面的那個詞，加上緊接其後的大寫代碼或數字（`@stock AAPL TSLA`、`@stock 600519 700`）；遇到小寫的詞就結束（`@stock SNDK is good to buy` 查詢的是 SNDK）。引號可以精確標出引數：`@stock "aapl tsla"`。`@calculator` 外掛程式也能在句子中使用：`@reply the total is @calculator 23*17 dollars`。在 `@agent` 和終端機指令中，它們不會執行：這些指令收到的是照寫的文字（在其中輸入 `@` 也不會開啟指令清單）。
 
 ### 執行鍵
 
@@ -471,7 +468,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 
 ## 隱私
 
-- 打字（英文和拼音）以及 `@calculate` 的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。修改結果（在結果出現後輸入要求，再按 ⇧⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求；追問（⇧⏎）則會連同到目前為止的對話一起送出。
+- 打字（英文和拼音）以及 `@calculator` 外掛程式的計算完全在本機進行。只有在 `@improve`、`@translate` 或 `@question` 上按下執行鍵時，該句子才會送到你選擇的 AI 供應商（你自己的 Bedrock，或你加入金鑰的服務）。勾選「Jargon」並設定了術語表時，術語表會一併送出。修改結果（在結果出現後輸入要求，再按 ⇧⏎）會再次送出同樣的請求，並附上目前顯示的結果和你的要求；追問（⇧⏎）則會連同到目前為止的對話一起送出。
 - `@config` 和 `@doctor <question>` 會在你按 ⏎ 時把文字送給模型：只要這台 Mac 能用 Apple Intelligence 就用它（不會有任何內容離開 Mac），否則用你的供應商。`@config` 會送出你的句子（句子中輸入的金鑰會先去除），以及它可以修改的那些設定的目前值：絕不包含金鑰，也不包含你對 AI 隱藏的詞（只送出有幾個），AWS 設定檔的名稱也只在句子與 AWS 或 Bedrock 有關時才送出。`@doctor <question>` 會送出你的問題和遮蔽過的檢查結果：路徑只到 `~` 為止、沒有金鑰、記錄檔的內容改為固定的說法。隱藏敏感資訊對兩者都適用，和其他請求一樣。單獨執行檢查時（`@doctor` 後面什麼都不接），除了 Test Connection 的請求之外什麼都不送出，而且只在供應商有金鑰或憑證可測試時才送。
 - 把 `@question` 對話移到別處接著聊（最後一輪之後按 ⌘1…，或按 ⌘⏎）時，會把對話連同你輸入的內容，透過網址或剪貼簿送到你選的服務：這台 Mac 上的程式設計 agent（Claude Code、Gemini CLI、Kiro CLI 或你自己的，各自使用自己的帳號和服務）、claude.ai、chatgpt.com 或 gemini.google.com。送出的內容就是你看到的樣子：對 AI 請求隱藏的值（見下文）會原樣包含在內，因為是你選擇把它送到那裡。在你選擇之前不會送到任何地方；「Copy the conversation」只會把它放到剪貼簿。
 - 使用 AllInOneIME Cloud 時，句子會經由開發者的伺服器送到模型供應商（目前經由 OpenRouter）：伺服器只保留計數，絕不保留文字。登入只會保留你的電子郵件地址。

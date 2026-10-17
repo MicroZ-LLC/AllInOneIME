@@ -6,8 +6,7 @@ import Foundation
 ///
 /// An inner command is `@name` (a known command, not after a letter or digit, so `a@b.com` stays text)
 /// followed by a space and its argument (`argument(_:from:)`): `@stock AAPL TSLA 哪个涨得多` → `AAPL TSLA`,
-/// `@stock SNDK is good to buy` → `SNDK`, `@stock「aapl tsla」` → `aapl tsla`. `@calculate` takes the whole
-/// expression after it (`Calculator.argument`): `总价是 @calculate 23 * 17 元` → `23 * 17`. A search takes the rest
+/// `@stock SNDK is good to buy` → `SNDK`, `@stock「aapl tsla」` → `aapl tsla`. A search takes the rest
 /// of the sentence (`phrase(_:from:commands:)`): `总结 @search 苹果发布会，重点说新品` → `苹果发布会`.
 /// Anything else is plain text.
 public struct CommandPlan: Equatable, Sendable {
@@ -53,8 +52,7 @@ public struct CommandPlan: Equatable, Sendable {
                 // A space before the argument, or a quote right after the name (`@stock「aapl tsla」`).
                 let start = j < chars.count && chars[j] == " " ? j + 1 : j
                 if let command = inners[name], j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]),
-                   let (argument, end) = command == .calc ? Calculator.argument(chars, from: start)
-                       : takesPhrase(command) ? Self.phrase(chars, from: start, commands: inners)
+                   let (argument, end) = takesPhrase(command) ? Self.phrase(chars, from: start, commands: inners)
                        : Self.argument(chars, from: start) {
                     if !argument.isEmpty {
                         if !literal.isEmpty { parts.append(.text(literal)) }

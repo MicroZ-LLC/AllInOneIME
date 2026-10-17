@@ -1346,7 +1346,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 18)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 17)
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@q")
         #expect(c.handleKeyDown(tab).effects == [.updateMarkedText, .showPanel])
@@ -1366,7 +1366,7 @@ struct ComposerTests {
         #expect(a.paletteHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.paletteHighlighted == 17 && a.paletteFirstVisible == 13)  // around to the last, scrolled to it
+        #expect(a.paletteHighlighted == 16 && a.paletteFirstVisible == 12)  // around to the last, scrolled to it
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1496,29 +1496,29 @@ struct ComposerTests {
         let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
         let reply = CustomCommand(name: "reply", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, reply]).map(\.program)
-            == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, nil, nil, "/System/Applications/Messages.app", nil,
+            == [nil, nil, nil, "claude", nil, nil, nil, "python3", nil, nil, nil, nil, nil, "/System/Applications/Messages.app", nil,
                 "python3", nil])  // @py needs python3 too
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
-        let catalog = Command.catalog(["reply", "sh", "calculate"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
+        let catalog = Command.catalog(["reply", "sh"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
-        // Running @calculate counts it, and says so to the controller (which keeps it).
+        // Running @py counts it, and says so to the controller (which keeps it).
         _ = c.handleKeyDown(at)
-        type("ca", c)
+        type("py", c)
         _ = c.handleKeyDown(tab)
         type("nihao", c)
-        #expect(tapOption(c, at: 5).contains(.commandUsed("calculate")))
-        #expect(c.commandUsage.score("calculate") > 0)
+        #expect(tapOption(c, at: 5).contains(.commandUsed("py")))
+        #expect(c.commandUsage.score("py") > 0)
         // Next time "@" lists it first; the digit picks from what's shown.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         d.commandUsage = c.commandUsage
         _ = d.handleKeyDown(at)
-        #expect(d.paletteVisible.map(\.name) == ["calculate", "improve", "translate", "question", "agent"])
+        #expect(d.paletteVisible.map(\.name) == ["py", "improve", "translate", "question", "agent"])
         _ = d.handleKeyDown(k("1"))
-        #expect(d.draft == "@calculate ")
+        #expect(d.draft == "@py ")
         // A command beyond the five is found by its letters.
         let (e, _) = composer(key: .optionTap)
         e.commands = catalog
@@ -1546,7 +1546,7 @@ struct ComposerTests {
         }
         let (c, e) = started()
         #expect(c.draft == "@reply 你好@" && c.paletteQuery == "")
-        #expect(c.paletteMatches.map(\.name) == ["calculate", "py", "js", "stock"])  // only what runs inside a text
+        #expect(c.paletteMatches.map(\.name) == ["py", "js", "stock"])  // only what runs inside a text
         type("st", c)
         #expect(c.draft == "@reply 你好@st" && c.paletteMatches.map(\.name) == ["stock"])
         _ = c.handleKeyDown(tab)
@@ -1632,7 +1632,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.count == 19 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
+        #expect(c.paletteMatches.count == 18 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
         for _ in 0..<5 { _ = c.handleKeyDown(downKey) }  // past the fifth: scrolls by one
         #expect(c.paletteHighlighted == 5 && c.paletteFirstVisible == 1)
         #expect(c.paletteVisible.map(\.name) == ["translate", "question", "agent", "open", "note"])
@@ -1642,10 +1642,10 @@ struct ComposerTests {
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 18 && d.paletteFirstVisible == 14)
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 17 && d.paletteFirstVisible == 13)
         #expect(d.paletteVisible.map(\.name) == ["imessage", "reportissue", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.paletteHighlighted == 16 && d.paletteFirstVisible == 14)  // still in view: no scrolling
+        #expect(d.paletteHighlighted == 15 && d.paletteFirstVisible == 13)  // still in view: no scrolling
         _ = d.choose(index: 2)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.

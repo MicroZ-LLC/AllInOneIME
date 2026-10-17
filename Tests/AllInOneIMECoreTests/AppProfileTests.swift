@@ -240,7 +240,7 @@ struct AppProfileTests {
 
     @Test func whichCommandsUseAI() {
         #expect([Command.improve, .translate, .question, .agent, .edit].allSatisfy { $0.usesAI })
-        #expect(![Command.open, .read, .note, .reminder, .calc, .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
+        #expect(![Command.open, .read, .note, .reminder, .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
             .contains { $0.usesAI })
         let custom = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply."),
                                       CustomCommand(name: "shout", type: .run, argv: ["tr", "a-z", "A-Z"])])
@@ -282,15 +282,15 @@ struct AppProfileTests {
 
     @Test func anAICommandWithACommandInsideIsRefusedBeforeEither() {
         let c = noAIComposer()
-        typeKeys("@question what is @calculate 2*3", c)
+        typeKeys("@question what is @py 2*3", c)
         let effects = c.handleKeyDown(enterKey).effects
         #expect(effects.contains(.notice("no AI here")) && !startsAnything(effects))
     }
 
     @Test func theOtherCommandsAndTypingStillWork() {
         let c = noAIComposer()
-        typeKeys("@calculate 2*3", c)
-        #expect(c.handleKeyDown(enterKey).effects.first == .startRun(.calc, input: "2*3", id: 1))
+        typeKeys("@py 2*3", c)
+        #expect(c.handleKeyDown(enterKey).effects.first == .startRun(.py, input: "2*3", id: 1))
         let note = noAIComposer()
         typeKeys("@note buy milk", note)
         #expect(note.handleKeyDown(enterKey).effects.contains(.saveNote(text: "buy milk")))

@@ -211,7 +211,7 @@ extension ComposerTests {
         type("nihao", question)
         _ = question.handleKeyDown(spaceKey)
         _ = question.handleKeyDown(at)
-        #expect(question.paletteQuery == "" && question.paletteMatches == [.read, .calc, .py, .js, .webSearch])
+        #expect(question.paletteQuery == "" && question.paletteMatches == [.read, .py, .js, .webSearch])
     }
 
     @Test func noCommandListInsideATerminalCommand() {
