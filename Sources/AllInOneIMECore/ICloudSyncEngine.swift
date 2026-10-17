@@ -10,13 +10,20 @@ import Foundation
 /// isn't JSON is set aside under a new name, never overwritten, and a new one written. The config file is written only
 /// when a value from iCloud changes it, key by key (`AIConfig.writing`: its other keys, those this version doesn't know
 /// too, keep their text), so the input method and Settings read it again as after any change.
-public struct ICloudSyncEngine {
+public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at a time (the app's sync queue)
     public var folder: ICloudSyncFolder
     public var configURL: URL
     public var stateURL: URL
     public var questionsURL: URL
     public var environment: ICloudSync.Environment
     public var now: () -> Date
+    /// This Mac's hardware (a hash of its platform UUID, `ICloudSync.machineID`): a record made on another Mac (copied by
+    /// Migration Assistant) gets a Mac id of its own. The tests give their own.
+    public var machineID: () -> String? = { ICloudSync.machineID() }
+    /// How the config file is written (`AIConfig.writing`); the app writes it on the main thread, as Settings does.
+    public var writeConfig: (_ config: Config, _ old: Config, _ keys: Set<String>, _ url: URL) throws -> Void = { config, old, keys, url in
+        try AIConfig.writing(config, from: old, keys: keys, at: url)
+    }
 
     public init(folder: ICloudSyncFolder, configURL: URL = Config.defaultURL, stateURL: URL = ICloudSync.State.defaultURL,
                 questionsURL: URL = QuestionHistory.defaultURL, environment: ICloudSync.Environment = .init(),
@@ -58,6 +65,15 @@ public struct ICloudSyncEngine {
         public var configKeys: Set<String> = []
         public var jargonChanged = false
         public var questionsChanged = false
+        /// The categories that joined (their first sync here) this run.
+        public var joining: Set<ICloudSync.Category> = []
+        /// The categories still waiting for a file from iCloud (the others synced).
+        public var waitingFor: Set<ICloudSync.Category> = []
+        /// This Mac's record was made on another Mac (Migration Assistant): it got a Mac id of its own, and Rime's
+        /// installation id should be made anew too.
+        public var newMachine = false
+        /// The recent-questions file on this Mac couldn't be read: set aside under this name, the questions not merged.
+        public var questionsSetAside: String?
         /// This Mac's custom commands that iCloud's of the same name replaced when they were merged (logged).
         public var replacedCommands: [String] = []
 
@@ -86,6 +102,14 @@ public struct ICloudSyncEngine {
         guard folder.isAvailable else { return Report(outcome: .unavailable) }
         var state = ICloudSync.State.load(from: stateURL)
         var report = Report(outcome: .synced)
+        // A record copied from another Mac (Migration Assistant): this Mac gets an id of its own.
+        if let machine = machineID() {
+            if let made = state.machine, made != machine {
+                state.macID = UUID().uuidString
+                report.newMachine = true
+            }
+            state.machine = machine
+        }
         func fail(_ error: Error) -> Report {
             state.lastError = Self.describe(error)
             try? state.write(to: stateURL)
@@ -119,10 +143,13 @@ public struct ICloudSyncEngine {
         // Questions only where they are remembered at all.
         if !config.rememberQuestions { categories.remove(.recentQuestions) }
         state.paused.formUnion(state.joined.subtracting(categories))
+        // Recent questions not synced now (not remembered, or the switch off): what went from here meanwhile is no Clear.
+        if !categories.contains(.recentQuestions) { state.questionsSeen = [:] }
         var modes: [ICloudSync.Category: ICloudSync.Mode] = [:]
         for category in categories {
             modes[category] = !state.joined.contains(category) ? .joining : state.paused.contains(category) ? .rejoining : .normal
         }
+        report.joining = Set(modes.filter { $0.value == .joining }.keys)
 
         // This Mac's values: the config's synced keys, and the jargon list as its hash. The recent questions are merged
         // on their own (below).
@@ -188,7 +215,7 @@ public struct ICloudSyncEngine {
             let keys = AIConfig.changedKeys(config, result.config)
             if !keys.isEmpty {
                 do {
-                    try AIConfig.writing(result.config, from: config, keys: keys, at: configURL)
+                    try writeConfig(result.config, config, keys, configURL)
                 } catch {
                     return fail(error)
                 }
@@ -234,13 +261,23 @@ public struct ICloudSyncEngine {
             } else {
                 plan.outgoing[ICloudSync.jargonKey] = nil  // no list here to send (deleted on this Mac only)
             }
+        } else if let entry = theirs?[ICloudSync.jargonKey], let jargon, ICloudSync.fileValue(jargon) == entry.value {
+            // iCloud's jargon.txt isn't the list its entry stamps (two Macs' files met), and this Mac has that one: it
+            // goes up again, so that no Mac waits for it forever.
+            // (A missing one may just not be listed here yet: waited for.)
+            var again = false
+            if case let .data(data)? = try? folder.read(ICloudSync.jargonFile) { again = ICloudSync.fileValue(data) != entry.value }
+            if again {
+                do { try folder.write(ICloudSync.jargonFile, jargon) } catch { return fail(error) }
+            }
         }
 
         // Recent questions: always merged, both lists, newest first, a question once; a Clear anywhere drops every
         // question asked before it.
         var questionsOut: Data?
         if categories.contains(.recentQuestions) {
-            switch syncQuestions(remote: remote != nil, entry: questionsEntry, state: &state, now: now) {
+            switch syncQuestions(remote: remote != nil, entry: questionsEntry, state: &state, now: now, report: &report) {
+            case .skipped: break
             case let .done(changed, upload):
                 report.questionsChanged = changed
                 if let upload {
@@ -256,7 +293,7 @@ public struct ICloudSyncEngine {
         if let remote, !plan.outgoing.isEmpty {
             do {
                 if let jargonOut, plan.outgoing[ICloudSync.jargonKey] != nil { try folder.write(ICloudSync.jargonFile, jargonOut) }
-                if let questionsOut { try folder.write(ICloudSync.questionsFile, questionsOut) }
+                if let questionsOut { try folder.write(ICloudSync.questionsFile, questionsOut, private: true) }
                 try folder.write(ICloudSync.settingsFile, remote.patched(with: plan.outgoing))
                 report.uploaded = plan.outgoing.keys.sorted()
             } catch {
@@ -270,18 +307,18 @@ public struct ICloudSyncEngine {
         // ones stand.
         state.rejected = remote == nil ? state.rejected : refused
         report.refused = state.rejected.mapValues(\.problem)
+        report.waitingFor = waiting
         if remote == nil || !waiting.isEmpty {
             report.outcome = .waiting
         }
         if remote != nil {
-            // Each category synced (none of its files still coming down) has joined, or rejoined.
+            // Each category synced (none of its files still coming down) has joined, or rejoined; one waiting doesn't keep
+            // the others from counting as synced.
             let done = categories.subtracting(waiting)
             state.joined.formUnion(done)
             state.paused.subtract(done)
-            if waiting.isEmpty {
-                state.lastSync = now
-                state.lastError = nil
-            }
+            state.lastSync = now
+            state.lastError = nil
         }
         do {
             try state.write(to: stateURL)
@@ -296,16 +333,34 @@ public struct ICloudSyncEngine {
         /// Merged: whether this Mac's list changed, and `questions.json` to put up (nil: iCloud's is the same).
         case done(changed: Bool, upload: Data?)
         case waiting
+        /// This Mac's file couldn't be read: set aside, nothing merged this time.
+        case skipped
         case failed(Error)
     }
 
     /// The recent questions merged with iCloud's `questions.json` (`{ "entries": […], "cleared": ISO 8601 }`): the
     /// questions of both, newest first, a question once (its newest wording), at most `QuestionHistory.limit`, less every
-    /// one asked before the newest Clear. A Clear here is told from this Mac's record (`State.questionsSeen`): questions it
-    /// had when it last synced that are gone now, not pushed out by newer ones; it is dated by the newest of them, so a
-    /// question asked anywhere after those survives it. Until iCloud's file is here, nothing is merged nor put up.
-    func syncQuestions(remote: Bool, entry: ICloudSync.Entry?, state: inout ICloudSync.State, now: Date) -> QuestionsResult {
-        let history = QuestionHistory.load(from: questionsURL)
+    /// one asked before the newest Clear.
+    ///
+    /// A Clear is recorded when the user clears them (`recordQuestionsClear`); one made while the input method wasn't
+    /// running is told from this Mac's record (`State.questionsSeen`): questions it had when it last synced that are gone
+    /// now, not pushed out by newer ones, dated by the newest of them. Questions deleted because "Remember recent
+    /// questions" was turned off are no Clear (`forgetQuestionsSeen`). A file here that can't be read is set aside and
+    /// nothing is merged this time (it is never taken as no questions); one in iCloud that can't be read is set aside as
+    /// `settings.json` is. iCloud's file, readable, is merged whatever its entry says (two Macs' files may have met), and
+    /// the merge goes up; one stamped but not here is waited for.
+    func syncQuestions(remote: Bool, entry: ICloudSync.Entry?, state: inout ICloudSync.State, now: Date,
+                       report: inout Report) -> QuestionsResult {
+        var history = QuestionHistory()
+        if FileManager.default.fileExists(atPath: questionsURL.path) {
+            guard let data = try? Data(contentsOf: questionsURL), let read = Self.decodedQuestions(data) else {
+                let folder = ICloudSyncFolder(url: questionsURL.deletingLastPathComponent())
+                report.questionsSetAside = try? folder.setAside(questionsURL.lastPathComponent, now: now)
+                state.questionsSeen = [:]
+                return .skipped
+            }
+            history = read.history
+        }
         let mine = Dictionary(history.entries.map { (Self.questionHash($0.question), $0.date) }, uniquingKeysWith: max)
         var cleared = state.questionsCleared
         let gone = state.questionsSeen.filter { mine[$0.key] == nil }
@@ -315,13 +370,21 @@ public struct ICloudSyncEngine {
         state.questionsCleared = cleared
         guard remote else { return .waiting }
         var icloud: (history: QuestionHistory, cleared: Date?, data: Data)?
-        switch try? folder.read(ICloudSync.questionsFile) {
-        case let .data(data)?:
-            guard entry == nil || ICloudSync.fileValue(data) == entry?.value, let read = Self.decodedQuestions(data) else { return .waiting }
-            icloud = (read.history, read.cleared, data)
-        case .placeholder?: return .waiting
-        case .missing?, nil:
-            if entry != nil { return .waiting }  // stamped, not here yet
+        do {
+            switch try folder.read(ICloudSync.questionsFile) {
+            case let .data(data):
+                if let read = Self.decodedQuestions(data) {
+                    icloud = (read.history, read.cleared, data)
+                } else {
+                    report.setAside = try folder.setAside(ICloudSync.questionsFile, now: now)
+                }
+            case .placeholder: return .waiting
+            case .missing:
+                // Stamped, not here (maybe not listed here yet): waited for.
+                if entry != nil { return .waiting }
+            }
+        } catch {
+            return .failed(error)
         }
         let allCleared = [cleared, icloud?.cleared].compactMap { $0 }.max()
         let entries = (history.entries + (icloud?.history.entries ?? [])).filter { entry in allCleared.map { entry.date > $0 } ?? true }
@@ -338,8 +401,49 @@ public struct ICloudSyncEngine {
         state.questionsSeen = Dictionary(merged.entries.map { (Self.questionHash($0.question), $0.date) }, uniquingKeysWith: max)
         state.questionsCleared = allCleared
         let data = Self.encodedQuestions(merged, cleared: allCleared)
-        let unchanged = icloud.map { $0.data == data } ?? (merged.entries.isEmpty && allCleared == nil)
+        let unchanged = icloud.map { $0.data == data } ?? (merged.entries.isEmpty && allCleared == nil && entry == nil)
         return .done(changed: changed, upload: unchanged ? nil : data)
+    }
+
+    /// The user cleared the recent questions at `date` ("Clear" in Settings, not turning "Remember recent questions"
+    /// off): every Mac drops the questions asked before it. Noted in this Mac's record, if it has one.
+    public func recordQuestionsClear(at date: Date) {
+        guard FileManager.default.fileExists(atPath: stateURL.path) else { return }
+        var state = ICloudSync.State.load(from: stateURL)
+        state.questionsCleared = max(state.questionsCleared ?? date, date)
+        try? state.write(to: stateURL)
+    }
+
+    /// The recent questions were deleted here without a Clear ("Remember recent questions" turned off): what went isn't
+    /// cleared elsewhere.
+    public func forgetQuestionsSeen() {
+        guard FileManager.default.fileExists(atPath: stateURL.path) else { return }
+        var state = ICloudSync.State.load(from: stateURL)
+        guard !state.questionsSeen.isEmpty else { return }
+        state.questionsSeen = [:]
+        try? state.write(to: stateURL)
+    }
+
+    /// "Remove from iCloud…" for the hidden words or the recent questions: their entry (and `questions.json`) taken out of
+    /// iCloud, every other entry as it is. Other Macs keep theirs; one still syncing them puts its own back.
+    public func removeFromICloud(_ category: ICloudSync.Category) throws {
+        let keys: [String]
+        switch category {
+        case .hiddenWords: keys = [ICloudSync.hiddenWordsKey]
+        case .recentQuestions: keys = [ICloudSync.questionsKey]
+        default: return
+        }
+        if category == .recentQuestions, folder.exists {
+            let file = folder.url.appendingPathComponent(ICloudSync.questionsFile)
+            if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+        }
+        guard case let .data(data) = try folder.read(ICloudSync.settingsFile),
+              let remote = try? ICloudSync.RemoteSettings.parse(data) else { return }
+        try folder.write(ICloudSync.settingsFile, remote.removing(Set(keys)))
+        var state = ICloudSync.State.load(from: stateURL)
+        for key in keys { state.entries[key] = nil }
+        if category == .recentQuestions { state.questionsSeen = [:] }
+        try? state.write(to: stateURL)
     }
 
     /// A question's key (`QuestionHistory.key`) as this Mac's record keeps it: hashed, never the text.

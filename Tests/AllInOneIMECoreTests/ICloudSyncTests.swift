@@ -411,7 +411,7 @@ struct ICloudSyncTests {
         b.sync(at: t(8))
         try a.edit(at: t(9)) { $0.iCloudSync.settings = true }
         let report = a.sync(at: t(10))
-        #expect(report.uploaded == ["candidateLayout"] && report.applied == ["typeOutRate"])
+        #expect(report.uploaded == ["candidateLayout"] && report.applied == ["typeOutRate"], "\(report.uploaded) \(report.applied)")
         b.sync(at: t(11))
         #expect(try b.config().candidateLayout == .vertical && a.config().typeOutRate == 30)
     }

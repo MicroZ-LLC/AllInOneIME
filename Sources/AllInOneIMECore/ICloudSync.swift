@@ -193,6 +193,16 @@ public enum ICloudSync {
             return settings
         }
 
+        /// The file without `keys`: only their text goes.
+        public func removing(_ keys: Set<String>) -> Data {
+            if let text, let out = JSONFileText.patched(text, setting: [:], keys: keys) { return Data(out.utf8) }
+            var all = entries.mapValues(\.json)
+            for key in keys { all[key] = nil }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            return (try? encoder.encode(AIConfig.JSONValue.object(all))) ?? Data("{}".utf8)
+        }
+
         /// The file with `changes` written in: only those keys' text changes.
         public func patched(with changes: [String: Entry]) -> Data {
             let values = changes.mapValues(\.json)
@@ -214,6 +224,8 @@ public enum ICloudSync {
     public struct State: Equatable, Sendable {
         /// A random id for this Mac (`Stamp.by`): nothing about the Mac or the user.
         public var macID: String
+        /// The Mac the record was made on (`ICloudSync.machineID`: a hash, never the hardware id itself).
+        public var machine: String?
         public var entries: [String: Entry] = [:]
         public var lastSync: Date?
         public var lastError: String?
@@ -254,6 +266,7 @@ public enum ICloudSync {
             if case let .string(text)? = fields["lastSync"] { state.lastSync = ICloudSync.date(text) }
             if case let .string(text)? = fields["lastError"] { state.lastError = text }
             if case let .string(text)? = fields["setAside"] { state.setAside = text }
+            if case let .string(text)? = fields["machine"] { state.machine = text }
             if let names = fields["joined"]?.strings { state.joined = Set(names.compactMap(Category.init(rawValue:))) }
             if let names = fields["paused"]?.strings { state.paused = Set(names.compactMap(Category.init(rawValue:))) }
             if case let .string(text)? = fields["ownConfigWrite"] { state.ownConfigWrite = ICloudSync.date(text) }
@@ -277,6 +290,7 @@ public enum ICloudSync {
             if let lastSync { fields["lastSync"] = .string(ICloudSync.dateText(lastSync)) }
             if let lastError { fields["lastError"] = .string(lastError) }
             if let setAside { fields["setAside"] = .string(setAside) }
+            if let machine { fields["machine"] = .string(machine) }
             if !joined.isEmpty { fields["joined"] = .array(joined.map(\.rawValue).sorted().map { .string($0) }) }
             if !paused.isEmpty { fields["paused"] = .array(paused.map(\.rawValue).sorted().map { .string($0) }) }
             if let ownConfigWrite { fields["ownConfigWrite"] = .string(ICloudSync.dateText(ownConfigWrite)) }
@@ -406,11 +420,13 @@ public enum ICloudSync {
                 if let theirs {
                     if let value, theirs.value != nil, value != theirs.value, mergedOnJoin.contains(key) {
                         plan.merges[key] = theirs
+                        plan.kept[key] = Entry(value: value, stamp: .joining(mac))
                         continue
                     }
                     plan.entries[key] = theirs
                     if theirs.value != value, !(theirs.value == nil && absent) {
                         plan.incoming[key] = theirs
+                        // Refused, this Mac's stays, as joining: it never goes over iCloud's (`refused`).
                         if let value { plan.kept[key] = Entry(value: value, stamp: .joining(mac)) }
                     }
                 } else if let value {
@@ -424,22 +440,28 @@ public enum ICloudSync {
                     continue
                 }
                 let changedHere = absent ? false : record.map { $0.value != value } ?? (value != nil)
-                let changedThere = theirs.map { $0.stamp != record?.stamp } ?? false
+                // Another Mac's joining stamp (a fresh Mac's value, put up while iCloud had lost what this Mac synced) is
+                // no change there: this Mac's goes back up.
+                let filler = theirs.map { $0.stamp.isJoining && $0.stamp.by != mac && record != nil && $0.stamp != record?.stamp } ?? false
+                let changedThere = (theirs.map { $0.stamp != record?.stamp } ?? false) && !filler
+                // Refused, this Mac's value stays, under the record's stamp: never put over iCloud's.
+                let held = value.map { Entry(value: $0, stamp: record?.stamp ?? .joining(mac)) }
                 if changedHere, let value, let theirs, theirs.value != nil, value != theirs.value, mergedOnJoin.contains(key) {
                     plan.merges[key] = theirs
+                    plan.kept[key] = held
                 } else if let theirs, changedThere {
                     plan.entries[key] = theirs
                     if theirs.value != value, !(theirs.value == nil && absent) {
                         plan.incoming[key] = theirs
-                        if let mine = record ?? value.map({ Entry(value: $0, stamp: Stamp(modified: now, by: mac)) }) { plan.kept[key] = mine }
+                        plan.kept[key] = held ?? record
                     }
                 } else if changedHere {
                     let entry = Entry(value: value, stamp: Stamp(modified: now, by: mac))
                     plan.outgoing[key] = entry
                     plan.entries[key] = entry
                 } else if let record {
-                    let entry = theirs == nil ? real(record) : record
-                    if theirs == nil { plan.outgoing[key] = entry }
+                    let entry = theirs == nil || filler ? real(record) : record
+                    if entry != theirs, theirs == nil || filler { plan.outgoing[key] = entry }
                     plan.entries[key] = entry
                 }
             case .normal:
@@ -471,6 +493,14 @@ public enum ICloudSync {
                     plan.kept[key] = mine
                     continue
                 }
+                if mergedOnJoin.contains(key), let record, record.stamp.isJoining, record.stamp.by == mac, theirs.stamp.by != mac,
+                   theirs.stamp != record.stamp, let value, theirs.value != nil, value != theirs.value {
+                    // Still as this Mac joined, and another Mac's in iCloud: two Macs joined at once, or this one joined
+                    // offline. The collections merge, as on a join.
+                    plan.merges[key] = theirs
+                    plan.kept[key] = mine
+                    continue
+                }
                 if let mine, let record, theirs.stamp.isJoining, theirs.stamp != record.stamp {
                     // A fresh Mac's value over one this Mac synced (iCloud had lost it): this Mac's goes back up.
                     let entry = real(mine)
@@ -491,7 +521,34 @@ public enum ICloudSync {
                 }
             }
         }
+        // Fields of an object a newer version added (in iCloud's entry, unknown here) go back up with this Mac's edit.
+        for (key, entry) in plan.outgoing {
+            if let carried = carryingUnknownFields(of: remote?[key]?.value, into: entry.value, key: key) {
+                plan.outgoing[key] = Entry(value: carried, stamp: entry.stamp)
+            }
+        }
         return plan
+    }
+
+    /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
+    /// for any other key.
+    public static func knownFields(of key: String) -> Set<String>? {
+        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI"] }
+        switch key {
+        case "redaction": return ["enabled", "emails", "phones", "cards", "keys", "ips", "customWords"]
+        case "anthropic", "gemini", "openai": return ["model", "baseURL", "effort", "temperature"]
+        default: return nil
+        }
+    }
+
+    /// `mine` with the fields of `theirs` this version doesn't know (`knownFields`) carried over, as `AIConfig.merged`
+    /// keeps them in config.json; nil when there are none to carry.
+    public static func carryingUnknownFields(of theirs: AIConfig.JSONValue?, into mine: AIConfig.JSONValue?, key: String) -> AIConfig.JSONValue? {
+        guard let known = knownFields(of: key), case let .object(icloud)? = theirs, case var .object(fields)? = mine else { return nil }
+        let unknown = icloud.filter { !known.contains($0.key) && fields[$0.key] == nil }
+        guard !unknown.isEmpty else { return nil }
+        for (name, value) in unknown { fields[name] = value }
+        return .object(fields)
     }
 
     // MARK: - Merging collections

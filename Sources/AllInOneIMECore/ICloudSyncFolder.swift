@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import IOKit
 
 /// The folder the Macs share (`ICloudSync`): `AllInOneIME` in iCloud Drive (`iCloudDrive`), or any folder (the tests and
 /// the self-test use a temporary one, two "Macs" at once). iCloud Drive is plain files in the user's Library, so the
@@ -70,11 +72,16 @@ public struct ICloudSyncFolder: Sendable {
         return .data(try Data(contentsOf: file))
     }
 
-    /// Writes `data` as `name` in one step (another reader sees the old file or the new one), making the folder first.
-    public func write(_ name: String, _ data: Data) throws {
+    /// Writes `data` as `name` in one step (another reader sees the old file or the new one), making the folder first;
+    /// `private`: readable by the user only from the start (0600), as the recent questions are on the Mac.
+    public func write(_ name: String, _ data: Data, private: Bool = false) throws {
         let file = url.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
+        if `private` {
+            try QuestionHistory.replace(file, with: data)
+        } else {
+            try data.write(to: file, options: .atomic)
+        }
     }
 
     /// Moves `name` aside, never overwriting it or anything: "settings.json" → "settings (unreadable 2026-10-16 180501).json".
@@ -139,6 +146,19 @@ public struct ICloudSyncFolder: Sendable {
     }
 }
 
+extension ICloudSync {
+    /// This Mac's hardware, as a hash of its platform UUID (never the UUID itself): a sync record copied from another Mac
+    /// by Migration Assistant is told by it. Nil when it can't be read.
+    public static func machineID() -> String? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        guard let uuid = IORegistryEntryCreateCFProperty(service, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? String else { return nil }
+        return SHA256.hash(data: Data(("AllInOneIME sync machine " + uuid).utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
 /// Rime's own user-data sync for the learned words: `sync_dir` in Rime's `installation.yaml` (in the Rime user folder)
 /// names the shared folder; each Mac's Rime installation (`installation_id`, its own) writes a snapshot of its user
 /// dictionaries in a folder of its own there and merges the others' into its own (`RimeService.syncUserData`).
@@ -164,6 +184,29 @@ public enum RimeSync {
             value = String(value.dropFirst().dropLast()).replacingOccurrences(of: "\\\"", with: "\"").replacingOccurrences(of: "\\\\", with: "\\")
         }
         return value
+    }
+
+    /// Takes `sync_dir` out of `installation.yaml`, only when it is `ours` (a folder the user set there stays). Whether it did.
+    @discardableResult
+    public static func removeSyncDir(ifItIs ours: URL, userDataDir: URL) throws -> Bool {
+        let file = userDataDir.appendingPathComponent("installation.yaml")
+        guard let text = try? String(contentsOf: file, encoding: .utf8), let current = syncDir(in: text),
+              URL(fileURLWithPath: current).standardizedFileURL.path == ours.standardizedFileURL.path else { return false }
+        try Data(installation(text, syncDir: nil).utf8).write(to: file, options: .atomic)
+        return true
+    }
+
+    /// `installation.yaml` without its `installation_id`, so that librime makes a new one (this Rime folder was copied
+    /// from another Mac, whose installation it would otherwise pass for). Whether there was one.
+    @discardableResult
+    public static func resetInstallationID(userDataDir: URL) throws -> Bool {
+        let file = userDataDir.appendingPathComponent("installation.yaml")
+        guard let text = try? String(contentsOf: file, encoding: .utf8) else { return false }
+        let lines = text.components(separatedBy: "\n")
+        let kept = lines.filter { !$0.hasPrefix("installation_id:") }
+        guard kept.count != lines.count else { return false }
+        try Data(kept.joined(separator: "\n").utf8).write(to: file, options: .atomic)
+        return true
     }
 
     /// Sets (or removes) `sync_dir` in `userDataDir/installation.yaml`, writing it only when it changes. Whether it did.
