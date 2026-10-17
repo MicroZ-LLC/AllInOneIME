@@ -1,4 +1,4 @@
-#if canImport(os)
+#if canImport(Darwin)  // not canImport(os): the Linux tests' shim of os (Tests/LinuxShims) would count
 import Foundation
 import os
 

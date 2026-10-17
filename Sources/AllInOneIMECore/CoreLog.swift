@@ -18,7 +18,7 @@ public struct CoreLog: Sendable {
     public func notice(_ message: String) { write(.notice, message) }
     public func error(_ message: String) { write(.error, message) }
 
-    #if !canImport(os)
+    #if !canImport(Darwin)  // as OSLog.swift: not canImport(os), which the Linux tests' shim of os answers
     static func writer(subsystem: String, category: String) -> @Sendable (Level, String) -> Void {
         let label = "\(subsystem) [\(category)]"
         return { level, message in FileHandle.standardError.write(Data("\(label) \(level.rawValue): \(message)\n".utf8)) }
