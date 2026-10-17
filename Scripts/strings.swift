@@ -7,18 +7,21 @@
 // The interface text is written in the code as `tr("中文", "English")`. The English text, as a printf format ("%@" for
 // each interpolation, "%%" for "%": `UIString.format`), is the catalog's key; Simplified Chinese and English come from
 // the code, other languages from the catalog (`InterfaceText`). This scans Sources for `tr` calls with two string
-// literals and:
+// literals (not the self-tests, *SelfTest.swift: their text never reaches translators, and shows in English in the other
+// languages) and:
 //   - adds the English formats not in the catalog yet, with the Chinese text and the file it is first used in as the
 //     comment (what translators see; refreshed for every key in use);
 //   - marks the keys no longer used as stale (`extractionState: stale`), and unmarks those used again;
 //   - keeps every translation.
 // It reports English formats with more than one Chinese text: one key can't hold two meanings, so all but one of them
-// get a key of their own, `tr("开", "On", key: "On (switch)")`, with the English as that key's English value (catalog
-// key ≠ source text). And the calls it can't read: anything but two string literals (each may be literals joined with
-// "+"), and a literal key.
+// get a key of their own, a short dotted name for where or how it is used, `tr("删除", "Remove", key: "remove.delete")`,
+// with the English as that key's English value (catalog key ≠ source text). And the calls it can't read: anything but
+// two string literals (each may be literals joined with "+"), and a literal key.
 //
-// --check fails when a key in use is missing from the catalog (or stale there, or a key of its own has another English
-// there), or a shipped language (any in the catalog but English) has no translation for one; it lists them.
+// --check fails when an English text has more than one Chinese text without keys of their own (a later change can't
+// merge two meanings into one key unnoticed), a key in use is missing from the catalog (or stale there, or a key of its
+// own has another English there), or a shipped language (any in the catalog but English) has no translation for one;
+// it lists them.
 
 import Foundation
 
@@ -304,7 +307,7 @@ func scan(_ tokens: [Located], file: String) {
 
 let sources = root.appendingPathComponent("Sources")
 let files = (FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)?.compactMap { $0 as? URL } ?? [])
-    .filter { $0.pathExtension == "swift" }
+    .filter { $0.pathExtension == "swift" && !$0.lastPathComponent.hasSuffix("SelfTest.swift") }
     .map { String($0.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1)) }
     .sorted()
 for file in files {
@@ -397,7 +400,7 @@ func report() {
 
 if check {
     report()
-    var failed = false
+    var failed = !conflicts.isEmpty
     if !missing.isEmpty {
         failed = true
         print("\n\(missing.count) keys missing from the catalog, or out of date there (run make strings):")
