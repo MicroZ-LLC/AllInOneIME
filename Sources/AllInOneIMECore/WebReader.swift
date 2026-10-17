@@ -45,7 +45,7 @@ public enum WebReader {
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
                          forHTTPHeaderField: "User-Agent")
         request.setValue("text/html,application/xhtml+xml,text/plain,application/pdf;q=0.9,*/*;q=0.5", forHTTPHeaderField: "Accept")
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await HTTPStream.bytes(for: request, session: session)
         let http = response as? HTTPURLResponse
         if let status = http?.statusCode, !(200..<300).contains(status) { throw ReadError.http(status) }
         var data = Data()

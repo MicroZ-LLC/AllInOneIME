@@ -119,7 +119,7 @@ public struct BedrockClient: Sendable {
                 do {
                     let request = try Self.makeRequest(
                         body, modelId: modelId, region: region, credentials: credentials, timeout: timeout)
-                    let (bytes, response) = try await session.bytes(for: request)
+                    let (bytes, response) = try await HTTPStream.bytes(for: request, session: session)
                     guard let http = response as? HTTPURLResponse else {
                         throw BedrockError.invalidResponse("not an HTTP response")
                     }

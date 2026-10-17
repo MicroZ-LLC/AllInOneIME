@@ -202,7 +202,7 @@ enum SSEStream {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (bytes, response) = try await session.bytes(for: request)
+                    let (bytes, response) = try await HTTPStream.bytes(for: request, session: session)
                     guard let http = response as? HTTPURLResponse else {
                         throw ProviderError.invalidResponse(provider, "not an HTTP response")
                     }
