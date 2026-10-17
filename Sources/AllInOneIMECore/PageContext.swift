@@ -88,22 +88,9 @@ public struct PageContext: Sendable, Equatable {
         var context = PageContext(url: url, title: title)
         if let path = path(to: { $0.focused && $0.isField }, in: page), let field = path.last, !field.isPassword {
             context.field = describe(field)
-            // Its form: the first ancestor with two fields or more; else its section: the first with real text.
-            for ancestor in path.dropLast().reversed() {
-                let text = render(ancestor, limit: Limits.surrounding)
-                if fieldCount(ancestor) >= 2 || text.count >= 200 {
-                    context.surrounding = text
-                    break
-                }
-            }
+            context.surrounding = section(around: path.dropLast())
         } else if let path = path(to: \.pointer, in: page) {
-            for ancestor in path.reversed() {
-                let text = render(ancestor, limit: Limits.surrounding)
-                if text.count >= 200 || ancestor == page {
-                    context.underPointer = text.isEmpty ? nil : text
-                    break
-                }
-            }
+            context.underPointer = section(around: path[...]) ?? nilIfEmpty(render(page, limit: Limits.surrounding))
         }
         if let selection = selection?.trimmingCharacters(in: .whitespacesAndNewlines), !selection.isEmpty {
             context.selection = clip(selection, Limits.selection)
@@ -115,14 +102,18 @@ public struct PageContext: Sendable, Equatable {
 
     /// The prompt `@agent` sends: what was typed, then the page's layers as tags (empty ones left out).
     public func prompt(request: String) -> String {
+        // The page's own text can't open or close a tag here ("</note>" in a title): escaped as XML.
+        func escaped(_ text: String) -> String {
+            text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+        }
         func attribute(_ text: String) -> String {
-            text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "\"", with: "&quot;")
-                .replacingOccurrences(of: "\n", with: " ")
+            escaped(text).replacingOccurrences(of: "\"", with: "&quot;").replacingOccurrences(of: "\n", with: " ")
         }
         var layers = ["<page url=\"\(attribute(url))\" title=\"\(attribute(title))\"/>"]
         for (tag, text) in [("you_are_here", field), ("surrounding", surrounding), ("under_pointer", underPointer),
                             ("selection", selection), ("visible", visible)] {
-            if let text { layers.append("<\(tag)>\n\(text)\n</\(tag)>") }
+            if let text { layers.append("<\(tag)>\n\(escaped(text))\n</\(tag)>") }
         }
         let spot = field != nil ? "in the field marked ★ (<you_are_here>)"
             : underPointer != nil ? "with the mouse pointer over <under_pointer>" : "on this page"
@@ -134,6 +125,18 @@ public struct PageContext: Sendable, Equatable {
     }
 
     // MARK: Layers
+
+    /// The nearest of `ancestors` (outermost first) that is a form or a section: two fields or more, or 200 characters
+    /// of text. Nearest, so a lone field in a page of text gets its section, not a form far up holding the search box.
+    static func section(around ancestors: ArraySlice<PageNode>) -> String? {
+        for ancestor in ancestors.reversed() {
+            let text = render(ancestor, limit: Limits.surrounding)
+            if fieldCount(ancestor) >= 2 || text.count >= 200 { return nilIfEmpty(text) }
+        }
+        return nil
+    }
+
+    static func nilIfEmpty(_ text: String) -> String? { text.isEmpty ? nil : text }
 
     /// The nodes from `page` down to the first one (depth first) that `matches`, both included.
     static func path(to matches: (PageNode) -> Bool, in page: PageNode) -> [PageNode]? {
@@ -207,7 +210,8 @@ public struct PageContext: Sendable, Equatable {
         return clip(lines.joined(separator: "\n"), limit)
     }
 
+    /// At most `limit` characters, "…" included.
     static func clip(_ text: String, _ limit: Int) -> String {
-        text.count <= limit ? text : String(text.prefix(limit)) + "…"
+        text.count <= limit ? text : String(text.prefix(max(limit - 1, 0))) + "…"
     }
 }
