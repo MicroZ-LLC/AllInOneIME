@@ -10,21 +10,43 @@ enum UIText {
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
     /// text field or the window opens); nil follows the system. Main thread only.
     static var choice: String? {
-        // The floating panel, on screen all along, redraws in the new language.
-        didSet { if choice != oldValue { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) } }
+        didSet {
+            guard choice != oldValue else { return }
+            language = picked()
+            // The floating panel, on screen all along, redraws in the new language.
+            NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil)
+        }
     }
     /// Where the translations are (`<code>.lproj`): the app; a stand-in while the self-test checks them. Main thread only.
-    static var app = Bundle.main { didSet { shipped = InterfaceLanguage.shipped(in: app) } }
+    static var app = Bundle.main {
+        didSet {
+            shipped = InterfaceLanguage.shipped(in: app)
+            language = picked()
+            InterfaceText.lookup = InterfaceText.bundleLookup(app: app)
+        }
+    }
     /// The languages `app` ships: "en", "zh-Hans" and its other `.lproj` folders.
     private(set) static var shipped = InterfaceLanguage.shipped()
     /// Read once per process (macOS relaunches apps after a language change).
     static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages, shipped: shipped)
 
-    /// The interface language's code: "zh-Hans", "en", …
-    static var language: String { InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage }
+    /// The interface language's code: "zh-Hans", "en", … Worked out when `choice` or `app` changes, not per text: `tr`
+    /// reads it on the candidate panel's hot path. The first read hands the core the app's translations (`useApp`).
+    private(set) static var language: String = {
+        useApp()
+        return picked()
+    }() {
+        didSet { chinese = InterfaceLanguage.isChinese(language) }
+    }
+
+    private static func picked() -> String { InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage }
+
+    /// Points `InterfaceText.lookup`, which the core's texts and `tr` look translations up through, at `app`'s compiled
+    /// `<code>.lproj` bundles (each found once).
+    static func useApp() { InterfaceText.lookup = InterfaceText.bundleLookup(app: app) }
 
     /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
-    static var chinese: Bool { InterfaceLanguage.isChinese(language) }
+    private(set) static var chinese = InterfaceLanguage.isChinese(language)
 
     /// The same, as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
     static var pluginLanguage: Language { chinese ? .chinese : .english }
@@ -490,11 +512,12 @@ enum UIText {
 }
 
 /// Interface text in the interface language (see `UIText`): `chinese` for Simplified Chinese, `english` for English,
-/// else the translation of `english` in the app's `<language>.lproj` (compiled from Resources/Localizable.xcstrings),
-/// or `english` without one. The English text, as `UIString.format` ("%@ items"), is the catalog's key.
+/// else the translation of `english` in the app's `<language>.lproj` (compiled from Resources/Localizable.xcstrings;
+/// through `InterfaceText.lookup`, as the core's texts), or `english` without one. The English text, as
+/// `UIString.format` ("%@ items"), is the catalog's key.
 ///
 /// `key`: where the same English text means something else elsewhere (`make strings` reports those), a key of its
 /// own: a short dotted name for where or how it is used ("remove.delete"), whose English in the catalog is `english`.
 func tr(_ chinese: UIString, _ english: UIString, key: String? = nil) -> String {
-    InterfaceText.text(chinese, english, key: key, language: UIText.language, app: UIText.app)
+    InterfaceText.text(chinese, english, key: key, language: UIText.language)
 }

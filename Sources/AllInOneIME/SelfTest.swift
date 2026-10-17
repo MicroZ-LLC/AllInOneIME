@@ -489,8 +489,9 @@ enum SelfTest {
     }
 
     /// Interface text in a language besides Chinese and English: the catalog compiled into the app, and a stand-in app
-    /// with a test fr.lproj/Localizable.strings of one entry (as the Makefile compiles the catalog), picked in the
-    /// settings: that text in French, what isn't translated in English, and Chinese for Simplified Chinese.
+    /// with a test fr.lproj/Localizable.strings of two entries (as the Makefile compiles the catalog), picked in the
+    /// settings: that text in French (the core's too, through the same `InterfaceText.lookup`), what isn't translated in
+    /// English, and Chinese for Simplified Chinese.
     static func testInterfaceTranslations(in directory: URL) {
         let english = Bundle.main.path(forResource: "en", ofType: "lproj").flatMap(Bundle.init(path:))
         check(english?.path(forResource: "Localizable", ofType: "strings") != nil
@@ -503,7 +504,8 @@ enum SelfTest {
         let fr = stand.appendingPathComponent("fr.lproj")
         try? FileManager.default.removeItem(at: stand)
         try? FileManager.default.createDirectory(at: fr, withIntermediateDirectories: true)
-        let table = (try? PropertyListSerialization.data(fromPropertyList: ["Stopped after %@ seconds": "Arrêté au bout de %@ secondes"],
+        let table = (try? PropertyListSerialization.data(fromPropertyList: ["Stopped after %@ seconds": "Arrêté au bout de %@ secondes",
+                                                                           "Vertical": "Verticale"],
                                                           format: .xml, options: 0)) ?? Data()
         try? table.write(to: fr.appendingPathComponent("Localizable.strings"))
         guard let bundle = Bundle(path: stand.path) else { return check(false, "a stand-in app with fr.lproj") }
@@ -517,6 +519,8 @@ enum SelfTest {
         let translated = tr("运行超过 \(n) 秒，已停止", "Stopped after \(n) seconds"), untranslated = tr("打开设置", "Open the settings")
         check(translated == "Arrêté au bout de 12 secondes", "an interface text in French, from fr.lproj: \(translated)")
         check(untranslated == "Open the settings", "one that fr.lproj lacks shows in English: \(untranslated)")
+        let core = AIConfig.Text(language: UIText.language).layout(.vertical)
+        check(core == "Verticale", "the core's texts go through the same translations as tr: \(core)")
         UIText.choice = "zh"
         let chinese = tr("运行超过 \(n) 秒，已停止", "Stopped after \(n) seconds")
         check(UIText.language == "zh-Hans" && chinese == "运行超过 12 秒，已停止", "Simplified Chinese still comes from the code: \(chinese)")
