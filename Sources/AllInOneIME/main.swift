@@ -141,6 +141,8 @@ func runServer(showSettings: Bool = false) -> Never {
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @agent tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
+    // Chrome's page tree turned on by an earlier run that didn't turn it off (a crash, a reinstall): off again.
+    PageContextReader.releaseLeftOver()
     // The menu bar icon (on by default) and its panel, once the server and Rime are up. The notes @note
     // saves are recorded whether the panel is shown or not, so that it lists them when it drops down.
     DispatchQueue.main.async {

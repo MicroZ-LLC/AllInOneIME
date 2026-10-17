@@ -662,11 +662,13 @@ final class AllInOneIMEInputController: IMKInputController {
     private var wokenPage: pid_t?
     private var pageLookedFor = -1
 
-    /// `@agent …` being written in Chrome: its page tree is asked for now, ready by ⏎.
+    /// `@agent …` being written in Chrome: its page tree is asked for now, ready by ⏎; the draft given up (Esc, deleted,
+    /// refused, another command), it's given back.
     @MainActor
     private func wakePageIfAgent() {
-        guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession,
-              composer.draft.hasPrefix("@\(Command.agent.name) ") else { return }
+        let writingAgent = composer.draftCommand == .agent
+        if wokenPage != nil, !writingAgent { return releasePage() }
+        guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession, writingAgent else { return }
         pageLookedFor = fieldSession
         guard let pid = pageProcess(appID ?? activeApp) else { return }
         wokenPage = pid
@@ -678,6 +680,12 @@ final class AllInOneIMEInputController: IMKInputController {
     private func releasePage() {
         if let pid = wokenPage { PageContextReader.release(pid: pid) }
         wokenPage = nil
+        pageLookedFor = -1  // written again in this field, asked for again
+    }
+
+    deinit {
+        // A controller let go while it asked for a page (the release is thread-safe).
+        if let pid = wokenPage { PageContextReader.release(pid: pid) }
     }
 
     /// `prompt` with the page `@agent` was typed in (`PageContext`) when that applies (Chrome, the setting, Accessibility
@@ -692,17 +700,21 @@ final class AllInOneIMEInputController: IMKInputController {
         let mouse = NSEvent.mouseLocation, height = NSScreen.screens.first?.frame.height ?? 0
         let pointer = CGPoint(x: mouse.x, y: height - mouse.y)  // top-left origin, as Accessibility has it
         let read = readPageContext
-        Task.detached {
+        // A blocking read (up to ~3 s), on a queue of its own rather than the async pool; `start` is kept until then
+        // (it holds this controller), so the request starts even if the field is gone meanwhile.
+        DispatchQueue.global(qos: .userInitiated).async {
             let context = read(pid, pointer)
             PageContextReader.release(pid: pid)
-            await MainActor.run {
-                guard let context, !context.isEmpty else {
-                    log.notice("@agent: no page context")
-                    return start(prompt, nil)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let context, !context.isEmpty else {
+                        log.notice("@agent: no page context")
+                        return start(prompt, nil)
+                    }
+                    let full = context.prompt(request: prompt)
+                    log.notice("@agent: page context \(full.count - prompt.count) chars")
+                    start(full, context.title.isEmpty ? context.url : context.title)
                 }
-                let full = context.prompt(request: prompt)
-                log.notice("@agent: page context \(full.count - prompt.count) chars")
-                start(full, context.title.isEmpty ? context.url : context.title)
             }
         }
     }
@@ -1020,14 +1032,15 @@ final class AllInOneIMEInputController: IMKInputController {
                 // A file (a script list's row) by its path, which isn't kept in @open's history.
                 openItem(url.isFileURL ? url.path : url.absoluteString)
             case let .startBackgroundAgent(prompt):
-                withPage(prompt) { [weak self] prompt, page in
-                    Task { @MainActor [weak self] in
+                // `self` kept until the page is read: the task starts even if the field is gone by then.
+                withPage(prompt) { [self] prompt, page in
+                    Task { @MainActor [self] in
                         do {
-                            _ = try await self?.startAgent(prompt)
-                            if let self, let page { self.showNotice(self.composer.messages.startedInBackground + UIText.withPage(page), client: nil) }
+                            _ = try await self.startAgent(prompt)
+                            if let page { self.showNotice(self.composer.messages.startedInBackground + UIText.withPage(page), client: nil) }
                         } catch {
                             log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
-                            self?.showNotice(UIText.describe(error), client: nil)
+                            self.showNotice(UIText.describe(error), client: nil)
                         }
                     }
                 }
@@ -1058,8 +1071,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     log.error("@agent: no command for the custom agent")
                     break
                 }
-                withPage(prompt) { [weak self] prompt, page in
-                    guard let self else { return }
+                withPage(prompt) { [self] prompt, page in  // kept until the page is read (see above)
                     do {
                         try self.runInTerminal(arguments, prompt)
                         log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")

@@ -282,6 +282,7 @@ enum UIText {
     /// Added to the notice when `@agent` took the Chrome page along: " · 带上了网页「标题」".
     static func withPage(_ title: String) -> String {
         let short = title.count > 40 ? String(title.prefix(40)) + "…" : title
+        guard !short.isEmpty else { return tr(" · 带上了网页", " · with the page") }
         return tr(" · 带上了网页「\(short)」", " · with the page “\(short)”")
     }
 

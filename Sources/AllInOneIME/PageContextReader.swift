@@ -14,42 +14,84 @@ enum PageContextReader {
         enabled && app.map(browsers.contains) == true && AXIsProcessTrusted()
     }
 
+    // MARK: Chrome's page tree on and off
+
     /// Chrome builds its pages' accessibility trees only for an assistive app: with `AXEnhancedUserInterface` on (as
     /// VoiceOver sets it), within a few seconds. Turned on when `@agent` starts being written there, so the tree is ready
-    /// by ⏎, and back off once the page is read (`release`) or the field is left; left alone when it was on already.
+    /// by ⏎, and back off once nobody wants it (`release`: the page read, the draft given up, the field left). Taken
+    /// over only when it was surely off: on already, or not readable, it's left alone. All on one serial queue, in the
+    /// order asked; who wants it is counted at once, under `lock`.
     static func wake(pid: pid_t) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        lock.lock()
+        wanted[pid, default: 0] += 1
+        lock.unlock()
+        queue.async {
+            guard wantedNow(pid), !owned.contains(pid), !leftAlone.contains(pid) else { return }
             let app = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(app, 0.25)
             var value: CFTypeRef?
-            let on = AXUIElementCopyAttributeValue(app, enhanced, &value) == .success && (value as? Bool) == true
-            guard !on else { return }
-            lock.lock()
-            let added = raised.insert(pid).inserted
-            lock.unlock()
-            guard added else { return }
+            guard AXUIElementCopyAttributeValue(app, enhanced, &value) == .success, let on = value as? Bool else {
+                leftAlone.insert(pid)  // can't tell: not ours to change
+                return
+            }
+            guard !on else {
+                leftAlone.insert(pid)  // VoiceOver or another assistive app has it on
+                return
+            }
+            owned.insert(pid)
+            remember()
             AXUIElementSetAttributeValue(app, enhanced, kCFBooleanTrue)
             log.notice("page context: Chrome's accessibility tree asked for")
         }
     }
 
-    /// `AXEnhancedUserInterface` back as it was, if `wake` turned it on.
+    /// One `wake` less; with nobody wanting it any more, `AXEnhancedUserInterface` is off again if `wake` turned it on.
     static func release(pid: pid_t) {
         lock.lock()
-        let removed = raised.remove(pid) != nil
+        wanted[pid] = max((wanted[pid] ?? 0) - 1, 0)
         lock.unlock()
-        guard removed else { return }
-        DispatchQueue.global(qos: .utility).async {
-            let app = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(app, 0.25)
-            AXUIElementSetAttributeValue(app, enhanced, kCFBooleanFalse)
+        queue.async {
+            guard !wantedNow(pid) else { return }
+            leftAlone.remove(pid)
+            guard owned.remove(pid) != nil else { return }
+            remember()
+            AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhanced, kCFBooleanFalse)
+        }
+    }
+
+    /// Turned on by an earlier run that ended before turning it off (a crash, a reinstall): off again, for the
+    /// processes that are still Chrome. At launch.
+    static func releaseLeftOver() {
+        let pids = (UserDefaults.standard.array(forKey: ownedKey) as? [Int]) ?? []
+        guard !pids.isEmpty else { return }
+        UserDefaults.standard.removeObject(forKey: ownedKey)
+        queue.async {
+            for pid in pids.map(pid_t.init) where NSRunningApplication(processIdentifier: pid).map({ browsers.contains($0.bundleIdentifier ?? "") }) == true {
+                AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhanced, kCFBooleanFalse)
+                log.notice("page context: Chrome's accessibility tree turned off again (left on by an earlier run)")
+            }
         }
     }
 
     private static let enhanced = "AXEnhancedUserInterface" as CFString
-    /// The browsers `wake` turned it on for. Any thread, under `lock`.
-    nonisolated(unsafe) private static var raised: Set<pid_t> = []
+    private static let ownedKey = "pageContextChromeTreeOn"
+    private static let queue = DispatchQueue(label: "AllInOneIME.pageTree")
     private static let lock = NSLock()
+    /// How many want each browser's tree (under `lock`); which ones `wake` turned it on for, and which it leaves alone
+    /// (on `queue` only).
+    nonisolated(unsafe) private static var wanted: [pid_t: Int] = [:]
+    nonisolated(unsafe) private static var owned: Set<pid_t> = []
+    nonisolated(unsafe) private static var leftAlone: Set<pid_t> = []
+
+    private static func wantedNow(_ pid: pid_t) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return (wanted[pid] ?? 0) > 0
+    }
+
+    /// The processes it's on for, kept for `releaseLeftOver`. On `queue`.
+    private static func remember() {
+        if owned.isEmpty { UserDefaults.standard.removeObject(forKey: ownedKey) } else { UserDefaults.standard.set(owned.map(Int.init), forKey: ownedKey) }
+    }
 
     /// The process of `app` when it's the one in front (the app being typed in).
     static func runningPID(_ app: String) -> pid_t? {
@@ -57,30 +99,48 @@ enum PageContextReader {
         return front.processIdentifier
     }
 
+    // MARK: Reading
+
     /// The page in front in `pid`'s focused window; nil when there is none (or it isn't built in time) or the focus is in
-    /// a password field. Out of time while reading it: what was read by then. `pointer`: the mouse location, top-left origin (main thread only to read it, hence passed in).
+    /// a password field. Out of time while reading it: what was read by then. `pointer`: the mouse location, top-left
+    /// origin (only the main thread may read it, hence passed in). Blocks for at most about `budget` seconds: run it off
+    /// the main thread.
     static func read(pid: pid_t, pointer: CGPoint, budget: TimeInterval = 3) -> PageContext? {
         let deadline = Date().addingTimeInterval(budget)
+        // Every element's calls wait 0.25 s at most (the system-wide element sets it for this process).
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25)
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.25)
         var focused: AXUIElement?
         var web: AXUIElement?
         // A page tree not built yet has no children: asked again a few times.
         while true {
             focused = element(app, kAXFocusedUIElementAttribute)
             if let focused, string(focused, kAXSubroleAttribute) == kAXSecureTextFieldSubrole as String { return nil }
-            web = focused.flatMap(webArea(above:)) ?? element(app, kAXFocusedWindowAttribute).flatMap { find("AXWebArea", in: $0) }
+            web = focused.flatMap { outermostWebArea(above: $0, deadline: deadline) }
+                ?? element(app, kAXFocusedWindowAttribute).flatMap { find("AXWebArea", in: $0, deadline: deadline) }
             if let web, !children(web).isEmpty { break }
             guard Date().addingTimeInterval(0.3) < deadline else { return nil }
             Thread.sleep(forTimeInterval: 0.3)
         }
         guard let web else { return nil }
+        // Just built, the tree may not say where the focus is yet: asked once more (a password field is still none).
+        if focused.flatMap({ outermostWebArea(above: $0, deadline: deadline) }) == nil {
+            for _ in 0..<5 where Date().addingTimeInterval(0.1) < deadline {
+                if let now = element(app, kAXFocusedUIElementAttribute), outermostWebArea(above: now, deadline: deadline) != nil {
+                    focused = now
+                    break
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            if let focused, string(focused, kAXSubroleAttribute) == kAXSecureTextFieldSubrole as String { return nil }
+        }
         let viewport = element(app, kAXFocusedWindowAttribute).flatMap(frame)
-        // The focused element counts only inside this page (not the address bar); else the one under the pointer.
+        // The focused element counts only inside this page (not the address bar), an iframe's too; else the one under
+        // the pointer.
         var focusPath: [AXUIElement] = []
-        if let focused, webArea(above: focused).map({ CFEqual($0, web) }) == true {
+        if let focused, outermostWebArea(above: focused, deadline: deadline).map({ CFEqual($0, web) }) == true {
             var current: AXUIElement? = focused
-            while let element = current, !CFEqual(element, web) {
+            while let element = current, !CFEqual(element, web), focusPath.count < 200 {
                 focusPath.append(element)
                 current = parent(element)
             }
@@ -129,11 +189,14 @@ enum PageContextReader {
                 return (all[index] as? String) == "true"
             }
             var frame: CGRect?
+            // A failed attribute comes back as an AXValue of the error type: only a point and a size make a frame.
             if all.count > 10, CFGetTypeID(all[9] as CFTypeRef) == AXValueGetTypeID(), CFGetTypeID(all[10] as CFTypeRef) == AXValueGetTypeID() {
+                let position = all[9] as! AXValue, extent = all[10] as! AXValue  // checked just above
                 var origin = CGPoint.zero, size = CGSize.zero
-                AXValueGetValue(all[9] as! AXValue, .cgPoint, &origin)  // checked just above
-                AXValueGetValue(all[10] as! AXValue, .cgSize, &size)
-                frame = CGRect(origin: origin, size: size)
+                if AXValueGetType(position) == .cgPoint, AXValueGetType(extent) == .cgSize,
+                   AXValueGetValue(position, .cgPoint, &origin), AXValueGetValue(extent, .cgSize, &size) {
+                    frame = CGRect(origin: origin, size: size)
+                }
             }
             var node = PageNode(role: text(0) ?? "", subrole: text(1), label: nil, value: nil, placeholder: text(5),
                                 domID: text(6), invalid: flag(7), required: flag(8),
@@ -197,24 +260,25 @@ enum PageContextReader {
         return CGRect(origin: origin, size: extent)
     }
 
-    /// The web area `element` is in, if any.
-    static func webArea(above element: AXUIElement) -> AXUIElement? {
+    /// The page `element` is in: the outermost web area above it (an iframe is a web area of its own, inside the page).
+    static func outermostWebArea(above element: AXUIElement, deadline: Date) -> AXUIElement? {
         var current: AXUIElement? = element
+        var found: AXUIElement?
         var hops = 0
-        while let candidate = current, hops < 60 {
-            if string(candidate, kAXRoleAttribute) == "AXWebArea" { return candidate }
+        while let candidate = current, hops < 200, Date() < deadline {
+            if string(candidate, kAXRoleAttribute) == "AXWebArea" { found = candidate }
             current = parent(candidate)
             hops += 1
         }
-        return nil
+        return found
     }
 
-    /// The first element with `role` below `element` (depth first, not too deep).
-    static func find(_ role: String, in element: AXUIElement, depth: Int = 0) -> AXUIElement? {
+    /// The first element with `role` below `element` (depth first, not too deep, not past `deadline`).
+    static func find(_ role: String, in element: AXUIElement, depth: Int = 0, deadline: Date) -> AXUIElement? {
         if string(element, kAXRoleAttribute) == role { return element }
-        guard depth < 25 else { return nil }
+        guard depth < 25, Date() < deadline else { return nil }
         for child in children(element) {
-            if let found = find(role, in: child, depth: depth + 1) { return found }
+            if let found = find(role, in: child, depth: depth + 1, deadline: deadline) { return found }
         }
         return nil
     }
