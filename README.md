@@ -253,7 +253,8 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
 | `{date}`, `{time}` | today as `2026-10-17`, the time as `14:05`; `{date:EEEE, MMM d}` with a [date pattern](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table), in the interface language |
 | `{cursor}` | where the caret goes after it's in (once at most; not in a terminal) |
 
-- `{{` writes `{` and `}}` writes `}`; any other `{…}` stays as it is, so JSON or code in a snippet is fine.
+- `{{` writes `{`, and the `}}` that closes it writes `}` (`{{input}}` inserts `{input}`); any other `}}` or `{…}` stays
+  as it is, so JSON or code in a snippet is fine: `{"a":{"b":1}}` goes in as written.
 - With no `{input}` and no blanks, what you write after the name goes in after the snippet, after a space.
 - Write `@sig` inside another command's text to include it: `@question summarize this @zoom` sends the link itself. Only
   snippets with no `{clipboard}`, `{selection}` or blanks work there; with `{input}`, it's one word or a quoted phrase:

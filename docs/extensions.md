@@ -272,7 +272,9 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 - `snippets`: texts to insert, for a team's addresses, links and replies. Each has a `name` (and maybe an `alias`), its
   `text` with the placeholders of a custom `snippet` command (`{input}`, `{name?}`, `{clipboard}`, `{selection}`,
   `{date}`, `{time}`, `{cursor}`; see the README), and optionally a `summary`, an `icon` (an SF Symbol) and a `color`.
-  They run nothing. A bundle may ship only snippets. Plugins can't ship them.
+  Every one of these is a string: a snippet with a `text` (or another key) that isn't one is left out, and Settings says
+  why. They run nothing. A bundle may ship only snippets. Plugins can't ship them. A `commands` or `snippets` that isn't
+  a list of entries is reported too, and the other list still loads.
 
   ```json
   "snippets": [
@@ -284,9 +286,10 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 ## 7. Names, order, turning things off
 
 - **Collisions** are resolved in this order: built-in commands, plugins, custom commands, bundles, single scripts,
-  Raycast scripts; within each, the folders' order, then file names. A bundle's snippets come after its bundle's
+  Raycast scripts; within each, the folders' order, then file names. The bundles' snippets come after all the bundles'
   commands, before single scripts. A bundle command or snippet whose name is taken uses its `alias` if that's free. Two
-  with one name in a bundle: the first is kept. Settings marks each command left out, and why.
+  with one name in a bundle: the first is kept. Settings marks each command left out, and why; a snippet left out is
+  marked in its extension source's "Loaded" line and review, and in `--list-extensions`.
 - **Turning things off.** Each command, and each bundle as a whole, has a switch in Settings (`disabledExtensions` in
   the config: a command's id, or a bundle's name). A command turned off frees its name. A snippet is turned off with
   `"<bundle>/<name>"` there.
