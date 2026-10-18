@@ -1,0 +1,44 @@
+# The app ends our composition (§5.5, OnCompositionTerminated): what is pending goes in (commitAll), the
+# commit replacing the range the composition covered.
+#! provider fixtures/improve-hello.json
+#! inputLanguage english
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"id":3,"type":"focus","sid":1,"focus":1}
+> {"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"id":2,"re":4,"type":"result"}
+> {"id":5,"type":"keyDown","sid":1,"t":1080,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"id":3,"re":5,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"id":6,"type":"keyUp","sid":1,"t":1150,"key":{"vk":16,"scan":42},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":4,"re":6,"type":"result"}
+> {"id":7,"type":"keyDown","sid":1,"t":1150,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":5,"re":7,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]}]}
+> {"id":8,"type":"keyDown","sid":1,"t":1250,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[1,1],"comp":1}}
+< {"id":6,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}]}]}
+> {"id":9,"type":"keyDown","sid":1,"t":1350,"key":{"vk":80,"scan":25,"text":"p","textIgnoringModifiers":"p"},"ctx":{"sel":[2,2],"comp":2}}
+< {"id":7,"re":9,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}]}]}
+> {"id":10,"type":"keyDown","sid":1,"t":1450,"key":{"vk":82,"scan":19,"text":"r","textIgnoringModifiers":"r"},"ctx":{"sel":[3,3],"comp":3}}
+< {"id":8,"re":10,"type":"result","handled":true,"outputs":[{"op":"composition","text":"impr","caret":4,"segments":[{"from":0,"to":4,"style":"draft"}]}]}
+> {"id":11,"type":"keyDown","sid":1,"t":1550,"key":{"vk":79,"scan":24,"text":"o","textIgnoringModifiers":"o"},"ctx":{"sel":[4,4],"comp":4}}
+< {"id":9,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"impro","caret":5,"segments":[{"from":0,"to":5,"style":"draft"}]}]}
+> {"id":12,"type":"keyDown","sid":1,"t":1650,"key":{"vk":86,"scan":47,"text":"v","textIgnoringModifiers":"v"},"ctx":{"sel":[5,5],"comp":5}}
+< {"id":10,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improv","caret":6,"segments":[{"from":0,"to":6,"style":"draft"}]}]}
+> {"id":13,"type":"keyDown","sid":1,"t":1750,"key":{"vk":69,"scan":18,"text":"e","textIgnoringModifiers":"e"},"ctx":{"sel":[6,6],"comp":6}}
+< {"id":11,"re":13,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve","caret":7,"segments":[{"from":0,"to":7,"style":"draft"}]}]}
+> {"id":14,"type":"keyDown","sid":1,"t":1850,"key":{"vk":32,"scan":57,"text":" ","textIgnoringModifiers":" "},"ctx":{"sel":[7,7],"comp":7}}
+< {"id":12,"re":14,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › ","caret":10,"segments":[{"from":0,"to":10,"style":"draft"}]}]}
+> {"id":15,"type":"keyDown","sid":1,"t":1950,"key":{"vk":72,"scan":35,"text":"h","textIgnoringModifiers":"h"},"ctx":{"sel":[10,10],"comp":10}}
+< {"id":13,"re":15,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › h","caret":11,"segments":[{"from":0,"to":11,"style":"draft"}]}]}
+> {"id":16,"type":"keyDown","sid":1,"t":2050,"key":{"vk":69,"scan":18,"text":"e","textIgnoringModifiers":"e"},"ctx":{"sel":[11,11],"comp":11}}
+< {"id":14,"re":16,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › he","caret":12,"segments":[{"from":0,"to":12,"style":"draft"}]}]}
+> {"id":17,"type":"keyDown","sid":1,"t":2150,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[12,12],"comp":12}}
+< {"id":15,"re":17,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › hel","caret":13,"segments":[{"from":0,"to":13,"style":"draft"}]}]}
+> {"id":18,"type":"endComposition","sid":1,"reason":"terminated"}
+< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"commit","text":"@improve hel"}]}
+# Typing goes on as plain text
+> {"id":19,"type":"keyDown","sid":1,"t":2250,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[12,12],"before":"@improve hel"}}
+< {"id":17,"re":19,"type":"result"}
+> {"id":20,"type":"blur","sid":1}
+< {"id":18,"re":20,"type":"result"}
+> {"id":21,"type":"close","sid":1}

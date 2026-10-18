@@ -1,0 +1,59 @@
+# Notepad: "hi ", then "@improve helo", Return, and the first version picked with 1 (§10).
+# The provider's stream: "Hello." / "Hi there." / "Hello!" (fixtures/improve-hello.json).
+#! provider fixtures/improve-hello.json
+#! inputLanguage english
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"id":3,"type":"focus","sid":1,"focus":1}
+# "hi" and a space: plain English passes through
+> {"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":72,"scan":35,"text":"h","textIgnoringModifiers":"h"},"ctx":{"sel":[0,0]}}
+< {"id":2,"re":4,"type":"result"}
+> {"id":5,"type":"keyDown","sid":1,"t":1100,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"before":"h"}}
+< {"id":3,"re":5,"type":"result"}
+> {"id":6,"type":"keyDown","sid":1,"t":1200,"key":{"vk":32,"scan":57,"text":" ","textIgnoringModifiers":" "},"ctx":{"sel":[2,2],"before":"hi"}}
+< {"id":4,"re":6,"type":"result"}
+# Shift+2 types "@" after a space: a draft starts (after a letter, "@" would just be text)
+> {"id":7,"type":"keyDown","sid":1,"t":1300,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[3,3],"before":"hi "}}
+< {"id":5,"re":7,"type":"result"}
+> {"id":8,"type":"keyDown","sid":1,"t":1380,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[3,3],"before":"hi "}}
+< {"id":6,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"id":9,"type":"caret","sid":1,"rect":[812,440,9,20],"hwnd":"$any"}
+> {"id":10,"type":"keyUp","sid":1,"t":1450,"key":{"vk":16,"scan":42},"ctx":{"sel":[4,4],"before":"hi ","comp":1}}
+< {"id":7,"re":10,"type":"result"}
+# "improve helo" (a typo: "hello" would hide "Hello.", which only punctuates it): the command list
+# narrows to improve while its name is typed (shown without the "@"), then the text after it
+> {"id":11,"type":"keyDown","sid":1,"t":1550,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[4,4],"before":"hi ","comp":1}}
+< {"id":8,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]}]}
+> {"id":12,"type":"keyDown","sid":1,"t":1750,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[4,4],"before":"hi ","comp":1}}
+< {"id":9,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}]}]}
+> {"id":13,"type":"keyDown","sid":1,"t":1950,"key":{"vk":80,"scan":25,"text":"p","textIgnoringModifiers":"p"},"ctx":{"sel":[5,5],"before":"hi ","comp":2}}
+< {"id":10,"re":13,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}]}]}
+> {"id":14,"type":"keyDown","sid":1,"t":2150,"key":{"vk":82,"scan":19,"text":"r","textIgnoringModifiers":"r"},"ctx":{"sel":[6,6],"before":"hi ","comp":3}}
+< {"id":11,"re":14,"type":"result","handled":true,"outputs":[{"op":"composition","text":"impr","caret":4,"segments":[{"from":0,"to":4,"style":"draft"}]}]}
+> {"id":15,"type":"keyDown","sid":1,"t":2350,"key":{"vk":79,"scan":24,"text":"o","textIgnoringModifiers":"o"},"ctx":{"sel":[7,7],"before":"hi ","comp":4}}
+< {"id":12,"re":15,"type":"result","handled":true,"outputs":[{"op":"composition","text":"impro","caret":5,"segments":[{"from":0,"to":5,"style":"draft"}]}]}
+> {"id":16,"type":"keyDown","sid":1,"t":2550,"key":{"vk":86,"scan":47,"text":"v","textIgnoringModifiers":"v"},"ctx":{"sel":[8,8],"before":"hi ","comp":5}}
+< {"id":13,"re":16,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improv","caret":6,"segments":[{"from":0,"to":6,"style":"draft"}]}]}
+> {"id":17,"type":"keyDown","sid":1,"t":2750,"key":{"vk":69,"scan":18,"text":"e","textIgnoringModifiers":"e"},"ctx":{"sel":[9,9],"before":"hi ","comp":6}}
+< {"id":14,"re":17,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve","caret":7,"segments":[{"from":0,"to":7,"style":"draft"}]}]}
+> {"id":18,"type":"keyDown","sid":1,"t":2950,"key":{"vk":32,"scan":57,"text":" ","textIgnoringModifiers":" "},"ctx":{"sel":[10,10],"before":"hi ","comp":7}}
+< {"id":15,"re":18,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › ","caret":10,"segments":[{"from":0,"to":10,"style":"draft"}]}]}
+> {"id":19,"type":"keyDown","sid":1,"t":3150,"key":{"vk":72,"scan":35,"text":"h","textIgnoringModifiers":"h"},"ctx":{"sel":[13,13],"before":"hi ","comp":10}}
+< {"id":16,"re":19,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › h","caret":11,"segments":[{"from":0,"to":11,"style":"draft"}]}]}
+> {"id":20,"type":"keyDown","sid":1,"t":3350,"key":{"vk":69,"scan":18,"text":"e","textIgnoringModifiers":"e"},"ctx":{"sel":[14,14],"before":"hi ","comp":11}}
+< {"id":17,"re":20,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › he","caret":12,"segments":[{"from":0,"to":12,"style":"draft"}]}]}
+> {"id":21,"type":"keyDown","sid":1,"t":3550,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[15,15],"before":"hi ","comp":12}}
+< {"id":18,"re":21,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › hel","caret":13,"segments":[{"from":0,"to":13,"style":"draft"}]}]}
+> {"id":22,"type":"keyDown","sid":1,"t":3750,"key":{"vk":79,"scan":24,"text":"o","textIgnoringModifiers":"o"},"ctx":{"sel":[16,16],"before":"hi ","comp":13}}
+< {"id":19,"re":22,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › helo","caret":14,"segments":[{"from":0,"to":14,"style":"draft"}]}]}
+# Return runs the command: level two, the draft converted while the versions stream in
+> {"id":23,"type":"keyDown","sid":1,"t":3950,"key":{"vk":13,"scan":28,"text":"\r","textIgnoringModifiers":"\r"},"ctx":{"sel":[17,17],"before":"hi ","comp":14}}
+< {"id":20,"re":23,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › helo","caret":14,"segments":[{"from":0,"to":14,"style":"converted"}]}]}
+#! run tasks
+# 1 picks the first version: it goes in and the panel closes
+> {"id":24,"type":"keyDown","sid":1,"t":4050,"key":{"vk":49,"scan":2,"text":"1","textIgnoringModifiers":"1"},"ctx":{"sel":[17,17],"before":"hi ","comp":14}}
+< {"id":21,"re":24,"type":"result","handled":true,"outputs":[{"op":"panel","shown":false},{"op":"commit","text":"Hello."}]}
+> {"id":25,"type":"blur","sid":1}
+< {"id":22,"re":25,"type":"result"}
+> {"id":26,"type":"close","sid":1}

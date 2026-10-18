@@ -69,6 +69,9 @@ let package = Package(
 
         .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport"],
                     resources: [.copy("Fixtures")]),
+        // The wire protocol's goldens (WireGoldens/*.jsonl), replayed against the server with a scripted provider.
+        .testTarget(name: "AllInOneIMEWireTests", dependencies: ["AllInOneIMEWire", "AllInOneIMECore"],
+                    resources: [.copy("WireGoldens")]),
     ]
 )
 
