@@ -187,7 +187,7 @@ struct InterfaceTextTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("ui-language-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         #expect(ConfigFile.uiLanguage(from: url) == nil)
-        try Data(#"{"uiLanguage": "fr", "actionKey": "not a key"}"#.utf8).write(to: url)
+        try Data(#"{"uiLanguage": "fr", "maxTokens": "not a number"}"#.utf8).write(to: url)
         #expect(ConfigFile.uiLanguage(from: url) == "fr")  // read even where the whole config can't be
         try Data(#"{"uiLanguage": null}"#.utf8).write(to: url)
         #expect(ConfigFile.uiLanguage(from: url) == nil)

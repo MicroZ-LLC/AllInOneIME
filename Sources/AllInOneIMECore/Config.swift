@@ -271,7 +271,8 @@ public struct Config: Codable, Equatable, Sendable {
         improveTranslates = try c.decodeIfPresent(Bool.self, forKey: .improveTranslates) ?? d.improveTranslates
         voiceInput = try c.decodeIfPresent(Bool.self, forKey: .voiceInput) ?? d.voiceInput
         jargonFile = try c.decodeIfPresent(String.self, forKey: .jargonFile)
-        actionKey = try c.decodeIfPresent(ActionKey.self, forKey: .actionKey) ?? d.actionKey
+        // One this version can't read (a later one's, or a recorded key gone wrong) is the default, not an error.
+        actionKey = (try? c.decodeIfPresent(ActionKey.self, forKey: .actionKey)).flatMap { $0 } ?? d.actionKey
         uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
         customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
         extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders

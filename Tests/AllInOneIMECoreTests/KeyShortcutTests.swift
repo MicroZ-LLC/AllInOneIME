@@ -36,6 +36,16 @@ struct KeyShortcutTests {
         #expect(!shortcut.matches(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)))
     }
 
+    @Test func anUnreadableActionKeyIsTheDefaultAndTheRestLoads() throws {
+        // A name a later version added, a recorded key with neither code nor usage, a value of the wrong type.
+        for actionKey in [#""doubleTap""#, #"{"modifiers": 2, "name": "?"}"#, "42"] {
+            let json = #"{"actionKey": \#(actionKey), "voiceInput": false, "rewriteStyles": ["casual"]}"#
+            let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+            #expect(config.actionKey == Config.default.actionKey, "\(actionKey)")
+            #expect(config.voiceInput == false && config.rewriteStyles == ["casual"], "\(actionKey)")
+        }
+    }
+
     @Test func aWrittenConfigIsReadByTheOldReader() throws {
         var config = Config.default
         config.actionKey = .shortcut(KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J"))

@@ -170,7 +170,8 @@ struct ConfigTests {
         #expect(try decode(#"{"translateKey": "optionTap"}"#).actionKey == .enter)  // the old name isn't read
         #expect(try decode(#"{"actionKey": "optionSpace"}"#).actionKey == .optionSpace)
         #expect(try decode(#"{"actionKey": "space"}"#).actionKey == .space)
-        #expect(throws: DecodingError.self) { try decode(#"{"actionKey": "fn"}"#) }
+        // One this version can't read is the default; the rest of the file still loads (`KeyShortcutTests`).
+        #expect(try decode(#"{"actionKey": "fn"}"#).actionKey == .enter)
     }
 
     @Test func uiLanguage() throws {
