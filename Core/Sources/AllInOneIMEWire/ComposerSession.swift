@@ -399,7 +399,7 @@ public final class ComposerSession: @unchecked Sendable {
     }
 
     /// An effect's name, for logs (never its text).
-    static func kind(of effect: Composer.Effect) -> String {
+    public static func kind(of effect: Composer.Effect) -> String {
         String(String(describing: effect).prefix { $0 != "(" })
     }
 

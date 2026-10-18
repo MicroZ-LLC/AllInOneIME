@@ -172,6 +172,19 @@ public struct WireTranscript: Sendable {
         value["v"] == nil ? value.setting("v", to: .number(Double(version))) : value
     }
 
+    /// A `>` line's frame as a replayer sends it: its `v` added, and fields whose value is "$any" (a client's own: its
+    /// pid, a window handle) left out.
+    public static func sendable(_ value: JSONValue, version: Int = WireVersion.current) -> JSONValue {
+        func withoutWildcards(_ value: JSONValue) -> JSONValue {
+            switch value {
+            case let .object(fields): return .object(fields.filter { $0.value != .any }.mapValues(withoutWildcards))
+            case let .array(items): return .array(items.map(withoutWildcards))
+            default: return value
+            }
+        }
+        return withoutWildcards(outgoing(value, version: version))
+    }
+
     /// Whether `actual` matches a `<` line's `expected` (its `v` compared only where the line has one).
     public static func mismatch(expected: JSONValue, actual: JSONValue) -> String? {
         let actual = expected["v"] == nil ? actual.removing("v") : actual

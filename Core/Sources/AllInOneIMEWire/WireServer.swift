@@ -69,6 +69,9 @@ public final class WireServer: @unchecked Sendable {
     public var push: @Sendable (ConnectionID, Data) -> Void = { _, _ in }
     /// Asks the transport to close a connection the engine dropped on its own (too much unacknowledged data).
     public var drop: @Sendable (ConnectionID) -> Void = { _ in }
+    /// In test mode, the `x-test` directives `perform` doesn't know (the engine's: `provider`, `inputLanguage`): true if
+    /// done.
+    public var testDirective: @Sendable (_ directive: String, _ frame: TestFrame) -> Bool = { _, _ in false }
 
     private let lock = NSLock()
     private var connections: [ConnectionID: Connection] = [:]
@@ -444,7 +447,8 @@ public final class WireServer: @unchecked Sendable {
     // MARK: - Test control
 
     /// Runs one of the goldens' directives (§10, "Spec notes"): "advance <ms>" and "run tasks" (the clock must be a
-    /// `ManualClock`), "click row <n>" (the focused session's panel). False for one it doesn't know.
+    /// `ManualClock`), "click row <n>" (the focused session's panel), "idle" (only waits until every queue is idle).
+    /// False for one it doesn't know.
     @discardableResult
     public func perform(_ directive: String, on id: ConnectionID) -> Bool {
         let words = directive.split(separator: " ").map(String.init)
@@ -467,6 +471,9 @@ public final class WireServer: @unchecked Sendable {
                 drainAll()
             }
             return true
+        case ("idle", 1):
+            drainAll()
+            return true
         case ("click", 3) where words[1] == "row":
             guard let row = Int(words[2]), let connection = lock.guarded({ connections[id] }) else { return false }
             connection.queue.sync {
@@ -485,7 +492,8 @@ public final class WireServer: @unchecked Sendable {
     }
 
     private func testAnswer(_ test: TestFrame, on connection: Connection) -> Data {
-        let ok = perform(test.directive ?? "", on: connection.id)
+        let directive = test.directive ?? ""
+        let ok = perform(directive, on: connection.id) || testDirective(directive, test)
         let answer = TestFrame(v: connection.version ?? WireVersion.current, id: 0, re: test.id, type: TestFrame.type,
                                directive: nil, ok: ok)
         return (try? WireJSON.encode(answer)) ?? Data()
@@ -493,7 +501,7 @@ public final class WireServer: @unchecked Sendable {
 }
 
 /// `x-test`: a golden's directive over a real transport, in the engine's test mode only. Outside the ids' count on
-/// both sides (its `id` is 0).
+/// both sides (its `id` is 0). `#! provider <file>` carries the file's fixture.
 public struct TestFrame: Codable, Sendable {
     public static let type = "x-test"
     public var v: Int?
@@ -501,15 +509,17 @@ public struct TestFrame: Codable, Sendable {
     public var re: UInt32?
     public var type: String
     public var directive: String?
+    public var fixture: ScriptedProvider.Fixture?
     public var ok: Bool?
 
     public init(v: Int? = WireVersion.current, id: UInt32 = 0, re: UInt32? = nil, type: String = TestFrame.type,
-                directive: String?, ok: Bool? = nil) {
+                directive: String?, fixture: ScriptedProvider.Fixture? = nil, ok: Bool? = nil) {
         self.v = v
         self.id = id
         self.re = re
         self.type = type
         self.directive = directive
+        self.fixture = fixture
         self.ok = ok
     }
 }

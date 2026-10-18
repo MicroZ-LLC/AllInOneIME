@@ -38,21 +38,9 @@ struct GoldenReplayer {
         return (fixture, language)
     }
 
-    /// A `>` line's frame as sent: its `v` added, and fields whose value is "$any" (a client's own: its pid, a window
-    /// handle) left out.
+    /// A `>` line's frame as sent (`WireTranscript.sendable`).
     static func outgoing(_ value: JSONValue) -> Data {
-        try! WireJSON.encode(withoutWildcards(WireTranscript.outgoing(value)))
-    }
-
-    static func withoutWildcards(_ value: JSONValue) -> JSONValue {
-        switch value {
-        case let .object(fields):
-            return .object(fields.filter { $0.value != .any }.mapValues(withoutWildcards))
-        case let .array(items):
-            return .array(items.map(withoutWildcards))
-        default:
-            return value
-        }
+        try! WireJSON.encode(WireTranscript.sendable(value))
     }
 
     /// Runs it; throws at the first difference.
