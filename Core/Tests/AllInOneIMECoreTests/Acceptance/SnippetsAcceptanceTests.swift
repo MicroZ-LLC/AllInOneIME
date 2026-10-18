@@ -432,7 +432,7 @@ struct SnippetsAcceptanceTests {
         typeKeys("@sig", c)
         let effects = c.handleKeyDown(enterKey).effects
         #expect(typedOut(effects) == ["Best,\nWei\n"], "\(effects)")
-        #expect(commits(effects).allSatisfy(\.isEmpty), "\(effects)")
+        #expect(commits(effects).allSatisfy { $0.isEmpty }, "\(effects)")
         let finished = position(effects) { $0 == .hidePanel }
         let typed = position(effects) { $0 == .typeOut("Best,\nWei\n") }
         let moved = position(effects) { $0 == .moveCaret(back: 0) }
