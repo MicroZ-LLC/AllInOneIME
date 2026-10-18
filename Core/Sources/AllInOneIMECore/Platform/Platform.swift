@@ -5,7 +5,7 @@ import Foundation
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
 /// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), and
 /// elsewhere neutral stand-ins: a heuristic language guess, the date rules alone, and no JavaScript, on-device model,
-/// PDF text or secret store ("not supported on this platform").
+/// PDF text, text recognition or secret store ("not supported on this platform").
 public struct Platform: Sendable {
     /// API keys and the like (`APIKeys`).
     public var secrets: SecretStore
@@ -19,6 +19,8 @@ public struct Platform: Sendable {
     public var dates: any DateDetector
     /// A PDF's text (`WebReader`).
     public var pdf: any PDFTextExtractor
+    /// The text in an image, read on the device (`ScreenText`: a screenshot pasted into a draft).
+    public var text: any TextRecognizer
     /// Programs: commands, scripts, plugins, `@py`, `@js`, AWS `credential_process`, a language pack's archive.
     public var processes: any ProcessLauncher
     /// Atomic swaps, private writes, modification dates, the Trash.
@@ -27,14 +29,15 @@ public struct Platform: Sendable {
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
                 languages: any LanguageIdentifier = Platform.systemLanguages, dates: any DateDetector = Platform.systemDates,
-                pdf: any PDFTextExtractor = Platform.systemPDF, processes: any ProcessLauncher = Platform.systemProcesses,
-                files: any FileOps = SystemFileOps()) {
+                pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
+                processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps()) {
         self.secrets = secrets
         self.scripts = scripts
         self.onDeviceModel = onDeviceModel
         self.languages = languages
         self.dates = dates
         self.pdf = pdf
+        self.text = text
         self.processes = processes
         self.files = files
     }
@@ -113,6 +116,15 @@ extension Platform {
         return PDFKitTextExtractor()
         #else
         return UnsupportedPDFTextExtractor()
+        #endif
+    }
+
+    /// Vision where there is one, else none (a screenshot's text can't be read).
+    public static var systemText: any TextRecognizer {
+        #if canImport(Vision)
+        return VisionTextRecognizer()
+        #else
+        return UnsupportedTextRecognizer()
         #endif
     }
 
