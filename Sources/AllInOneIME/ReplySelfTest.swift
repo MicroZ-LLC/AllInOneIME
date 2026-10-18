@@ -203,6 +203,19 @@ extension SelfTest {
         _ = press(controller, client, "2", code: 0x13)
         check(client.inserted.last == "Friday is fine with me.", "2 inserts the second reply (\(client.inserted.last ?? "-"))")
 
+        section("@reply after a selection: the selection kept, the reply after it")
+        let quoted = FakeTextClient()
+        quoted.document = "Lunch tomorrow? Bye"
+        let message = Composer.Selection(text: "Lunch tomorrow?", range: 0..<("Lunch tomorrow?" as NSString).length)
+        quoted.selection = NSRange(location: 0, length: message.range!.count)
+        controller.replaceSelection("Lunch tomorrow?\nSure!", message, in: quoted)
+        check(quoted.document == "Lunch tomorrow?\nSure! Bye" && quoted.inserted == ["\nSure!"],
+              "only the reply goes in, at the selection's end (\(quoted.document.debugDescription) | \(quoted.inserted))")
+        let unknown = Composer.Selection(text: "Lunch tomorrow?")
+        check(AllInOneIMEInputController.afterSelection("Lunch tomorrow?\nSure!", unknown) == nil
+              && AllInOneIMEInputController.afterSelection("Sure!", message) == nil,
+              "without its range, or a result that doesn't start with it: the selection is replaced, as before")
+
         section("@reply: nothing read during secure input", needs: .composing)
         clipboardReads = 0
         controller.secureInputActive = { true }

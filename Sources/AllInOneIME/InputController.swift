@@ -453,13 +453,28 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// A result in place of the selection the command worked on (`Composer.Effect.replaceSelection`): by its range, which
     /// the text input protocol has fields honor; one that ignores it still has the text selected, and an insert replaces
-    /// what is selected.
+    /// what is selected. A result that starts with the selection (`@reply`'s, after the message selected) only has the
+    /// rest inserted after it (`afterSelection`): the selection is never rewritten, its formatting, links and images kept.
     @MainActor
-    private func replaceSelection(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput?) {
+    func replaceSelection(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput?) {
         guard let client else { return }
+        if let (rest, end) = Self.afterSelection(text, selection) {
+            client.insertText(rest, replacementRange: end)
+            log.notice("inserted after the selection (\(rest.count) characters)")
+            return
+        }
         let range = selection.range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound
         client.insertText(text, replacementRange: range)
         log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
+    }
+
+    /// What of `text` goes in after `selection` and where (an empty range at its end), when `text` starts with it and the
+    /// field told where it is; nil otherwise (it's replaced).
+    static func afterSelection(_ text: String, _ selection: Composer.Selection) -> (String, NSRange)? {
+        guard let range = selection.range, !selection.text.isEmpty, text.hasPrefix(selection.text) else { return nil }
+        let rest = (text as NSString).substring(from: (selection.text as NSString).length)
+        guard !rest.isEmpty else { return nil }
+        return (rest, NSRange(location: range.upperBound, length: 0))
     }
 
     /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
