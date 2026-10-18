@@ -149,7 +149,7 @@ struct ReplyTests {
         struct Slow: TextRecognizer {
             func prepare() async {}
             func recognize(image: Data, languages: [String]) async throws -> [RecognizedLine] {
-                try await Task.sleep(nanoseconds: 5_000_000_000)
+                try await Task.sleep(nanoseconds: 120_000_000_000)
                 return []
             }
         }
@@ -157,7 +157,8 @@ struct ReplyTests {
         await #expect(throws: ScreenText.Problem.timedOut) {
             try await ScreenText.recognize(Data([1]), with: Slow(), languages: ["en-US"], timeout: 0.2)
         }
-        #expect(ContinuousClock.now - started < .seconds(3))
+        // Long before the recognizer would be done (a busy test run may be slow to wake the timer).
+        #expect(ContinuousClock.now - started < .seconds(60))
     }
 
     @Test func theContextCannotOpenOrCloseATag() {

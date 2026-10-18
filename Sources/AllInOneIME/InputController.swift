@@ -664,6 +664,9 @@ final class AllInOneIMEInputController: IMKInputController {
         TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
+    /// `@reply`'s message as the composer sent it and with the Chrome page added (`withPage`), for its refines.
+    private var replyWithPage: (input: String, full: String)?
+
     /// The browser whose page tree `@agent` asked for (`PageContextReader.wake`), until the page is read or the field is
     /// left; the text field session it was looked for in (once each).
     private var wokenPage: pid_t?
@@ -999,6 +1002,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 // @reply with nothing selected, copied or pasted: the Chrome page as its context, when that applies.
                 if command == .reply, composer.replyTakesPage {
                     withPage(input, render: { Prompt.replyMessage($1, page: $0) }) { [self] prompt, _ in
+                        self.replyWithPage = (input, prompt)  // ⌘R and refines send the page again
                         self.startConversion(prompt, id: id, command: command)
                     }
                     break
@@ -1842,7 +1846,9 @@ final class AllInOneIMEInputController: IMKInputController {
                                                  improveTranslates: loadSettings().improveTranslates)
             stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
         case let .command(command, input):
-            stream = converter.generate(command, input: input, app: appID, fresh: refinement.fresh, turns: refinement.turns)
+            // @reply with the Chrome page: asked again with it (the composer has the message without it).
+            let sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
+            stream = converter.generate(command, input: sent, app: appID, fresh: refinement.fresh, turns: refinement.turns)
             generates = true
         }
         // In a terminal an answer goes in on one line unless it can be pasted, as the first time.

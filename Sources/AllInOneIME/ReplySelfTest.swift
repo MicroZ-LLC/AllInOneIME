@@ -121,6 +121,10 @@ extension SelfTest {
         _ = runAsync(40) { await vision.prepare() }
         print(String(format: "  Vision warmed up in %.2fs", Date().timeIntervalSince(warm)))
         if let png {
+            // The first real read may still load what the warm-up didn't need.
+            let first = Date()
+            _ = runAsync(30) { try await ScreenText.recognize(png, with: vision, languages: ["zh-Hans", "en-US"]) }
+            print(String(format: "  the first read after it: %.2fs", Date().timeIntervalSince(first)))
             let started = Date()
             let read = runAsync(10) { try await ScreenText.recognize(png, with: vision, languages: ["zh-Hans", "en-US"]) }
             let seconds = Date().timeIntervalSince(started)
