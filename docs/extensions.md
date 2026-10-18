@@ -258,6 +258,10 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 - Each command names its `script` (a path inside the bundle) and takes the keys of §2 in JSON: strings, `true` /
   `false`, numbers, and the `argumentN` objects as they are. They override the `@allinoneime.` lines in the script, if
   it has any.
+- The other paths a bundle's command gives are inside it too, from its script's folder as written (no `..`, no `/…`,
+  `~/…` or `C:…`): an `icon` image, a `status` program given as a path (`./left.sh`; a program name alone, `date`, is
+  still looked for in the script's folder, then on the PATH), and a `currentDirectoryPath` that isn't `~/…` or
+  absolute. One that isn't is a bad value: the command doesn't load, and Settings says why.
 - `preferences`, in Raycast's shape: `name`, `type` (`textfield`, `password`, `checkbox` or `dropdown` with `data`),
   `title`, `description`, `required`, `default`. Settings shows them under the bundle. Each reaches every command as
   `ALLINONEIME_PREF_<NAME>` (the name in capitals, other characters as `_`: `apiToken` → `ALLINONEIME_PREF_APITOKEN`);
@@ -365,8 +369,8 @@ bundle, others in a repository of their own.
   repository whose default branch is named like an option is refused.
 - **Adding.** A shallow clone (`--depth 1`, the one branch, no tags; the pin fetched and checked out) into a hidden
   staging folder (`Sources/.staging/`). Nothing of it is in place or loads until you've seen the review (the bundle,
-  each command's name, title, description and output, the programs it runs, a script that is a link out of the
-  repository, its preferences, the address and commit) and clicked Enable, which moves it into place as
+  each command's name, title, description and output, the programs it runs and what its status line runs, a script
+  that is a link out of the repository, its preferences, the address and commit) and clicked Enable, which moves it into place as
   `~/Library/Application Support/AllInOneIME/Sources/<repository>-<hash>/` (the hash is of the address; in one step,
   swapped with any older clone there) and adds the bundle's folder to `extensionFolders`. Cancel deletes the staged
   clone, never one in place. A bundle folder that leads out of the repository (a link) is refused. A command whose name

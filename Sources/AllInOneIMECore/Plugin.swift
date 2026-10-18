@@ -111,7 +111,10 @@ public struct PluginManifest: Codable, Equatable, Hashable, Sendable {
         if let min = minAppVersion, SemVer.compare(appVersion, min) < 0 { return "needs AllInOneIME \(min) or later" }
         switch type {
         case .script:
-            guard let script, !script.isEmpty, !script.contains("/"), !script.hasPrefix(".") else { return "no script" }
+            // A file right in the plugin's folder: one part, no separator ("\" too on Windows), drive or "..".
+            guard let script, CorePaths.isPlainRelative(script), !script.contains(where: CorePaths.isSeparator), !script.hasPrefix(".") else {
+                return "no script"
+            }
             if hosts.contains(where: { $0.isEmpty || $0.contains("/") || $0.contains(":") }) { return "invalid hosts" }
         case .prompt:
             if (prompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "no prompt" }
@@ -171,16 +174,19 @@ public enum PluginStore {
     }
 
     /// The usable plugins in `directory`, by name, and the folders skipped. A library plugin whose files
-    /// changed since it was installed is skipped (its hashes no longer match the install record).
+    /// changed since it was installed is skipped (its hashes no longer match the install record). What an interrupted
+    /// install left aside is put right first (`FileOps.recoverInterruptedSwaps`).
     public static func load(from directory: URL = directory, appVersion: String = AppVersion.string)
         -> (plugins: [InstalledPlugin], skipped: [Skipped]) {
+        Platform.current.files.recoverInterruptedSwaps(in: directory)
         let fm = FileManager.default
         guard let folders = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey],
                                                         options: [.skipsHiddenFiles]) else { return ([], []) }
         var plugins: [InstalledPlugin] = []
         var skipped: [Skipped] = []
         for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true,
+            // Not a hidden one either where hidden isn't a leading "." (Windows): a swap's aside, ".stock.swap-<UUID>".
+            guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true, !folder.lastPathComponent.hasPrefix("."),
                   !folder.lastPathComponent.hasSuffix(".tmp") else { continue }
             func skip(_ reason: String) { skipped.append(Skipped(folder: folder.lastPathComponent, reason: reason)) }
             guard let data = try? Data(contentsOf: folder.appendingPathComponent("plugin.json")),

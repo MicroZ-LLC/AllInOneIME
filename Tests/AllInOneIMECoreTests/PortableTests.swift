@@ -17,6 +17,17 @@ struct PortableTests {
         #expect(values.map(\.isBoolean) == [true, true, false, false, false])
     }
 
+    /// Equal JSON compares equal as the core compares it, booleans too (Foundation on Windows says two parsed `[true]`
+    /// differ through NSArray's isEqual; the core never compares JSON that way).
+    @Test func parsedJSONComparesEqualWithBooleans() throws {
+        let text = Data(#"{"a": [true, false, {"b": true}], "c": 1, "d": null}"#.utf8)
+        let one = try #require(AIConfig.JSONValue(try JSONSerialization.jsonObject(with: text)))
+        let two = try #require(AIConfig.JSONValue(try JSONSerialization.jsonObject(with: text)))
+        #expect(one == two)
+        #expect(one == .object(["a": .array([.bool(true), .bool(false), .object(["b": .bool(true)])]), "c": .number(1), "d": .null]))
+        #expect(AIConfig.JSONValue(try JSONSerialization.jsonObject(with: Data("[1]".utf8))) != .array([.bool(true)]))
+    }
+
     @Test func chineseEncodingsAreFoundations() {
         let hello = "你好"
         #expect(String(data: Data([0xC4, 0xE3, 0xBA, 0xC3]), encoding: WebReader.gb18030) == hello)

@@ -127,13 +127,26 @@ public struct ScriptItem: Hashable, Sendable {
                   autocomplete: json["autocomplete"].map { "\($0)" })
     }
 
-    /// `open` for a web address or a path, else `insert`.
+    /// `open` for a web address or a path (not another computer's share, `namesShare`), else `insert`.
     static func defaultAction(for arg: String?) -> Action {
         guard let arg else { return .insert }
         let lower = arg.lowercased()
         let opens = lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("file://")
-            || arg.hasPrefix("/") || arg.hasPrefix("~/")
+            || (CorePaths.isAbsolute(arg) && !namesShare(arg)) || arg.hasPrefix("~/")
         return opens ? .open : .insert
+    }
+
+    /// Whether `path` may be on another computer: on Windows one that starts with two separators, a share
+    /// ("\\server\share\…", "//server/…"; the "\\?\…" and "\\.\…" forms with it). It is never opened, nor even looked
+    /// at: reaching a share hands that computer the user's Windows sign-in (NTLM). Elsewhere "//x" is this computer's
+    /// "/x", opened as before.
+    static func namesShare(_ path: String) -> Bool {
+        #if os(Windows)
+        let start = Array(path.prefix(2))
+        return start.count == 2 && start.allSatisfy(CorePaths.isSeparator)
+        #else
+        return false
+        #endif
     }
 
     /// What `insert` puts in: its `arg`, else its title.
@@ -145,7 +158,7 @@ public struct ScriptItem: Hashable, Sendable {
     /// What `open` may open: an http(s) address; a folder (an app too); a file given by a `file://` address, an
     /// absolute path or a "~/" one, that's there and that opening wouldn't run: not an executable file (the
     /// system's programs, a `runme` with no extension) nor a kind of script (`runnableExtensions`). Nothing else:
-    /// no other scheme, no relative path.
+    /// no other scheme, no relative path, no share on another computer (`namesShare`, not looked for).
     public var openURL: URL? {
         guard let target = openTarget else { return nil }
         let lower = target.lowercased()
@@ -154,18 +167,33 @@ public struct ScriptItem: Hashable, Sendable {
             return url
         }
         var folder: ObjCBool = false
-        guard target.hasPrefix("/"), FileManager.default.fileExists(atPath: target, isDirectory: &folder) else { return nil }
+        guard CorePaths.isAbsolute(target), !Self.namesShare(target), FileManager.default.fileExists(atPath: target, isDirectory: &folder)
+        else { return nil }
         // A folder has the executable bit to be listed; a bundle like a .workflow is a folder too.
         if Self.runnableExtensions.contains((target as NSString).pathExtension.lowercased()) { return nil }
+        #if os(Windows)
+        // No executable bit: a program is a file Windows can run (an .exe, .com, …).
+        if !folder.boolValue, FileManager.default.isExecutableFile(atPath: target) { return nil }
+        #else
         if !folder.boolValue, access(target, X_OK) == 0 { return nil }
+        #endif
         return URL(fileURLWithPath: target)
     }
 
-    /// The kinds of file that opening runs: scripts and programs Terminal or an interpreter would run.
-    public static let runnableExtensions: Set<String> = [
-        "sh", "bash", "zsh", "csh", "tcsh", "ksh", "fish", "command", "tool", "terminal",
-        "py", "pyw", "rb", "pl", "php", "lua", "tcl", "js", "jar", "applescript", "scpt", "workflow", "action",
-    ]
+    /// The kinds of file that opening runs: scripts and programs Terminal or an interpreter would run (on Windows,
+    /// also what Explorer runs: programs, batch files, Windows Script Host's and PowerShell's scripts, installers,
+    /// shortcuts).
+    public static let runnableExtensions: Set<String> = {
+        var kinds: Set<String> = [
+            "sh", "bash", "zsh", "csh", "tcsh", "ksh", "fish", "command", "tool", "terminal",
+            "py", "pyw", "rb", "pl", "php", "lua", "tcl", "js", "jar", "applescript", "scpt", "workflow", "action",
+        ]
+        #if os(Windows)
+        kinds.formUnion(["exe", "com", "bat", "cmd", "scr", "cpl", "msc", "pif", "lnk", "url", "appref-ms", "ps1", "psm1",
+                         "vbs", "vbe", "jse", "wsf", "wsh", "hta", "msi", "msp", "reg", "inf"])
+        #endif
+        return kinds
+    }()
 
     /// What `open` opens: a web address as it is, a path with "~" expanded.
     public var openTarget: String? {

@@ -340,12 +340,12 @@ public enum ExtensionStore {
         var commands: [ScriptCommand] = []
         var skipped: [Skipped] = []
         for entry in entries {
-            guard let script = entry["script"], !script.hasPrefix("/"), !script.split(separator: "/").contains("..") else {
+            // A file of the bundle's folder as written (on every system's terms: no "..", "/x", "C:x", "..\x").
+            guard let script = entry["script"], let file = CorePaths.file(script, in: folder) else {
                 skipped.append(Skipped(file: folder.appendingPathComponent(ExtensionBundle.manifestName),
                                        problem: .badValue(key: "script", value: entry["script"] ?? "")))
                 continue
             }
-            let file = folder.appendingPathComponent(script)
             guard let found = read(file),
                   let launch = ScriptCommand.launch(for: file, firstLine: found.firstLine, executable: found.executable,
                                                     binary: found.binary) else {
@@ -379,6 +379,15 @@ public enum ExtensionStore {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return [] }
         return names.filter { !$0.hasPrefix(".") && !$0.contains(".template.") }.sorted().compactMap { name in
             let url = folder.appendingPathComponent(name)
+            #if os(Windows)
+            // The C library's stat takes no Unicode path and sees no links there: Foundation's calls (which follow links).
+            var isFolder: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder) else {
+                let type = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType
+                return type == .typeSymbolicLink ? (url, .brokenLink) : nil
+            }
+            return (url, isFolder.boolValue ? .folder : .file)
+            #else
             var info = stat()
             guard stat(url.path, &info) == 0 else {
                 var link = stat()
@@ -389,6 +398,7 @@ public enum ExtensionStore {
             case S_IFREG: return (url, .file)
             default: return nil
             }
+            #endif
         }
     }
     /// The folders of the files `mdfind` printed (one path a line) that are scripts (`isScript`): what `discover` (the
@@ -454,10 +464,17 @@ public final class ExtensionCache: @unchecked Sendable {
     /// What `url` (a link followed) holds for the index, from the cache when its size, date and permissions are
     /// the same; nil when it isn't a readable regular file.
     public func read(_ url: URL) -> File? {
+        #if os(Windows)
+        // The C library's stat takes no Unicode path there: Foundation's attributes, of the file a link leads to.
+        guard let info = try? FileManager.default.attributesOfItem(atPath: url.resolvingSymlinksInPath().path),
+              info[.type] as? FileAttributeType == .typeRegular else { return nil }
+        let size = (info[.size] as? NSNumber)?.int64Value ?? 0, mode = UInt16((info[.posixPermissions] as? NSNumber)?.intValue ?? 0)
+        #else
         var info = stat()
         guard stat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
-        let date = Platform.current.files.modificationDate(atPath: url.path) ?? .distantPast
         let (size, mode) = (Int64(info.st_size), UInt16(info.st_mode))
+        #endif
+        let date = Platform.current.files.modificationDate(atPath: url.path) ?? .distantPast
         if let cached = lock.withLock({ files[url.path] }), cached.date == date, cached.size == size, cached.mode == mode { return cached }
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
@@ -473,9 +490,18 @@ public final class ExtensionCache: @unchecked Sendable {
         let file = File(date: date, size: size, mode: mode, metadata: binary ? nil : ScriptCommand.metadata(in: text),
                         firstLine: ScriptCommand.firstLine(of: text),
                         json: url.lastPathComponent == ExtensionBundle.manifestName ? data : nil,
-                        executable: access(url.path, X_OK) == 0, binary: binary, digest: Data(hasher.finalize()))
+                        executable: Self.isExecutable(url), binary: binary, digest: Data(hasher.finalize()))
         lock.withLock { files[url.path] = file }
         return file
+    }
+
+    /// Whether the system would run `url` itself: its executable bit; on Windows, which has none, a program it can run.
+    static func isExecutable(_ url: URL) -> Bool {
+        #if os(Windows)
+        FileManager.default.isExecutableFile(atPath: url.path)
+        #else
+        access(url.path, X_OK) == 0
+        #endif
     }
 
     /// Drops what it holds for any file but `paths` (those gone, or no longer in a folder read).

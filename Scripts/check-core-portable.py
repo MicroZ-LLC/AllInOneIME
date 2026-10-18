@@ -6,8 +6,8 @@ string counts, and nothing there (an unbalanced \"\"\" in a comment, say) change
   - a core file imports a module that isn't one every platform has (ALLOWED), anywhere but Platform/Apple/; a C library
     (C_LIBRARIES) only under its own guard (`#if canImport(Glibc)`, `#elseif os(Linux)`, ...);
   - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one;
-  - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, ...) instead of through the
-    ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
+  - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
+    `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
 
     check-core-portable.py [--list] [--root DIR]    the offences, one a line (DIR: the package, by default this one)
 """
@@ -39,7 +39,10 @@ C_MODULE = r"(?:Darwin|Glibc|Musl|Android|WinSDK|ucrt|Foundation)\s*\.\s*"
 PROGRAMS = [
     re.compile(r"(?<!\w)Process\s*(?:\(|\.\s*(?:run|init|launchedProcess)\b)"),
     re.compile(r":\s*Process\s*[?!]?\s*=\s*\.\s*init\b"),
-    re.compile(r"(?<!\w)(?:v?fork|popen|_?wsystem|_?wpopen|exec[lv]\w*|posix_spawn\w*)\s*\("),
+    re.compile(r"(?<!\w)(?:v?fork|_?popen|_?wsystem|_?wpopen|exec[lv]\w*|posix_spawn\w*)\s*\("),
+    # Windows' own: CreateProcess(W/A/AsUser/WithLogon/WithToken), ShellExecute(Ex), WinExec, the C runtime's _spawn
+    # family (_spawnl, _wspawnvpe, ...: not any name that starts "_spawn").
+    re.compile(r"(?<!\w)(?:CreateProcess\w*|ShellExecute\w*|WinExec|_w?spawn[lv]p?e?|_w?exec[lv]\w*)\s*\("),
     re.compile(r"(?<!\w)" + C_MODULE + r"system\s*\("),
 ]
 # `system(` unqualified: the C call when its argument is a string literal, or when the core has no `system` of its own

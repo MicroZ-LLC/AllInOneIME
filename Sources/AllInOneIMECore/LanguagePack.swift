@@ -135,8 +135,10 @@ public struct LanguagePackStore: Sendable {
         directory.appendingPathComponent(pack.id, isDirectory: true)
     }
 
-    /// The install record of `pack`, if it is installed and complete (its required files are there).
+    /// The install record of `pack`, if it is installed and complete (its required files are there). What an
+    /// interrupted install left aside is put right first (`FileOps.recoverInterruptedSwaps`).
     public func installed(_ pack: LanguagePack) -> LanguagePackRecord? {
+        Platform.current.files.recoverInterruptedSwaps(in: directory)
         let folder = folder(pack)
         guard let data = try? Data(contentsOf: folder.appendingPathComponent("install.json")),
               let record = try? JSONDecoder().decode(LanguagePackRecord.self, from: data), record.id == pack.id,
@@ -198,8 +200,10 @@ public struct LanguagePackStore: Sendable {
 
     /// Folders of code an engine's data may come with (rime-ice's Lua): never taken from a pack.
     static let codeFolders = ["lua"]
-    /// Extensions of files that are code (scripts, libraries, executables): a pack with one is refused.
-    static let codeExtensions: Set<String> = ["lua", "dylib", "so", "bundle", "app", "framework", "sh", "py", "js", "rb", "pl", "command", "plugin"]
+    /// Extensions of files that are code (scripts, libraries, executables; Windows' too, as a pack is the same everywhere):
+    /// a pack with one is refused.
+    static let codeExtensions: Set<String> = ["lua", "dylib", "so", "bundle", "app", "framework", "sh", "py", "js", "rb", "pl", "command", "plugin",
+                                              "exe", "dll", "com", "bat", "cmd", "ps1", "psm1", "vbs", "wsf", "hta", "msi", "scr", "lnk"]
 
     /// A pack folder that is data only: plain files and folders (no links, no special files), nothing
     /// with code's extension, no code folder, every required file present, and a pack.json naming this pack.
@@ -239,7 +243,9 @@ public struct LanguagePackStore: Sendable {
     public func linkCode(_ pack: LanguagePack, from code: URL?) throws {
         let link = folder(pack).appendingPathComponent("lua")
         let fm = FileManager.default
-        if let current = try? fm.destinationOfSymbolicLink(atPath: link.path), current == code?.path { return }
+        // On Windows a link's target reads back with "\" ("C:\…\rime-lua"), a URL's path with "/": spelled alike first.
+        if let current = try? fm.destinationOfSymbolicLink(atPath: link.path),
+           (CorePaths.isSeparator("\\") ? current.replacingOccurrences(of: "\\", with: "/") : current) == code?.path { return }
         if (try? fm.attributesOfItem(atPath: link.path)) != nil {
             // Only ever our link: a real folder here would be code that didn't come from the app.
             try fm.removeItem(at: link)

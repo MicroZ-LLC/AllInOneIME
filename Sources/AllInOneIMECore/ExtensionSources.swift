@@ -321,9 +321,13 @@ public enum ExtensionSources {
     /// The bundle's folder: the clone's, then `path` in it.
     public static func bundleFolder(for source: ExtensionSource, root: URL = directory) -> URL {
         let clone = cloneFolder(for: source.url, root: root)
-        let parts = (source.path ?? "").split(separator: "/").filter { $0 != "." }
-        // A path that climbs out ("..") names no folder of the clone: a hidden name that never exists, so nothing loads.
-        if parts.contains("..") { return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true) }
+        let path = source.path ?? ""
+        let parts = CorePaths.components(path).filter { $0 != "." }
+        // A path that climbs out ("..", and on Windows "..\", "C:") or has a NUL in it (a URL with one names "/") names no
+        // folder of the clone: a hidden name that never exists, so nothing loads.
+        if path.contains("\0") || parts.contains(where: CorePaths.climbs) {
+            return clone.appendingPathComponent(".invalid-bundle-path", isDirectory: true)
+        }
         return parts.isEmpty ? clone : clone.appendingPathComponent(parts.joined(separator: "/"), isDirectory: true)
     }
 
@@ -336,16 +340,26 @@ public enum ExtensionSources {
         // case apart, in lower case.
         var existing = path, rest: [String] = []
         while existing.count > 1, !FileManager.default.fileExists(atPath: existing) {
+            // Up to the first part there; not past a top that isn't (a missing drive, "C:/", is its own parent).
+            let parent = (existing as NSString).deletingLastPathComponent
+            guard parent != existing else { break }
             rest.insert((existing as NSString).lastPathComponent, at: 0)
-            existing = (existing as NSString).deletingLastPathComponent
+            existing = parent
         }
+        #if os(Windows)
+        // No realpath there: Foundation resolves the links. It doesn't say how the volume compares names: NTFS's way.
+        existing = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path
+        let unsaid = false
+        #else
         if let real = realpath(existing, nil) {
             existing = String(cString: real)
             free(real)
         }
+        let unsaid = true
+        #endif
         let resolved = rest.reduce(existing) { ($0 as NSString).appendingPathComponent($1) }
         let caseSensitive = (try? URL(fileURLWithPath: existing).resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?
-            .volumeSupportsCaseSensitiveNames ?? true
+            .volumeSupportsCaseSensitiveNames ?? unsaid
         return caseSensitive ? resolved : resolved.lowercased()
     }
 
@@ -479,8 +493,9 @@ public enum ExtensionSources {
     /// The bundle path to use in `clone`: `path` if it has an `extension.json`, else the only folder that has one.
     public static func resolveBundlePath(_ path: String?, in clone: URL) throws -> String {
         if let path, !path.isEmpty {
-            let cleaned = path.split(separator: "/").filter { $0 != "." }.joined(separator: "/")
-            guard !cleaned.split(separator: "/").contains(".."),
+            let parts = CorePaths.components(path).filter { $0 != "." }
+            let cleaned = parts.joined(separator: "/")
+            guard !path.contains("\0"), !parts.contains(where: CorePaths.climbs),
                   FileManager.default.fileExists(atPath: clone.appendingPathComponent(cleaned).appendingPathComponent(ExtensionBundle.manifestName).path)
             else { throw ExtensionSourceError.noBundle(path) }
             // A folder that is (or goes through) a link out of the repository isn't the repository's.
@@ -555,8 +570,11 @@ public enum ExtensionSources {
 
     /// The folders extensions are loaded from (`ExtensionStore.folders`) as the input method loads them: less
     /// `untrustedFolders`, and those of the sources folder read only as the one bundle each is (`Folder.bundleOnly`).
+    /// What an interrupted Enable or Re-clone left aside in the sources folder is put right first
+    /// (`FileOps.recoverInterruptedSwaps`).
     public static func loadFolders(_ config: Config, found: [String], statuses: [String: ExtensionSourceStatus],
                                    root: URL = directory) -> [ExtensionStore.Folder] {
+        Platform.current.files.recoverInterruptedSwaps(in: root)
         let base = comparable(root.path)
         let untrusted = Set(untrustedFolders(in: config, statuses: statuses, root: root).map(comparable))
         return ExtensionStore.folders(config, found: found).compactMap { folder in
@@ -600,6 +618,8 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         /// Its script is a symbolic link out of the repository (to where it leads): it would run a file the review
         /// can't vouch for.
         public var leavesRepository: String? = nil
+        /// What its status line runs (`status`), written as `program` is; nil when it has none.
+        public var status: String? = nil
     }
 
     public var url: String
@@ -615,10 +635,10 @@ public struct ExtensionSourceReview: Equatable, Sendable {
     public var skipped: [ExtensionStore.Skipped]
 
     public var preferences: [ExtensionBundle.Preference] { bundle?.preferences ?? [] }
-    /// Every program it runs, once each.
+    /// Every program it runs, once each: its commands' and their status lines'.
     public var programs: [String] {
         var seen = Set<String>()
-        return commands.map(\.program).filter { seen.insert($0).inserted }
+        return commands.flatMap { [$0.program] + ($0.status.map { [$0] } ?? []) }.filter { seen.insert($0).inserted }
     }
 
     /// The bundle in `bundleFolder` as it would load next to what `config` loads now (`found`: the Raycast folders
@@ -640,12 +660,13 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         let hidden = Dictionary(AllInOneIMECore.Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
             .map { ($0.script.id, ScriptCommand.Problem.nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { (a: ScriptCommand.Problem, _: ScriptCommand.Problem) in a })
         let commands = index.commands.filter { $0.file.standardizedFileURL.path.hasPrefix(prefix) }.map { command in
-            let program = command.launch.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 }.joined(separator: " ")
+            func shown(_ launch: [String]) -> String { launch.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 }.joined(separator: " ") }
+            let program = shown(command.launch)
             let off = bundle.map { config.disabledExtensions.contains($0.name) } == true || config.disabledExtensions.contains(command.id)
             let outside = ExtensionSources.isInside(command.file, repository ?? folder) ? nil : command.file.resolvingSymlinksInPath().path
             return Command(name: command.name, title: command.title, description: command.description, output: command.output,
                            background: command.background, program: program, hidden: off ? nil : hidden[command.id],
-                           leavesRepository: outside)
+                           leavesRepository: outside, status: command.status.map { shown($0.launch) })
         }
         return ExtensionSourceReview(url: url, commit: commit, commitDate: commitDate, path: path, bundle: bundle, problem: problem,
                                      commands: commands, skipped: bundle == nil ? [] : mine)
@@ -676,6 +697,7 @@ public struct ExtensionSourceReview: Equatable, Sendable {
             lines.append("command:     @\(command.name) — \(command.title) (\(command.output.rawValue)\(command.background ? ", background" : ""))\(hidden)")
             if let description = command.description { lines.append("             \(description)") }
             lines.append("  runs:      \(command.program)")
+            if let status = command.status { lines.append("  status:    \(status)") }
             if let target = command.leavesRepository { lines.append("  WARNING:   its script is a link out of the repository, to \(target)") }
         }
         for preference in preferences {
@@ -788,7 +810,9 @@ public struct ExtensionSourceManager: Sendable {
             if old(staged) { try? fm.removeItem(at: staged) }
         }
         removeStagingIfEmpty()
-        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where name.hasPrefix(".tmp-") || name.hasPrefix(".old-") {
+        // Never a swap's aside (".tmp-x.swap-<UUID>" for a clone named "tmp-x"): `recoverInterruptedSwaps` puts it back.
+        for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? []
+        where (name.hasPrefix(".tmp-") || name.hasPrefix(".old-")) && SystemFileOps.swappedName(name) == nil {
             let leftover = root.appendingPathComponent(name)
             if old(leftover) { try? fm.removeItem(at: leftover) }
         }
