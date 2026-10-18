@@ -15,8 +15,10 @@ import Testing
 // ASSUMPTIONS (API details the spec leaves open; the narrowest reading, for the implementation to match):
 //  1. `Command.reply` is a static built-in command (name "reply", kind `.generate`) in `Command.builtins`; the start
 //     effect is `.startCommand(.reply, input: Prompt.replyMessage(context), id:)`.
-//  2. `Config.freeBuiltinNames()` is `mutating`, renames in `customCommands` in place (order and every other field
-//     kept) and returns `[(old: String, new: String)]`, one pair per rename, in config order; nothing to do: `[]`.
+//  2. `Config.freeBuiltinNames(taken:)` is `mutating`; `taken` is the plugin and script names (lower case), written as
+//     an array literal here (so `[String]` or a `Set<String>`). It renames in `customCommands` in place (order and every
+//     other field kept) and returns `[(old: String, new: String)]`, one pair per rename, in config order; nothing to
+//     do: `[]`. A renamed command is valid by `problem(among:plugins:)` with the same names as `plugins:`.
 //  3. `RecognizedLine` (top level, Sendable) has a public `init(text:box:confidence:)`; `box` is 0…1 with a top-left
 //     origin. `UnsupportedTextRecognizer` has a public `init()`.
 //  4. `ScreenText.recognize(_ image: Data, with: any TextRecognizer, languages: [String]) async throws -> ScreenText`
@@ -268,6 +270,28 @@ fileprivate enum ReplyAcc {
         return false
     }
 
+    /// The command renamed to `name` (the one whose prompt is "Write a polite reply.") is valid among the others and
+    /// `plugins`, and the catalog offers it under that name, beside the built-in @reply.
+    static func expectValid(_ config: Config, renamedTo name: String, plugins: [String],
+                            sourceLocation: SourceLocation = #_sourceLocation) {
+        let commands = config.customCommands
+        guard let index = commands.firstIndex(where: { $0.name == name }) else {
+            Issue.record("no custom command named \(name): \(commands.map(\.name))", sourceLocation: sourceLocation)
+            return
+        }
+        let renamed = commands[index]
+        #expect(renamed.prompt == "Write a polite reply.", sourceLocation: sourceLocation)
+        #expect(renamed.name.allSatisfy { $0.isASCII && $0.isLetter } && renamed.name.count <= 24,
+                sourceLocation: sourceLocation)
+        var others = commands
+        others.remove(at: index)
+        #expect(renamed.problem(among: others, plugins: plugins) == nil, "\(name)", sourceLocation: sourceLocation)
+        let catalog = Command.catalog(commands)
+        #expect(catalog.contains { $0.name == name && $0.custom?.prompt == "Write a polite reply." },
+                "\(catalog.map(\.name))", sourceLocation: sourceLocation)
+        #expect(catalog.filter { $0.name == "reply" } == [.reply], sourceLocation: sourceLocation)
+    }
+
     static func count(_ character: Character, in text: String) -> Int { text.reduce(0) { $1 == character ? $0 + 1 : $0 } }
 
     // MARK: Sending through the converter
@@ -438,37 +462,68 @@ struct ReplyAcceptanceTests {
         let other = CustomCommand(name: "tweetit", type: .prompt, prompt: "Rewrite this as a tweet.")
         var config = Config.default
         config.customCommands = [own, other]
-        let renamed = config.freeBuiltinNames()
+        let renamed = config.freeBuiltinNames(taken: [])
         #expect(renamed.map { $0.old } == ["reply"] && renamed.map { $0.new } == ["myreply"], "\(renamed)")
         #expect(config.customCommands.map(\.name) == ["myreply", "tweetit"])
         #expect(config.customCommands.first?.prompt == "Write a polite reply.")
         #expect(config.customCommands.first?.type == .prompt)
         #expect(config.customCommands.last == other)
-        // Now offered under its new name, beside the built-in.
-        let catalog = Command.catalog(config.customCommands)
-        #expect(catalog.contains { $0.name == "myreply" && $0.custom?.prompt == "Write a polite reply." })
-        #expect(catalog.filter { $0.name == "reply" } == [.reply])
+        ReplyAcc.expectValid(config, renamedTo: "myreply", plugins: [])
 
         // Twice: nothing more changes.
         let before = config.customCommands
-        let again = config.freeBuiltinNames()
+        let again = config.freeBuiltinNames(taken: [])
         #expect(again.isEmpty, "\(again)")
         #expect(config.customCommands == before)
 
-        // "myreply" taken already: "myreply2".
+        // "myreply" taken by another custom command: "myownreply".
         let mine = CustomCommand(name: "myreply", type: .prompt, prompt: "Something else.")
-        var taken = Config.default
-        taken.customCommands = [own, mine]
-        let second = taken.freeBuiltinNames()
-        #expect(second.map { $0.old } == ["reply"] && second.map { $0.new } == ["myreply2"], "\(second)")
-        #expect(taken.customCommands.map(\.name) == ["myreply2", "myreply"])
-        #expect(taken.customCommands.last == mine)
-        #expect(taken.freeBuiltinNames().isEmpty)
+        var byCustom = Config.default
+        byCustom.customCommands = [own, mine]
+        let second = byCustom.freeBuiltinNames(taken: [])
+        #expect(second.map { $0.old } == ["reply"] && second.map { $0.new } == ["myownreply"], "\(second)")
+        #expect(byCustom.customCommands.map(\.name) == ["myownreply", "myreply"])
+        #expect(byCustom.customCommands.last == mine)
+        ReplyAcc.expectValid(byCustom, renamedTo: "myownreply", plugins: [])
+        let byCustomBefore = byCustom.customCommands
+        #expect(byCustom.freeBuiltinNames(taken: []).isEmpty)
+        #expect(byCustom.customCommands == byCustomBefore)
+
+        // "myreply" taken by a plugin: "myownreply" too.
+        var byPlugin = Config.default
+        byPlugin.customCommands = [own, other]
+        let third = byPlugin.freeBuiltinNames(taken: ["myreply"])
+        #expect(third.map { $0.old } == ["reply"] && third.map { $0.new } == ["myownreply"], "\(third)")
+        #expect(byPlugin.customCommands.map(\.name) == ["myownreply", "tweetit"])
+        ReplyAcc.expectValid(byPlugin, renamedTo: "myownreply", plugins: ["myreply"])
+        let byPluginBefore = byPlugin.customCommands
+        #expect(byPlugin.freeBuiltinNames(taken: ["myreply"]).isEmpty)
+        #expect(byPlugin.customCommands == byPluginBefore)
+
+        // Both taken: "myreplyb" (letters only, no digit).
+        let mineToo = CustomCommand(name: "myownreply", type: .prompt, prompt: "Mine too.")
+        let takenBoth: [(customs: [CustomCommand], plugins: [String])] = [
+            ([own, mine, mineToo], []),
+            ([own, mine], ["myownreply"]),
+            ([own], ["myreply", "myownreply"]),
+        ]
+        for (customs, plugins) in takenBoth {
+            var bothTaken = Config.default
+            bothTaken.customCommands = customs
+            let fourth = bothTaken.freeBuiltinNames(taken: plugins)
+            #expect(fourth.map { $0.old } == ["reply"] && fourth.map { $0.new } == ["myreplyb"], "\(plugins): \(fourth)")
+            #expect(bothTaken.customCommands.first?.name == "myreplyb")
+            #expect(Array(bothTaken.customCommands.dropFirst()) == Array(customs.dropFirst()))
+            ReplyAcc.expectValid(bothTaken, renamedTo: "myreplyb", plugins: plugins)
+            let bothBefore = bothTaken.customCommands
+            #expect(bothTaken.freeBuiltinNames(taken: plugins).isEmpty)
+            #expect(bothTaken.customCommands == bothBefore)
+        }
 
         // Nothing to rename.
         var plain = Config.default
         plain.customCommands = [other]
-        #expect(plain.freeBuiltinNames().isEmpty)
+        #expect(plain.freeBuiltinNames(taken: ["myreply"]).isEmpty)
         #expect(plain.customCommands == [other])
     }
 
