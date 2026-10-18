@@ -34,7 +34,7 @@ public enum ActionKey: Hashable, Sendable, CaseIterable {
     }
 
     private static func recorded(_ shortcut: KeyShortcut, key: Key) -> ActionKey? {
-        let modifiers = shortcut.modifiers.intersection([.shift, .control, .option, .command])
+        let modifiers = shortcut.modifiers.intersection(KeyShortcut.kinds)
         switch (key, modifiers) {
         case (.enter, []), (.keypadEnter, []): return .enter
         case (.space, []): return .space
@@ -109,11 +109,15 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
         self.name = name
     }
 
+    /// The modifiers a shortcut is written with: the kinds, never a side, Caps Lock or fn, so the number fits the byte
+    /// 0.6.4 and before read it as.
+    static let kinds: Modifiers = [.shift, .control, .option, .command]
+
     private enum CodingKeys: String, CodingKey { case keyCode, usage, modifiers, name }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let modifiers = KeyModifiers(rawValue: try c.decode(UInt16.self, forKey: .modifiers))
+        let modifiers = KeyModifiers(rawValue: try c.decode(UInt16.self, forKey: .modifiers)).intersection(Self.kinds)
         let name = try c.decode(String.self, forKey: .name)
         switch (try c.decodeIfPresent(UInt16.self, forKey: .keyCode), try c.decodeIfPresent(UInt16.self, forKey: .usage)) {
         case let (keyCode?, usage?):
@@ -130,16 +134,16 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(keyCode, forKey: .keyCode)
         try c.encode(usage, forKey: .usage)
-        try c.encode(modifiers.rawValue, forKey: .modifiers)
+        try c.encode(modifiers.intersection(Self.kinds).rawValue, forKey: .modifiers)
         try c.encode(name, forKey: .name)
     }
 
     /// Whether `event` is this key (Caps Lock aside), ⌘ being `roles.primary` (`ModifierRoles.swappingPrimary`). One with
     /// neither a usage nor a Mac code is no key: not every key the Mac doesn't have.
     public func matches(_ event: KeyEvent, roles: ModifierRoles = .mac) -> Bool {
-        let wanted = roles.swappingPrimary(modifiers)
+        let wanted = roles.swappingPrimary(modifiers.intersection(Self.kinds))
         let sameKey = usage != 0 ? event.usage == usage : keyCode != KeyEvent.noKeyCode && event.keyCode == keyCode
-        return sameKey && event.modifiers.intersection([.shift, .control, .option, .command]) == wanted
+        return sameKey && event.modifiers.intersection(Self.kinds) == wanted
     }
 }
 

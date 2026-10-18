@@ -66,6 +66,19 @@ struct KeyShortcutTests {
         #expect(try Config.load(from: url).actionKey == config.actionKey)
     }
 
+    @Test func onlyTheKindsAreWritten() throws {
+        // Sides, Caps Lock and fn set by hand never reach the config: 0.6.4's byte still reads it.
+        let held: Modifiers = [.command, .rightCommand, .shift, .leftShift, .capsLock, .function, .rightOption]
+        let shortcut = KeyShortcut(keyCode: 0x26, modifiers: held, name: "⌘⇧J")
+        let data = try JSONEncoder().encode(shortcut)
+        #expect(try JSONDecoder().decode(OldKeyShortcut.self, from: data).modifiers == 9)
+        #expect(try JSONDecoder().decode(KeyShortcut.self, from: data).modifiers == [.command, .shift])
+        // Written with sides by another hand: read without them.
+        let sided = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"keyCode": 38, "modifiers": 4104, "name": "⌘J"}"#.utf8))
+        #expect(sided.modifiers == .command)
+        #expect(shortcut.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.command, .shift])))
+    }
+
     @Test func readFromTheUsageAlone() throws {
         // Written where there is no Mac key code (another system's config): the Mac's code comes from the usage.
         let shortcut = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"usage": 40, "modifiers": 2, "name": "Ctrl+Enter"}"#.utf8))
