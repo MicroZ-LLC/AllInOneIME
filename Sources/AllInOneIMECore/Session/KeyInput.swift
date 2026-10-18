@@ -68,6 +68,9 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
     public static let rightControl = Modifiers(rawValue: 1 << 11)
     public static let leftCommand = Modifiers(rawValue: 1 << 12)
     public static let rightCommand = Modifiers(rawValue: 1 << 13)
+    /// AltGr is down: Windows reports it as Ctrl+Alt, which a shell marks with this (`WindowsKeyCodes.markingAltGraph`).
+    /// A key that types with it is text, not a ⌃⌥ shortcut (`KeyEvent.init(key:usage:…)`, which takes the mark off).
+    public static let altGraph = Modifiers(rawValue: 1 << 14)
 
     /// Every side bit.
     public static let sides: Modifiers = [.leftShift, .rightShift, .leftControl, .rightControl,
@@ -267,6 +270,13 @@ public enum WindowsKeyCodes {
         0x001D: 0xE0, 0x002A: 0xE1, 0x0038: 0xE2, 0xE05B: 0xE3,  // left Ctrl Shift Alt Win
         0xE01D: 0xE4, 0x0036: 0xE5, 0xE038: 0xE6, 0xE05C: 0xE7,  // right Ctrl Shift Alt Win
     ]
+
+    /// AltGr, as Windows reports it: Ctrl and Alt down, the right Alt among them (on the layouts with AltGr, Windows adds a
+    /// left Ctrl of its own to the right Alt). Marked `altGraph`, a key that types with it is text (`KeyEvent`), so
+    /// AltGr+Q's "@" on a German layout is an "@", not a Ctrl+Alt shortcut.
+    public static func markingAltGraph(_ modifiers: Modifiers, rightAltDown: Bool) -> Modifiers {
+        rightAltDown && modifiers.isSuperset(of: [.control, .option]) ? modifiers.union(.altGraph) : modifiers
+    }
 
     /// A scan code's usage (`extended`: lParam bit 24): 0 for one the table doesn't have.
     public static func usage(scanCode: UInt8, extended: Bool) -> UInt16 {

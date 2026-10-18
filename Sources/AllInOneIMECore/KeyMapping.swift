@@ -40,7 +40,8 @@ public struct KeyEvent: Equatable, Sendable {
     }
 
     /// Another system's: its key and usage (`WindowsKeyCodes`), and the Mac's key code at that usage (`noKeyCode` where
-    /// the Mac has none).
+    /// the Mac has none). With `Modifiers.altGraph`, a key that types is text: its Ctrl and Alt (AltGr's, as Windows
+    /// reports it) go, so it is never a ⌃⌥ shortcut; one that types nothing keeps them. The mark itself goes either way.
     public init(
         key: Key, usage: UInt16, characters: String, charactersIgnoringModifiers: String? = nil,
         modifiers: Modifiers = [], isRepeat: Bool = false
@@ -50,6 +51,11 @@ public struct KeyEvent: Equatable, Sendable {
         self.usage = usage
         self.characters = characters
         self.charactersIgnoringModifiers = charactersIgnoringModifiers ?? characters
+        var modifiers = modifiers
+        if modifiers.contains(.altGraph) {
+            modifiers.remove(.altGraph)
+            if !characters.isEmpty, characters.unicodeScalars.allSatisfy(Self.isPrintable) { modifiers.subtract([.control, .option]) }
+        }
         self.modifiers = modifiers
         self.isRepeat = isRepeat
     }

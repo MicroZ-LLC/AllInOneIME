@@ -98,6 +98,33 @@ extension ComposerTests {
         #expect(change(v, .control, .right, down: true, at: 2) == [.armVoice(delay: Composer.voiceArmDelay)])
     }
 
+    /// AltGr, which Windows reports as Ctrl+Alt: with a key that types, text, never a ⌃⌥ shortcut.
+    @Test func altGrTypesText() {
+        let altGr = WindowsKeyCodes.markingAltGraph([.control, .option], rightAltDown: true)
+        #expect(altGr == [.control, .option, .altGraph])
+        #expect(WindowsKeyCodes.markingAltGraph([.control, .option], rightAltDown: false) == [.control, .option])  // left Alt
+        #expect(WindowsKeyCodes.markingAltGraph(.option, rightAltDown: true) == .option)  // right Alt alone, no AltGr
+        // AltGr+Q on a German layout types "@": the command palette opens, as for "@" typed anywhere.
+        let (c, _) = composer()
+        c.modifierRoles = .windows
+        let at = pc(.character, 0x14, "@", altGr)
+        #expect(at.modifiers.isEmpty && at.printableText == "@")
+        _ = c.handleKeyDown(at)
+        #expect(c.draft == "@")
+        // AltGr+A on a Polish layout, in a draft: "ą" goes in, AltGr+Shift+A "Ą".
+        let (d, _) = improveDraft(key: .enter, english: true)
+        d.modifierRoles = .windows
+        _ = d.handleKeyDown(pc(.character, 0x04, "ą", altGr))
+        let capital = pc(.character, 0x04, "Ą", altGr.union(.shift))
+        #expect(capital.modifiers == .shift)
+        _ = d.handleKeyDown(capital)
+        #expect(d.draft == "@improve ąĄ")
+        // Ctrl+Alt with the left Alt, or with a key that types nothing, stays Ctrl+Alt.
+        #expect(pc(.character, 0x14, "", altGr).modifiers == [.control, .option])
+        #expect(pc(.enter, 0x28, "\r", altGr).modifiers == [.control, .option])
+        #expect(pc(.character, 0x14, "q", [.control, .option]).printableText == nil)
+    }
+
     @Test func theMacsRolesAreTheMacsKeys() {
         let mac = ModifierRoles.mac
         #expect(mac.primary == .command && mac.word == .option && mac.lineEdge == .command && mac.pasteAnywhere == .control)
