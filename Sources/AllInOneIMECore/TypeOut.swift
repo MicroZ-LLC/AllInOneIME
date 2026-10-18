@@ -376,7 +376,7 @@ extension TypeOut {
         public init(layout: any KeyTranslator) {
             self.init { code in
                 var state: UInt32 = 0
-                return layout.translate(code, [], state: &state, deadKeys: false)
+                return layout.translate(usage: MacKeyCodes.usage(code), [], state: &state, deadKeys: false)
             }
         }
 

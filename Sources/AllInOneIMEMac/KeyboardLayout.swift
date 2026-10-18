@@ -31,6 +31,16 @@ public struct KeyboardLayout: KeyTranslator, @unchecked Sendable {
         return nil
     }
 
+    /// `translate(_:…)` by the key's usage (`KeyTranslator`): the key code at that place (`MacKeyCodes`); nothing where
+    /// the Mac has no such key.
+    public func translate(usage: UInt16, _ modifiers: KeyModifiers, state: inout UInt32, deadKeys: Bool) -> String {
+        guard let keyCode = MacKeyCodes.code(usage: usage) else {
+            state = 0
+            return ""
+        }
+        return translate(keyCode, modifiers, state: &state, deadKeys: deadKeys)
+    }
+
     /// What `keyCode` types with `modifiers` after the dead-key `state`, which becomes the state the key
     /// leaves (non-zero, with nothing typed: a dead key). Without `deadKeys` a dead key types its accent.
     public func translate(_ keyCode: UInt16, _ modifiers: KeyModifiers, state: inout UInt32, deadKeys: Bool = true) -> String {
