@@ -477,9 +477,13 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
   aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
 - API keys and passwords go through iCloud Keychain, not iCloud Drive: with "API keys and passwords" on (while sync is
-  on), a key saved or replaced on one Mac is there on the others, the newest change winning; turning it on moves this
-  Mac's keys into iCloud Keychain, and turning it off copies them back to this Mac and leaves them in iCloud Keychain for
-  your other Macs. Removing a key while it syncs removes it on every Mac (the question says so). Each key still goes only
+  on), a key saved or replaced on one Mac is there on the others. When two Macs have different keys, the one saved last
+  wins (by when it was saved, which every copy keeps), and the other isn't deleted: it stays where it was, unused.
+  Turning it on moves this Mac's keys into iCloud Keychain, and turning it off copies them back to this Mac and leaves
+  them in iCloud Keychain for your other Macs. Removing a key while it syncs removes it on every Mac that syncs keys
+  (the question says "all your Macs"); a Mac with "API keys and passwords" off keeps its own copy, and puts it back if
+  it's turned on there again. On a Mac with it off, Remove… removes the key from that Mac only (the question says "this
+  Mac"), and the copy in iCloud Keychain stays for your other Macs. Each key still goes only
   to the host it was saved for. The AllInOneIME Cloud sign-in never syncs: each Mac signs in itself. A key saved in the
   login keychain by an earlier version moves once to the data protection keychain (at launch, or when it's first used),
   so macOS no longer asks for your login password after an update. A build without the provisioning profile (a
@@ -846,7 +850,7 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; needs the Developer ID certificate it's signed with and DIST_PROFILE, the provisioning profile; optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
 make app PROFILE=<profile> SIGN_IDENTITY=<a certificate it lists>   # a build with the keychain entitlements: keys in the data protection keychain, synced through iCloud Keychain
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
@@ -894,7 +898,9 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update.jso
    that `xcrun notarytool` keychain profile and stapled. The input method carries the Developer ID provisioning profile
    (`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`, `DIST_PROFILE`), which grants its keychain entitlements;
    the build stops if the profile doesn't list the signing certificate, provision all devices, or have 30 days left
-   (`Scripts/profile-entitlements.sh`), and runs the signed input method once (macOS kills one whose profile doesn't fit).
+   (`Scripts/profile-entitlements.sh`) or the signature lacks the keychain entitlements, and runs the signed input method
+   once (macOS kills one whose profile doesn't fit). An empty `DIST_PROFILE` stops it too: a release without the
+   entitlements would lose sight of every key that moved to the data protection keychain.
    The profile lists the two Developer ID G1 certificates only: before signing with another (G2), make a new profile in
    the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists it, and commit it.
 3. Upload both to the GitHub release `v<version>` and publish it.

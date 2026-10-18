@@ -394,8 +394,10 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 - iCloud 还没下载下来的文件会等它下载，从不当成空的；读不了的 `settings.json` 会改名放到一边（`settings (unreadable …).json`），从不覆盖。
   新版本才有的设置原样保留。
 - API 密钥和密码经过 iCloud 钥匙串，不经过 iCloud 云盘：开着「API 密钥和密码」（同步打开时）时，在一台 Mac 上保存或替换的 key，别的 Mac 上也有，
-  以最新的改动为准；打开时这台 Mac 的 key 移进 iCloud 钥匙串，关掉时复制回这台 Mac，iCloud 钥匙串里的留给你别的 Mac。同步时删除 key，每台 Mac
-  上都删除（确认时会这样问）。每个 key 仍然只发给它保存时对应的主机。AllInOneIME Cloud 的登录从不同步：每台 Mac 各自登录。旧版本存在登录钥匙串里的
+  两台 Mac 上的 key 不一样时，以最后保存的为准（按保存的时间，每个副本都带着），另一个不会被删，留在原处不用。打开时这台 Mac 的 key 移进
+  iCloud 钥匙串，关掉时复制回这台 Mac，iCloud 钥匙串里的留给你别的 Mac。同步时删除 key，每台同步密钥的 Mac 上都删除（确认时问「所有的 Mac」）；
+  关了「API 密钥和密码」的 Mac 留着自己的那份，在那台 Mac 上再打开时会把它放回去。关着它的 Mac 上点「删除…」，只删这台 Mac 上的（确认时问
+  「这台 Mac」），iCloud 钥匙串里的留给你别的 Mac。每个 key 仍然只发给它保存时对应的主机。AllInOneIME Cloud 的登录从不同步：每台 Mac 各自登录。旧版本存在登录钥匙串里的
   key 会一次性移到数据保护钥匙串（启动时，或第一次用到时），更新后 macOS 不再要登录密码。没有描述文件的版本（开发版）把 key 留在登录钥匙串里，
   不能同步：那一行会写明。
 - 从不同步：AllInOneIME Cloud 的登录，AWS 凭证（在 `~/.aws` 里），扩展来源（会运行代码：每台 Mac 自己决定），扩展文件夹和插件（每台 Mac 上的路径），
@@ -724,7 +726,7 @@ make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已�
 make screenshots  # 重新生成 docs/ 里的截图
 make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # 在终端里试翻译和改写
 make icon         # 从 Resources/AppIcon.png 重新生成 App 图标和菜单栏图标
-make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；有 Developer ID 证书时签名，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
+make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；需要签名用的 Developer ID 证书和描述文件 DIST_PROFILE，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
 make app PROFILE=<描述文件> SIGN_IDENTITY=<它列出的证书>   # 带钥匙串权限的版本：key 存在数据保护钥匙串里，经过 iCloud 钥匙串同步
 make update-test  # 应用内更新的端到端测试：临时的安装目录、127.0.0.1 上的测试服务器、测试密钥（不碰装好的 App）
 ```
@@ -755,8 +757,8 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 2. `make dmg NOTARY_PROFILE=<profile>`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
    App 和磁盘映像用钥匙串里的 Developer ID Application 证书签名，磁盘映像再用这个 `xcrun notarytool` 钥匙串配置公证并装订（staple）。
    输入法带着 Developer ID 描述文件（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），钥匙串权限来自它；
-   描述文件没列出签名用的证书、不是所有设备都能用、或剩下不到 30 天时，构建会停下（`Scripts/profile-entitlements.sh`），签好后还会运行一次输入法
-   （描述文件不对的话 macOS 会直接杀掉它）。描述文件只列了两张 Developer ID G1 证书：换用别的证书（G2）签名前，先在开发者网站上手动做一个列出它的
+   描述文件没列出签名用的证书、不是所有设备都能用、或剩下不到 30 天时，构建会停下（`Scripts/profile-entitlements.sh`），签名里没有钥匙串权限也会停下，
+   签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移到数据保护钥匙串的 key。描述文件只列了两张 Developer ID G1 证书：换用别的证书（G2）签名前，先在开发者网站上手动做一个列出它的
    新描述文件（这个 App ID 的签名不要再交给 Xcode 自动管理），提交进来。
 3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update.json`
