@@ -984,7 +984,10 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func perform(_ effects: [Composer.Effect], client: IMKTextInput?) {
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        defer { wakePageIfAgent() }
+        defer {
+            wakePageIfAgent()
+            if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
+        }
         for effect in effects {
             switch effect {
             case .updateMarkedText:
@@ -1017,7 +1020,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 // @reply with nothing selected, copied or pasted: the Chrome page as its context, when that applies.
                 if command == .reply, composer.replyTakesPage {
                     withPage(input, render: { Prompt.replyMessage($1, page: $0) }) { [self] prompt, _ in
-                        self.replyWithPage = (input, prompt)  // ⌘R and refines send the page again
+                        // ⌘R and refines send the page again (while the draft is up).
+                        if self.composer.isComposing { self.replyWithPage = (input, prompt) }
                         self.startConversion(prompt, id: id, command: command)
                     }
                     break
@@ -1033,6 +1037,14 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .startPlan(outer, plan, id):
                 // Inner commands run programs or reach the network: refused during secure input like any.
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
+                // @reply with nothing selected, copied or pasted: the Chrome page goes along with the text the commands
+                // inside it make, as without them.
+                if outer == .reply, composer.replyTakesPage {
+                    withPage("", render: { Prompt.replyMessage($1, page: $0) }) { [self] page, _ in
+                        self.startConversion("", id: id, command: outer, plan: plan, replyPage: page)
+                    }
+                    break
+                }
                 startConversion("", id: id, command: outer, plan: plan)
             case let .startRun(command, input, id):
                 if refusedForSecureInput(id: id, client: target, running: true) { break }
@@ -1768,7 +1780,10 @@ final class AllInOneIMEInputController: IMKInputController {
     var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
 
     @MainActor
-    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false) {
+    /// `replyPage`: `@reply`'s Chrome page (`Prompt.replyMessage(_:page:)` of nothing), added after its message once the
+    /// commands inside it have run (`plan`).
+    private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false,
+                                 replyPage: String = "") {
         conversionTask?.cancel()
         lastElapsed = nil
         lastFromCache = false
@@ -1827,10 +1842,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 command == .webSearch ? Self.described(WebSearch.stream(argument, output: innerSearch, loadKey: loadSearchKey))
                     : streamFor(command, argument)
             }, outer: { text in
-                // @reply: the text with the commands' outputs is what to reply, sent with the rest of its context.
-                guard var context = replyContext else { return streamFor(command, text) }
-                context.intent = text
-                return streamFor(command, Prompt.replyMessage(context))
+                // @reply: the text with the commands' outputs is what to reply (capped as what's typed is), sent with the
+                // rest of its context, and the page if it goes along.
+                guard let context = replyContext else { return streamFor(command, text) }
+                return streamFor(command, Prompt.replyMessage(context.withIntent(text)) + replyPage)
             })
         } else {
             stream = streamFor(command, input)

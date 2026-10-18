@@ -64,7 +64,7 @@ public struct ReplyContext: Equatable, Sendable {
         let limit = provider == .apple ? Limits.screenshotOnDevice : Limits.screenshot
         let transcript = screen?.transcript
         var context = ReplyContext(
-            intent: String(intent.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Limits.intent)),
+            intent: cappedIntent(intent),
             selection: nonEmpty(selection).map { String($0.prefix(Limits.selection)) },
             message: nonEmpty(message).map { lastLines($0, limit: Limits.message) },
             screenshot: nonEmpty(transcript?.text(limit: limit)))
@@ -76,6 +76,19 @@ public struct ReplyContext: Equatable, Sendable {
         let sources = [them, context.screenshot, context.message, context.selection, context.field?.after]
         if let text = sources.lazy.compactMap(nonEmpty).first { context.language = language(of: text) }
         return context
+    }
+
+    /// The context with `intent` as what to say: with commands inside what was typed (`@reply tell her @stock AAPL`), the
+    /// text with their outputs (`Effect.startPlan`). Capped as `make` caps what's typed.
+    public func withIntent(_ intent: String) -> ReplyContext {
+        var context = self
+        context.intent = Self.cappedIntent(intent)
+        return context
+    }
+
+    /// What's typed after `@reply`, trimmed, at most `Limits.intent`.
+    static func cappedIntent(_ text: String) -> String {
+        String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Limits.intent))
     }
 
     /// Nothing to reply to and nothing to say: no request (`Composer.Messages.replyHint`).

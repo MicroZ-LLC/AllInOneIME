@@ -332,6 +332,13 @@ struct ReplyTests {
         #expect(Composer.ReplyMessages.chinese.renamed(old: "read", new: "myownread") == "你自己的 @read 改名为 @myownread")
     }
 
+    @Test func theIntentWithTheCommandsOutputsIsCappedToo() {
+        let context = ReplyContext(intent: "tell her @stock AAPL", message: "Is AAPL up?")
+        let long = context.withIntent("  tell her " + String(repeating: "x", count: 3000))
+        #expect(long.intent.count == ReplyContext.Limits.intent && long.intent.hasPrefix("tell her"))
+        #expect(long.message == "Is AAPL up?")
+    }
+
     @Test func theFieldTextIsCapped() {
         let context = ReplyContext.make(intent: "", selection: nil, message: nil, screen: nil,
                                         field: FieldText(before: String(repeating: "a", count: 2000) + "END",
