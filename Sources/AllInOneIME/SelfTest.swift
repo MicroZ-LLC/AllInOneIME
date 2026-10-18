@@ -498,7 +498,7 @@ enum SelfTest {
         check(english?.path(forResource: "Localizable", ofType: "strings") != nil
               && english.flatMap { InterfaceText.translate("None", key: "account.notSubscribed", in: $0) } == "None",
               "the app carries the compiled String Catalog (en.lproj/Localizable.strings; keys of their own have their English)")
-        check(UIText.shipped.map(InterfaceLanguage.name) == ["English", "简体中文"],
+        check(UIText.shipped.map(InterfaceLanguage.name) == ["English", "简体中文"] + interfaceLanguages.map(\.name),
               "the settings offer the shipped languages in their own names (\(UIText.shipped.map(InterfaceLanguage.name)))")
 
         let stand = directory.appendingPathComponent("interface-translations")
@@ -527,6 +527,54 @@ enum SelfTest {
         check(UIText.language == "zh-Hans" && chinese == "运行超过 12 秒，已停止", "Simplified Chinese still comes from the code: \(chinese)")
         UIText.choice = "de"  // not shipped: follows the system
         check(UIText.language == UIText.systemLanguage, "a language that isn't shipped follows the system (\(UIText.language))")
+    }
+
+    /// The interface languages the app ships besides Simplified Chinese and English, each with its name in itself, and
+    /// some of its text (the catalog's, compiled into `<code>.lproj`): "Interface language" and "General".
+    static let interfaceLanguages: [(code: String, name: String, interfaceLanguage: String, general: String)] = [
+        ("de", "Deutsch", "Sprache der Benutzeroberfläche", "Allgemein"),
+        ("es", "Español", "Idioma de la interfaz", "General"),
+        ("fr", "Français", "Langue de l’interface", "Général"),
+        ("ja", "日本語", "表示言語", "一般"),
+        ("ko", "한국어", "인터페이스 언어", "일반"),
+        ("pt-BR", "Português (Brasil)", "Idioma da interface", "Geral"),
+        ("zh-Hant", "繁體中文", "介面語言", "一般"),
+    ]
+
+    /// Each interface language besides Simplified Chinese and English, picked in the settings: its text from its
+    /// `.lproj` (Traditional Chinese's too, never the Simplified Chinese of the code), the core's through the same
+    /// lookup, and Settings → General and Translate & Rewrite drawn in it, to build/l10n-shots/<code>/ (next to the app)
+    /// to look at: labels that don't fit, text left in English.
+    static func testInterfaceLanguages() {
+        let shots = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("l10n-shots")
+        let pickedBefore = UIText.choice
+        defer { UIText.choice = pickedBefore }
+        for language in interfaceLanguages {
+            UIText.choice = InterfaceLanguage.setting(for: language.code)
+            let label = tr("界面语言", "Interface language"), general = SettingsPage.general.title
+            // The core's text through the same lookup ("Vertical" is Spanish and Portuguese too: compared with the .lproj).
+            let core = AIConfig.Text(language: UIText.language).layout(.vertical)
+            let lproj = InterfaceText.bundle(language.code, app: .main).flatMap { InterfaceText.translate("Vertical", in: $0) }
+            check(UIText.language == language.code && label == language.interfaceLanguage && general == language.general
+                  && lproj != nil && core == lproj && core != "竖排",
+                  "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(general), \(core))")
+            if language.code == "zh-Hant" {
+                let key = UIText.name(ActionKey.optionTap), french = UIText.name(Language.french)
+                check(key == "單按 ⌥" && french == "法文" && UIText.chineseOnly("插件库的索引没有签名") == "插件庫的索引沒有簽名",
+                      "Traditional Chinese, not the code's Simplified Chinese, where text only comes in Chinese and English (\(key), \(french))")
+            }
+            let folder = shots.appendingPathComponent(language.code)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for page in [SettingsPage.general, .writing] {
+                let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
+                preview.profileShownAs = "default"  // never the user's own profile name in a picture
+                SettingsImage.render(preview, page: page, to: folder.appendingPathComponent("\(page.rawValue).png")) { seconds in
+                    _ = pump(timeout: seconds) { false }
+                }
+            }
+            check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("general.png").path),
+                  "\(language.name): Settings → General drawn in it (\(folder.path))")
+        }
     }
 
     static func testLanguageDrag() {
@@ -640,13 +688,14 @@ enum SelfTest {
         model.refreshJargon()
         check(model.jargonExists && model.jargonCount == 3, "the user's jargon list is counted (\(model.jargonCount) terms)")
         // The window follows the system language among those the app ships (its .lproj folders): Chinese only when it
-        // comes before English, Traditional Chinese too while only Simplified Chinese ships.
+        // comes before English, Traditional Chinese in Traditional Chinese, a region in its language.
         let shipped = UIText.shipped
-        check(shipped == InterfaceLanguage.builtIn && InterfaceLanguage.pick(preferred: ["en-US", "zh-Hans-US"], shipped: shipped) == "en"
-              && InterfaceLanguage.pick(preferred: ["zh-Hans-CN", "en-US"], shipped: shipped) == "zh-Hans"
-              && InterfaceLanguage.pick(preferred: ["ja-JP", "zh-Hant-TW", "en"], shipped: shipped) == "zh-Hans"
-              && InterfaceLanguage.pick(preferred: ["ja-JP"], shipped: shipped) == "en",
-              "the settings language follows the preferred languages (\(shipped); this Mac: \(UIText.systemLanguage))")
+        let picks = [(["en-US", "zh-Hans-US"], "en"), (["zh-Hans-CN", "en-US"], "zh-Hans"), (["zh-Hant-TW", "en"], "zh-Hant"),
+                     (["zh-HK"], "zh-Hant"), (["ja-JP", "zh-Hant-TW", "en"], "ja"), (["ko-KR"], "ko"), (["de-AT"], "de"),
+                     (["es-MX"], "es"), (["fr-CA"], "fr"), (["pt-BR"], "pt-BR"), (["pt-PT", "en"], "pt-BR"), (["ru-RU"], "en")]
+        let wrong = picks.filter { InterfaceLanguage.pick(preferred: $0.0, shipped: shipped) != $0.1 }
+        check(shipped == InterfaceLanguage.builtIn + interfaceLanguages.map(\.code).sorted() && wrong.isEmpty,
+              "the settings language follows the preferred languages (\(shipped); wrong: \(wrong); this Mac: \(UIText.systemLanguage))")
         // Unless one is picked in the window: it applies at once and is saved.
         let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
@@ -683,6 +732,7 @@ enum SelfTest {
         testLanguageDrag()
         testLanguageSwitchRedraws(in: snapshotDirectory)
         testInterfaceTranslations(in: snapshotDirectory)
+        testInterfaceLanguages()
         testCandidateLayoutSaves(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 

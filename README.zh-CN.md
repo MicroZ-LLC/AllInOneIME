@@ -614,7 +614,7 @@ make install
 2. 用一个有 `bedrock:InvokeModelWithResponseStream` 权限的 AWS profile：`~/.aws/credentials` 里的固定密钥，或者能拿到临时凭证的
    profile（`credential_process`、角色、SSO；见下面的「AWS profile」）。
 3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
-   选好 profile、区域和模型，点「测试连接」。设置 →「通用」里的「界面语言」可以选简体中文或 English；默认「跟随系统」，跟随系统的首选语言（系统设置 → 通用 → 语言与地区）：用其中排在最前、App 带有的那一种，任何中文都显示简体中文，都没有时显示英文。
+   选好 profile、区域和模型，点「测试连接」。界面有简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español 和 Português (Brasil)。默认（设置 →「通用」→「界面语言」里的「跟随系统」）跟随系统的首选语言（系统设置 → 通用 → 语言与地区）：用其中排在最前、App 带有的那一种，带地区的用它的语言（de-AT 用德语，es-MX 用西班牙语，fr-CA 用法语），zh-Hant、zh-TW 和 zh-HK 用繁体中文，别的中文用简体中文，葡萄牙的葡萄牙语也用巴西葡萄牙语（比英文好读），都没有时显示英文。也可以在那里直接选一种，每种都用它自己的语言写。
    设置窗口、候选框里的提示和输入法菜单都跟着它。
    设置打开时先显示「助手」：用一句话改设置，检查问题、能修的点「修复」（见[设置 → 助手](#设置--助手新)）。
 
@@ -705,7 +705,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
 | `voiceInput` | 按住右 ⌥ 说话 | `true` |
 | `actionKey` | 执行键：`"enter"`（⏎）、`"optionTap"`（单按 ⌥）、`"optionSpace"`（⌥空格）、`"space"`（空格） | `"enter"` |
-| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码 | `null`（跟随系统） |
+| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（跟随系统） |
 | `rewriteStyles` | 改写风格，例如 `["润色", "简洁", "黑话"]` | `["润色", "简洁", "正式"]` |
 | `jargonFile` | 你自己的黑话词表文件 | `null`（即 `~/.config/allinoneime/jargon.txt`） |
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
@@ -774,7 +774,8 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 `Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的
 `xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为 key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过；自测 `*SelfTest.swift` 里的文字不拿去翻译）。同一句英文有两种意思时（`make strings` 会列出来，`make strings-check` 会不通过），给其中一个单独的
 key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", key: "remove.delete")`；catalog 里这个 key 的英文就是这句英文。加一种
-语言，就是在 catalog 里加它的一列。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
+语言，就是在 catalog 里加它的一列：审过的译文每种语言一个 JSON 文件（`"core\t<key>"` 或 `"app\t<key>"` → 译文），用
+`Scripts/import-translations.py <文件夹>` 合进去；它从不改英文，占位符和 key 对不上的译文不收。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
 `.lproj`；别的平台用 `StringCatalog` 读 catalog 里的表）。
 
 代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）；`Windows/` 是 Windows App 的开头。

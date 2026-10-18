@@ -1885,7 +1885,7 @@ struct SettingsView: View {
             .background(Color(nsColor: .textBackgroundColor))
             // A page starts at its top, and is drawn anew in the other interface language: controls of their
             // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
-            .id("\(page.rawValue)-\(UIText.chinese)"))
+            .id("\(page.rawValue)-\(UIText.language)"))
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, idealWidth: 860, minHeight: 480, idealHeight: 720)
