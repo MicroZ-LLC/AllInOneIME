@@ -72,6 +72,7 @@ caught "Process() in a string's interpolation" 'let s = "\\(Process())"\n'
 caught "fork(" 'let pid = fork()\n'
 caught "vfork(" 'let pid = vfork()\n'
 caught "popen(" 'let f = popen("ls", "r")\n'
+caught "_popen(" 'let f = _popen("dir", "r")\n'
 caught "system(\"...\")" 'system("ls")\n'
 caught "system( with no system of the core's" 'let c = command\nsystem(c)\n'
 caught "Glibc.system(" 'Glibc.system(command)\n'
@@ -81,6 +82,7 @@ caught "ShellExecuteExW(" '_ = ShellExecuteExW(&execute)\n'
 caught "ShellExecuteW(" '_ = ShellExecuteW(nil, verb, file, nil, nil, 1)\n'
 caught "WinExec(" '_ = WinExec(line, 1)\n'
 caught "_wspawnv(" '_ = _wspawnv(0, path, argv)\n'
+caught "_spawnlpe(" '_ = _spawnlpe(0, name, arg, nil, envp)\n'
 caught "execve(" 'execve(path, argv, envp)\n'
 caught "posix_spawn(" 'posix_spawn(&pid, path, nil, nil, argv, envp)\n'
 caught "posix_spawnp(" 'posix_spawnp(&pid, "sh", nil, nil, argv, envp)\n'
@@ -137,6 +139,8 @@ let d = "nested \("import AppKit" + "Process()") strings"
 let e = ProcessInfo.processInfo.environment
 let f = FoundationProcess.self
 func importer(_ imported: Int) {}
+func _spawnTask() {}
+_spawnTask()
 EOF
 allowed "the C libraries, each under its guard" <<'EOF'
 import Foundation
