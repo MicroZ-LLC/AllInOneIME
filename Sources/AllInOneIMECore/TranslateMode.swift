@@ -289,7 +289,7 @@ public enum TranslateMode {
             let isShift = key.modifierKind == .shift
             let wasDown = shiftDown
             shiftDown = modifiers.contains(.shift)
-            if isShift, shiftDown, !wasDown, modifiers.subtracting([.shift, .capsLock]).isEmpty, !stickyKeys() {
+            if isShift, shiftDown, !wasDown, modifiers.subtracting([.shift, .capsLock]).subtracting(.sides).isEmpty, !stickyKeys() {
                 (pressedAt, pressedPointer, hinted, toggled) = (now(), pointer(), false, false)
                 return true
             }

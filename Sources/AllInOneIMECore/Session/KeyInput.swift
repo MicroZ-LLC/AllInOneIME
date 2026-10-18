@@ -129,7 +129,8 @@ extension Key.Side {
 }
 
 /// The modifiers held with a key. The kinds (Shift … Command, Caps Lock, fn) are on every event; which side's key is
-/// down only on modifier changes, and only where the system tells (the Mac tells it for Option only).
+/// down (the side bits) only on modifier changes, and only where the system tells (the Mac's shell passes all eight
+/// of NSEvent's; an event without them is read by the kinds).
 public struct Modifiers: OptionSet, Sendable, Hashable {
     public let rawValue: UInt16
     public init(rawValue: UInt16) { self.rawValue = rawValue }
@@ -141,13 +142,13 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
     /// Command, the Windows key on Windows.
     public static let command = Modifiers(rawValue: 1 << 3)
     public static let capsLock = Modifiers(rawValue: 1 << 4)
-    /// Which Option key is down (device-dependent bits, only set for modifier-change events).
+    /// Which Option key is down (device-dependent bits, only set for modifier-change events, as all the side bits).
     public static let leftOption = Modifiers(rawValue: 1 << 5)
     public static let rightOption = Modifiers(rawValue: 1 << 6)
     /// fn (🌐) is down: only set for Translate as You Type's long press of Shift (`TranslateMode.ShiftHold`); the
     /// system sets it on arrow and function keys too, so key-downs don't carry it.
     public static let function = Modifiers(rawValue: 1 << 7)
-    /// The other sides, as `leftOption` and `rightOption` (the Mac's events set none of them).
+    /// The other sides, as `leftOption` and `rightOption`.
     public static let leftShift = Modifiers(rawValue: 1 << 8)
     public static let rightShift = Modifiers(rawValue: 1 << 9)
     public static let leftControl = Modifiers(rawValue: 1 << 10)
