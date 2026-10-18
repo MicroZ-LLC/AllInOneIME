@@ -14,14 +14,14 @@ extension ComposerTests {
             Issue.record("⌘V didn't ask for the clipboard: \(r)")
             return []
         }
-        return c.pasted(text, id: id)
+        return c.pasted(text.map(ClipboardContent.text) ?? .none, id: id)
     }
 
     @Test func pastedTextJoinsACommandDraftAndTheActionKeyRunsOnIt() {
         let (c, _) = improveDraft(key: .enter)
         // The key is answered at once (the app doesn't paste); the text follows.
         #expect(c.handleKeyDown(pasteKey) == .consumed([.updateMarkedText, .showPanel, .readClipboard(id: 1)]))
-        #expect(c.pasted("这个方案我觉得还不够好，需要再改一下", id: 1) == [.updateMarkedText, .showPanel])
+        #expect(c.pasted(.text("这个方案我觉得还不够好，需要再改一下"), id: 1) == [.updateMarkedText, .showPanel])
         #expect(c.draft == "@improve 这个方案我觉得还不够好，需要再改一下" && c.markedText == "improve › 这个方案我觉得还不够好，需要再改一下")
         #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "这个方案我觉得还不够好，需要再改一下", id: 1))
         // Other commands take it too; @open searches for it as you type.
@@ -45,7 +45,7 @@ extension ComposerTests {
         type("nihao", c)
         #expect(c.handleKeyDown(pasteKey).effects.first == .updateMarkedText && !c.engineState.isComposing)
         #expect(c.draft == "@improve 你好")
-        _ = c.pasted("，最近怎么样", id: 1)
+        _ = c.pasted(.text("，最近怎么样"), id: 1)
         #expect(c.draft == "@improve 你好，最近怎么样")
         let (e, _) = english(key: .enter)  // English before the draft: the mode can't change mid-way
         _ = e.handleKeyDown(at)
@@ -114,15 +114,15 @@ extension ComposerTests {
         let r = c.handleKeyDown(pasteKey)
         #expect(r.effects.last == .readClipboard(id: 1))
         _ = c.handleKeyDown(enterKey)  // sent before the clipboard arrived
-        #expect(c.pasted("late", id: 1).isEmpty && c.sentText == "你好")
+        #expect(c.pasted(.text("late"), id: 1).isEmpty && c.sentText == "你好")
         let (d, _) = improveDraft(key: .enter)
         _ = d.handleKeyDown(pasteKey)
         _ = d.handleKeyDown(escKey)  // cleared
-        #expect(d.pasted("late", id: 1).isEmpty && d.draft.isEmpty)
+        #expect(d.pasted(.text("late"), id: 1).isEmpty && d.draft.isEmpty)
         let (f, _) = improveDraft(key: .enter)
         _ = f.handleKeyDown(pasteKey)
         _ = f.handleKeyDown(pasteKey)  // only the latest ⌘V counts
-        #expect(f.pasted("first", id: 1).isEmpty && f.pasted("second", id: 2) == [.updateMarkedText, .showPanel])
+        #expect(f.pasted(.text("first"), id: 1).isEmpty && f.pasted(.text("second"), id: 2) == [.updateMarkedText, .showPanel])
         #expect(f.draft == "@improve second")
     }
 
@@ -149,7 +149,7 @@ extension ComposerTests {
             let r = c.handleKeyDown(controlV)
             #expect(r.handled && r.effects.last == .readClipboard(id: 1), "terminal: \(terminal)")
             #expect(c.draft == "@improve 你好" && !c.engineState.isComposing)  // the pinyin is converted first
-            #expect(c.pasted("，这个方案还不够好", id: 1) == [.updateMarkedText, .showPanel])
+            #expect(c.pasted(.text("，这个方案还不够好"), id: 1) == [.updateMarkedText, .showPanel])
             #expect(c.draft == "@improve 你好，这个方案还不够好")
             #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "你好，这个方案还不够好", id: 1))
         }
@@ -158,7 +158,7 @@ extension ComposerTests {
         _ = p.handleKeyDown(at)
         type("imp", p)
         #expect(p.handleKeyDown(controlV).effects.last == .readClipboard(id: 1))
-        _ = p.pasted("hello world", id: 1)
+        _ = p.pasted(.text("hello world"), id: 1)
         #expect(p.draft == "@improve hello world")
         // Nothing pending, or "@" alone (a mention): ⌃V is the app's (a shell's literal next, a text
         // view's page down), and the clipboard isn't read.

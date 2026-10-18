@@ -567,6 +567,9 @@
     "no such profile in ~/.aws" : {
       "comment" : "~/.aws 里没有这个 profile — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    "No text found in the screenshot" : {
+      "comment" : "截图里没有认出文字 — Sources/AllInOneIMECore/Composer+Reply.swift"
+    },
     "No text on the clipboard to use" : {
       "comment" : "剪贴板里没有能用的文字 — Sources/AllInOneIMECore/Composer.swift"
     },
@@ -669,6 +672,12 @@
     "Ran " : {
       "comment" : "已运行： — Sources/AllInOneIMECore/Composer.swift"
     },
+    "Reading the screenshot on this Mac (slower the first time)…" : {
+      "comment" : "正在本机识别截图（第一次较慢）… — Sources/AllInOneIMECore/Composer+Reply.swift"
+    },
+    "Reading the screenshot took too long; try again" : {
+      "comment" : "识别截图超时，再试一次 — Sources/AllInOneIMECore/Composer+Reply.swift"
+    },
     "ready" : {
       "comment" : "可以用 — Sources/AllInOneIMECore/Doctor.swift"
     },
@@ -728,6 +737,9 @@
     },
     "Secure input is on (a password field or the lock screen): the conversation wasn't sent" : {
       "comment" : "系统安全输入已开启（密码框或锁屏），对话没有发出去 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
+    },
+    "Select or copy their message, or take a screenshot and press ⌃V; or write what to reply" : {
+      "comment" : "先选中或复制对方的消息，或截图后按 ⌃V；也可以直接写要回什么 — Sources/AllInOneIMECore/Composer+Reply.swift"
     },
     "Settings → General → Sync Now" : {
       "comment" : "在设置 → 通用里点「立即同步」 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
@@ -843,6 +855,9 @@
     "Testing the connection…" : {
       "comment" : "正在测试连接… — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "Text is selected: the screenshot wasn't used" : {
+      "comment" : "已有选中的文字，截图没有用上 — Sources/AllInOneIMECore/Composer+Reply.swift"
+    },
     "The %@ language pack is damaged" : {
       "comment" : "%@语言包坏了 — Sources/AllInOneIMECore/Doctor.swift"
     },
@@ -866,6 +881,9 @@
     },
     "The conversation is on the clipboard: paste it" : {
       "comment" : "对话已复制到剪贴板：粘贴进去接着聊 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
+    },
+    "The image is too large: 30 MB at most" : {
+      "comment" : "图片太大：最多 30 MB — Sources/AllInOneIMECore/Composer+Reply.swift"
     },
     "The input method can't be selected now" : {
       "comment" : "输入法现在不能选 — Sources/AllInOneIMECore/Doctor.swift"
@@ -908,6 +926,9 @@
     },
     "The typing speed is out of range" : {
       "comment" : "打字速度超出范围 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "This device can't read text in images" : {
+      "comment" : "这台设备不能识别图片里的文字 — Sources/AllInOneIMECore/Composer+Reply.swift"
     },
     "this setting can't be removed" : {
       "comment" : "这一项不能删除 — Sources/AllInOneIMECore/ICloudSync.swift"
@@ -982,6 +1003,9 @@
     },
     "You haven't signed in to SSO for profile %@. Run `%@` in Terminal" : {
       "comment" : "AWS profile '%@' 还没有 SSO 登录。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "Your own @reply is now @{name}: @reply is built in" : {
+      "comment" : "你自己的 @reply 改名为 @{name}：@reply 现在是内置命令 — Sources/AllInOneIMECore/Composer+Reply.swift"
     },
     "Your SSO sign-in for profile %@ has expired. Run `%@` in Terminal" : {
       "comment" : "AWS profile '%@' 的 SSO 登录已过期。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"
