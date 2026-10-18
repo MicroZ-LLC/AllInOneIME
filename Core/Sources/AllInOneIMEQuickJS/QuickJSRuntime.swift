@@ -90,7 +90,7 @@ final class QuickJSRuntime {
     func run(_ script: () -> JSValue) -> QuickJSValue {
         enter {
             guard !clock.isUp else {
-                throwError("InternalError", "interrupted")
+                throwError(.internal, "interrupted")
                 return QuickJSValue(self, QJS_Undefined())
             }
             return wrap(script())
@@ -105,8 +105,12 @@ final class QuickJSRuntime {
     func takeException() {
         var error = JS_GetException(ctx)
         // Nothing thrown, only failed: out of memory, with none left for the error (`MemoryBudget`'s reserve used up).
-        // It is made now, the memory of what failed freed (null should that fail too).
-        if JS_IsUninitialized(error) { error = makeError("InternalError", "out of memory") ?? QJS_Null() }
+        // It is made now, the memory of what failed freed (null should that fail too, as QuickJS throws it then).
+        if JS_IsUninitialized(error) {
+            _ = JS_ThrowOutOfMemory(ctx)
+            error = JS_GetException(ctx)
+            if JS_IsUninitialized(error) { error = QJS_Null() }
+        }
         addLine(to: error)
         if let thrown { JS_FreeValue(ctx, thrown) }
         thrown = error

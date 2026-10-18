@@ -45,7 +45,7 @@ final class QuickJSValue: ScriptValue {
                 var ancestors = [value]
                 return runtime.items(of: value, ancestors: &ancestors)
             }
-            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError("TypeError", "Cannot convert primitive to NSArray") }
+            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError(.type, "Cannot convert primitive to NSArray") }
             return nil
         }
     }
@@ -58,7 +58,7 @@ final class QuickJSValue: ScriptValue {
                 var ancestors = [value]
                 return runtime.properties(of: value, ancestors: &ancestors)
             }
-            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError("TypeError", "Cannot convert primitive to NSDictionary") }
+            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError(.type, "Cannot convert primitive to NSDictionary") }
             return nil
         }
     }
@@ -161,25 +161,20 @@ extension QuickJSRuntime {
         return QJS_Undefined()
     }
 
-    /// An error of the class `name` for the exception: a TypeError as JavaScriptCore reports one of its own conversions,
-    /// the InternalError of a script stopped (`run`).
-    func throwError(_ name: String, _ message: String) {
-        if let error = makeError(name, message) { _ = JS_Throw(ctx, error) }
-        takeException()
+    /// The errors Swift throws: a TypeError, as JavaScriptCore reports one of its own conversions, or the InternalError
+    /// of a script stopped (`run`).
+    enum ErrorKind {
+        case type, `internal`
     }
 
-    /// A new error of the class `name` (TypeError, InternalError, …); nil when even that fails (out of memory).
-    func makeError(_ name: String, _ message: String) -> JSValue? {
-        let global = JS_GetGlobalObject(ctx)
-        let constructor = JS_GetPropertyStr(ctx, global, name)
-        var text = JS_NewStringLen(ctx, message, message.utf8.count)
-        let error = JS_IsException(text) ? text : JS_CallConstructor(ctx, constructor, 1, &text)
-        [text, constructor, global].forEach { JS_FreeValue(ctx, $0) }
-        guard !JS_IsException(error) else {
-            dropException()
-            return nil
+    /// An error of `kind` for the exception, made by QuickJS from the realm's own prototype (quickjs-swift.h), never by
+    /// calling what a script left in `TypeError` or `InternalError`; null when even that fails (out of memory).
+    func throwError(_ kind: ErrorKind, _ message: String) {
+        switch kind {
+        case .type: _ = QJS_ThrowTypeError(ctx, message)
+        case .internal: _ = QJS_ThrowInternalError(ctx, message)
         }
-        return error
+        takeException()
     }
 }
 

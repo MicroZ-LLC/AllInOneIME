@@ -78,6 +78,29 @@ struct QuickJSEngineTests {
         #expect(context.exception?.toString() == "InternalError: interrupted")
     }
 
+    /// The errors Swift throws are the realm's own: what a script left in the globals of their names never runs.
+    @Test func errorsAreMadeWithoutTheScriptsGlobals() throws {
+        // The InternalError of a script stopped, for the next script after it.
+        let context = try context()
+        context.evaluate("globalThis.InternalError = function () { return {toString() { return 'spoofed' }} }")
+        _ = context.limitTime(to: 0.1)
+        context.evaluate("for (;;) {}")
+        #expect(context.exception?.toString() == "InternalError: interrupted")
+        #expect(context.evaluate("1")?.isUndefined == true && context.exception?.toString() == "InternalError: interrupted")
+        #expect(context.exception?.property("name")?.toString() == "InternalError")
+        // The TypeError of a conversion: a constructor that never ends isn't called (the limit, should it be, ends it
+        // with another error).
+        let other = try self.context()
+        other.evaluate("globalThis.TypeError = function () { for (;;) {} }")
+        _ = other.limitTime(to: 5)
+        let start = Date()
+        #expect(try #require(other.evaluate("3")).toArray() == nil)
+        #expect(other.exception?.toString() == "TypeError: Cannot convert primitive to NSArray")
+        #expect(other.exception?.property("name")?.toString() == "TypeError" && Date().timeIntervalSince(start) < 1)
+        #expect(try #require(other.evaluate("'text'")).toDictionary() == nil)
+        #expect(other.exception?.toString() == "TypeError: Cannot convert primitive to NSDictionary")
+    }
+
     // MARK: - Memory and depth
 
     @Test func aMemoryLimit() throws {

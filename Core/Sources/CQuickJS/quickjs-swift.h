@@ -8,6 +8,16 @@
 static inline JSValue QJS_Undefined(void) { return JS_UNDEFINED; }
 static inline JSValue QJS_Null(void) { return JS_NULL; }
 
+// JS_ThrowTypeError and JS_ThrowInternalError take a format and its arguments, which Swift can't call: a message as it
+// is. They make the error from the realm's own prototypes, never from the globals a script may have replaced
+// (`globalThis.TypeError = …`). The message is cut at 255 bytes, as QuickJS cuts its own.
+static inline JSValue QJS_ThrowTypeError(JSContext *ctx, const char *message) {
+    return JS_ThrowTypeError(ctx, "%s", message);
+}
+static inline JSValue QJS_ThrowInternalError(JSContext *ctx, const char *message) {
+    return JS_ThrowInternalError(ctx, "%s", message);
+}
+
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <pthread.h>
 #include <stddef.h>
