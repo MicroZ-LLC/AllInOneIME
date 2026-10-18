@@ -62,6 +62,7 @@ let package = Package(
         ),
 
         .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport"],
+                    exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
                     resources: [.copy("Fixtures")]),
     ]
 )
