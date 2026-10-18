@@ -232,7 +232,9 @@ extension APIKeys.Keychain {
     ///   the login keychain is read once, at the key's first use (and asks for the password there, as it did);
     /// - writes go to `synced` while `syncs()`, except `APIKeys.neverSynced`, and to `local` otherwise, never anywhere
     ///   else (a write that fails is the error, with no other store tried);
-    /// - `delete` removes the synced, local and legacy copies.
+    /// - `delete` removes the legacy copy first (stopping there when that fails), then the local one, and the synced one
+    ///   only while `syncs()`: Remove… on a Mac that doesn't sync keys removes them from this Mac alone, never from the
+    ///   others (iCloud Keychain brings the key back if sync is turned on again).
     ///
     /// `syncs` is asked on every call: the switch can change while the store, chosen at launch, stays.
     public static func routed(local: Self, synced: Self, legacy: Self, syncs: @escaping @Sendable () -> Bool) -> Self {
@@ -266,7 +268,11 @@ extension APIKeys.Keychain {
             },
             setComment: { account, comment in holder(account)?.store.setComment(account, comment) ?? .notFound },
             delete: { account in
-                let statuses = [synced, local, legacy].map { $0.delete(account) }
+                // The login keychain's first: a removal it refuses (the password asked for, and cancelled) stops there,
+                // so that no copy left in it comes back at its next use, moved anew.
+                let first = legacy.delete(account)
+                guard first == .ok || first == .notFound else { return first }
+                let statuses = [first] + (syncs() ? [local, synced] : [local]).map { $0.delete(account) }
                 if let failure = statuses.first(where: { $0 != .ok && $0 != .notFound }) { return failure }
                 return statuses.contains(.ok) ? .ok : .notFound
             },
