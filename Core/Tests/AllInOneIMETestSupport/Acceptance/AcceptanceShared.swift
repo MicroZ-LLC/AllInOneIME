@@ -1,26 +1,28 @@
-import CryptoKit
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import Crypto
 import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-// What TranslateModeAcceptanceTests (moved here from the core's acceptance tests as it was: its wording suite reads the
-// app's sources) uses of the core's other acceptance files, copied as they are there: the helpers they share
-// (Core/Tests/AllInOneIMECoreTests/Acceptance/AcceptanceHelpers.swift) and the golden requests of release 0.6.3 (the end
-// of Core/Tests/AllInOneIMECoreTests/Acceptance/AppleModelAcceptanceTests.swift, and its `addedSince063`). Those files
-// hold the core's own acceptance tests too, so they can't be shared as they are; when they change, this changes with
-// them.
+// What the acceptance tests share, the core's (Core/Tests/AllInOneIMECoreTests/Acceptance/) and the macOS shell's
+// (Tests/AllInOneIMEMacTests/Acceptance/): the keys and the live-data rule they use, and the golden requests of release
+// 0.6.3. One copy, here, for both test targets. Written by the acceptance tests' author, like the tests themselves: the
+// implementation's changes don't edit it. (Crypto: swift-crypto, which the core depends on; on Apple platforms it is
+// CryptoKit.)
 
 /// ⇧⏎: sends a follow-up (an @question conversation's next question, or a refine) once one is typed (0.6.4).
-let acceptanceShiftReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
+public let acceptanceShiftReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
 
 /// 0.6.4 added a rule about live data (the weather, news, prices …) at the end of @question's system prompt, and only
 /// there. The 0.6.3 goldens are what release 0.6.3 sent, without it. For an @question request `strip` takes it out
 /// (it must be there exactly once) so that everything else is still compared byte for byte; any other request is left
 /// as it is, so the rule leaking into another command's prompt makes it differ from its golden.
-enum AcceptanceLiveRule {
-    static let added = " " + Prompt.liveDataRule
+public enum AcceptanceLiveRule {
+    public static let added = " " + Prompt.liveDataRule
 
-    static func strip(_ text: String, question: Bool, sourceLocation: SourceLocation = #_sourceLocation) -> String {
+    public static func strip(_ text: String, question: Bool, sourceLocation: SourceLocation = #_sourceLocation) -> String {
         guard question else { return text }
         let found = text.components(separatedBy: added).count - 1
         #expect(found == 1, "an @question request should have the live-data rule once, has it \(found) times",
@@ -28,35 +30,16 @@ enum AcceptanceLiveRule {
         return text.replacingOccurrences(of: added, with: "")
     }
 
-    static func strip(_ data: Data, question: Bool, sourceLocation: SourceLocation = #_sourceLocation) -> Data {
+    public static func strip(_ data: Data, question: Bool, sourceLocation: SourceLocation = #_sourceLocation) -> Data {
         guard question else { return data }
         return Data(strip(String(decoding: data, as: UTF8.self), question: true, sourceLocation: sourceLocation).utf8)
     }
 }
 
-/// The goldens' namespace here (the core's is its AppleModel suite).
-enum AppleModelAcceptanceTests {
-    /// What later features add on purpose to a group's output, which 55d496e didn't write. `config/old` re-encodes an
-    /// old config, so a setting added since is written back with its default:
-    /// - the question history (0.6.3/question-history): `rememberQuestions`, on by default;
-    /// - hiding sensitive values (the redaction feature): `redaction`, off, with every kind of value picked and no words
-    ///   of the user's own;
-    /// - `@claude` becoming `@agent` (0.6.5/agent): `agent`, Claude Code, and `agentCommand`, no custom agent's command;
-    /// - `@agent` taking the Chrome page along (0.6.5/page-context): `agentPageContext`, on by default (written right
-    ///   after the agent keys, so it's one string with them).
-    static let addedSince063: [String: [String]] = [
-        "config/old": [
-            #","agent":"claude","agentCommand":[],"agentPageContext":true"#,
-            #","rememberQuestions":true"#,
-            #","redaction":{"cards":true,"customWords":[],"emails":true,"enabled":false,"ips":true,"keys":true,"phones":true}"#,
-        ],
-    ]
-}
-
 // MARK: - Golden requests (spec 4): the same code runs against release-0.6.3 (55d496e) to make the goldens.
 
-enum AcceptanceGolden {
-    static let inputs = [
+public enum AcceptanceGolden {
+    public static let inputs = [
         "我今天有点不舒服",
         "i dont feel so good today",
         "这个PR我review一下明天给你反馈",
@@ -67,7 +50,7 @@ enum AcceptanceGolden {
         "great job 👍🏽 team 🎉",
     ]
 
-    static func configs(_ provider: Provider) -> [(String, Config)] {
+    public static func configs(_ provider: Provider) -> [(String, Config)] {
         var a = Config.default
         a.provider = provider
         a.region = "us-west-2"
@@ -85,7 +68,7 @@ enum AcceptanceGolden {
     }
 
     /// The provider variants: (name, provider, settings applied to the config).
-    static var variants: [(String, Provider, @Sendable (inout Config) -> Void)] { [
+    public static var variants: [(String, Provider, @Sendable (inout Config) -> Void)] { [
         ("bedrock", .bedrock, { _ in }),
         ("anthropic", .anthropic, { _ in }),
         ("anthropic-opus", .anthropic, { $0.anthropic = ProviderSettings(model: "claude-opus-5-5", effort: "medium") }),
@@ -97,7 +80,7 @@ enum AcceptanceGolden {
     ] }
 
     /// What goes on the wire for `body`, as `ChatClient.stream` makes it for `config.provider`.
-    static func wire(_ body: ConverseRequest, _ config: Config) -> String {
+    public static func wire(_ body: ConverseRequest, _ config: Config) -> String {
         do {
             let request: URLRequest
             if config.provider == .bedrock {
@@ -127,7 +110,7 @@ enum AcceptanceGolden {
         }
     }
 
-    static func commands() -> [(String, Command, String)] {
+    public static func commands() -> [(String, Command, String)] {
         let tweet = CustomCommand(name: "tweetit", type: .prompt, prompt: "Rewrite this as a short, upbeat tweet.")
         let custom = Command.catalog([tweet]).first { $0.name == "tweetit" }!
         return [
@@ -140,7 +123,7 @@ enum AcceptanceGolden {
     }
 
     /// Group name → every request of the group, in order.
-    static func groups() -> [(String, String)] {
+    public static func groups() -> [(String, String)] {
         var out: [(String, String)] = []
         for (name, provider, apply) in variants {
             for (configName, base) in configs(provider) {
@@ -175,14 +158,14 @@ enum AcceptanceGolden {
         return out
     }
 
-    static func sha256(_ text: String) -> String {
+    public static func sha256(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }
 
-extension AppleModelAcceptanceTests {
+extension AcceptanceGolden {
     /// `AcceptanceGolden.groups()` at release-0.6.3 (55d496e), made by running the same code in a worktree of it.
-    static let golden063: [String: String] = [
+    public static let golden063: [String: String] = [
         "bedrock/A/writing": "9f8fd9de657ddef1b2e1368fc04c9ebbf485e40b1f46ffd6a224efd3f84bcb32",
         "bedrock/A/commands": "8e4e4b3949a9eaa7dedce9a7d8c315610de034f7cc02d6ca03d2fcfbe02885ab",
         "bedrock/B/writing": "b95312e196a7e737a5b6604e41eceec7f1190bed0f152afa5998d2feda279bf3",
@@ -233,5 +216,23 @@ extension AppleModelAcceptanceTests {
         "hosted/C/commands": "5c2486b6205a7f0875386c4b0a56ec37eec8e1418a114b20feafb396f131428a",
         "config/old": "2b4fc5fdbb1891ecb393c708ca70319d0c93434f924f2091bd272a0c3e28211a",
         "config/unknown": "754c93cbd85e6d1a2f5a4828bce4dd088feb87552cadf6c28a08580c4b0eec67",
+    ]
+}
+
+extension AcceptanceGolden {
+    /// What later features add on purpose to a group's output, which 55d496e didn't write. `config/old` re-encodes an
+    /// old config, so a setting added since is written back with its default:
+    /// - the question history (0.6.3/question-history): `rememberQuestions`, on by default;
+    /// - hiding sensitive values (the redaction feature): `redaction`, off, with every kind of value picked and no words
+    ///   of the user's own;
+    /// - `@claude` becoming `@agent` (0.6.5/agent): `agent`, Claude Code, and `agentCommand`, no custom agent's command;
+    /// - `@agent` taking the Chrome page along (0.6.5/page-context): `agentPageContext`, on by default (written right
+    ///   after the agent keys, so it's one string with them).
+    public static let addedSince063: [String: [String]] = [
+        "config/old": [
+            #","agent":"claude","agentCommand":[],"agentPageContext":true"#,
+            #","rememberQuestions":true"#,
+            #","redaction":{"cards":true,"customWords":[],"emails":true,"enabled":false,"ips":true,"keys":true,"phones":true}"#,
+        ],
     ]
 }

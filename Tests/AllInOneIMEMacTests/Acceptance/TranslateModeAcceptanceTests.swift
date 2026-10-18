@@ -1214,9 +1214,9 @@ struct TranslateModeAcceptancePrivacyTests {
     /// Every existing prompt is byte-identical to release 0.6.3's (the goldens the other acceptance tests use).
     @Test func privacy_existingPromptsAreByteIdenticalTo063() throws {
         let groups = AcceptanceGolden.groups()
-        #expect(groups.count == AppleModelAcceptanceTests.golden063.count)
+        #expect(groups.count == AcceptanceGolden.golden063.count)
         for (name, text) in groups {
-            let golden = try #require(AppleModelAcceptanceTests.golden063[name], "no golden for \(name)")
+            let golden = try #require(AcceptanceGolden.golden063[name], "no golden for \(name)")
             // 0.6.4's live-data rule is in @question's requests only, once each (`AcceptanceLiveRule`).
             var compared = text
             if name.hasSuffix("/commands") {
@@ -1225,7 +1225,7 @@ struct TranslateModeAcceptancePrivacyTests {
                 #expect(requests.count == questions.count, "\(name)")
                 compared = zip(requests, questions).map { AcceptanceLiveRule.strip($0, question: $1) }.joined(separator: "\n----\n")
             }
-            for added in AppleModelAcceptanceTests.addedSince063[name] ?? [] {
+            for added in AcceptanceGolden.addedSince063[name] ?? [] {
                 #expect(text.components(separatedBy: added).count == 2, "\(name) lacks \(added)")
                 compared = compared.replacingOccurrences(of: added, with: "")
             }
