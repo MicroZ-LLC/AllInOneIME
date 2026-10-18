@@ -127,9 +127,10 @@ public enum AppleModel {
 
     /// Streams `body` from `backend` as the events of the other providers: text deltas, then the stop reason
     /// ("max_tokens" when the answer reached its limit). Throws `AppleModelError.unavailable` when the model isn't
-    /// ready, and `.timedOut` when nothing new arrives for `timeout` seconds.
+    /// ready, and `.timedOut` when nothing new arrives for `timeout` seconds on `clock` (a test's moves by hand).
     public static func stream(_ body: ConverseRequest, backend: any AppleModelBackend, maxTokens: Int,
-                              timeout: TimeInterval) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
+                              timeout: TimeInterval, clock: some Clock<Duration> = ContinuousClock())
+        -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         let availability = backend.availability
         guard availability == .available else {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unavailable(availability)) }
@@ -139,14 +140,14 @@ public enum AppleModel {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unsupportedLanguage) }
         }
         return AsyncThrowingStream { continuation in
-            let lastActivity = Locked(initialState: ContinuousClock.now)
+            let lastActivity = Locked(initialState: clock.now)
             let task = Task {
                 do {
                     var sent = String.UnicodeScalarView()
                     var text = ""
                     var outputTokens: Int?
                     for try await snapshot in backend.respond(to: request) {
-                        lastActivity.withLock { $0 = .now }
+                        lastActivity.withLock { $0 = clock.now }
                         text = snapshot.text
                         outputTokens = snapshot.outputTokens ?? outputTokens
                         // Each snapshot is the whole answer so far. Compared by Unicode scalars, not Characters: a
@@ -169,14 +170,16 @@ public enum AppleModel {
                     continuation.finish(throwing: error)
                 }
             }
+            // Asleep until the timeout would be reached, then again until the new one if a snapshot came meanwhile.
             let watchdog = Task {
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(200))
-                    if ContinuousClock.now - lastActivity.withLock({ $0 }) > .seconds(timeout) {
+                    let deadline = lastActivity.withLock { $0 }.advanced(by: .seconds(timeout))
+                    if clock.now >= deadline {
                         task.cancel()
                         continuation.finish(throwing: AppleModelError.timedOut(timeout))
                         return
                     }
+                    try? await clock.sleep(until: deadline, tolerance: nil)
                 }
             }
             continuation.onTermination = { _ in

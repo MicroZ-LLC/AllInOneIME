@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Stands in for the on-device model: records the requests, answers with the snapshots given (each the whole answer
-/// so far), then fails with `error`, or never finishes (`hangs`).
+/// so far), then fails with `error`, or sends nothing more for a minute (`hangs`, `Timing.longSleep`).
 final class StubAppleModel: AppleModelBackend, @unchecked Sendable {
     let availability: AppleModelAvailability
     let contextSize: Int
@@ -35,13 +35,39 @@ final class StubAppleModel: AppleModelBackend, @unchecked Sendable {
             let task = Task {
                 for snapshot in snapshots { continuation.yield(snapshot) }
                 if hangs {
-                    try? await Task.sleep(for: .seconds(30))
+                    try? await Task.sleep(for: .seconds(Timing.longSleep))
                     return
                 }
                 if let error { continuation.finish(throwing: error) } else { continuation.finish() }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+}
+
+/// Stands in for the on-device model: answers what the test sends (`send`), when it sends it, and nothing else.
+final class HandFedAppleModel: AppleModelBackend, Sendable {
+    let availability = AppleModelAvailability.available
+    let contextSize = 4096
+    let supportedLanguages = StubAppleModel.languages
+    private let state = Locked(initialState: (answer: AsyncThrowingStream<AppleModelSnapshot, Error>.Continuation?.none,
+                                              terminations: 0))
+
+    /// Whether it was asked (what it answers can be sent).
+    var asked: Bool { state.withLock { $0.answer != nil } }
+    /// How many of its answers' streams were let go of.
+    var terminations: Int { state.withLock { $0.terminations } }
+
+    func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.onTermination = { [state] _ in state.withLock { $0.terminations += 1 } }
+            state.withLock { $0.answer = continuation }
+        }
+    }
+
+    /// The whole answer so far.
+    func send(_ text: String) {
+        state.withLock { $0.answer }?.yield(AppleModelSnapshot(text: text))
     }
 }
 
@@ -208,7 +234,28 @@ struct AppleModelTests {
         await #expect(throws: AppleModelError.timedOut(0.3)) {
             _ = try await final(converter(StubAppleModel(answer: ["EN: Hel"], hangs: true), config).convert("你好"))
         }
-        #expect(Date().timeIntervalSince(started) < 5)
+        // Not after the model's minute of silence. (When, to the millisecond, is on a clock moved by hand: below.)
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
+    }
+
+    @Test func theTimeoutCountsFromTheLastSnapshot() async throws {
+        // On a clock moved by hand: what is timed is the model's silence, not how long a busy test run takes.
+        let clock = ManualClock(), model = HandFedAppleModel()
+        var events = AppleModel.stream(Prompt.commandRequest(.question, input: "q", config: config), backend: model,
+                                       maxTokens: 100, timeout: 0.3, clock: clock).makeAsyncIterator()
+        #expect(await clock.sleepers())
+        #expect(await Timing.eventually { model.asked })
+        clock.advance(by: .milliseconds(200))
+        model.send("EN: Hel")
+        #expect(try await events.next() == .textDelta("EN: Hel"))
+        // 0.4 s from the start, 0.2 s after the snapshot: still waiting.
+        clock.advance(by: .milliseconds(200))
+        #expect(await clock.sleepers())
+        #expect(model.terminations == 0)
+        // 0.3 s without anything new.
+        clock.advance(by: .milliseconds(100))
+        await #expect(throws: AppleModelError.timedOut(0.3)) { _ = try await events.next() }
+        #expect(await Timing.eventually { model.terminations == 1 }, "the model's stream is let go of")
     }
 
     @Test func errorsComeThroughWithClearMessages() async {
