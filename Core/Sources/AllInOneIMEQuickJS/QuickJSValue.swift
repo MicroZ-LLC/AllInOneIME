@@ -266,13 +266,15 @@ extension QuickJSRuntime {
         return fields
     }
 
+    /// A property's name, all of it: as a string, with its length, since a C string would end at a NUL in it.
     private func atomName(_ atom: JSAtom) -> String? {
-        guard let name = JS_AtomToCString(ctx, atom) else {
+        let name = JS_AtomToString(ctx, atom)
+        defer { JS_FreeValue(ctx, name) }
+        guard !JS_IsException(name), let text = string(name) else {
             dropException()
             return nil
         }
-        defer { JS_FreeCString(ctx, name) }
-        return String(cString: name)
+        return text
     }
 
     /// A string's text (or what `String(value)` makes of anything else); nil when that throws (the exception is left
