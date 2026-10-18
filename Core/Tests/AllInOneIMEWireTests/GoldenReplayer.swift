@@ -8,6 +8,8 @@ struct GoldenReplayer {
     var transcript: WireTranscript
     /// Where the transcript's fixtures are (`#! provider fixtures/…`).
     var directory: URL
+    /// The server's configuration, beyond the tests' engine's.
+    var configure: (inout WireServer.Configuration) -> Void = { _ in }
 
     struct Failure: Error, CustomStringConvertible {
         var line: Int
@@ -46,7 +48,7 @@ struct GoldenReplayer {
     /// Runs it; throws at the first difference.
     func run() throws {
         let (fixture, language) = try Self.setup(transcript, directory: directory)
-        let engine = TestEngine(fixture: fixture, inputLanguage: language)
+        let engine = TestEngine(fixture: fixture, inputLanguage: language, configure: configure)
         var connection = engine.server.connect(WirePeer())
         var pending: [(data: Data, after: Int)] = []
         var lastLine = 0

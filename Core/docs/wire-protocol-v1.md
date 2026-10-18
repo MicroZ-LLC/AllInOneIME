@@ -539,6 +539,10 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
   4. the token's user is the DLL's and its integrity is medium or higher.
 
   Keep the session check and the owner check: the pipe's owner is the user's SID, which held even for an elevated engine. `allinoneime-cli wire-replay` checks it this way.
+
+  This was tested from a **low-integrity client** (a copy of the CLI labelled low with `icacls /setintegritylevel low`): it connects, the engine marks it `low, untrusted`, the server-process check works (the high-integrity engine's token can be read), and the goldens pass. AppContainer clients aren't tested yet.
+- **Order of answers and pushes.** The pipe's reader thread writes a request's answers after `receive` returns, while the connection's queue can push an `apply` from async work in between. The client would then get the push before an older result. The engine therefore sets `answersThroughPush`: answers are written on the queue, in the order the queue made them.
+- **A client that doesn't read.** Writes wait at most 500 ms, then the connection is dropped. They happen on the session queue, so a longer wait would let the 2 s watchdog (§2.5) kill the engine for every app. Tested: a client that sends keys and never reads is dropped after about 0.6 s, and the engine serves the next client.
 - **Unread data on close.** After a fatal error the engine writes the error, then waits up to 1 s for the client to close its end before it closes its own. It never calls `DisconnectNamedPipe`, which discards unread data. A DLL should close as soon as it has read a fatal error.
 - **Relaunch race.** An engine started right after the previous one exited can find the old pipe still there for a moment: the first instance fails with `ERROR_ACCESS_DENIED` although the engine holds the mutex. It retries for 2 s before it exits.
 - **Sessions under OpenSSH.** Processes started over OpenSSH run in session 0, at high integrity for an administrator. The engine and its clients still pass the checks: same session, same user.

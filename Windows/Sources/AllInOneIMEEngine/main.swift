@@ -105,6 +105,8 @@ func runEngine(_ options: EngineOptions) -> Never {
     var configuration = WireServer.Configuration()
     configuration.enginePid = GetCurrentProcessId()
     configuration.testControl = options.test
+    // The pipe's reader thread writes what isn't a push: the answers go out on the queue too, in order with the pushes.
+    configuration.answersThroughPush = true
     if options.test {
         // The goldens' replays connect again and again on a clock that barely moves.
         configuration.connectsPerProcessPerSecond = 1_000_000

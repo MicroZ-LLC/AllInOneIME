@@ -58,6 +58,10 @@ public final class WireServer: @unchecked Sendable {
         public var unackedBytes = 4 * 1024 * 1024
         /// Accept `x-test` frames (the goldens' directives over a real transport): the engine's test mode only.
         public var testControl = false
+        /// `receive` hands its answers to `push`, on the connection's queue, instead of returning them: for a transport
+        /// that writes the answers on another thread than the pushes (a pipe's reader thread), where a push made on
+        /// the queue between the answer and its write would otherwise reach the client first.
+        public var answersThroughPush = false
 
         public init() {}
     }
@@ -155,7 +159,8 @@ public final class WireServer: @unchecked Sendable {
             return refusing(error, on: connection)
         }
         if configuration.testControl, let test = try? WireJSON.decode(TestFrame.self, from: body), test.type == TestFrame.type {
-            return [testAnswer(test, on: connection)]
+            let answer = testAnswer(test, on: connection)
+            return connection.queue.sync { deliver([answer], on: connection) }
         }
         let frame: ClientFrame
         do {
@@ -166,13 +171,15 @@ public final class WireServer: @unchecked Sendable {
             }
             let re = (try? WireJSON.decode(Envelope.self, from: body))?.id
             return connection.queue.sync {
-                guard connection.version != nil else { return closing(connection, re: re, .badMessage, "the first frame must be hello") }
-                return encodeAll(connection, [connection.error(re: re, .badMessage, Self.describe(error))])
+                guard connection.version != nil else {
+                    return deliver(closing(connection, re: re, .badMessage, "the first frame must be hello"), on: connection)
+                }
+                return deliver(encodeAll(connection, [connection.error(re: re, .badMessage, Self.describe(error))]), on: connection)
             }
         } catch {
             return refusing(WireFrame.Failure.badFrame("invalid JSON"), on: connection)
         }
-        return connection.queue.sync { handle(frame, on: connection) }
+        return connection.queue.sync { deliver(handle(frame, on: connection), on: connection) }
     }
 
     /// A frame the transport refused before reading it (§2.2: its length, its size): the error, and the connection
@@ -184,7 +191,14 @@ public final class WireServer: @unchecked Sendable {
 
     private func refusing(_ failure: Error, on connection: Connection) -> [Data] {
         let failure = failure as? WireFrame.Failure ?? .badFrame("unreadable frame")
-        return connection.queue.sync { closing(connection, re: nil, failure.code, failure.message) }
+        return connection.queue.sync { deliver(closing(connection, re: nil, failure.code, failure.message), on: connection) }
+    }
+
+    /// The answers to return, or with `answersThroughPush` pushed now (on the queue, in order with the pushes).
+    private func deliver(_ answers: [Data], on connection: Connection) -> [Data] {
+        guard configuration.answersThroughPush else { return answers }
+        for answer in answers { push(connection.id, answer) }
+        return []
     }
 
     /// A fatal error: the frame, then the connection closes.

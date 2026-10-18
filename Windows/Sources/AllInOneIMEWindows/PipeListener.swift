@@ -10,16 +10,19 @@ import WinSDK
 /// once. A client is served only if it is in the engine's session and its process runs as the engine's user; its
 /// integrity level and AppContainer flag become the connection's trust (§8), its executable and AUMID its `app`.
 ///
-/// Each connection has one thread, which reads its frames and hands them to the `WireServer`; the server's answers
-/// are written on that thread, its pushes on whichever thread pushes, one write at a time.
+/// Each connection has one thread, which reads its frames and hands them to the `WireServer`. Everything the server
+/// sends goes out one write at a time; its configuration should have `answersThroughPush`, so that answers and pushes
+/// are written in the order the connection's queue made them (answers it returns are written after the fact).
 public final class PipeListener: @unchecked Sendable {
     public struct Options: Sendable {
         /// Instances kept waiting for a client (§2.1: at least 4).
         public var pendingInstances = 4
         /// The pipe's in and out buffers.
         public var bufferSize: DWORD = 64 * 1024
-        /// How long a write may wait for a client that doesn't read before the connection is dropped, in ms.
-        public var writeTimeout: DWORD = 5000
+        /// How long a write may wait for a client that doesn't read before the connection is dropped, in ms. Writes
+        /// happen on the connection's queue: well under the watchdog's 2 s, so that a client that stops reading loses
+        /// its connection instead of stalling the engine.
+        public var writeTimeout: DWORD = 500
 
         public init() {}
     }

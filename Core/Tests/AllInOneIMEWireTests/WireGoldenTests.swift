@@ -29,6 +29,19 @@ struct WireGoldenTests {
         }
     }
 
+    /// The same with the answers pushed on the connection's queue, as the Windows pipe has them: the same frames, in
+    /// the same order.
+    @Test(arguments: names)
+    func replaysWithAnswersThroughPush(_ name: String) throws {
+        let url = Self.goldens.appendingPathComponent(name + ".jsonl")
+        let transcript = try WireTranscript(contentsOf: url)
+        do {
+            try GoldenReplayer(transcript: transcript, directory: Self.goldens) { $0.answersThroughPush = true }.run()
+        } catch {
+            Issue.record("\(name).jsonl \(error)")
+        }
+    }
+
     /// Each golden is what its scenario writes: the `>` lines a client with that document would send, too.
     @Test(arguments: names)
     func scenarioWritesTheGolden(_ name: String) throws {
