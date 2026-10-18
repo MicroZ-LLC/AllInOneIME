@@ -3,7 +3,8 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Where a folder swap isn't one step (Windows), the old folder is renamed aside for a moment (".<name>.swap-<UUID>"):
-/// nothing lists it, leftovers' removal keeps it, and an interrupted swap is put right before the next one.
+/// nothing lists it, leftovers' removal keeps it, and an interrupted swap is put right before the next one and where the
+/// folders are read.
 struct SwapRecoveryTests {
     let folder: URL
 
@@ -32,6 +33,10 @@ struct SwapRecoveryTests {
         for name in ["stock", ".stock", ".stock.tmp", "stock.swap-\(UUID().uuidString)", "..swap-\(UUID().uuidString)", ".stock.swap-x"] {
             #expect(SystemFileOps.swappedName(name) == nil, "\(name)")
         }
+        // An old aside on its way to be deleted is no aside: no swap or recovery takes it back.
+        let trash = SystemFileOps.trashName(for: folder.appendingPathComponent("stock")).lastPathComponent
+        #expect(trash.hasPrefix(".stock.trash-") && SystemFileOps.trashedName(trash) == "stock" && SystemFileOps.swappedName(trash) == nil)
+        #expect(SystemFileOps.trashedName(aside.lastPathComponent) == nil)
     }
 
     @Test func pluginsSkipTheAside() throws {
@@ -76,6 +81,34 @@ struct SwapRecoveryTests {
         try PluginLibrary.moveIntoPlace(new, folder.appendingPathComponent("place", isDirectory: true))
         #expect(names == ["other", "place"] && marker(folder.appendingPathComponent("other")) == "other")
         #expect(marker(folder.appendingPathComponent("place")) == "new")
+        // What a recovery was deleting when it stopped: deleted.
+        _ = try folderHolding(SystemFileOps.trashName(for: folder.appendingPathComponent("place")).lastPathComponent, "older")
+        SystemFileOps().recoverInterruptedSwaps(in: folder)
+        #expect(names == ["other", "place"])
+    }
+
+    @Test func theFoldersReadersPutItRight() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        // The plugins: the old plugin back in place before the listing.
+        let manifest = try JSONEncoder().encode(PluginManifest(name: "stock", version: "1.0.0", type: .prompt, prompt: "Say it"))
+        let aside = try folderHolding(SystemFileOps.swapAside(for: folder.appendingPathComponent("stock")).lastPathComponent, "old")
+        try manifest.write(to: aside.appendingPathComponent("plugin.json"))
+        #expect(PluginStore.load(from: folder).plugins.map(\.name) == ["stock"] && names == ["stock"])
+        // A language pack's folder.
+        let packs = folder.appendingPathComponent("packs", isDirectory: true)
+        let store = LanguagePackStore(directory: packs)
+        try FileManager.default.createDirectory(at: packs, withIntermediateDirectories: true)
+        let packAside = SystemFileOps.swapAside(for: store.folder(.chinesePinyin))
+        try FileManager.default.createDirectory(at: packAside, withIntermediateDirectories: true)
+        _ = store.installed(.chinesePinyin)
+        #expect(FileManager.default.fileExists(atPath: store.folder(.chinesePinyin).path) && !FileManager.default.fileExists(atPath: packAside.path))
+        // The extension sources' folder.
+        let sources = folder.appendingPathComponent("sources", isDirectory: true)
+        let clone = sources.appendingPathComponent("tools-1a2b3c4d", isDirectory: true)
+        let cloneAside = SystemFileOps.swapAside(for: clone)
+        try FileManager.default.createDirectory(at: cloneAside, withIntermediateDirectories: true)
+        _ = ExtensionSources.loadFolders(Config.default, found: [], statuses: [:], root: sources)
+        #expect(FileManager.default.fileExists(atPath: clone.path) && !FileManager.default.fileExists(atPath: cloneAside.path))
     }
 
     @Test func aFolderHeldOpenIsInUse() throws {

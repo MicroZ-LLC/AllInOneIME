@@ -18,10 +18,15 @@ public protocol FileOps: Sendable {
     /// old); else renamed into place, never over something that appeared meanwhile. Throws, changing nothing, when it
     /// can't (`FileInUseError` when another program holds what is there open). Where the system has no swap of two
     /// folders (Windows), the old one is renamed aside first (`SystemFileOps.swapAside`), so for a moment nothing is at
-    /// `destination`, and a process stopped then leaves it aside: `recoverInterruptedSwaps` puts it back.
+    /// `destination`, and a process stopped then leaves it aside: `recoverInterruptedSwaps` puts it back. Once the new
+    /// one is in place it succeeds, even when the old one can't be moved to `source` after (then `source` is gone and
+    /// the old one is left aside, for `recoverInterruptedSwaps` to delete).
     func swap(_ source: URL, into destination: URL, exists: Bool) throws
     /// What an interrupted `swap` left in `folder` put right: an old folder or file left aside goes back in place when
-    /// nothing took it, else is deleted. Nothing to do where a swap is one step (Apple's systems, Linux, Android).
+    /// nothing took it, else is deleted (never the only copy: only while something is in its place). Called before a
+    /// swap and wherever such a folder is read (`PluginStore.load`, `LanguagePackStore.installed`,
+    /// `ExtensionSources.loadFolders`): one listing of `folder`. Nothing to do where a swap is one step (Apple's
+    /// systems, Linux, Android).
     func recoverInterruptedSwaps(in folder: URL)
     /// Writes `data` to a new file in `url`'s folder that is the user's only from the start, then renames it over `url`
     /// in one step: the data is never in a file others can read, and a file that was readable by others is replaced,
@@ -33,8 +38,9 @@ public protocol FileOps: Sendable {
     func trash(_ url: URL) throws
 }
 
-/// What another program holds open, so that it can't be moved (Windows: `ERROR_ACCESS_DENIED` or
-/// `ERROR_SHARING_VIOLATION`, the system's `code`), even after a few tries: closing it there and trying again may do.
+/// What can't be moved, even after a few tries, most likely because another program holds it open (Windows:
+/// `ERROR_SHARING_VIOLATION` or `ERROR_LOCK_VIOLATION`, or `ERROR_ACCESS_DENIED`, which also means not permitted: the
+/// system's `code`). Closing it there and trying again may do.
 public struct FileInUseError: Error, Equatable, LocalizedError {
     public var path: String
     public var code: Int
@@ -44,7 +50,9 @@ public struct FileInUseError: Error, Equatable, LocalizedError {
         self.code = code
     }
 
-    public var errorDescription: String? { "\((path as NSString).lastPathComponent) is in use by another program (error \(code))" }
+    public var errorDescription: String? {
+        "\((path as NSString).lastPathComponent) is in use by another program or can't be moved (error \(code))"
+    }
 }
 
 /// The system's own calls: `renamex_np` on Apple platforms, `renameat2` on Linux and Android, `MoveFileExW` on Windows;
@@ -80,10 +88,11 @@ public struct SystemFileOps: FileOps {
         // A rename (MoveFileExW without MOVEFILE_REPLACE_EXISTING) fails when something is there. Windows has no swap: the
         // old one first gets a second, hidden name beside it, then the new one takes its place. A file's second name is a
         // hard link, so the new file is renamed over the old in one step and `destination` is never missing; a folder
-        // (which nothing replaces) is renamed aside, so there is a moment between two renames when it is. Each step that
-        // fails undoes those before it.
+        // (which nothing replaces) is renamed aside, so there is a moment between two renames when it is. A step that
+        // fails before the new one is in place undoes those before it; after, nothing is undone.
         // A folder another program has a file open in can't be renamed: a few tries over about 1.5 s (Explorer, an
-        // antivirus or the search indexer let go soon), then `FileInUseError`.
+        // antivirus or the search indexer let go soon), then `FileInUseError`. (Access denied is tried again too: it is
+        // what Windows says for a file held open in the folder, though it also says it for one not permitted.)
         guard exists else { return try Self.move(source, to: destination) }
         let aside = Self.swapAside(for: destination)
         let linked = Self.isPlainFile(source) && Self.isPlainFile(destination)
@@ -96,7 +105,8 @@ public struct SystemFileOps: FileOps {
                     break
                 } catch let error as CocoaError {
                     guard let code = (error.userInfo[NSUnderlyingErrorKey] as? NSError)?.code,
-                          code == Int(ERROR_ACCESS_DENIED) || code == Int(ERROR_SHARING_VIOLATION) else { throw error }
+                          [ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION].map({ Int($0) }).contains(code)
+                    else { throw error }
                     guard wait < 1 else { throw FileInUseError(path: destination.path, code: code) }
                     Thread.sleep(forTimeInterval: wait)
                     wait *= 2
@@ -109,16 +119,9 @@ public struct SystemFileOps: FileOps {
             if linked { _ = Self.path(aside) { DeleteFileW($0) } } else { try? Self.move(aside, to: destination) }
             throw error
         }
-        do {
-            try Self.move(aside, to: source)
-        } catch {
-            // The new one is in place. Undone only while the old one is still aside: a recovery may have taken it
-            // meanwhile (`recoverInterruptedSwaps`, in another process), and then the new one stays, `source` empty.
-            guard Self.path(aside, { GetFileAttributesW($0) }) != INVALID_FILE_ATTRIBUTES else { return }
-            try? Self.move(destination, to: source)
-            try? Self.move(aside, to: destination)
-            throw error
-        }
+        // The new one is in place: done. The old one goes to `source`; if it can't (a recovery in another process may be
+        // deleting it, `recoverInterruptedSwaps`), it stays aside for one to delete, and `source` is gone.
+        try? Self.move(aside, to: source)
         #else
         // Elsewhere (no system call of its own known here): a folder is moved aside, then the new one in.
         let files = FileManager.default
@@ -131,7 +134,7 @@ public struct SystemFileOps: FileOps {
             try? files.moveItem(at: aside, to: destination)
             throw error
         }
-        try files.moveItem(at: aside, to: source)
+        try? files.moveItem(at: aside, to: source)  // as on Windows: the new one is in place
         #endif
     }
 
@@ -139,13 +142,22 @@ public struct SystemFileOps: FileOps {
         #if !(canImport(Darwin) || canImport(Glibc) || canImport(Musl) || canImport(Android))
         let files = FileManager.default
         for name in (try? files.contentsOfDirectory(atPath: folder.path)) ?? [] {
+            let item = folder.appendingPathComponent(name)
+            // An old one this or another recovery was deleting: nothing needs it.
+            if Self.trashedName(name) != nil {
+                try? files.removeItem(at: item)
+                continue
+            }
             guard let original = Self.swappedName(name) else { continue }
-            let aside = folder.appendingPathComponent(name), destination = folder.appendingPathComponent(original)
-            // Something in place (a link too, even a broken one): the aside is the old one, which the swap would have deleted.
+            let destination = folder.appendingPathComponent(original)
             if (try? files.attributesOfItem(atPath: destination.path)) != nil {
-                try? files.removeItem(at: aside)
+                // Something in place (a link too, even a broken one): the aside is an old one, which the swap would have
+                // moved to its `source` to be deleted. First renamed out of the aside's name in one step, so a swap still
+                // finishing never takes a half-deleted folder; then deleted.
+                let trash = Self.trashName(for: destination)
+                if (try? Self.renameExclusively(item, to: trash)) != nil { try? files.removeItem(at: trash) }
             } else {
-                try? files.moveItem(at: aside, to: destination)
+                try? Self.renameExclusively(item, to: destination)  // never over one that appeared meanwhile
             }
         }
         #endif
@@ -159,11 +171,31 @@ public struct SystemFileOps: FileOps {
     }
 
     /// The name the aside `name` (`swapAside`) was moved from: "stock" for ".stock.swap-<UUID>"; nil for any other.
-    public static func swappedName(_ name: String) -> String? {
-        guard name.hasPrefix("."), let marker = name.range(of: ".swap-", options: .backwards),
+    public static func swappedName(_ name: String) -> String? { originalName(name, marker: ".swap-") }
+
+    /// Where `recoverInterruptedSwaps` renames an old aside of `destination` before deleting it: ".<name>.trash-<UUID>",
+    /// not an aside's name (`swappedName` is nil for it), so no swap takes it back.
+    static func trashName(for destination: URL) -> URL {
+        destination.deletingLastPathComponent().appendingPathComponent(".\(destination.lastPathComponent).trash-\(UUID().uuidString)")
+    }
+
+    /// The name the old one `name` (`trashName`) had: "stock" for ".stock.trash-<UUID>"; nil for any other.
+    static func trashedName(_ name: String) -> String? { originalName(name, marker: ".trash-") }
+
+    private static func originalName(_ name: String, marker text: String) -> String? {
+        guard name.hasPrefix("."), let marker = name.range(of: text, options: .backwards),
               marker.lowerBound > name.index(after: name.startIndex), UUID(uuidString: String(name[marker.upperBound...])) != nil
         else { return nil }
         return String(name[name.index(after: name.startIndex)..<marker.lowerBound])
+    }
+
+    /// Renames `from` to `to` in one step, never over something there (Windows: `MoveFileExW` with no flags).
+    private static func renameExclusively(_ from: URL, to: URL) throws {
+        #if os(Windows)
+        try move(from, to: to)
+        #else
+        try FileManager.default.moveItem(at: from, to: to)
+        #endif
     }
 
     public func writePrivate(_ data: Data, to url: URL) throws {

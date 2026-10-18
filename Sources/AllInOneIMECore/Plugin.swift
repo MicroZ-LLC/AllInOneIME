@@ -174,9 +174,11 @@ public enum PluginStore {
     }
 
     /// The usable plugins in `directory`, by name, and the folders skipped. A library plugin whose files
-    /// changed since it was installed is skipped (its hashes no longer match the install record).
+    /// changed since it was installed is skipped (its hashes no longer match the install record). What an interrupted
+    /// install left aside is put right first (`FileOps.recoverInterruptedSwaps`).
     public static func load(from directory: URL = directory, appVersion: String = AppVersion.string)
         -> (plugins: [InstalledPlugin], skipped: [Skipped]) {
+        Platform.current.files.recoverInterruptedSwaps(in: directory)
         let fm = FileManager.default
         guard let folders = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey],
                                                         options: [.skipsHiddenFiles]) else { return ([], []) }

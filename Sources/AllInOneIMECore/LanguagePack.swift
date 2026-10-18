@@ -135,8 +135,10 @@ public struct LanguagePackStore: Sendable {
         directory.appendingPathComponent(pack.id, isDirectory: true)
     }
 
-    /// The install record of `pack`, if it is installed and complete (its required files are there).
+    /// The install record of `pack`, if it is installed and complete (its required files are there). What an
+    /// interrupted install left aside is put right first (`FileOps.recoverInterruptedSwaps`).
     public func installed(_ pack: LanguagePack) -> LanguagePackRecord? {
+        Platform.current.files.recoverInterruptedSwaps(in: directory)
         let folder = folder(pack)
         guard let data = try? Data(contentsOf: folder.appendingPathComponent("install.json")),
               let record = try? JSONDecoder().decode(LanguagePackRecord.self, from: data), record.id == pack.id,

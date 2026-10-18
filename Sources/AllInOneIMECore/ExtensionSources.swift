@@ -570,8 +570,11 @@ public enum ExtensionSources {
 
     /// The folders extensions are loaded from (`ExtensionStore.folders`) as the input method loads them: less
     /// `untrustedFolders`, and those of the sources folder read only as the one bundle each is (`Folder.bundleOnly`).
+    /// What an interrupted Enable or Re-clone left aside in the sources folder is put right first
+    /// (`FileOps.recoverInterruptedSwaps`).
     public static func loadFolders(_ config: Config, found: [String], statuses: [String: ExtensionSourceStatus],
                                    root: URL = directory) -> [ExtensionStore.Folder] {
+        Platform.current.files.recoverInterruptedSwaps(in: root)
         let base = comparable(root.path)
         let untrusted = Set(untrustedFolders(in: config, statuses: statuses, root: root).map(comparable))
         return ExtensionStore.folders(config, found: found).compactMap { folder in
