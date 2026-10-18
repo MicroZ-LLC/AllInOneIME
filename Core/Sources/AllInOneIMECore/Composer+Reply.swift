@@ -204,24 +204,17 @@ extension Composer {
         let (plan, codeLeft) = innerPlan(typed)
         let input = Prompt.replyMessage(context)
         replyState.context = context
-        requestCounter += 1
-        phase = .translating(id: requestCounter)
-        result = .empty
-        searchResults = []
-        pendingReminder = nil
-        highlightOverride = nil
-        activeCommand = command
+        let id = beginRequest(command)
         let start: Effect
         if plan.isEmpty {
             refineRequest = .command(command, input: input)
-            start = .startCommand(command, input: input, id: requestCounter)
+            start = .startCommand(command, input: input, id: id)
         } else {
             // The model saw the commands' outputs, which the composer doesn't have: no refine.
             refineRequest = nil
-            start = .startPlan(outer: command, plan: plan, id: requestCounter)
+            start = .startPlan(outer: command, plan: plan, id: id)
         }
-        let usage = ([command] + plan.inner.map(\.command)).map(used)
-        return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+        return requestStarted(start, commands: [command] + plan.inner.map(\.command), codeLeft: codeLeft)
     }
 
     /// `@reply`'s rows: "0" what was typed (none when nothing was), "1"–"3" the replies.

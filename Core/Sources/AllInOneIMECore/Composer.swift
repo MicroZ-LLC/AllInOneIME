@@ -445,7 +445,7 @@ public final class Composer {
     /// composer on its own keeps the keys of a column.
     public var horizontalCandidates = false
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
-    public internal(set) var pendingReminder: ReminderDraft?
+    public private(set) var pendingReminder: ReminderDraft?
     /// The issue `@reportissue` shows before it opens the page (its title and `IssueReport.lines`).
     public private(set) var pendingIssue: IssueReport?
     /// What a report says about this Mac and the settings (`IssueReport.Diagnostics`), read by the controller when
@@ -455,7 +455,7 @@ public final class Composer {
                                 languagePacks: [], provider: "-", model: nil, actionKey: "-", customCommands: 0, plugins: 0, extensions: 0)
     }
     /// Files and apps found for `@open`.
-    public internal(set) var searchResults: [SearchResult] = []
+    public private(set) var searchResults: [SearchResult] = []
     /// Results for the `@open` text as it is typed (`liveQuery`), and the highlighted one.
     public private(set) var liveResults: [SearchResult] = []
     private var liveResultsQuery: String?
@@ -2686,25 +2686,19 @@ public final class Composer {
             case let .refused(message): return .consumed([.updateMarkedText, .notice(message)])  // the draft stays
             }
         }
-        requestCounter += 1
-        phase = .translating(id: requestCounter)
-        result = .empty
-        searchResults = []
-        pendingReminder = nil
-        highlightOverride = nil
-        activeCommand = parsed?.command
+        let id = beginRequest(parsed?.command)
         let start: Effect
         switch parsed?.command {
         case _ where plan?.isEmpty == false:
-            start = .startPlan(outer: parsed?.command, plan: plan!, id: requestCounter)
+            start = .startPlan(outer: parsed?.command, plan: plan!, id: id)
         case let command? where command.kind == .convert && selected != nil:
-            start = writing(command, typed: typed, selection: selected!, id: requestCounter)
-        case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: requestCounter)
-        case let command? where command.kind == .run: start = .startRun(command, input: input, id: requestCounter)
-        case .open?: start = .search(query: input, id: requestCounter)
+            start = writing(command, typed: typed, selection: selected!, id: id)
+        case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: id)
+        case let command? where command.kind == .run: start = .startRun(command, input: input, id: id)
+        case .open?: start = .search(query: input, id: id)
         // Read by the controller on this Mac (nothing is sent anywhere, so secure input doesn't hold it back).
-        case .reminder?: start = .previewReminder(input: input, id: requestCounter)
-        default: start = .startConversion(input: input, id: requestCounter)
+        case .reminder?: start = .previewReminder(input: input, id: id)
+        default: start = .startConversion(input: input, id: id)
         }
         // What the results can be refined from: the AI's answers (not a program's output, nor a text with commands
         // inside it, whose outputs the model saw but the composer doesn't have).
@@ -2715,8 +2709,27 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
-        return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+        return requestStarted(start, commands: (parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? []),
+                              codeLeft: codeLeft)
+    }
+
+    /// A request for `command` starts (`startAction`, `startReply`): its id, level two waiting for it, the results, search
+    /// results and reminder before it gone.
+    func beginRequest(_ command: Command?) -> Int {
+        requestCounter += 1
+        phase = .translating(id: requestCounter)
+        result = .empty
+        searchResults = []
+        pendingReminder = nil
+        highlightOverride = nil
+        activeCommand = command
+        return requestCounter
+    }
+
+    /// The response to the action key once `start` is the request's effect (`beginRequest`): the panel shows it, each of
+    /// `commands` (it and those inside its text) counts as used, and code in the text that wasn't run (`codeLeft`) is said.
+    func requestStarted(_ start: Effect, commands: [Command], codeLeft: Bool) -> Response {
+        .consumed([start, .updateMarkedText, .showPanel] + commands.map(used) + (codeLeft ? [.notice(messages.codeNotRun)] : []))
     }
 
     /// `@improve` / `@translate` on the selection: its versions and rewrites as for a typed sentence when nothing else is
@@ -3007,7 +3020,7 @@ public final class Composer {
     }
 
     /// Counts a run of `command` for the order of the command list.
-    func used(_ command: Command) -> Effect {
+    private func used(_ command: Command) -> Effect {
         commandUsage.record(command.name)
         return .commandUsed(command.name)
     }
