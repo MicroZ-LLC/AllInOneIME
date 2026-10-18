@@ -1,0 +1,28 @@
+# Starts the oldest agent:queued issue again (it ran out of the Max plan's usage, or had no open release branch to
+# build on), once an hour, when the Agent workflow isn't already running or waiting.
+name: Agent queue
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  issues: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          busy=$(gh run list -R "$GITHUB_REPOSITORY" --workflow agent.yml --limit 20 --json status \
+            --jq '[.[] | select(.status != "completed")] | length')
+          [ "$busy" = 0 ] || { echo "The Agent workflow is busy."; exit 0; }
+          issue=$(gh issue list -R "$GITHUB_REPOSITORY" --label agent:queued --state open --json number,createdAt \
+            --jq 'sort_by(.createdAt) | .[0].number // empty')
+          [ -n "$issue" ] || { echo "Nothing is queued."; exit 0; }
+          gh workflow run agent.yml -R "$GITHUB_REPOSITORY" -f issue="$issue"
+          echo "Started #$issue again."
