@@ -542,7 +542,7 @@ public enum ICloudSync {
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
     /// for any other key.
     public static func knownFields(of key: String) -> Set<String>? {
-        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI"] }
+        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways"] }
         switch key {
         case "redaction": return ["enabled", "emails", "phones", "cards", "keys", "ips", "customWords"]
         case "anthropic", "gemini", "openai": return ["model", "baseURL", "effort", "temperature"]
@@ -726,7 +726,7 @@ public enum ICloudSync {
                 if Language(rawValue: code) == nil { return .unknownValue }
             }
             if let styles = fields["rewriteStyles"], styles != .null, styles.strings == nil { return .wrongType }
-            for flag in ["typeOut", "noAI"] {
+            for flag in ["typeOut", "noAI", "translateAlways"] {
                 guard let field = fields[flag], field != .null else { continue }
                 guard case .bool = field else { return .wrongType }
             }
