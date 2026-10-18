@@ -9,8 +9,11 @@ import PackageDescription
 let corePackage = "core"
 func core(_ product: String) -> Target.Dependency { .product(name: product, package: corePackage) }
 
-/// Official librime release build, unpacked by `make deps` (see Makefile); ALLINONEIME_THIRDPARTY names another folder.
-let thirdParty = Context.environment["ALLINONEIME_THIRDPARTY"] ?? Context.packageDirectory + "/ThirdParty"
+/// Official librime release build, unpacked by `make deps` into ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an
+/// absolute path), else ThirdParty here. The one rule, as the Makefile (which documents it), the Rime tests and
+/// Scripts/make-dmg.sh have it.
+let thirdParty = Context.environment["ALLINONEIME_THIRDPARTY"].flatMap { $0.isEmpty ? nil : $0 }
+    ?? Context.packageDirectory + "/ThirdParty"
 let rimeLib = thirdParty + "/librime/dist/lib"
 
 /// FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14. On everything

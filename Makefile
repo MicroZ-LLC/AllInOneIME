@@ -27,8 +27,11 @@ RIME_ICE_TAG    := 2026.06.30
 RIME_ICE_ZIP    := rime-ice-$(RIME_ICE_TAG)-full.zip
 RIME_ICE_SHA256 := 675d23b070be00e1b800f9a6db033ef98f4493cd5b568ed8aa3b3541769c46ac
 
-# ALLINONEIME_THIRDPARTY: another folder for them (Package.swift reads it too), else ThirdParty here.
-DEPS       ?= $(or $(ALLINONEIME_THIRDPARTY),ThirdParty)
+# Where they go, ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an absolute path, a folder several checkouts share,
+# say), else ThirdParty here. The one setting: Package.swift (librime's folder), the Rime tests (rime-ice's data) and
+# Scripts/make-dmg.sh read the same variable, in the environment or on make's command line (make passes it on). DEPS is
+# only its value here, not a setting of its own.
+override DEPS := $(or $(ALLINONEIME_THIRDPARTY),ThirdParty)
 RIME_DIST  := $(DEPS)/librime/dist
 RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
@@ -286,8 +289,8 @@ update-manifest:
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
 # The core's lint guards (platform-neutral, standalone), then its tests (Core/, a package of its own) with the input
-# method's debug build as the child process the end-to-end ones run, then this package's tests. Both packages' tests
-# run even when the core's fail.
+# method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
+# after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
 test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-portable-test.sh
 	$(CORE)/Scripts/check-core-portable.sh
@@ -295,7 +298,7 @@ test: deps strings-check check-ios
 	swift build --product $(APP_NAME)
 	@status=0; \
 	ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	swift test || exit; \
+	ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
 	exit $$status
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
@@ -438,5 +441,12 @@ cli:
 clean:
 	rm -rf .build "$(BUILD_DIR)" $(CORE)/.build
 
+# ThirdParty only when it is this checkout's own folder: never a shared one, a link to one or the one
+# ALLINONEIME_THIRDPARTY names.
 distclean: clean
-	rm -rf $(DEPS)
+	@if [ -d ThirdParty ] && [ ! -L ThirdParty ] && \
+	   { [ -z "$(ALLINONEIME_THIRDPARTY)" ] || [ "$$(cd ThirdParty && pwd -P)" != "$$(cd "$(ALLINONEIME_THIRDPARTY)" 2>/dev/null && pwd -P)" ]; }; then \
+		echo "rm -rf ThirdParty"; rm -rf ThirdParty; \
+	elif [ -e ThirdParty ] || [ -n "$(ALLINONEIME_THIRDPARTY)" ]; then \
+		echo "distclean: the shared ThirdParty is kept ($(or $(ALLINONEIME_THIRDPARTY),ThirdParty is a link))"; \
+	fi

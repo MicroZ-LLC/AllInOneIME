@@ -8,6 +8,8 @@ set -eu
 
 installer=$1 dmg=$2 volume=$3 identity=${4:-} profile=${5:-}
 repo=$(cd "$(dirname "$0")/.." && pwd)
+# Where `make deps` put rime-ice: $ALLINONEIME_THIRDPARTY if it is set, else the repository's ThirdParty (Makefile).
+thirdparty=${ALLINONEIME_THIRDPARTY:-$repo/ThirdParty}
 work=$(mktemp -d "${TMPDIR:-/tmp}/allinoneime-dmg.XXXXXX")
 # The physical path (/private/var/…), as mount(8) prints it.
 work=$(cd "$work" && pwd -P)
@@ -33,7 +35,7 @@ mkdir -p "$stage"
 ditto "$installer" "$stage/$(basename "$installer")"
 cp "$repo/Resources/DMG-ReadMe.txt" "$stage/Read Me 安装说明.txt"
 cp "$repo/LICENSE" "$stage/LICENSE.txt"
-cp "$repo/ThirdParty/rime-data/LICENSE" "$stage/LICENSE-rime-ice-GPL-3.0.txt"
+cp "$thirdparty/rime-data/LICENSE" "$stage/LICENSE-rime-ice-GPL-3.0.txt"
 cp "$repo/THIRD_PARTY_NOTICES.md" "$stage/THIRD_PARTY_NOTICES.md"
 cp "$repo/Resources/AppIcon.icns" "$stage/.VolumeIcon.icns"
 
