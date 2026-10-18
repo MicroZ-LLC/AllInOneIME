@@ -1828,7 +1828,7 @@ public final class Composer {
         if event.key == .enter || event.key == .keypadEnter { rimeEvent.modifiers.remove(.shift) }
         if composing, horizontalCandidates, !engineState.candidates.isEmpty, modifiers.isEmpty {
             switch horizontalKey(event.key, engine) {
-            case let .send(key)?: rimeEvent.key = key
+            case let .send(key)?: rimeEvent = rimeEvent.replacingKey(key)
             case .nothing?: return .consumed()
             case nil: break
             }

@@ -5,14 +5,15 @@ public typealias KeyModifiers = Modifiers
 
 /// A key-down as the input method receives it from AppKit (or another system's shell: `init(key:usage:…)`).
 public struct KeyEvent: Equatable, Sendable {
-    /// The Mac's key code (`kVK_*`); `key` and `usage` follow it (`MacKeyCodes`).
+    /// The Mac's key code (`kVK_*`); `key` and `usage` follow it (`MacKeyCodes`), set or changed: they are never set
+    /// apart from it (another key for the engine: `replacingKey`).
     public var keyCode: UInt16 {
         didSet { (key, usage) = (MacKeyCodes.key(keyCode), MacKeyCodes.usage(keyCode)) }
     }
     /// What the key does (Return, an arrow, a key that types), whatever the system and layout.
-    public var key: Key
+    public private(set) var key: Key
     /// Where the key is: its USB HID usage (page 7), the same key on every layout (0: unknown).
-    public var usage: UInt16
+    public private(set) var usage: UInt16
     /// `NSEvent.characters`
     public var characters: String
     /// `NSEvent.charactersIgnoringModifiers` (still reflects Shift)
@@ -25,14 +26,15 @@ public struct KeyEvent: Equatable, Sendable {
     /// What this key types after a dead key ("é" for E after ⌥E; "´n" where the accent doesn't combine).
     public var composed: String?
 
-    /// The Mac's: `key` and `usage` from the key code (`MacKeyCodes`).
+    /// The Mac's: `key` and `usage` from the key code (`MacKeyCodes`), unless the shell knows the key's place better
+    /// (`usage`: an ISO keyboard's two keys whose codes macOS swaps, `MacKeyboard` in AllInOneIMEMac).
     public init(
-        keyCode: UInt16, characters: String, charactersIgnoringModifiers: String? = nil,
+        keyCode: UInt16, usage: UInt16? = nil, characters: String, charactersIgnoringModifiers: String? = nil,
         modifiers: KeyModifiers = [], isRepeat: Bool = false
     ) {
         self.keyCode = keyCode
         key = MacKeyCodes.key(keyCode)
-        usage = MacKeyCodes.usage(keyCode)
+        self.usage = usage ?? MacKeyCodes.usage(keyCode)
         self.characters = characters
         self.charactersIgnoringModifiers = charactersIgnoringModifiers ?? characters
         self.modifiers = modifiers
@@ -62,6 +64,19 @@ public struct KeyEvent: Equatable, Sendable {
 
     /// The key code of a key the Mac doesn't have.
     public static let noKeyCode: UInt16 = 0xFFFF
+
+    /// The same event as another key, one the tables have (the row of candidates' ← sent to the engine as ↑): that key's
+    /// usage and Mac code.
+    public func replacingKey(_ key: Key) -> KeyEvent {
+        var event = self
+        if let entry = MacKeyCodes.entries.first(where: { $0.key == key }) {
+            event.keyCode = entry.code
+        } else {
+            event.keyCode = Self.noKeyCode
+            (event.key, event.usage) = (key, 0)
+        }
+        return event
+    }
 
     /// The text this key types, if it is printable and not a shortcut.
     public var printableText: String? {

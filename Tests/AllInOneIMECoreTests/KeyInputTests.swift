@@ -144,6 +144,19 @@ struct KeyInputTests {
         #expect(KeyEvent(key: .other, usage: 0x46, characters: "").keyCode == KeyEvent.noKeyCode)  // Print Screen
     }
 
+    @Test func anotherKeyKeepsKeyUsageAndCodeTogether() {
+        let left = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
+        let up = left.replacingKey(.arrow(.up))
+        #expect(up.key == .arrow(.up) && up.usage == 0x52 && up.keyCode == VirtualKey.up && up.characters == left.characters)
+        #expect(left.replacingKey(.pageDown).keyCode == VirtualKey.pageDown)
+        let f24 = left.replacingKey(.f(24))  // no Mac key
+        #expect(f24.key == .f(24) && f24.usage == 0 && f24.keyCode == KeyEvent.noKeyCode)
+        // The Mac shell may know the key's place better than the table (an ISO keyboard's § and `).
+        let section = KeyEvent(keyCode: 0x0A, usage: 0x35, characters: "§")
+        #expect(section.key == .character && section.usage == 0x35 && section.keyCode == 0x0A)
+        #expect(KeyEvent(keyCode: 0x0A, characters: "§").usage == 0x64)
+    }
+
     @Test func modifierBitsAreUnchanged() {
         // In the config (`KeyShortcut.modifiers`): the old bits keep their values.
         #expect(KeyModifiers.shift.rawValue == 1)
