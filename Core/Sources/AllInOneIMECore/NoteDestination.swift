@@ -186,15 +186,39 @@ public enum NoteDestinations {
         }
     }
 
-    /// What opens a saved note (the menu bar panel), by its id's scheme: a file in an Obsidian vault in Obsidian, another
-    /// file in its default app (`MarkdownFolderDestination.openURL`), a Notion page by its address. Nil for a note in
-    /// Notes (`x-coredata:`, which only Notes shows) and anything else.
-    public static func openURL(forSaved id: String) -> URL? {
-        guard let url = URL(string: id), let scheme = url.scheme?.lowercased() else { return nil }
+    /// What opens a saved note (the menu bar panel), by its id's scheme, only when it is what a save made: a `file:` that
+    /// is a Markdown file (links followed: a plain file, ".md") inside `folder`, the one notes are saved to
+    /// (`MarkdownFolderDestination.openableFile`), opens in Obsidian when it is in a vault, else in its default app
+    /// (`MarkdownFolderDestination.openURL`, the only `obsidian:` there is); an `https:` Notion page (notion.so,
+    /// *.notion.so, *.notion.site) by its address. Nil for a note in Notes (`x-coredata:`, which only Notes shows), and
+    /// for anything else, which is logged. It looks at the disk: not on the main thread.
+    public static func openURL(forSaved id: String, folder: URL?) -> URL? {
+        guard let url = URL(string: id), let scheme = url.scheme?.lowercased() else {
+            log.notice("not opening a saved note: no scheme")
+            return nil
+        }
         switch scheme {
-        case "file": return MarkdownFolderDestination.openURL(for: url)
-        case "https": return url
-        default: return nil
+        case "x-coredata":
+            return nil
+        case "file":
+            guard let folder, let file = MarkdownFolderDestination.openableFile(url, in: folder) else {
+                log.notice("not opening a saved note: a file that isn't a Markdown file in the notes folder")
+                return nil
+            }
+            // The vault looked up by the folder as saved to (as `VaultRoots` remembers it); a plain file opened as checked.
+            let opened = MarkdownFolderDestination.openURL(for: url.standardizedFileURL)
+            return opened.isFileURL ? file : opened
+        case "https":
+            guard NotionLink.isPage(url) else {
+                log.notice("not opening a saved note: an https link that isn't Notion's")
+                return nil
+            }
+            return url
+        default:
+            log.notice("not opening a saved note: its scheme is \(String(scheme.prefix(20)))")
+            return nil
         }
     }
+
+    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "notes")
 }

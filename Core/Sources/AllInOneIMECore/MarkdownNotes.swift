@@ -183,6 +183,18 @@ public struct MarkdownFolderDestination: NoteDestination {
         return URL(string: "obsidian://open?path=" + path) ?? file
     }
 
+    /// `file` (a saved note's `file:` id) as it may be opened: links followed, a plain file whose extension is ".md",
+    /// inside `folder` (the one notes are saved to, links followed too); nil for anything else (a link to an app or a
+    /// script, a file elsewhere). It looks at the disk: not on the main thread.
+    public static func openableFile(_ file: URL, in folder: URL) -> URL? {
+        guard file.isFileURL else { return nil }
+        let resolved = file.resolvingSymlinksInPath().standardizedFileURL
+        let inside = folder.resolvingSymlinksInPath().standardizedFileURL.path
+        guard resolved.pathExtension.lowercased() == "md", resolved.path.hasPrefix(inside.hasSuffix("/") ? inside : inside + "/"),
+              (try? resolved.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { return nil }
+        return resolved
+    }
+
     /// What a URL's query value keeps as it is (RFC 3986's unreserved characters): everything else is escaped, "/" "&"
     /// and spaces too.
     private static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")

@@ -68,8 +68,8 @@ struct NoteDestinationsTests {
             func check() async throws -> String { "" }
         }
         #expect(NoteDestinations.make(NoteSettings(destination: .folder), system: System()).name == "Notes")
-        #expect(NoteDestinations.openURL(forSaved: "x-coredata://A/ICNote/p1") == nil)
-        #expect(NoteDestinations.openURL(forSaved: "https://www.notion.so/x")?.absoluteString == "https://www.notion.so/x")
+        #expect(NoteDestinations.openURL(forSaved: "x-coredata://A/ICNote/p1", folder: nil) == nil)
+        #expect(NoteDestinations.openURL(forSaved: "https://www.notion.so/x", folder: nil)?.absoluteString == "https://www.notion.so/x")
     }
 
     // MARK: - Writing a file: never half of one, nothing left behind
@@ -179,6 +179,45 @@ struct NoteDestinationsTests {
         #expect(MarkdownFolderDestination(folder: inbox, roots: roots).name == "Obsidian")
         let saved = try await MarkdownFolderDestination(folder: inbox, roots: roots).save(draft("Hi"))
         #expect(saved.destinationName == "Obsidian")
+    }
+
+    // MARK: - Opening what was saved, and nothing else
+
+    @Test func onlyMarkdownFilesInTheFolderAndNotionPagesOpen() throws {
+        let fm = FileManager.default
+        let folder = try tempFolder()
+        let elsewhere = try tempFolder()
+        defer {
+            try? fm.removeItem(at: folder)
+            try? fm.removeItem(at: elsewhere)
+        }
+        let note = folder.appendingPathComponent("Note.md")
+        try Data("x".utf8).write(to: note)
+        let script = elsewhere.appendingPathComponent("x.command")
+        try Data("#!/bin/sh".utf8).write(to: script)
+        let outside = elsewhere.appendingPathComponent("Other.md")
+        try Data("x".utf8).write(to: outside)
+        try fm.createSymbolicLink(at: folder.appendingPathComponent("Trap.md"), withDestinationURL: script)
+        try fm.createSymbolicLink(at: folder.appendingPathComponent("Away.md"), withDestinationURL: outside)
+        try fm.createDirectory(at: folder.appendingPathComponent("Dir.md"), withIntermediateDirectories: true)
+
+        func open(_ id: String, _ folder: URL? = folder) -> URL? { NoteDestinations.openURL(forSaved: id, folder: folder) }
+        #expect(open(note.absoluteString).map { $0.resolvingSymlinksInPath().path == note.resolvingSymlinksInPath().path } == true)
+        #expect(open(note.absoluteString, nil) == nil)
+        #expect(open(folder.appendingPathComponent("Trap.md").absoluteString) == nil)
+        #expect(open(folder.appendingPathComponent("Away.md").absoluteString) == nil)
+        #expect(open(folder.appendingPathComponent("Dir.md").absoluteString) == nil)
+        #expect(open(outside.absoluteString) == nil)
+        #expect(open(script.absoluteString) == nil)
+        #expect(open("file:///Applications/Calculator.app") == nil)
+        #expect(open("https://www.notion.so/Page-0123456789abcdef0123456789abcdef") != nil)
+        #expect(open("https://notion.so/x") != nil && open("https://team.notion.site/x") != nil)
+        #expect(open("https://evil.example/x") == nil)
+        #expect(open("https://notion.so.evil.example/x") == nil)
+        #expect(open("https://user@www.notion.so/x") == nil)
+        #expect(open("http://www.notion.so/x") == nil)
+        #expect(open("obsidian://open?path=%2Ftmp%2Fx.md") == nil)
+        #expect(open("javascript:alert(1)") == nil)
     }
 
 }

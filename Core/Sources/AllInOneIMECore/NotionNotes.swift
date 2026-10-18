@@ -111,6 +111,14 @@ public enum NotionLink {
 
     private static func isHex(_ c: Character) -> Bool { c.isASCII && c.isHexDigit }
 
+    /// Whether `url` is a Notion page's address, which a saved note's id may be and the panel may open: https on
+    /// notion.so, a subdomain of it, or a notion.site one; no user or port.
+    public static func isPage(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), url.user == nil, url.password == nil,
+              url.port == nil || url.port == 443 else { return false }
+        return host == "notion.so" || host.hasSuffix(".notion.so") || host.hasSuffix(".notion.site")
+    }
+
     /// 32 hex digits as 8-4-4-4-12.
     static func dashed(_ hex: String) -> String {
         let h = Array(hex)
