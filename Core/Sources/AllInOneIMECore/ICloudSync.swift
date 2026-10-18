@@ -176,18 +176,24 @@ public enum ICloudSync {
 
     /// ISO 8601 with milliseconds (two changes in one second are told apart), in UTC.
     public static func dateText(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        dateFormatters.withLock { $0.milliseconds.string(from: date) }
     }
 
     /// An ISO 8601 date, with or without the fraction of a second.
     public static func date(_ text: String) -> Date? {
+        dateFormatters.withLock { $0.milliseconds.date(from: text) ?? $0.seconds.date(from: text) }
+    }
+
+    /// The two formats, made once: a sync reads and writes a date for every entry, and making a formatter (ICU's,
+    /// behind a lock of its own) costs far more than using one. Behind a lock: one is used by one thread at a time.
+    private static let dateFormatters = Locked(initialState: (
+        milliseconds: isoFormatter([.withInternetDateTime, .withFractionalSeconds]),
+        seconds: isoFormatter([.withInternetDateTime])))
+
+    private static func isoFormatter(_ options: ISO8601DateFormatter.Options) -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: text) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: text)
+        formatter.formatOptions = options
+        return formatter
     }
 
     // MARK: - settings.json
