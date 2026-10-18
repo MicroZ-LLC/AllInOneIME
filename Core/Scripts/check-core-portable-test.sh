@@ -95,6 +95,10 @@ caught "posix_spawnattr_*(" 'var a: posix_spawnattr_t?\nposix_spawnattr_init(&a)
 fresh
 printf 'let p = Process()\n' | put Platform/Apple/Launch.swift
 expect fail "Process() in Platform/Apple/ (not the launcher)"
+fresh
+printf '#if os(Windows)\nimport WinSDK\nfunc f() { _ = CreateProcessW(nil, nil, nil, nil, false, 0, nil, nil, nil, nil) }\n#endif\n' \
+    | put Platform/Windows/WindowsPrograms.swift
+expect fail "CreateProcessW( in Platform/Windows/ (not the launcher)"
 
 # MARK: - Platform/Apple/ wholly guarded
 
@@ -117,6 +121,21 @@ expect fail "Platform/Apple/: under a negated canImport"
 fresh
 printf '#if canImport(os)\nimport Foundation\n#endif\nlet s = """\n  text\n  """\n' | put Platform/Apple/String.swift
 expect fail "Platform/Apple/: a multi-line string after the block"
+
+# MARK: - Platform/Windows/ wholly guarded
+
+fresh
+printf 'import Foundation\nfunc leaked() {}\n' | put Platform/Windows/None.swift
+expect fail "Platform/Windows/: no guard at all"
+fresh
+printf '#if canImport(WinSDK)\nimport WinSDK\nfunc leaked() {}\n#endif\n' | put Platform/Windows/CanImport.swift
+expect fail "Platform/Windows/: under canImport, not os(Windows)"
+fresh
+printf '#if os(Windows)\nfunc kept() {}\n#else\nfunc leaked() {}\n#endif\n' | put Platform/Windows/Else.swift
+expect fail "Platform/Windows/: code in the #else"
+fresh
+printf '#if !os(Windows)\nfunc leaked() {}\n#endif\n' | put Platform/Windows/Negated.swift
+expect fail "Platform/Windows/: under a negated os(Windows)"
 
 # MARK: - What passes
 
@@ -192,6 +211,17 @@ expect pass "the core's own system(...)"
 fresh
 printf 'import Foundation\nlet p = Process()\nposix_spawn(nil, nil, nil, nil, nil, nil)\n' | put Platform/FoundationProcessLauncher.swift
 expect pass "programs started in the ProcessLauncher"
+fresh
+put Platform/Windows/WindowsProcessLauncher.swift <<'EOF'
+// What this file is.
+#if os(Windows)
+import Foundation
+import WinSDK
+
+func start() { _ = CreateProcessW(nil, nil, nil, nil, false, 0, nil, nil, nil, nil) }
+#endif
+EOF
+expect pass "programs started in the Windows ProcessLauncher, wholly under os(Windows)"
 fresh
 put Platform/Apple/Wrapped.swift <<'EOF'
 // What this file is.

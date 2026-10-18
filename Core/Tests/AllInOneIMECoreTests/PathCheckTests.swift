@@ -139,7 +139,12 @@ struct PathCheckTests {
         config.findRaycastScripts = false
         let review = ExtensionSourceReview.make(bundleFolder: folder, path: "", url: "file:///r.git", commit: nil, commitDate: nil, config: config)
         #expect(review.commands.map(\.status) == ["left.sh --short"])
+        #if os(Windows)
+        // Windows starts the script itself, through the interpreter its kind or "#!" line names (`WindowsPrograms`).
+        #expect(review.programs == ["tool.sh", "left.sh --short"])
+        #else
         #expect(review.programs == ["/bin/sh tool.sh", "left.sh --short"])
+        #endif
         #expect(review.summary.contains("  status:    left.sh --short"))
     }
 

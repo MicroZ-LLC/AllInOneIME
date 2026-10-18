@@ -42,15 +42,19 @@ public enum CommandRunner {
 
     /// Runs a script extension with `arguments` ($1 $2 $3, `ScriptCommand.arguments(from:)`) in its folder (or
     /// its `currentDirectoryPath`) with `environment` (`ScriptContext.environment`), /usr/local/bin on the PATH
-    /// as Raycast adds it. What it prints arrives as it comes (a progress shown), then all of it; when it fails,
-    /// its last line says why. `status`: its status line (`ScriptCommand.status`), stopped sooner.
+    /// as Raycast adds it (not on Windows). What it prints arrives as it comes (a progress shown), then all of it; when it
+    /// fails, its last line says why. `status`: its status line (`ScriptCommand.status`), stopped sooner.
     public static func run(_ command: ScriptCommand, arguments: [String], environment: [String: String]? = nil,
                            status: Bool = false) -> AsyncThrowingStream<ScriptUpdate, Error> {
         let argv = status ? command.status?.launch ?? command.launch : command.launch + arguments
         let timeout = status ? min(ScriptCommand.Status.timeout, command.timeout) : command.timeout
         let launch = Launch(argv: argv, stdin: nil, timeout: timeout, directory: command.directory,
                             failureOnStandardOutput: true, streams: !status)
+        #if os(Windows)
+        let raw = run(launch, environment: environment)
+        #else
         let raw = run(launch, environment: environment, extraPath: "/usr/local/bin")
+        #endif
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -126,8 +130,13 @@ public enum CommandRunner {
         running.withLock { for program in programs { $0[ObjectIdentifier(program)] = nil } }
     }
 
-    /// The program as it will be started: an absolute path, or the first match on `path`.
+    /// The program as it will be started: an absolute path, or the first match on `path`. On Windows as Windows finds
+    /// one (`WindowsPrograms.find`): `path` split on ";", PATHEXT's extensions added ("git" → git.exe), "\" a separator
+    /// too, and a script found when its kind is known (.ps1, .py, .sh, a "#!" line).
     public static func resolve(_ program: String, path: String?) -> URL? {
+        #if os(Windows)
+        return WindowsPrograms.find(program, path: path, expandingTilde: true)
+        #else
         let fm = FileManager.default
         if program.contains("/") {
             let expanded = (program as NSString).expandingTildeInPath
@@ -138,6 +147,16 @@ public enum CommandRunner {
             if fm.isExecutableFile(atPath: candidate) { return URL(fileURLWithPath: candidate) }
         }
         return nil
+        #endif
+    }
+
+    /// The PATH in `environment`; on Windows, whose variables' names are in any case, "Path" too.
+    public static func searchPath(_ environment: [String: String]) -> String? {
+        #if os(Windows)
+        return WindowsPrograms.variable("PATH", in: environment)
+        #else
+        return environment["PATH"]
+        #endif
     }
 
     /// Whether `program` would run here: programs can be started at all (`ProcessLauncher.canLaunch`: not on iOS or
@@ -149,6 +168,15 @@ public enum CommandRunner {
         let processes = Platform.current.processes
         guard processes.canLaunch, let url = resolve(program, path: path) else { return false }
         return processes.isRunnable(url)
+    }
+
+    /// A program found but not started, as reported: not found; on Windows, when the launcher says why
+    /// (`WindowsLaunchError`: its interpreter isn't installed, an argument a batch file can't be given), that.
+    static func launchFailure(_ error: Error, program: String) -> RunError {
+        #if os(Windows)
+        if let error = error as? WindowsLaunchError, let message = error.errorDescription { return .failed(status: -1, message: message) }
+        #endif
+        return .notFound(program)
     }
 
     /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
@@ -210,7 +238,7 @@ public enum CommandRunner {
             lock.unlock()
             guard !skip else { return }
             let argv = launch.argv
-            guard let program = argv.first, let url = CommandRunner.resolve(program, path: environment["PATH"]) else {
+            guard let program = argv.first, let url = CommandRunner.resolve(program, path: CommandRunner.searchPath(environment)) else {
                 continuation.finish(throwing: RunError.notFound(argv.first ?? ""))
                 return
             }
@@ -246,7 +274,7 @@ public enum CommandRunner {
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
-                continuation.finish(throwing: RunError.notFound(program))
+                continuation.finish(throwing: CommandRunner.launchFailure(error, program: program))
                 return
             }
             let text = launch.stdin

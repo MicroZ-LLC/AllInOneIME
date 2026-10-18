@@ -6,9 +6,11 @@ import AllInOneIMEQuickJS
 /// What the core needs from the system it runs on, in one place. A shell (the macOS app, later the Windows, iOS and
 /// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
-/// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), and
-/// elsewhere QuickJS-ng for JavaScript (AllInOneIMEQuickJS) and neutral stand-ins: a heuristic language guess, the date
-/// rules alone, and no on-device model, PDF text, text recognition or secret store ("not supported on this platform").
+/// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), Windows'
+/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin),
+/// QuickJS-ng for JavaScript off Apple platforms (AllInOneIMEQuickJS), and elsewhere neutral stand-ins: a heuristic
+/// language guess, the date rules alone, and no on-device model, PDF text, text recognition or secret store ("not
+/// supported on this platform").
 public struct Platform: Sendable {
     /// API keys and the like (`APIKeys`).
     public var secrets: SecretStore
@@ -69,10 +71,12 @@ public typealias OnDeviceModel = AppleModelBackend
 // MARK: - What the core is built with
 
 extension Platform {
-    /// The login keychain where there is one.
+    /// The login keychain where there is one; Windows' Credential Manager on Windows.
     public static var systemSecrets: SecretStore {
         #if canImport(Security)
         return .login
+        #elseif os(Windows)
+        return .credentialManager
         #else
         return .unavailable
         #endif
@@ -134,10 +138,13 @@ extension Platform {
         #endif
     }
 
-    /// Foundation's `Process` on the desktop systems; none on iOS and Android, which have no child processes for apps.
+    /// Foundation's `Process` on macOS and Linux, `CreateProcessW` with a job object on Windows; none on iOS and Android,
+    /// which have no child processes for apps.
     public static var systemProcesses: any ProcessLauncher {
-        #if os(macOS) || os(Linux) || os(Windows)
+        #if os(macOS) || os(Linux)
         return FoundationProcessLauncher()
+        #elseif os(Windows)
+        return WindowsProcessLauncher()
         #else
         return NoProcessLauncher()
         #endif

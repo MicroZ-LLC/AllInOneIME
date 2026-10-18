@@ -652,7 +652,8 @@ public final class AWSCredentialResolver: Sendable {
         case let .process(command):
             do {
                 let arguments = try AWSCredentialProcess.arguments(command)
-                if AWSProcessRunner.resolve(arguments[0], path: context.processEnvironment()["PATH"], directory: context.locations.home) == nil {
+                if AWSProcessRunner.resolve(arguments[0], path: CommandRunner.searchPath(context.processEnvironment()),
+                                            directory: context.locations.home) == nil {
                     return (.processNotFound(profile: profile, program: URL(fileURLWithPath: arguments[0]).lastPathComponent), nil)
                 }
                 return (nil, nil)

@@ -6,9 +6,10 @@ string counts, and nothing there (an unbalanced \"\"\" in a comment, say) change
   - a core file imports a module that isn't one every platform has (ALLOWED), anywhere but Platform/Apple/; a C library
     (C_LIBRARIES), or one of the package's own that the core depends on only on some systems (OWN_GUARDED), only under
     its own guard (`#if canImport(Glibc)`, `#elseif os(Linux)`, ...);
-  - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one;
+  - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one; a
+    file in Platform/Windows/ isn't wholly inside `#if os(Windows)`;
   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
-    `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
+    `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only its files do: LAUNCHERS).
 
     check-core-portable.py [--list] [--root DIR]    the offences, one a line (DIR: the package, by default this one)
 """
@@ -33,7 +34,8 @@ C_LIBRARIES = {
 # The package's own modules that the core depends on only on some systems, each allowed under its guard as a C library
 # is: QuickJS, the JavaScript where there is no JavaScriptCore (Package.swift's condition).
 OWN_GUARDED = {"AllInOneIMEQuickJS": ["Linux", "Windows", "Android"]}
-LAUNCHERS = {"Platform/FoundationProcessLauncher.swift"}
+# The ProcessLauncher's files, the only ones that start programs: Foundation's `Process`, Windows' `CreateProcessW`.
+LAUNCHERS = {"Platform/FoundationProcessLauncher.swift", "Platform/Windows/WindowsProcessLauncher.swift"}
 
 IMPORT = re.compile(
     r"(?m)(?:^|;)[ \t]*"
@@ -182,6 +184,7 @@ def check(root):
         relative = os.path.relpath(path, core).replace(os.sep, "/")
         shown = os.path.relpath(path, root).replace(os.sep, "/")
         apple = relative.startswith("Platform/Apple/")
+        windows = relative.startswith("Platform/Windows/")
         text = stripped[path]
         lines = text.split("\n")
         where = branches(lines)
@@ -212,6 +215,15 @@ def check(root):
             for i in code:
                 if not any(names(c, "canImport") for c in where[i]):
                     found.append(f"{shown}:{i + 1}: not wholly inside #if canImport(...): {lines[i].strip()}")
+
+        # Platform/Windows/ files wholly inside `#if os(Windows)`.
+        if windows:
+            code = [i for i, l in enumerate(lines) if l.strip() and where[i] is not None]
+            if not code:
+                found.append(f"{shown}: not wholly inside #if os(Windows) (no code)")
+            for i in code:
+                if not any(guards(c, "os", ["Windows"]) for c in where[i]):
+                    found.append(f"{shown}:{i + 1}: not wholly inside #if os(Windows): {lines[i].strip()}")
 
         # Programs.
         if relative not in LAUNCHERS:
@@ -245,7 +257,7 @@ def main(arguments):
             print("  " + line, file=sys.stderr)
         return 1
     print("core-portable: imports only what every platform has (Apple's in Platform/Apple/, wholly guarded; C libraries "
-          "under their guard), no program started outside the ProcessLauncher")
+          "under their guard), Platform/Windows/ wholly under os(Windows), no program started outside the ProcessLauncher")
     return 0
 
 
