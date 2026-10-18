@@ -173,12 +173,22 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	fi
 	codesign --verify --strict --deep "$(APP)"
 	# With a profile: the signature carries the keychain entitlements (without them the keys of every user who had them
-	# synced or moved would seem gone), and macOS has to let it run (a profile that doesn't fit gets it killed at launch).
+	# synced or moved would seem gone), and macOS has to let it run (a profile that doesn't fit gets it killed at launch):
+	# this Mac's slice, and on Apple silicon the x86_64 one too (`make dmg`'s universal build) when Rosetta is there.
 	@if [ -n "$(PROFILE)" ]; then \
 		codesign -d --entitlements - --xml "$(APP)" 2>/dev/null | grep -q '<key>keychain-access-groups</key>' \
 			|| { echo "error: $(APP) is signed without the keychain-access-groups entitlement" >&2; exit 1; }; \
 		version=$$("$(APP)/Contents/MacOS/$(APP_NAME)" --version) && echo "launch check: $(APP_NAME) $$version runs" \
 			|| { echo "error: $(APP) doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
+		if [ "$$(uname -m)" = arm64 ] && lipo -archs "$(APP)/Contents/MacOS/$(APP_NAME)" | grep -qw x86_64; then \
+			if arch -x86_64 /usr/bin/true 2>/dev/null; then \
+				version=$$(arch -x86_64 "$(APP)/Contents/MacOS/$(APP_NAME)" --version) \
+					&& echo "launch check: $(APP_NAME) $$version runs as x86_64 (Rosetta)" \
+					|| { echo "error: $(APP)'s x86_64 slice doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
+			else \
+				echo "launch check: the x86_64 slice not run (no Rosetta on this Mac)"; \
+			fi; \
+		fi; \
 	fi
 	@echo "Built $(APP)"
 
