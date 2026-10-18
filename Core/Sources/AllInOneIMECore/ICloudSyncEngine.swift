@@ -253,6 +253,11 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 // joining stamp, never over iCloud's real ones); a collection, joining or rejoining, as this Mac's list
                 // with its joining stamp, so that the next run merges it with iCloud's again (never replaces it whole);
                 // anything else as it was recorded before.
+                // Known limit: Settings (and the input menu) saves a list whole. One saved in the moment between this
+                // run's read of the file and its write was made without what the run was applying, and in normal mode it
+                // goes up next run as this Mac's newer change and replaces iCloud's: an item another Mac added (a
+                // command, a hidden word, an output or input language, a rewrite style; any list saved whole) is lost on
+                // both Macs. The window is the few milliseconds a run takes from read to write.
                 let current = (try? Config.load(from: configURL)).map {
                     ICloudSync.matchingAppKeys(ICloudSync.values(of: $0, in: categories), to: Array(after.keys))
                 }
@@ -561,12 +566,12 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         return ""
     }
 
-    /// Forgets what this Mac synced (after "Remove from iCloud…"): turned on again, it joins as a Mac that never synced.
+    /// Forgets what this Mac synced (after "Remove from iCloud…"): turned on again, it joins as a Mac that never synced,
+    /// under a new Mac id. Not the old one: a join's record is `Stamp.joining(macID)`, and another Mac's list still based
+    /// on this Mac's earlier join (`Entry.base`), or stamped by it, would pass for a change made on top of the new join
+    /// and replace it, losing what this Mac added while off.
     public func forget() {
-        let state = ICloudSync.State.load(from: stateURL)
-        var fresh = ICloudSync.State(macID: state.macID)
-        fresh.lastSync = nil
-        try? fresh.write(to: stateURL)
+        try? ICloudSync.State().write(to: stateURL)
     }
 
     /// The questions as `questions.json` holds them (the same on every Mac for the same questions), with the newest Clear.

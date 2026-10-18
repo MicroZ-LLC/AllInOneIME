@@ -891,6 +891,41 @@ struct ICloudSyncJoinTests {
         }
     }
 
+    @Test("Remove from iCloud: turned on again, the Mac joins under a new id and keeps what it added while off")
+    func aForgottenMacJoinsUnderANewID() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A") { $0.customCommands = [CustomCommand(name: "alpha", type: .prompt, prompt: "A's")] }
+        a.sync(at: t(0))
+        let b = try rig.mac("B")
+        b.sync(at: t(1))
+        try b.edit(at: t(2)) { $0.customCommands.append(CustomCommand(name: "beta", type: .prompt, prompt: "B's")) }
+        b.sync(at: t(3))
+        a.sync(at: t(4))
+        #expect(try a.config().customCommands.map(\.name) == ["alpha", "beta"])
+        let before = a.state.macID
+        // Remove from iCloud… on A: sync off, the folder gone, the record forgotten.
+        try a.edit(at: t(5)) { $0.iCloudSync.enabled = false }
+        a.sync(at: t(5))
+        try FileManager.default.removeItem(at: rig.folder.url)
+        a.engine.forget()
+        let forgotten = a.state
+        #expect(forgotten.macID != before, "a new Mac id")
+        #expect(forgotten.entries.isEmpty && forgotten.joined.isEmpty && forgotten.paused.isEmpty && forgotten.lastSync == nil)
+        // Off, A adds gamma; turned on again while B sleeps, it joins an empty iCloud.
+        try a.edit(at: t(6)) { $0.customCommands.append(CustomCommand(name: "gamma", type: .prompt, prompt: "A's")) }
+        try a.edit(at: t(7)) { $0.iCloudSync.enabled = true }
+        a.sync(at: t(8))
+        #expect(try entry(rig, ICloudSync.commandsKey)?.stamp == .joining(a.state.macID))
+        // B wakes before A's files reach it, and its settings.json (its list, based on A's first join) wins in iCloud.
+        try FileManager.default.removeItem(at: rig.folder.url)
+        b.sync(at: t(9))
+        a.sync(at: t(10))
+        b.sync(at: t(11))
+        for mac in [a, b] {
+            #expect(Set(try mac.config().customCommands.map(\.name)) == ["alpha", "beta", "gamma"])
+        }
+    }
+
     @Test func aCategoryTurnedOffAndOnAgainRejoinsToo() throws {
         let rig = try SyncRig()
         let (a, b) = try pair(rig)

@@ -536,8 +536,11 @@ public enum ICloudSync {
                     // stands as any newer change does.
                     // Known limits: the merge is of this Mac's whole list, merge included, so a command another Mac
                     // deleted from a list this one hasn't seen (two Macs joined at once, a third deleted one it had)
-                    // comes back once; and a join made offline settles on that Mac's own copy of settings.json, so when
-                    // the two files meet, iCloud keeps one and the other Mac's command added meanwhile can be lost.
+                    // comes back once; an item from the first Mac to sync that another Mac deleted comes back once too
+                    // when the first Mac slept through a merge made on another Mac (that merge starts a `base` of its
+                    // own, which this Mac's join record doesn't know), and deleted again it stays deleted; and a join
+                    // made offline settles on that Mac's own copy of settings.json, so when the two files meet, iCloud
+                    // keeps one and the other Mac's command added meanwhile can be lost.
                     plan.merges[key] = theirs
                     plan.provisional.insert(key)
                     plan.kept[key] = mine
