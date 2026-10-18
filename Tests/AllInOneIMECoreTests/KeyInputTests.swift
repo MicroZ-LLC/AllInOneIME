@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AllInOneIMECore
 
@@ -157,5 +158,56 @@ struct KeyInputTests {
         #expect(Modifiers.sides(of: .option) == [.leftOption, .rightOption])
         #expect(Modifiers.kind(.command) == .command)
         #expect(Modifiers.sides.isDisjoint(with: [.shift, .control, .option, .command, .capsLock, .function]))
+    }
+
+    /// The bit layout is part of the config (`KeyShortcut.modifiers`) and of what the names are written in: locked.
+    @Test func everyModifierBitIsLocked() {
+        let bits: [(Modifiers, UInt16)] = [
+            (.shift, 0), (.control, 1), (.option, 2), (.command, 3), (.capsLock, 4), (.leftOption, 5), (.rightOption, 6),
+            (.function, 7), (.leftShift, 8), (.rightShift, 9), (.leftControl, 10), (.rightControl, 11),
+            (.leftCommand, 12), (.rightCommand, 13), (.altGraph, 14),
+        ]
+        for (modifier, bit) in bits { #expect(modifier.rawValue == 1 << bit, "bit \(bit)") }
+        #expect(Modifiers.names.map(\.modifier.rawValue) == bits.map { 1 << $0.1 })  // the names in the bits' order
+        #expect(Modifiers.names.map(\.name) == ["shift", "control", "option", "command", "capsLock", "leftOption",
+                                                "rightOption", "function", "leftShift", "rightShift", "leftControl",
+                                                "rightControl", "leftCommand", "rightCommand", "altGraph"])
+        #expect(Modifiers.side(.left, of: .command) == .leftCommand && Modifiers.side(.right, of: .control) == .rightControl)
+        #expect(Modifiers.sides == Modifiers(rawValue: 0b11_1111_0110_0000))
+    }
+
+    @Test func modifiersAreWrittenByName() throws {
+        let modifiers: Modifiers = [.command, .shift, .rightCommand, .altGraph]
+        let data = try JSONEncoder().encode(modifiers)
+        #expect(String(decoding: data, as: UTF8.self) == #"["shift","command","rightCommand","altGraph"]"#)
+        #expect(try JSONDecoder().decode(Modifiers.self, from: data) == modifiers)
+        // A later version's name is left out; the number of the bits reads too.
+        #expect(try JSONDecoder().decode(Modifiers.self, from: Data(#"["control","hyper"]"#.utf8)) == .control)
+        #expect(try JSONDecoder().decode(Modifiers.self, from: Data("4105".utf8)) == [.shift, .command, .leftCommand])
+        #expect(try JSONDecoder().decode(Modifiers.self, from: Data("[]".utf8)) == [])
+    }
+
+    @Test func keysAreWrittenByName() throws {
+        let named: [(Key, String)] = [
+            (.character, "character"), (.enter, "enter"), (.keypadEnter, "keypadEnter"), (.tab, "tab"), (.space, "space"),
+            (.backspace, "backspace"), (.forwardDelete, "forwardDelete"), (.escape, "escape"),
+            (.arrow(.left), "arrowLeft"), (.arrow(.right), "arrowRight"), (.arrow(.up), "arrowUp"), (.arrow(.down), "arrowDown"),
+            (.home, "home"), (.end, "end"), (.pageUp, "pageUp"), (.pageDown, "pageDown"), (.insert, "insert"),
+            (.f(1), "f1"), (.f(13), "f13"), (.f(24), "f24"),
+            (.modifier(.shift, .left), "shiftLeft"), (.modifier(.control, .right), "controlRight"),
+            (.modifier(.option, .right), "optionRight"), (.modifier(.command, .left), "commandLeft"),
+            (.capsLock, "capsLock"), (.function, "function"), (.other, "other"),
+        ]
+        for (key, name) in named {
+            #expect(key.name == name)
+            #expect(Key(name: name) == key, "\(name)")
+            #expect(try JSONEncoder().encode(key) == Data("\"\(name)\"".utf8))
+            #expect(try JSONDecoder().decode(Key.self, from: Data("\"\(name)\"".utf8)) == key)
+        }
+        // Every key the tables have is written by a name that reads back as it.
+        for entry in MacKeyCodes.entries { #expect(Key(name: entry.key.name) == entry.key) }
+        for vk in UInt16(0)...0xFF { #expect(Key(name: WindowsKeyCodes.key(virtualKey: vk, usage: 0).name) == WindowsKeyCodes.key(virtualKey: vk, usage: 0)) }
+        // A name a later version added, or no function key's: other.
+        for name in ["mediaPlay", "f0", "f01", "f", "Enter", ""] { #expect(Key(name: name) == .other, "\(name)") }
     }
 }

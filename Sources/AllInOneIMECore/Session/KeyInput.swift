@@ -42,6 +42,92 @@ public enum Key: Hashable, Sendable {
     }
 }
 
+/// A key as its name, the form it is written in (`Codable`, the same on every system and in any wire protocol): "enter",
+/// "keypadEnter", "tab", "space", "backspace", "forwardDelete", "escape", "arrowLeft" … "arrowDown", "home", "end",
+/// "pageUp", "pageDown", "insert", "f1" … "f24", "shiftLeft" … "commandRight" (kind, then side), "capsLock",
+/// "function", "character" (what it types is the event's text, where it is its usage) and "other". A name this version
+/// doesn't know (a later one's key) reads as "other".
+extension Key: Codable {
+    public var name: String {
+        switch self {
+        case .character: return "character"
+        case .enter: return "enter"
+        case .keypadEnter: return "keypadEnter"
+        case .tab: return "tab"
+        case .space: return "space"
+        case .backspace: return "backspace"
+        case .forwardDelete: return "forwardDelete"
+        case .escape: return "escape"
+        case let .arrow(arrow): return "arrow" + Self.capitalized(arrow.name)
+        case .home: return "home"
+        case .end: return "end"
+        case .pageUp: return "pageUp"
+        case .pageDown: return "pageDown"
+        case .insert: return "insert"
+        case let .f(n): return "f\(n)"
+        case let .modifier(kind, side): return kind.name + Self.capitalized(side.name)
+        case .capsLock: return "capsLock"
+        case .function: return "function"
+        case .other: return "other"
+        }
+    }
+
+    /// The key named `name` (`name`); `.other` for a name this version doesn't know.
+    public init(name: String) {
+        if let key = Self.byName[name] {
+            self = key
+        } else if name.hasPrefix("f"), let n = Int(name.dropFirst()), n >= 1, String(n) == name.dropFirst() {
+            self = .f(n)
+        } else {
+            self = .other
+        }
+    }
+
+    /// Every key but the function keys, by name.
+    private static let byName: [String: Key] = {
+        var keys: [Key] = [.character, .enter, .keypadEnter, .tab, .space, .backspace, .forwardDelete, .escape,
+                           .home, .end, .pageUp, .pageDown, .insert, .capsLock, .function, .other]
+        keys += [Arrow.left, .right, .up, .down].map(Key.arrow)
+        for kind in ModifierKind.allCases { keys += [Side.left, .right].map { .modifier(kind, $0) } }
+        return Dictionary(uniqueKeysWithValues: keys.map { ($0.name, $0) })
+    }()
+
+    private static func capitalized(_ word: String) -> String { word.prefix(1).uppercased() + word.dropFirst() }
+
+    public init(from decoder: Decoder) throws { self.init(name: try decoder.singleValueContainer().decode(String.self)) }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(name)
+    }
+}
+
+extension Key.Arrow {
+    var name: String {
+        switch self {
+        case .left: return "left"
+        case .right: return "right"
+        case .up: return "up"
+        case .down: return "down"
+        }
+    }
+}
+
+extension Key.ModifierKind {
+    var name: String {
+        switch self {
+        case .shift: return "shift"
+        case .control: return "control"
+        case .option: return "option"
+        case .command: return "command"
+        }
+    }
+}
+
+extension Key.Side {
+    var name: String { self == .left ? "left" : "right" }
+}
+
 /// The modifiers held with a key. The kinds (Shift … Command, Caps Lock, fn) are on every event; which side's key is
 /// down only on modifier changes, and only where the system tells (the Mac tells it for Option only).
 public struct Modifiers: OptionSet, Sendable, Hashable {
@@ -102,6 +188,35 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
 
     /// Both sides' bits of a kind.
     public static func sides(of kind: Key.ModifierKind) -> Modifiers { [side(.left, of: kind), side(.right, of: kind)] }
+
+    /// Each bit's name, in the bits' order (bit 0 first): the names the modifiers are written with (`Codable`).
+    public static let names: [(name: String, modifier: Modifiers)] = [
+        ("shift", .shift), ("control", .control), ("option", .option), ("command", .command), ("capsLock", .capsLock),
+        ("leftOption", .leftOption), ("rightOption", .rightOption), ("function", .function),
+        ("leftShift", .leftShift), ("rightShift", .rightShift), ("leftControl", .leftControl),
+        ("rightControl", .rightControl), ("leftCommand", .leftCommand), ("rightCommand", .rightCommand),
+        ("altGraph", .altGraph),
+    ]
+}
+
+/// Written as a list of names (`Modifiers.names`, in the bits' order: `["shift", "command"]`), the same on every
+/// system. Read from that, names this version doesn't know left out, or from the number of the bits (the bit layout
+/// above, which config.json's recorded shortcuts use: `KeyShortcut`).
+extension Modifiers: Codable {
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let raw = try? c.decode(UInt16.self) {
+            self.init(rawValue: raw)
+            return
+        }
+        let names = try c.decode([String].self)
+        self = Modifiers(Self.names.filter { names.contains($0.name) }.map(\.modifier))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(Self.names.filter { contains($0.modifier) }.map(\.name))
+    }
 }
 
 /// One modifier key: its kind and which side's (the right Option).
