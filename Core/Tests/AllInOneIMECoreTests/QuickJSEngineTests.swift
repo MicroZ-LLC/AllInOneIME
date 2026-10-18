@@ -280,6 +280,33 @@ struct OnQuickJSTests {
             try tests.insideASentence()
         }
     }
+
+    #if os(macOS)  // Package.swift leaves the acceptance tests' file out elsewhere (it runs the app as a child process)
+    /// The plugin-language acceptance scenarios that run a script in process (Acceptance/, as their spec has them;
+    /// the argv and child-process ones run JavaScriptCore in the app, whatever the engine here).
+    @Test func pluginLanguageAcceptance() throws {
+        let context = PluginLanguageContextAcceptanceTests(), old = PluginLanguageOldPluginAcceptanceTests()
+        try onQuickJS {
+            try context.chinese()
+            try context.english()
+            try context.noLanguage()
+            for language in Language.allCases where language != .chinese && language != .english {
+                try context.otherLanguages(language)
+            }
+            try context.everyLanguage()
+            try context.argumentsLength()
+            try context.plainObjectWithLanguage()
+            try context.plainEmptyObject()
+            try context.namedParameter()
+            try context.inputFirst()
+            try context.branching()
+            try old.unchanged()
+            try old.fetching()
+            try old.errorsUnchanged()
+            old.noRun()
+        }
+    }
+    #endif
 }
 
 private extension String {
