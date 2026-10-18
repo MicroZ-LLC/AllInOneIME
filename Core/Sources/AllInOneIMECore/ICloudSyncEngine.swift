@@ -204,8 +204,6 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         // Values from iCloud (and merged ones) into the config, each checked as Settings checks it.
         let incoming = plan.incoming.filter { $0.key != ICloudSync.jargonKey }
         var refused: [String: ICloudSync.State.Rejection] = [:]
-        // Joining categories to join again next run (`done` below).
-        var joinAgain = Set<ICloudSync.Category>()
         if !incoming.isEmpty || !merged.isEmpty {
             var values = incoming.mapValues(\.value)
             for (key, value) in merged { values[key] = value }
@@ -238,6 +236,8 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
             }
             let keys = AIConfig.changedKeys(config, result.config)
             var written = Set<String>()
+            // The sync keys Settings changed in the file meanwhile: not written, Settings' save kept.
+            var skipped = Set<String>()
             if !keys.isEmpty {
                 do {
                     written = try writeConfig(result.config, config, keys, configURL)
@@ -245,25 +245,35 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                     return fail(error)
                 }
                 if !written.isEmpty { state.ownConfigWrite = Self.modificationDate(configURL) }
-                // A key changed in the file meanwhile (Settings saved) keeps that change: recorded as before, so that it
-                // goes up as this Mac's change next run. In a join there is no record before: when Settings saved
-                // another item under the same top-level key (another app's settings, a redaction switch) and this key is
-                // as the run read it, its category joins again next run. Taken as joined, its value from before the join
-                // would go up as a change of this Mac's, over iCloud's.
-                // The file's values now (nil: unreadable), read in a join only.
-                let current = report.joining.isEmpty ? nil : (try? Config.load(from: configURL)).map {
-                    ICloudSync.matchingAppKeys(ICloudSync.values(of: $0, in: categories), to: Array(local.keys))
+                // Read back, sync key by sync key: `writeConfig` writes every item Settings didn't change (another app's
+                // settings, a redaction switch, the hidden words are each their own), so a key the file doesn't hold as
+                // the run wrote it is one Settings changed itself. That save stays, and goes up as this Mac's change next
+                // run, recorded as the run found it: in a join, as the join keeps this Mac's value (`Plan.kept`: a
+                // joining stamp, never over iCloud's real ones); a collection, joining or rejoining, as this Mac's list
+                // with its joining stamp, so that the next run merges it with iCloud's again (never replaces it whole);
+                // anything else as it was recorded before.
+                let current = (try? Config.load(from: configURL)).map {
+                    ICloudSync.matchingAppKeys(ICloudSync.values(of: $0, in: categories), to: Array(after.keys))
                 }
-                for key in plan.entries.keys where !written.contains(Self.topKey(key)) && keys.contains(Self.topKey(key))
-                    && (incoming[key] != nil || plan.merges[key] != nil) {
-                    plan.entries[key] = state.entries[key]
+                for key in result.applied where keys.contains(Self.topKey(key)) {
+                    if let current {
+                        if current[key] == after[key] { continue }
+                    } else if written.contains(Self.topKey(key)) {
+                        continue  // unreadable now: taken as written
+                    }
+                    skipped.insert(key)
                     plan.outgoing[key] = nil
-                    guard let category = ICloudSync.category(of: key), modes[category] == .joining else { continue }
-                    if let current, current[key] != local[key] { continue }  // changed itself: a change of this Mac's
-                    joinAgain.insert(category)
+                    let mode = ICloudSync.category(of: key).flatMap { modes[$0] } ?? .normal
+                    if mode != .normal, ICloudSync.mergedOnJoin.contains(key), let value = local[key] {
+                        plan.entries[key] = ICloudSync.Entry(value: value, stamp: .joining(state.macID))
+                    } else if mode == .joining {
+                        plan.entries[key] = plan.kept[key]
+                    } else {
+                        plan.entries[key] = state.entries[key]
+                    }
                 }
             }
-            report.applied = result.applied.filter { incoming[$0] != nil && written.contains(Self.topKey($0)) }
+            report.applied = result.applied.filter { incoming[$0] != nil && written.contains(Self.topKey($0)) && !skipped.contains($0) }
             report.configKeys = written
         }
 
@@ -358,12 +368,14 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         if remote != nil {
             // Each category synced (none of its files still coming down) has joined, or rejoined; one waiting doesn't keep
             // the others from counting as synced.
-            let done = categories.subtracting(waiting).subtracting(joinAgain)
+            let done = categories.subtracting(waiting)
             state.joined.formUnion(done)
             state.paused.subtract(done)
             state.lastSync = now
             state.lastError = nil
         }
+        // Known limit: a crash before this (config.json and settings.json written, the record not) leaves no record:
+        // the next run joins again under a new Mac id, and what another Mac deleted meanwhile is merged back once.
         do {
             try state.write(to: stateURL)
         } catch {

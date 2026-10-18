@@ -593,20 +593,54 @@ public enum ICloudSync {
 
     // MARK: - Writing the config
 
-    /// Writes `keys` of `config` into the config file at `url` (`AIConfig.writing`), except those whose value in the
-    /// file changed since the run read it as `old` (Settings saved meanwhile: that change stays, and goes up as a local
-    /// change next run). The keys written.
+    /// Writes `keys` of `config` into the config file at `url` (`AIConfig.writing`), leaving what changed in the file
+    /// since the run read it as `old` (Settings saved meanwhile): that change stays, and goes up as a local change next
+    /// run. Field by field, at every depth: inside an object-valued key (`appProfiles` per app and per field, `redaction`
+    /// per switch and its words, a provider's settings) only the fields Settings changed are left, and the run's other
+    /// fields are written, so a save of one app's settings (or one switch) never keeps the run from writing another's.
+    /// A list or a plain value Settings changed is left whole (the languages with their companion). Which of the run's
+    /// sync keys the file holds as written is for the run to read back (`ICloudSyncEngine`). The top-level keys written,
+    /// some maybe only in part.
     @discardableResult
     public static func writeConfig(_ config: Config, readAs old: Config, keys: Set<String>, at url: URL) throws -> Set<String> {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            try config.write(to: url)
+            return keys
+        }
         let current = (try? Config.load(from: url)) ?? old
         let now = AIConfig.encoded(current), then = AIConfig.encoded(old)
-        let companions = AIConfig.companions
-        let unchanged = keys.filter { key in
-            ([key] + (companions[key] ?? [])).allSatisfy { now[$0] == then[$0] }
+        var values = AIConfig.encoded(config)
+        var write = Set<String>()
+        for key in keys {
+            let companions = AIConfig.companions[key] ?? []
+            if ([key] + companions).allSatisfy({ now[$0] == then[$0] }) {
+                write.insert(key)
+                continue
+            }
+            // Written with its companion, which Settings changed: both stay as Settings saved them.
+            guard companions.isEmpty else { continue }
+            let value = keepingChanges(new: values[key], old: then[key], file: now[key])
+            values[key] = value
+            if value != then[key] { write.insert(key) }
         }
-        guard !unchanged.isEmpty else { return [] }
-        try AIConfig.writing(config, from: current, keys: unchanged, at: url)
-        return unchanged
+        guard !write.isEmpty else { return [] }
+        try AIConfig.writing(values, from: then, keys: write, at: url)
+        return write
+    }
+
+    /// `new` (a run's value of a key, read as `old`) with `old`'s value wherever `file` (the key in the file now) changed
+    /// it since: fields of objects one by one, at every depth; anything else whole. Written from `old`, it leaves exactly
+    /// the file's changes.
+    static func keepingChanges(new: AIConfig.JSONValue?, old: AIConfig.JSONValue?, file: AIConfig.JSONValue?) -> AIConfig.JSONValue? {
+        if new == old || file == old { return new }
+        guard case let .object(newFields)? = new, case let .object(oldFields)? = old, case let .object(fileFields)? = file else {
+            return old
+        }
+        var out: [String: AIConfig.JSONValue] = [:]
+        for name in Set(newFields.keys).union(oldFields.keys) {
+            out[name] = keepingChanges(new: newFields[name], old: oldFields[name], file: fileFields[name])
+        }
+        return .object(out)
     }
 
     // MARK: - Merging collections
