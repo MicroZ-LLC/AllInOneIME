@@ -11,10 +11,11 @@
 # The checks (`swift build`, `make test`) run here, not on the agents' word: no test that passed on the release branch
 # may fail. The test author's files are put back if anyone else touches them, and nothing under .github/ changes.
 # A failed check or a "fail" from the verifier goes back to the implementer, twice at most. When the verifier passes
-# the branch, it is merged into the release branch through a PR and the issue is closed. Otherwise the PR is left as
-# a draft and the issue gets agent:stuck with a comment saying why. Out of usage (the Max plan's limit), or no open
-# release branch: agent:queued, and agent-queue.yml starts it again later. AGENT_BASE names another branch to build
-# on, for trying the pipeline out.
+# the branch, it is merged into the release branch through a PR (or without one, where the organization doesn't let
+# Actions create PRs) and the issue is closed. Otherwise the work is left in a draft PR (or on its branch) and the
+# issue gets agent:stuck with a comment saying why. Out of usage (the Max plan's limit), or no open release branch:
+# agent:queued, and agent-queue.yml starts it again later. AGENT_BASE names another branch to build on, for trying
+# the pipeline out.
 #
 # The agents run on the Max plan through this Mac's Claude Code sign-in, never an API key, and without the GitHub
 # token. They don't commit or push: this script commits their work (author from AGENT_GIT_AUTHOR, dates at 18:00
@@ -179,12 +180,19 @@ def issue_text(issue: dict) -> str:
     return "\n\n".join(parts)
 
 
-def ensure_pr(branch: str, base: str, title: str, body: str, draft: bool) -> dict:
+def ensure_pr(branch: str, base: str, title: str, body: str, draft: bool) -> dict | None:
+    """The branch's open PR, made or updated. None where Actions may not create PRs (an organization setting)."""
     body = scrub(body)
     prs = gh("api", f"repos/{REPO}/pulls?head={OWNER}:{branch}&state=open")
     if not prs:
-        return gh("api", "-X", "POST", f"repos/{REPO}/pulls", "--input", "-", input=json.dumps(
-            {"title": title, "head": branch, "base": base, "body": body, "draft": draft}))
+        result = run(["gh", "api", "-X", "POST", f"repos/{REPO}/pulls", "--input", "-"], stderr_apart=True,
+                     input=json.dumps({"title": title, "head": branch, "base": base, "body": body, "draft": draft}))
+        if result.returncode and "not permitted to create" in result.stdout + result.stderr:
+            log("Actions may not create pull requests here: merging without one")
+            return None
+        if result.returncode:
+            raise RuntimeError(f"creating the PR failed: {(result.stdout + result.stderr)[-2000:]}")
+        return json.loads(result.stdout)
     pr = prs[0]
     gh("api", "-X", "PATCH", f"repos/{REPO}/pulls/{pr['number']}", "--input", "-",
        input=json.dumps({"title": title, "body": body}))
@@ -470,7 +478,8 @@ def give_up(number: int, title: str, base: str | None, branch: str | None, reaso
             push(f"HEAD:refs/heads/{branch}", force=True)
             pr = ensure_pr(branch, base, title, f"Work on #{number} by the agent pipeline, stopped: {reason}\n\n"
                                                 f"{details}\n\n[Run]({RUN_URL})", draft=True)
-            link = f" The work so far is in #{pr['number']}."
+            link = f" The work so far is in #{pr['number']}." if pr else \
+                f" The work so far is on [`{branch}`](https://github.com/{REPO}/compare/{base}...{branch})."
     except Exception as error:
         log(f"couldn't push the work so far: {error}")
     comment(number, f"**Stopped:** {reason}{link}\n\n{details}\n\nAnswer here and add the label again to start over "
@@ -502,19 +511,23 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
 
     head = git("rev-parse", "HEAD")
     git("checkout", "-q", "--detach", f"origin/{base}")
-    git("merge", "--no-ff", "-q", "-m", f"Merge pull request #{pr['number']} from {OWNER}/{branch}\n\n{title}", head,
-        env=dated())
+    message = f"Merge pull request #{pr['number']} from {OWNER}/{branch}\n\n{title}" if pr else \
+        f"Merge branch '{branch}' into {base}\n\n{title} (#{number})"
+    git("merge", "--no-ff", "-q", "-m", message, head, env=dated())
+    merged = git("rev-parse", "HEAD")
     push(f"HEAD:refs/heads/{base}")
-    for _ in range(12):  # GitHub marks the PR merged once it sees its head in the base
+    for _ in range(12 if pr else 0):  # GitHub marks the PR merged once it sees its head in the base
         time.sleep(5)
         if gh("api", f"repos/{REPO}/pulls/{pr['number']}").get("merged"):
             break
     push(f":refs/heads/{branch}")
-    comment(number, f"Merged into `{base}` in #{pr['number']}; it ships with {base.removeprefix('release-')}.\n\n"
-                    f"{work['summary']}\n\n**Verifier:** {verdict['summary']}")
+    where = f"in #{pr['number']}" if pr else f"in {merged[:7]} ([the change](https://github.com/{REPO}/compare/{base_sha}...{merged}))"
+    comment(number, f"Merged into `{base}` {where}; it ships with {base.removeprefix('release-')}.\n\n"
+                    f"**Change:** {work['summary']}\n\n**Tests** (a separate agent): {test_notes or '(none)'}\n\n"
+                    f"**Verifier:** pass. {verdict['summary']}")
     labels(number, add=[DONE], remove=[WORKING, BUILD, FIX])
     gh("api", "-X", "PATCH", f"repos/{REPO}/issues/{number}", "-f", "state=closed", "-f", "state_reason=completed")
-    log(f"merged #{pr['number']} into {base}")
+    log(f"merged {merged[:7]} into {base}")
 
 
 if __name__ == "__main__":
