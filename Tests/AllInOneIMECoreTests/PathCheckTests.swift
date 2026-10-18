@@ -12,11 +12,15 @@ struct PathCheckTests {
                                 "\\x.sh", "C:x.sh", "C:/x.sh", "c:\\x.sh", "a\0b.sh"]
     #if os(Windows)
     /// Out of it only where "\" separates, a ":" names a drive or a stream, and trailing dots and spaces are dropped.
-    static let outOnWindows = ["..\\x.sh", "a\\..\\..\\x.sh", "a/..\\..\\x.sh", "x.sh:stream", "a/C:/x.sh", "... ", ".. /x.sh", "a/ . /x.sh"]
+    static let outOnWindows = ["..\\x.sh", "a\\..\\..\\x.sh", "a/..\\..\\x.sh", "x.sh:stream", "a/C:/x.sh", "... ", ".. /x.sh", "a/ . /x.sh",
+                               // A device, not a file: in any case, with an extension or not.
+                               "CON", "nul", "a/NUL.sh", "aux.tar.gz", "prn ", "COM1", "lpt9.log", "a\\Com5.sh", "CONIN$", "conout$.sh"]
     #endif
 
     @Test func plainRelativePathsStayInTheirFolder() throws {
-        for path in ["run.sh", "bin/deploy.py", "./run.sh", "a/./b.sh", "...x.sh", "a b/c.sh"] {
+        // Names that only start like a Windows device's are files there too.
+        for path in ["run.sh", "bin/deploy.py", "./run.sh", "a/./b.sh", "...x.sh", "a b/c.sh", "console.sh", "com10.sh", "lpt0.sh",
+                     "CONFIG.sh", "nul-x.sh", "a/conin.sh"] {
             #expect(CorePaths.isPlainRelative(path), "\(path)")
             let file = try #require(CorePaths.file(path, in: folder), "\(path)")
             #expect(file.standardizedFileURL.path.hasPrefix(folder.standardizedFileURL.path + "/"), "\(path)")
@@ -40,6 +44,16 @@ struct PathCheckTests {
             #expect(!CorePaths.isPlainRelative(path), "\(path.debugDescription)")
             #expect(CorePaths.file(path, in: folder) == nil, "\(path.debugDescription)")
         }
+    }
+
+    /// A device's name ("NUL", "con.txt") is one only on Windows; elsewhere it is a file like any other.
+    @Test func deviceNamesAreDevicesOnlyOnWindows() {
+        #if os(Windows)
+        #expect(["CON", "con", "Nul.txt", "COM9", "lpt1.a.b", "CONOUT$", "aux  "].allSatisfy { CorePaths.isDeviceName($0[...]) })
+        #expect(!["COM", "COM0", "COM10", "LPT", "CONSOLE", "NULL", "xNUL", ".nul"].contains { CorePaths.isDeviceName($0[...]) })
+        #else
+        for path in ["CON", "nul.txt", "a/COM1", "lpt9.log", "CONIN$"] { #expect(CorePaths.isPlainRelative(path), "\(path)") }
+        #endif
     }
 
     @Test func backslashesAreSeparatorsOnlyOnWindows() throws {

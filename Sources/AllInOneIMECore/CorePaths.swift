@@ -40,13 +40,24 @@ public enum CorePaths {
     public static func components(_ path: String) -> [Substring] { path.split(whereSeparator: isSeparator) }
 
     /// Whether `part` of a path could lead out of its folder: "..", and on Windows what Windows reads as it or as
-    /// something else than a name: a part of dots and spaces only (it drops a name's trailing ones), or one with a ":"
-    /// (a drive, "C:", or a file's stream, "a:b").
+    /// something else than a name: a part of dots and spaces only (it drops a name's trailing ones), one with a ":"
+    /// (a drive, "C:", or a file's stream, "a:b"), or a device's name (`isDeviceName`: "NUL", "con.txt").
     public static func climbs(_ part: Substring) -> Bool {
         #if os(Windows)
-        if part != ".", part.allSatisfy({ $0 == "." || $0 == " " }) || part.contains(":") { return true }
+        if part != ".", part.allSatisfy({ $0 == "." || $0 == " " }) || part.contains(":") || isDeviceName(part) { return true }
         #endif
         return part == ".."
+    }
+
+    /// Whether Windows takes `part` for a device, not a file, in any folder: CON, PRN, AUX, NUL, COM1-9, LPT1-9,
+    /// CONIN$, CONOUT$, in any case, with an extension or not ("nul.txt", "Com1.log"), trailing spaces dropped.
+    static func isDeviceName(_ part: Substring) -> Bool {
+        var base = part.prefix { $0 != "." }
+        while base.last == " " { base = base.dropLast() }
+        let name = base.uppercased()
+        if ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"].contains(name) { return true }
+        guard name.count == 4, name.hasPrefix("COM") || name.hasPrefix("LPT"), let digit = name.last else { return false }
+        return ("1"..."9").contains(digit)
     }
 
     /// Whether `path`, written relative to a folder (a manifest's script, a bundle in a repository), stays in it as
