@@ -340,8 +340,11 @@ public enum ExtensionSources {
         // case apart, in lower case.
         var existing = path, rest: [String] = []
         while existing.count > 1, !FileManager.default.fileExists(atPath: existing) {
+            // Up to the first part there; not past a top that isn't (a missing drive, "C:/", is its own parent).
+            let parent = (existing as NSString).deletingLastPathComponent
+            guard parent != existing else { break }
             rest.insert((existing as NSString).lastPathComponent, at: 0)
-            existing = (existing as NSString).deletingLastPathComponent
+            existing = parent
         }
         #if os(Windows)
         // No realpath there: Foundation resolves the links. It doesn't say how the volume compares names: NTFS's way.
