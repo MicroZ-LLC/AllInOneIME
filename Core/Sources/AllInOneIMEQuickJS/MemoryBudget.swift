@@ -44,9 +44,12 @@ final class MemoryBudget {
         return JS_NewRuntime2(&functions, Unmanaged.passUnretained(self).toOpaque())
     }
 
-    /// Closes the reserve, once what was allocated past the limit is freed: before each outermost call into QuickJS.
+    /// Closes the reserve: before each outermost call into QuickJS. What a call allocated in it is for its own error;
+    /// a context left past its limit (a script kept what it had) has none of it for the next call, whose first
+    /// allocation is refused, and which opens it again for its own error. (Kept open while past the limit, it was the
+    /// next script's, which then ran or not depending on the bytes the last error took.)
     func reset() {
-        if used <= limit { exceeded = false }
+        exceeded = false
     }
 
     // MARK: - The allocator
