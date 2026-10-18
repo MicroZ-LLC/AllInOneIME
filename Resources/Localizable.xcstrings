@@ -609,6 +609,9 @@
     "Answering… · type the next question meanwhile · Esc previous round" : {
       "comment" : "回答中… · 可以接着打下一个问题 · Esc 回到上一轮 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
+    "API keys and passwords" : {
+      "comment" : "API 密钥和密码 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "API keys and tokens" : {
       "comment" : "API 密钥和令牌 — Sources/AllInOneIME/PrivacySettings.swift"
     },
@@ -1507,7 +1510,11 @@
       "comment" : "需要 macOS 26 或更新版本。 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Never synced: keys, tokens and passwords, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what." : {
-      "comment" : "从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，不再打错的 App 和最近用过的 App，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+      "comment" : "从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，不再打错的 App 和最近用过的 App，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale"
+    },
+    "Never synced: the AllInOneIME Cloud sign-in, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what." : {
+      "comment" : "从不同步：AllInOneIME Cloud 的登录、扩展来源、扩展文件夹和插件、不再打错的 App 和最近用过的 App、窗口状态。每台 Mac 自己决定开不开同步、同步哪些。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "New" : {
       "comment" : "新建 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2128,6 +2135,9 @@
     "Remove this input language" : {
       "comment" : "移除这种输入语言 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Remove this key from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除这个密钥？ — Sources/AllInOneIME/KeyRow.swift"
+    },
     "Remove this plugin?" : {
       "comment" : "删除这个插件？ — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -2663,6 +2673,9 @@
     "The name is taken by %@, found first" : {
       "comment" : "这个名字已经给了 %@（先找到的生效） — Sources/AllInOneIME/UIText.swift"
     },
+    "The new input method doesn't start, so it wasn't installed (what was there before is as it was). Please download it again from Releases." : {
+      "comment" : "新的输入法启动不了，所以没有装上（原来的保持不变）。请从 Releases 重新下载。 — Sources/AllInOneIMEInstaller/Installer.swift"
+    },
     "The old AIPinyin (AI 拼音) is replaced; its settings and learned words move over." : {
       "comment" : "旧的 AI 拼音（AIPinyin）会被替换，设置和学到的词会搬过来。 — Sources/AllInOneIMEInstaller/main.swift"
     },
@@ -2748,6 +2761,9 @@
     "This App: " : {
       "comment" : "这个 App： — Sources/AllInOneIME/AppProfiles.swift"
     },
+    "This build can't sync keys (no provisioning profile)" : {
+      "comment" : "这个版本不能同步密钥（没有描述文件） — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "This bundle can't be loaded: " : {
       "comment" : "这个扩展包加载不了： — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
@@ -2778,6 +2794,9 @@
     "Those can't be set here: open Settings" : {
       "comment" : "这些不能在这里改：请打开设置 — Sources/AllInOneIMECore/AIConfigText.swift",
       "extractionState" : "stale"
+    },
+    "Through iCloud Keychain, end-to-end encrypted. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself." : {
+      "comment" : "经过 iCloud 钥匙串，端到端加密。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Timeout %@ s" : {
       "comment" : "超时 %@ 秒 — Sources/AllInOneIME/SettingsWindow.swift"
