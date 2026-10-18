@@ -6,6 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
+- `@reply` writes three replies to the message you're answering, in their language, in the tone of the app: `@reply politely decline`. Give it the message by selecting it, copying it, or taking a screenshot (⌃⇧⌘4, or WeChat's own) and pressing ⌃V in the draft. The screenshot is read on this Mac and only its text is sent. ⌘R gives three more. A screenshot pasted into any other command works too: `@translate` ⌃V translates it. Your own `@reply`, if you had one, is now `@myreply`.
 - Translate as You Type (a prototype to try): hold Shift on its own for 1 s to turn it on or off (a hint at 0.5 s; a
   tap of Shift still switches the input language), with a notice near the caret for about 1.5 s naming the language it
   translates into ("Translate as You Type on: Chinese → English · hold Shift again to turn off"); while it's on, the
