@@ -127,9 +127,10 @@ public enum AppleModel {
 
     /// Streams `body` from `backend` as the events of the other providers: text deltas, then the stop reason
     /// ("max_tokens" when the answer reached its limit). Throws `AppleModelError.unavailable` when the model isn't
-    /// ready, and `.timedOut` when nothing new arrives for `timeout` seconds on `clock` (a test's moves by hand).
-    public static func stream(_ body: ConverseRequest, backend: any AppleModelBackend, maxTokens: Int,
-                              timeout: TimeInterval, clock: some Clock<Duration> = ContinuousClock())
+    /// ready, and `.timedOut` when nothing new arrives for `timeout` seconds on `clock` (a test's moves by hand) once
+    /// the model is asked.
+    public static func stream<C: Clock<Duration>>(_ body: ConverseRequest, backend: any AppleModelBackend, maxTokens: Int,
+                                                  timeout: TimeInterval, clock: C = ContinuousClock())
         -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         let availability = backend.availability
         guard availability == .available else {
@@ -140,12 +141,15 @@ public enum AppleModel {
             return AsyncThrowingStream { $0.finish(throwing: AppleModelError.unsupportedLanguage) }
         }
         return AsyncThrowingStream { continuation in
-            let lastActivity = Locked(initialState: clock.now)
+            // When the model was asked, then when the last snapshot came. Nil before: until the task has a thread to
+            // ask it on (a busy process can take seconds to give it one), the model has had nothing to answer.
+            let lastActivity = Locked(initialState: C.Instant?.none)
             let task = Task {
                 do {
                     var sent = String.UnicodeScalarView()
                     var text = ""
                     var outputTokens: Int?
+                    lastActivity.withLock { $0 = clock.now }
                     for try await snapshot in backend.respond(to: request) {
                         lastActivity.withLock { $0 = clock.now }
                         text = snapshot.text
@@ -172,14 +176,20 @@ public enum AppleModel {
             }
             // Asleep until the timeout would be reached, then again until the new one if a snapshot came meanwhile.
             let watchdog = Task {
+                func deadline() -> C.Instant {
+                    (lastActivity.withLock { $0 } ?? clock.now).advanced(by: .seconds(timeout))
+                }
                 while !Task.isCancelled {
-                    let deadline = lastActivity.withLock { $0 }.advanced(by: .seconds(timeout))
-                    if clock.now >= deadline {
+                    if clock.now >= deadline() {
+                        // In a busy process a snapshot can have come and the task not have had a turn to take it yet:
+                        // what is waiting to run goes first.
+                        await Task.yield()
+                        guard clock.now >= deadline() else { continue }
                         task.cancel()
                         continuation.finish(throwing: AppleModelError.timedOut(timeout))
                         return
                     }
-                    try? await clock.sleep(until: deadline, tolerance: nil)
+                    try? await clock.sleep(until: deadline(), tolerance: nil)
                 }
             }
             continuation.onTermination = { _ in
