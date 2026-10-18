@@ -32,25 +32,29 @@ extension SelfTest {
         let service = "AllInOneIME self-test key", account = "selftest", group = KeySync.accessGroup
         let what = synchronizable ? "a synced item" : "an item of this Mac's"
         let store = APIKeys.Keychain.dataProtection(group: group, synchronizable: synchronizable, service: service)
-        // Its delete takes either kind (`kSecAttrSynchronizableAny`).
-        let either = APIKeys.Keychain.dataProtection(group: group, synchronizable: true, service: service)
-        _ = either.delete(account)  // left over from a run before
+        _ = APIKeys.Keychain.deleteEitherSync(service: service, account: account, group: group)  // left over from a run before
         let key = "selftest-" + UUID().uuidString
-        check(store.write(account, key, "AllInOneIME: self-test", "selftest.example", APIKeys.ending(of: key)) == .ok,
+        let saved = Date(timeIntervalSince1970: 1_790_000_000.5)
+        check(store.write(account, key, "AllInOneIME: self-test", "selftest.example", APIKeys.ending(of: key), saved) == .ok,
               "\(what) added under \"\(service)\"")
         let stored = APIKeys.Keychain.storedAttributes(service: service, account: account, group: group, eitherSync: true)
         let sync = (stored?[kSecAttrSynchronizable as String] as? NSNumber)?.boolValue
         let accessGroup = stored?[kSecAttrAccessGroup as String] as? String
         let accessible = stored?[kSecAttrAccessible as String] as? String
-        check(sync == synchronizable && accessGroup == group && accessible == (kSecAttrAccessibleAfterFirstUnlock as String),
-              "\(what): sync=\(sync.map { $0 ? 1 : 0 } ?? -1), agrp=\(accessGroup ?? "none"), pdmn=\(accessible ?? "none")")
-        check(store.read(account) == key && store.attributes(account)?.comment == "selftest.example",
-              "\(what) reads back, with its comment")
+        let wanted = kSecAttrAccessibleAfterFirstUnlock as String
+        check(sync == synchronizable && accessGroup == group && accessible == wanted,
+              "\(what): sync=\(sync.map { $0 ? 1 : 0 } ?? -1), agrp=\(accessGroup ?? "none"), pdmn=\(accessible ?? "none") (\(wanted))")
+        check(store.read(account) == key && store.attributes(account)?.comment == "selftest.example"
+              && abs((store.attributes(account)?.saved ?? .distantPast).timeIntervalSince(saved)) < 0.001,
+              "\(what) reads back, with its comment and its save time")
         let plain = APIKeys.Keychain.storedAttributes(service: service, account: account, group: group, eitherSync: false)
         check((plain != nil) == !synchronizable,
               synchronizable ? "a query without kSecAttrSynchronizable doesn't find the synced item"
                              : "a query without kSecAttrSynchronizable finds this Mac's item")
-        check(either.delete(account) == .ok
+        let other = APIKeys.Keychain.dataProtection(group: group, synchronizable: !synchronizable, service: service)
+        check(other.attributes(account) == nil && other.delete(account) == .notFound && store.read(account) == key,
+              "\(what): the other kind's store neither sees nor deletes it")
+        check(APIKeys.Keychain.deleteEitherSync(service: service, account: account, group: group) == .ok
               && APIKeys.Keychain.storedAttributes(service: service, account: account, group: group, eitherSync: true) == nil,
               "\(what) deleted with kSecAttrSynchronizableAny: gone")
     }
@@ -83,9 +87,9 @@ extension SelfTest {
         }
 
         let openAI = "sk-selftest-openai-0001", gemini = "sk-selftest-gemini-0002", hosted = "token-selftest-hosted-0003"
-        _ = local.write("openai", openAI, "AllInOneIME: OpenAI-compatible API", "api.openai.com", APIKeys.ending(of: openAI))
-        _ = local.write("hosted", hosted, "AllInOneIME: AllInOneIME Cloud", "", APIKeys.ending(of: hosted))
-        _ = legacy.write("gemini", gemini, "AllInOneIME: Gemini API", "", APIKeys.ending(of: gemini))
+        _ = local.write("openai", openAI, "AllInOneIME: OpenAI-compatible API", "api.openai.com", APIKeys.ending(of: openAI), Date())
+        _ = local.write("hosted", hosted, "AllInOneIME: AllInOneIME Cloud", "", APIKeys.ending(of: hosted), Date())
+        _ = legacy.write("gemini", gemini, "AllInOneIME: Gemini API", "", APIKeys.ending(of: gemini), nil)
         edit { $0.enabled = false }
         let moves = try? stores.migrate()
         check(moves?.moved == ["gemini"] && local.read("gemini") == gemini && legacy.attributes("gemini") == nil

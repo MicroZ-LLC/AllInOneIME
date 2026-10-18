@@ -7,8 +7,9 @@ import Foundation
 /// launch (`Stores`); the moves between them are here:
 ///
 /// - turning sync on moves this device's items into the synced ones and turning it off copies the synced ones into this
-///   device's (`merge`): the newest wins, and the synced items are never deleted by it (turning sync off on one Mac never
-///   deletes keys on another);
+///   device's (`merge`): the newest wins, by when each key was saved (`ItemAttributes.saved`, carried by every copy), and
+///   the synced items are never deleted by it (turning sync off on one Mac never deletes keys on another); a key that
+///   loses to a different one is kept where it was, never deleted;
 /// - the keys of the login keychain move once (`migrate`): a silent pass at launch, and an item that would ask for the
 ///   password at its first use (`Keychain.routed`'s read), where the login keychain asks anyway.
 ///
@@ -25,22 +26,29 @@ public enum KeySync {
         public var moved: [String] = []
         /// Read nothing while asking was off (the login keychain would ask for the password): moved at its first use.
         public var waiting: [String] = []
-        /// The other store's was newer (another Mac synced it first): this one was dropped, unread.
+        /// The other store's was newer (another Mac synced it first): this one was kept where it was when its key
+        /// differs (reads find the newer one first; Remove… takes it too), deleted when it is the same key.
         public var superseded: [String] = []
-        /// The copy didn't read back as written: the original was kept, and the copy taken out.
+        /// The copy didn't read back as written: the original was kept, and the copy taken out (unless it replaced an
+        /// item already there, which is kept).
         public var mismatched: [String] = []
 
         public init() {}
+
+        /// Nothing left to try again: every item was moved or was already there.
+        public var isComplete: Bool { waiting.isEmpty && mismatched.isEmpty }
     }
 
-    /// The newest wins: `a` over `b` only when it was changed later (an item that doesn't say when loses).
+    /// The newest wins: `a` over `b` only when its key was set later, by when it was saved (`ItemAttributes.saved`, which
+    /// copies carry), else by when its item was last changed; an item that says neither loses.
     static func newer(_ a: APIKeys.ItemAttributes, than b: APIKeys.ItemAttributes) -> Bool {
-        (a.modified ?? .distantPast) > (b.modified ?? .distantPast)
+        (a.changed ?? .distantPast) > (b.changed ?? .distantPast)
     }
 
     /// Every item of `from` into `into`, the newest winning account by account (`APIKeys.neverSynced` left out). Turning
     /// sync on is `merge(from: local, into: synced)`, turning it off `merge(from: synced, into: local)`. The items of `from`
-    /// are deleted once copied (or when `into`'s was newer), except synced ones: a merge never deletes a synced item. A
+    /// are deleted once copied, except synced ones: a merge never deletes a synced item. One that loses to `into`'s is
+    /// kept where it was when its key differs (never lost on a guess of which is newer), deleted when it's the same. A
     /// write that fails throws (`APIKeys.KeychainError`), what was moved before it staying moved.
     @discardableResult
     public static func merge(from: APIKeys.Keychain, into: APIKeys.Keychain) throws -> Moves {
@@ -49,7 +57,9 @@ public enum KeySync {
         for account in from.accounts() where !APIKeys.neverSynced.contains(account) {
             guard let theirs = from.attributes(account) else { continue }
             if let ours = into.attributes(account), !newer(theirs, than: ours) {
-                if !keepsFrom { _ = from.delete(account) }
+                if !keepsFrom, let key = from.read(account), !key.isEmpty, key == into.read(account) {
+                    _ = from.delete(account)  // the same key twice
+                }
                 moves.superseded.append(account)
                 continue
             }
@@ -62,12 +72,6 @@ public enum KeySync {
                 if !keepsFrom { _ = from.delete(account) }
                 moves.moved.append(account)
             case .mismatched:
-                // Taking the bad copy out of the synced store takes this device's copy too (its delete takes both
-                // kinds): the original is put back.
-                if !keepsFrom, from.attributes(account) == nil {
-                    _ = from.write(account, key, theirs.label ?? APIKeys.label(account: account), theirs.comment ?? "",
-                                   theirs.ending ?? APIKeys.ending(of: key))
-                }
                 moves.mismatched.append(account)
             }
         }
@@ -79,16 +83,19 @@ public enum KeySync {
 
     /// The silent pass at launch: each item of the login keychain (`legacy`) copied into the new store (`into`, the routed
     /// store with nothing behind it: never the login keychain itself), read back, and deleted from the login keychain only
-    /// when the copy reads back as written. A newer copy already there (another Mac synced it first) wins, and the login
-    /// keychain's is dropped unread. With `interactive` false the caller has turned asking off: an item whose read gives
-    /// nothing would ask for the password, and waits for its first use (`waiting`). A write that fails throws.
+    /// when the copy reads back as written. A newer copy already there (another Mac synced it first) wins; the login
+    /// keychain's is then kept when its key differs (or can't be read without asking), deleted when it's the same. With
+    /// `interactive` false the caller has turned asking off: an item whose read gives nothing would ask for the password,
+    /// and waits for its first use (`waiting`). A write that fails throws.
     @discardableResult
     public static func migrate(legacy: APIKeys.Keychain, into: APIKeys.Keychain, interactive: Bool) throws -> Moves {
         var moves = Moves()
         for account in legacy.accounts() {
             guard let old = legacy.attributes(account) else { continue }
             if let new = into.attributes(account), !newer(old, than: new) {
-                _ = legacy.delete(account)
+                if let key = legacy.read(account), !key.isEmpty, key == into.read(account) {
+                    _ = legacy.delete(account)  // the same key twice
+                }
                 moves.superseded.append(account)
                 continue
             }
@@ -113,21 +120,30 @@ public enum KeySync {
         return moves
     }
 
-    private enum Copy { case copied, mismatched }
+    enum Copy { case copied, mismatched }
 
-    /// `key` under `account` into `store` with the attributes it had (label, comment: the host, ending), then read back.
-    /// A copy that reads back otherwise is taken out again (the original is kept, and logged); a write that fails throws.
-    private static func copy(_ account: String, key: String, attributes: APIKeys.ItemAttributes,
-                             into store: APIKeys.Keychain) throws -> Copy {
-        let status = store.write(account, key, attributes.label ?? APIKeys.label(account: account), attributes.comment ?? "",
-                                 attributes.ending ?? APIKeys.ending(of: key))
+    /// `key` under `account` into `store` with the attributes it had (label, comment: the host, ending, and when it was
+    /// saved: its save time, else its modification date), then read back. Through a routed store, all of it is done in
+    /// the one store the write goes to (`Keychain.target`). A copy that reads back otherwise is taken out of that store
+    /// again, but only when the store had no item for `account` before (one that was there, another Mac's, is kept); the
+    /// original is kept, and it is logged. A write that fails throws.
+    static func copy(_ account: String, key: String, attributes: APIKeys.ItemAttributes,
+                     into store: APIKeys.Keychain) throws -> Copy {
+        let target = store.target?(account) ?? store
+        let hadOne = target.attributes(account) != nil
+        let status = target.write(account, key, attributes.label ?? APIKeys.label(account: account), attributes.comment ?? "",
+                                  attributes.ending ?? APIKeys.ending(of: key), attributes.changed)
         guard status == .ok else {
             APIKeys.log.error("key not moved: \(account) (\(status.code))")
-            throw APIKeys.KeychainError(status: status.code, message: store.message(status.code))
+            throw APIKeys.KeychainError(status: status.code, message: target.message(status.code))
         }
-        guard store.read(account) == key else {
-            APIKeys.log.error("key not moved: \(account): its copy doesn't read back as written; the original is kept")
-            _ = store.delete(account)
+        guard target.read(account) == key else {
+            if hadOne {
+                APIKeys.log.error("key not moved: \(account): its copy doesn't read back as written; the original is kept, and the item that was there")
+            } else {
+                APIKeys.log.error("key not moved: \(account): its copy doesn't read back as written; the original is kept")
+                _ = target.delete(account)
+            }
             return .mismatched
         }
         return .copied
@@ -212,8 +228,8 @@ extension APIKeys {
 extension APIKeys.Keychain {
     /// The store the app uses where the data protection keychain is there (`KeySync.Stores.store`), over three:
     /// - reads try the synced store (while `syncs()`), then `local`, then `legacy`; a key found only in `legacy` is copied
-    ///   into the store writes go to (label, comment, ending kept) and deleted there once it reads back: the login keychain
-    ///   is read once, at the key's first use (and asks for the password there, as it did);
+    ///   into the store writes go to (label, comment, ending and save time kept) and deleted there once it reads back:
+    ///   the login keychain is read once, at the key's first use (and asks for the password there, as it did);
     /// - writes go to `synced` while `syncs()`, except `APIKeys.neverSynced`, and to `local` otherwise, never anywhere
     ///   else (a write that fails is the error, with no other store tried);
     /// - `delete` removes the synced, local and legacy copies.
@@ -228,28 +244,25 @@ extension APIKeys.Keychain {
             }
             return legacy.attributes(account).map { (legacy, $0, true) }
         }
-        return Self(
+        @Sendable func target(_ account: String) -> Self { syncing(account) ? synced : local }
+        var store = Self(
             kind: .synced,
             accounts: { Array(Set((syncs() ? synced.accounts() : []) + local.accounts() + legacy.accounts())).sorted() },
             attributes: { holder($0)?.attributes },
             read: { account in
                 guard let found = holder(account), let key = found.store.read(account) else { return nil }
                 guard found.legacy, !key.isEmpty else { return key }
-                // Its first use since the update: moved out of the login keychain.
-                let target = syncing(account) ? synced : local
-                let status = target.write(account, key, found.attributes.label ?? APIKeys.label(account: account),
-                                          found.attributes.comment ?? "", found.attributes.ending ?? APIKeys.ending(of: key))
-                if status == .ok, target.read(account) == key {
+                // Its first use since the update: moved out of the login keychain (into a store that has no item for it,
+                // or the holder would have been that store).
+                let moved = (try? KeySync.copy(account, key: key, attributes: found.attributes, into: target(account)))
+                if moved == .copied {
                     _ = legacy.delete(account)
                     APIKeys.log.notice("key moved from the login keychain at its first use: \(account)")
-                } else {
-                    if status == .ok { _ = target.delete(account) }  // a copy that reads back otherwise: the original stays
-                    APIKeys.log.error("key not moved from the login keychain: \(account) (\(status.code))")
                 }
                 return key
             },
-            write: { account, key, label, comment, ending in
-                (syncing(account) ? synced : local).write(account, key, label, comment, ending)
+            write: { account, key, label, comment, ending, saved in
+                target(account).write(account, key, label, comment, ending, saved)
             },
             setComment: { account, comment in holder(account)?.store.setComment(account, comment) ?? .notFound },
             delete: { account in
@@ -258,5 +271,7 @@ extension APIKeys.Keychain {
                 return statuses.contains(.ok) ? .ok : .notFound
             },
             message: { code in synced.message(code) ?? local.message(code) })
+        store.target = { target($0) }
+        return store
     }
 }

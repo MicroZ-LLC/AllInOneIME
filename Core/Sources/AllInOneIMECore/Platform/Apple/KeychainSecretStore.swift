@@ -16,17 +16,13 @@ extension APIKeys.Keychain {
     /// Generic passwords of `service` in the data protection keychain, in the access group `group` (set on every query),
     /// `synchronizable` ones (the items iCloud Keychain syncs: every Mac's) or this device's own. Readable after the first
     /// unlock (`kSecAttrAccessibleAfterFirstUnlock`), so a key is there while the screen is locked; no item ever asks for
-    /// the password. The synced store's delete takes both copies (`kSecAttrSynchronizableAny`): Remove Key… removes it
-    /// everywhere; the local store's only its own.
+    /// the password. Every query, deletes too, is of its own kind alone (`kSecAttrSynchronizable` true or false,
+    /// never `kSecAttrSynchronizableAny`): taking a bad copy out of one store never takes the other's item.
     public static func dataProtection(group: String, synchronizable: Bool, service: String = APIKeys.service) -> APIKeys.Keychain {
-        @Sendable func query(_ account: String?, either: Bool = false) -> [String: Any] {
+        @Sendable func query(_ account: String?) -> [String: Any] {
             var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                        kSecUseDataProtectionKeychain as String: true, kSecAttrAccessGroup as String: group]
-            if either {
-                query[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
-            } else {
-                query[kSecAttrSynchronizable as String] = synchronizable ? kCFBooleanTrue : kCFBooleanFalse
-            }
+                                        kSecUseDataProtectionKeychain as String: true, kSecAttrAccessGroup as String: group,
+                                        kSecAttrSynchronizable as String: synchronizable ? kCFBooleanTrue! : kCFBooleanFalse!]
             if let account { query[kSecAttrAccount as String] = account }
             return query
         }
@@ -35,14 +31,14 @@ extension APIKeys.Keychain {
             accounts: { accounts(query(nil)) },
             attributes: { account in attributes(query(account)) },
             read: { account in read(query(account)) },
-            write: { account, key, label, comment, ending in
-                write(query(account), key: key, label: label, comment: comment, ending: ending,
+            write: { account, key, label, comment, ending, saved in
+                write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
                       adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
             },
             setComment: { account, comment in
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
             },
-            delete: { account in keychainStatus(SecItemDelete(query(account, either: synchronizable) as CFDictionary)) },
+            delete: { account in keychainStatus(SecItemDelete(query(account) as CFDictionary)) },
             message: { code in SecCopyErrorMessageString(code, nil) as String? })
     }
 
@@ -74,6 +70,15 @@ extension APIKeys.Keychain {
         return item as? [String: Any]
     }
 
+    /// Deletes the data protection keychain's item of `service` and `account` in `group`, synced or not
+    /// (`kSecAttrSynchronizableAny`), for the self-test.
+    public static func deleteEitherSync(service: String, account: String, group: String) -> APIKeys.KeychainStatus {
+        keychainStatus(SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                      kSecAttrAccount as String: account, kSecUseDataProtectionKeychain as String: true,
+                                      kSecAttrAccessGroup as String: group,
+                                      kSecAttrSynchronizable as String: kSecAttrSynchronizableAny] as CFDictionary))
+    }
+
     // MARK: - The calls
 
     private static func legacyKeychain(asking: Bool) -> APIKeys.Keychain {
@@ -92,8 +97,8 @@ extension APIKeys.Keychain {
                 silent[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
                 return withoutAsking { read(silent) }
             },
-            write: { account, key, label, comment, ending in
-                write(query(account), key: key, label: label, comment: comment, ending: ending, adding: [:])
+            write: { account, key, label, comment, ending, saved in
+                write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:])
             },
             setComment: { account, comment in
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
@@ -133,7 +138,8 @@ extension APIKeys.Keychain {
                                       modified: found[kSecAttrModificationDate as String] as? Date,
                                       comment: found[kSecAttrComment as String] as? String,
                                       ending: APIKeys.ending(fromAttribute: found[kSecAttrGeneric as String] as? Data),
-                                      label: found[kSecAttrLabel as String] as? String)
+                                      label: found[kSecAttrLabel as String] as? String,
+                                      saved: APIKeys.saved(fromAttribute: found[kSecAttrDescription as String] as? String))
     }
 
     private static func read(_ query: [String: Any]) -> String? {
@@ -145,12 +151,14 @@ extension APIKeys.Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    /// In place when there is an item, else a new one with `adding` besides.
+    /// In place when there is an item, else a new one with `adding` besides. The save time goes in the description
+    /// (`APIKeys.savedAttribute`), which iCloud Keychain carries with the item.
     private static func write(_ query: [String: Any], key: String, label: String, comment: String, ending: String?,
-                              adding: [String: Any]) -> APIKeys.KeychainStatus {
-        let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
+                              saved: Date?, adding: [String: Any]) -> APIKeys.KeychainStatus {
+        var values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
                                      kSecAttrComment as String: comment,
                                      kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
+        if let saved { values[kSecAttrDescription as String] = APIKeys.savedAttribute(saved) }
         let status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
         guard status == errSecItemNotFound else { return keychainStatus(status) }
         let item = query.merging(values) { $1 }.merging(adding) { $1 }

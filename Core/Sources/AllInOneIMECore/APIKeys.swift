@@ -124,7 +124,7 @@ public enum APIKeys {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw EmptyKey() }
         defer { cache.forget(account) }
-        let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key))
+        let status = store.write(account, key, label, host?.lowercased() ?? "", ending(of: key), Date())
         guard status == .ok else {
             log.error("key not saved: \(account) (\(status.code))")
             throw KeychainError(status: status.code, message: store.message(status.code))
@@ -168,22 +168,32 @@ public enum APIKeys {
     }
 
     /// One item's attributes, never its key: when it was made and last changed, its comment (the host it's for), the
-    /// key's last 4 characters (`ending(of:)`), kept in its generic attribute, and its label (as Keychain Access shows
-    /// it: "AllInOneIME: Gemini API").
+    /// key's last 4 characters (`ending(of:)`), kept in its generic attribute, its label (as Keychain Access shows it:
+    /// "AllInOneIME: Gemini API"), and when the key was saved (`saved`).
     public struct ItemAttributes: Equatable, Sendable {
         public var created: Date?
         public var modified: Date?
         public var comment: String?
         public var ending: String?
         public var label: String?
+        /// When the key was saved (`APIKeys.save`), carried by every copy of it (iCloud Keychain's, the moves of
+        /// `KeySync`), unlike `modified`, which the keychain sets to now on every write, a copy's or a comment's. Nil:
+        /// the item doesn't say (every item 0.6.4 left).
+        public var saved: Date?
 
-        public init(created: Date?, modified: Date?, comment: String?, ending: String? = nil, label: String? = nil) {
+        public init(created: Date?, modified: Date?, comment: String?, ending: String? = nil, label: String? = nil,
+                    saved: Date? = nil) {
             self.created = created
             self.modified = modified
             self.comment = comment
             self.ending = ending
             self.label = label
+            self.saved = saved
         }
+
+        /// When this key was last set, as the newest-wins of `KeySync` compares it: its save time, else (an item that
+        /// doesn't say) its modification date.
+        public var changed: Date? { saved ?? modified }
     }
 
     /// The generic attribute that holds a key's ending: "ends:a1b2" (empty: none).
@@ -192,6 +202,19 @@ public enum APIKeys {
         guard let data, let text = String(data: data, encoding: .utf8), text.hasPrefix("ends:") else { return nil }
         let ending = String(text.dropFirst(5))
         return ending.count == 4 ? ending : nil
+    }
+
+    /// The attribute that holds when a key was saved (`ItemAttributes.saved`; on Apple platforms its description,
+    /// which Keychain Access shows as its kind): "saved:2026-10-18T07:52:01.250Z".
+    static func savedAttribute(_ saved: Date) -> String { "saved:" + savedFormat().string(from: saved) }
+    static func saved(fromAttribute text: String?) -> Date? {
+        guard let text, text.hasPrefix("saved:") else { return nil }
+        return savedFormat().date(from: String(text.dropFirst(6)))
+    }
+    private static func savedFormat() -> ISO8601DateFormatter {
+        let format = ISO8601DateFormatter()
+        format.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return format
     }
 
     /// How a change to an item went: the platform's own status codes are kept for the message (`KeychainError`).
@@ -233,17 +256,22 @@ public enum APIKeys {
         public var attributes: @Sendable (_ account: String) -> ItemAttributes?
         /// The key itself (may make macOS ask for the login password).
         public var read: @Sendable (_ account: String) -> String?
-        /// Sets the key, its label, comment and ending: in place when there is an item, else a new one.
-        public var write: @Sendable (_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?) -> KeychainStatus
+        /// Sets the key, its label, comment, ending and save time (`ItemAttributes.saved`; nil: left as it is): in place
+        /// when there is an item, else a new one.
+        public var write: @Sendable (_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?,
+                                     _ saved: Date?) -> KeychainStatus
         /// Sets the comment alone.
         public var setComment: @Sendable (_ account: String, _ comment: String) -> KeychainStatus
         public var delete: @Sendable (_ account: String) -> KeychainStatus
         /// What a failure's code means, in words (nil: the code is all there is).
         public var message: @Sendable (_ code: Int32) -> String?
+        /// For a store routed over others (`routed`): the one a write of `account` goes to. Nil: this store itself.
+        /// `KeySync`'s moves read a copy back from, and take a bad one out of, that store alone.
+        public var target: (@Sendable (_ account: String) -> Keychain)? = nil
 
         public init(kind: Kind = .memory, accounts: @escaping @Sendable () -> [String] = { [] },
                     attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
-                    write: @escaping @Sendable (String, String, String, String, String?) -> KeychainStatus,
+                    write: @escaping @Sendable (String, String, String, String, String?, Date?) -> KeychainStatus,
                     setComment: @escaping @Sendable (String, String) -> KeychainStatus,
                     delete: @escaping @Sendable (String) -> KeychainStatus,
                     message: @escaping @Sendable (Int32) -> String? = { _ in nil }) {
@@ -259,14 +287,15 @@ public enum APIKeys {
 
         /// No secret store on this platform (until its shell brings one): nothing is kept, a save fails.
         public static let unavailable = Keychain(
-            kind: .local, attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
+            kind: .local, attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
             delete: { _ in .notFound }, message: { _ in "No secret store on this platform" })
 
         /// Items kept in memory, for tests and the self-test: the user's keychain is never touched.
         public static func inMemory() -> Keychain {
             final class Items: @unchecked Sendable {
                 let lock = NSLock()
-                var items: [String: (key: String, label: String, comment: String, ending: String?, created: Date, modified: Date)] = [:]
+                var items: [String: (key: String, label: String, comment: String, ending: String?, created: Date, modified: Date,
+                                     saved: Date?)] = [:]
             }
             let store = Items()
             return Keychain(
@@ -276,15 +305,15 @@ public enum APIKeys {
                     store.lock.withLock {
                         store.items[account].map {
                             ItemAttributes(created: $0.created, modified: $0.modified, comment: $0.comment, ending: $0.ending,
-                                           label: $0.label)
+                                           label: $0.label, saved: $0.saved)
                         }
                     }
                 },
                 read: { account in store.lock.withLock { store.items[account]?.key } },
-                write: { account, key, label, comment, ending in
+                write: { account, key, label, comment, ending, saved in
                     store.lock.withLock {
-                        let now = Date()
-                        store.items[account] = (key, label, comment, ending, store.items[account]?.created ?? now, now)
+                        let now = Date(), old = store.items[account]
+                        store.items[account] = (key, label, comment, ending, old?.created ?? now, now, saved ?? old?.saved)
                     }
                     return .ok
                 },
