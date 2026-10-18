@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 명령어는 입력을 받지 않을 수도 있고(`input none`: 이름에서 ⏎를 누르면 실행), 백그라운드(`background`)에서 실행되다가 끝나면 알려 줄 수도 있으며(그동안 메뉴 막대 패널에 표시됨), 명령어 목록에서 이름 옆에 상태(`status`)를 표시하거나, 먼저 확인(`confirm`)을 받을 수도 있습니다. 명령어는 자기 폴더에서 로그인 셸의 PATH와 `ALLINONEIME_*` 변수(인터페이스 언어와 입력 언어, 입력 중인 앱, 텍스트)로 실행됩니다. **번들**은 명령어를 나열한 `extension.json`이 있는 폴더입니다. 번들의 명령어들은 코드와 환경설정을 공유하며, 환경설정은 설정에 표시됩니다(비밀번호는 키체인에 저장). 설정에는 모든 명령어가 스위치와 함께 나열되고, 제외된 스크립트도 그 이유와 함께 나열됩니다.
 
-Raycast의 모드는 다음과 같이 대응됩니다: `fullOutput` → `show`, `compact`와 `silent` → `silent`, `refreshTime`이 있는 `inline` → 상태. 전체 프로토콜은 [docs/extensions.md](../extensions.md)에 있으며, [Examples/extensions](../../Examples/extensions)에는 종류별 예제가 하나씩 있습니다. 확장 기능은 Mac에서 코드를 실행합니다. 신뢰하는 것만 쓰세요. 확장 기능은 실행할 때만 동작하고(상태나 목록은 입력하는 동안), 보안 입력 중에는 절대 동작하지 않으며, 입력기가 종료되면 멈춥니다.
+Raycast의 모드는 다음과 같이 대응됩니다: `fullOutput` → `show`, `compact`와 `silent` → `silent`, `refreshTime`이 있는 `inline` → 상태. 전체 프로토콜은 [docs/extensions.md](../extensions.md)에 있으며, [Core/Examples/extensions](../../Core/Examples/extensions)에는 종류별 예제가 하나씩 있습니다. 확장 기능은 Mac에서 코드를 실행합니다. 신뢰하는 것만 쓰세요. 확장 기능은 실행할 때만 동작하고(상태나 목록은 입력하는 동안), 보안 입력 중에는 절대 동작하지 않으며, 입력기가 종료되면 멈춥니다.
 
 #### 확장 소스 (신규)
 
@@ -480,7 +480,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 코드 구성:
 
-- `Sources/AllInOneIMECore`: Bedrock 클라이언트, SigV4, 프롬프트, 2단계 입력 상태 머신(@ 명령어와 음성 제스처 포함). AppKit 의존성 없음
-- `Sources/AllInOneIMERime`: librime 래퍼
+- `Core/Sources/AllInOneIMECore`: Bedrock 클라이언트, SigV4, 프롬프트, 2단계 입력 상태 머신(@ 명령어와 음성 제스처 포함). AppKit 의존성 없음
+- `Core/Sources/AllInOneIMERime`: librime 래퍼
 - `Sources/AllInOneIME`: InputMethodKit 입력기, 후보 패널, 설정 창, 음성 인식
 - `Sources/AllInOneIMESettings`: "AllInOneIME Settings" 실행기
 - `Sources/AllInOneIMEInstaller`: 디스크 이미지의 "Install AllInOneIME". 설치, 업데이트, 제거를 담당

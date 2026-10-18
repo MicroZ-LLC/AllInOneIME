@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 指令也可以不接收輸入（`input none`：在名稱上按 ⏎ 即執行）、在背景（`background`）執行並在完成時通知你（期間會列在選單列面板中）、在指令清單中的名稱旁顯示狀態（`status`），或先詢問（`confirm`）。它在自己的資料夾中執行，使用你登入 shell 的 PATH 以及 `ALLINONEIME_*` 變數：介面語言和輸入語言、你正在輸入的 App、文字。**套件**（bundle）是一個含有 `extension.json` 的資料夾，裡面列出它的指令：這些指令共用程式碼和偏好設定，偏好設定會顯示在設定中（密碼存到鑰匙圈）。設定會列出每個指令並附有開關，也會列出被略過的腳本及原因。
 
-Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent` → `silent`，搭配 `refreshTime` 的 `inline` → 狀態。完整的協定請見 [docs/extensions.md](../extensions.md)；[Examples/extensions](../../Examples/extensions) 中每種各有一個範例。擴充功能會在你的 Mac 上執行程式碼：請使用你信任的。它們只在你執行時才執行（狀態或清單則在你輸入時執行），絕不在安全輸入期間執行，並會在輸入法結束時停止。
+Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent` → `silent`，搭配 `refreshTime` 的 `inline` → 狀態。完整的協定請見 [docs/extensions.md](../extensions.md)；[Core/Examples/extensions](../../Core/Examples/extensions) 中每種各有一個範例。擴充功能會在你的 Mac 上執行程式碼：請使用你信任的。它們只在你執行時才執行（狀態或清單則在你輸入時執行），絕不在安全輸入期間執行，並會在輸入法結束時停止。
 
 #### 擴充功能來源（新）
 
@@ -480,7 +480,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 程式碼結構：
 
-- `Sources/AllInOneIMECore`：Bedrock 用戶端、SigV4、提示詞、兩層式輸入狀態機（包括 @ 指令和語音手勢）；不依賴 AppKit
-- `Sources/AllInOneIMERime`：librime 包裝層
+- `Core/Sources/AllInOneIMECore`：Bedrock 用戶端、SigV4、提示詞、兩層式輸入狀態機（包括 @ 指令和語音手勢）；不依賴 AppKit
+- `Core/Sources/AllInOneIMERime`：librime 包裝層
 - `Sources/AllInOneIME`：InputMethodKit 輸入法、候選視窗、設定視窗、語音辨識
 - `Sources/AllInOneIMESettings`：「AllInOneIME Settings」啟動器
 - `Sources/AllInOneIMEInstaller`：磁碟映像檔中的「Install AllInOneIME」：安裝、更新和解除安裝

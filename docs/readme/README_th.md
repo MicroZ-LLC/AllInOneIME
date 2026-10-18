@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 คำสั่งยังสามารถไม่รับอินพุต (`input none`: กด ⏎ ที่ชื่อเพื่อรัน) รันแบบ `background` และแจ้งเตือนเมื่อเสร็จ (ระหว่างนั้นแผงในแถบเมนูจะแสดงรายการไว้) แสดง `status` ข้างชื่อในรายการคำสั่ง หรือถามก่อน (`confirm`) ได้ คำสั่งจะรันในโฟลเดอร์ของตัวเอง โดยใช้ PATH ของ login shell ของคุณและตัวแปร `ALLINONEIME_*`: ภาษาของอินเทอร์เฟซและภาษาที่ป้อน แอปที่คุณกำลังพิมพ์ และข้อความ **bundle** คือโฟลเดอร์ที่มี `extension.json` ระบุคำสั่งต่าง ๆ ของมัน: คำสั่งเหล่านั้นใช้โค้ดและค่ากำหนดร่วมกัน ซึ่ง Settings จะแสดงไว้ (รหัสผ่านเก็บใน keychain) Settings แสดงรายการทุกคำสั่งพร้อมสวิตช์ และสคริปต์ที่ไม่ได้รวมไว้พร้อมเหตุผล
 
-โหมดของ Raycast จับคู่ดังนี้: `fullOutput` → `show`, `compact` และ `silent` → `silent`, `inline` ที่มี `refreshTime` → status โปรโตคอลทั้งหมดอยู่ใน [docs/extensions.md](../extensions.md) และ [Examples/extensions](../../Examples/extensions) มีตัวอย่างของแต่ละประเภท ส่วนขยายรันโค้ดบน Mac ของคุณ: ใช้เฉพาะที่คุณไว้ใจ ส่วนขยายจะรันเฉพาะเมื่อคุณรันมัน (status หรือ list จะรันขณะคุณพิมพ์) ไม่รันระหว่างการป้อนข้อมูลแบบปลอดภัย และจะหยุดเมื่อวิธีป้อนข้อมูลปิดลง
+โหมดของ Raycast จับคู่ดังนี้: `fullOutput` → `show`, `compact` และ `silent` → `silent`, `inline` ที่มี `refreshTime` → status โปรโตคอลทั้งหมดอยู่ใน [docs/extensions.md](../extensions.md) และ [Core/Examples/extensions](../../Core/Examples/extensions) มีตัวอย่างของแต่ละประเภท ส่วนขยายรันโค้ดบน Mac ของคุณ: ใช้เฉพาะที่คุณไว้ใจ ส่วนขยายจะรันเฉพาะเมื่อคุณรันมัน (status หรือ list จะรันขณะคุณพิมพ์) ไม่รันระหว่างการป้อนข้อมูลแบบปลอดภัย และจะหยุดเมื่อวิธีป้อนข้อมูลปิดลง
 
 #### แหล่งที่มาของส่วนขยาย (ใหม่)
 
@@ -480,7 +480,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 โครงสร้างโค้ด:
 
-- `Sources/AllInOneIMECore`: ไคลเอนต์ Bedrock, SigV4, พรอมต์, state machine การป้อนข้อมูลสองระดับ (รวมถึงคำสั่ง @ และท่าทางการป้อนด้วยเสียง) ไม่ขึ้นกับ AppKit
-- `Sources/AllInOneIMERime`: ตัวห่อ (wrapper) ของ librime
+- `Core/Sources/AllInOneIMECore`: ไคลเอนต์ Bedrock, SigV4, พรอมต์, state machine การป้อนข้อมูลสองระดับ (รวมถึงคำสั่ง @ และท่าทางการป้อนด้วยเสียง) ไม่ขึ้นกับ AppKit
+- `Core/Sources/AllInOneIMERime`: ตัวห่อ (wrapper) ของ librime
 - `Sources/AllInOneIME`: วิธีป้อนข้อมูล InputMethodKit แผงตัวเลือก หน้าต่างการตั้งค่า การรู้จำเสียง
 - `Sources/AllInOneIMESettings`: ตัวเปิด "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" บนดิสก์อิมเมจ: ติดตั้ง อัปเดต และถอนการติดตั้ง

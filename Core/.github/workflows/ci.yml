@@ -1,0 +1,78 @@
+# The core's own checks, for when it is its own repository (MicroZ-LLC/AllInOneIME-Core); GitHub doesn't read workflows
+# in a subfolder, so until then the macOS repository's core-portable.yml runs the same on an export of this folder.
+# On macOS, Linux and Windows the core and its tests must build, and the lint guards (Scripts/check-core-portable.sh,
+# its self-test, Scripts/check-core-standalone.sh) must pass; on Windows the suites of what differs there run too.
+# (The tests run in full on macOS with the macOS shell's `make test`, which gives the end-to-end ones the input method
+# to run.)
+name: Core
+
+on:
+  pull_request:
+  push:
+    branches: [mainline, "release-*"]
+
+concurrency:
+  group: core-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: Scripts/check-core-portable-test.sh
+      - run: Scripts/check-core-portable.sh
+      - run: Scripts/check-core-standalone.sh
+
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: macos-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
+          restore-keys: macos-${{ hashFiles('Package.resolved') }}-
+      - name: Build the core and its tests
+        run: swift build --build-tests
+
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: linux-swift-6.4-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
+          restore-keys: linux-swift-6.4-${{ hashFiles('Package.resolved') }}-
+      - name: Build the core
+        run: swift build --target AllInOneIMECore
+      - name: Build the tests
+        run: swift build --build-tests
+
+  # windows-latest, Swift 6.4.1 from swift.org; the test files that call POSIX directly are left out there
+  # (Package.swift).
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: compnerd/gha-setup-swift@bbae8ce86bac5a3449f3992b3d88bc4ca25f2057  # v0.5.0
+        with:
+          swift-version: swift-6.4.1-release
+          swift-build: 6.4.1-RELEASE
+          cache: true
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: windows-swift-6.4.1-${{ hashFiles('Package.resolved') }}-${{ github.sha }}
+          restore-keys: windows-swift-6.4.1-${{ hashFiles('Package.resolved') }}-
+      - name: Build the core
+        run: swift build --target AllInOneIMECore
+      - name: Build the tests
+        run: swift build --build-tests
+      - name: Run the tests of what differs on Windows
+        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests'

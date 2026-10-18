@@ -3,6 +3,9 @@ import AllInOneIMECore
 
 /// Installing an update on the Mac: its archive unpacked with ditto, its apps checked (Info.plist, code signature).
 extension Updater {
+    /// The Mac apps' update manifest (site/public/update.json, signed).
+    public static let defaultManifestURL = URL(string: "https://allinoneime.com/update.json")!
+
     /// Unpacks the (verified) archive into `folder` (empty) with the system's ditto, without the download's
     /// quarantine, and checks both apps: the bundle IDs, the manifest's version and build, intact code
     /// signatures (`CodeSignature`; the signed manifest and its sha256 are what vouch for who made them).

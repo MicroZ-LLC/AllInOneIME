@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Une commande peut aussi ne prendre aucune entrée (`input none` : ⏎ sur son nom l'exécute), s'exécuter en arrière-plan (`background`) et vous prévenir quand elle a terminé (le panneau de la barre des menus la liste entre-temps), afficher un `status` à côté de son nom dans la liste des commandes, ou demander confirmation d'abord (`confirm`). Elle s'exécute dans son propre dossier avec le PATH de votre shell de connexion et des variables `ALLINONEIME_*` : la langue de l'interface et de saisie, l'application dans laquelle vous tapez, le texte. Un **bundle** est un dossier avec un `extension.json` qui nomme ses commandes : elles partagent du code et des préférences, que les réglages affichent (les mots de passe vont dans le trousseau). Les réglages listent chaque commande avec un interrupteur, ainsi que les scripts écartés et la raison.
 
-Les modes de Raycast se transposent ainsi : `fullOutput` → `show`, `compact` et `silent` → `silent`, `inline` avec `refreshTime` → un statut. Le protocole complet se trouve dans [docs/extensions.md](../extensions.md) ; [Examples/extensions](../../Examples/extensions) en contient un de chaque sorte. Les extensions exécutent du code sur votre Mac : utilisez celles en lesquelles vous avez confiance. Elles ne s'exécutent que lorsque vous les lancez (un statut ou une liste pendant la frappe), jamais pendant une saisie sécurisée, et s'arrêtent quand la méthode de saisie se ferme.
+Les modes de Raycast se transposent ainsi : `fullOutput` → `show`, `compact` et `silent` → `silent`, `inline` avec `refreshTime` → un statut. Le protocole complet se trouve dans [docs/extensions.md](../extensions.md) ; [Core/Examples/extensions](../../Core/Examples/extensions) en contient un de chaque sorte. Les extensions exécutent du code sur votre Mac : utilisez celles en lesquelles vous avez confiance. Elles ne s'exécutent que lorsque vous les lancez (un statut ou une liste pendant la frappe), jamais pendant une saisie sécurisée, et s'arrêtent quand la méthode de saisie se ferme.
 
 #### Sources d'extensions (nouveau)
 
@@ -480,7 +480,7 @@ Tous les réglages sont stockés dans `~/.config/allinoneime/config.json` ; apr�
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Organisation du code :
 
-- `Sources/AllInOneIMECore` : client Bedrock, SigV4, prompts, la machine à états de saisie à deux niveaux (y compris les commandes @ et le geste vocal) ; aucune dépendance à AppKit
-- `Sources/AllInOneIMERime` : enveloppe de librime
+- `Core/Sources/AllInOneIMECore` : client Bedrock, SigV4, prompts, la machine à états de saisie à deux niveaux (y compris les commandes @ et le geste vocal) ; aucune dépendance à AppKit
+- `Core/Sources/AllInOneIMERime` : enveloppe de librime
 - `Sources/AllInOneIME` : la méthode de saisie InputMethodKit, le panneau des candidats, la fenêtre des réglages, la reconnaissance vocale
 - `Sources/AllInOneIMESettings` : le lanceur "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller` : "Install AllInOneIME" sur l'image disque : installe, met à jour et désinstalle

@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 ويمكن للأمر أيضًا ألا يأخذ أي دخل (‏‎`input none`‎: الضغط على ⏎ عند اسمه يشغّله)، وأن يعمل في الخلفية (‏‎`background`‎)‏ ويُعلمك عند انتهائه (وفي الأثناء تعرضه لوحة شريط القوائم)، وأن يعرض ‎`status`‎ بجانب اسمه في قائمة الأوامر، أو أن يطلب التأكيد أولًا (‏‎`confirm`‎)‏. يعمل في مجلده الخاص مع PATH الخاص بصدفة تسجيل الدخول ومتغيرات ‎`ALLINONEIME_*`‎: لغة الواجهة ولغة الإدخال، والتطبيق الذي تكتب فيه، والنص. **الحزمة** (bundle) مجلد فيه ملف ‎`extension.json`‎ يسمّي أوامرها: تتشارك هذه الأوامر الشيفرة والتفضيلات، التي تعرضها الإعدادات (وكلمات المرور تذهب إلى سلسلة المفاتيح). وتعرض الإعدادات كل أمر مع مفتاح تشغيل، والبرامج النصية المستبعدة مع سبب استبعادها.
 
-تتطابق أوضاع Raycast على النحو التالي: ‎`fullOutput`‎ → ‎`show`‎، و‎`compact`‎ و‎`silent`‎ → ‎`silent`‎، و‎`inline`‎ مع ‎`refreshTime`‎ ← حالة (status). البروتوكول كاملًا موجود في [docs/extensions.md](../extensions.md)؛ وفي [Examples/extensions](../../Examples/extensions) مثال واحد من كل نوع. تنفّذ الامتدادات شيفرة على جهاز Mac: استخدم ما تثق به فقط. ولا تعمل إلا عندما تشغّلها أنت (الحالة أو القائمة أثناء الكتابة)، ولا تعمل أبدًا أثناء الإدخال الآمن، وتتوقف عند إغلاق أسلوب الإدخال.
+تتطابق أوضاع Raycast على النحو التالي: ‎`fullOutput`‎ → ‎`show`‎، و‎`compact`‎ و‎`silent`‎ → ‎`silent`‎، و‎`inline`‎ مع ‎`refreshTime`‎ ← حالة (status). البروتوكول كاملًا موجود في [docs/extensions.md](../extensions.md)؛ وفي [Core/Examples/extensions](../../Core/Examples/extensions) مثال واحد من كل نوع. تنفّذ الامتدادات شيفرة على جهاز Mac: استخدم ما تثق به فقط. ولا تعمل إلا عندما تشغّلها أنت (الحالة أو القائمة أثناء الكتابة)، ولا تعمل أبدًا أثناء الإدخال الآمن، وتتوقف عند إغلاق أسلوب الإدخال.
 
 #### مصادر الامتدادات (جديد)
 
@@ -480,7 +480,7 @@ make install
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 بنية الشيفرة:
 
-- ‏‎`Sources/AllInOneIMECore`‎: عميل Bedrock، وSigV4، والموجّهات (prompts)، وآلة حالات الإدخال ذات المستويين (بما في ذلك أوامر @ وإيماءة الصوت)؛ من دون اعتماد على AppKit
-- ‏‎`Sources/AllInOneIMERime`‎: غلاف لمكتبة librime
+- ‏‎`Core/Sources/AllInOneIMECore`‎: عميل Bedrock، وSigV4، والموجّهات (prompts)، وآلة حالات الإدخال ذات المستويين (بما في ذلك أوامر @ وإيماءة الصوت)؛ من دون اعتماد على AppKit
+- ‏‎`Core/Sources/AllInOneIMERime`‎: غلاف لمكتبة librime
 - ‏‎`Sources/AllInOneIME`‎: أسلوب الإدخال المبني على InputMethodKit، ولوحة الاقتراحات، ونافذة الإعدادات، والتعرف على الكلام
 - ‏‎`Sources/AllInOneIMESettings`‎: مشغّل "AllInOneIME Settings"
 - ‏‎`Sources/AllInOneIMEInstaller`‎: ‏"Install AllInOneIME" الموجود على صورة القرص: يثبّت ويحدّث ويلغي التثبيت

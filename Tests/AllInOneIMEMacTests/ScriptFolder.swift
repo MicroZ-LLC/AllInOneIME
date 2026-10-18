@@ -1,1 +1,0 @@
-../AllInOneIMECoreTests/ScriptFolder.swift

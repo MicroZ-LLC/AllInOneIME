@@ -273,7 +273,7 @@ commands: they share code and preferences, which Settings shows (passwords go to
 command with a switch, and the scripts left out with why.
 
 Raycast's modes map as `fullOutput` → `show`, `compact` and `silent` → `silent`, `inline` with `refreshTime` → a
-status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Examples/extensions](Examples/extensions)
+status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Core/Examples/extensions](Core/Examples/extensions)
 has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
 or a list as you type it), never during secure input, and stop when the input method quits.
 
@@ -831,7 +831,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 make test         # unit tests, plus tests that run the real Rime engine (and make strings-check)
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -844,8 +844,9 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 `make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, and anything typed while secure input is on (the screen locked, a password field). The last line counts passed, failed and skipped checks; only failures fail the run, and a run with skips ends in INCOMPLETE, or SKIPPED when nothing that types ran (BLOCKED: the real-app test started on a locked screen), never PASSED.
 
 Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
-from the String Catalog `Resources/Localizable.xcstrings` (compiled into each app by the Makefile with Xcode's
-`xcstringstool`), keyed by the English text with `%@` for each interpolation. After adding or changing text, run
+from the String Catalogs, `Core/Resources/Localizable.xcstrings` for the core's text and `Resources/Localizable.xcstrings`
+for the app's own (merged and compiled into each app by the Makefile with Xcode's `xcstringstool`), keyed by the
+English text with `%@` for each interpolation. After adding or changing text, run
 `make strings` (`make test` fails until then; the self-tests' text, in `*SelfTest.swift`, isn't for translators). Where
 one English text means two things (`make strings` reports them, and `make strings-check` fails on them), give one a key
 of its own, a short dotted name for where or how it is used: `tr("删除", "Remove", key: "remove.delete")`; its English is
@@ -853,11 +854,14 @@ the key's English value in the catalog. Adding a language is adding its column t
 interface language's code and look it up the same way (`InterfaceText.lookup`, which each app sets: its `.lproj` bundles
 on macOS; elsewhere `StringCatalog` reads the catalog's tables).
 
-Code layout:
+Code layout: the root is the macOS app; `Core/` is the core every platform shares, a Swift package of its own (it
+builds and tests on its own, on macOS, Linux and Windows); `Windows/` is the start of the Windows app.
 
-- `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
-- `Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
-- `Sources/AllInOneIMERime`: librime wrapper
+- `Core/Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
+- `Core/Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
+- `Core/Sources/AllInOneIMERime`: librime wrapper
+- `Core/Sources/AllInOneIMECLI`: the command line, `allinoneime-cli` (`make cli`), run by each platform's own `main`
+- `Sources/AllInOneIMEMac`: what only the Mac has (key layouts, code signing, Spotlight, AppleScript, the updater's install), and `Platform.mac`
 - `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" on the disk image: installs, updates and uninstalls

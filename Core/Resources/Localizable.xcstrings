@@ -1,0 +1,991 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    " · once only" : {
+      "comment" : " · 只提醒这一次 — Sources/AllInOneIMECore/Reminder.swift"
+    },
+    " · overdue" : {
+      "comment" : " · 已过 — Sources/AllInOneIMECore/Reminder.swift"
+    },
+    " (%@)" : {
+      "comment" : "（%@） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    " (fix it in the file, Settings → Advanced; it's never deleted for you)" : {
+      "comment" : "（打开设置 → 高级 → 配置文件修正它；不会自动删除） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    " (ignored)" : {
+      "comment" : "（会被忽略） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    " (saved questions are kept; Settings → General → “Clear” deletes them)" : {
+      "comment" : "（已存的问题保留；要删除，在设置 → 通用里点「清除」） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    " (signed in until %@)" : {
+      "comment" : "（登录有效至 %@） — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    ", " : {
+      "comment" : "、 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "; " : {
+      "comment" : "； — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "; it said: " : {
+      "comment" : "；它说： — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "; requests on this page go to your AI provider" : {
+      "comment" : "；这一页的请求会发给你选的 AI 服务 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "; the last refresh failed: " : {
+      "comment" : "；上次刷新失败： — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "; you can switch to it there" : {
+      "comment" : "，可以在那里换过去 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    ": " : {
+      "comment" : "： — Sources/AllInOneIMECore/AIConfigPreview.swift"
+    },
+    "@py, @js and the like in pasted or dictated text weren't run: kept as text" : {
+      "comment" : "粘贴或语音来的文字里的 @py、@js 等没有运行，当作文字 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "%@ a second" : {
+      "comment" : "每秒 %@ 个字 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@ can't be typed until it is" : {
+      "comment" : "装好以前打不了%@ — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ characters a second (should be between %@ and %@)" : {
+      "comment" : "每秒 %@ 个字（应在 %@ 到 %@ 之间） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ days ago" : {
+      "comment" : "%@ 天前 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "%@ extension commands weren't loaded" : {
+      "comment" : "%@ 个扩展命令没有加载 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ fine" : {
+      "comment" : "%@ 项正常 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ h ago" : {
+      "comment" : "%@ 小时前 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "%@ hr ago" : {
+      "comment" : "%@ 小时前 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "%@ isn't one of your input languages" : {
+      "comment" : "%@还不是输入语言 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@ min ago" : {
+      "comment" : "%@ 分钟前 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "%@ more not added: at most %@ at a time, each one line of at most %@ characters" : {
+      "comment" : "另外 %@ 个没加：一次最多 %@ 个，每个一行、不超过 %@ 个字 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@ needs a sign-in" : {
+      "comment" : "%@ 需要登录 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@ needs an API key" : {
+      "comment" : "%@ 需要 API key — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@ problems" : {
+      "comment" : "%@ 个问题 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ recent errors in the logs" : {
+      "comment" : "最近的日志里有 %@ 个错误 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ reminders" : {
+      "comment" : "%@ 个提醒 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "%@ s each" : {
+      "comment" : "%@ 秒一个字 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@ settings from iCloud aren't used on this Mac" : {
+      "comment" : "iCloud 里的 %@ 项设置没有用在这台 Mac 上 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "%@ tasks running" : {
+      "comment" : "%@ 个任务进行中 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "%@ waiting for you" : {
+      "comment" : "%@ 个等你 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "%@ warnings" : {
+      "comment" : "%@ 个提醒 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "%@ words" : {
+      "comment" : "%@ 个词 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "%@, %@, %@" : {
+      "comment" : "%@，%@，%@ — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "⏎ opens Settings to add it (never sent to the AI)" : {
+      "comment" : "⏎ 打开设置去填（不会发给 AI） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "⏎ opens Settings to sign in" : {
+      "comment" : "⏎ 打开设置去登录 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "⏎ opens Settings: choose it there and sign in" : {
+      "comment" : "⏎ 打开设置，在那里选它并登录 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "1 day ago" : {
+      "comment" : "1 天前 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "1 extension command wasn't loaded" : {
+      "comment" : "1 个扩展命令没有加载 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "1 problem" : {
+      "comment" : "1 个问题 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "1 recent error in the logs" : {
+      "comment" : "最近的日志里有 1 个错误 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "1 reminder" : {
+      "comment" : "1 个提醒 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "1 setting from iCloud isn't used on this Mac" : {
+      "comment" : "iCloud 里的 1 项设置没有用在这台 Mac 上 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "1 task running" : {
+      "comment" : "1 个任务进行中 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "1 warning" : {
+      "comment" : "1 个提醒 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "1 word" : {
+      "comment" : "1 个词 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "a command Settings couldn't save" : {
+      "comment" : "有设置里存不了的命令 — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "A language is listed twice in config.json" : {
+      "comment" : "config.json 里有重复的语言 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "A setting" : {
+      "comment" : "一项设置 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "a value that looks like a key was refused" : {
+      "comment" : "看起来像密钥的值被拒绝了（不显示） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "a value this version doesn't know" : {
+      "comment" : "这个版本不认识这个值 — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "Accessibility is allowed" : {
+      "comment" : "辅助功能权限已允许 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Accessibility isn't allowed" : {
+      "comment" : "辅助功能权限没有允许 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AI provider" : {
+      "comment" : "AI 服务 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "AI provider: " : {
+      "comment" : "AI 服务： — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "aiConfig.enterKey" : {
+      "comment" : "在设置里填（不会发给 AI） — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "enter it in Settings (never sent to the AI)"
+          }
+        }
+      }
+    },
+    "All %@ checks are fine" : {
+      "comment" : "全部正常（%@ 项） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AllInOneIME %@" : {
+      "comment" : "AllInOneIME %@ — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AllInOneIME %@ is available (you have %@)" : {
+      "comment" : "有新版本 %@（现在是 %@） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AllInOneIME %@ is installed and enabled" : {
+      "comment" : "AllInOneIME %@ 已安装并启用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AllInOneIME Cloud" : {
+      "comment" : "AllInOneIME 云 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "allow it under Automation" : {
+      "comment" : "在「自动化」里允许 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Allowed to control: " : {
+      "comment" : "可以控制： — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Already set that way" : {
+      "comment" : "已经是这样设置的了 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Also hide these words" : {
+      "comment" : "也隐藏这些词 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "An Advanced setting is out of range" : {
+      "comment" : "高级设置里的值超出范围 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "an app" : {
+      "comment" : "一个 App — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "API key saved" : {
+      "comment" : "已保存 API key — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Apple Intelligence (on this Mac)" : {
+      "comment" : "Apple Intelligence（本机） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Apple Intelligence is ready" : {
+      "comment" : "Apple 智能可以用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Apple Intelligence isn't available" : {
+      "comment" : "Apple 智能不能用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Apps · " : {
+      "comment" : "按 App ·  — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "assumed when a request needs it" : {
+      "comment" : "需要时才切换角色 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "at least one is needed" : {
+      "comment" : "至少要有一种 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "at most %@" : {
+      "comment" : "最多 %@ 种 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "AWS credentials: the last refresh failed" : {
+      "comment" : "AWS 凭证上次刷新失败 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AWS credentials: the next refresh will fail" : {
+      "comment" : "AWS 凭证下次刷新会失败 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "AWS profile '%@' has no credentials: no keys, credential_process, role_arn or SSO settings" : {
+      "comment" : "AWS profile '%@' 里没有能拿到凭证的设置（密钥、credential_process、role_arn 或 SSO） — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@' not found (~/.aws/config, ~/.aws/credentials)" : {
+      "comment" : "找不到 AWS profile '%@'（~/.aws/config、~/.aws/credentials） — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@' takes its keys from the environment, but AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY aren't set in your shell" : {
+      "comment" : "AWS profile '%@' 要用环境变量里的密钥，但 shell 里没有设置 AWS_ACCESS_KEY_ID 和 AWS_SECRET_ACCESS_KEY — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@' uses %@, which isn't supported" : {
+      "comment" : "AWS profile '%@' 用的是 %@，暂不支持 — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@' uses credential_source = %@, which is unsupported here: %@; only Environment is supported" : {
+      "comment" : "AWS profile '%@' 用的 credential_source = %@ 在 Mac 上用不了（%@）；只支持 Environment — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': %@" : {
+      "comment" : "AWS profile '%@' 的设置有问题：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': assuming the role failed (STS %@): %@" : {
+      "comment" : "AWS profile '%@' 切换角色失败（STS %@）：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': couldn't reach AWS for credentials: %@" : {
+      "comment" : "AWS profile '%@' 取凭证时连不上 AWS：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': couldn't read AWS's answer for credentials: %@" : {
+      "comment" : "AWS profile '%@' 取凭证时 AWS 的回答读不懂：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': credential_process (%@) didn't finish in %@ s and was stopped" : {
+      "comment" : "AWS profile '%@' 的 credential_process（%@）%@ 秒没有结束，已停止 — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': credential_process (%@) didn't print the JSON the AWS CLI expects: %@" : {
+      "comment" : "AWS profile '%@' 的 credential_process（%@）输出的不是 AWS CLI 要的 JSON：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': credential_process (%@) failed (exit status %@)" : {
+      "comment" : "AWS profile '%@' 的 credential_process（%@）失败了（退出码 %@） — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': credential_process can't be run: %@" : {
+      "comment" : "AWS profile '%@' 的 credential_process 写得不对：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': credential_process program %@ not found (on your login shell's PATH)" : {
+      "comment" : "AWS profile '%@' 的 credential_process 找不到程序 %@（按登录 shell 的 PATH 找） — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': SSO gave no credentials (HTTP %@): %@" : {
+      "comment" : "AWS profile '%@' 的 SSO 没有给凭证（HTTP %@）：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profile '%@': this profile needs an MFA code; use credential_process or SSO, or run your CLI to cache credentials" : {
+      "comment" : "AWS profile '%@' 需要 MFA 验证码，输入法没法问你要；请改用 credential_process 或 SSO，或者先用 AWS CLI 缓存好凭证 — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "AWS profiles' source_profile go round in a loop: %@" : {
+      "comment" : "AWS profile 的 source_profile 绕成了圈：%@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "Big-tech speak, Amazon-style in English" : {
+      "comment" : "大厂黑话，英文是 Amazon 腔 — Sources/AllInOneIMECore/RewriteStyle.swift"
+    },
+    "Can't open: " : {
+      "comment" : "打不开： — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Candidate layout" : {
+      "comment" : "候选排列 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "change it in Settings → Advanced (output tokens, timeout, temperature)" : {
+      "comment" : "在设置 → 高级里改（最多输出 tokens、超时、temperature） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "change it on its own page in Settings" : {
+      "comment" : "请到设置里对应的那一页改 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Change those on their own pages in Settings" : {
+      "comment" : "这些请到设置里对应的那一页改 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Changed %@ settings" : {
+      "comment" : "已改 %@ 项 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Changed 1 setting" : {
+      "comment" : "已改 1 项 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Check for updates" : {
+      "comment" : "检查更新 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Check for updates automatically" : {
+      "comment" : "自动检查更新 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "check for updates to install it" : {
+      "comment" : "可以检查并更新 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "check the AWS profile in Settings → AI Provider" : {
+      "comment" : "在设置 → AI 服务里看 AWS profile — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "checks for updates automatically" : {
+      "comment" : "自动检查更新 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Chinese" : {
+      "comment" : "中 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "config.json can't be read" : {
+      "comment" : "config.json 读不了 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "config.json has keys this version doesn't know" : {
+      "comment" : "config.json 里有不认识的键 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "config.json is fine" : {
+      "comment" : "config.json 正常 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Copied" : {
+      "comment" : "已复制 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Copied the conversation" : {
+      "comment" : "已复制对话 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
+    },
+    "Copy the command to run in Terminal: %@" : {
+      "comment" : "复制命令到剪贴板，在终端里运行：%@ — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Couldn't turn that into a setting" : {
+      "comment" : "没能把这句话变成设置 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "credentials expire at %@" : {
+      "comment" : "凭证 %@ 到期 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "credentials fetched when a request needs them" : {
+      "comment" : "需要时才取凭证 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "credentials found" : {
+      "comment" : "找到了密钥 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "credentials kept until AWS stops taking them" : {
+      "comment" : "凭证一直用到 AWS 不再接受 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "default" : {
+      "comment" : "默认 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Default input language" : {
+      "comment" : "默认输入语言 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Didn't catch that, try again" : {
+      "comment" : "没听清，再说一次 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "doesn't check for updates automatically" : {
+      "comment" : "没有自动检查更新 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Don't type keys here; I opened the key field instead." : {
+      "comment" : "别在这里打密钥：没有发出去，我打开了填密钥的地方 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Don't type keys here: it wasn't sent, and ⏎ opens the key field." : {
+      "comment" : "别在这里打密钥：它没有发出去，⏎ 会打开填密钥的地方 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Download the %@ language pack" : {
+      "comment" : "下载%@语言包 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "EC2 instance metadata only exists on an EC2 instance, not on a Mac" : {
+      "comment" : "EC2 实例元数据只在 EC2 实例上才有 — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "ECS container credentials only exist inside an ECS task, not on a Mac" : {
+      "comment" : "ECS 容器凭证只在 ECS 任务里才有 — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "Enable the AllInOneIME input method again" : {
+      "comment" : "重新启用 AllInOneIME 输入法 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "English" : {
+      "comment" : "英 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "enter it in Settings (never sent to the AI)" : {
+      "comment" : "请在设置里填（不会发给 AI） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Environment variables" : {
+      "comment" : "环境变量 — Sources/AllInOneIMECore/AWSProfiles.swift"
+    },
+    "Extensions and plugins load fine" : {
+      "comment" : "扩展和插件都正常 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "files another Mac synced are still downloading" : {
+      "comment" : "别的 Mac 同步的文件还在下载 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "For managers and clients" : {
+      "comment" : "适合发给领导、客户 — Sources/AllInOneIMECore/RewriteStyle.swift"
+    },
+    "found AWS_ACCESS_KEY_ID in your shell" : {
+      "comment" : "已找到 shell 里的 AWS_ACCESS_KEY_ID — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "found the keys for this profile" : {
+      "comment" : "已找到这个 profile 的密钥 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "French" : {
+      "comment" : "法 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Hide · API keys and tokens" : {
+      "comment" : "隐藏 · API 密钥和令牌 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Hide · Email addresses" : {
+      "comment" : "隐藏 · 邮箱地址 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Hide · IP addresses" : {
+      "comment" : "隐藏 · IP 地址 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Hide · Payment card numbers" : {
+      "comment" : "隐藏 · 银行卡号 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Hide · Phone numbers" : {
+      "comment" : "隐藏 · 电话号码 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Hide sensitive information before sending" : {
+      "comment" : "发送前隐藏敏感信息 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Hindi" : {
+      "comment" : "印 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Hold right ⌥ to talk" : {
+      "comment" : "按住右 ⌥ 说话 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Horizontal" : {
+      "comment" : "横排 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "https:// addresses only" : {
+      "comment" : "只能是 https:// 地址 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "iCloud Drive isn't available" : {
+      "comment" : "iCloud 云盘不可用 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "in use now" : {
+      "comment" : "正在使用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Input languages" : {
+      "comment" : "输入语言 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "it can be downloaded again" : {
+      "comment" : "可以重新下载 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "it can be enabled again" : {
+      "comment" : "可以重新启用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "it isn't a known source" : {
+      "comment" : "不认识这个来源 — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "just now" : {
+      "comment" : "刚刚 — Sources/AllInOneIMECore/Dashboard.swift"
+    },
+    "keep the first %@" : {
+      "comment" : "留下前 %@ 种 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Korean" : {
+      "comment" : "韩 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Language packs installed: " : {
+      "comment" : "语言包已安装： — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "last synced %@" : {
+      "comment" : "上次同步：%@ — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Like chatting with a friend" : {
+      "comment" : "像跟朋友聊天 — Sources/AllInOneIMECore/RewriteStyle.swift"
+    },
+    "Loading the dictionaries, one moment" : {
+      "comment" : "词库准备中，稍候可用 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Make occasional typos and fix them" : {
+      "comment" : "偶尔打错再改 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Model (Amazon Bedrock)" : {
+      "comment" : "模型（Amazon Bedrock） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Model (Claude API)" : {
+      "comment" : "模型（Claude API） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Model (Gemini API)" : {
+      "comment" : "模型（Gemini API） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Model (OpenAI-compatible API)" : {
+      "comment" : "模型（兼容 OpenAI 的服务） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "More than %@ translation languages" : {
+      "comment" : "翻译语言超过 %@ 种 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "needs a sign-in: sign in in Settings" : {
+      "comment" : "需要登录：在设置里登录 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "needs an API key: add it in Settings (never sent to the AI)" : {
+      "comment" : "需要 API key：在设置里填（不会发给 AI） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "needs macOS 26" : {
+      "comment" : "需要 macOS 26 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "needs the %@ language pack (download it in Settings → Input)" : {
+      "comment" : "需要%@语言包（在设置 → 输入里下载） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Needs: " : {
+      "comment" : "还要写： — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "No AI in this app" : {
+      "comment" : "这个 App 里不用 AI — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "No credentials" : {
+      "comment" : "没有凭证 — Sources/AllInOneIMECore/AWSProfiles.swift"
+    },
+    "no date" : {
+      "comment" : "未设时间 — Sources/AllInOneIMECore/Reminder.swift"
+    },
+    "no key for it on this Mac" : {
+      "comment" : "这台 Mac 上没有它的密钥 — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "No recent errors in the logs" : {
+      "comment" : "最近的日志里没有错误 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "No result" : {
+      "comment" : "没有得到结果 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "no style called “%@”" : {
+      "comment" : "没有「%@」这个风格 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "no such app found" : {
+      "comment" : "找不到这个 App — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "no such AWS profile on this Mac" : {
+      "comment" : "这台 Mac 上没有这个 AWS profile — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "no such profile in ~/.aws" : {
+      "comment" : "~/.aws 里没有这个 profile — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "No text on the clipboard to use" : {
+      "comment" : "剪贴板里没有能用的文字 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "none" : {
+      "comment" : "无 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "not a model the app knows: enter it in Settings" : {
+      "comment" : "不在已知的模型里，请在设置里填 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "not a valid AWS region" : {
+      "comment" : "不是有效的 AWS 区域 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "not a valid value" : {
+      "comment" : "不是有效的值 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Not allowed to control: " : {
+      "comment" : "不能控制： — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "not offered on this Mac" : {
+      "comment" : "这台 Mac 上没有这个服务 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Not signed in to SSO: run %@" : {
+      "comment" : "还没有 SSO 登录：运行 %@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "not supported on this Mac" : {
+      "comment" : "这台 Mac 不支持 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Not synced through iCloud yet" : {
+      "comment" : "还没有通过 iCloud 同步过 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "not the right kind of value" : {
+      "comment" : "值的类型不对 — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "Not translated: {reason} (⏎ to retry)" : {
+      "comment" : "没翻译成：{reason}（⏎ 重试） — Sources/AllInOneIMECore/TranslateMode.swift"
+    },
+    "Nothing found" : {
+      "comment" : "没有找到 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "nothing goes to the AI until it's off: leave the password field, or that app" : {
+      "comment" : "关掉之前不会把文字发给 AI；关掉密码框或那个 App 的安全输入 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Nothing to undo from the last 10 minutes" : {
+      "comment" : "10 分钟内没有可以撤销的设置修改 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "off" : {
+      "comment" : "关 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "on" : {
+      "comment" : "开 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "only chosen in Settings → General" : {
+      "comment" : "只能在设置 → 通用里选 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Open System Settings → Apple Intelligence & Siri" : {
+      "comment" : "打开系统设置 → Apple 智能与 Siri — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Open System Settings → Privacy & Security → Accessibility" : {
+      "comment" : "打开系统设置 → 隐私与安全性 → 辅助功能 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Open System Settings → Privacy & Security → Automation" : {
+      "comment" : "打开系统设置 → 隐私与安全性 → 自动化 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Open System Settings → Privacy & Security → Microphone" : {
+      "comment" : "打开系统设置 → 隐私与安全性 → 麦克风 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "OpenAI-compatible API" : {
+      "comment" : "兼容 OpenAI 的服务 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Opened {agent} in Terminal" : {
+      "comment" : "已在终端打开 {agent} — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Opened Claude Code in Terminal" : {
+      "comment" : "已在终端打开 Claude Code — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Other lines in the logs" : {
+      "comment" : "日志里有别的记录 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "out of range" : {
+      "comment" : "超出范围 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "out of the range Settings allows" : {
+      "comment" : "超出设置允许的范围 — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "Pick a recipient first: ↑↓ choose, ⏎ / Tab confirm (or type a phone number or email)" : {
+      "comment" : "先选收件人：↑↓ 选择，⏎ / Tab 确定（也可以直接输入手机号或邮箱） — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Pick one of: " : {
+      "comment" : "只能是这几个之一： — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Plugin problems" : {
+      "comment" : "插件有问题 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Politer and softer" : {
+      "comment" : "更客气，语气缓和 — Sources/AllInOneIMECore/RewriteStyle.swift"
+    },
+    "profile %@%@, region %@, %@" : {
+      "comment" : "profile %@%@，区域 %@，%@ — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Ran " : {
+      "comment" : "已运行： — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "ready" : {
+      "comment" : "可以用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "ready on this Mac" : {
+      "comment" : "这台 Mac 上可以用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Region" : {
+      "comment" : "区域 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Remember recent questions" : {
+      "comment" : "记住最近的问题 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Remove the repeated languages from config.json (nothing else changes)" : {
+      "comment" : "去掉 config.json 里重复的语言（别的不动） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Requests on this page are handled on this Mac" : {
+      "comment" : "这一页的请求在本机处理 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Rewrite styles" : {
+      "comment" : "改写风格 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Role via %@" : {
+      "comment" : "通过 %@ 的角色 — Sources/AllInOneIMECore/AWSProfiles.swift"
+    },
+    "Run {title}? {key} again" : {
+      "comment" : "运行「{title}」？{key} 确认 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Running in Terminal" : {
+      "comment" : "已在终端运行 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Running in the background, you'll be notified: " : {
+      "comment" : "在后台运行，完成后通知你： — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "runs when a request needs credentials" : {
+      "comment" : "需要凭证时才运行 — Sources/AllInOneIMECore/AWSCredentialResolver.swift"
+    },
+    "Same as everywhere" : {
+      "comment" : "跟全局一样 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Same tone, more natural" : {
+      "comment" : "语气不变，更自然通顺 — Sources/AllInOneIMECore/RewriteStyle.swift"
+    },
+    "Secure input is off" : {
+      "comment" : "安全输入没开 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Secure input is on (%@)" : {
+      "comment" : "安全输入开着（%@） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "secure input is on (a password field or the lock screen), nothing was sent" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），没有发给 AI — Sources/AllInOneIMECore/TranslateMode.swift"
+    },
+    "Secure input is on (a password field or the lock screen): Claude Code was not opened" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），没有打开 Claude Code — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Secure input is on (a password field or the lock screen): the command was not run" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），没有运行命令 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Secure input is on (a password field or the lock screen): the conversation wasn't sent" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），对话没有发出去 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
+    },
+    "Settings → General → Sync Now" : {
+      "comment" : "在设置 → 通用里点「立即同步」 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Settings → General turns it on" : {
+      "comment" : "在设置 → 通用里打开 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "several match: " : {
+      "comment" : "有好几个： — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Shorter, no filler" : {
+      "comment" : "更短，去掉多余的话 — Sources/AllInOneIMECore/RewriteStyle.swift"
+    },
+    "sign in in Settings" : {
+      "comment" : "在设置里登录 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "signed in" : {
+      "comment" : "已登录 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Speed up and slow down (like a person)" : {
+      "comment" : "忽快忽慢（像真人打字） — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "SSO sign-in expired: run %@" : {
+      "comment" : "SSO 登录已过期：运行 %@ — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "Started in the background; you'll be notified when it's done (@tasks)" : {
+      "comment" : "已在后台开始，做完会通知你；@tasks 查看 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "Starts in" : {
+      "comment" : "开始的输入语言 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Static keys" : {
+      "comment" : "静态密钥 — Sources/AllInOneIMECore/AWSProfiles.swift"
+    },
+    "style.casual" : {
+      "comment" : "口语 — Sources/AllInOneIMECore/RewriteStyle.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Casual"
+          }
+        }
+      }
+    },
+    "style.concise" : {
+      "comment" : "简洁 — Sources/AllInOneIMECore/RewriteStyle.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concise"
+          }
+        }
+      }
+    },
+    "style.formal" : {
+      "comment" : "正式 — Sources/AllInOneIMECore/RewriteStyle.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formal"
+          }
+        }
+      }
+    },
+    "style.jargon" : {
+      "comment" : "黑话 — Sources/AllInOneIMECore/RewriteStyle.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jargon"
+          }
+        }
+      }
+    },
+    "style.polish" : {
+      "comment" : "润色 — Sources/AllInOneIMECore/RewriteStyle.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Polish"
+          }
+        }
+      }
+    },
+    "style.tactful" : {
+      "comment" : "委婉 — Sources/AllInOneIMECore/RewriteStyle.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tactful"
+          }
+        }
+      }
+    },
+    "Sync through iCloud" : {
+      "comment" : "通过 iCloud 同步 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Sync through iCloud failed" : {
+      "comment" : "通过 iCloud 同步出错了 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Sync through iCloud is off" : {
+      "comment" : "没有开「通过 iCloud 同步」 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Synced through iCloud %@" : {
+      "comment" : "已通过 iCloud 同步（%@） — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Testing the connection…" : {
+      "comment" : "正在测试连接… — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The %@ language pack is damaged" : {
+      "comment" : "%@语言包坏了 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The %@ language pack is downloading" : {
+      "comment" : "%@语言包正在下载 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The %@ language pack isn't installed" : {
+      "comment" : "%@语言包没有装 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The clipboard text is too long: %@ characters at most" : {
+      "comment" : "剪贴板里的文字太长：最多 %@ 字 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "The code printed nothing: end it with an expression, or print the result" : {
+      "comment" : "代码没有输出：最后写一个表达式，或者把结果打印出来 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "The connection failed" : {
+      "comment" : "连接失败 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The connection works" : {
+      "comment" : "连接正常 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The conversation is on the clipboard: paste it" : {
+      "comment" : "对话已复制到剪贴板：粘贴进去接着聊 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
+    },
+    "The input method can't be selected now" : {
+      "comment" : "输入法现在不能选 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The input method isn't enabled" : {
+      "comment" : "输入法没有启用 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The input method isn't in your input sources (Ctrl-Space doesn't reach it)" : {
+      "comment" : "输入法不在你的输入法列表里（⌃空格切换不到它） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The input method isn't registered" : {
+      "comment" : "输入法没有注册 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The last update didn't work" : {
+      "comment" : "上次更新没有成功 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The microphone is allowed" : {
+      "comment" : "麦克风已允许 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The microphone isn't allowed" : {
+      "comment" : "麦克风没有允许 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The microphone: asked the first time you dictate" : {
+      "comment" : "麦克风：第一次说话时会问 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "the model isn't ready yet (it may still be downloading)" : {
+      "comment" : "模型还没准备好（可能还在下载） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The note wasn't saved; its text is on the clipboard" : {
+      "comment" : "笔记还没存，原文已复制到剪贴板 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "the profile's region" : {
+      "comment" : "profile 的区域 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "the repeats can be removed, nothing else changes" : {
+      "comment" : "可以只去掉重复的，别的不动 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "the selection can't be read in some apps" : {
+      "comment" : "有的 App 里读不到选中的文字 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "The typing speed is out of range" : {
+      "comment" : "打字速度超出范围 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "this setting can't be removed" : {
+      "comment" : "这一项不能删除 — Sources/AllInOneIMECore/ICloudSync.swift"
+    },
+    "today" : {
+      "comment" : "今天 — Sources/AllInOneIMECore/Reminder.swift"
+    },
+    "tomorrow" : {
+      "comment" : "明天 — Sources/AllInOneIMECore/Reminder.swift"
+    },
+    "Too long for a link: %@ characters at most" : {
+      "comment" : "文字太长，放不进链接：最多 %@ 字 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "translateMode.translating" : {
+      "comment" : "翻译中… — Sources/AllInOneIMECore/TranslateMode.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translating…"
+          }
+        }
+      }
+    },
+    "Translation languages" : {
+      "comment" : "翻译语言 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "turn it on in System Settings → Apple Intelligence & Siri" : {
+      "comment" : "在系统设置 → Apple 智能与 Siri 里打开 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Turn on iCloud Drive in System Settings → Apple Account → iCloud" : {
+      "comment" : "在系统设置 → Apple 账户 → iCloud 里打开 iCloud 云盘 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Type results out" : {
+      "comment" : "逐字上屏 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Type something after the command" : {
+      "comment" : "在命令后面写上内容 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "type the address yourself" : {
+      "comment" : "请自己输入这个地址 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Typing speed" : {
+      "comment" : "打字速度 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Undone; changed since, left as is: " : {
+      "comment" : "已撤销；这些之后又改过，没有动： — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Undone: the settings are as they were" : {
+      "comment" : "已撤销刚才的设置修改 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "unknown language “%@”" : {
+      "comment" : "不认识的语言「%@」 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Use the selected text" : {
+      "comment" : "使用选中的文字 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Vertical" : {
+      "comment" : "竖排 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "voice input can't work" : {
+      "comment" : "语音输入用不了 — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    "Waiting for iCloud…" : {
+      "comment" : "正在等 iCloud… — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
+    },
+    "Write what to be reminded of, e.g. “call Bob tomorrow at 3pm”" : {
+      "comment" : "写上要提醒的事，比如「明天下午3点给张三打电话」 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "yesterday" : {
+      "comment" : "昨天 — Sources/AllInOneIMECore/Reminder.swift"
+    },
+    "You haven't signed in to SSO for profile %@. Run `%@` in Terminal" : {
+      "comment" : "AWS profile '%@' 还没有 SSO 登录。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    },
+    "Your SSO sign-in for profile %@ has expired. Run `%@` in Terminal" : {
+      "comment" : "AWS profile '%@' 的 SSO 登录已过期。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"
+    }
+  },
+  "version" : "1.0"
+}

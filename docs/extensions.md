@@ -8,7 +8,7 @@ This is protocol version **1**. Within version 1, changes only add things: keys 
 newer extension still loads in an older app. An extension that needs a newer protocol (`schemaVersion` above the
 app's) is listed in Settings as needing a newer AllInOneIME, and isn't run.
 
-[`Examples/extensions`](../Examples/extensions) has an example of every feature, to start from:
+[`Core/Examples/extensions`](../Core/Examples/extensions) has an example of every feature, to start from:
 
 | Example | Shows |
 |---|---|
