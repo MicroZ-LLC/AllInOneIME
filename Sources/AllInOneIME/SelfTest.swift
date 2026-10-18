@@ -2516,6 +2516,7 @@ enum SelfTest {
         uniquingKeysWith: { first, _ in first })
 
     static func run(snapshotDirectory: URL) -> Int32 {
+        waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
         QuestionHistoryStore.url = snapshotDirectory.appendingPathComponent("recent-questions.json")
