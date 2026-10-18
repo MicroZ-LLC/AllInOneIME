@@ -328,6 +328,20 @@ struct InlineCodeTests {
             #expect(throws: InlineCodeError(error), "\(code)") { try InlineCode.evaluateJavaScript(code) }
         }
     }
+
+    @Test(.enabled(if: Available.javaScript)) func javaScriptErrorLinesAreTheCodes() {
+        // The line of the call, not one in what JSON.parse or eval parsed (QuickJS-ng numbers those on their own), with
+        // either engine: JavaScriptCore's lines.
+        let cases: [(code: String, line: Int)] = [
+            ("1\n2\nJSON.parse('[1,\\n2,\\n3,\\nx]')", 3),
+            ("1\nJSON.parse('{')", 2),
+            ("1\neval('2\\n3\\n4 +')", 2),
+        ]
+        for (code, line) in cases {
+            let error = #expect(throws: InlineCodeError.self, "\(code)") { try InlineCode.evaluateJavaScript(code) }
+            #expect(error?.message.hasSuffix(" (line \(line))") == true, "\(code): \(error?.message ?? "")")
+        }
+    }
 }
 
 private extension Result where Failure == Error {

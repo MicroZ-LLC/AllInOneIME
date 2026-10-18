@@ -51,7 +51,15 @@ struct QuickJSEngineTests {
         let jobs = try self.context()
         _ = jobs.limitTime(to: 0.1)
         jobs.evaluate("var count = 0; (function again() { count++; Promise.resolve().then(again) })()")
+        #expect(jobs.exception?.toString() == "InternalError: interrupted")
         #expect((jobs.global("count")?.numberValue ?? 0) > 1)
+        // A script that returned, its jobs left when the time was up: stopped all the same, not quietly.
+        let waiting = try self.context()
+        _ = waiting.limitTime(to: 0.2)
+        let start = Date()
+        #expect(waiting.evaluate("(async () => { for (;;) await 0 })(); 'returned'")?.toString() == "returned")
+        #expect(waiting.exception?.toString() == "InternalError: interrupted" && Date().timeIntervalSince(start) < 5)
+        #expect(waiting.global("Math")?.isObject == true)  // its values can still be read
     }
 
     @Test func anotherThreadStopsAScript() throws {
@@ -76,6 +84,47 @@ struct QuickJSEngineTests {
         })
         context.evaluate("stop(); for (;;) {}")
         #expect(context.exception?.toString() == "InternalError: interrupted")
+    }
+
+    /// The errors Swift throws are the realm's own: what a script left in the globals of their names never runs.
+    @Test func errorsAreMadeWithoutTheScriptsGlobals() throws {
+        // The InternalError of a script stopped, for the next script after it.
+        let context = try context()
+        context.evaluate("globalThis.InternalError = function () { return {toString() { return 'spoofed' }} }")
+        _ = context.limitTime(to: 0.1)
+        context.evaluate("for (;;) {}")
+        #expect(context.exception?.toString() == "InternalError: interrupted")
+        #expect(context.evaluate("1")?.isUndefined == true && context.exception?.toString() == "InternalError: interrupted")
+        #expect(context.exception?.property("name")?.toString() == "InternalError")
+        // The TypeError of a conversion: a constructor that never ends isn't called (the limit, should it be, ends it
+        // with another error).
+        let other = try self.context()
+        other.evaluate("globalThis.TypeError = function () { for (;;) {} }")
+        _ = other.limitTime(to: 5)
+        let start = Date()
+        #expect(try #require(other.evaluate("3")).toArray() == nil)
+        #expect(other.exception?.toString() == "TypeError: Cannot convert primitive to NSArray")
+        #expect(other.exception?.property("name")?.toString() == "TypeError" && Date().timeIntervalSince(start) < 1)
+        #expect(try #require(other.evaluate("'text'")).toDictionary() == nil)
+        #expect(other.exception?.toString() == "TypeError: Cannot convert primitive to NSDictionary")
+    }
+
+    /// A date converts to Swift by the time it holds, without the script's code: not its own valueOf or
+    /// Symbol.toPrimitive, nor a getTime the script put on Date.prototype. (JavaScriptCore calls valueOf.)
+    @Test func datesConvertByTheirTimeAlone() throws {
+        let context = try context()
+        let value = try #require(context.evaluate("""
+            var called = 0
+            function spoof() { called++; return 0 }
+            Date.prototype.getTime = Date.prototype.valueOf = spoof
+            var d = new Date(5000)
+            d.valueOf = d[Symbol.toPrimitive] = spoof;
+            [d, {d}]
+            """))
+        let items = try #require(value.toArray())
+        #expect((items.first as? Date)?.timeIntervalSince1970 == 5)
+        #expect(((items.last as? [String: Any])?["d"] as? Date)?.timeIntervalSince1970 == 5)
+        #expect(context.global("called")?.numberValue == 0 && context.exception == nil)
     }
 
     // MARK: - Memory and depth
@@ -207,6 +256,7 @@ struct OnQuickJSTests {
             try tests.javaScriptIsREPLStyle()
             try tests.javaScriptHasNothingButTheLanguage()
             tests.javaScriptErrorsAreOneLine()
+            tests.javaScriptErrorLinesAreTheCodes()
         }
     }
 
@@ -230,6 +280,33 @@ struct OnQuickJSTests {
             try tests.insideASentence()
         }
     }
+
+    #if os(macOS)  // Package.swift leaves the acceptance tests' file out elsewhere (it runs the app as a child process)
+    /// The plugin-language acceptance scenarios that run a script in process (Acceptance/, as their spec has them;
+    /// the argv and child-process ones run JavaScriptCore in the app, whatever the engine here).
+    @Test func pluginLanguageAcceptance() throws {
+        let context = PluginLanguageContextAcceptanceTests(), old = PluginLanguageOldPluginAcceptanceTests()
+        try onQuickJS {
+            try context.chinese()
+            try context.english()
+            try context.noLanguage()
+            for language in Language.allCases where language != .chinese && language != .english {
+                try context.otherLanguages(language)
+            }
+            try context.everyLanguage()
+            try context.argumentsLength()
+            try context.plainObjectWithLanguage()
+            try context.plainEmptyObject()
+            try context.namedParameter()
+            try context.inputFirst()
+            try context.branching()
+            try old.unchanged()
+            try old.fetching()
+            try old.errorsUnchanged()
+            old.noRun()
+        }
+    }
+    #endif
 }
 
 private extension String {

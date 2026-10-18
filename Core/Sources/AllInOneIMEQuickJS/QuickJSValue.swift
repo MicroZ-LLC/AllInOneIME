@@ -45,7 +45,7 @@ final class QuickJSValue: ScriptValue {
                 var ancestors = [value]
                 return runtime.items(of: value, ancestors: &ancestors)
             }
-            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError("TypeError", "Cannot convert primitive to NSArray") }
+            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError(.type, "Cannot convert primitive to NSArray") }
             return nil
         }
     }
@@ -58,7 +58,7 @@ final class QuickJSValue: ScriptValue {
                 var ancestors = [value]
                 return runtime.properties(of: value, ancestors: &ancestors)
             }
-            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError("TypeError", "Cannot convert primitive to NSDictionary") }
+            if !JS_IsNull(value) && !JS_IsUndefined(value) { runtime.throwError(.type, "Cannot convert primitive to NSDictionary") }
             return nil
         }
     }
@@ -161,25 +161,20 @@ extension QuickJSRuntime {
         return QJS_Undefined()
     }
 
-    /// An error of the class `name` for the exception: a TypeError as JavaScriptCore reports one of its own conversions,
-    /// the InternalError of a script stopped (`run`).
-    func throwError(_ name: String, _ message: String) {
-        if let error = makeError(name, message) { _ = JS_Throw(ctx, error) }
-        takeException()
+    /// The errors Swift throws: a TypeError, as JavaScriptCore reports one of its own conversions, or the InternalError
+    /// of a script stopped (`run`).
+    enum ErrorKind {
+        case type, `internal`
     }
 
-    /// A new error of the class `name` (TypeError, InternalError, …); nil when even that fails (out of memory).
-    func makeError(_ name: String, _ message: String) -> JSValue? {
-        let global = JS_GetGlobalObject(ctx)
-        let constructor = JS_GetPropertyStr(ctx, global, name)
-        var text = JS_NewStringLen(ctx, message, message.utf8.count)
-        let error = JS_IsException(text) ? text : JS_CallConstructor(ctx, constructor, 1, &text)
-        [text, constructor, global].forEach { JS_FreeValue(ctx, $0) }
-        guard !JS_IsException(error) else {
-            dropException()
-            return nil
+    /// An error of `kind` for the exception, made by QuickJS from the realm's own prototype (quickjs-swift.h), never by
+    /// calling what a script left in `TypeError` or `InternalError`; null when even that fails (out of memory).
+    func throwError(_ kind: ErrorKind, _ message: String) {
+        switch kind {
+        case .type: _ = QJS_ThrowTypeError(ctx, message)
+        case .internal: _ = QJS_ThrowInternalError(ctx, message)
         }
-        return error
+        takeException()
     }
 }
 
@@ -205,8 +200,13 @@ extension QuickJSRuntime {
         if JS_IsNull(value) { return NSNull() }
         guard JS_IsObject(value) else { return nil }
         if JS_IsDate(value) {
+            // Its time, by the realm's getTime (`dateTime`): not by what the script made its valueOf or
+            // Symbol.toPrimitive, which a conversion to a number would call. (JavaScriptCore calls them; the date's
+            // own time is what it holds.)
             var time = Double.nan
-            if JS_ToFloat64(ctx, &time, value) < 0 { dropException() }
+            let got = JS_Call(ctx, dateTime, value, 0, nil)
+            if JS_IsException(got) || JS_ToFloat64(ctx, &time, got) < 0 { dropException() }
+            JS_FreeValue(ctx, got)
             return Date(timeIntervalSince1970: time / 1000)
         }
         let array = JS_IsArray(value)
@@ -271,13 +271,15 @@ extension QuickJSRuntime {
         return fields
     }
 
+    /// A property's name, all of it: as a string, with its length, since a C string would end at a NUL in it.
     private func atomName(_ atom: JSAtom) -> String? {
-        guard let name = JS_AtomToCString(ctx, atom) else {
+        let name = JS_AtomToString(ctx, atom)
+        defer { JS_FreeValue(ctx, name) }
+        guard !JS_IsException(name), let text = string(name) else {
             dropException()
             return nil
         }
-        defer { JS_FreeCString(ctx, name) }
-        return String(cString: name)
+        return text
     }
 
     /// A string's text (or what `String(value)` makes of anything else); nil when that throws (the exception is left

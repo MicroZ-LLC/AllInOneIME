@@ -67,6 +67,8 @@ struct ScriptEngineTests {
         #expect((fields["inner"] as? [String: Any])?["deep"] as? String == "yes")
         #expect((fields["when"] as? Date)?.timeIntervalSince1970 == 1.5)
         #expect(context.evaluate("[1, 'a', [true]]")?.toArray()?.count == 3)
+        // A name is all of it, a NUL in it too.
+        #expect(context.evaluate("({'a\\0b': 1, '\\0': 2, c: 3})")?.toDictionary().map { Set($0.keys) } == ["a\u{0}b", "\u{0}", "c"])
         // Numbers print as JavaScript prints them, whole ones without a fraction: what PluginScript makes of a script's
         // values ("\(item)").
         let numbers = context.evaluate("[1, -3, 2.5, 0.1, 1e21, 123456789012]")?.toArray()?.map { "\($0)" }
@@ -120,6 +122,13 @@ struct ScriptEngineTests {
         #expect(context.exception?.property("line")?.numberValue == 3)
         context.evaluate("missing")
         #expect(context.exception?.property("name")?.toString() == "ReferenceError")
+        // What JSON.parse and eval parse has lines of its own: the error's is the line of the call.
+        context.evaluate("\n\nJSON.parse('[1,\\n2,\\n3,\\nx]')")
+        #expect(context.exception?.property("name")?.toString() == "SyntaxError" && context.exception?.property("line")?.numberValue == 3)
+        context.evaluate("\nJSON.parse('{')")
+        #expect(context.exception?.property("line")?.numberValue == 2)
+        context.evaluate("function f() {\n  return eval('1\\n2\\n3 +')\n}\n\nf()")
+        #expect(context.exception?.property("name")?.toString() == "SyntaxError" && context.exception?.property("line")?.numberValue == 2)
         // What a function throws when it's called.
         let thrower = context.evaluate("(function (x) { throw new RangeError('no ' + x) })")
         #expect(thrower?.call(["way"])?.isUndefined == true && context.exception?.toString() == "RangeError: no way")

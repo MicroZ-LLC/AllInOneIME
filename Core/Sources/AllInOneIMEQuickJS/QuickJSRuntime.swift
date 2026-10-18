@@ -14,15 +14,21 @@ final class QuickJSRuntime {
     private var thrown: JSValue?
     /// How deep in calls into QuickJS this is: a native function's body may call back in.
     private var depth = 0
+    /// Whether promise jobs were left unrun when the clock was up (`enter`), since that was said.
+    private var jobsLeft = false
     /// How far down this thread's stack Swift's own conversions go (`ThreadStack.floor`), from the outermost call.
     private(set) var stackFloor: UInt = 0
     /// When scripts stop.
     let clock = ScriptClock()
     /// What it may allocate. Freed after QuickJS's runtime (stored properties go after `deinit`), which frees through it.
     private let memory: MemoryBudget
+    /// `Date.prototype.getTime` as the realm made it, taken before any script could replace it: a date's time, read
+    /// without the script's code (`object(of:)`). Undefined should there be no memory for it.
+    private(set) var dateTime = QJS_Undefined()
 
-    /// The file name QuickJS's messages and stacks give the scripts.
-    static let fileName = "<input>"
+    /// The file name QuickJS's messages and stacks give the scripts: one of ours, since QuickJS calls the text it parses
+    /// for `JSON.parse` and `eval` "<input>", and only the scripts' own places in a stack are their lines (`addLine`).
+    static let fileName = "<allinoneime>"
 
     init?(memoryLimit: Int) {
         let memory = MemoryBudget(limit: memoryLimit)
@@ -50,9 +56,17 @@ final class QuickJSRuntime {
             definition.class_name = name
             _ = JS_NewClass(rt, functionClass, &definition)
         }
+        let global = JS_GetGlobalObject(ctx)
+        let date = JS_GetPropertyStr(ctx, global, "Date")
+        let prototype = JS_GetPropertyStr(ctx, date, "prototype")
+        let getTime = JS_GetPropertyStr(ctx, prototype, "getTime")
+        [prototype, date, global].forEach { JS_FreeValue(ctx, $0) }
+        if JS_IsFunction(ctx, getTime) { dateTime = getTime } else { JS_FreeValue(ctx, getTime) }
+        dropException()
     }
 
     deinit {
+        JS_FreeValue(ctx, dateTime)
         if let thrown { JS_FreeValue(ctx, thrown) }
         JS_FreeContext(ctx)
         JS_FreeRuntime(rt)
@@ -63,7 +77,8 @@ final class QuickJSRuntime {
     /// Runs `body`, which calls into QuickJS. From the outermost call: first the stack's limits, QuickJS's and Swift's,
     /// for this thread (a context may move between threads from one call to the next), and after it the promise jobs it
     /// queued, as JavaScriptCore runs its microtasks before it returns (none once the clock is up: jobs that queue jobs
-    /// don't end).
+    /// don't end). Those left then are left, as the script would have been: "interrupted" is the exception, once
+    /// (they run on, should the limit be lifted).
     func enter<T>(_ body: () -> T) -> T {
         if depth == 0 {
             let stack = ThreadStack.current()
@@ -80,6 +95,9 @@ final class QuickJSRuntime {
             while !clock.isUp && JS_IsJobPending(rt) {
                 if JS_ExecutePendingJob(rt, &context) < 0 { takeException() }
             }
+            let left = JS_IsJobPending(rt)
+            if left && !jobsLeft { throwError(.internal, "interrupted") }
+            jobsLeft = left
         }
         return result
     }
@@ -89,7 +107,7 @@ final class QuickJSRuntime {
     func run(_ script: () -> JSValue) -> QuickJSValue {
         enter {
             guard !clock.isUp else {
-                throwError("InternalError", "interrupted")
+                throwError(.internal, "interrupted")
                 return QuickJSValue(self, QJS_Undefined())
             }
             return wrap(script())
@@ -104,8 +122,12 @@ final class QuickJSRuntime {
     func takeException() {
         var error = JS_GetException(ctx)
         // Nothing thrown, only failed: out of memory, with none left for the error (`MemoryBudget`'s reserve used up).
-        // It is made now, the memory of what failed freed (null should that fail too).
-        if JS_IsUninitialized(error) { error = makeError("InternalError", "out of memory") ?? QJS_Null() }
+        // It is made now, the memory of what failed freed (null should that fail too, as QuickJS throws it then).
+        if JS_IsUninitialized(error) {
+            _ = JS_ThrowOutOfMemory(ctx)
+            error = JS_GetException(ctx)
+            if JS_IsUninitialized(error) { error = QJS_Null() }
+        }
         addLine(to: error)
         if let thrown { JS_FreeValue(ctx, thrown) }
         thrown = error
@@ -125,8 +147,11 @@ final class QuickJSRuntime {
         return QuickJSValue(self, value)
     }
 
-    /// The line an error was made on, as JavaScriptCore gives it (`line`), from the first place in its stack that has one
-    /// ("    at f (<input>:3:7)", "    at <input>:1:4" for a syntax error). `InlineCode` shows it.
+    /// The line an error was made on, as JavaScriptCore gives it (`line`), from the first place in its stack that is in
+    /// a script of ours ("    at f (<allinoneime>:3:7)", "    at <allinoneime>:1:4" for a syntax error), not in what
+    /// `JSON.parse` or `eval` parsed ("    at <input>:4:1"): the line of the call, as JavaScriptCore has it. `InlineCode`
+    /// shows it. None on an error the script froze or sealed (`throw Object.freeze(new Error())`), which can't be given
+    /// one, though JavaScriptCore has it there (set as the error is made): left so, rarer than it's worth.
     private func addLine(to error: JSValue) {
         guard JS_IsError(error), JS_IsObject(error) else { return }
         let has = JS_GetPropertyStr(ctx, error, "line")
@@ -142,9 +167,11 @@ final class QuickJSRuntime {
             return
         }
         for frame in text.split(whereSeparator: \.isNewline) {
-            let place = frame.hasSuffix(")") ? frame.dropLast() : frame[...]
+            guard let file = frame.range(of: Self.fileName + ":", options: .backwards) else { continue }
+            let rest = frame[file.upperBound...]
+            let place = rest.hasSuffix(")") ? rest.dropLast() : rest
             let parts = place.split(separator: ":", omittingEmptySubsequences: false)
-            guard parts.count >= 3, Int(parts[parts.count - 1]) != nil, let line = Int32(parts[parts.count - 2]) else { continue }
+            guard parts.count == 2, Int(parts[1]) != nil, let line = Int32(parts[0]) else { continue }
             JS_DefinePropertyValueStr(ctx, error, "line", JS_NewInt32(ctx, line), Int32(JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE))
             return
         }
