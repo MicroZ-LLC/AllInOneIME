@@ -233,9 +233,11 @@ enum ExtensionSourceCommands {
         let unreviewed = Set(ExtensionSources.untrustedFolders(in: config, statuses: statuses, root: options.root).map(ExtensionSources.comparable))
         let index = ExtensionStore.load(ExtensionSources.loadFolders(config, found: LiveExtensions.found, statuses: statuses, root: options.root))
         let enabled = index.enabled(config.disabledExtensions)
-        let names = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
+        let names = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled,
+                                                    snippets: index.enabledSnippets(config.disabledExtensions))
             .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
-        let hidden = Dictionary(Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
+        let hidden = Dictionary(Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins,
+                                        snippets: index.enabledSnippets(config.disabledExtensions))
             .map { ($0.script.id, ScriptCommand.Problem.nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         let sources = config.extensionSources.map { ($0.url, ExtensionSources.comparable(ExtensionSources.bundleFolder(for: $0, root: options.root).path)) }
         func origin(_ command: ScriptCommand) -> String {

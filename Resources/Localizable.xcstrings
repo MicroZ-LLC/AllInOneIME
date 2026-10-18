@@ -118,6 +118,9 @@
     ")" : {
       "comment" : "） — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "{cursor} can appear only once" : {
+      "comment" : "{cursor} 只能有一个 — Sources/AllInOneIME/CommandEditor.swift"
+    },
     "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only." : {
       "comment" : "{input} 换成命令后面写的内容（自动编码），放在 ? 后面。按执行键在浏览器打开，不上屏。只能用 https://。 — Sources/AllInOneIME/CommandEditor.swift"
     },
@@ -1085,6 +1088,9 @@
     "Email addresses" : {
       "comment" : "邮箱地址 — Sources/AllInOneIME/PrivacySettings.swift"
     },
+    "Email signature" : {
+      "comment" : "邮件签名 — Sources/AllInOneIME/CommandEditor.swift"
+    },
     "Emails, numbers and keys are replaced with placeholders such as [EMAIL_1] before the AI sees the text, and put back in the results." : {
       "comment" : "邮箱、电话、卡号、密钥这些先换成 [EMAIL_1] 这样的占位符再发给 AI，结果里再换回真实内容。 — Sources/AllInOneIME/PrivacySettings.swift"
     },
@@ -1196,6 +1202,9 @@
     "French types with this layout, its dead keys (^, ¨, ´) too" : {
       "comment" : "切到法语时按这个布局打字；死键（^、¨、´）也按它组合 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "From %@" : {
+      "comment" : "来自 %@ — Sources/AllInOneIME/UIText.swift"
+    },
     "From $%@" : {
       "comment" : "来自 $%@ — Sources/AllInOneIME/KeyRow.swift"
     },
@@ -1278,6 +1287,12 @@
     },
     "insert" : {
       "comment" : "上屏 — Sources/AllInOneIME/UIText.swift"
+    },
+    "Insert Placeholder" : {
+      "comment" : "插入占位符 — Sources/AllInOneIME/CommandEditor.swift"
+    },
+    "Insert text" : {
+      "comment" : "插入文字 — Sources/AllInOneIME/CommandEditor.swift"
     },
     "inserts" : {
       "comment" : "上屏 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
@@ -1437,6 +1452,9 @@
     },
     "Manage Subscription" : {
       "comment" : "管理订阅 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Meeting link" : {
+      "comment" : "会议链接 — Sources/AllInOneIME/CommandEditor.swift"
     },
     "Menu Bar Panel" : {
       "comment" : "菜单栏面板 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2709,6 +2727,9 @@
     "The source is removed, but its clone couldn't go to the Trash (%@); it's still at " : {
       "comment" : "来源已移除，但克隆没能移到废纸篓（%@），它还在  — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
+    "The text after the command replaces {input}; {label?} is a blank, filled in order, separated by commas; write {{ for {" : {
+      "comment" : "命令后面写的内容换掉 {input}；{名字?} 是要填的空，用逗号分开依次填；{{ 写出 { — Sources/AllInOneIME/CommandEditor.swift"
+    },
     "The text is on the clipboard too. " : {
       "comment" : "原文也复制到了剪贴板。 — Sources/AllInOneIME/InputController.swift"
     },
@@ -2787,6 +2808,9 @@
     },
     "To use %@ again, you'll have to paste the key again." : {
       "comment" : "删除后，要再粘贴一次 key 才能用 %@。 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Today's date" : {
+      "comment" : "今天的日期 — Sources/AllInOneIME/CommandEditor.swift"
     },
     "Too many searches at once for %@: try again in a moment" : {
       "comment" : "%@ 搜索太频繁，稍后再试 — Sources/AllInOneIME/UIText.swift"
@@ -2994,7 +3018,8 @@
       "extractionState" : "stale"
     },
     "Write a reply" : {
-      "comment" : "写一条回复 — Sources/AllInOneIME/CommandEditor.swift"
+      "comment" : "写一条回复 — Sources/AllInOneIME/CommandEditor.swift",
+      "extractionState" : "stale"
     },
     "Write its command below." : {
       "comment" : "在下面写上命令。 — Sources/AllInOneIME/AgentSettings.swift"
@@ -3010,6 +3035,9 @@
     },
     "Write the instruction for the AI" : {
       "comment" : "写上给 AI 的指令 — Sources/AllInOneIME/CommandEditor.swift"
+    },
+    "Write the text to insert" : {
+      "comment" : "写上要插入的文字 — Sources/AllInOneIME/CommandEditor.swift"
     },
     "Wrong arguments for %@" : {
       "comment" : "%@ 的参数不对 — Sources/AllInOneIME/UIText.swift",

@@ -388,6 +388,11 @@ final class AllInOneIMEInputController: IMKInputController {
     private var typingClient: IMKTextInput? { typingField?.client }
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
+    /// The text the last result put in (`.commit`, `.replaceSelection`): a snippet's caret goes back into it
+    /// (`Composer.Effect.moveCaret`).
+    private var lastInserted: String?
+    /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
+    private var caretAfterTyping: Int?
 
     /// Whether line breaks can go into a terminal as a paste, and pasting there (`TerminalPaste`; the
     /// self-test supplies its own and never posts keys or touches the clipboard).
@@ -500,9 +505,45 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             }
             guard let self, !Task.isCancelled else { return }
+            let typedInto = self.typingField?.client
             self.typingTask = nil
             self.typingField = nil
+            if let back = self.caretAfterTyping {
+                self.caretAfterTyping = nil
+                self.moveCaret(back: back, after: text, in: typedInto)
+            }
         }
+    }
+
+    /// A snippet's `{cursor}` (`Composer.Effect.moveCaret`): the caret goes `back` UTF-16 units into the text just put in.
+    /// Only in a field that says where its caret is and has that text right before it; not in a terminal (keys there go
+    /// to a shell). Elsewhere the caret stays at the end, as after any result.
+    ///
+    /// An empty insert at the place moves it where a field takes one; through the input method connection fields mostly
+    /// never get it, so then the character before the place is put back over itself (`insertText` with its range, which
+    /// the text input protocol has fields honor, as a typo's fix: `typeOut`), and the caret ends after it.
+    @MainActor
+    func moveCaret(back: Int, after inserted: String?, in client: IMKTextInput?) {
+        guard back > 0, let inserted, let client, !Self.isTerminal(client) else { return }
+        let caret = client.selectedRange()
+        let length = inserted.utf16.count
+        guard caret.location != NSNotFound, caret.length == 0, back <= length, caret.location >= length else { return }
+        // The end of what was inserted, before the caret (no more than a line or two of it is read back).
+        let checked = min(length, 200)
+        let expected = String(decoding: inserted.utf16.suffix(checked), as: UTF16.self)
+        guard client.attributedSubstring(from: NSRange(location: caret.location - checked, length: checked))?.string == expected else {
+            log.notice("caret not moved: the field doesn't have the snippet before its caret")
+            return
+        }
+        let target = caret.location - back
+        client.insertText("", replacementRange: NSRange(location: target, length: 0))
+        guard client.selectedRange().location != target, target > 0 else { return }
+        // The whole character before the place (a surrogate pair, an emoji with its modifiers).
+        let start = max(target - 16, 0)
+        guard let before = client.attributedSubstring(from: NSRange(location: start, length: target - start))?.string as NSString?,
+              before.length == target - start else { return }
+        let last = before.rangeOfComposedCharacterSequence(at: before.length - 1)
+        client.insertText(before.substring(with: last), replacementRange: NSRange(location: start + last.location, length: last.length))
     }
 
     /// Remembers `app` when its field didn't take a typo's fix (`TypoMemory`): no typos there again.
@@ -526,6 +567,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
         (typingTask, typist, typingField, typingPastes) = (nil, TypeOut.Typist([], start: 0), nil, false)
+        caretAfterTyping = nil  // a snippet's caret stays at the end
     }
 
     /// Whether a result is being typed out now (the self-test).
@@ -965,6 +1007,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
+                lastInserted = text
                 lastTyped.forget()  // a key that typed it says so (`handleKeyDown`)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
@@ -976,10 +1019,15 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case let .replaceSelection(text, selection):
                 replaceSelection(text, selection, in: target)
+                lastInserted = text
                 lastTyped.forget()
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
+                lastInserted = nil
                 lastTyped.forget()
+            case let .moveCaret(back):
+                // A result being typed out: once it's all in.
+                if isTypingOut { caretAfterTyping = back } else { moveCaret(back: back, after: lastInserted, in: target) }
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
@@ -2031,6 +2079,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
+        // A snippet: what it will insert, with the blanks typed so far.
+        if let preview = composer.snippetPreview { return "\(how) → “" + Self.selectionPreview(preview, limit: 80) + "”" }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
         if let selected = composer.selectionInUse {
             if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {

@@ -10,7 +10,8 @@ struct CommandEdit: Identifiable {
 }
 
 /// The form for one custom @ command: its name, what it does (an instruction for the AI, a program
-/// to run, a program in Terminal, or a web page to open) and how. Saving hands the finished definition back.
+/// to run, a program in Terminal, a web page to open, or a text to insert) and how. Saving hands the finished
+/// definition back.
 struct CommandEditor: View {
     let original: CommandEdit
     /// The other custom commands and the installed plugins (their names are taken).
@@ -31,6 +32,8 @@ struct CommandEditor: View {
     @State private var timeout: Double
     /// `link`: the web address, with `{input}`.
     @State private var url: String
+    /// `snippet`: the text to insert, with its placeholders.
+    @State private var text: String
     /// The program of the command line isn't on this Mac (looked up in the background).
     @State private var missingProgram: String?
 
@@ -49,6 +52,7 @@ struct CommandEditor: View {
         _latin = State(initialValue: c.typesLatin)
         _timeout = State(initialValue: c.timeout)
         _url = State(initialValue: c.url ?? "")
+        _text = State(initialValue: c.text ?? "")
     }
 
     /// The definition as the form has it now (nil: the command line has an open quote).
@@ -68,9 +72,11 @@ struct CommandEditor: View {
             }
         case .link:
             c.url = url.trimmingCharacters(in: .whitespaces)
+        case .snippet:
+            c.text = text
         }
         // Stored only when it differs from the type's default (Latin for programs, as typed for the AI and pages).
-        if latin != CustomCommand.typesLatinByDefault(type) { c.ascii = latin }
+        if latin != CustomCommand.typesLatinByDefault(type), type != .snippet { c.ascii = latin }
         return c
     }
 
@@ -97,6 +103,7 @@ struct CommandEditor: View {
                         Text(tr("运行程序", "Run a program")).tag(CustomCommand.CommandType.run)
                         Text(tr("在终端运行", "Run in Terminal")).tag(CustomCommand.CommandType.terminal)
                         Text(tr("打开网页", "Open a web page")).tag(CustomCommand.CommandType.link)
+                        Text(tr("插入文字", "Insert text")).tag(CustomCommand.CommandType.snippet)
                     }
                     .pickerStyle(.segmented)
                     .onChange(of: type) { latin = CustomCommand.typesLatinByDefault(type) }
@@ -113,6 +120,30 @@ struct CommandEditor: View {
                         Text(tr("告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
                                 "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it."))
                             .font(.caption).foregroundStyle(.secondary)
+                    case .snippet:
+                        TextEditor(text: $text)
+                            .font(.body.monospaced())
+                            .frame(minHeight: 90)
+                            .accessibilityLabel(tr("插入文字", "Insert text"))
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(tr("命令后面写的内容换掉 {input}；{名字?} 是要填的空，用逗号分开依次填；{{ 写出 {",
+                                    "The text after the command replaces {input}; {label?} is a blank, filled in order, separated by commas; write {{ for {"))
+                                .font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            Menu(tr("插入占位符", "Insert Placeholder")) {
+                                ForEach(Self.placeholders, id: \.self) { placeholder in
+                                    Button(placeholder) { text += placeholder }
+                                }
+                            }
+                            .fixedSize()
+                        }
+                        LabeledContent(tr("预览", "Preview")) {
+                            Text(Self.preview(text))
+                                .font(.callout)
+                                .multilineTextAlignment(.leading)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     case .link:
                         TextField(tr("网址", "Address"), text: $url, prompt: Text("https://www.google.com/search?q={input}"))
                             .font(.body.monospaced())
@@ -139,7 +170,9 @@ struct CommandEditor: View {
                                 .font(.caption).foregroundStyle(.orange)
                         }
                     }
-                    Toggle(tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"), isOn: $latin)
+                    if type != .snippet {
+                        Toggle(tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"), isOn: $latin)
+                    }
                 }
                 if type == .run || type == .terminal {
                     Text(tr("「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
@@ -181,6 +214,23 @@ struct CommandEditor: View {
         latin = example.typesLatin
         timeout = example.timeout
         url = example.url ?? ""
+        text = example.text ?? ""
+    }
+
+    /// What the "Insert Placeholder" menu adds (at the end of the text).
+    static let placeholders = ["{input}", "{name?}", "{clipboard}", "{selection}", "{date}", "{time}", "{date:EEEE}", "{cursor}"]
+
+    /// The text as it will go in (the core's renderer): the date and time now, the rest as sample values (‹input›,
+    /// ‹name›), the caret where `{cursor}` puts it (▏).
+    static func preview(_ text: String, now: Date = Date()) -> String {
+        let template = SnippetTemplate.parse(text)
+        let values = SnippetValues(input: "‹input›", fields: template.fieldLabels.map { "‹\($0)›" }, clipboard: "‹clipboard›",
+                                   selection: "‹selection›", now: now, timeZone: .current, locale: Locale(identifier: UIText.language))
+        let rendered = template.render(values)
+        guard let back = rendered.caretBack else { return rendered.text }
+        let units = Array(rendered.text.utf16)
+        let at = max(units.count - back, 0)
+        return String(decoding: units[..<at], as: UTF16.self) + "▏" + String(decoding: units[at...], as: UTF16.self)
     }
 
     /// Looks the command line's program up in the user's shell PATH (the first time, the shell is asked).
@@ -206,14 +256,18 @@ struct CommandEditor: View {
         case .link(.placeholderCount): return tr("网址里要有一个 {input}", "Put {input} in the address once")
         case .link(.placeholderNotInQuery): return tr("{input} 要放在 ? 后面", "Put {input} after the ? in the address")
         case .link(.invalid): return tr("网址格式不对", "The address isn't valid")
+        case .emptyText: return tr("写上要插入的文字", "Write the text to insert")
+        case .twoCursors: return tr("{cursor} 只能有一个", "{cursor} can appear only once")
         }
     }
 
     /// The menu's starting points.
     static var examples: [CustomCommand] {
         [
-            CustomCommand(name: "reply", type: .prompt, summary: tr("写一条回复", "Write a reply"),
-                          prompt: "Write a short, polite reply to the user's message, in the language of the message."),
+            CustomCommand(name: "sig", type: .snippet, summary: tr("邮件签名", "Email signature"),
+                          text: "Best,\n" + NSFullUserName() + "\n{cursor}"),
+            CustomCommand(name: "meet", type: .snippet, summary: tr("会议链接", "Meeting link"), text: "https://zoom.us/j/1234567890"),
+            CustomCommand(name: "today", type: .snippet, summary: tr("今天的日期", "Today's date"), text: "{date}"),
             CustomCommand(name: "ja", type: .prompt, summary: tr("翻译成日语", "Translate to Japanese"),
                           prompt: "Translate the user's text into natural Japanese. Reply with the translation only."),
             // Python and sandboxed JavaScript are built in (@py, @js); Node.js with its files and modules isn't.

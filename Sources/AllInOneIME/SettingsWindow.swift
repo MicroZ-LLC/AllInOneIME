@@ -552,8 +552,10 @@ final class SettingsModel: ObservableObject {
         let index = LiveExtensions.load(config)
         extensionIndex = index
         let enabled = index.enabled(config.disabledExtensions)
-        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
-        extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
+        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins,
+                                        snippets: index.enabledSnippets(config.disabledExtensions))
+        extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled,
+                                                    snippets: index.enabledSnippets(config.disabledExtensions))
             .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
