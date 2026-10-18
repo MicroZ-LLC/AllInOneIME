@@ -3,46 +3,158 @@ import Foundation
 import Security
 
 extension APIKeys.Keychain {
-    /// The user's login keychain: generic passwords of `APIKeys.service`, one per account.
-    public static let login = APIKeys.Keychain(
-        attributes: { account in
-            var query = baseQuery(account: account)
-            query[kSecReturnAttributes as String] = true
-            query[kSecMatchLimit as String] = kSecMatchLimitOne
-            var item: CFTypeRef?
-            guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let found = item as? [String: Any]
-            else { return nil }
-            return APIKeys.ItemAttributes(created: found[kSecAttrCreationDate as String] as? Date,
-                                          modified: found[kSecAttrModificationDate as String] as? Date,
-                                          comment: found[kSecAttrComment as String] as? String,
-                                          ending: APIKeys.ending(fromAttribute: found[kSecAttrGeneric as String] as? Data))
-        },
-        read: { account in
-            var query = baseQuery(account: account)
-            query[kSecReturnData as String] = true
-            query[kSecMatchLimit as String] = kSecMatchLimitOne
-            var item: CFTypeRef?
-            guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-            return String(data: data, encoding: .utf8)
-        },
-        write: { account, key, label, comment, ending in
-            let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
-                                         kSecAttrComment as String: comment,
-                                         kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
-            let status = SecItemUpdate(baseQuery(account: account) as CFDictionary, values as CFDictionary)
-            guard status == errSecItemNotFound else { return keychainStatus(status) }
-            return keychainStatus(SecItemAdd(baseQuery(account: account).merging(values) { $1 } as CFDictionary, nil))
-        },
-        setComment: { account, comment in
-            keychainStatus(SecItemUpdate(baseQuery(account: account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
-        },
-        delete: { account in keychainStatus(SecItemDelete(baseQuery(account: account) as CFDictionary)) },
-        message: { code in SecCopyErrorMessageString(code, nil) as String? })
+    /// The user's login keychain (on the Mac, the file-based one): generic passwords of `APIKeys.service`, one per account.
+    /// Where keys were kept up to 0.6.4, and still are in a build without the keychain entitlement (`processIsEntitled`).
+    public static let login = legacyKeychain(asking: true)
 
-    private static func baseQuery(account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: APIKeys.service,
-         kSecAttrAccount as String: account]
+    /// The login keychain with asking turned off, for the silent pass at launch (`KeySync.Stores.migrate`): a read that
+    /// would ask for the password gives nothing instead. Both ways are used: the process's user interaction turned off for
+    /// the call (`SecKeychainSetUserInteractionAllowed`, the file-based keychain's own switch) and
+    /// `kSecUseAuthenticationUIFail` on the query.
+    static let quietLogin = legacyKeychain(asking: false)
+
+    /// Generic passwords of `service` in the data protection keychain, in the access group `group` (set on every query),
+    /// `synchronizable` ones (the items iCloud Keychain syncs: every Mac's) or this device's own. Readable after the first
+    /// unlock (`kSecAttrAccessibleAfterFirstUnlock`), so a key is there while the screen is locked; no item ever asks for
+    /// the password. The synced store's delete takes both copies (`kSecAttrSynchronizableAny`): Remove Key… removes it
+    /// everywhere; the local store's only its own.
+    public static func dataProtection(group: String, synchronizable: Bool, service: String = APIKeys.service) -> APIKeys.Keychain {
+        @Sendable func query(_ account: String?, either: Bool = false) -> [String: Any] {
+            var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                        kSecUseDataProtectionKeychain as String: true, kSecAttrAccessGroup as String: group]
+            if either {
+                query[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
+            } else {
+                query[kSecAttrSynchronizable as String] = synchronizable ? kCFBooleanTrue : kCFBooleanFalse
+            }
+            if let account { query[kSecAttrAccount as String] = account }
+            return query
+        }
+        return APIKeys.Keychain(
+            kind: synchronizable ? .synced : .local,
+            accounts: { accounts(query(nil)) },
+            attributes: { account in attributes(query(account)) },
+            read: { account in read(query(account)) },
+            write: { account, key, label, comment, ending in
+                write(query(account), key: key, label: label, comment: comment, ending: ending,
+                      adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
+            },
+            setComment: { account, comment in
+                keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
+            },
+            delete: { account in keychainStatus(SecItemDelete(query(account, either: synchronizable) as CFDictionary)) },
+            message: { code in SecCopyErrorMessageString(code, nil) as String? })
+    }
+
+    /// Whether this process may use the shared access group (`KeySync.accessGroup`): its `keychain-access-groups`
+    /// entitlement lists it, which only an app signed with the provisioning profile has. Looked up once.
+    public static let processIsEntitled: Bool = {
+        #if os(macOS)
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(task, "keychain-access-groups" as CFString, nil)
+        else { return false }
+        return (value as? [String])?.contains(KeySync.accessGroup) == true
+        #else
+        return true  // an iOS app always has its entitlements
+        #endif
+    }()
+
+    /// One item's attributes as the data protection keychain keeps them (its key not read), by their short names ("sync",
+    /// "agrp", "pdmn", …), for the self-test: `eitherSync` matches synced items and this device's alike
+    /// (`kSecAttrSynchronizableAny`); without it the query leaves `kSecAttrSynchronizable` out, which matches only items
+    /// that don't sync.
+    public static func storedAttributes(service: String, account: String, group: String, eitherSync: Bool) -> [String: Any]? {
+        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                    kSecAttrAccount as String: account, kSecUseDataProtectionKeychain as String: true,
+                                    kSecAttrAccessGroup as String: group, kSecReturnAttributes as String: true,
+                                    kSecMatchLimit as String: kSecMatchLimitOne]
+        if eitherSync { query[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny }
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
+        return item as? [String: Any]
+    }
+
+    // MARK: - The calls
+
+    private static func legacyKeychain(asking: Bool) -> APIKeys.Keychain {
+        @Sendable func query(_ account: String?) -> [String: Any] {
+            var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: APIKeys.service]
+            if let account { query[kSecAttrAccount as String] = account }
+            return query
+        }
+        return APIKeys.Keychain(
+            kind: .legacy,
+            accounts: { accounts(query(nil)) },
+            attributes: { account in attributes(query(account)) },
+            read: { account in
+                guard !asking else { return read(query(account)) }
+                var silent = query(account)
+                silent[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+                return withoutAsking { read(silent) }
+            },
+            write: { account, key, label, comment, ending in
+                write(query(account), key: key, label: label, comment: comment, ending: ending, adding: [:])
+            },
+            setComment: { account, comment in
+                keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
+            },
+            delete: { account in
+                asking ? keychainStatus(SecItemDelete(query(account) as CFDictionary))
+                    : withoutAsking { keychainStatus(SecItemDelete(query(account) as CFDictionary)) }
+            },
+            message: { code in SecCopyErrorMessageString(code, nil) as String? })
+    }
+
+    /// `body` with the file-based keychain's prompts turned off for the process (on again after).
+    private static func withoutAsking<T>(_ body: () -> T) -> T {
+        #if os(macOS)
+        SecKeychainSetUserInteractionAllowed(false)
+        defer { SecKeychainSetUserInteractionAllowed(true) }
+        #endif
+        return body()
+    }
+
+    private static func accounts(_ query: [String: Any]) -> [String] {
+        var query = query
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitAll
+        var items: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &items) == errSecSuccess, let found = items as? [[String: Any]] else { return [] }
+        return Array(Set(found.compactMap { $0[kSecAttrAccount as String] as? String })).sorted()
+    }
+
+    private static func attributes(_ query: [String: Any]) -> APIKeys.ItemAttributes? {
+        var query = query
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let found = item as? [String: Any] else { return nil }
+        return APIKeys.ItemAttributes(created: found[kSecAttrCreationDate as String] as? Date,
+                                      modified: found[kSecAttrModificationDate as String] as? Date,
+                                      comment: found[kSecAttrComment as String] as? String,
+                                      ending: APIKeys.ending(fromAttribute: found[kSecAttrGeneric as String] as? Data),
+                                      label: found[kSecAttrLabel as String] as? String)
+    }
+
+    private static func read(_ query: [String: Any]) -> String? {
+        var query = query
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// In place when there is an item, else a new one with `adding` besides.
+    private static func write(_ query: [String: Any], key: String, label: String, comment: String, ending: String?,
+                              adding: [String: Any]) -> APIKeys.KeychainStatus {
+        let values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
+                                     kSecAttrComment as String: comment,
+                                     kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
+        let status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
+        guard status == errSecItemNotFound else { return keychainStatus(status) }
+        let item = query.merging(values) { $1 }.merging(adding) { $1 }
+        return keychainStatus(SecItemAdd(item as CFDictionary, nil))
     }
 
     private static func keychainStatus(_ status: OSStatus) -> APIKeys.KeychainStatus {
@@ -52,5 +164,15 @@ extension APIKeys.Keychain {
         default: return .failed(status)
         }
     }
+}
+
+extension KeySync {
+    /// The Mac's stores when the process is entitled (`KeySync.system`): this device's and the synced items of the shared
+    /// group, and the login keychain behind them.
+    static let appleStores: Stores? = APIKeys.Keychain.processIsEntitled
+        ? Stores(local: .dataProtection(group: accessGroup, synchronizable: false),
+                 synced: .dataProtection(group: accessGroup, synchronizable: true),
+                 legacy: .login, quietLegacy: .quietLogin)
+        : nil
 }
 #endif

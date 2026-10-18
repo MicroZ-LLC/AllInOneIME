@@ -63,7 +63,8 @@ public typealias OnDeviceModel = AppleModelBackend
 // MARK: - What the core is built with
 
 extension Platform {
-    /// The login keychain where there is one.
+    /// The login keychain where there is one. (A shell entitled to the data protection keychain installs the store routed
+    /// over it instead: `KeySync.system`.)
     public static var systemSecrets: SecretStore {
         #if canImport(Security)
         return .login

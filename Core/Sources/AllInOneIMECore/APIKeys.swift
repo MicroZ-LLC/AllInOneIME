@@ -1,23 +1,29 @@
 import Foundation
 
 /// The API keys of the Claude, Gemini and OpenAI-compatible providers, and of other services the
-/// user brings a key for (the web search, `WebSearch`). They are kept in the login keychain (never in
-/// the config file); a key set in the user's shell (`ANTHROPIC_API_KEY`, …) is used when the keychain
-/// has none.
+/// user brings a key for (the web search, `WebSearch`). They are kept in the keychain (never in the config file); a key
+/// set in the user's shell (`ANTHROPIC_API_KEY`, …) is used when the keychain has none. Which keychain is the platform's
+/// (`Platform.secrets`): on the Mac, the data protection keychain, synced through iCloud Keychain while that is on
+/// (`Keychain.routed`, `KeySync`), when the build is entitled to it; the login keychain when it isn't.
 ///
-/// Reading a key may make macOS ask for the login password (an app signed otherwise than the one that saved
-/// it), so it is read only to be used, and once per process (`KeyCache`); whether there is one is told from the
-/// item's attributes, which never ask.
+/// Reading a key from the login keychain may make macOS ask for the login password (an app signed otherwise than the
+/// one that saved it), so it is read only to be used, and once per process (`KeyCache`); whether there is one is told
+/// from the item's attributes, which never ask.
 ///
 /// A key is removed only by `remove`, which Settings calls once the user confirmed "Remove Key…": saving an empty or
 /// blank key never removes one (a field left empty, submitted or closed keeps the key there). Saves and removals are
 /// logged by account, never with the key.
 public enum APIKeys {
-    static let service = "AllInOneIME API key"
+    /// The keychain service every key is kept under, by account.
+    public static let service = "AllInOneIME API key"
+    /// Accounts whose key never goes to iCloud Keychain, whatever the switches: the AllInOneIME Cloud session belongs to
+    /// one Mac (signing out on one would sign out all). AWS credentials are never stored at all.
+    public static let neverSynced: Set<String> = ["hosted"]
     static let cache = KeyCache()
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "keys")
 
-    /// The items of this service: the platform's secret store (`Platform.secrets`: the login keychain on the Mac), read
+    /// The items of this service: the platform's secret store (`Platform.secrets`: on the Mac the routed store of
+    /// `KeySync.system`, or the login keychain in a build without the entitlement), read
     /// through `Platform.current` each time; tests and the self-test give an in-memory one (`Keychain.inMemory`), so that
     /// nothing they do reaches the user's keychain. Setting it installs it in the platform.
     public static var keychain: Keychain {
@@ -161,19 +167,22 @@ public enum APIKeys {
         public var errorDescription: String? { "Nothing to save: the key is empty" }
     }
 
-    /// One item's attributes, never its key: when it was made and last changed, its comment (the host it's for) and
-    /// the key's last 4 characters (`ending(of:)`), kept in its generic attribute.
+    /// One item's attributes, never its key: when it was made and last changed, its comment (the host it's for), the
+    /// key's last 4 characters (`ending(of:)`), kept in its generic attribute, and its label (as Keychain Access shows
+    /// it: "AllInOneIME: Gemini API").
     public struct ItemAttributes: Equatable, Sendable {
         public var created: Date?
         public var modified: Date?
         public var comment: String?
         public var ending: String?
+        public var label: String?
 
-        public init(created: Date?, modified: Date?, comment: String?, ending: String? = nil) {
+        public init(created: Date?, modified: Date?, comment: String?, ending: String? = nil, label: String? = nil) {
             self.created = created
             self.modified = modified
             self.comment = comment
             self.ending = ending
+            self.label = label
         }
     }
 
@@ -203,6 +212,23 @@ public enum APIKeys {
 
     /// The calls `APIKeys` makes on its service's items, by account (`SecretStore`, `Platform.secrets`).
     public struct Keychain: Sendable {
+        /// Which keychain a store is, for the moves between them (`KeySync`).
+        public enum Kind: Sendable {
+            /// The login keychain (the file-based one on the Mac), where keys were kept up to 0.6.4: read once to move
+            /// them out (`KeySync.migrate`), and where they stay in a build that isn't entitled to the others.
+            case legacy
+            /// This device's items in the data protection keychain (never synced).
+            case local
+            /// The items iCloud Keychain syncs: every Mac's. Never deleted from by a merge (`KeySync.merge`); the routed
+            /// store counts as this too, since it holds them.
+            case synced
+            /// Kept in memory (tests, the self-test).
+            case memory
+        }
+
+        public var kind: Kind
+        /// The accounts that have an item, from their attributes: nothing is read, so nothing is asked.
+        public var accounts: @Sendable () -> [String]
         /// The item's attributes (nil: there is none); its key isn't read, so nothing is asked.
         public var attributes: @Sendable (_ account: String) -> ItemAttributes?
         /// The key itself (may make macOS ask for the login password).
@@ -215,11 +241,14 @@ public enum APIKeys {
         /// What a failure's code means, in words (nil: the code is all there is).
         public var message: @Sendable (_ code: Int32) -> String?
 
-        public init(attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
+        public init(kind: Kind = .memory, accounts: @escaping @Sendable () -> [String] = { [] },
+                    attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
                     write: @escaping @Sendable (String, String, String, String, String?) -> KeychainStatus,
                     setComment: @escaping @Sendable (String, String) -> KeychainStatus,
                     delete: @escaping @Sendable (String) -> KeychainStatus,
                     message: @escaping @Sendable (Int32) -> String? = { _ in nil }) {
+            self.kind = kind
+            self.accounts = accounts
             self.attributes = attributes
             self.read = read
             self.write = write
@@ -230,10 +259,10 @@ public enum APIKeys {
 
         /// No secret store on this platform (until its shell brings one): nothing is kept, a save fails.
         public static let unavailable = Keychain(
-            attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
+            kind: .local, attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
             delete: { _ in .notFound }, message: { _ in "No secret store on this platform" })
 
-    /// Items kept in memory, for tests and the self-test: the user's keychain is never touched.
+        /// Items kept in memory, for tests and the self-test: the user's keychain is never touched.
         public static func inMemory() -> Keychain {
             final class Items: @unchecked Sendable {
                 let lock = NSLock()
@@ -241,10 +270,13 @@ public enum APIKeys {
             }
             let store = Items()
             return Keychain(
+                kind: .memory,
+                accounts: { store.lock.withLock { store.items.keys.sorted() } },
                 attributes: { account in
                     store.lock.withLock {
                         store.items[account].map {
-                            ItemAttributes(created: $0.created, modified: $0.modified, comment: $0.comment, ending: $0.ending)
+                            ItemAttributes(created: $0.created, modified: $0.modified, comment: $0.comment, ending: $0.ending,
+                                           label: $0.label)
                         }
                     }
                 },
