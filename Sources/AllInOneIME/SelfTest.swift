@@ -552,9 +552,11 @@ enum SelfTest {
         for language in interfaceLanguages {
             UIText.choice = InterfaceLanguage.setting(for: language.code)
             let label = tr("界面语言", "Interface language"), general = SettingsPage.general.title
+            // The core's text through the same lookup ("Vertical" is Spanish and Portuguese too: compared with the .lproj).
             let core = AIConfig.Text(language: UIText.language).layout(.vertical)
+            let lproj = InterfaceText.bundle(language.code, app: .main).flatMap { InterfaceText.translate("Vertical", in: $0) }
             check(UIText.language == language.code && label == language.interfaceLanguage && general == language.general
-                  && core != "Vertical" && core != "竖排",
+                  && lproj != nil && core == lproj && core != "竖排",
                   "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(general), \(core))")
             if language.code == "zh-Hant" {
                 let key = UIText.name(ActionKey.optionTap), french = UIText.name(Language.french)

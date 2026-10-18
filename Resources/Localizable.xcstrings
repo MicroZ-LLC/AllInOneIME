@@ -12943,7 +12943,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Commandes personnalisées"
+            "value" : "Mes commandes"
           }
         },
         "ja" : {
@@ -21132,7 +21132,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch keine Zielsprache: Füge unter „Übersetzen & Umformulieren“ in den Einstellungen eine hinzu"
+            "value" : "Noch keine Zielsprache: Füge unter „Übersetzen & Stile“ in den Einstellungen eine hinzu"
           }
         },
         "es" : {
@@ -21179,7 +21179,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keine Zielsprache: Füge unter „Übersetzen & Umformulieren“ in den Einstellungen eine hinzu"
+            "value" : "Keine Zielsprache: Füge unter „Übersetzen & Stile“ in den Einstellungen eine hinzu"
           }
         },
         "es" : {
@@ -25345,7 +25345,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ouvre Réglages → Commandes personnalisées"
+            "value" : "Ouvre Réglages → Mes commandes"
           }
         },
         "ja" : {
@@ -32458,7 +32458,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rechercher dans les réglages…"
+            "value" : "Rechercher un réglage…"
           }
         },
         "ja" : {
@@ -39495,7 +39495,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Übersetzen & Umformulieren"
+            "value" : "Übersetzen & Stile"
           }
         },
         "es" : {
