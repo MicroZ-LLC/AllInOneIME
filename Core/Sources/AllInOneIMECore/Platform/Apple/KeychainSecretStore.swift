@@ -15,11 +15,13 @@ extension APIKeys.Keychain {
 
     /// Generic passwords of `service` in the data protection keychain, in the access group `group` (set on every query),
     /// `synchronizable` ones (the items iCloud Keychain syncs: every Mac's) or this device's own. Readable after the first
-    /// unlock, so a key is there while the screen is locked; no item ever asks for the password. This device's items are
-    /// `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`: they never go to another Mac, not even with a backup restored
-    /// there (the AllInOneIME Cloud sign-in is this Mac's); the synced ones `kSecAttrAccessibleAfterFirstUnlock`, which
-    /// iCloud Keychain needs. Every query, deletes too, is of its own kind alone (`kSecAttrSynchronizable` true or false,
-    /// never `kSecAttrSynchronizableAny`): taking a bad copy out of one store never takes the other's item.
+    /// unlock, so a key is there while the screen is locked; no item ever asks for the password. Items are
+    /// `kSecAttrAccessibleAfterFirstUnlock` (iCloud Keychain needs it of the synced ones; this device's go to a new Mac
+    /// with Migration Assistant, as the login keychain's did), except those of `APIKeys.neverSynced`, which are
+    /// `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`: the AllInOneIME Cloud sign-in is this Mac's, and never goes to
+    /// another, not even with a backup restored there. Every query, deletes too, is of its own kind alone
+    /// (`kSecAttrSynchronizable` true or false, never `kSecAttrSynchronizableAny`): taking a bad copy out of one store
+    /// never takes the other's item.
     public static func dataProtection(group: String, synchronizable: Bool, service: String = APIKeys.service) -> APIKeys.Keychain {
         @Sendable func query(_ account: String?) -> [String: Any] {
             var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
@@ -35,14 +37,20 @@ extension APIKeys.Keychain {
             read: { account in read(query(account)) },
             write: { account, key, label, comment, ending, saved in
                 write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
-                      adding: [kSecAttrAccessible as String: synchronizable ? kSecAttrAccessibleAfterFirstUnlock
-                                                                             : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly])
+                      adding: [kSecAttrAccessible as String: accessibility(account: account, synchronizable: synchronizable)])
             },
             setComment: { account, comment in
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
             },
             delete: { account in keychainStatus(SecItemDelete(query(account) as CFDictionary)) },
             message: { code in SecCopyErrorMessageString(code, nil) as String? })
+    }
+
+    /// When the data protection keychain's item of `account` can be read (`kSecAttrAccessible`): after the first unlock,
+    /// on this device alone for `APIKeys.neverSynced`.
+    static func accessibility(account: String, synchronizable: Bool) -> CFString {
+        !synchronizable && APIKeys.neverSynced.contains(account) ? kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                                                                  : kSecAttrAccessibleAfterFirstUnlock
     }
 
     /// Whether this process may use the shared access group (`KeySync.accessGroup`): its `keychain-access-groups`

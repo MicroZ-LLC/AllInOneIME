@@ -16,7 +16,10 @@ extension SelfTest {
         if entitled {
             check(KeySync.system != nil, "entitled to \(KeySync.accessGroup): the data protection keychain's stores")
             check(row.enabled, "the \"API keys and passwords\" row can be turned on")
-            for synchronizable in [true, false] { probeDataProtection(synchronizable: synchronizable) }
+            probeDataProtection(synchronizable: true, account: "selftest")
+            probeDataProtection(synchronizable: false, account: "selftest")
+            // A never-synced account (the AllInOneIME Cloud sign-in's name, under the self-test's own service).
+            probeDataProtection(synchronizable: false, account: "hosted")
         } else {
             print("  this build has no keychain entitlement (no provisioning profile): the iCloud Keychain items aren't tried")
             check(KeySync.system == nil && Platform.mac.secrets.kind == .legacy,
@@ -28,10 +31,13 @@ extension SelfTest {
     }
 
     /// Steps 1–4 of the spec's self-test for one kind of item, under the self-test's own service; and the login keychain's
-    /// queries (`legacyKeychain`, asking and not) neither see nor delete it.
-    private static func probeDataProtection(synchronizable: Bool) {
-        let service = "AllInOneIME self-test key", account = "selftest", group = KeySync.accessGroup
-        let what = synchronizable ? "a synced item" : "an item of this Mac's"
+    /// queries (`legacyKeychain`, asking and not) neither see nor delete it. Synced items and this Mac's are readable after
+    /// the first unlock (`ck`: this Mac's go to a new Mac with Migration Assistant); a never-synced account's on this
+    /// device only (`cku`).
+    private static func probeDataProtection(synchronizable: Bool, account: String) {
+        let service = "AllInOneIME self-test key", group = KeySync.accessGroup
+        let neverSynced = APIKeys.neverSynced.contains(account)
+        let what = synchronizable ? "a synced item" : neverSynced ? "a never-synced item (\(account))" : "an item of this Mac's"
         let store = APIKeys.Keychain.dataProtection(group: group, synchronizable: synchronizable, service: service)
         _ = APIKeys.Keychain.deleteEitherSync(service: service, account: account, group: group)  // left over from a run before
         let key = "selftest-" + UUID().uuidString
@@ -42,7 +48,8 @@ extension SelfTest {
         let sync = (stored?[kSecAttrSynchronizable as String] as? NSNumber)?.boolValue
         let accessGroup = stored?[kSecAttrAccessGroup as String] as? String
         let accessible = stored?[kSecAttrAccessible as String] as? String
-        let wanted = (synchronizable ? kSecAttrAccessibleAfterFirstUnlock : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly) as String
+        let wanted = (!synchronizable && neverSynced ? kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                                                     : kSecAttrAccessibleAfterFirstUnlock) as String
         check(sync == synchronizable && accessGroup == group && accessible == wanted,
               "\(what): sync=\(sync.map { $0 ? 1 : 0 } ?? -1), agrp=\(accessGroup ?? "none"), pdmn=\(accessible ?? "none") (\(wanted))")
         check(store.read(account) == key && store.attributes(account)?.comment == "selftest.example"

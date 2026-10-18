@@ -169,3 +169,19 @@ struct KeySyncSaveTimeTests {
         #expect(local.attributes("gemini") == nil && synced.read("gemini") == "sk-test-same-key-0003")
     }
 }
+
+#if canImport(Security)
+import Security
+
+/// When the data protection keychain's items can be read: after the first unlock, so that this Mac's keys go to a new Mac
+/// with Migration Assistant; the never-synced AllInOneIME Cloud sign-in on this device only.
+struct KeychainAccessibilityTests {
+    @Test func onlyNeverSyncedItemsStayOnThisDevice() {
+        let firstUnlock = kSecAttrAccessibleAfterFirstUnlock as String
+        #expect(APIKeys.Keychain.accessibility(account: "openai", synchronizable: false) as String == firstUnlock)
+        #expect(APIKeys.Keychain.accessibility(account: "openai", synchronizable: true) as String == firstUnlock)
+        #expect(APIKeys.Keychain.accessibility(account: "hosted", synchronizable: false) as String
+                == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+    }
+}
+#endif
