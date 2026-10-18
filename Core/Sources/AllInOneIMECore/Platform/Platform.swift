@@ -128,10 +128,13 @@ extension Platform {
         #endif
     }
 
-    /// Foundation's `Process` on the desktop systems; none on iOS and Android, which have no child processes for apps.
+    /// Foundation's `Process` on macOS and Linux, `CreateProcessW` with a job object on Windows; none on iOS and Android,
+    /// which have no child processes for apps.
     public static var systemProcesses: any ProcessLauncher {
-        #if os(macOS) || os(Linux) || os(Windows)
+        #if os(macOS) || os(Linux)
         return FoundationProcessLauncher()
+        #elseif os(Windows)
+        return WindowsProcessLauncher()
         #else
         return NoProcessLauncher()
         #endif

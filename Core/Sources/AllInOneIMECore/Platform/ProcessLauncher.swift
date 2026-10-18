@@ -2,9 +2,10 @@ import Foundation
 
 /// Starts programs for the core: `run` commands and script extensions (`CommandRunner`), `@py`, `@js` and plugin
 /// scripts (in a child process, through `CommandRunner`), AWS `credential_process` (`AWSProcessRunner`), a language
-/// pack's archive (`LanguagePackLibrary`). Foundation's `Process` on the desktop (`FoundationProcessLauncher`; the
-/// macOS shell adds the login shell's environment and the developer-tools check); none on iOS and Android, where apps
-/// have no child processes (`NoProcessLauncher`): the commands that need one aren't offered (`canLaunch`).
+/// pack's archive (`LanguagePackLibrary`). Foundation's `Process` on macOS and Linux (`FoundationProcessLauncher`; the
+/// macOS shell adds the login shell's environment and the developer-tools check), `CreateProcessW` in a job object on
+/// Windows (`WindowsProcessLauncher`); none on iOS and Android, where apps have no child processes
+/// (`NoProcessLauncher`): the commands that need one aren't offered (`canLaunch`).
 public protocol ProcessLauncher: Sendable {
     /// Whether programs can be started here at all.
     var canLaunch: Bool { get }
@@ -16,8 +17,8 @@ public protocol ProcessLauncher: Sendable {
     /// Whether `program` (found, executable) really runs: on the Mac, a developer-tools stand-in in /usr/bin only does
     /// with Xcode or the command line tools installed.
     func isRunnable(_ program: URL) -> Bool
-    /// Starts a program: in a process group of its own where there are groups (what it starts is in it too), so that
-    /// stopping it (`LaunchedProcess.terminate`, `kill`) stops what it started too.
+    /// Starts a program: in a process group of its own where there are groups (on Windows a job object; what it starts
+    /// is in it too), so that stopping it (`LaunchedProcess.terminate`, `kill`) stops what it started too.
     func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess
 }
 
