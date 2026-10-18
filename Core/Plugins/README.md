@@ -14,7 +14,7 @@ They're under the MIT license there and here, like the rest of [AllInOneIME-plug
 
 A `link` plugin runs no code: the text after the command is put into the address and the page opens in
 your default browser, where you post it yourself (signed in as usual). Nothing is inserted or sent by the
-input method. See [docs/plugins.md](../docs/plugins.md).
+input method. See [docs/plugins.md](https://github.com/MicroZ-LLC/AllInOneIME/blob/mainline/docs/plugins.md) in the app's repository.
 
 ## @xe
 
