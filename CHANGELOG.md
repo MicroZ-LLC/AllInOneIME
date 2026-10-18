@@ -27,6 +27,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- A recorded action key is now also saved by its place on the keyboard, so it is the same key on any keyboard or system; older versions still read it.
 - The interface is ready for more languages (its text goes through a String Catalog). Its language is the one picked in Settings → General, else it follows the system's preferred languages (System Settings → General → Language & Region): the first of them the app has. It is still English or Simplified Chinese; a Traditional Chinese system still gets Simplified Chinese.
 - Change settings in a sentence and Check for problems moved to Settings → Assistant, the page Settings now opens on (it no longer comes back to the page shown last). Write what you want ("translate into Japanese and English", "candidates in a column") and press Preview (or ⌘⏎): each change shows old → new, Apply writes them and Undo puts them back within 10 minutes. The checks run as the page appears; Check runs them again with Test Connection, and with something in "What's wrong? (optional)" the AI explains the likely cause. A row that can be fixed has a Fix button: settings changes go through the preview above, the rest act at once. The same checks, rules and privacy as before. The input menu's "Add Languages…" items open the page with the languages.
 

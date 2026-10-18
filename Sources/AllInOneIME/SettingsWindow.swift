@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import AuthenticationServices
 import Carbon
@@ -2782,7 +2783,8 @@ private struct KeyRecorder: View {
                 return nil
             }
             let modifiers = AllInOneIMEInputController.modifiers(event.modifierFlags)
-            if let recorded = ActionKey.recorded(keyCode: event.keyCode, modifiers: modifiers, name: Self.name(event)) {
+            if let recorded = ActionKey.recorded(keyCode: event.keyCode, usage: MacKeyboard.usage(event.keyCode), modifiers: modifiers,
+                                                 name: Self.name(event)) {
                 finish(recorded)
             } else {
                 refused = true

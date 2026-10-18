@@ -82,12 +82,12 @@ extension Composer {
     func handleModeKey(_ event: KeyEvent) -> Response? {
         guard inModeComposition, !isLevelTwo, let engine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
-        switch event.keyCode {
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        switch event.key {
+        case .enter, .keypadEnter:
             if modifiers.isEmpty { return .consumed(translateModeDraft(engine)) }
             if modifiers == .shift { return .consumed(modeDraftAsTyped(engine)) }
             return nil
-        case VirtualKey.space where modifiers.isEmpty && actionKey == .space && !engine.snapshot().isComposing && !draft.isEmpty:
+        case .space where modifiers.isEmpty && actionKey == .space && !engine.snapshot().isComposing && !draft.isEmpty:
             insertIntoDraft(" ")
             return .consumed([.updateMarkedText])
         default:
@@ -129,13 +129,13 @@ extension Composer {
     func handleModeTranslatingKey(_ event: KeyEvent) -> Response? {
         guard modeTranslating else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
-        switch event.keyCode {
-        case VirtualKey.escape:
+        switch event.key {
+        case .escape:
             return .consumed(backToDraft())
-        case VirtualKey.delete:
+        case .backspace:
             let back = backToDraft()
             return .consumed(back + handleLevelOne(event).effects)
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        case .enter, .keypadEnter:
             return .consumed(modifiers == .shift ? finish(committing: draft) : [])
         default:
             guard event.printableText != nil, modifiers.isSubset(of: .shift) else { return .consumed() }

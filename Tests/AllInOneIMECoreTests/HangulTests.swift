@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AllInOneIMECore
 
@@ -60,6 +61,55 @@ struct HangulTests {
         #expect(hangul.flush() == "한")
         #expect(hangul.isEmpty)
     }
+
+    @Test func theUsageGivesTheKeyCodesJamo() {
+        for entry in MacKeyCodes.entries {
+            for shift in [false, true] {
+                #expect(PackData.hangul.jamo(usage: entry.usage, shift: shift) == PackData.hangul.jamo(keyCode: entry.code, shift: shift),
+                        "kVK \(entry.code)")
+            }
+        }
+        #expect(PackData.hangul.jamo(usage: 0x14, shift: false) == "ㅂ")  // Q
+        #expect(PackData.hangul.jamo(usage: 0x14, shift: true) == "ㅃ")
+        #expect(PackData.hangul.jamo(usage: 0, shift: false) == nil)
+        #expect(PackData.hangul.jamo(usage: 0x46, shift: false) == nil)  // Print Screen: no Mac key
+    }
+
+    /// Typed through the composer: the same syllables from the Mac's events and from another system's.
+    @Test func macAndOtherSystemsEventsTypeTheSameText() {
+        let codes: [Character: UInt16] = ["d": 0x02, "k": 0x28, "s": 0x01, "u": 0x20, "g": 0x05, "t": 0x11, "p": 0x23,
+                                          "y": 0x10, "r": 0x0F, "m": 0x2E, "f": 0x03, "e": 0x0E]
+        func run(mac: Bool) -> ([String], String) {
+            let c = Composer(engine: FakeEngine(), actionKey: .enter)
+            c.hangulTables = PackData.hangul
+            c.inputLanguages = [.english, .korean]
+            c.setInputMode(.korean)
+            var out: [String] = []
+            // 안녕하세요 한글 닭 까
+            for letter in "dkssudgktpdy gksrmf ekfr Rk" {
+                guard letter != " " else {
+                    out += commits(c.handleKeyDown(KeyEvent(keyCode: VirtualKey.space, characters: " ")))
+                    continue
+                }
+                let lower = Character(letter.lowercased()), shift = letter.isUppercase
+                let code = codes[lower]!
+                let event = mac
+                    ? KeyEvent(keyCode: code, characters: String(letter), charactersIgnoringModifiers: String(lower),
+                               modifiers: shift ? .shift : [])
+                    : KeyEvent(key: .character, usage: WindowsKeyCodes.usage(scanCode: Self.scanCodes[lower]!, extended: false),
+                               characters: String(letter), charactersIgnoringModifiers: String(lower), modifiers: shift ? .shift : [])
+                out += commits(c.handleKeyDown(event))
+            }
+            return (out, c.markedText)
+        }
+        let expected = run(mac: true)
+        #expect((expected.0.joined() + expected.1).replacingOccurrences(of: " ", with: "") == "안녕하세요한글닭까")
+        #expect(run(mac: false) == expected)
+    }
+
+    /// The same letters' scan codes on a PC keyboard (set 1).
+    static let scanCodes: [Character: UInt8] = ["d": 0x20, "k": 0x25, "s": 0x1F, "u": 0x16, "g": 0x22, "t": 0x14, "p": 0x19,
+                                                "y": 0x15, "r": 0x13, "m": 0x32, "f": 0x21, "e": 0x12]
 
     @Test func keysOfThe2SetLayout() {
         // g k s → ㅎ ㅏ ㄴ; Shift for the tense consonants and ㅒ ㅖ; other keys are no jamo.

@@ -892,3 +892,13 @@ struct TranslateModeRequestTests {
         #expect(model.requests.isEmpty)
     }
 }
+
+extension ShiftHoldTests {
+    /// With the side bits the Mac's shell passes for every modifier (and Windows' will): still Shift on its own.
+    @Test func sideBitsAreNoOtherModifier() {
+        let h = HoldProbe()
+        #expect(h.flags(VirtualKey.leftShift, [.shift, .leftShift]))
+        let k = HoldProbe()
+        #expect(!k.flags(VirtualKey.leftShift, [.shift, .leftShift, .command, .leftCommand]))
+    }
+}

@@ -3,9 +3,10 @@ import Foundation
 /// A keyboard layout's key table, as the composer reads it: what a key types (macOS: `KeyboardLayout`, Carbon's
 /// `UCKeyTranslate`; Windows: `ToUnicodeEx`).
 public protocol KeyTranslator: Sendable {
-    /// What `keyCode` types with `modifiers` after the dead-key `state`, which becomes the state the key
-    /// leaves (non-zero, with nothing typed: a dead key). Without `deadKeys` a dead key types its accent.
-    func translate(_ keyCode: UInt16, _ modifiers: KeyModifiers, state: inout UInt32, deadKeys: Bool) -> String
+    /// What the key at `usage` (`KeyEvent.usage`, the same place on every system) types with `modifiers` after the
+    /// dead-key `state`, which becomes the state the key leaves (non-zero, with nothing typed: a dead key). Without
+    /// `deadKeys` a dead key types its accent. Each system's turns the usage into its own code (the Mac's `kVK_*`).
+    func translate(usage: UInt16, _ modifiers: KeyModifiers, state: inout UInt32, deadKeys: Bool) -> String
 }
 
 /// Dead keys under the input method. macOS composes them only for a plain keyboard layout: with an input
@@ -26,10 +27,10 @@ public struct DeadKeyComposer {
         guard let layout, event.modifiers.isDisjoint(with: [.command, .control]) else { return event }
         // Only when the layout is the one the key was typed in: alone, it types the key's characters.
         var none: UInt32 = 0
-        let alone = layout.translate(event.keyCode, event.modifiers, state: &none, deadKeys: false)
+        let alone = layout.translate(usage: event.usage, event.modifiers, state: &none, deadKeys: false)
         guard !alone.isEmpty, event.characters.isEmpty || event.characters == alone else { return event }
         var after = before
-        let typed = layout.translate(event.keyCode, event.modifiers, state: &after, deadKeys: true)
+        let typed = layout.translate(usage: event.usage, event.modifiers, state: &after, deadKeys: true)
         var key = event
         if typed.isEmpty, after != 0 {
             state = after

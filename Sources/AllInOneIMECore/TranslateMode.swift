@@ -281,10 +281,15 @@ public enum TranslateMode {
         /// down on its own (no Shift before, nothing else held but Caps Lock) and Sticky Keys is off: poll after
         /// `hintAfter` and `toggleAfter`. Anything else ends a press.
         public mutating func flagsChanged(keyCode: UInt16, modifiers: KeyModifiers) -> Bool {
-            let isShift = keyCode == VirtualKey.leftShift || keyCode == VirtualKey.rightShift
+            flagsChanged(key: MacKeyCodes.key(keyCode), modifiers: modifiers)
+        }
+
+        /// `flagsChanged(keyCode:modifiers:)` with the key that changed as a `Key`.
+        public mutating func flagsChanged(key: Key, modifiers: Modifiers) -> Bool {
+            let isShift = key.modifierKind == .shift
             let wasDown = shiftDown
             shiftDown = modifiers.contains(.shift)
-            if isShift, shiftDown, !wasDown, modifiers.subtracting([.shift, .capsLock]).isEmpty, !stickyKeys() {
+            if isShift, shiftDown, !wasDown, modifiers.subtracting([.shift, .capsLock]).subtracting(.sides).isEmpty, !stickyKeys() {
                 (pressedAt, pressedPointer, hinted, toggled) = (now(), pointer(), false, false)
                 return true
             }

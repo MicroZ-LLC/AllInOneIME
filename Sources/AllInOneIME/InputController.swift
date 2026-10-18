@@ -878,7 +878,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
         if composer.pendingAccent == nil { deadKeys.reset() }
         let key = deadKeys.compose(KeyEvent(
-            keyCode: event.keyCode, characters: event.characters ?? "",
+            keyCode: event.keyCode, usage: MacKeyboard.usage(event.keyCode), characters: event.characters ?? "",
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat),
             in: appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current())
@@ -932,12 +932,16 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Device-dependent bits of NSEvent.modifierFlags (NX_DEVICELALTKEYMASK / NX_DEVICERALTKEYMASK).
     static let leftOptionBit: UInt = 0x20, rightOptionBit: UInt = 0x40
+    /// All eight (IOKit's NX_DEVICE…KEYMASK): which side's key of each kind is down.
+    static let sideBits: [(bit: UInt, side: KeyModifiers)] = [
+        (0x01, .leftControl), (0x02, .leftShift), (0x04, .rightShift), (0x08, .leftCommand), (0x10, .rightCommand),
+        (leftOptionBit, .leftOption), (rightOptionBit, .rightOption), (0x2000, .rightControl),
+    ]
 
-    /// Modifiers of a modifier-change event, including which Option key is down.
+    /// Modifiers of a modifier-change event, including which side's keys are down.
     static func flagsChangedModifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
         var result = modifiers(flags)
-        if flags.rawValue & leftOptionBit != 0 { result.insert(.leftOption) }
-        if flags.rawValue & rightOptionBit != 0 { result.insert(.rightOption) }
+        for (bit, side) in sideBits where flags.rawValue & bit != 0 { result.insert(side) }
         return result
     }
 
