@@ -55,7 +55,8 @@ MINUTES = {"implement": 120, "fix": 90, "acceptance": 60, "reproduce": 60, "veri
 # 0.6.5; Tests/AllInOneIMECoreTests on a branch from before).
 TESTS = ("Tests/", "Core/Tests/")
 # The acceptance tests, the test authors' alone: whatever an implementer or fixer changes there is put back.
-ACCEPTANCE = ("Core/Tests/AllInOneIMECoreTests/Acceptance/", "Tests/AllInOneIMEMacTests/Acceptance/",
+ACCEPTANCE = ("Core/Tests/AllInOneIMECoreTests/Acceptance/", "Core/Tests/AllInOneIMETestSupport/Acceptance/",
+              "Tests/AllInOneIMEMacTests/Acceptance/",
               "Tests/AllInOneIMECoreTests/Acceptance/", "Tests/AllInOneIMERimeTests/Acceptance/")
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
