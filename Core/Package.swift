@@ -95,7 +95,9 @@ let package = Package(
             path: "Scripts/StringsPlugin"
         ),
 
-        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport", "AllInOneIMEQuickJS"],
+        // AllInOneIMEQuickJS first: Swift Build (SwiftPM's default build system in Swift 6.4) goes by the first edge it
+        // meets to a target, and the core's to it (off Apple platforms only) left it unlinked on the Mac.
+        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMEQuickJS", "AllInOneIMECore", "AllInOneIMETestSupport"],
                     exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
                     resources: [.copy("Fixtures")]),
     ]
