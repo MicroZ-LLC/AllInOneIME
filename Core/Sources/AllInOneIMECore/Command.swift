@@ -390,6 +390,38 @@ extension CustomCommand {
         return nil
     }
 
+    // MARK: Editing the list by name
+
+    // Settings edits and deletes a command by the name it had when the editor or the Delete dialog opened, never by its
+    // place in the list: sync through iCloud may change the list meanwhile (another Mac deleted or added one), and a
+    // place would then be another command's, or none.
+
+    /// The commands of `list` other than the one named `original` (the one being edited; nil: one being added), names
+    /// matched ignoring case: what an edit's name is checked against (`problem(among:)`).
+    public static func others(than original: String?, in list: [CustomCommand]) -> [CustomCommand] {
+        guard let original = original?.lowercased() else { return list }
+        return list.filter { $0.name.lowercased() != original }
+    }
+
+    /// `list` with `command` saved: in place of the one named `original` wherever it is now, else (added, or deleted
+    /// elsewhere meanwhile) at the end. Nil when another command has its name by now.
+    public static func saving(_ command: CustomCommand, as original: String?, in list: [CustomCommand]) -> [CustomCommand]? {
+        let name = command.name.lowercased()
+        guard !others(than: original, in: list).contains(where: { $0.name.lowercased() == name }) else { return nil }
+        var out = list
+        if let original = original?.lowercased(), let index = out.firstIndex(where: { $0.name.lowercased() == original }) {
+            out[index] = command
+        } else {
+            out.append(command)
+        }
+        return out
+    }
+
+    /// `list` without the command named `name` (ignoring case); as it is when there is none by now.
+    public static func removing(_ name: String, from list: [CustomCommand]) -> [CustomCommand] {
+        list.filter { $0.name.lowercased() != name.lowercased() }
+    }
+
     /// Arguments as one line, quoted where needed: ["python3", "-c", "{input}"] → `python3 -c {input}`.
     public static func commandLine(_ argv: [String]) -> String {
         argv.map { arg in

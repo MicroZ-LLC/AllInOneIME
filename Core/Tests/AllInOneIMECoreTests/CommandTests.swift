@@ -33,6 +33,24 @@ struct CommandTests {
         #expect(CustomCommand(name: "reminder", type: .run, argv: ["x"]).problem(among: []) == .nameTaken)
     }
 
+    @Test("custom commands are edited and deleted by the name they had, wherever they are in the list by now")
+    func editedAndDeletedByName() {
+        func command(_ name: String, _ prompt: String) -> CustomCommand { CustomCommand(name: name, type: .prompt, prompt: prompt) }
+        let list = [command("beta", "do beta"), command("gamma", "do gamma")]  // alpha, first, deleted on another Mac
+        #expect(CustomCommand.others(than: "gamma", in: list) == [command("beta", "do beta")])
+        #expect(CustomCommand.others(than: "Beta", in: list) == [command("gamma", "do gamma")])
+        #expect(CustomCommand.others(than: nil, in: list) == list)
+        // The same name, renamed in place, or added back when it is gone.
+        #expect(CustomCommand.saving(command("beta", "better"), as: "beta", in: list) == [command("beta", "better"), command("gamma", "do gamma")])
+        #expect(CustomCommand.saving(command("omega", "do gamma"), as: "gamma", in: list) == [command("beta", "do beta"), command("omega", "do gamma")])
+        #expect(CustomCommand.saving(command("alpha", "better"), as: "alpha", in: list) == list + [command("alpha", "better")])
+        #expect(CustomCommand.saving(command("delta", "x"), as: nil, in: list) == list + [command("delta", "x")])
+        // A name another command has by now: not saved over it.
+        #expect(CustomCommand.saving(command("gamma", "x"), as: "beta", in: list) == nil)
+        #expect(CustomCommand.removing("gamma", from: list) == [command("beta", "do beta")])
+        #expect(CustomCommand.removing("alpha", from: list) == list)
+    }
+
     let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
     let reply = CustomCommand(name: "reply", type: .prompt, summary: "Write a reply", prompt: "Write a short, polite reply.")
     let sh = CustomCommand(name: "sh", type: .terminal, argv: ["zsh", "-c", "{input}"])

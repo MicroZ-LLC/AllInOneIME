@@ -50,6 +50,17 @@ public struct RedactionSettings: Codable, Equatable, Sendable {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && seen.insert($0).inserted }
     }
+
+    /// The words field's edit applied to `list`, the words as they are now (read again first: sync through iCloud may
+    /// have brought another Mac's): the words taken out of the field since it showed `shown` go, the words typed in are
+    /// added, and the others, one added elsewhere since included, stay.
+    public static func edited(_ list: [String], field text: String, shown: [String]) -> [String] {
+        let typed = words(from: text)
+        let removed = Set(shown).subtracting(typed)
+        var out = list.filter { !removed.contains($0) }
+        for word in typed where !out.contains(word) { out.append(word) }
+        return out
+    }
 }
 
 /// One request's hidden values. Before a request is sent, the values the detectors find in the user's texts (emails,
