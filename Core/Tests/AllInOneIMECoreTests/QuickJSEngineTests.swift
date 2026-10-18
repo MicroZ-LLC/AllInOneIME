@@ -109,6 +109,24 @@ struct QuickJSEngineTests {
         #expect(other.exception?.toString() == "TypeError: Cannot convert primitive to NSDictionary")
     }
 
+    /// A date converts to Swift by the time it holds, without the script's code: not its own valueOf or
+    /// Symbol.toPrimitive, nor a getTime the script put on Date.prototype. (JavaScriptCore calls valueOf.)
+    @Test func datesConvertByTheirTimeAlone() throws {
+        let context = try context()
+        let value = try #require(context.evaluate("""
+            var called = 0
+            function spoof() { called++; return 0 }
+            Date.prototype.getTime = Date.prototype.valueOf = spoof
+            var d = new Date(5000)
+            d.valueOf = d[Symbol.toPrimitive] = spoof;
+            [d, {d}]
+            """))
+        let items = try #require(value.toArray())
+        #expect((items.first as? Date)?.timeIntervalSince1970 == 5)
+        #expect(((items.last as? [String: Any])?["d"] as? Date)?.timeIntervalSince1970 == 5)
+        #expect(context.global("called")?.numberValue == 0 && context.exception == nil)
+    }
+
     // MARK: - Memory and depth
 
     @Test func aMemoryLimit() throws {

@@ -22,6 +22,9 @@ final class QuickJSRuntime {
     let clock = ScriptClock()
     /// What it may allocate. Freed after QuickJS's runtime (stored properties go after `deinit`), which frees through it.
     private let memory: MemoryBudget
+    /// `Date.prototype.getTime` as the realm made it, taken before any script could replace it: a date's time, read
+    /// without the script's code (`object(of:)`). Undefined should there be no memory for it.
+    private(set) var dateTime = QJS_Undefined()
 
     /// The file name QuickJS's messages and stacks give the scripts: one of ours, since QuickJS calls the text it parses
     /// for `JSON.parse` and `eval` "<input>", and only the scripts' own places in a stack are their lines (`addLine`).
@@ -53,9 +56,17 @@ final class QuickJSRuntime {
             definition.class_name = name
             _ = JS_NewClass(rt, functionClass, &definition)
         }
+        let global = JS_GetGlobalObject(ctx)
+        let date = JS_GetPropertyStr(ctx, global, "Date")
+        let prototype = JS_GetPropertyStr(ctx, date, "prototype")
+        let getTime = JS_GetPropertyStr(ctx, prototype, "getTime")
+        [prototype, date, global].forEach { JS_FreeValue(ctx, $0) }
+        if JS_IsFunction(ctx, getTime) { dateTime = getTime } else { JS_FreeValue(ctx, getTime) }
+        dropException()
     }
 
     deinit {
+        JS_FreeValue(ctx, dateTime)
         if let thrown { JS_FreeValue(ctx, thrown) }
         JS_FreeContext(ctx)
         JS_FreeRuntime(rt)

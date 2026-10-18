@@ -200,8 +200,13 @@ extension QuickJSRuntime {
         if JS_IsNull(value) { return NSNull() }
         guard JS_IsObject(value) else { return nil }
         if JS_IsDate(value) {
+            // Its time, by the realm's getTime (`dateTime`): not by what the script made its valueOf or
+            // Symbol.toPrimitive, which a conversion to a number would call. (JavaScriptCore calls them; the date's
+            // own time is what it holds.)
             var time = Double.nan
-            if JS_ToFloat64(ctx, &time, value) < 0 { dropException() }
+            let got = JS_Call(ctx, dateTime, value, 0, nil)
+            if JS_IsException(got) || JS_ToFloat64(ctx, &time, got) < 0 { dropException() }
+            JS_FreeValue(ctx, got)
             return Date(timeIntervalSince1970: time / 1000)
         }
         let array = JS_IsArray(value)
