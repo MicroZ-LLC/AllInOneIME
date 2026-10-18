@@ -54,7 +54,11 @@ let package = Package(
                 weakFoundationModels,
                 // librime.1.dylib is copied into Contents/Frameworks by the Makefile.
                 .unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"], .when(platforms: [.macOS])),
-                // The debug build (the tests run it as a child process) finds librime where it is.
+                // The debug build (the tests run it as a child process) finds librime where it is. The end-to-end
+                // tests that run it (the core's PluginLanguageAcceptanceTests, this package's
+                // ExtensionSourcesAcceptanceTests) set DYLD_LIBRARY_PATH to <their package>/ThirdParty/librime/dist/lib,
+                // which for the core's (Core/) is a folder that doesn't exist, and with ALLINONEIME_THIRDPARTY set isn't
+                // where librime is: this rpath, to the folder the build linked, is what lets the binary start there.
                 .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", rimeLib], .when(platforms: [.macOS], configuration: .debug)),
             ]
         ),

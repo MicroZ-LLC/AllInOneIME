@@ -52,7 +52,9 @@ let package = Package(
         // core is of its products, as a shell's is (`swift build -c release --product …`, each of them:
         // Scripts/check-core-standalone.sh --release), and `swift build -c release` alone, which builds every target,
         // fails on it.
-        .target(name: "AllInOneIMETestSupport", dependencies: ["AllInOneIMECore"], path: "Tests/AllInOneIMETestSupport"),
+        // (Crypto: Acceptance/AcceptanceShared.swift imports it, for the goldens' SHA-256.)
+        .target(name: "AllInOneIMETestSupport", dependencies: ["AllInOneIMECore", .product(name: "Crypto", package: "swift-crypto")],
+                path: "Tests/AllInOneIMETestSupport"),
 
         // The String Catalog's tool (Scripts/strings/main.swift) and the command that runs it in a package's folder.
         // (Swift 5 mode: it was a script, whose top-level variables Swift 6 takes for the main actor's.)

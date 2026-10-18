@@ -37,7 +37,7 @@ RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
 RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
 
-# The Chinese language pack (Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
+# The Chinese language pack (Core/Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
 # its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
 # Its archive is a release asset of the language library repository (MicroZ-LLC/AllInOneIME-languages), listed in
 # its signed packs.json.
