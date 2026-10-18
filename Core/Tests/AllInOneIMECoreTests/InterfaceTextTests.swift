@@ -258,26 +258,9 @@ struct InterfaceTextTests {
     /// The core's package root (this file is Tests/AllInOneIMECoreTests/InterfaceTextTests.swift).
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-    /// Resources/Localizable.xcstrings: a String Catalog in English, whose translations fit their keys' arguments (else
-    /// the app shows English for them).
+    /// Resources/Localizable.xcstrings, the core's text: a String Catalog in English, whose translations fit their keys'
+    /// arguments (else the app shows English for them).
     @Test func catalogTranslationsFit() throws {
-        let data = try Data(contentsOf: Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
-        let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        #expect(catalog["sourceLanguage"] as? String == "en")
-        let strings = try #require(catalog["strings"] as? [String: [String: Any]])
-        #expect(!strings.isEmpty)
-        for (key, entry) in strings {
-            let localizations = entry["localizations"] as? [String: [String: Any]] ?? [:]
-            func value(_ language: String) -> String? {
-                (localizations[language]?["stringUnit"] as? [String: Any])?["value"] as? String
-            }
-            let english = value("en") ?? key
-            let count = english.components(separatedBy: "%@").count - 1
-            #expect(InterfaceText.fill(english, Array(repeating: "x", count: count)) != nil, "\(key)")
-            for language in localizations.keys where language != "en" {
-                guard let translation = value(language) else { continue }
-                #expect(InterfaceText.fill(translation, Array(repeating: "x", count: count)) != nil, "\(language): \(key)")
-            }
-        }
+        try StringCatalogCheck.translationsFit(Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
     }
 }

@@ -844,8 +844,9 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 `make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, and anything typed while secure input is on (the screen locked, a password field). The last line counts passed, failed and skipped checks; only failures fail the run, and a run with skips ends in INCOMPLETE, or SKIPPED when nothing that types ran (BLOCKED: the real-app test started on a locked screen), never PASSED.
 
 Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
-from the String Catalog `Resources/Localizable.xcstrings` (compiled into each app by the Makefile with Xcode's
-`xcstringstool`), keyed by the English text with `%@` for each interpolation. After adding or changing text, run
+from the String Catalogs, `Core/Resources/Localizable.xcstrings` for the core's text and `Resources/Localizable.xcstrings`
+for the app's own (merged and compiled into each app by the Makefile with Xcode's `xcstringstool`), keyed by the
+English text with `%@` for each interpolation. After adding or changing text, run
 `make strings` (`make test` fails until then; the self-tests' text, in `*SelfTest.swift`, isn't for translators). Where
 one English text means two things (`make strings` reports them, and `make strings-check` fails on them), give one a key
 of its own, a short dotted name for where or how it is used: `tr("删除", "Remove", key: "remove.delete")`; its English is
@@ -854,11 +855,12 @@ interface language's code and look it up the same way (`InterfaceText.lookup`, w
 on macOS; elsewhere `StringCatalog` reads the catalog's tables).
 
 Code layout: the root is the macOS app; `Core/` is the core every platform shares, a Swift package of its own (it
-builds and tests on its own, on macOS, Linux and Windows).
+builds and tests on its own, on macOS, Linux and Windows); `Windows/` is the start of the Windows app.
 
 - `Core/Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
 - `Core/Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
 - `Core/Sources/AllInOneIMERime`: librime wrapper
+- `Core/Sources/AllInOneIMECLI`: the command line, `allinoneime-cli` (`make cli`), run by each platform's own `main`
 - `Sources/AllInOneIMEMac`: what only the Mac has (key layouts, code signing, Spotlight, AppleScript, the updater's install), and `Platform.mac`
 - `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher

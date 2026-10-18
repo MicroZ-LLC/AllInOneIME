@@ -80,25 +80,31 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
 
-# The interface text in languages other than Simplified Chinese and English (those two are in the code): the String
-# Catalog, compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict), which go into
-# the input method, AllInOneIME Settings and the installer. The English text is the key (`tr` in AllInOneIMEText).
-# `make strings` adds the code's new texts to the catalog (the core's Strings plugin, Core/Scripts/strings/main.swift);
-# `make strings-check`, part of `make test`, fails when one is missing or a language in it lacks a translation. For
-# now one catalog, the core's, for the app's text too.
-STRINGS       := $(CORE)/Resources/Localizable.xcstrings
-STRINGS_BUILD := $(BUILD_DIR)/strings
-STRINGS_TOOL  := swift package --package-path $(CORE) --allow-writing-to-package-directory strings --sources Sources --sources ../Sources
+# The interface text in languages other than Simplified Chinese and English (those two are in the code): two String
+# Catalogs, the core's (Core/Resources/Localizable.xcstrings) and the app's own text's (Resources/), merged into one (a
+# key in both fails) and compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict),
+# which go into the input method, AllInOneIME Settings and the installer. The English text is the key (`tr` in
+# AllInOneIMEText). `make strings` adds the code's new texts to the catalogs, the core's first (the core's Strings
+# plugin, Core/Scripts/strings/main.swift); `make strings-check`, part of `make test`, fails when one is missing or a
+# language in them lacks a translation.
+STRINGS        := Resources/Localizable.xcstrings
+CORE_STRINGS   := $(CORE)/Resources/Localizable.xcstrings
+STRINGS_MERGED := $(BUILD_DIR)/Localizable.xcstrings
+STRINGS_BUILD  := $(BUILD_DIR)/strings
+STRINGS_TOOL   := swift package --allow-writing-to-package-directory strings
 
-$(STRINGS_BUILD): $(STRINGS)
+$(STRINGS_BUILD): $(STRINGS) $(CORE_STRINGS)
 	rm -rf $@ && mkdir -p $@
-	xcrun xcstringstool compile $(STRINGS) --output-directory $@
+	$(STRINGS_TOOL) --merge $(STRINGS_MERGED)
+	xcrun xcstringstool compile $(STRINGS_MERGED) --output-directory $@
 	touch $@
 
 strings:
+	swift package --package-path $(CORE) --allow-writing-to-package-directory strings
 	$(STRINGS_TOOL)
 
 strings-check:
+	swift package --package-path $(CORE) --allow-writing-to-package-directory strings --check
 	$(STRINGS_TOOL) --check
 
 # Core/Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy

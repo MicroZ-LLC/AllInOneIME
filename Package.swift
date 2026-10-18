@@ -56,10 +56,10 @@ let package = Package(
             ]
         ),
 
-        // Developer tool: run level two (translate/polish) from the terminal.
+        // Developer tool: run level two (translate/polish) from the terminal (the core's AllInOneIMECLI, on the Mac's platform).
         .executableTarget(
             name: "allinoneime-cli",
-            dependencies: [core("AllInOneIMECore"), "AllInOneIMEMac"],
+            dependencies: [core("AllInOneIMECLI"), core("AllInOneIMECore"), "AllInOneIMEMac"],
             linkerSettings: [weakFoundationModels]
         ),
 
@@ -75,9 +75,13 @@ let package = Package(
             linkerSettings: [weakFoundationModels]
         ),
 
-        // The macOS shell's library and what of the app's own reads the repository; the core's tests are Core's.
-        .testTarget(name: "AllInOneIMEMacTests", dependencies: ["AllInOneIMEMac", core("AllInOneIMECore")],
-                    linkerSettings: [weakFoundationModels]),
+        // The macOS shell's tests: its library's, and those that read the app's own files (the Info.plists, the input
+        // method's sources). The core's tests are Core's.
+        .testTarget(
+            name: "AllInOneIMEMacTests",
+            dependencies: ["AllInOneIMEMac", core("AllInOneIMECore"), core("AllInOneIMETestSupport")],
+            linkerSettings: [weakFoundationModels]
+        ),
         .testTarget(
             name: "AllInOneIMERimeTests",
             dependencies: [core("AllInOneIMERime"), core("AllInOneIMECore")],

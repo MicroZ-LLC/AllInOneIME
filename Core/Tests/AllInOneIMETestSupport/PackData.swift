@@ -1,0 +1,10 @@
+import Foundation
+@testable import AllInOneIMECore
+
+/// The Korean and Hindi packs' data as this checkout has it (LanguagePacks/), for the tests.
+public enum PackData {
+    public static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("LanguagePacks")
+    public static let hangul = try! HangulTables.load(from: folder.appendingPathComponent("ko-hangul"))
+    public static let hindi = try! HindiTables.load(from: folder.appendingPathComponent("hi-phonetic"))
+}

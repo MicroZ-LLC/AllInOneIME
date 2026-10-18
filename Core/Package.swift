@@ -14,6 +14,9 @@ let package = Package(
         .library(name: "AllInOneIMEText", targets: ["AllInOneIMEText"]),
         .library(name: "AllInOneIMECore", targets: ["AllInOneIMECore"]),
         .library(name: "AllInOneIMERime", targets: ["AllInOneIMERime"]),
+        .library(name: "AllInOneIMECLI", targets: ["AllInOneIMECLI"]),
+        // What a shell's tests share with the core's (`FakeEngine`, the keys, `ScriptFolder`, `Timing`, `PackData`).
+        .library(name: "AllInOneIMETestSupport", targets: ["AllInOneIMETestSupport"]),
         // `swift package strings [--check]`: the String Catalog in step with the code, in the core or in a shell.
         .plugin(name: "Strings", targets: ["Strings"]),
     ],
@@ -39,6 +42,12 @@ let package = Package(
         // Swift wrapper around librime: level one (local pinyin).
         .target(name: "AllInOneIMERime", dependencies: ["CRime", "AllInOneIMECore"], swiftSettings: [.swiftLanguageMode(.v5)]),
 
+        // The command line (`CLI.run`): level two from a terminal. Each shell runs it from its own main, with its platform.
+        .target(name: "AllInOneIMECLI", dependencies: ["AllInOneIMECore"]),
+
+        // The tests' helpers, for the core's tests and a shell's (debug builds: it imports the core @testable).
+        .target(name: "AllInOneIMETestSupport", dependencies: ["AllInOneIMECore"], path: "Tests/AllInOneIMETestSupport"),
+
         // The String Catalog's tool (Scripts/strings/main.swift) and the command that runs it in a package's folder.
         // (Swift 5 mode: it was a script, whose top-level variables Swift 6 takes for the main actor's.)
         .executableTarget(name: "strings-tool", path: "Scripts/strings", swiftSettings: [.swiftLanguageMode(.v5)]),
@@ -52,7 +61,8 @@ let package = Package(
             path: "Scripts/StringsPlugin"
         ),
 
-        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport"],
+                    resources: [.copy("Fixtures")]),
     ]
 )
 
@@ -73,14 +83,15 @@ package.targets += [
     .target(name: "CoreGraphics", path: "Tests/LinuxShims/CoreGraphics"),
 ]
 if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" }) {
-    tests.dependencies = ["AllInOneIMECore", "os", "CryptoKit", "CoreGraphics"]
+    tests.dependencies = ["AllInOneIMECore", "AllInOneIMETestSupport", "os", "CryptoKit", "CoreGraphics"]
     tests.exclude += ["Acceptance/PluginLanguageAcceptanceTests.swift"]
     #if os(Windows)
     // Windows has no POSIX calls for the tests to check processes and files with (pid_t, kill, process groups, realpath,
     // lstat, opendir): those that use them are left out, and with them the ones that write their scripts with ScriptFolder
     // (bash scripts anyway) or ExtensionComposerTests' helpers.
-    tests.exclude += ["ScriptFolder.swift", "ExtensionTests.swift", "ExtensionRobustnessTests.swift", "ExtensionComposerTests.swift",
+    tests.exclude += ["ExtensionTests.swift", "ExtensionRobustnessTests.swift", "ExtensionComposerTests.swift",
                       "ClickPickTests.swift", "ExtensionExamplesTests.swift", "Acceptance/QuestionHistoryAcceptanceTests.swift"]
+    package.targets.first { $0.name == "AllInOneIMETestSupport" }?.exclude += ["ScriptFolder.swift"]
     #endif
 }
 #endif

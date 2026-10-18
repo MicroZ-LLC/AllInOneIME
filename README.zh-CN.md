@@ -724,18 +724,19 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 
 `make selftest` 和 `make realtest` 不受你的设置影响。自测用它自己的配置（Amazon Bedrock，AWS profile 和区域取自你的配置，其余都是默认值）；真实 App 测试运行时把服务商设成 Bedrock，结束后换回你的。当时测不了的会跳过，不算失败：没有这个 profile 的 Bedrock 密钥时的在线检查，以及安全输入开着时（屏幕锁着、正在输密码）要打字的检查。最后一行列出通过、失败和跳过的数目；只有失败才算没通过，有跳过时结尾是 INCOMPLETE，什么打字的都没跑时是 SKIPPED（屏幕锁着时开始的真实 App 测试是 BLOCKED），不会是 PASSED。
 
-界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog
-`Resources/Localizable.xcstrings`（Makefile 用 Xcode 的 `xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为
-key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过；自测 `*SelfTest.swift` 里的文字不拿去翻译）。同一句英文有两种意思时（`make strings` 会列出来，`make strings-check` 会不通过），给其中一个单独的
+界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog：核心的文字在
+`Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的
+`xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为 key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过；自测 `*SelfTest.swift` 里的文字不拿去翻译）。同一句英文有两种意思时（`make strings` 会列出来，`make strings-check` 会不通过），给其中一个单独的
 key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", key: "remove.delete")`；catalog 里这个 key 的英文就是这句英文。加一种
 语言，就是在 catalog 里加它的一列。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
 `.lproj`；别的平台用 `StringCatalog` 读 catalog 里的表）。
 
-代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）。
+代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）；`Windows/` 是 Windows App 的开头。
 
 - `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
 - `Core/Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
 - `Core/Sources/AllInOneIMERime`：librime 封装
+- `Core/Sources/AllInOneIMECLI`：命令行 `allinoneime-cli`（`make cli`），由各平台自己的 `main` 运行
 - `Sources/AllInOneIMEMac`：只有 Mac 才有的部分（键盘布局、代码签名、Spotlight、AppleScript、更新的安装）和 `Platform.mac`
 - `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器

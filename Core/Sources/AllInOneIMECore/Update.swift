@@ -169,9 +169,9 @@ public struct UpdatePayload: Equatable, Sendable {
 /// signature is checked with the key built into the app before it is read; the archive is unpacked only once
 /// its size and sha256 match the manifest, and its apps are used only when their bundle IDs, versions and code
 /// signatures check out. A version that isn't newer than this one is never installed. Swapping the apps in
-/// is the input method's (`--apply-update`, with `BundleSwap`).
+/// is the input method's (`--apply-update`, with `BundleSwap`). Where the manifest is is the shell's
+/// (`manifestURL`: each platform's apps have their own).
 public struct Updater: Sendable {
-    public static let defaultManifestURL = URL(string: "https://allinoneime.com/update.json")!
     /// The public half of the releases' Ed25519 signing key; the private half is only in the maintainer's
     /// login keychain (service `allinoneime-releases-signing`).
     public static let publicKey = Data(base64Encoded: "+zppTAxWuTfrxrrxaK1aSQUv9fGX/A2gSeIImImme14=")!
@@ -193,7 +193,7 @@ public struct Updater: Sendable {
     /// Plain http to this Mac (a test server): only for the developer commands and tests.
     public var allowsLocalHTTP: Bool
 
-    public init(manifestURL: URL = Updater.defaultManifestURL, publicKey: Data = Updater.publicKey,
+    public init(manifestURL: URL, publicKey: Data = Updater.publicKey,
                 configuration: URLSessionConfiguration? = nil, currentVersion: String = AppVersion.string,
                 systemVersion: String = Updater.thisSystem, allowsLocalHTTP: Bool = false) {
         self.manifestURL = manifestURL

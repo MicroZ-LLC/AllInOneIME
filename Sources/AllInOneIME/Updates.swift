@@ -352,7 +352,7 @@ enum UpdateCommands {
     }
 
     static func updater(_ arguments: [String], currentVersion: String) -> Updater? {
-        var updater = Updater(currentVersion: currentVersion, allowsLocalHTTP: true)
+        var updater = Updater(manifestURL: Updater.defaultManifestURL, currentVersion: currentVersion, allowsLocalHTTP: true)
         if let url = option("--manifest-url", in: arguments) {
             guard let parsed = URL(string: url) else { printError("--manifest-url: not a URL"); return nil }
             updater.manifestURL = parsed
@@ -497,7 +497,7 @@ final class UpdateController: ObservableObject {
     /// What the last update did, shown on the About page after the restart.
     @Published var lastResult: UpdateResult?
 
-    var updater = Updater()
+    var updater = Updater(manifestURL: Updater.defaultManifestURL)
     var locations = UpdateLocations.real
     var defaults = UserDefaults.standard
     /// Only the installed copy updates itself; any other (a developer's build) links to the download instead.

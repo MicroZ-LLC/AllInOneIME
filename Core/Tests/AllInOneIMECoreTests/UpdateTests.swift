@@ -111,7 +111,6 @@ struct UpdateTests {
     @Test func theBuiltInKeyIsTheReleasesOwn() {
         #expect(Updater.publicKey.count == 32)
         #expect(Updater.publicKey != PluginLibrary.publicKey && Updater.publicKey != LanguagePackLibrary.publicKey)
-        #expect(Updater.defaultManifestURL.absoluteString == "https://allinoneime.com/update.json")
     }
 
     // MARK: Versions

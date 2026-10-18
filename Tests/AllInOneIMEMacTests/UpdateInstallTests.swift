@@ -16,6 +16,11 @@ struct UpdateInstallTests {
         return try JSONDecoder().decode(UpdateManifest.self, from: JSONSerialization.data(withJSONObject: fields))
     }
 
+    /// The Mac apps' manifest is the site's (the core leaves where it is to each shell).
+    @Test func theManifestIsTheSitesOwn() {
+        #expect(Updater.defaultManifestURL.absoluteString == "https://allinoneime.com/update.json")
+    }
+
     // MARK: Unpacking
 
     @Test func onlyTheManifestsAppsAreUnpackedAndAccepted() throws {
