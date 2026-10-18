@@ -5,9 +5,17 @@ extension Platform {
     /// The Mac's: the core's Apple defaults (Keychain, JavaScriptCore, Foundation Models, NaturalLanguage,
     /// NSDataDetector, PDFKit), and programs started with the login shell's environment (`MacProcessLauncher`).
     /// The input method, its command line and the installer install it at launch.
+    ///
+    /// The keys: in the input method signed with the provisioning profile (entitled to the shared keychain access group),
+    /// the data protection keychain, synced through iCloud Keychain as the config says (`KeySync.system`, its switch set
+    /// here); anywhere else (a development or ad-hoc build, the command line, the installer) the login keychain, as before.
     public static var mac: Platform {
         var platform = Platform()
         platform.processes = MacProcessLauncher()
+        if let keys = KeySync.system {
+            keys.start(syncing: ((try? Config.load()) ?? .default).iCloudSync.syncsKeys)
+            platform.secrets = keys.store
+        }
         return platform
     }
 }

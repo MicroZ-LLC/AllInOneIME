@@ -98,7 +98,7 @@ struct KeyRowContent: View {
                         Button(tr("替换…", "Replace…")) { editing = true }
                         if let remove {
                             Button(tr("删除…", "Remove…", key: "keyRow.delete")) { removing = true }
-                                .alert(removeTitle, isPresented: $removing) {
+                                .alert(removeQuestion, isPresented: $removing) {
                                     // ⏎ is Cancel: removing is a choice of its own.
                                     Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
                                     Button(tr("删除", "Remove", key: "remove.delete"), role: .destructive, action: remove)
@@ -112,6 +112,11 @@ struct KeyRowContent: View {
         }
         .onAppear { if editing { focused = true } }
         .onChange(of: editing) { if editing { focused = true } else { text = "" } }
+    }
+
+    /// Remove…'s question: while keys sync through iCloud Keychain, removing one removes it from every Mac, and it says so.
+    private var removeQuestion: String {
+        ICloudSyncController.shared.keys?.syncing == true ? tr("从你所有的 Mac 上删除这个密钥？", "Remove this key from all your Macs?") : removeTitle
     }
 
     private func commit() {

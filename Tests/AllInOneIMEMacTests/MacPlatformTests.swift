@@ -46,3 +46,13 @@ struct MacPlatformTests {
         }
     }
 }
+
+/// The keys' store as `Platform.mac` chooses it: the test process has no keychain entitlement, so it is the login
+/// keychain, as in 0.6.4 (an input method signed with the provisioning profile gets `KeySync.system`'s routed store).
+struct MacPlatformKeysTests {
+    @Test func withoutTheEntitlementKeysStayInTheLoginKeychain() {
+        #expect(!APIKeys.Keychain.processIsEntitled)
+        #expect(KeySync.system == nil)
+        #expect(Platform.mac.secrets.kind == .legacy)
+    }
+}

@@ -72,6 +72,9 @@ final class ICloudSyncController: ObservableObject {
     var composing: @MainActor () -> Bool = { AllInOneIMEInputController.activeController?.composer.isComposing ?? false }
     /// The things a run changed that need more than reading the config again (the self-test records them).
     var applyChanges: @MainActor (ICloudSyncEngine.Report) -> Void = { ICloudSyncController.applyLive($0) }
+    /// The keychain's stores when this build is entitled to the data protection keychain (`KeySync.system`, the one
+    /// `Platform.mac` installed), else nil: keys aren't synced. The self-test gives in-memory ones, or none.
+    var keys: KeySync.Stores? = KeySync.system
 
     private let queue = DispatchQueue(label: "AllInOneIME.iCloudSync", qos: .utility)
     private var started = false
@@ -114,10 +117,19 @@ final class ICloudSyncController: ObservableObject {
     /// Rime's sync folder in the shared one.
     private var rimeFolder: URL { engine.folder.url.appendingPathComponent(ICloudSync.rimeFolder) }
 
-    /// When the input method starts: watches, timers and a first run a moment later (Rime's once it's ready).
+    /// When the input method starts: the keys of the login keychain moved (the silent pass), watches, timers and a first
+    /// run a moment later (Rime's once it's ready).
     func start() {
         guard !started, !sample else { return }
         started = true
+        if let keys {
+            do {
+                try keys.migrate()
+            } catch {
+                log.error("keys not moved from the login keychain: \(String(describing: error), privacy: .public)")
+            }
+        }
+        applyKeySync()
         rewatch()
         poll = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { _ in
             MainActor.assumeIsolated { ICloudSyncController.shared.runIfOn() }
@@ -154,6 +166,7 @@ final class ICloudSyncController: ObservableObject {
         pending?.cancel()
         pending = nil
         guard !sample else { return }
+        applyKeySync()
         guard !running else {
             again = true
             return
@@ -234,6 +247,37 @@ final class ICloudSyncController: ObservableObject {
         if again {
             again = false
             run()
+        }
+    }
+
+    /// Marks that this Mac's keys were last moved into iCloud Keychain (absent: they were last kept here): beside the sync
+    /// record, so the self-test's is its own.
+    var keysSyncedURL: URL { engine.stateURL.deletingLastPathComponent().appendingPathComponent("keys-synced") }
+
+    /// API keys and passwords through iCloud Keychain as the config says (`ICloudSyncSettings.syncsKeys`), when it changed
+    /// (in Settings, through the Assistant, while the input method wasn't running): turned on, this Mac's keys move into
+    /// iCloud Keychain; turned off, the synced ones are copied here and left in iCloud Keychain for the other Macs
+    /// (`KeySync.Stores.turn`). A move that failed is tried again on the next run.
+    func applyKeySync() {
+        guard let keys else { return }
+        let wanted = settings.syncsKeys
+        let fm = FileManager.default
+        let applied = fm.fileExists(atPath: keysSyncedURL.path)
+        guard wanted != applied else {
+            if keys.syncing != wanted { keys.start(syncing: wanted) }
+            return
+        }
+        do {
+            let moves = try keys.turn(syncing: wanted)
+            if wanted {
+                try? fm.createDirectory(at: keysSyncedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                fm.createFile(atPath: keysSyncedURL.path, contents: Data())
+            } else {
+                try? fm.removeItem(at: keysSyncedURL)
+            }
+            log.notice("keys \(wanted ? "sync through iCloud Keychain" : "stay on this Mac", privacy: .public): \(moves.moved.count) moved, \(moves.superseded.count) newer already, \(moves.mismatched.count + moves.waiting.count) not moved")
+        } catch {
+            log.error("keys not moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain: \(String(describing: error), privacy: .public)")
         }
     }
 
