@@ -25,8 +25,8 @@ struct AgentSettingsPage: View {
             // Accessibility allowed. The key stays `agentPageContext`.
             Toggle(isOn: $model.config.agentPageContext) {
                 titled(tr("@agent 和 @reply 带上 Chrome 里的网页", "@agent and @reply take the Chrome page along"),
-                       tr("在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）。需要「辅助功能」权限。",
-                          "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page). Needs Accessibility."))
+                       tr("在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）；@reply 没有选中或粘贴消息时，把这些发给你选的 AI 服务商来写回复。需要「辅助功能」权限。",
+                          "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page); @reply, with no message selected or pasted, sends the same to your AI provider to write its replies. Needs Accessibility."))
             }
         } header: {
             SectionTitle(tr("Agent", "Agent"), icon: CommandIcons.agent)

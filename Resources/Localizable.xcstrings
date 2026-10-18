@@ -1268,8 +1268,8 @@
     "In any case" : {
       "comment" : "不分大小写 — Sources/AllInOneIME/PrivacySettings.swift"
     },
-    "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page). Needs Accessibility." : {
-      "comment" : "在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）。需要「辅助功能」权限。 — Sources/AllInOneIME/AgentSettings.swift"
+    "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page); @reply, with no message selected or pasted, sends the same to your AI provider to write its replies. Needs Accessibility." : {
+      "comment" : "在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）；@reply 没有选中或粘贴消息时，把这些发给你选的 AI 服务商来写回复。需要「辅助功能」权限。 — Sources/AllInOneIME/AgentSettings.swift"
     },
     "In English, letters are typed as they are: nothing to set yet." : {
       "comment" : "英文模式直接打字母，暂时没有要设置的。 — Sources/AllInOneIME/SettingsWindow.swift"
