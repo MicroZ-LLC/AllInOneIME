@@ -55,6 +55,8 @@ enum Installer {
         case unpack(String)
         case signature(String, OSStatus)
         case register(Int32, String)
+        /// The new input method doesn't start (`AllInOneIME --version`); the previous apps were put back.
+        case launch(String)
         /// Installing failed and an old app couldn't be moved back either; it was kept in `folder`.
         case notRestored(String, folder: String)
 
@@ -71,6 +73,10 @@ enum Installer {
             case let .register(status, output):
                 return tr("注册输入法失败（退出码 \(status)）：", "Registering the input method failed (exit status \(status)):")
                     + "\n\n" + output
+            case let .launch(output):
+                return tr("新的输入法启动不了，所以没有装上（原来的保持不变）。请从 Releases 重新下载。",
+                          "The new input method doesn't start, so it wasn't installed (what was there before is as it was). Please download it again from Releases.")
+                    + (output.isEmpty ? "" : "\n\n" + output)
             case let .notRestored(reason, folder):
                 return tr("安装失败（\(reason)），原来的 App 也没能放回原处，现在在：\(folder)",
                           "Installing failed (\(reason)), and the previous apps couldn't be put back; they're in: \(folder)")
@@ -124,6 +130,19 @@ enum Installer {
             throw Failure.notRestored(reason, folder: folder)
         }
         adoptChinesePack(from: swap.movedAside.map(\.to))
+        // The new input method has to start before the old one goes: one macOS won't run (a provisioning profile that
+        // doesn't match its signature or entitlements) would leave no input method at all.
+        let started = try? run(executable.path, ["--version"])
+        guard let started, started.status == 0, started.output == installedVersion() else {
+            let output = started.map { "\($0.status): \($0.output.prefix(200))" } ?? ""
+            do {
+                try swap.rollBack(reason: "the new input method doesn't start (\(output))")
+            } catch let BundleSwap.Failure.notRestored(reason, folder) {
+                keepStaging = true
+                throw Failure.notRestored(reason, folder: folder)
+            }
+            throw Failure.launch(output)
+        }
         // No second copy (same bundle ID) for macOS to find while the new one registers.
         swap.commit()
         // In case macOS started the old copy again in between: from now on it starts the new one.
