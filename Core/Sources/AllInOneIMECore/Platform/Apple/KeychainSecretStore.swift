@@ -209,7 +209,7 @@ extension KeySync {
     static let appleStores: Stores? = APIKeys.Keychain.processIsEntitled
         ? Stores(local: .dataProtection(group: accessGroup, synchronizable: false),
                  synced: .dataProtection(group: accessGroup, synchronizable: true),
-                 legacy: .login, replaced: .dataProtection(group: accessGroup, synchronizable: false, service: replacedService),
+                 legacy: .login, replaced: .dataProtection(group: accessGroup, synchronizable: false, service: APIKeys.replacedService),
                  quietLegacy: .quietLogin)
         : nil
 }

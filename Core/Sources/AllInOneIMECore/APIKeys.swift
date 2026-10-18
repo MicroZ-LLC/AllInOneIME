@@ -16,6 +16,10 @@ import Foundation
 public enum APIKeys {
     /// The keychain service every key is kept under, by account.
     public static let service = "AllInOneIME API key"
+    /// The service of the keys set aside (`KeySync.Stores.replaced`): a key that lost to a different one in a merge or a
+    /// migration, or that a newer one was written over. Only a safety copy, in this device's store: routed reads, merges
+    /// and migrations never read it; Remove… deletes the account's copy.
+    public static let replacedService = "AllInOneIME replaced API key"
     /// Accounts whose key never goes to iCloud Keychain, whatever the switches: the AllInOneIME Cloud session belongs to
     /// one Mac (signing out on one would sign out all). AWS credentials are never stored at all.
     public static let neverSynced: Set<String> = ["hosted"]
