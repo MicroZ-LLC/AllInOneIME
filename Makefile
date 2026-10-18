@@ -41,7 +41,7 @@ PACK_NAME    := $(PACK_ID)-$(PACK_VERSION)
 PACK         := $(BUILD_DIR)/packs/$(PACK_NAME).tar.xz
 PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
 # Korean and Hindi: their tables, kept in this repository (LanguagePacks/<id>/), the same way.
-KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.1.0.tar.xz
+KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
@@ -291,7 +291,7 @@ pack: $(RIME_BUILT)
 packs: pack $(KO_PACK) $(HI_PACK)
 
 $(KO_PACK): LanguagePacks/ko-hangul/hangul.json
-	Scripts/make-language-pack.sh LanguagePacks/ko-hangul ko-hangul 1.1.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.1.0/ko-hangul-1.1.0.tar.xz" $@
+	Scripts/make-language-pack.sh LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@
 
 $(HI_PACK): LanguagePacks/hi-phonetic/hindi.json
 	Scripts/make-language-pack.sh LanguagePacks/hi-phonetic hi-phonetic 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/hi-phonetic-1.0.0/hi-phonetic-1.0.0.tar.xz" $@
