@@ -622,8 +622,8 @@ public final class Composer {
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`: a Shift-click
     /// or ⌥-click is no tap of the key (the mouse never reaches the input method). Set by the app.
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { _ in false }
-    /// Which modifier dictates and which is tapped as the action key, and which one recorded shortcuts mean by ⌘. Set by
-    /// the shell (the Mac's are `ModifierRoles.mac`).
+    /// What each modifier is for: shortcuts', a word at a time, the one held to dictate, the one tapped as the action
+    /// key … Set by the shell (the Mac's are `ModifierRoles.mac`).
     public var modifierRoles = ModifierRoles.mac
     /// Which Option key (the action tap's: `ModifierRoles.actionTap`) went down on its own, and when (nil once anything
     /// else happens).
@@ -748,13 +748,15 @@ public final class Composer {
         cursorTail = after
     }
 
-    /// ← → (⌘ or Home/End: to the start or end of the text, ⌥: a word at a time).
+    /// ← → (with `ModifierRoles.lineEdge`, ⌘, or Home/End: to the start or end of the text; with `word`, ⌥: a word at a
+    /// time).
     private func moveCursor(_ event: KeyEvent) -> [Effect] {
         let after = tail, start = textStart
         let position = draft.count - after.count
         let chars = Array(draft)
-        let toEdge = event.modifiers.contains(.command) || event.key == .home || event.key == .end
-        let wordwise = event.modifiers.contains(.option)
+        let toEdge = modifierRoles.lineEdge.map { event.modifiers.contains(Modifiers.kind($0)) } == true
+            || event.key == .home || event.key == .end
+        let wordwise = event.modifiers.contains(Modifiers.kind(modifierRoles.word))
         let left = event.key == .arrow(.left) || event.key == .home
         var target = position
         if toEdge {
@@ -1354,26 +1356,30 @@ public final class Composer {
 
     private func dispatchOtherKey(_ event: KeyEvent, afterVoice: Bool) -> Response {
         let modifiers = event.modifiers.subtracting(.capsLock)
-        if modifiers == .command, event.charactersIgnoringModifiers.lowercased() == "c", let text = copyableText {
+        let roles = modifierRoles, primary = Modifiers.kind(roles.primary)
+        let leftOrRight = event.key == .arrow(.left) || event.key == .arrow(.right)
+        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", let text = copyableText {
             return .consumed([.copy(text), .notice(messages.copied)])  // the result stays up
         }
-        if modifiers == .command, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft() {
+        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft() {
             return response
         }
         // ⌃V does the same in every app: none pastes on it by itself (terminals and Notes do on ⌘V,
         // whatever the input method does), so the text is pasted once, into the draft.
-        if modifiers == .control, event.charactersIgnoringModifiers.lowercased() == "v",
+        if let paste = roles.pasteAnywhere, modifiers == Modifiers.kind(paste), event.charactersIgnoringModifiers.lowercased() == "v",
            let response = pasteIntoDraft(evenWhereTheAppPastes: true) {
             return response
         }
         // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
-        if modifiers == .command, event.key == .arrow(.left) || event.key == .arrow(.right),
+        if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight,
            !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil {
             return .consumed(moveCursor(event))
         }
         // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
         if let response = handleHandoffKey(event) { return response }
-        if modifiers.contains(.command) {
+        // A word at a time is no shortcut where its modifier is the shortcuts' too (Ctrl+← on Windows): it moves on below.
+        let byWord = leftOrRight && modifiers.subtracting(.shift) == Modifiers.kind(roles.word)
+        if modifiers.contains(primary), !byWord {
             // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
             // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
             // the clipboard as it was, not the note put there by `commitAll`).
@@ -1474,16 +1480,15 @@ public final class Composer {
     /// modifier changes that are for the Shift logic.
     private func handleVoiceKey(key: Key, modifiers: KeyModifiers) -> [Effect]? {
         let voiceKey = modifierRoles.voiceHold
-        guard case let .modifier(kind, side) = voiceKey else { return nil }
-        let held = Modifiers.side(side, of: kind), either = Modifiers.kind(kind)
-        let sided = !modifiers.isDisjoint(with: Modifiers.sides(of: kind))
+        let held = Modifiers.side(voiceKey.side, of: voiceKey.kind), either = Modifiers.kind(voiceKey.kind)
+        let sided = !modifiers.isDisjoint(with: Modifiers.sides(of: voiceKey.kind))
         if case let .listening(id, text) = voice {
             // Released, also when the release itself went unseen (another modifier changed meanwhile).
             let released = voiceKeySided ? !modifiers.contains(held) : !modifiers.contains(either)
             if released { return releaseVoice(id: id, text: text) }
-            return key == voiceKey ? [] : nil
+            return key == voiceKey.key ? [] : nil
         }
-        guard key == voiceKey else {
+        guard key == voiceKey.key else {
             voiceArmed = false  // another modifier joined in: not a hold on its own
             return nil
         }
@@ -1806,8 +1811,10 @@ public final class Composer {
                     setLevelOnePhase()
                     return .consumed([.updateMarkedText, .showPanel])
                 }
-                // Shortcuts and Caps Lock typing go straight to the application when nothing is pending.
-                if !modifiers.isDisjoint(with: [.control, .option]) { return .passThrough }
+                // Shortcuts and Caps Lock typing go straight to the application when nothing is pending (the primary
+                // modifier's went before: `dispatchOtherKey`).
+                let shortcuts: Modifiers = [.control, .option, .command]
+                if !modifiers.isDisjoint(with: shortcuts.subtracting(Modifiers.kind(modifierRoles.primary))) { return .passThrough }
                 if event.modifiers.contains(.capsLock) { return .passThrough }
             }
         }
@@ -2983,9 +2990,9 @@ public final class Composer {
             let listening: Bool
             if case .listening = voice { listening = true } else { listening = false }
             return (event.key == .enter || event.key == .keypadEnter)
-                && (modifiers.isEmpty || listening && modifiers == .option)
+                && (modifiers.isEmpty || listening && modifiers == Modifiers.kind(modifierRoles.voiceHold.kind))
         case .optionSpace:
-            return event.key == .space && modifiers == .option
+            return event.key == .space && modifiers == Modifiers.kind(modifierRoles.actionTap)
         case let .shortcut(key):
             return key.matches(event, roles: modifierRoles)
         case .optionTap, .space:

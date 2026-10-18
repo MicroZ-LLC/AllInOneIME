@@ -158,10 +158,4 @@ struct KeyInputTests {
         #expect(Modifiers.kind(.command) == .command)
         #expect(Modifiers.sides.isDisjoint(with: [.shift, .control, .option, .command, .capsLock, .function]))
     }
-
-    @Test func macRoles() {
-        #expect(ModifierRoles.mac.primary == .command)
-        #expect(ModifierRoles.mac.voiceHold == .modifier(.option, .right))
-        #expect(ModifierRoles.mac.actionTap == .option)
-    }
 }

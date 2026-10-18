@@ -101,24 +101,60 @@ public struct Modifiers: OptionSet, Sendable, Hashable {
     public static func sides(of kind: Key.ModifierKind) -> Modifiers { [side(.left, of: kind), side(.right, of: kind)] }
 }
 
-/// What each modifier is for, which a shell sets to its system's habits: the Mac's are `mac`. Windows will want others
-/// (Alt taps open menus, right Alt is AltGr on many layouts).
+/// One modifier key: its kind and which side's (the right Option).
+public struct ModifierKey: Hashable, Sendable {
+    public var kind: Key.ModifierKind
+    public var side: Key.Side
+
+    public init(_ kind: Key.ModifierKind, _ side: Key.Side) {
+        self.kind = kind
+        self.side = side
+    }
+
+    /// The key (`.modifier(kind, side)`), as a modifier change names it.
+    public var key: Key { .modifier(kind, side) }
+}
+
+/// What each modifier is for, which a shell sets to its system's habits (`mac`, `windows`). The core asks these, never
+/// ⌘ or ⌥ by name: what a modifier does with a key is the system's, not the key's.
 public struct ModifierRoles: Hashable, Sendable {
-    /// Shortcuts' modifier (⌘C): ⌘ on the Mac, Ctrl on Windows. A shortcut recorded with ⌘ (`KeyShortcut`) is
-    /// pressed with this one.
+    /// Shortcuts' modifier: ⌘ on the Mac, Ctrl on Windows. The input method's own are with it (⌘C on a result, ⌘V
+    /// into a draft, ⌘⏎ and ⌘1 … in a conversation, ⌘R on a saved answer); any other key with it is the app's. A
+    /// shortcut recorded with ⌘ (`KeyShortcut`) is pressed with it (`swappingPrimary`).
     public var primary: Key.ModifierKind
-    /// Held on its own to dictate: the right Option on the Mac. A `.modifier` key.
-    public var voiceHold: Key
-    /// Either key of this kind, pressed and released on its own, is the `optionTap` action key: Option on the Mac.
+    /// With ← →, a word at a time: ⌥ on the Mac, Ctrl on Windows.
+    public var word: Key.ModifierKind
+    /// With ← →, to the start or end of the text: ⌘ on the Mac. Nil on Windows, which has Home and End for it (they do
+    /// it everywhere).
+    public var lineEdge: Key.ModifierKind?
+    /// With V, pastes into the draft in every app, also where the app pastes on `primary` V itself: ⌃V on the Mac (no
+    /// app pastes on it). Nil on Windows, where Ctrl+V is `primary`'s.
+    public var pasteAnywhere: Key.ModifierKind?
+    /// Held on its own to dictate: the right Option on the Mac.
+    public var voiceHold: ModifierKey
+    /// Either key of this kind pressed and released on its own is the `optionTap` action key, and held with Space the
+    /// `optionSpace` one: Option on the Mac.
     public var actionTap: Key.ModifierKind
 
-    public init(primary: Key.ModifierKind, voiceHold: Key, actionTap: Key.ModifierKind) {
+    public init(primary: Key.ModifierKind, word: Key.ModifierKind, lineEdge: Key.ModifierKind?,
+                pasteAnywhere: Key.ModifierKind?, voiceHold: ModifierKey, actionTap: Key.ModifierKind) {
         self.primary = primary
+        self.word = word
+        self.lineEdge = lineEdge
+        self.pasteAnywhere = pasteAnywhere
         self.voiceHold = voiceHold
         self.actionTap = actionTap
     }
 
-    public static let mac = ModifierRoles(primary: .command, voiceHold: .modifier(.option, .right), actionTap: .option)
+    public static let mac = ModifierRoles(primary: .command, word: .option, lineEdge: .command, pasteAnywhere: .control,
+                                          voiceHold: ModifierKey(.option, .right), actionTap: .option)
+
+    /// Windows' habits: Ctrl for shortcuts and a word at a time (Home and End go to the start and end); a tap of either
+    /// Ctrl is the `optionTap` action key and Ctrl+Space `optionSpace` (a tap of Alt opens the window's menu bar, and
+    /// Alt+Space its system menu); the right Ctrl held dictates. Not the right Alt: on the layouts with AltGr (German,
+    /// French, Polish …) it is AltGr, which types characters (Windows reports it as Ctrl+Alt: `Modifiers.altGraph`).
+    public static let windows = ModifierRoles(primary: .control, word: .control, lineEdge: nil, pasteAnywhere: nil,
+                                              voiceHold: ModifierKey(.control, .right), actionTap: .control)
 
     /// A recorded shortcut's modifiers (`KeyShortcut`, in the Mac's terms) as this system's, or back: `primary` and ⌘
     /// change places (on Windows Ctrl and the Windows key), so each of them stays a key of its own. Its own inverse.

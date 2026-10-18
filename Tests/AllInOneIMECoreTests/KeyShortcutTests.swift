@@ -107,8 +107,7 @@ struct KeyShortcutTests {
     }
 
     @Test func commandMeansThePrimaryRole() {
-        var pc = ModifierRoles.mac
-        pc.primary = .control
+        let pc = ModifierRoles.windows
         let j = KeyShortcut(keyCode: 0x26, modifiers: [.command, .shift], name: "⌘⇧J")
         #expect(j.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.command, .shift])))
         #expect(!j.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.control, .shift])))
@@ -122,8 +121,7 @@ struct KeyShortcutTests {
 
     /// Ctrl and the Windows key change places with ⌘ and Ctrl: every combination stays a shortcut of its own.
     @Test func thePrimaryRoleSwapsWithCommand() {
-        var pc = ModifierRoles.mac
-        pc.primary = .control
+        let pc = ModifierRoles.windows
         func j(_ modifiers: Modifiers) -> KeyEvent { KeyEvent(key: .character, usage: 0x0D, characters: "j", modifiers: modifiers) }
         // Win+J recorded on Windows: the Mac's ⌃J, and pressed there again it is the shortcut.
         guard case let .shortcut(winJ)? = ActionKey.recorded(key: .character, usage: 0x0D, modifiers: .command, name: "Win+J", roles: pc)

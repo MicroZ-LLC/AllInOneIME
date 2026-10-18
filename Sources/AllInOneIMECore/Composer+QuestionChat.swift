@@ -107,19 +107,19 @@ extension Composer {
     /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌘1, ⌘2 … pick
     /// one. ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
     func handleHandoffKey(_ event: KeyEvent) -> Response? {
-        let modifiers = event.modifiers.subtracting(.capsLock)
+        let modifiers = event.modifiers.subtracting(.capsLock), primary = Modifiers.kind(modifierRoles.primary)
         // ⌘R (⌘⇧R too) on a saved answer: asked again.
-        if showsSavedAnswer, modifiers.contains(.command), modifiers.isSubset(of: [.command, .shift]),
+        if showsSavedAnswer, modifiers.contains(primary), modifiers.isSubset(of: [primary, .shift]),
            event.charactersIgnoringModifiers.lowercased() == "r" {
             return .consumed(reaskSaved())
         }
         let isReturn = event.key == .enter || event.key == .keypadEnter
         // ⌘⏎ never reaches the app while an @question panel is up (a chat app would send what's in its field): while
         // the answer comes in (or after a failure) it does nothing; once it's in, it shows the choices.
-        if isReturn, modifiers == .command, isLevelTwo, activeCommand == .question, !(isQuestionChat && phase == .choosing) {
+        if isReturn, modifiers == primary, isLevelTwo, activeCommand == .question, !(isQuestionChat && phase == .choosing) {
             return .consumed()
         }
-        guard isQuestionChat, phase == .choosing, modifiers == .command else { return nil }
+        guard isQuestionChat, phase == .choosing, modifiers == primary else { return nil }
         if isReturn {
             // At the last round they're up anyway: nothing to hide later with Esc.
             if !chatAtLimit { handoffRequested = true }
