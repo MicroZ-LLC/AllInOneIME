@@ -15,6 +15,8 @@ let package = Package(
         .library(name: "AllInOneIMECore", targets: ["AllInOneIMECore"]),
         .library(name: "AllInOneIMERime", targets: ["AllInOneIMERime"]),
         .library(name: "AllInOneIMECLI", targets: ["AllInOneIMECLI"]),
+        // QuickJS-ng as a ScriptEngine: the core's JavaScript off Apple platforms, and an Apple shell's if it wants it.
+        .library(name: "AllInOneIMEQuickJS", targets: ["AllInOneIMEQuickJS"]),
         // What a shell's tests share with the core's (`FakeEngine`, the keys, `ScriptFolder`, `Timing`, `PackData`).
         .library(name: "AllInOneIMETestSupport", targets: ["AllInOneIMETestSupport"]),
         // `swift package strings [--check]`: the String Catalog in step with the code, in the core or in a shell.
@@ -38,6 +40,10 @@ let package = Package(
         // The JavaScript engine's interface (ScriptEngine), below the core so that AllInOneIMEQuickJS can implement it
         // and still be the core's default. AllInOneIMECore re-exports it.
         .target(name: "AllInOneIMEScriptEngine"),
+
+        // QuickJS-ng (QuickJSEngine): plugins and @js where there is no JavaScriptCore. On Apple platforms only the
+        // tests link it, to run the JavaScript tests on both engines.
+        .target(name: "AllInOneIMEQuickJS", dependencies: ["AllInOneIMEScriptEngine", "CQuickJS"]),
 
         // QuickJS-ng's C sources as released (VENDORED.md), its header and quickjs-swift.h for Swift (module.modulemap).
         // Flat, as upstream has them, so their includes are each other's; the defines and libm are upstream's CMake ones.
