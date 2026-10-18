@@ -612,6 +612,9 @@
     "API keys and passwords" : {
       "comment" : "API 密钥和密码 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
+    "API keys and passwords stay in iCloud Keychain for your other Macs (and are copied to this Mac); to remove a key from all your Macs, use its Remove… while sync is on." : {
+      "comment" : "API 密钥和密码留在 iCloud 钥匙串里，给你别的 Mac 用（也复制到这台 Mac 上）；要从所有 Mac 上删除一个 key，在同步开着时点它的「删除…」。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+    },
     "API keys and tokens" : {
       "comment" : "API 密钥和令牌 — Sources/AllInOneIME/PrivacySettings.swift"
     },
@@ -2108,8 +2111,15 @@
     "Remove" : {
       "comment" : "移除 — Sources/AllInOneIME/AppProfiles.swift"
     },
+    "Remove “%@” from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "Remove “%@” from the keychain?" : {
-      "comment" : "从钥匙串里删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift"
+      "comment" : "从钥匙串里删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale"
+    },
+    "Remove “%@” from this Mac?" : {
+      "comment" : "从这台 Mac 上删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Remove %@" : {
       "comment" : "移除%@ — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2120,14 +2130,28 @@
     "Remove the hidden words from iCloud?" : {
       "comment" : "从 iCloud 移除隐藏的词？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
+    "Remove the key for %@ from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "Remove the key for %@ from the keychain?" : {
-      "comment" : "从钥匙串里删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
+      "comment" : "从钥匙串里删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale"
+    },
+    "Remove the key for %@ from this Mac?" : {
+      "comment" : "从这台 Mac 上删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Remove the recent questions from iCloud?" : {
       "comment" : "从 iCloud 移除最近的问题？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
+    "Remove the search API key from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "Remove the search API key from the keychain?" : {
-      "comment" : "删除钥匙串里的搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
+      "comment" : "删除钥匙串里的搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale"
+    },
+    "Remove the search API key from this Mac?" : {
+      "comment" : "从这台 Mac 上删除搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Remove the synced data from iCloud?" : {
       "comment" : "从 iCloud 移除同步的数据？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
@@ -2136,7 +2160,8 @@
       "comment" : "移除这种输入语言 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Remove this key from all your Macs?" : {
-      "comment" : "从你所有的 Mac 上删除这个密钥？ — Sources/AllInOneIME/KeyRow.swift"
+      "comment" : "从你所有的 Mac 上删除这个密钥？ — Sources/AllInOneIME/KeyRow.swift",
+      "extractionState" : "stale"
     },
     "Remove this plugin?" : {
       "comment" : "删除这个插件？ — Sources/AllInOneIME/SettingsWindow.swift"
@@ -3054,6 +3079,9 @@
     },
     "Your settings, jargon list and learned words are still there. To delete them too, see \"Uninstall\" in Installation and Troubleshooting on the wiki." : {
       "comment" : "设置、黑话库和学到的词还留着。要一起删掉，见 Wiki「安装与排查」里的「卸载」。 — Sources/AllInOneIMEInstaller/main.swift"
+    },
+    "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to." : {
+      "comment" : "设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to." : {
       "comment" : "设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift"

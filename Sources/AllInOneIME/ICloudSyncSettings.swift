@@ -19,9 +19,11 @@ struct ICloudSyncSection: View {
     var body: some View {
         Section {
             Toggle(isOn: Binding(get: { model.config.iCloudSync.enabled }, set: setEnabled)) {
-                titled(tr("通过 iCloud 同步", "Sync through iCloud"),
-                       tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
-                          "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
+                titled(tr("通过 iCloud 同步", "Sync through iCloud"), syncsKeys
+                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
+                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
+                       : tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
+                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
             }
             if driveMissing || (model.config.iCloudSync.enabled && !sync.driveAvailable) {
                 HStack(alignment: .firstTextBaseline) {
@@ -87,7 +89,9 @@ struct ICloudSyncSection: View {
             Button(tr("取消", "Cancel"), role: .cancel) {}
         } message: {
             Text(tr("iCloud 云盘里的 AllInOneIME 文件夹会移到废纸篓，这台 Mac 也不再同步；这台 Mac 上的设置保持不变。还在同步的 Mac 会把它们的设置再放回去：先在那些 Mac 上关掉。",
-                    "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first."))
+                    "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first.")
+                 + (syncsKeys ? " " + tr("API 密钥和密码留在 iCloud 钥匙串里，给你别的 Mac 用（也复制到这台 Mac 上）；要从所有 Mac 上删除一个 key，在同步开着时点它的「删除…」。",
+                                         "API keys and passwords stay in iCloud Keychain for your other Macs (and are copied to this Mac); to remove a key from all your Macs, use its Remove… while sync is on.") : ""))
         }
         .confirmationDialog(categoryToRemove == .recentQuestions ? tr("从 iCloud 移除最近的问题？", "Remove the recent questions from iCloud?")
                                 : tr("从 iCloud 移除隐藏的词？", "Remove the hidden words from iCloud?"),
@@ -105,6 +109,9 @@ struct ICloudSyncSection: View {
                       "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back."))
         }
     }
+
+    /// Keys sync through iCloud Keychain while sync is on: the build is entitled to it, and "API keys and passwords" is on.
+    private var syncsKeys: Bool { APIKeys.Keychain.processIsEntitled && model.config.iCloudSync.keys }
 
     /// The "API keys and passwords" row: on only in a build entitled to the data protection keychain (signed with the
     /// provisioning profile); elsewhere off and greyed, saying why.

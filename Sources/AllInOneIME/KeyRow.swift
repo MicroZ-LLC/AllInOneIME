@@ -61,8 +61,9 @@ struct KeyRowContent: View {
     let missing: String
     /// The paste field's placeholder.
     let prompt: String
-    /// Remove…'s question, and what removing means (nil: nothing to add).
-    let removeTitle: String
+    /// Remove…'s question, naming the key and where it goes from (`everywhere`: every Mac, while keys sync through iCloud
+    /// Keychain; else this Mac), and what removing means (nil: nothing to add).
+    let removeTitle: (_ everywhere: Bool) -> String
     var removeMessage: String? = nil
     let save: (String) -> Void
     /// Nil: no Remove… (a key in the shell isn't ours to remove).
@@ -114,10 +115,9 @@ struct KeyRowContent: View {
         .onChange(of: editing) { if editing { focused = true } else { text = "" } }
     }
 
-    /// Remove…'s question: while keys sync through iCloud Keychain, removing one removes it from every Mac, and it says so.
-    private var removeQuestion: String {
-        ICloudSyncController.shared.keys?.syncing == true ? tr("从你所有的 Mac 上删除这个密钥？", "Remove this key from all your Macs?") : removeTitle
-    }
+    /// Remove…'s question: while keys sync through iCloud Keychain, removing one removes it from every Mac; otherwise
+    /// from this Mac alone (the copy in iCloud Keychain, if any, stays for the other Macs). It says which.
+    private var removeQuestion: String { removeTitle(ICloudSyncController.shared.keys?.syncing == true) }
 
     private func commit() {
         guard !blank else { return }

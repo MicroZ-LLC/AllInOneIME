@@ -1471,7 +1471,10 @@ struct SettingsView: View {
                 LabeledContent("API key") {
                     KeyRowContent(state: model.searchKeyState, missing: tr("还没有 API key", "No API key yet"),
                                   prompt: tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key"),
-                                  removeTitle: tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                  removeTitle: { everywhere in
+                                      everywhere ? tr("从你所有的 Mac 上删除搜索 API key？", "Remove the search API key from all your Macs?")
+                                          : tr("从这台 Mac 上删除搜索 API key？", "Remove the search API key from this Mac?")
+                                  },
                                   save: { model.saveSearchKey($0) },
                                   remove: model.searchKeySource == .keychain ? { model.removeSearchKey() } : nil,
                                   editing: $editingSearchKey)
@@ -2294,8 +2297,12 @@ struct SettingsView: View {
         LabeledContent("API key") {
             KeyRowContent(state: model.keyState(provider), missing: tr("还没有 API key", "No API key yet"),
                           prompt: tr("粘贴新的 API key", "Paste a new API key"),
-                          removeTitle: tr("从钥匙串里删除 \(UIText.name(provider)) 的 API key？",
-                                          "Remove the key for \(UIText.name(provider)) from the keychain?"),
+                          removeTitle: { everywhere in
+                              everywhere ? tr("从你所有的 Mac 上删除 \(UIText.name(provider)) 的 API key？",
+                                              "Remove the key for \(UIText.name(provider)) from all your Macs?")
+                                  : tr("从这台 Mac 上删除 \(UIText.name(provider)) 的 API key？",
+                                       "Remove the key for \(UIText.name(provider)) from this Mac?")
+                          },
                           removeMessage: tr("删除后，要再粘贴一次 key 才能用 \(UIText.name(provider))。",
                                             "To use \(UIText.name(provider)) again, you'll have to paste the key again."),
                           save: { model.saveKey($0, for: provider) },
@@ -3050,7 +3057,10 @@ private struct PreferenceField: View {
                 // As an API key's row: whether it is saved, in the row; the field only after Replace… (or when not set).
                 KeyRowContent(state: saved ? .saved(ending: ending) : .missing, missing: tr("还没有设置", "Not set yet"),
                               prompt: tr("粘贴", "Paste it"),
-                              removeTitle: tr("从钥匙串里删除「\(preference.title)」？", "Remove “\(preference.title)” from the keychain?"),
+                              removeTitle: { everywhere in
+                                  everywhere ? tr("从你所有的 Mac 上删除「\(preference.title)」？", "Remove “\(preference.title)” from all your Macs?")
+                                      : tr("从这台 Mac 上删除「\(preference.title)」？", "Remove “\(preference.title)” from this Mac?")
+                              },
                               save: save, remove: remove, editing: $editingPassword)
                     .frame(maxWidth: 360)
             case .textfield:
