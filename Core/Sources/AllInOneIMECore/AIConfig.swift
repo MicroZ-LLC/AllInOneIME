@@ -657,3 +657,23 @@ extension AIConfig.JSONValue: Encodable {
         }
     }
 }
+
+extension AIConfig.JSONValue: Decodable {
+    /// Any JSON value, as it is (an entry a later version wrote, kept to be written back: `Config.unreadCustomCommands`).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() {
+            self = .null
+        } else if let value = try? c.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? c.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? c.decode(String.self) {
+            self = .string(value)
+        } else if let items = try? c.decode([AIConfig.JSONValue].self) {
+            self = .array(items)
+        } else {
+            self = .object(try c.decode([String: AIConfig.JSONValue].self))
+        }
+    }
+}

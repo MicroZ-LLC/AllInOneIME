@@ -62,6 +62,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var uiLanguage: String?
     /// The user's own @ commands, after the built-in ones (see `CustomCommand`).
     public var customCommands: [CustomCommand]
+    /// The entries of `customCommands` in the file this version can't read (a later one's type): kept as they are and
+    /// written back after the others, never offered.
+    public var unreadCustomCommands: [AIConfig.JSONValue] = []
     /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
     /// command and Raycast script in them is an @ command, after the custom ones. A new user has
     /// `ExtensionStore.defaultFolder`.
@@ -274,7 +277,10 @@ public struct Config: Codable, Equatable, Sendable {
         // One this version can't read (a later one's, or a recorded key gone wrong) is the default, not an error.
         actionKey = (try? c.decodeIfPresent(ActionKey.self, forKey: .actionKey)).flatMap { $0 } ?? d.actionKey
         uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
-        customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
+        // One entry this version can't read (a later one's type) is kept aside, not an error for the whole list.
+        let entries = try c.decodeIfPresent([CustomCommand.Entry].self, forKey: .customCommands)
+        customCommands = entries?.compactMap(\.command) ?? d.customCommands
+        unreadCustomCommands = entries?.compactMap(\.unread) ?? []
         extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
         hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
@@ -368,7 +374,9 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file
         try c.encode(actionKey, forKey: .actionKey)
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
-        try c.encode(customCommands, forKey: .customCommands)
+        var commands = c.nestedUnkeyedContainer(forKey: .customCommands)
+        for command in customCommands { try commands.encode(command) }
+        for entry in unreadCustomCommands { try commands.encode(entry) }
         try c.encode(extensionFolders, forKey: .extensionFolders)
         try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
         try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
@@ -481,4 +489,21 @@ extension Optional where Wrapped == String {
     /// `Language`: `config.uiLanguage = .chinese`.
     public static var chinese: String? { "zh" }
     public static var english: String? { "en" }
+}
+
+extension CustomCommand {
+    /// An entry of `Config.customCommands` as the file has it: a command this version reads, or the JSON of one it
+    /// can't (kept, `Config.unreadCustomCommands`).
+    struct Entry: Decodable {
+        var command: CustomCommand?
+        var unread: AIConfig.JSONValue?
+
+        init(from decoder: Decoder) throws {
+            if let command = try? CustomCommand(from: decoder) {
+                self.command = command
+            } else {
+                unread = try AIConfig.JSONValue(from: decoder)
+            }
+        }
+    }
 }
