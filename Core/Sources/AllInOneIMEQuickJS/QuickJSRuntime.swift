@@ -150,7 +150,8 @@ final class QuickJSRuntime {
     /// The line an error was made on, as JavaScriptCore gives it (`line`), from the first place in its stack that is in
     /// a script of ours ("    at f (<allinoneime>:3:7)", "    at <allinoneime>:1:4" for a syntax error), not in what
     /// `JSON.parse` or `eval` parsed ("    at <input>:4:1"): the line of the call, as JavaScriptCore has it. `InlineCode`
-    /// shows it.
+    /// shows it. None on an error the script froze or sealed (`throw Object.freeze(new Error())`), which can't be given
+    /// one, though JavaScriptCore has it there (set as the error is made): left so, rarer than it's worth.
     private func addLine(to error: JSValue) {
         guard JS_IsError(error), JS_IsObject(error) else { return }
         let has = JS_GetPropertyStr(ctx, error, "line")

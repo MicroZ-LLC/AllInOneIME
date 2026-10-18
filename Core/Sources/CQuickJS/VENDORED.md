@@ -34,7 +34,9 @@ The target's settings (Package.swift) are upstream's CMake ones: `_GNU_SOURCE`; 
 Release build has it (QuickJS's asserts take half its time: fib(25) 20 ms with them, 11 ms without, on Windows); on
 Windows `WIN32_LEAN_AND_MEAN`, `_WIN32_WINNT=0x0601` and `_CRT_SECURE_NO_WARNINGS`; libm on Linux and Android.
 Upstream's optimization level isn't there (SwiftPM's release builds C with -Os), nor its warning flags
-(the core has no unsafe flags). On Windows (Swift 6.4.1) SwiftPM's clang builds upstream's files without a warning; on
+(the core has no unsafe flags), nor `-funsigned-char`, which its CMake gives gcc and clang: `char` stays signed where
+the platform has it so (Apple's and Windows's x86-64 and arm64, Linux x86-64), as upstream's own MSVC build has it,
+and the tests pass with it. On Windows (Swift 6.4.1) SwiftPM's clang builds upstream's files without a warning; on
 Apple platforms Swift Build adds `-Wshorten-64-to-32`, which upstream's code doesn't heed (297 warnings a build, all of
 that one), hence the wrappers above, which turn it off for these files alone. The files lie flat, as upstream has them, with the folder for the public headers (`publicHeadersPath: "."`), so that each
 `#include "…"` finds its file beside it.
