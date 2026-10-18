@@ -2,9 +2,10 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-// Regression acceptance tests for sync through iCloud, round 2: the second independent review of 0.6.5/icloud-fixes
-// (aio-notes/icloud-r2/review.md, probes RP1-RP23b), written by an independent reviewer; the implementer may not edit
-// them. Every test says what the user sees: no Mac loses a real edit, and every Mac ends with the newest real change.
+// Regression acceptance tests for sync through iCloud, round 2: the second and third independent reviews of
+// 0.6.5/icloud-fixes (aio-notes/icloud-r2/review.md, probes RP1-RP23b; review3.md, probes PB1, PB1j, PB1b, PB2),
+// written by an independent reviewer; the implementer may not edit them. Every test says what the user sees: no Mac
+// loses a real edit, and every Mac ends with the newest real change.
 // They use the rig of ICloudSyncAcceptanceTests (`ICAWorld`, `ICAMac`) and of ICloudSyncRegressionAcceptanceTests
 // (`ICAR`, `sync(at:whileSettingsSaves:)`).
 //
@@ -17,6 +18,11 @@ import Testing
 //   settings.json files collide and one Mac's commands are lost.
 // - RP21: two Macs join at once; the other joiner wakes and merges with the whole merged list again, so an existing
 //   command a third Mac deleted meanwhile comes back.
+// - PT5: A is the first Mac to turn sync on; while A sleeps, B joins with its own commands (a real merge) and then
+//   deletes one of A's; A wakes and merges again (B's merge began a new base A doesn't know), so the delete comes back
+//   once on both Macs.
+// - PT2: the same with three Macs: B joins with its own (a merge), C joins and deletes one of A's before A and B
+//   wake; A slept through B's merge, so the delete comes back once.
 
 // MARK: - The rig's additions
 
@@ -30,6 +36,18 @@ extension ICAMac {
         ICAR2.stripBase(stateURL, keys: nil, nested: "entries")
         ICAR2.stripBase(folder.url.appendingPathComponent("settings.json"), keys: Set(report.uploaded), nested: nil)
         return report
+    }
+}
+
+extension ICAMac {
+    /// "Remove from iCloud…" on this Mac at `seconds`, as Settings and ICloudSyncController do it: sync turned off first
+    /// (one run sees that), then the shared folder removed and this Mac's record forgotten. `newID`: the record is lost
+    /// outright instead (state.json gone, so a new Mac id), the control for a Mac that joins again as a new Mac.
+    func removeFromICloud(at seconds: TimeInterval, newID: Bool = false) {
+        edit(at: seconds) { $0.iCloudSync.enabled = false }
+        sync(at: seconds)
+        try? FileManager.default.removeItem(at: folder.url)
+        if newID { try? FileManager.default.removeItem(at: stateURL) } else { engine.forget() }
     }
 }
 
@@ -336,7 +354,108 @@ struct ICloudSyncRegression2AcceptanceTests {
         }
     }
 
-    // MARK: Guards (RP20, RP22c, RP23, RP23b, RP13): these pass now and must keep passing
+    // MARK: Remove from iCloud, then turned on again while the other Mac sleeps (PB1, PB1j, PB2)
+
+    /// A, the first Mac to turn sync on, with alpha and the hidden word Acme; B joins with nothing and adds beta and
+    /// Bolt. A does "Remove from iCloud…", adds gamma and Coil while sync is off, and turns sync on again while B sleeps
+    /// (iCloud is empty). B wakes and puts its own back.
+    private func removeThenRejoinWhileOtherSleeps(newID: Bool) -> (ICAMac, ICAMac) {
+        let world = ICAWorld()
+        let a = world.mac("A") {
+            $0.customCommands = [ICA.command("alpha")]
+            $0.iCloudSync.hiddenWords = true; $0.redaction.customWords = ["Acme"]
+        }
+        a.sync(at: 10)
+        let b = world.mac("B") { $0.iCloudSync.hiddenWords = true }
+        b.sync(at: 20)
+        b.edit(at: 30) { $0.customCommands.append(ICA.command("beta")); $0.redaction.customWords.append("Bolt") }
+        b.sync(at: 30)
+        a.sync(at: 40)
+        a.removeFromICloud(at: 50, newID: newID)
+        a.edit(at: 60) { $0.customCommands.append(ICA.command("gamma")); $0.redaction.customWords.append("Coil") }
+        a.edit(at: 70) { $0.iCloudSync.enabled = true }
+        a.sync(at: 70)  // into an empty iCloud
+        b.sync(at: 80)  // B wakes and puts its own back
+        a.sync(at: 90); b.sync(at: 100); a.sync(at: 110); b.sync(at: 120)
+        return (a, b)
+    }
+
+    @Test("rejoin (PB1): Remove from iCloud on A, a command and a hidden word added while off, turned on while B sleeps: both kept on both Macs")
+    func removeThenRejoinKeepsAddsMadeWhileOff() throws {
+        let (a, b) = removeThenRejoinWhileOtherSleeps(newID: false)
+        for mac in [a, b] {
+            #expect(ICAR.names(mac) == ["alpha", "beta", "gamma"], "Mac \(mac.name) has \(ICAR.names(mac)): gamma, added on A while sync was off, was lost")
+            #expect(ICAR.hidden(mac) == ["Acme", "Bolt", "Coil"], "Mac \(mac.name) hides \(ICAR.hidden(mac)): Coil, added on A while sync was off, was lost")
+        }
+    }
+
+    @Test("rejoin (PB1j): Remove from iCloud on A, a jargon line added while off, turned on while B sleeps: kept on both Macs")
+    func removeThenRejoinKeepsJargonAddedWhileOff() throws {
+        let world = ICAWorld()
+        let a = world.mac("A")
+        a.writeJargon("alpha\n", at: 5)
+        a.sync(at: 10)
+        let b = world.mac("B")
+        b.sync(at: 20)
+        b.writeJargon("alpha\nbeta\n", at: 30)
+        b.sync(at: 30)
+        a.sync(at: 40)
+        a.removeFromICloud(at: 50)
+        a.writeJargon("alpha\nbeta\ngamma\n", at: 60)
+        a.edit(at: 70) { $0.iCloudSync.enabled = true }
+        a.sync(at: 70); b.sync(at: 80); a.sync(at: 90); b.sync(at: 100); a.sync(at: 110); b.sync(at: 120)
+        for mac in [a, b] {
+            #expect(ICA.lines(mac.jargon) == ["alpha", "beta", "gamma"], "Mac \(mac.name) jargon \(ICA.lines(mac.jargon)): gamma, added on A while sync was off, was lost")
+        }
+    }
+
+    @Test("rejoin (PB2): Remove from iCloud on A while B holds A's own last edit, gamma added while off, turned on while B sleeps: kept")
+    func removeThenRejoinKeepsAddWhenOtherHoldsOwnEdit() throws {
+        let world = ICAWorld()
+        let a = world.mac("A") { $0.customCommands = [ICA.command("alpha")] }
+        a.sync(at: 10)
+        let b = world.mac("B") { $0.customCommands = [ICA.command("beta")] }
+        b.sync(at: 20); b.sync(at: 25); a.sync(at: 27); b.sync(at: 28)
+        a.edit(at: 30) { $0.customCommands.append(ICA.command("delta")) }  // B's list is now stamped by A
+        a.sync(at: 30); b.sync(at: 35)
+        a.removeFromICloud(at: 50)
+        a.edit(at: 60) { $0.customCommands.append(ICA.command("gamma")) }
+        a.edit(at: 70) { $0.iCloudSync.enabled = true }
+        a.sync(at: 70); b.sync(at: 80); a.sync(at: 90); b.sync(at: 100); a.sync(at: 110)
+        for mac in [a, b] {
+            #expect(ICAR.names(mac) == ["alpha", "beta", "delta", "gamma"], "Mac \(mac.name) has \(ICAR.names(mac)): gamma, added on A while sync was off, was lost")
+        }
+    }
+
+    // MARK: Guards (RP20, RP22c, RP23, RP23b, RP13, PB1 control, PB1b): these pass now and must keep passing
+
+    @Test("rejoin (PB1 control, guard): the same as PB1 with A's record lost (a new Mac id): the adds made while off are kept")
+    func rejoinUnderNewIDKeepsAddsMadeWhileOff() throws {
+        let (a, b) = removeThenRejoinWhileOtherSleeps(newID: true)
+        for mac in [a, b] {
+            #expect(ICAR.names(mac) == ["alpha", "beta", "gamma"], "Mac \(mac.name) has \(ICAR.names(mac))")
+            #expect(ICAR.hidden(mac) == ["Acme", "Bolt", "Coil"], "Mac \(mac.name) hides \(ICAR.hidden(mac))")
+        }
+    }
+
+    @Test("rejoin (PB1b, guard): Remove from iCloud on A, B puts its own back first, A adds gamma and turns sync on: kept")
+    func removeThenRejoinAfterOtherPutsBackKeepsAdd() throws {
+        let world = ICAWorld()
+        let a = world.mac("A") { $0.customCommands = [ICA.command("alpha")] }
+        a.sync(at: 10)
+        let b = world.mac("B")
+        b.sync(at: 20)
+        b.edit(at: 30) { $0.customCommands.append(ICA.command("beta")) }
+        b.sync(at: 30); a.sync(at: 40)
+        a.removeFromICloud(at: 50)
+        b.sync(at: 55)  // B is awake: it puts its own back before A turns sync on again
+        a.edit(at: 60) { $0.customCommands.append(ICA.command("gamma")) }
+        a.edit(at: 70) { $0.iCloudSync.enabled = true }
+        a.sync(at: 70); b.sync(at: 80); a.sync(at: 90); b.sync(at: 100)
+        for mac in [a, b] {
+            #expect(ICAR.names(mac) == ["alpha", "beta", "gamma"], "Mac \(mac.name) has \(ICAR.names(mac))")
+        }
+    }
 
     @Test("merge (RP20, guard): after three Macs' simultaneous join settles, a delete on one Mac sticks on all three")
     func deleteAfterThreeWayJoinSticks() throws {
