@@ -226,6 +226,7 @@ extension WireReplay {
             }
             print("cold start, \(runs) runs: launch to pipe open: " + Self.percentiles(opened))
             print("cold start, \(runs) runs: launch to welcome:   " + Self.percentiles(welcomed))
+            print("  each, in order: " + welcomed.map { String(format: "%.1f", $0) }.joined(separator: " ") + " ms")
             return true
         }
 

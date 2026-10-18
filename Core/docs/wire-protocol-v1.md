@@ -552,6 +552,6 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
 Measured on a Ryzen 5 5600X running Windows 11, release build, `wire-replay` against `AllInOneIMEEngine --test`. Details are in `Windows/README.md`.
 
 - **Cold start:** about 31 ms (p50) from launch to `welcome`.
-- **Key round trip:** p50 0.12 ms, p99 0.34 ms, from the write to the `result` read, Latin input. That is far inside the 20 ms p99 budget and the 150 ms timeout.
+- **Key round trip:** p50 0.09 ms, p99 0.30 ms, from the write to the `result` read, Latin input. That is far inside the 20 ms p99 budget and the 150 ms timeout.
 
 Not measured yet: the keepalive and the first draw, which need the DLL and the panel.
