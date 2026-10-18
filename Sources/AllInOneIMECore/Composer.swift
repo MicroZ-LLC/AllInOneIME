@@ -2358,14 +2358,14 @@ public final class Composer {
         refineError = nil
         if let response = handleModeTranslatingKey(event) { return response }
         if let response = handleRefineKey(event) { return response }
-        switch event.keyCode {
-        case VirtualKey.space:
+        switch event.key {
+        case .space:
             // A message is sent by ⏎ (or the action key), never by a Space typed on the way; nor is an issue opened.
             if activeCommand?.kind == .message || activeCommand?.kind == .report, actionKey != .space, phase == .choosing {
                 return .consumed()
             }
             return .consumed(acceptInLevelTwo())
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        case .enter, .keypadEnter:
             // Like Space: the highlighted row (row 0 is the sentence as typed). After a failure
             // nothing is highlighted, and Return keeps the sentence as typed (as the Return action
             // key it retries instead, before reaching here). A reminder with nothing to be reminded of
@@ -2382,7 +2382,7 @@ public final class Composer {
                 return .consumed(finishAsTyped(draft))
             }
             return .consumed(commitChoice(at: highlighted))
-        case VirtualKey.escape, VirtualKey.delete:
+        case .escape, .backspace:
             // Where a conversation can go on, shown with ⌘⏎ before its last round: hidden again (at the last round it
             // stays, and Esc goes back a round).
             if handoffRequested, !chatAtLimit, phase == .choosing {
@@ -2391,13 +2391,13 @@ public final class Composer {
             }
             // After a refine (or during one): back to the results before it; else back to the draft.
             return .consumed(refinements.isEmpty ? backToDraft() : previousResults())
-        case VirtualKey.up, VirtualKey.pageUp:
+        case .arrow(.up), .pageUp:
             return .consumed(moveHighlight(by: -1))
-        case VirtualKey.down, VirtualKey.pageDown:
+        case .arrow(.down), .pageDown:
             return .consumed(moveHighlight(by: 1))
-        case VirtualKey.tab:
+        case .tab:
             return .consumed(moveHighlight(by: event.modifiers.contains(.shift) ? -1 : 1))
-        case VirtualKey.left, VirtualKey.right, VirtualKey.home, VirtualKey.end, VirtualKey.forwardDelete:
+        case .arrow(.left), .arrow(.right), .home, .end, .forwardDelete:
             return .consumed()
         default:
             break
@@ -2428,13 +2428,13 @@ public final class Composer {
         guard typesRefine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
         guard modifiers.isSubset(of: .shift) else { return nil }
-        let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
+        let isReturn = event.key == .enter || event.key == .keypadEnter
         // ⏎ inserts the result selected, whatever is typed (the line goes with the rest); ⇧⏎ sends the line.
         if isReturn, modifiers != .shift { return nil }
-        if isRefining, event.keyCode == VirtualKey.escape { return nil }
+        if isRefining, event.key == .escape { return nil }
         if let engine, engine.snapshot().isComposing {
             if isReturn { return .consumed(runRefine()) }
-            if event.keyCode == VirtualKey.escape {
+            if event.key == .escape {
                 engine.clearComposition()
                 engineState = engine.snapshot()
                 return .consumed([.showPanel])
@@ -2446,16 +2446,16 @@ public final class Composer {
             guard let text = event.printableText, text.count == 1, text.first?.isLetter == true else { return nil }
             return .consumed(typeIntoRefine(event))
         }
-        switch event.keyCode {
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        switch event.key {
+        case .enter, .keypadEnter:
             return .consumed(runRefine())  // ⇧⏎; while one runs: nothing yet (the line waits for its results)
-        case VirtualKey.escape:
+        case .escape:
             refineText = ""
             return .consumed([.showPanel])
-        case VirtualKey.delete:
+        case .backspace:
             refineText.removeLast()
             return .consumed([.showPanel])
-        case VirtualKey.tab, VirtualKey.up, VirtualKey.down, VirtualKey.pageUp, VirtualKey.pageDown:
+        case .tab, .arrow(.up), .arrow(.down), .pageUp, .pageDown:
             return nil  // move the highlight
         default:
             return event.printableText == nil ? .consumed() : .consumed(typeIntoRefine(event))
@@ -2973,10 +2973,10 @@ public final class Composer {
         case .enter:
             let listening: Bool
             if case .listening = voice { listening = true } else { listening = false }
-            return (event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter)
+            return (event.key == .enter || event.key == .keypadEnter)
                 && (modifiers.isEmpty || listening && modifiers == .option)
         case .optionSpace:
-            return event.keyCode == VirtualKey.space && modifiers == .option
+            return event.key == .space && modifiers == .option
         case let .shortcut(key):
             return key.matches(event)
         case .optionTap, .space:

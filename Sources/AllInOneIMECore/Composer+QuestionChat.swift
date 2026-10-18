@@ -113,7 +113,7 @@ extension Composer {
            event.charactersIgnoringModifiers.lowercased() == "r" {
             return .consumed(reaskSaved())
         }
-        let isReturn = event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter
+        let isReturn = event.key == .enter || event.key == .keypadEnter
         // ⌘⏎ never reaches the app while an @question panel is up (a chat app would send what's in its field): while
         // the answer comes in (or after a failure) it does nothing; once it's in, it shows the choices.
         if isReturn, modifiers == .command, isLevelTwo, activeCommand == .question, !(isQuestionChat && phase == .choosing) {

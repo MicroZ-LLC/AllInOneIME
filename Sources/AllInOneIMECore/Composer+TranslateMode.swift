@@ -129,13 +129,13 @@ extension Composer {
     func handleModeTranslatingKey(_ event: KeyEvent) -> Response? {
         guard modeTranslating else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
-        switch event.keyCode {
-        case VirtualKey.escape:
+        switch event.key {
+        case .escape:
             return .consumed(backToDraft())
-        case VirtualKey.delete:
+        case .backspace:
             let back = backToDraft()
             return .consumed(back + handleLevelOne(event).effects)
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        case .enter, .keypadEnter:
             return .consumed(modifiers == .shift ? finish(committing: draft) : [])
         default:
             guard event.printableText != nil, modifiers.isSubset(of: .shift) else { return .consumed() }
