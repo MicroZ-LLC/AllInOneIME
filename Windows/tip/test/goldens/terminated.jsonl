@@ -1,0 +1,23 @@
+# The app ends the composition (a click elsewhere in the document, say): TSF calls OnCompositionTerminated, the DLL
+# asks the engine with endComposition {terminated}, and applies the result with the cookie TSF gave it; the commit
+# replaces the range the composition covered (§5.5).
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"v":1,"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"v":1,"id":3,"type":"focus","sid":1,"focus":1}
+> {"v":1,"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"v":1,"id":2,"re":4,"type":"result"}
+> {"v":1,"id":5,"type":"keyDown","sid":1,"t":1080,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"v":1,"id":3,"re":5,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"v":1,"id":6,"type":"caret","sid":1,"rect":[812,440,9,20],"hwnd":"$any"}
+> {"v":1,"id":7,"type":"keyUp","sid":1,"t":1150,"key":{"vk":16,"scan":42},"ctx":{"sel":[1,1],"comp":1}}
+< {"v":1,"id":4,"re":7,"type":"result"}
+> {"v":1,"id":8,"type":"keyDown","sid":1,"t":1300,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
+< {"v":1,"id":5,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@i","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}]}]}
+#! terminate
+> {"v":1,"id":9,"type":"endComposition","sid":1,"reason":"terminated"}
+< {"v":1,"id":6,"re":9,"type":"result","outputs":[{"op":"commit","text":"@i"},{"op":"panel","shown":false}]}
+> {"v":1,"id":10,"type":"blur","sid":1}
+< {"v":1,"id":7,"re":10,"type":"result"}
+> {"v":1,"id":11,"type":"close","sid":1}
+#! expect-document "@i"
