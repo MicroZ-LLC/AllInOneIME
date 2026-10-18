@@ -82,12 +82,12 @@ extension Composer {
     func handleModeKey(_ event: KeyEvent) -> Response? {
         guard inModeComposition, !isLevelTwo, let engine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
-        switch event.keyCode {
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        switch event.key {
+        case .enter, .keypadEnter:
             if modifiers.isEmpty { return .consumed(translateModeDraft(engine)) }
             if modifiers == .shift { return .consumed(modeDraftAsTyped(engine)) }
             return nil
-        case VirtualKey.space where modifiers.isEmpty && actionKey == .space && !engine.snapshot().isComposing && !draft.isEmpty:
+        case .space where modifiers.isEmpty && actionKey == .space && !engine.snapshot().isComposing && !draft.isEmpty:
             insertIntoDraft(" ")
             return .consumed([.updateMarkedText])
         default:

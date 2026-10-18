@@ -749,9 +749,9 @@ public final class Composer {
         let after = tail, start = textStart
         let position = draft.count - after.count
         let chars = Array(draft)
-        let toEdge = event.modifiers.contains(.command) || event.keyCode == VirtualKey.home || event.keyCode == VirtualKey.end
+        let toEdge = event.modifiers.contains(.command) || event.key == .home || event.key == .end
         let wordwise = event.modifiers.contains(.option)
-        let left = event.keyCode == VirtualKey.left || event.keyCode == VirtualKey.home
+        let left = event.key == .arrow(.left) || event.key == .home
         var target = position
         if toEdge {
             target = left ? start : chars.count
@@ -1148,11 +1148,11 @@ public final class Composer {
         guard let query = recipientQuery, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
         let found = currentRecipients
         guard !found.isEmpty else { return nil }
-        switch event.keyCode {
-        case VirtualKey.up, VirtualKey.down:
-            recipientHighlight = (recipientHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + found.count) % found.count
+        switch event.key {
+        case .arrow(.up), .arrow(.down):
+            recipientHighlight = (recipientHighlight + (event.key == .arrow(.up) ? -1 : 1) + found.count) % found.count
             return .consumed([.showPanel])
-        case VirtualKey.tab:
+        case .tab:
             return .consumed(pickRecipient(at: recipientHighlight))
         default:
             break
@@ -1234,7 +1234,7 @@ public final class Composer {
     private func handleHangulKey(_ event: KeyEvent) -> Response? {
         guard typesHangul else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
-        let back = event.keyCode == VirtualKey.delete && modifiers.isEmpty && !hangul.isEmpty
+        let back = event.key == .backspace && modifiers.isEmpty && !hangul.isEmpty
         let jamo = modifiers.isSubset(of: .shift) ? hangul.tables.jamo(keyCode: event.keyCode, shift: modifiers.contains(.shift)) : nil
         guard back || jamo != nil else { return nil }
         shiftPressedAt = nil
@@ -1275,7 +1275,7 @@ public final class Composer {
         // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
         // also insert the result, or send the message it shows to confirm.
         if event.isRepeat, isLevelTwo || !draft.isEmpty,
-           [VirtualKey.returnKey, VirtualKey.keypadEnter, VirtualKey.space, VirtualKey.tab].contains(event.keyCode)
+           [.enter, .keypadEnter, .space, .tab].contains(event.key)
             || isLevelTwo && event.printableText?.first?.isNumber == true {
             return .consumed()
         }
@@ -1290,10 +1290,10 @@ public final class Composer {
         case let .listening(id, _):
             // Any key while recording (an Option chord, or typing) cancels the recording.
             prefix = cancelVoice(id)
-            if event.keyCode == VirtualKey.escape { return .consumed(prefix) }
+            if event.key == .escape { return .consumed(prefix) }
         case let .finishing(id, text):
             // The final transcript hasn't arrived yet: keep what was recognized so far.
-            if event.keyCode == VirtualKey.escape { return .consumed(cancelVoice(id)) }
+            if event.key == .escape { return .consumed(cancelVoice(id)) }
             actsAfterVoice = false  // another key after the action key: not sending after all
             prefix = [.cancelVoice(id: id)] + voiceFinished(text, id: id)
         case .off:
@@ -1335,7 +1335,7 @@ public final class Composer {
                 return .done(.consumed([.updateMarkedText, .showPanel]))
             }
             // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
-            if event.keyCode == VirtualKey.delete || event.keyCode == VirtualKey.escape { return .done(.consumed([.updateMarkedText])) }
+            if event.key == .backspace || event.key == .escape { return .done(.consumed([.updateMarkedText])) }
             guard !draft.isEmpty || modeCollects(accent) else { return .then([.commit(accent)]) }
             insertIntoDraft(accent)
             return .then([.updateMarkedText])
@@ -1363,7 +1363,7 @@ public final class Composer {
             return response
         }
         // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
-        if modifiers == .command, event.keyCode == VirtualKey.left || event.keyCode == VirtualKey.right,
+        if modifiers == .command, event.key == .arrow(.left) || event.key == .arrow(.right),
            !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil {
             return .consumed(moveCursor(event))
         }
@@ -1375,7 +1375,7 @@ public final class Composer {
             // the clipboard as it was, not the note put there by `commitAll`).
             return isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
         }
-        if event.keyCode == VirtualKey.space, modifiers == [.shift] {
+        if event.key == .space, modifiers == [.shift] {
             // ⇧Space is Space in every state (Shift is often still down after a capital: "I am").
             // librime never sees Shift+space, which a schema may bind (e.g. to full-width).
             var space = event
@@ -1972,34 +1972,34 @@ public final class Composer {
         let plain = event.modifiers.subtracting([.capsLock, .shift]).isEmpty
         // Inside a text, leaving the list just goes on with the draft (nil: the key acts as usual).
         func leave() -> Response? { nested ? nil : commitPalette(then: event) }
-        switch event.keyCode {
-        case VirtualKey.tab where plain:
+        switch event.key {
+        case .tab where plain:
             return matches.isEmpty ? leave() : .consumed(complete(matches))
-        case VirtualKey.space where plain:
+        case .space where plain:
             // "@ " is just an at sign and a space.
             return query.isEmpty || matches.isEmpty ? leave() : .consumed(complete(matches))
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        case .enter, .keypadEnter:
             // Picks, like Tab; "@" alone goes in as typed (inside a text, Return runs the command as usual).
             // As the action key, it also runs a command that takes no input.
             // With a selection nothing goes in, as with ⇧⏎: no "@" over it.
             if query.isEmpty || matches.isEmpty { return nested ? nil : .consumed(finish(committing: draft, selection: .kept)) }
             return .consumed(complete(matches, run: actionKey == .enter))
-        case VirtualKey.escape:
+        case .escape:
             // Removes the "@…" (inside a text, only that); a selection stays as it is.
             if !nested, selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
             draft = nested ? String(draft[..<at]) : ""
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
-        case VirtualKey.delete where plain:
+        case .backspace where plain:
             draft.removeLast()
             // The "@" taken back: the command is given up, the selection left as it is.
             if draft.isEmpty, selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
             paletteHighlight = 0
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
-        case VirtualKey.up, VirtualKey.down:
+        case .arrow(.up), .arrow(.down):
             guard !matches.isEmpty else { return .consumed() }
-            movePaletteHighlight(by: event.keyCode == VirtualKey.up ? -1 : 1)
+            movePaletteHighlight(by: event.key == .arrow(.up) ? -1 : 1)
             return .consumed([.showPanel])
         default:
             break
@@ -2120,11 +2120,11 @@ public final class Composer {
         if let response = handleQuestionKey(event) { return response }
         // A script's list as you type: ↑↓ move among the rows to pick, Tab completes the highlighted row's text.
         if let items = currentList?.items, !items.isEmpty, plain {
-            switch event.keyCode {
-            case VirtualKey.up, VirtualKey.down:
-                moveListHighlight(by: event.keyCode == VirtualKey.up ? -1 : 1, in: items)
+            switch event.key {
+            case .arrow(.up), .arrow(.down):
+                moveListHighlight(by: event.key == .arrow(.up) ? -1 : 1, in: items)
                 return .consumed([.showPanel])
-            case VirtualKey.tab:
+            case .tab:
                 guard let complete = listItem?.autocomplete, let command = draftCommand else { return .consumed() }
                 draft = "@\(command.name) " + complete
                 return .consumed([.updateMarkedText, .showPanel])
@@ -2134,19 +2134,19 @@ public final class Composer {
         }
         let live = currentLiveResults
         if !live.isEmpty, plain {
-            switch event.keyCode {
-            case VirtualKey.up, VirtualKey.down:
-                liveHighlight = (liveHighlight + (event.keyCode == VirtualKey.up ? -1 : 1) + live.count) % live.count
+            switch event.key {
+            case .arrow(.up), .arrow(.down):
+                liveHighlight = (liveHighlight + (event.key == .arrow(.up) ? -1 : 1) + live.count) % live.count
                 liveHighlightMoved = true
                 return .consumed([.showPanel])
-            case VirtualKey.tab:
+            case .tab:
                 return .consumed(completeLivePath())
             default:
                 break
             }
         }
-        switch event.keyCode {
-        case VirtualKey.space where plain && actionKey == .space:
+        switch event.key {
+        case .space where plain && actionKey == .space:
             // In English (Latin) mode Space separates words; a second Space in a row runs the command.
             // Right after dictation the sentence is finished, so one Space does. (With the other
             // action keys, Space in a draft is just a space: it goes on below.)
@@ -2155,10 +2155,10 @@ public final class Composer {
                 return .consumed([.updateMarkedText, .showPanel])
             }
             return startAction()
-        case VirtualKey.returnKey, VirtualKey.keypadEnter:
+        case .enter, .keypadEnter:
             // ⇧⏎ (⏎ alone runs the command): as typed, except a note with line breaks (`finishAsTyped`).
             return .consumed(finishAsTyped(draft))
-        case VirtualKey.delete:
+        case .backspace:
             // Right after a picked recipient: back to picking one.
             if messageRecipient != nil, let command = draftCommand, draft == "@\(command.name) " {
                 messageRecipient = nil
@@ -2169,23 +2169,23 @@ public final class Composer {
             if draft.isEmpty, selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
-        case VirtualKey.escape:
+        case .escape:
             // The draft goes; a selection is left as it is.
             if selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
             draft = ""
             setLevelOnePhase()
             return .consumed([.updateMarkedText, .hidePanel])
-        case VirtualKey.left, VirtualKey.right, VirtualKey.home, VirtualKey.end:
+        case .arrow(.left), .arrow(.right), .home, .end:
             // The cursor moves in the text after the command, as in any text field.
             return .consumed(moveCursor(event))
-        case VirtualKey.forwardDelete:
+        case .forwardDelete:
             let after = tail
             guard !after.isEmpty else { return .consumed() }
             draft = String(draft.dropLast(after.count)) + after.dropFirst()
             cursorTail = String(after.dropFirst())
             setLevelOnePhase()
             return .consumed([.updateMarkedText, .showPanel])
-        case VirtualKey.tab, VirtualKey.up, VirtualKey.down, VirtualKey.pageUp, VirtualKey.pageDown:
+        case .tab, .arrow(.up), .arrow(.down), .pageUp, .pageDown:
             return .consumed()
         default:
             return nil
@@ -3209,13 +3209,13 @@ extension Composer {
     func handleQuestionKey(_ event: KeyEvent) -> Response? {
         let found = questionMatches
         guard !found.isEmpty, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
-        switch event.keyCode {
-        case VirtualKey.up, VirtualKey.down:
-            let up = event.keyCode == VirtualKey.up
+        switch event.key {
+        case .arrow(.up), .arrow(.down):
+            let up = event.key == .arrow(.up)
             let next = questionHighlight.map { ($0 + (up ? -1 : 1) + found.count) % found.count } ?? (up ? found.count - 1 : 0)
             questionPick = (next, draft)
             return .consumed([.showPanel])
-        case VirtualKey.space where actionKey == .space:
+        case .space where actionKey == .space:
             guard let index = questionHighlight else { return nil }
             return .consumed(showSavedAnswer(at: index))
         default:
