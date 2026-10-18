@@ -101,6 +101,10 @@ struct DashboardSources {
     /// permission first (the panel never asks on its own) or there's no such folder.
     var listNotes: @MainActor (_ limit: Int) async throws -> NotesListing
     var showNote: @MainActor (_ id: String) async throws -> Void
+    /// Opens a saved file (in Obsidian, or its default app) or a Notion page (`NoteDestinations.openURL`).
+    var openURL: @MainActor (_ url: URL) -> Void
+    /// Whether a saved file is still there. Off the main thread (a folder on a network volume can be slow).
+    var fileExists: @Sendable (_ url: URL) -> Bool
     var reminderAccess: @MainActor () async -> ReminderAccess
     /// The reminders not done (`RemindersBridge.incomplete`), the soonest first. Asks the user when
     /// access isn't decided yet: only called then from the panel's button.
@@ -132,6 +136,8 @@ struct DashboardSources {
                 return NotesListing(recent: try await NotesBridge.recent(limit: limit))
             },
             showNote: { try await NotesBridge.show(id: $0) },
+            openURL: { NSWorkspace.shared.open($0) },
+            fileExists: { FileManager.default.fileExists(atPath: $0.path) },
             reminderAccess: { await Task.detached(priority: .utility) { ReminderAccess.current }.value },
             reminders: { try await RemindersBridge.incomplete(limit: FloatingPanel.reminderReadLimit, now: $0) },
             completeReminder: { try await RemindersBridge.complete(id: $0) },
@@ -344,6 +350,7 @@ final class FloatingPanel: ObservableObject {
         chinese = UIText.chinese
         now = sources.now()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
+        dropMissingFiles()
         scriptRuns = ScriptTasks.shared.background
         (reminders, tasks, completing, message, sessions, replies) = (.loading, .loading, [], nil, nil, AgentReplyCache())
         (swipedRow, swipeOffset, hoveredRow, tracking, swallowingMomentum) = (nil, 0, nil, nil, false)
@@ -485,6 +492,7 @@ final class FloatingPanel: ObservableObject {
         refreshReminders()
         lookAtTasks(force: true)
         refreshNoteTitles()
+        dropMissingFiles()
     }
 
     // MARK: - Notes
@@ -502,9 +510,10 @@ final class FloatingPanel: ObservableObject {
     }
 
     /// Titles edited in Notes, notes deleted there: asked only while it's on, when Notes runs already,
-    /// and only with its permission given before.
+    /// and only with its permission given before; only when a note in Notes is listed.
     private func refreshNoteTitles() {
-        guard isShowing, !askingNotes, !SavedNotesStore.load(sources.defaults).notes.isEmpty, sources.notesRunning() else {
+        guard isShowing, !askingNotes, SavedNotesStore.load(sources.defaults).notes.contains(where: { SavedNotes.isInNotes($0.id) }),
+              sources.notesRunning() else {
             return
         }
         askingNotes = true
@@ -534,9 +543,36 @@ final class FloatingPanel: ObservableObject {
         }
     }
 
-    /// Shows the note in Notes; a note that's gone is dropped once Notes (running now) lists the folder.
-    /// Turned off meanwhile, it's left at that.
+    /// The saved files that are gone (deleted, moved, their folder renamed) are no longer listed: looked at off the main
+    /// thread when the panel opens or is refreshed. Notion is never asked.
+    private func dropMissingFiles() {
+        let files = SavedNotesStore.load(sources.defaults).files
+        guard !files.isEmpty else { return }
+        let (exists, generation) = (sources.fileExists, self.generation)
+        Task { [weak self] in
+            let there = await Task.detached(priority: .utility) { Set(files.filter(exists)) }.value
+            guard let self, generation == self.generation else { return }
+            var saved = SavedNotesStore.load(self.sources.defaults)
+            // Only those looked at: a file saved meanwhile stays.
+            guard saved.dropMissingFiles(exists: { !files.contains($0) || there.contains($0) }) else { return }
+            SavedNotesStore.save(saved, to: self.sources.defaults)
+            log.notice("menu bar panel: \(saved.notes.count) notes after looking at the files")
+            self.notes = saved.newest(Self.notesShown)
+        }
+    }
+
+    /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
+    /// Notes, running now, lists the folder), a file in Obsidian or its default app, a Notion page in the browser (or
+    /// Notion's app). A file that's gone is dropped. Turned off meanwhile, it's left at that.
     func open(_ note: SavedNotes.Note) {
+        if !SavedNotes.isInNotes(note.id) {
+            guard let url = NoteDestinations.openURL(forSaved: note.id) else { return say(tr("打不开这条笔记", "Couldn't open this note")) }
+            if let file = URL(string: note.id), file.isFileURL, !sources.fileExists(file) {
+                dismiss(.note(note.id))
+                return say(tr("打不开这条笔记", "Couldn't open this note"))
+            }
+            return sources.openURL(url)
+        }
         let generation = self.generation
         Task { [weak self] in
             guard let self else { return }
@@ -1031,7 +1067,7 @@ struct FloatingPanelView: View {
             }
             if let update = updates.available { updateNotice(update) }
             ExtensionSourceNotice(sources: extensionSources) { panel.click { SettingsWindow.shared.show(page: .commands) } }
-            section(tr("备忘录", "Notes"), CommandIcons.icon(for: .note)) { notes }
+            section(tr("笔记", "Notes", key: "panel.notes"), CommandIcons.icon(for: .note)) { notes }
             section(tr("提醒事项", "Reminders"), CommandIcons.icon(for: .reminder)) { reminders }
             section(tr("Claude 任务", "Claude Tasks"), CommandIcons.icon(for: .agent)) { tasks }
             if !panel.scriptRuns.isEmpty {
@@ -1062,7 +1098,7 @@ struct FloatingPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(title)
-                .accessibilityHint(tr("在备忘录里打开", "Opens it in Notes"))
+                .accessibilityHint(SavedNotes.isInNotes(note.id) ? tr("在备忘录里打开", "Opens it in Notes") : "")
             }
         }
     }

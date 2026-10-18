@@ -1295,12 +1295,15 @@ enum SelfTest {
         var notes: [String] = [], reminders: [ReminderDraft] = [], copied: [String] = []
         var failure: Error?
         var held = false  // a save waits while this is set (something is typed meanwhile)
-        let saved = (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+        let saved = (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
                      controller.readClipboard, controller.copyText)
-        controller.saveNote = { text in
-            while held { try await Task.sleep(nanoseconds: 10_000_000) }
-            if let failure { throw failure }
-            notes.append(text)
+        // Notes, as the settings have it by default: a stand-in for it.
+        controller.noteDestination = { _ in
+            StandInNotes { text in
+                while held { try await Task.sleep(nanoseconds: 10_000_000) }
+                if let failure { throw failure }
+                notes.append(text)
+            }
         }
         controller.addReminder = { reminder in
             while held { try await Task.sleep(nanoseconds: 10_000_000) }
@@ -1317,7 +1320,7 @@ enum SelfTest {
             }
         }
         defer {
-            (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+            (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
              controller.readClipboard, controller.copyText) = saved
             observers.forEach { NotificationCenter.default.removeObserver($0) }
         }
@@ -1342,18 +1345,18 @@ enum SelfTest {
         at()
         type("n", controller, client)
         let offered = controller.panelModel().rows.first
-        check(offered?.text == "@note" && offered?.comment == "存到备忘录",
+        check(offered?.text == "@note" && offered?.comment == "存一条笔记到 备忘录",
               "@n offers @note first (\(offered?.text ?? "-") \(offered?.comment ?? ""))")
         tab()
         type("nihao", controller, client)
         _ = space(controller, client)
-        check(client.marked == "note › 你好" && controller.panelModel().status == .hint("⏎ → 存到备忘录"),
+        check(client.marked == "note › 你好" && controller.panelModel().status == .hint("⏎ → 存到 备忘录"),
               "the hint says ⏎ saves it to Notes (\(controller.panelModel().status))")
         _ = enter(controller, client)
         check(client.marked.isEmpty && client.inserted == insertedBefore && !controller.composer.isComposing
-              && notice() == "正在存到备忘录…",
+              && notice() == "正在存到 备忘录…",
               "⏎ inserts nothing, clears the draft and says 「正在存到备忘录…」 at once (\(notice() ?? "no notice"))")
-        check(pump(timeout: 2) { notice() == "已存到备忘录" } && notes == ["你好"],
+        check(pump(timeout: 2) { notice() == "已存到 备忘录" } && notes == ["你好"],
               "the text goes to Notes, then 「已存到备忘录」 (\(notes), \(notice() ?? "no notice"))")
         // Secure input on (a password field elsewhere) doesn't hold it back: nothing goes to a model.
         controller.secureInputActive = { true }
@@ -1561,7 +1564,7 @@ enum SelfTest {
             field.secureInputActive = { false }
             field.readClipboard = { "买牛奶" }
             field.copyText = { copied.append($0) }
-            field.saveNote = controller.saveNote
+            field.noteDestination = controller.noteDestination
             field.ensureEngine()
             field.applySettings()
             note("", in: field, otherClient)
@@ -1590,7 +1593,7 @@ enum SelfTest {
             terminal.secureInputActive = { false }
             terminal.readClipboard = { lines }
             terminal.copyText = { copied.append($0) }
-            terminal.saveNote = controller.saveNote
+            terminal.noteDestination = controller.noteDestination
             terminal.addReminder = controller.addReminder
             terminal.activateServer(terminalClient)
             /// ⌃V in an empty @note: the clipboard's lines in the draft.
@@ -1631,15 +1634,15 @@ enum SelfTest {
         note("nihao", in: controller, client)
         _ = enter(controller, client)
         _ = pump(timeout: 2.5) { false }
-        check(notice() == "正在存到备忘录…", "a slow save: 「正在存到备忘录…」 still up after 2.5 s (\(notice() ?? "no notice"))")
+        check(notice() == "正在存到 备忘录…", "a slow save: 「正在存到备忘录…」 still up after 2.5 s (\(notice() ?? "no notice"))")
         held = false
-        check(pump(timeout: 2) { notes.count == 5 && notice() == "已存到备忘录" }, "…until it is saved (\(notice() ?? "no notice"))")
+        check(pump(timeout: 2) { notes.count == 5 && notice() == "已存到 备忘录" }, "…until it is saved (\(notice() ?? "no notice"))")
         let limit = AllInOneIMEInputController.progressNoticeLimit
         AllInOneIMEInputController.progressNoticeLimit = 1
         held = true
         note("nihao", in: controller, client)
         _ = enter(controller, client)
-        check(notice() == "正在存到备忘录…" && pump(timeout: 3) { notice() == nil } && notes.count == 5,
+        check(notice() == "正在存到 备忘录…" && pump(timeout: 3) { notice() == nil } && notes.count == 5,
               "…for \(Int(limit)) s at most (1 s here)")
         held = false
         AllInOneIMEInputController.progressNoticeLimit = limit
@@ -1650,7 +1653,7 @@ enum SelfTest {
         _ = enter(controller, client)
         controller.deactivateServer(client)
         held = false
-        check(pump(timeout: 2) { notes.count == 7 && CandidatePanel.shared.view.model.status == .hint("已存到备忘录") } && notice() == nil,
+        check(pump(timeout: 2) { notes.count == 7 && CandidatePanel.shared.view.model.status == .hint("已存到 备忘录") } && notice() == nil,
               "its field gone, the outcome shows by itself and the progress notice is taken down (\(notice() ?? "none"))")
         controller.activateServer(client)
         _ = pump(timeout: 3) { !CandidatePanel.shared.isVisible }  // the notice near the pointer goes before the next section

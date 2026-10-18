@@ -28,6 +28,8 @@ final class PanelStandIns {
     /// `transcriptReads`: the transcripts read (not those the panel already read as they are).
     private(set) var noteLists = 0, reminderReads = 0, agentLooks = 0, transcriptReads = 0
     private(set) var shownNotes: [String] = [], completed: [String] = [], openedAgents: [String] = []
+    /// The files and Notion pages the panel would have opened (nothing is).
+    private(set) var openedURLs: [URL] = []
     private(set) var openedReminders = 0, openedSettings = 0
 
     var sources: DashboardSources {
@@ -43,6 +45,8 @@ final class PanelStandIns {
                 if let error = self.showError { throw error }
                 self.shownNotes.append(id)
             },
+            openURL: { self.openedURLs.append($0) },
+            fileExists: { FileManager.default.fileExists(atPath: $0.path) },
             reminderAccess: { self.access },
             reminders: { _ in
                 self.reminderReads += 1

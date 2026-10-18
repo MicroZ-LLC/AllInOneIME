@@ -805,6 +805,9 @@
     "Choose File…" : {
       "comment" : "选择文件… — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Choose Folder…" : {
+      "comment" : "选择文件夹… — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "Choose from Applications…" : {
       "comment" : "从「应用程序」里选… — Sources/AllInOneIME/AppProfiles.swift"
     },
@@ -951,6 +954,9 @@
     },
     "Couldn't update to %@" : {
       "comment" : "没能更新到 %@ — Sources/AllInOneIME/Updates.swift"
+    },
+    "Create Integration…" : {
+      "comment" : "创建集成… — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Custom" : {
       "comment" : "自定义 — Sources/AllInOneIME/AgentSettings.swift"
@@ -1169,6 +1175,9 @@
     "Fix" : {
       "comment" : "修复 — Sources/AllInOneIME/AssistantPage.swift"
     },
+    "Folder (Obsidian or any)" : {
+      "comment" : "文件夹（Obsidian 等） — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "Follow the system" : {
       "comment" : "跟随系统 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1263,6 +1272,9 @@
     },
     "In English, letters are typed as they are: nothing to set yet." : {
       "comment" : "英文模式直接打字母，暂时没有要设置的。 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "In Notion, open the page → ··· → Connections → add your integration" : {
+      "comment" : "在 Notion 里打开那个页面 → ··· → 连接 → 加上你的集成 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "In the language you wrote; drag to reorder" : {
       "comment" : "用你写的语言改写，拖动排序 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -1512,6 +1524,9 @@
     "New" : {
       "comment" : "新建 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "New integration → Internal → copy the token" : {
+      "comment" : "新建集成 → 内部 → 复制令牌 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "new issue on GitHub" : {
       "comment" : "在 GitHub 上新建问题 — Sources/AllInOneIME/InputController.swift"
     },
@@ -1703,7 +1718,10 @@
       "comment" : "不逐字上屏 — Sources/AllInOneIME/AppProfiles.swift"
     },
     "Notes" : {
-      "comment" : "备忘录 — Sources/AllInOneIME/FloatingPanel.swift"
+      "comment" : "备忘录 — Sources/AllInOneIME/AppleNotesDestination.swift"
+    },
+    "Notes (@note)" : {
+      "comment" : "笔记（@note） — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Notes saved with @note show up here" : {
       "comment" : "用 @note 存的笔记会显示在这里 — Sources/AllInOneIME/FloatingPanel.swift"
@@ -1862,6 +1880,9 @@
     "page %@" : {
       "comment" : "第 %@ 页 — Sources/AllInOneIME/InputController.swift"
     },
+    "Page or database link" : {
+      "comment" : "页面或数据库链接 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "panel.clauseSeparator" : {
       "comment" : "， — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -1873,11 +1894,25 @@
         }
       }
     },
+    "panel.notes" : {
+      "comment" : "笔记 — Sources/AllInOneIME/FloatingPanel.swift",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        }
+      }
+    },
     "Paste a Brave Search API key" : {
       "comment" : "粘贴 Brave Search 的 API key — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Paste a new API key" : {
       "comment" : "粘贴新的 API key — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Paste a Notion integration token" : {
+      "comment" : "粘贴 Notion 集成的令牌 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Paste it" : {
       "comment" : "粘贴 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2116,6 +2151,9 @@
     "Remove the key for %@ from the keychain?" : {
       "comment" : "从钥匙串里删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Remove the Notion token from the keychain?" : {
+      "comment" : "删除钥匙串里的 Notion 令牌？ — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "Remove the recent questions from iCloud?" : {
       "comment" : "从 iCloud 移除最近的问题？ — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
@@ -2274,14 +2312,25 @@
     "Save" : {
       "comment" : "保存 — Sources/AllInOneIME/CommandEditor.swift"
     },
+    "Save a note to %@" : {
+      "comment" : "存一条笔记到 %@ — Sources/AllInOneIME/UIText.swift"
+    },
     "Save and Use %@" : {
       "comment" : "保存并使用 %@ — Sources/AllInOneIME/KeyRow.swift"
     },
+    "Save to" : {
+      "comment" : "存到 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "save to %@" : {
+      "comment" : "存到 %@ — Sources/AllInOneIME/UIText.swift"
+    },
     "save to Notes" : {
-      "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Save to Notes" : {
-      "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift"
+      "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift",
+      "extractionState" : "stale"
     },
     "Saved" : {
       "comment" : "已保存 — Sources/AllInOneIME/KeyRow.swift"
@@ -2293,11 +2342,19 @@
     "saved %@" : {
       "comment" : "保存于%@ — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
+    "Saved to %@" : {
+      "comment" : "已存到 %@ — Sources/AllInOneIME/InputController.swift"
+    },
     "Saved to Notes" : {
-      "comment" : "已存到备忘录 — Sources/AllInOneIME/InputController.swift"
+      "comment" : "已存到备忘录 — Sources/AllInOneIME/InputController.swift",
+      "extractionState" : "stale"
+    },
+    "Saving to %@…" : {
+      "comment" : "正在存到 %@… — Sources/AllInOneIME/InputController.swift"
     },
     "Saving to Notes…" : {
-      "comment" : "正在存到备忘录… — Sources/AllInOneIME/InputController.swift"
+      "comment" : "正在存到备忘录… — Sources/AllInOneIME/InputController.swift",
+      "extractionState" : "stale"
     },
     "Script Extensions" : {
       "comment" : "脚本扩展 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2787,6 +2844,9 @@
     },
     "To use %@ again, you'll have to paste the key again." : {
       "comment" : "删除后，要再粘贴一次 key 才能用 %@。 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
+    "Token" : {
+      "comment" : "令牌 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "Too many searches at once for %@: try again in a moment" : {
       "comment" : "%@ 搜索太频繁，稍后再试 — Sources/AllInOneIME/UIText.swift"
