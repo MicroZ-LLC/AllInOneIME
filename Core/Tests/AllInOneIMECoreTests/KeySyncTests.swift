@@ -170,6 +170,109 @@ struct KeySyncSaveTimeTests {
     }
 }
 
+/// Keys that lose, or are written over, set aside under `KeySync.replacedService` (`Stores.replaced`): never read back
+/// as the key in use, so a removed key never comes back; Remove… takes them too.
+struct KeySyncSetAsideTests {
+    static let old = Date(timeIntervalSince1970: 1_760_000_000), new = Date(timeIntervalSince1970: 1_790_000_000)
+    static func stores(syncing: Bool) -> KeySync.Stores {
+        KeySync.Stores(local: KeySyncTests.store(.local), synced: KeySyncTests.store(.synced),
+                       legacy: KeySyncTests.store(.legacy), syncing: syncing)
+    }
+    static func write(_ store: APIKeys.Keychain, _ key: String, saved: Date?, account: String = "openai") {
+        _ = store.write(account, key, "AllInOneIME: test", "api.openai.com", APIKeys.ending(of: key), saved)
+    }
+
+    /// Review case A: the login keychain's older key, set aside at the silent pass, doesn't come back after another
+    /// Mac removed the synced one (not at its first use, not at the next silent pass).
+    @Test func aLegacyLoserNeverComesBack() throws {
+        let mac = Self.stores(syncing: true), legacy = mac.legacy
+        Self.write(legacy, "sk-test-legacy-older-0001", saved: Self.old)
+        Self.write(mac.synced, "sk-test-synced-newer-0002", saved: Self.new)
+        let moves = try mac.migrate()
+        #expect(moves.superseded == ["openai"] && moves.setAside == ["openai"])
+        #expect(legacy.attributes("openai") == nil && mac.replaced.read("openai") == "sk-test-legacy-older-0001")
+        #expect(mac.replaced.attributes("openai")?.saved == Self.old && mac.replaced.attributes("openai")?.comment == "api.openai.com")
+        #expect(mac.store.read("openai") == "sk-test-synced-newer-0002")
+
+        _ = mac.synced.delete("openai")  // removed on another Mac
+        #expect(mac.store.read("openai") == nil && mac.store.attributes("openai") == nil)
+        #expect(try mac.migrate().moved.isEmpty && mac.synced.attributes("openai") == nil)
+    }
+
+    /// Review case B: this Mac's older key, set aside when sync is turned on, doesn't go back to iCloud Keychain when it
+    /// is turned off and on again after another Mac removed the key.
+    @Test func aLocalLoserNeverReturnsToICloud() throws {
+        let stores = Self.stores(syncing: false)
+        Self.write(stores.local, "sk-test-local-older-0001", saved: Self.old)
+        Self.write(stores.synced, "sk-test-synced-newer-0002", saved: Self.new)
+        let on = try stores.turn(syncing: true)
+        #expect(on.setAside == ["openai"] && on.isComplete)
+        #expect(stores.local.attributes("openai") == nil && stores.replaced.read("openai") == "sk-test-local-older-0001")
+        _ = stores.synced.delete("openai")  // removed on another Mac
+        try stores.turn(syncing: false)
+        try stores.turn(syncing: true)
+        #expect(stores.synced.attributes("openai") == nil && stores.store.read("openai") == nil)
+        #expect(stores.replaced.read("openai") == "sk-test-local-older-0001")  // only the safety copy
+    }
+
+    /// Review case D: a newer key written over another Mac's in iCloud Keychain: that one is set aside first.
+    @Test func aKeyWrittenOverIsSetAside() throws {
+        let stores = Self.stores(syncing: false)
+        Self.write(stores.local, "sk-test-local-newer-0001", saved: Self.new)
+        Self.write(stores.synced, "sk-test-synced-older-0002", saved: Self.old)
+        let moves = try stores.turn(syncing: true)
+        #expect(moves.moved == ["openai"] && moves.setAside == ["openai"])
+        #expect(stores.synced.read("openai") == "sk-test-local-newer-0001")
+        #expect(stores.replaced.read("openai") == "sk-test-synced-older-0002" && stores.replaced.attributes("openai")?.saved == Self.old)
+
+        // The same key twice: nothing to set aside.
+        let same = Self.stores(syncing: false)
+        Self.write(same.local, "sk-test-same-key-0003", saved: Self.new)
+        Self.write(same.synced, "sk-test-same-key-0003", saved: Self.old)
+        #expect(try same.turn(syncing: true).setAside.isEmpty && same.replaced.attributes("openai") == nil)
+    }
+
+    /// The silent pass writing a newer login keychain key over an older one: the older one is set aside.
+    @Test func migratingOverAnOlderKeySetsItAside() throws {
+        let stores = Self.stores(syncing: true)
+        Self.write(stores.legacy, "sk-test-legacy-newer-0001", saved: Self.new)
+        Self.write(stores.synced, "sk-test-synced-older-0002", saved: Self.old)
+        let moves = try stores.migrate()
+        #expect(moves.moved == ["openai"] && moves.setAside == ["openai"])
+        #expect(stores.synced.read("openai") == "sk-test-legacy-newer-0001" && stores.legacy.attributes("openai") == nil)
+        #expect(stores.replaced.read("openai") == "sk-test-synced-older-0002")
+    }
+
+    /// A key that can't be set aside is never written over, nor deleted where it was: tried again later.
+    @Test func whatCantBeSetAsideStays() throws {
+        var replaced = KeySyncTests.store(.local)
+        replaced.write = { _, _, _, _, _, _ in .failed(-34018) }
+        let local = KeySyncTests.store(.local), synced = KeySyncTests.store(.synced)
+        let stores = KeySync.Stores(local: local, synced: synced, legacy: KeySyncTests.store(.legacy), replaced: replaced)
+        Self.write(local, "sk-test-local-newer-0001", saved: Self.new)
+        Self.write(synced, "sk-test-synced-older-0002", saved: Self.old)
+        Self.write(local, "sk-test-local-older-0003", saved: Self.old, account: "gemini")
+        Self.write(synced, "sk-test-synced-newer-0004", saved: Self.new, account: "gemini")
+        let moves = try stores.turn(syncing: true)
+        #expect(moves.mismatched == ["openai"] && !moves.isComplete && moves.setAside.isEmpty)
+        #expect(synced.read("openai") == "sk-test-synced-older-0002" && local.read("openai") == "sk-test-local-newer-0001")
+        #expect(local.read("gemini") == "sk-test-local-older-0003" && synced.read("gemini") == "sk-test-synced-newer-0004")
+    }
+
+    /// Remove… takes the key set aside too, whether this Mac syncs keys or not; nothing else reads it.
+    @Test func removeTakesTheKeySetAside() throws {
+        for syncing in [false, true] {
+            let stores = Self.stores(syncing: syncing)
+            Self.write(stores.replaced, "sk-test-replaced-0001", saved: Self.old)
+            #expect(stores.store.attributes("openai") == nil && stores.store.read("openai") == nil)
+            #expect(!stores.store.accounts().contains("openai"))
+            Self.write(stores.local, "sk-test-local-0002", saved: Self.new)
+            try APIKeys.remove(account: "openai", in: stores.store)
+            #expect(stores.replaced.attributes("openai") == nil && stores.local.attributes("openai") == nil)
+        }
+    }
+}
+
 #if canImport(Security)
 import Security
 
