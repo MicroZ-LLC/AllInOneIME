@@ -227,8 +227,10 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                     } else {
                         let mine = ICloudSync.Entry(value: after[key], stamp: .init(modified: now, by: state.macID))
                         plan.outgoing[key] = mine
-                        // A join's merge stays provisional (merged again, not replaced) until iCloud carries it.
-                        plan.entries[key] = plan.provisional.contains(key) ? ICloudSync.Entry(value: after[key], stamp: .joining(state.macID)) : mine
+                        // A join's merge stays provisional (merged again, not replaced) until iCloud carries it; its
+                        // `base` is the stamp it goes up with (a change made on top of it isn't merged again).
+                        plan.entries[key] = plan.provisional.contains(key)
+                            ? ICloudSync.Entry(value: after[key], stamp: .joining(state.macID), base: mine.stamp) : mine
                     }
                 } else if let stamp = incoming[key]?.stamp {
                     plan.entries[key] = ICloudSync.Entry(value: after[key], stamp: stamp)
@@ -274,7 +276,7 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                 if plan.merges[ICloudSync.jargonKey] != nil, let jargon {
                     list = Data(ICloudSync.mergedJargon(String(decoding: data, as: UTF8.self), String(decoding: jargon, as: UTF8.self)).utf8)
                     let mine = ICloudSync.Entry(value: ICloudSync.fileValue(list), stamp: .init(modified: now, by: state.macID))
-                    let provisional = ICloudSync.Entry(value: mine.value, stamp: .joining(state.macID))
+                    let provisional = ICloudSync.Entry(value: mine.value, stamp: .joining(state.macID), base: mine.stamp)
                     plan.entries[ICloudSync.jargonKey] = list == data ? entry
                         : plan.provisional.contains(ICloudSync.jargonKey) ? provisional : mine
                     if list != data {

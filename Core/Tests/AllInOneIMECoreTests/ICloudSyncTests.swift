@@ -556,6 +556,27 @@ struct ICloudSyncTests {
         #expect(ICloudSync.Entry(json: .object(["value": .bool(true)])) == nil)
         #expect(ICloudSync.Entry(json: .object(["value": .bool(true), "deleted": .bool(true), "modified": .string("2026-10-16T18:00:00Z"), "by": .string("A")])) == nil)
         #expect(ICloudSync.date("2026-10-16T18:00:00Z") != nil && ICloudSync.date("2026-10-16T18:00:00.123Z") != nil)
+        // A collection's change carries the stamp it was made on (`base`): read back, ignored when it isn't a stamp, and
+        // no part of what makes two entries the same.
+        let based = ICloudSync.Entry(value: .array([.string("y")]), stamp: b, base: a)
+        #expect(ICloudSync.Entry(json: based.json)?.base == a)
+        guard case var .object(fields) = based.json else { return }
+        fields["base"] = .string("yesterday")
+        let odd = ICloudSync.Entry(json: .object(fields))
+        #expect(odd != nil && odd?.base == nil && odd == based)
+    }
+
+    @Test("merge: a collection changed after another Mac's join merge goes up with the stamp it was changed from")
+    func collectionChangeCarriesItsBase() {
+        let merge = ICloudSync.Entry(value: .array([.string("a"), .string("b")]), stamp: .init(modified: t(20), by: "A"))
+        let plan = ICloudSync.plan(local: ["redaction.customWords": .array([.string("b")])], known: ["redaction.customWords": merge],
+                                   remote: ["redaction.customWords": merge], categories: [.hiddenWords], mac: "B", now: t(40))
+        #expect(plan.outgoing["redaction.customWords"]?.base == merge.stamp)
+        // Not for a value that isn't a collection.
+        let tokens = ICloudSync.Entry(value: .number(1000), stamp: .init(modified: t(20), by: "A"))
+        let other = ICloudSync.plan(local: ["maxTokens": .number(2000)], known: ["maxTokens": tokens], remote: ["maxTokens": tokens],
+                                    categories: [.settings], mac: "B", now: t(40))
+        #expect(other.outgoing["maxTokens"] != nil && other.outgoing["maxTokens"]?.base == nil)
     }
 
     // MARK: The folder, Rime's sync folder

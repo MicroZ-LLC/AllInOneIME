@@ -120,34 +120,54 @@ public enum ICloudSync {
     /// In `settings.json`: `{ "value": <the value>, "modified": "2026-10-16T18:00:00.000Z", "by": "<Mac id>" }`; a
     /// tombstone (an app's settings removed, `questionRounds` back to its default, which the config leaves out) is
     /// `{ "deleted": true, "modified": …, "by": … }`, with no value. An entry with both, or neither, isn't read.
+    ///
+    /// A collection (`mergedOnJoin`) changed on a Mac also carries `base`, `"base": { "modified": …, "by": … }`: the stamp
+    /// of the value it was changed from (this Mac's record of it). A Mac whose join merge is still provisional takes an
+    /// entry based on the stamp its merge went up with as made after seeing that merge: newer, it wins as any change does,
+    /// rather than being merged again (which would bring back what that Mac deleted). In this Mac's own record, a
+    /// provisional merge's `base` is that stamp. A version that doesn't know `base` ignores it, and drops it when it writes
+    /// the entry: the Mac then merges again, as it did before. Two entries are the same whatever their `base`.
     public struct Entry: Equatable, Sendable {
         public var value: AIConfig.JSONValue?
         public var stamp: Stamp
+        public var base: Stamp?
 
-        public init(value: AIConfig.JSONValue?, stamp: Stamp) {
+        public init(value: AIConfig.JSONValue?, stamp: Stamp, base: Stamp? = nil) {
             self.value = value
             self.stamp = stamp
+            self.base = base
         }
 
         public var isTombstone: Bool { value == nil }
+
+        public static func == (a: Entry, b: Entry) -> Bool { a.value == b.value && a.stamp == b.stamp }
 
         /// As `settings.json` holds it.
         public var json: AIConfig.JSONValue {
             var fields: [String: AIConfig.JSONValue] = ["modified": .string(ICloudSync.dateText(stamp.modified)), "by": .string(stamp.by)]
             if let value { fields["value"] = value } else { fields["deleted"] = .bool(true) }
+            if let base { fields["base"] = .object(["modified": .string(ICloudSync.dateText(base.modified)), "by": .string(base.by)]) }
             return .object(fields)
         }
 
-        /// An entry of `settings.json`; nil when it isn't one (no stamp, a value and a tombstone at once …).
+        /// An entry of `settings.json`; nil when it isn't one (no stamp, a value and a tombstone at once …). A `base`
+        /// that isn't a stamp is left out.
         public init?(json: AIConfig.JSONValue) {
-            guard case let .object(fields) = json, case let .string(modified)? = fields["modified"],
-                  let date = ICloudSync.date(modified), case let .string(by)? = fields["by"], !by.isEmpty else { return nil }
+            guard case let .object(fields) = json, let stamp = Self.stamp(fields) else { return nil }
+            var base: Stamp?
+            if case let .object(b)? = fields["base"] { base = Self.stamp(b) }
             let deleted = fields["deleted"] == .bool(true)
             switch (fields["value"], deleted) {
-            case (let value?, false): self.init(value: value, stamp: Stamp(modified: date, by: by))
-            case (nil, true): self.init(value: nil, stamp: Stamp(modified: date, by: by))
+            case (let value?, false): self.init(value: value, stamp: stamp, base: base)
+            case (nil, true): self.init(value: nil, stamp: stamp, base: base)
             default: return nil
             }
+        }
+
+        private static func stamp(_ fields: [String: AIConfig.JSONValue]) -> Stamp? {
+            guard case let .string(modified)? = fields["modified"], let date = ICloudSync.date(modified),
+                  case let .string(by)? = fields["by"], !by.isEmpty else { return nil }
+            return Stamp(modified: date, by: by)
         }
     }
 
@@ -464,7 +484,7 @@ public enum ICloudSync {
                         plan.kept[key] = held ?? record
                     }
                 } else if changedHere {
-                    let entry = Entry(value: value, stamp: Stamp(modified: now, by: mac))
+                    let entry = Entry(value: value, stamp: Stamp(modified: now, by: mac), base: changeBase(key, record))
                     plan.outgoing[key] = entry
                     plan.entries[key] = entry
                 } else if let record {
@@ -478,7 +498,8 @@ public enum ICloudSync {
                     // Stamped when the file changed if that is known, never later than now nor before the value it
                     // replaces.
                     let at = max(min(changedAt(key) ?? now, now), record.stamp.modified.addingTimeInterval(0.001))
-                    mine = record.value == value || absent ? record : Entry(value: value, stamp: Stamp(modified: at, by: mac))
+                    mine = record.value == value || absent ? record
+                        : Entry(value: value, stamp: Stamp(modified: at, by: mac), base: changeBase(key, record))
                 } else if let value {
                     mine = Entry(value: value, stamp: Stamp(modified: min(changedAt(key) ?? now, now), by: mac))
                 }
@@ -502,9 +523,12 @@ public enum ICloudSync {
                     continue
                 }
                 if mergedOnJoin.contains(key), let record, record.stamp.isJoining, record.stamp.by == mac, theirs.stamp.by != mac,
-                   theirs.stamp != record.stamp, let value, theirs.value != nil, value != theirs.value {
+                   theirs.stamp != record.stamp, let value, theirs.value != nil, value != theirs.value,
+                   theirs.base == nil || theirs.base != record.base {
                     // Still as this Mac joined (or provisional, from a join's merge), and another Mac's in iCloud: Macs
-                    // joined at once, or this one joined offline. The collections merge, as on a join.
+                    // joined at once, or this one joined offline. The collections merge, as on a join. Not when iCloud's
+                    // was changed from this Mac's merge as it went up (`Entry.base`): that Mac saw it, and its change
+                    // stands as any newer change does.
                     plan.merges[key] = theirs
                     plan.provisional.insert(key)
                     plan.kept[key] = mine
@@ -533,10 +557,17 @@ public enum ICloudSync {
         // Fields of an object a newer version added (in iCloud's entry, unknown here) go back up with this Mac's edit.
         for (key, entry) in plan.outgoing {
             if let carried = carryingUnknownFields(of: remote?[key]?.value, into: entry.value, key: key) {
-                plan.outgoing[key] = Entry(value: carried, stamp: entry.stamp)
+                plan.outgoing[key] = Entry(value: carried, stamp: entry.stamp, base: entry.base)
             }
         }
         return plan
+    }
+
+    /// What a change of `key` made here on top of `record` is based on (`Entry.base`): the record's stamp, for a
+    /// collection whose record is a real stamp (a joining one is no change another Mac can have seen).
+    static func changeBase(_ key: String, _ record: Entry?) -> Stamp? {
+        guard mergedOnJoin.contains(key), let record, !record.stamp.isJoining else { return nil }
+        return record.stamp
     }
 
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
