@@ -1,6 +1,7 @@
 # Keeps the core (AllInOneIMECore) building off the Mac: on Linux and Windows, the core and its tests (with the CLI)
-# must build, and the lint guard (Scripts/check-core-portable.sh) and its self-test must pass. The tests aren't run here
-# yet: some still fail there for known reasons (the tools in the image, POSIX programs, Apple-only assumptions).
+# must build, and the lint guard (Scripts/check-core-portable.sh) and its self-test must pass. On Windows the suites of
+# what differs there (paths, the folder swap, the word list) run too; the rest aren't run here yet: some still fail
+# there for known reasons (the tools in the image, POSIX programs, Apple-only assumptions).
 name: Core on other platforms
 
 on:
@@ -45,7 +46,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: compnerd/gha-setup-swift@v0.5.0
+      - uses: compnerd/gha-setup-swift@bbae8ce86bac5a3449f3992b3d88bc4ca25f2057  # v0.5.0
         with:
           swift-version: swift-6.4.1-release
           swift-build: 6.4.1-RELEASE
@@ -59,3 +60,5 @@ jobs:
         run: swift build --target AllInOneIMECore
       - name: Build the tests
         run: swift build --build-tests
+      - name: Run the tests of what differs on Windows
+        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests'
