@@ -477,3 +477,77 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 7. **Keyboard layout per language.** The Mac's `inputLanguageChanged` switches the keyboard layout. It's unclear whether a TIP can switch its thread's HKL, so there's no output for it in v1.
 8. **UI-less mode.** UI-less mode (`ITfUIElement`) needs a `PanelModel` on the wire, behind a capability. That depends on plan step 6.
 9. **Timing numbers.** The 150 ms, 20 ms p99, 15 s keepalive and 50 ms first-draw figures all need measuring in M2.
+
+---
+
+## Spec notes
+
+What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building M1 and M2. **Where the text above disagrees with the real Composer, the Composer wins, and the goldens in `Core/Tests/AllInOneIMEWireTests/WireGoldens/` are the reference.** Both sides should read these notes as part of the contract.
+
+### The goldens against §10
+
+`notepad-improve.jsonl` is the §10 transcript in full, with every key. It differs from the sketch in §10:
+
+- **What the composition shows.** The Composer shows a command without its "@": after "@" the composition is `@`, after "@i" it is `i`, and after "@improve " it is `improve › ` (the `›` is one UTF-16 unit). So the draft at Return is `improve › helo` (14 units), not `@improve hello`. `caret` and `comp` count what is shown.
+- **"helo", not "hello".** The panel hides a version that only re-punctuates the original or another version. With the input "hello", "Hello." would be hidden and `1` would pick "Hi there.". The golden types "helo" so that `1` is "Hello.", as §10 intends. With the fixture's stream, the rows are 0 "helo", 1 "Hello.", 2 "Hi there.". "Hello!" re-punctuates "Hello." and is hidden too.
+- **Rows start at the original.** Row 0 is the text as typed, row 1 the first version. The click golden uses `#! click row 1`, not `row 0`.
+- **Output order.** A pick returns `panel shown:false` *before* the `commit` (`[{"op":"panel","shown":false},{"op":"commit","text":"Hello."}]`), in the order of the Composer's effects. Clients must not rely on the order of `panel` relative to text ops.
+- **Ids and times.** The engine's ids are its own count. In the full golden, the `1` key is DLL id 24, engine id 21, and `t` values differ from the sketch.
+
+### Golden format (§10)
+
+- **`v`.** The engine sends `v` in every frame. A `<` line without `v` doesn't compare it. A replayer adds `v` to each `>` line that has none.
+- **`"$any"` in a `>` line** (`client`, `pid`, `tid`, `hwnd`) marks a value that is the client's own. Replayers leave the field out. In a `<` line it matches any value that is present.
+- **Directives.** A `(…)` after two spaces is a comment.
+  - `#! provider <file>`: the scripted level-two stream. Each step is `{"after": ms, "versions": […], "final": bool}` or `{"after": ms, "error": "…"}`.
+  - `#! inputLanguage <english|chinese|french|korean|hindi>`.
+  - `#! advance <ms>`: move the manual clock, running what falls due.
+  - `#! run tasks`: run every timer and queued task until none is left.
+  - `#! click row <n>`: a click in the engine's panel.
+  - `#! keys <text>`: typed in a field the client sends nothing from (the app gets the keys).
+  - `#! connect`, `#! disconnect`: a new connection, or the client's end closed.
+  - `#! closed`: the engine must have closed the connection.
+- **Over a real transport** (`allinoneime-cli wire-replay`, engine started with `--test`), directives travel as `{"v":1,"id":0,"type":"x-test","directive":"…"}`, answered `{"id":0,"re":0,"type":"x-test","ok":true}`. `provider` carries its file's contents in `fixture`. After each `>` line the replayer sends `x-test idle`: the frames before its answer are that line's. `x-test` is outside both sides' id counts, and an engine not in test mode answers it `unknownType`.
+
+### Behaviour the text leaves open
+
+- **First frame.** Anything but `hello` first gets `badMessage` and the connection closes. A frame whose `v` isn't the agreed version gets `badMessage` and the connection goes on.
+- **Errors on notifications** (`open`, `focus`, `caret`, `close`, `applied`) carry `re`, the notification's id. `badFrame` and `tooLarge` carry no `re`: the frame wasn't read.
+- **`open` again** for a known `sid` replaces its `field` and is not an error.
+- **`focus` without a `blur`** of the previously focused session: the engine blurs that session itself, and its outputs are dropped. The DLL must always send `blur` first (§4).
+- **A field that turns secure** (`focus` re-sent with `secure:true`) while a draft is pending gets the draft committed as typed, pushed as `apply` (`focus` has no result), with `panel shown:false`. A key from a secure field, if one comes anyway, is `handled:false`, with a notice in the engine and no composition.
+- **`blur` and `endComposition terminated`** commit the draft *as typed*, with its "@" (`@improve helo`), not as shown, and hide the panel.
+- **`endComposition timeout`** returns `composition ""` and `panel shown:false`. The passed-through key stays in the document and the draft before it is gone. In `timeout-resync`, "@im" + "p" leaves "p". This is lossy, but it is what §5.5 asks for.
+- **A lost engine** (§2.5): the client keeps its composition's text *as shown*. After a broken pipe during "@imp" the document keeps "imp", without the "@" (`reconnect`).
+- **Esc during a stream:** the first Esc cancels and returns the draft (style `draft`) with the panel still shown. A second Esc gives the draft up (`composition ""`, `panel shown:false`).
+- **A failed request** (`Composer.fail`) only shows the failure in the engine's panel: no frame. Esc gives the draft back.
+- **The `comp` check** (§5.1): when the app took the composition, the key that reveals it is answered `handled:true` and dropped (so ⏎ doesn't send half a sentence). Its outputs come from the Composer's `appTookMarkedText`: `panel shown:false`, and a running request stops. The document's text is left as it is.
+- **Held compositions** (§7): while a session's last `apply` is unacknowledged, a push of compositions only is held, and a newer one replaces it. A held push goes out with the next `applied`, or is put in front of the outputs of that session's next `result`.
+- **Modifier key-downs** that repeat (`isRepeat`) are dropped. A fake Shift (`isFakeShift`) gets `result` with nothing.
+- **Canonical form exceptions:** `composition.text` is always written (empty ends the composition), and so are `panel.shown` and `welcome.capabilities` (`[]`).
+- **The key rate** (§8) counts every `keyDown` and `keyUp`, including those refused with `badMessage`. Over 200 in a second they get `error limit` (no work done), which the DLL treats as `handled:false` (§3).
+- **The engine's `app` and `process`** (§4) are the executable's file name in lower case (`win:notepad.exe`; Windows names aren't case-sensitive), or `win:<AUMID>` for packaged apps.
+- **Untrusted clients** (§8, Open question 5): until `Command` has a classification, the engine refuses for untrusted clients, and for a key from a process that doesn't own the foreground, every effect that runs, opens, searches, reads the clipboard, records, keeps or sends. That includes `@question` and `@agent` (`startCommand`). Typing and AI rewriting and translating (`startConversion`, `startRefine`, `startTranslateMode`) are allowed.
+- **Type-out** (§6): `typeOut` is committed in one `commit` for now. The step-by-step `apply` series isn't built.
+
+### Windows transport (§2)
+
+- **§2.1's label check contradicts its SDDL.** The SDDL's `S:(ML;;NW;;;LW)` gives the real engine's pipe a *low* label, so that low-integrity clients can write. A check that the pipe's label is "medium or higher" always fails, and a low-integrity squatter's pipe looks the same. The DLL should check the *server process* instead:
+  1. `GetNamedPipeServerProcessId`;
+  2. `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`;
+  3. `OpenProcessToken(TOKEN_QUERY)`;
+  4. the token's user is the DLL's and its integrity is medium or higher.
+
+  Keep the session check and the owner check: the pipe's owner is the user's SID, which held even for an elevated engine. `allinoneime-cli wire-replay` checks it this way.
+- **Unread data on close.** After a fatal error the engine writes the error, then waits up to 1 s for the client to close its end before it closes its own. It never calls `DisconnectNamedPipe`, which discards unread data. A DLL should close as soon as it has read a fatal error.
+- **Relaunch race.** An engine started right after the previous one exited can find the old pipe still there for a moment: the first instance fails with `ERROR_ACCESS_DENIED` although the engine holds the mutex. It retries for 2 s before it exits.
+- **Sessions under OpenSSH.** Processes started over OpenSSH run in session 0, at high integrity for an administrator. The engine and its clients still pass the checks: same session, same user.
+
+### Timing (M2, measured)
+
+Measured on a Ryzen 5 5600X running Windows 11, release build, `wire-replay` against `AllInOneIMEEngine --test`. Details are in `Windows/README.md`.
+
+- **Cold start:** about 31 ms (p50) from launch to `welcome`.
+- **Key round trip:** p50 0.12 ms, p99 0.34 ms, from the write to the `result` read, Latin input. That is far inside the 20 ms p99 budget and the 150 ms timeout.
+
+Not measured yet: the keepalive and the first draw, which need the DLL and the panel.
