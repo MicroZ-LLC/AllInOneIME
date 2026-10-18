@@ -293,6 +293,19 @@ struct ReplyTests {
         #expect(ReplyParser.parse("A\n--", isFinal: false).map(\.text) == ["A"])
     }
 
+    @Test func theParserTakesOtherRulesAndDropsLabels() {
+        #expect(ReplyParser.parse("A\n***\nB\n— — —\nC", isFinal: true).map(\.text) == ["A", "B", "C"])
+        #expect(ReplyParser.parse("A\n___\nB", isFinal: true).map(\.text) == ["A", "B"])
+        #expect(ReplyParser.parse("Option 1: Sure\n---\n**Option 2:** OK\n---\n**Reply 3**: Fine", isFinal: true).map(\.text)
+                == ["Sure", "OK", "Fine"])
+        #expect(ReplyParser.parse("**Option 1:**\nSure thing\n---\n回复2：好的", isFinal: true).map(\.text) == ["Sure thing", "好的"])
+        // Not a label, not a rule: kept.
+        #expect(ReplyParser.parse("Options are open\n---\n**Bold** move\n---\n—", isFinal: true).map(\.text)
+                == ["Options are open", "**Bold** move", "—"])
+        // A rule still being written isn't text.
+        #expect(ReplyParser.parse("A\n**", isFinal: false).map(\.text) == ["A"])
+    }
+
     @Test func otherBuiltInNamesAreFreedToo() {
         var config = Config.default
         config.customCommands = [CustomCommand(name: "Note", type: .prompt, prompt: "x"), CustomCommand(name: "mine", type: .prompt, prompt: "y")]

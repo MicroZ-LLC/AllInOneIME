@@ -126,10 +126,8 @@ public enum ReplyParser {
     public static func parse(_ text: String, isFinal: Bool) -> [CandidateLine] {
         var lines = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
-        // A separator still being written ("--") isn't part of a reply.
-        if !isFinal, let last = lines.last, !last.isEmpty, last.trimmingCharacters(in: .whitespaces).allSatisfy({ $0 == "-" }) {
-            lines.removeLast()
-        }
+        // A separator still being written ("--", "*") isn't part of a reply.
+        if !isFinal, let last = lines.last, separatorMark(last) != nil { lines.removeLast() }
         var parts: [[String]] = [[]]
         for line in lines {
             if isSeparator(line) { parts.append([]) } else { parts[parts.count - 1].append(line) }
@@ -143,19 +141,32 @@ public enum ReplyParser {
         return out
     }
 
-    /// A line of only "---" (three dashes or more).
+    /// A line of only "---" (three dashes or more), or of a rule a model writes instead: "***", "___", "— — —" (spaces
+    /// between them aside).
     static func isSeparator(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        return trimmed.count >= 3 && trimmed.allSatisfy { $0 == "-" }
+        guard let mark = separatorMark(line) else { return false }
+        return mark.count >= 3
     }
 
-    /// A reply as text to insert (`Converter.lines`: no controls or code fences), without a number before it ("1. ").
+    /// The line without its spaces, when it's only one of the marks a separator is made of ("-", "*", "_", "—", "–");
+    /// nil otherwise.
+    private static func separatorMark(_ line: String) -> String? {
+        let marks = line.filter { !$0.isWhitespace }
+        guard let first = marks.first, "-*_—–".contains(first), marks.allSatisfy({ $0 == first }) else { return nil }
+        return marks
+    }
+
+    /// A reply as text to insert (`Converter.lines`: no controls or code fences), without what a model may put before it:
+    /// a number ("1. ", "2) ", "3、"), or a label, bold or not ("Option 1:", "**Option 2:**", "**Reply 3**:", "回复1：").
     static func clean(_ text: String) -> String {
         var reply = Converter.lines(text).trimmingCharacters(in: .whitespacesAndNewlines)
-        if let range = reply.range(of: #"^[1-3](?:[.)]\s+|、\s*)"#, options: .regularExpression) {
-            reply.removeSubrange(range)
+        let label = #"^\*{0,2}(?:option|reply|version|选项|回复|方案)\s*[1-3]\s*(?:[:：.)]\s*\*{0,2}|\*{0,2}\s*[:：])\s*"#
+        for pattern in [label, #"^[1-3](?:[.)]\s+|、\s*)"#] {
+            if let range = reply.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
+                reply.removeSubrange(range)
+            }
         }
-        return reply
+        return reply.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
