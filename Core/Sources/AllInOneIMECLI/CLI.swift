@@ -28,9 +28,9 @@ let usage = """
     Settings come from ~/.config/allinoneime/config.json; flags override them.
 
     options:
-      --provider NAME  bedrock, anthropic, gemini, openai, hosted or apple (API keys: on the Mac the login keychain
-                       only, else ANTHROPIC_API_KEY, …; the keys the input method moved for key sync aren't in the
-                       login keychain any more, so set them in shell variables)
+      --provider NAME  bedrock, anthropic, gemini, openai, hosted or apple (API keys: on the Mac the login keychain,
+                       else ANTHROPIC_API_KEY, …; keys that sync through iCloud Keychain aren't in the login
+                       keychain, so set those in shell variables)
       --profile NAME   AWS profile
       --region REGION  Bedrock region
       --model ID       model (for Bedrock: model / inference profile ID)
