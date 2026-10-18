@@ -88,8 +88,9 @@ build: deps
 # key in both fails) and compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict),
 # which go into the input method, AllInOneIME Settings and the installer. The English text is the key (`tr` in
 # AllInOneIMEText). `make strings` adds the code's new texts to the catalogs, the core's first (the core's Strings
-# plugin, Core/Scripts/strings/main.swift); `make strings-check`, part of `make test`, fails when one is missing or a
-# language in them lacks a translation.
+# plugin, Core/Scripts/strings/main.swift), and moves a text whose code moved from the app to the core to the core's
+# catalog, with its translations (Core/Scripts/strings-test.sh, part of `make test`, checks that); `make strings-check`,
+# part of `make test`, fails when one is missing or a language in them lacks a translation.
 STRINGS        := Resources/Localizable.xcstrings
 CORE_STRINGS   := $(CORE)/Resources/Localizable.xcstrings
 STRINGS_MERGED := $(BUILD_DIR)/Localizable.xcstrings
@@ -296,6 +297,7 @@ test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-portable.sh
 	$(CORE)/Scripts/check-core-standalone.sh
 	$(CORE)/Scripts/check-core-standalone.sh --release
+	$(CORE)/Scripts/strings-test.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
 	ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
