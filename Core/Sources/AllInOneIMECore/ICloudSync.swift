@@ -121,12 +121,15 @@ public enum ICloudSync {
     /// tombstone (an app's settings removed, `questionRounds` back to its default, which the config leaves out) is
     /// `{ "deleted": true, "modified": …, "by": … }`, with no value. An entry with both, or neither, isn't read.
     ///
-    /// A collection (`mergedOnJoin`) changed on a Mac also carries `base`, `"base": { "modified": …, "by": … }`: the stamp
-    /// of the value it was changed from (this Mac's record of it). A Mac whose join merge is still provisional takes an
-    /// entry based on the stamp its merge went up with as made after seeing that merge: newer, it wins as any change does,
-    /// rather than being merged again (which would bring back what that Mac deleted). In this Mac's own record, a
-    /// provisional merge's `base` is that stamp. A version that doesn't know `base` ignores it, and drops it when it writes
-    /// the entry: the Mac then merges again, as it did before. Two entries are the same whatever their `base`.
+    /// A collection (`mergedOnJoin`) changed on a Mac also carries `base`, `"base": { "modified": …, "by": … }`: which
+    /// merge its value derives from, the stamp that merge went up with (or a first join's, for a list put up as it was
+    /// because iCloud had none), carried along every change made on top of it, on any Mac (`changeBase`). A Mac whose
+    /// join merge is still provisional takes an entry of that base as made after seeing its merge: newer, it wins as any
+    /// change does, rather than being merged again (which would bring back what was deleted on top of it). In this
+    /// Mac's own record, a provisional merge's (or a first join's) `base` is that stamp, and a value received keeps the
+    /// base it came with. A merge's result has none: each merge starts anew. A version that doesn't know `base` (0.6.4)
+    /// ignores it, and drops it when it writes the entry: the Mac then merges again, as it did before (a delete made on
+    /// top of a provisional merge comes back once; made again, it sticks). Two entries are the same whatever their `base`.
     public struct Entry: Equatable, Sendable {
         public var value: AIConfig.JSONValue?
         public var stamp: Stamp
@@ -460,7 +463,9 @@ public enum ICloudSync {
                 } else if let value {
                     let entry = Entry(value: value, stamp: .joining(mac))
                     plan.outgoing[key] = entry
-                    plan.entries[key] = entry
+                    // A collection put up as it is: a change another Mac makes on top of it is based on it (`base`),
+                    // and wins here rather than being merged again (which would bring back what that Mac deleted).
+                    plan.entries[key] = mergedOnJoin.contains(key) ? Entry(value: value, stamp: entry.stamp, base: entry.stamp) : entry
                 }
             case .rejoining:
                 guard remote != nil else {
@@ -529,6 +534,10 @@ public enum ICloudSync {
                     // joined at once, or this one joined offline. The collections merge, as on a join. Not when iCloud's
                     // was changed from this Mac's merge as it went up (`Entry.base`): that Mac saw it, and its change
                     // stands as any newer change does.
+                    // Known limits: the merge is of this Mac's whole list, merge included, so a command another Mac
+                    // deleted from a list this one hasn't seen (two Macs joined at once, a third deleted one it had)
+                    // comes back once; and a join made offline settles on that Mac's own copy of settings.json, so when
+                    // the two files meet, iCloud keeps one and the other Mac's command added meanwhile can be lost.
                     plan.merges[key] = theirs
                     plan.provisional.insert(key)
                     plan.kept[key] = mine
@@ -563,11 +572,12 @@ public enum ICloudSync {
         return plan
     }
 
-    /// What a change of `key` made here on top of `record` is based on (`Entry.base`): the record's stamp, for a
-    /// collection whose record is a real stamp (a joining one is no change another Mac can have seen).
+    /// What a change of `key` made here on top of `record` is based on (`Entry.base`), for a collection: the merge (or
+    /// the first join) the record's value derives from, its `base`, carried along every change made on top of it, on any
+    /// Mac; the record's own stamp when it has none (a merge's result, a value from a version that doesn't know `base`).
     static func changeBase(_ key: String, _ record: Entry?) -> Stamp? {
-        guard mergedOnJoin.contains(key), let record, !record.stamp.isJoining else { return nil }
-        return record.stamp
+        guard mergedOnJoin.contains(key), let record else { return nil }
+        return record.base ?? record.stamp
     }
 
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil

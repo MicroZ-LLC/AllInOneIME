@@ -230,8 +230,9 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
                         plan.entries[key] = plan.provisional.contains(key)
                             ? ICloudSync.Entry(value: after[key], stamp: .joining(state.macID), base: mine.stamp) : mine
                     }
-                } else if let stamp = incoming[key]?.stamp {
-                    plan.entries[key] = ICloudSync.Entry(value: after[key], stamp: stamp)
+                } else if let entry = incoming[key] {
+                    // With the merge it derives from (`Entry.base`), for a change made here on top of it.
+                    plan.entries[key] = ICloudSync.Entry(value: after[key], stamp: entry.stamp, base: entry.base)
                 }
             }
             let keys = AIConfig.changedKeys(config, result.config)
