@@ -10,11 +10,17 @@
     " (%@)" : {
       "comment" : "（%@） — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    " (database)" : {
+      "comment" : "（数据库） — Sources/AllInOneIMECore/NotionNotes.swift"
+    },
     " (fix it in the file, Settings → Advanced; it's never deleted for you)" : {
       "comment" : "（打开设置 → 高级 → 配置文件修正它；不会自动删除） — Sources/AllInOneIMECore/Doctor.swift"
     },
     " (ignored)" : {
       "comment" : "（会被忽略） — Sources/AllInOneIMECore/Doctor.swift"
+    },
+    " (page)" : {
+      "comment" : "（页面） — Sources/AllInOneIMECore/NotionNotes.swift"
     },
     " (saved questions are kept; Settings → General → “Clear” deletes them)" : {
       "comment" : "（已存的问题保留；要删除，在设置 → 通用里点「清除」） — Sources/AllInOneIMECore/AIConfigText.swift"
@@ -576,6 +582,9 @@
     "not a model the app knows: enter it in Settings" : {
       "comment" : "不在已知的模型里，请在设置里填 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    "Not a Notion link" : {
+      "comment" : "不是 Notion 链接 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
     "not a valid AWS region" : {
       "comment" : "不是有效的 AWS 区域 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
@@ -612,8 +621,26 @@
     "Nothing to undo from the last 10 minutes" : {
       "comment" : "10 分钟内没有可以撤销的设置修改 — Sources/AllInOneIMECore/AIConfigText.swift"
     },
+    "Notion didn't answer within %@ s" : {
+      "comment" : "Notion %@ 秒内没有回应 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
+    "Notion is busy: try again in a moment" : {
+      "comment" : "Notion 正忙：稍后再试 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
+    "Notion is having trouble (HTTP %@)" : {
+      "comment" : "Notion 出了问题（HTTP %@） — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
+    "Notion isn't set up: Settings → Plugins → Notes" : {
+      "comment" : "Notion 还没设置好：设置 → 插件 → 笔记 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
+    "Notion refused the note (%@)" : {
+      "comment" : "Notion 没有接受这条笔记（%@） — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
     "off" : {
       "comment" : "关 — Sources/AllInOneIMECore/AIConfigText.swift"
+    },
+    "Offline: not saved to Notion" : {
+      "comment" : "没有联网：没有存到 Notion — Sources/AllInOneIMECore/NoteDestination.swift"
     },
     "on" : {
       "comment" : "开 — Sources/AllInOneIMECore/AIConfigText.swift"
@@ -728,6 +755,9 @@
     },
     "Secure input is on (a password field or the lock screen): the conversation wasn't sent" : {
       "comment" : "系统安全输入已开启（密码框或锁屏），对话没有发出去 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
+    },
+    "Secure input is on: not saved to Notion" : {
+      "comment" : "系统安全输入已开启，没有存到 Notion — Sources/AllInOneIMECore/Composer.swift"
     },
     "Settings → General → Sync Now" : {
       "comment" : "在设置 → 通用里点「立即同步」 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift"
@@ -896,6 +926,15 @@
     },
     "The note wasn't saved; its text is on the clipboard" : {
       "comment" : "笔记还没存，原文已复制到剪贴板 — Sources/AllInOneIMECore/Composer.swift"
+    },
+    "The notes folder is gone: choose it again in Settings" : {
+      "comment" : "笔记文件夹不在了：在设置里重新选择 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
+    "The Notion page isn't shared with your integration: ··· → Connections" : {
+      "comment" : "这个 Notion 页面没有分享给你的集成：··· → 连接 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
+    "The Notion token isn't valid: paste a new one in Settings → Plugins" : {
+      "comment" : "Notion 令牌无效：在设置 → 插件里粘贴新的 — Sources/AllInOneIMECore/NoteDestination.swift"
     },
     "the profile's region" : {
       "comment" : "profile 的区域 — Sources/AllInOneIMECore/AIConfigText.swift"

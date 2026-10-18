@@ -4,11 +4,12 @@ import Foundation
 // @reminder, @agent's background tasks). The window and its sources are in the input method.
 
 /// The panel's own record of the notes `@note` saved, newest first: kept from launch, whether the
-/// panel is on or not. Notes isn't read on a timer for this: an Apple event to Notes launches it
-/// when it isn't running. Kept as JSON in the input method's defaults (`savedNotes`).
+/// panel is on or not. Where each went is its id's scheme (`NoteDestination`): `x-coredata:` a note in Notes, `file:` a
+/// Markdown file, `https:` a Notion page. Notes isn't read on a timer for this: an Apple event to Notes launches it
+/// when it isn't running; Notion is never asked. Kept as JSON in the input method's defaults (`savedNotes`).
 public struct SavedNotes: Codable, Equatable, Sendable {
     public struct Note: Codable, Equatable, Sendable, Identifiable {
-        /// Notes' identifier (`x-coredata://…`), to show the note.
+        /// Notes' identifier (`x-coredata://…`), the file's URL (`file://…`) or the Notion page's (`https://…`), to open it.
         public var id: String
         /// Its first line, at most `SavedNotes.titleLength` characters (as Notes names it).
         public var title: String
@@ -55,6 +56,7 @@ public struct SavedNotes: Codable, Equatable, Sendable {
     /// `limit`), or the note was saved after the oldest listed one last changed (a minute's margin:
     /// Notes stamps it a moment before @note reports it). Moved to another folder counts as gone.
     /// Returns whether anything changed.
+    /// Only the notes in Notes (`x-coredata:`) are checked against it; files and Notion pages stay as they are.
     @discardableResult
     public mutating func reconcile(with listed: [(id: String, title: String, modified: Date)]?, limit: Int) -> Bool {
         guard let listed else { return false }
@@ -64,6 +66,7 @@ public struct SavedNotes: Codable, Equatable, Sendable {
         let oldest = listed.map(\.modified).min()
         let before = notes
         notes = notes.compactMap { note in
+            guard Self.isInNotes(note.id) else { return note }
             if let title = titles[note.id] {
                 var note = note
                 if !title.isEmpty { note.title = title }  // a note that starts with a picture has no name
@@ -77,6 +80,23 @@ public struct SavedNotes: Codable, Equatable, Sendable {
 
     /// Swiped away in the panel: no longer listed (the note stays in Notes).
     public mutating func remove(id: String) { notes.removeAll { $0.id == id } }
+
+    /// Whether the note is one in Notes (an `x-coredata:` id).
+    public static func isInNotes(_ id: String) -> Bool { id.lowercased().hasPrefix("x-coredata:") }
+
+    /// The files (`file:` ids) among them.
+    public var files: [URL] {
+        notes.compactMap { note in URL(string: note.id).flatMap { $0.isFileURL ? $0 : nil } }
+    }
+
+    /// Drops the files that are gone (`exists` says no: deleted, moved, or their folder renamed); the other notes are
+    /// never checked. Returns whether any was dropped.
+    @discardableResult
+    public mutating func dropMissingFiles(exists: (URL) -> Bool) -> Bool {
+        let before = notes.count
+        notes.removeAll { note in URL(string: note.id).map { $0.isFileURL && !exists($0) } ?? false }
+        return notes.count != before
+    }
 }
 
 /// The reminders and tasks swiped away in the menu bar panel (by id): no longer listed there, but left
