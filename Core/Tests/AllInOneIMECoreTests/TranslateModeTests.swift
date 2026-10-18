@@ -598,8 +598,8 @@ struct TranslateModeToneTests {
 
     @Test func theRequestSaysTheTone() {
         let request = Prompt.translateModeRequest(for: "你好", target: .english, tone: .casual, config: .default)
-        #expect(request.system[0].text.hasSuffix("- " + TranslateMode.Tone.casual.rule))
-        #expect(TranslateMode.Tone.allCases.map(\.rule).count == Set(TranslateMode.Tone.allCases.map(\.rule)).count)
+        #expect(request.system[0].text.hasSuffix("- " + AppTone.casual.rule))
+        #expect(AppTone.allCases.map(\.rule).count == Set(AppTone.allCases.map(\.rule)).count)
     }
 }
 
@@ -843,7 +843,7 @@ struct TranslateModeRequestTests {
         #expect(golden.values.allSatisfy { $0.system.first?.text != request.system.first?.text })
         // The translate prompt's machinery, for one line in the target language, then the tone: no examples.
         let plan = WritingPlan(versions: nil, translations: [.english], styles: [], input: .chinese)
-        #expect(request.system.count == 1 && request.system[0].text == Prompt.system(plan) + "\n- " + TranslateMode.Tone.natural.rule)
+        #expect(request.system.count == 1 && request.system[0].text == Prompt.system(plan) + "\n- " + AppTone.natural.rule)
         #expect(request.system[0].text.contains("EN: <the sentence in English, as a native speaker would most naturally say it>"))
         #expect(request.messages.count == 1 && request.messages[0].role == "user" && request.messages[0].content.first?.text == input)
         // @translate's own request is still what it was, and so is every request the fixture holds, byte for byte.
@@ -868,7 +868,7 @@ struct TranslateModeRequestTests {
         let sent = try #require(model.requests.first)
         #expect(!sent.prompt.contains("bob@example.com") && sent.prompt.contains("[EMAIL_1]") && sent.examples.isEmpty)
         // WeChat: casual.
-        #expect(sent.instructions.contains(TranslateMode.Tone.casual.rule) && !sent.instructions.contains(TranslateMode.Tone.natural.rule))
+        #expect(sent.instructions.contains(AppTone.casual.rule) && !sent.instructions.contains(AppTone.natural.rule))
         // Asked again: from the cache, its own (not @translate's).
         var again: ConversionUpdate?
         for try await update in converter.translateMode("明天给 bob@example.com 发邮件", target: .english, app: "com.tencent.xinWeChat") {

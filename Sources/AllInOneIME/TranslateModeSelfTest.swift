@@ -207,7 +207,7 @@ extension SelfTest {
         check(inserted && client.marked.isEmpty && !controller.composer.isComposing, "…and the translation goes in at once (\(client.inserted))")
         check(!enter(controller, client), "…not sent: the next ⏎ is the app's")
         let instructions = model.requests.last?.instructions ?? ""
-        check(instructions.contains("Tone of the translation") && instructions.contains(TranslateMode.Tone.natural.rule)
+        check(instructions.contains("Tone of the translation") && instructions.contains(AppTone.natural.rule)
               && model.requests.last?.examples.isEmpty == true,
               "Translate as You Type's own request: one line, a tone line (natural here)")
 
@@ -375,7 +375,7 @@ extension SelfTest {
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")
         draft("nihao")
         _ = enter(controller, client)
-        check(pump(timeout: 5) { client.inserted.last == "Hello" } && model.requests.last?.instructions.contains(TranslateMode.Tone.formal.rule) == true,
+        check(pump(timeout: 5) { client.inserted.last == "Hello" } && model.requests.last?.instructions.contains(AppTone.formal.rule) == true,
               "…in the app's tone (its first rewrite style, 正式)")
         controller.commitComposition(client)
         client.bundleIDOverride = notes
