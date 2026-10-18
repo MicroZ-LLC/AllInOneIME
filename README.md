@@ -273,7 +273,7 @@ commands: they share code and preferences, which Settings shows (passwords go to
 command with a switch, and the scripts left out with why.
 
 Raycast's modes map as `fullOutput` → `show`, `compact` and `silent` → `silent`, `inline` with `refreshTime` → a
-status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Examples/extensions](Examples/extensions)
+status. The whole protocol is in [docs/extensions.md](docs/extensions.md); [Core/Examples/extensions](Core/Examples/extensions)
 has one of each kind. Extensions run code on your Mac: use ones you trust. They run only when you run them (a status
 or a list as you type it), never during secure input, and stop when the input method quits.
 
@@ -831,7 +831,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 make test         # unit tests, plus tests that run the real Rime engine (and make strings-check)
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -853,11 +853,13 @@ the key's English value in the catalog. Adding a language is adding its column t
 interface language's code and look it up the same way (`InterfaceText.lookup`, which each app sets: its `.lproj` bundles
 on macOS; elsewhere `StringCatalog` reads the catalog's tables).
 
-Code layout:
+Code layout: the root is the macOS app; `Core/` is the core every platform shares, a Swift package of its own (it
+builds and tests on its own, on macOS, Linux and Windows).
 
-- `Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
-- `Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
-- `Sources/AllInOneIMERime`: librime wrapper
+- `Core/Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
+- `Core/Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
+- `Core/Sources/AllInOneIMERime`: librime wrapper
+- `Sources/AllInOneIMEMac`: what only the Mac has (key layouts, code signing, Spotlight, AppleScript, the updater's install), and `Platform.mac`
 - `Sources/AllInOneIME`: the InputMethodKit input method, candidate panel, settings window, speech recognition
 - `Sources/AllInOneIMESettings`: the "AllInOneIME Settings" launcher
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" on the disk image: installs, updates and uninstalls

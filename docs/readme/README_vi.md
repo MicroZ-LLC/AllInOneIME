@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Một lệnh cũng có thể không nhận đầu vào (`input none`: ⏎ trên tên của nó là chạy), chạy ở chế độ `background` và báo cho bạn khi xong (bảng trên thanh menu liệt kê nó trong lúc chạy), hiển thị một `status` bên cạnh tên trong danh sách lệnh, hoặc hỏi trước (`confirm`). Nó chạy trong thư mục riêng của nó với PATH của login shell và các biến `ALLINONEIME_*`: ngôn ngữ giao diện và ngôn ngữ nhập, ứng dụng bạn đang gõ, văn bản. Một **bundle** là một thư mục có `extension.json` liệt kê các lệnh của nó: chúng dùng chung mã và tùy chọn, được hiển thị trong Settings (mật khẩu được lưu vào keychain). Settings liệt kê mọi lệnh kèm một công tắc, và các script bị bỏ qua kèm lý do.
 
-Các chế độ của Raycast tương ứng như sau: `fullOutput` → `show`, `compact` và `silent` → `silent`, `inline` có `refreshTime` → một status. Toàn bộ giao thức có trong [docs/extensions.md](../extensions.md); [Examples/extensions](../../Examples/extensions) có một ví dụ cho mỗi loại. Tiện ích mở rộng chạy mã trên máy Mac của bạn: hãy dùng những cái bạn tin tưởng. Chúng chỉ chạy khi bạn chạy chúng (status hoặc list thì chạy khi bạn gõ), không bao giờ chạy khi đang ở chế độ nhập liệu bảo mật, và dừng khi bộ gõ thoát.
+Các chế độ của Raycast tương ứng như sau: `fullOutput` → `show`, `compact` và `silent` → `silent`, `inline` có `refreshTime` → một status. Toàn bộ giao thức có trong [docs/extensions.md](../extensions.md); [Core/Examples/extensions](../../Core/Examples/extensions) có một ví dụ cho mỗi loại. Tiện ích mở rộng chạy mã trên máy Mac của bạn: hãy dùng những cái bạn tin tưởng. Chúng chỉ chạy khi bạn chạy chúng (status hoặc list thì chạy khi bạn gõ), không bao giờ chạy khi đang ở chế độ nhập liệu bảo mật, và dừng khi bộ gõ thoát.
 
 #### Nguồn tiện ích mở rộng (mới)
 
@@ -480,7 +480,7 @@ Mọi cài đặt được lưu trong `~/.config/allinoneime/config.json`; sau k
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Cấu trúc mã:
 
-- `Sources/AllInOneIMECore`: client Bedrock, SigV4, các prompt, máy trạng thái nhập hai cấp (bao gồm lệnh @ và cử chỉ giọng nói); không phụ thuộc AppKit
-- `Sources/AllInOneIMERime`: lớp bọc librime
+- `Core/Sources/AllInOneIMECore`: client Bedrock, SigV4, các prompt, máy trạng thái nhập hai cấp (bao gồm lệnh @ và cử chỉ giọng nói); không phụ thuộc AppKit
+- `Core/Sources/AllInOneIMERime`: lớp bọc librime
 - `Sources/AllInOneIME`: bộ gõ InputMethodKit, bảng ứng viên, cửa sổ cài đặt, nhận dạng giọng nói
 - `Sources/AllInOneIMESettings`: trình khởi chạy "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" trên ảnh đĩa: cài đặt, cập nhật và gỡ cài đặt

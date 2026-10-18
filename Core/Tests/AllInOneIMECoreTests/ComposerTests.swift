@@ -2,17 +2,6 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-func k(_ s: String, mods: KeyModifiers = []) -> KeyEvent { KeyEvent(keyCode: 0, characters: s, modifiers: mods) }
-let spaceKey = KeyEvent(keyCode: VirtualKey.space, characters: " ")
-let enterKey = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r")
-let escKey = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}")
-let backspaceKey = KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}")
-let upKey = KeyEvent(keyCode: VirtualKey.up, characters: "\u{F700}")
-let downKey = KeyEvent(keyCode: VirtualKey.down, characters: "\u{F701}")
-let shiftSpace = KeyEvent(keyCode: VirtualKey.space, characters: " ", modifiers: .shift)
-/// ⌥Space as AppKit delivers it on a US layout (it types a no-break space).
-let optionSpace = KeyEvent(keyCode: VirtualKey.space, characters: "\u{A0}", charactersIgnoringModifiers: " ", modifiers: .option)
-
 struct ComposerTests {
     let final = ConversionResult(
         versions: [CandidateLine("Hi there."), CandidateLine("Hello."), CandidateLine("Hey.")],

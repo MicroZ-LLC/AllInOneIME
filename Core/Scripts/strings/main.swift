@@ -1,12 +1,14 @@
-#!/usr/bin/env swift
-// Keeps Resources/Localizable.xcstrings, the String Catalog of the interface text, in step with the code.
+// Keeps a String Catalog of the interface text, Resources/Localizable.xcstrings, in step with the code. The Strings
+// command plugin runs it in the folder of the package it is run in, the core's or a shell's:
 //
-//   swift Scripts/strings.swift            (make strings) updates the catalog
-//   swift Scripts/strings.swift --check    (make strings-check) changes nothing; fails when the catalog is behind
+//   swift package --allow-writing-to-package-directory strings            updates the catalog
+//   swift package --allow-writing-to-package-directory strings --check    changes nothing; fails when the catalog is behind
+//
+// (the macOS shell's `make strings` and `make strings-check` run it in Core/, then in the shell).
 //
 // The interface text is written in the code as `tr("中文", "English")`. The English text, as a printf format ("%@" for
 // each interpolation, "%%" for "%": `UIString.format`), is the catalog's key; Simplified Chinese and English come from
-// the code, other languages from the catalog (`InterfaceText`). This scans Sources for `tr` calls with two string
+// the code, other languages from the catalog (`InterfaceText`). This scans the sources for `tr` calls with two string
 // literals (not the self-tests, *SelfTest.swift: their text never reaches translators, and shows in English in the other
 // languages) and:
 //   - adds the English formats not in the catalog yet, with the Chinese text and the file it is first used in as the
@@ -22,12 +24,63 @@
 // merge two meanings into one key unnoticed), a key in use is missing from the catalog (or stale there, or a key of its
 // own has another English there), or a shipped language (any in the catalog but English) has no translation for one;
 // it lists them.
+//
+// A shell's catalog holds only the shell's own text: the core's is the core's catalog. For a shell the plugin adds the
+// core's sources (`--sources`, any number; Sources by default) and the core's catalog (`--base`): what the core's
+// catalog has counts as there and isn't added to this one, and a key in both fails --check. `--merge OUT` writes the
+// base catalogs and this one as one catalog, for xcstringstool, and fails on a key in both. `--catalog` names another
+// catalog than Resources/Localizable.xcstrings.
 
 import Foundation
 
-let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let catalogURL = root.appendingPathComponent("Resources/Localizable.xcstrings")
-let check = CommandLine.arguments.dropFirst().contains("--check")
+let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).resolvingSymlinksInPath()
+
+struct Arguments {
+    var check = false
+    var sources: [String] = []
+    var catalog = "Resources/Localizable.xcstrings"
+    var bases: [String] = []
+    var merge: String?
+}
+
+func usageError(_ message: String) -> Never {
+    print("strings: \(message)")
+    print("usage: strings [--check] [--sources DIR]... [--catalog FILE] [--base FILE]... [--merge OUT]")
+    exit(2)
+}
+
+let arguments: Arguments = {
+    var parsed = Arguments()
+    var rest = CommandLine.arguments.dropFirst()
+    func value(_ flag: String) -> String {
+        guard let value = rest.popFirst() else { usageError("\(flag) needs a value") }
+        return value
+    }
+    while let argument = rest.popFirst() {
+        switch argument {
+        case "--check": parsed.check = true
+        case "--sources": parsed.sources.append(value(argument))
+        case "--catalog": parsed.catalog = value(argument)
+        case "--base": parsed.bases.append(value(argument))
+        case "--merge": parsed.merge = value(argument)
+        default: usageError("unknown argument \(argument)")
+        }
+    }
+    if parsed.sources.isEmpty { parsed.sources = ["Sources"] }
+    return parsed
+}()
+
+/// A path the arguments give, relative to this folder or absolute.
+func url(_ path: String) -> URL { URL(fileURLWithPath: path, relativeTo: root).standardizedFileURL.resolvingSymlinksInPath() }
+
+/// A file as reports and comments name it: relative to this folder if it is in it.
+func shown(_ url: URL) -> String {
+    let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+    return path.hasPrefix(root.path + "/") ? String(path.dropFirst(root.path.count + 1)) : path
+}
+
+let catalogURL = url(arguments.catalog)
+let check = arguments.check
 
 // MARK: Reading Swift
 
@@ -305,13 +358,14 @@ func scan(_ tokens: [Located], file: String) {
     }
 }
 
-let sources = root.appendingPathComponent("Sources")
-let files = (FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)?.compactMap { $0 as? URL } ?? [])
-    .filter { $0.pathExtension == "swift" && !$0.lastPathComponent.hasSuffix("SelfTest.swift") }
-    .map { String($0.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1)) }
-    .sorted()
-for file in files {
-    let data = FileManager.default.contents(atPath: root.appendingPathComponent(file).path) ?? Data()
+/// The Swift files of every source folder, each as `shown` names it, and where it is.
+let files = arguments.sources.flatMap { folder in
+    (FileManager.default.enumerator(at: url(folder), includingPropertiesForKeys: nil)?.compactMap { $0 as? URL } ?? [])
+        .filter { $0.pathExtension == "swift" && !$0.lastPathComponent.hasSuffix("SelfTest.swift") }
+        .map { (shown($0), $0) }
+}.sorted { $0.0 < $1.0 }
+for (file, location) in files {
+    let data = FileManager.default.contents(atPath: location.path) ?? Data()
     var lexer = Lexer(Array(data))
     do {
         scan(try lexer.tokens(), file: file)
@@ -339,15 +393,56 @@ for use in uses {
 }
 let conflicts = order.filter { (meanings[$0]?.count ?? 0) > 1 }
 
-var catalog: [String: Any] = ["sourceLanguage": "en", "version": "1.0", "strings": [String: Any]()]
-if let data = FileManager.default.contents(atPath: catalogURL.path) {
+/// A String Catalog as JSON, or a new empty one if there's no file.
+func readCatalog(_ url: URL) -> [String: Any] {
+    guard let data = FileManager.default.contents(atPath: url.path) else {
+        return ["sourceLanguage": "en", "version": "1.0", "strings": [String: Any]()]
+    }
     guard let read = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-        print("error: \(catalogURL.path) isn't a String Catalog (JSON)")
+        print("error: \(url.path) isn't a String Catalog (JSON)")
         exit(1)
     }
-    catalog = read
+    return read
 }
+
+func write(_ catalog: [String: Any], to url: URL) throws {
+    var json = try JSONSerialization.data(withJSONObject: catalog, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    json.append(0x0A)
+    if json != FileManager.default.contents(atPath: url.path) { try json.write(to: url) }
+}
+
+var catalog = readCatalog(catalogURL)
 var strings = catalog["strings"] as? [String: Any] ?? [:]
+
+/// The base catalogs' entries (the core's, for a shell): there, so not this catalog's.
+var base: [String: [String: Any]] = [:]
+for path in arguments.bases {
+    let entries = readCatalog(url(path))["strings"] as? [String: [String: Any]] ?? [:]
+    base.merge(entries) { first, _ in first }
+}
+
+if let out = arguments.merge {
+    // One catalog for xcstringstool: a key may be in only one of them, except as stale (`make strings` left it behind
+    // when it moved), where the one in use wins.
+    var merged = base
+    var twice: [String] = []
+    for (key, value) in strings {
+        let entry = value as? [String: Any] ?? [:]
+        if let other = merged[key] {
+            if isStale(entry) { continue }
+            if !isStale(other) { twice.append(key); continue }
+        }
+        merged[key] = entry
+    }
+    guard twice.isEmpty else {
+        print("strings: \(twice.count) keys in both \(shown(catalogURL)) and \(arguments.bases.joined(separator: ", ")):")
+        for key in twice.sorted() { print("  \"\(key)\"") }
+        exit(1)
+    }
+    catalog["strings"] = merged
+    try write(catalog, to: url(out))
+    exit(0)
+}
 
 /// The languages the catalog ships besides English.
 let shipped = Set(strings.values.flatMap { (($0 as? [String: Any])?["localizations"] as? [String: Any])?.keys ?? [String: Any]().keys })
@@ -370,10 +465,20 @@ func hasTranslation(_ entry: [String: Any], _ language: String) -> Bool {
     return localization["variations"] != nil
 }
 
+/// A key in use that a base catalog (the core's) has: that catalog's, not this one's.
+func inBase(_ key: String) -> Bool {
+    guard let entry = base[key], !isStale(entry) else { return false }
+    return firstUse[key]!.key == nil || englishValue(entry) == firstUse[key]!.english
+}
+
 let inUse = Set(order)
+/// The keys in use that are this catalog's.
+let ours = order.filter { !inBase($0) }
+/// Keys in use in this catalog and a base catalog both: xcstringstool would get two.
+let twice = order.filter { inBase($0) && !isStale(strings[$0] as? [String: Any] ?? ["extractionState": "stale"]) }
 var missing: [String] = []
 var untranslated: [String: [String]] = [:]
-for key in order {
+for key in ours {
     // Missing, stale, or (a key of its own) with another English than the code's.
     guard let entry = strings[key] as? [String: Any], !isStale(entry),
           firstUse[key]!.key == nil || englishValue(entry) == firstUse[key]!.english else { missing.append(key); continue }
@@ -392,6 +497,11 @@ func report() {
             }
         }
     }
+    if !twice.isEmpty {
+        print("\n\(twice.count) keys in this catalog and \(arguments.bases.joined(separator: ", ")) both (that one's are used: "
+              + "move what translations only this one has there, and remove them here):")
+        for key in twice { print("  \"\(key)\"  \(firstUse[key]!.location)") }
+    }
     if !unreadable.isEmpty {
         print("\n\(unreadable.count) tr calls not read (\(Set(unreadable.map(\.reason)).sorted().joined(separator: ", "))):")
         for call in unreadable { print("  \(call.location): \(call.reason)") }
@@ -400,7 +510,7 @@ func report() {
 
 if check {
     report()
-    var failed = !conflicts.isEmpty
+    var failed = !conflicts.isEmpty || !twice.isEmpty
     if !missing.isEmpty {
         failed = true
         print("\n\(missing.count) keys missing from the catalog, or out of date there (run make strings):")
@@ -417,9 +527,11 @@ if check {
 }
 
 var added = 0, staled = 0, revived = 0
-for key in order {
+for key in ours {
     let use = firstUse[key]!
-    var entry = strings[key] as? [String: Any] ?? [:]
+    // New here: with the translations a base catalog kept for it when it left that catalog's code (stale there).
+    var entry = strings[key] as? [String: Any]
+        ?? base[key].flatMap { $0["localizations"] }.map { ["localizations": $0] as [String: Any] } ?? [:]
     if strings[key] == nil { added += 1 }
     if isStale(entry) { entry["extractionState"] = nil; revived += 1 }
     entry["comment"] = comment(use)
@@ -438,8 +550,6 @@ for key in unused {
     staled += 1
 }
 catalog["strings"] = strings
-var json = try JSONSerialization.data(withJSONObject: catalog, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-json.append(0x0A)
-if json != FileManager.default.contents(atPath: catalogURL.path) { try json.write(to: catalogURL) }
+try write(catalog, to: catalogURL)
 report()
-print("\nmake strings: \(added) added, \(staled) marked stale, \(revived) used again; \(catalogURL.path.dropFirst(root.path.count + 1))")
+print("\nmake strings: \(added) added, \(staled) marked stale, \(revived) used again; \(shown(catalogURL))")

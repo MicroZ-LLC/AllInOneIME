@@ -1,6 +1,8 @@
 #if canImport(FoundationModels)
 import Foundation
-import FoundationModels
+// Every symbol weak, whoever links the core, so that it still loads on macOS 14 (the macOS shell weak-links the
+// whole framework as well, -weak_framework).
+@_weakLinked import FoundationModels
 
 /// `SystemLanguageModel` with a fresh session per request: its transcript is the instructions and the examples.
 @available(macOS 26, iOS 26, *)

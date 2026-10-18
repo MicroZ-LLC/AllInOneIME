@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Bir komut ayrıca hiç girdi almayabilir (`input none`: adının üzerinde ⏎ onu çalıştırır), arka planda (`background`) çalışıp bitince size bildirebilir (bu sırada menü çubuğu paneli onu listeler), komut listesinde adının yanında bir `status` gösterebilir ya da önce onay isteyebilir (`confirm`). Kendi klasöründe, oturum açma kabuğunuzun PATH'i ve `ALLINONEIME_*` değişkenleriyle çalışır: arayüz ve giriş dili, yazdığınız uygulama, metin. **Paket** (bundle), komutlarını adlandıran bir `extension.json` içeren bir klasördür: komutlar kodu ve tercihleri paylaşır, tercihleri ayarlar gösterir (parolalar anahtar zincirine gider). Ayarlar her komutu bir anahtarla, dışarıda bırakılan betikleri de nedeniyle listeler.
 
-Raycast'in modları şöyle eşlenir: `fullOutput` → `show`, `compact` ve `silent` → `silent`, `refreshTime` ile `inline` → bir status. Protokolün tamamı [docs/extensions.md](../extensions.md) içindedir; [Examples/extensions](../../Examples/extensions) her türden birer örnek içerir. Uzantılar Mac'inizde kod çalıştırır: güvendiklerinizi kullanın. Yalnızca siz çalıştırdığınızda çalışırlar (status veya list, siz yazdıkça), güvenli giriş sırasında asla çalışmazlar ve giriş yöntemi kapandığında dururlar.
+Raycast'in modları şöyle eşlenir: `fullOutput` → `show`, `compact` ve `silent` → `silent`, `refreshTime` ile `inline` → bir status. Protokolün tamamı [docs/extensions.md](../extensions.md) içindedir; [Core/Examples/extensions](../../Core/Examples/extensions) her türden birer örnek içerir. Uzantılar Mac'inizde kod çalıştırır: güvendiklerinizi kullanın. Yalnızca siz çalıştırdığınızda çalışırlar (status veya list, siz yazdıkça), güvenli giriş sırasında asla çalışmazlar ve giriş yöntemi kapandığında dururlar.
 
 #### Uzantı kaynakları (yeni)
 
@@ -480,7 +480,7 @@ Tüm ayarlar `~/.config/allinoneime/config.json` içinde saklanır; bir değişi
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Kod düzeni:
 
-- `Sources/AllInOneIMECore`: Bedrock istemcisi, SigV4, istemler (prompt'lar), iki düzeyli giriş durum makinesi (@ komutları ve ses hareketi dahil); AppKit bağımlılığı yok
-- `Sources/AllInOneIMERime`: librime sarmalayıcısı
+- `Core/Sources/AllInOneIMECore`: Bedrock istemcisi, SigV4, istemler (prompt'lar), iki düzeyli giriş durum makinesi (@ komutları ve ses hareketi dahil); AppKit bağımlılığı yok
+- `Core/Sources/AllInOneIMERime`: librime sarmalayıcısı
 - `Sources/AllInOneIME`: InputMethodKit giriş yöntemi, aday paneli, ayarlar penceresi, konuşma tanıma
 - `Sources/AllInOneIMESettings`: "AllInOneIME Settings" başlatıcısı
 - `Sources/AllInOneIMEInstaller`: disk görüntüsündeki "Install AllInOneIME": kurar, günceller ve kaldırır

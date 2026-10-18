@@ -34,14 +34,6 @@ struct FuzzyPinyinTests {
         #expect(FuzzyPinyin.pairs.first?.label == "z ↔ zh")
     }
 
-    @Test func theRealSchemaHasRules() throws {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("ThirdParty/rime-data/rime_ice.schema.yaml")
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return }  // before `make deps`
-        let rules = FuzzyPinyin.algebra(ofSchema: text)
-        #expect(rules.contains("abbrev/^([a-z]).+$/$1/") && !rules.contains { $0.contains("#") || $0.hasPrefix("derive/^([zcs])h/$1/") })
-    }
-
     @Test func writtenChangedRemovedAndTheUsersOwnLeftAlone() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fuzzy-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

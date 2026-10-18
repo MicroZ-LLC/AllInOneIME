@@ -1,1 +1,1 @@
-../AllInOneIMECoreTests/PackData.swift
+../../Core/Tests/AllInOneIMECoreTests/PackData.swift

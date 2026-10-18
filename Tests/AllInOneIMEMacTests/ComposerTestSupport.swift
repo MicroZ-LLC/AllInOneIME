@@ -1,1 +1,1 @@
-../AllInOneIMECoreTests/ComposerTestSupport.swift
+../../Core/Tests/AllInOneIMECoreTests/ComposerTestSupport.swift

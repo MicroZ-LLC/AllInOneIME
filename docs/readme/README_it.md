@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Un comando può anche non ricevere input (`input none`: ⏎ sul suo nome lo esegue), essere eseguito in background (`background`) e avvisarti quando ha finito (nel frattempo il pannello della barra dei menu lo elenca), mostrare uno `status` accanto al suo nome nell'elenco dei comandi, o chiedere conferma prima (`confirm`). Viene eseguito nella propria cartella con il PATH della tua shell di login e le variabili `ALLINONEIME_*`: la lingua dell'interfaccia e di inserimento, l'app in cui stai scrivendo, il testo. Un **bundle** è una cartella con un `extension.json` che ne nomina i comandi: condividono codice e preferenze, che le impostazioni mostrano (le password vanno nel portachiavi). Le impostazioni elencano ogni comando con un interruttore, e gli script esclusi con il motivo.
 
-Le modalità di Raycast si traducono così: `fullOutput` → `show`, `compact` e `silent` → `silent`, `inline` con `refreshTime` → uno stato. L'intero protocollo è in [docs/extensions.md](../extensions.md); [Examples/extensions](../../Examples/extensions) ne contiene uno per ogni tipo. Le estensioni eseguono codice sul tuo Mac: usa solo quelle di cui ti fidi. Vengono eseguite solo quando le esegui tu (uno stato o un elenco mentre scrivi), mai durante l'inserimento sicuro, e si fermano quando il metodo di inserimento si chiude.
+Le modalità di Raycast si traducono così: `fullOutput` → `show`, `compact` e `silent` → `silent`, `inline` con `refreshTime` → uno stato. L'intero protocollo è in [docs/extensions.md](../extensions.md); [Core/Examples/extensions](../../Core/Examples/extensions) ne contiene uno per ogni tipo. Le estensioni eseguono codice sul tuo Mac: usa solo quelle di cui ti fidi. Vengono eseguite solo quando le esegui tu (uno stato o un elenco mentre scrivi), mai durante l'inserimento sicuro, e si fermano quando il metodo di inserimento si chiude.
 
 #### Sorgenti delle estensioni (novità)
 
@@ -480,7 +480,7 @@ Tutte le impostazioni sono memorizzate in `~/.config/allinoneime/config.json`; d
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Struttura del codice:
 
-- `Sources/AllInOneIMECore`: client Bedrock, SigV4, prompt, la macchina a stati di inserimento a due livelli (compresi i comandi @ e il gesto vocale); nessuna dipendenza da AppKit
-- `Sources/AllInOneIMERime`: wrapper di librime
+- `Core/Sources/AllInOneIMECore`: client Bedrock, SigV4, prompt, la macchina a stati di inserimento a due livelli (compresi i comandi @ e il gesto vocale); nessuna dipendenza da AppKit
+- `Core/Sources/AllInOneIMERime`: wrapper di librime
 - `Sources/AllInOneIME`: il metodo di inserimento InputMethodKit, il pannello dei candidati, la finestra delle impostazioni, il riconoscimento vocale
 - `Sources/AllInOneIMESettings`: il launcher "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" sull'immagine disco: installa, aggiorna e disinstalla

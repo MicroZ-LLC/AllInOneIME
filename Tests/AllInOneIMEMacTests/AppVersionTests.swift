@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 
 struct AppVersionTests {
-    /// The repository root (this file is Tests/AllInOneIMECoreTests/AppVersionTests.swift).
+    /// The repository root (this file is Tests/AllInOneIMEMacTests/AppVersionTests.swift).
     let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 

@@ -255,7 +255,7 @@ struct InterfaceTextTests {
 
     // MARK: The catalog
 
-    /// The repository root (this file is Tests/AllInOneIMECoreTests/InterfaceTextTests.swift).
+    /// The core's package root (this file is Tests/AllInOneIMECoreTests/InterfaceTextTests.swift).
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     /// Resources/Localizable.xcstrings: a String Catalog in English, whose translations fit their keys' arguments (else

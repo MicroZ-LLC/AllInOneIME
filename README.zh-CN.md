@@ -234,7 +234,7 @@ echo "Flights from $1 to $2"
 列出它的命令：它们共用代码和偏好设置，设置里能填（密码存在钥匙串里）。设置里每个命令都有开关，没加载的脚本会写明原因。
 
 Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent` → `silent`，带 `refreshTime` 的 `inline` → 状态。
-完整的协议见 [docs/extensions.md](docs/extensions.md)（英文），[Examples/extensions](Examples/extensions) 里每种都有例子。
+完整的协议见 [docs/extensions.md](docs/extensions.md)（英文），[Core/Examples/extensions](Core/Examples/extensions) 里每种都有例子。
 扩展会在你的 Mac 上执行代码，只用信得过的；只在你运行时运行（状态和边打字边出的列表也算），安全输入时不运行，输入法退出时会停止。
 
 #### 扩展来源（新）
@@ -712,7 +712,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 make test         # 单元测试，加上用真实 Rime 引擎跑的测试（和 make strings-check）
 make strings      # 把新的界面文字加进 Resources/Localizable.xcstrings，不再用的标成 stale
 make pack         # 中文语言包：build/packs/zh-pinyin-<版本>.tar.xz、它的 sha256 和 packs.json 里的条目
-make packs        # 所有语言包：中文，以及 LanguagePacks/ 里的韩语和印地语（ko-hangul、hi-phonetic）
+make packs        # 所有语言包：中文，以及 Core/LanguagePacks/ 里的韩语和印地语（ko-hangul、hi-phonetic）
 make selftest     # 用模拟文本框驱动输入法：真实 Bedrock 调用，加上用合成语音测试本机识别
 make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已解锁，会占用前台约 1 分钟）
 make screenshots  # 重新生成 docs/ 里的截图
@@ -731,11 +731,12 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 语言，就是在 catalog 里加它的一列。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
 `.lproj`；别的平台用 `StringCatalog` 读 catalog 里的表）。
 
-代码结构：
+代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）。
 
-- `Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
-- `Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
-- `Sources/AllInOneIMERime`：librime 封装
+- `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
+- `Core/Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
+- `Core/Sources/AllInOneIMERime`：librime 封装
+- `Sources/AllInOneIMEMac`：只有 Mac 才有的部分（键盘布局、代码签名、Spotlight、AppleScript、更新的安装）和 `Platform.mac`
 - `Sources/AllInOneIME`：InputMethodKit 输入法、候选框、设置窗口、语音识别
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器
 - `Sources/AllInOneIMEInstaller`：DMG 里的「安装 AllInOneIME」：安装、更新和卸载

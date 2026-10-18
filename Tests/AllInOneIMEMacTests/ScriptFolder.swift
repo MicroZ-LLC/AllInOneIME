@@ -1,1 +1,1 @@
-../AllInOneIMECoreTests/ScriptFolder.swift
+../../Core/Tests/AllInOneIMECoreTests/ScriptFolder.swift

@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 コマンドは、入力を取らない（`input none`：名前の上で ⏎ を押すと実行）、バックグラウンド（`background`）で実行して終わったら通知する（その間はメニューバーパネルに表示）、コマンドリストで名前の横にステータス（`status`）を表示する、先に確認する（`confirm`）こともできます。コマンドは自分のフォルダで、ログインシェルの PATH と `ALLINONEIME_*` 変数（インターフェイスと入力の言語、入力中のアプリ、テキスト）を使って実行されます。**バンドル**は、コマンドを列挙した `extension.json` を含むフォルダです。コマンドはコードと環境設定を共有し、環境設定は設定画面に表示されます（パスワードはキーチェーンに保存）。設定画面にはすべてのコマンドがスイッチ付きで表示され、除外されたスクリプトもその理由とともに表示されます。
 
-Raycast のモードは次のように対応します：`fullOutput` → `show`、`compact` と `silent` → `silent`、`refreshTime` 付きの `inline` → ステータス。プロトコルの全体は [docs/extensions.md](../extensions.md) にあり、[Examples/extensions](../../Examples/extensions) には各種類の例が 1 つずつあります。拡張機能は Mac 上でコードを実行します。信頼できるものを使ってください。拡張機能は実行したときにだけ動き（ステータスやリストは入力中に動きます）、セキュア入力中には決して動かず、入力メソッドの終了とともに停止します。
+Raycast のモードは次のように対応します：`fullOutput` → `show`、`compact` と `silent` → `silent`、`refreshTime` 付きの `inline` → ステータス。プロトコルの全体は [docs/extensions.md](../extensions.md) にあり、[Core/Examples/extensions](../../Core/Examples/extensions) には各種類の例が 1 つずつあります。拡張機能は Mac 上でコードを実行します。信頼できるものを使ってください。拡張機能は実行したときにだけ動き（ステータスやリストは入力中に動きます）、セキュア入力中には決して動かず、入力メソッドの終了とともに停止します。
 
 #### 拡張機能のソース（新機能）
 
@@ -480,7 +480,7 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 コードの構成：
 
-- `Sources/AllInOneIMECore`：Bedrock クライアント、SigV4、プロンプト、2 階層の入力ステートマシン（@ コマンドと音声ジェスチャを含む）。AppKit には依存しません
-- `Sources/AllInOneIMERime`：librime のラッパー
+- `Core/Sources/AllInOneIMECore`：Bedrock クライアント、SigV4、プロンプト、2 階層の入力ステートマシン（@ コマンドと音声ジェスチャを含む）。AppKit には依存しません
+- `Core/Sources/AllInOneIMERime`：librime のラッパー
 - `Sources/AllInOneIME`：InputMethodKit の入力メソッド、候補パネル、設定ウインドウ、音声認識
 - `Sources/AllInOneIMESettings`：「AllInOneIME Settings」ランチャー
 - `Sources/AllInOneIMEInstaller`：ディスクイメージ内の「Install AllInOneIME」。インストール、アップデート、アンインストールを行います

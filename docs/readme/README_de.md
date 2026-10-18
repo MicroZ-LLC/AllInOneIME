@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Ein Befehl kann auch ohne Eingabe auskommen (`input none`: ⏎ auf seinem Namen führt ihn aus), im Hintergrund laufen (`background`) und dich benachrichtigen, wenn er fertig ist (das Menüleistenfenster listet ihn währenddessen auf), einen `status` neben seinem Namen in der Befehlsliste anzeigen oder vorher nachfragen (`confirm`). Er läuft in seinem eigenen Ordner mit dem PATH deiner Login-Shell und `ALLINONEIME_*`-Variablen: Oberflächen- und Eingabesprache, die App, in der du tippst, der Text. Ein **Bundle** ist ein Ordner mit einer `extension.json`, die seine Befehle benennt: Sie teilen sich Code und Einstellungen, die in den Einstellungen angezeigt werden (Passwörter kommen in den Schlüsselbund). Die Einstellungen listen jeden Befehl mit einem Schalter auf, dazu die ausgelassenen Skripte mit Begründung.
 
-Die Modi von Raycast werden so abgebildet: `fullOutput` → `show`, `compact` und `silent` → `silent`, `inline` mit `refreshTime` → ein Status. Das gesamte Protokoll steht in [docs/extensions.md](../extensions.md); [Examples/extensions](../../Examples/extensions) enthält eines jeder Art. Erweiterungen führen Code auf deinem Mac aus: Nutze nur solche, denen du vertraust. Sie laufen nur, wenn du sie ausführst (ein Status oder eine Liste beim Tippen), nie während einer sicheren Eingabe, und werden beendet, wenn die Eingabemethode beendet wird.
+Die Modi von Raycast werden so abgebildet: `fullOutput` → `show`, `compact` und `silent` → `silent`, `inline` mit `refreshTime` → ein Status. Das gesamte Protokoll steht in [docs/extensions.md](../extensions.md); [Core/Examples/extensions](../../Core/Examples/extensions) enthält eines jeder Art. Erweiterungen führen Code auf deinem Mac aus: Nutze nur solche, denen du vertraust. Sie laufen nur, wenn du sie ausführst (ein Status oder eine Liste beim Tippen), nie während einer sicheren Eingabe, und werden beendet, wenn die Eingabemethode beendet wird.
 
 #### Erweiterungsquellen (neu)
 
@@ -480,7 +480,7 @@ Alle Einstellungen werden in `~/.config/allinoneime/config.json` gespeichert; na
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Aufbau des Codes:
 
-- `Sources/AllInOneIMECore`: Bedrock-Client, SigV4, Prompts, die zweistufige Zustandsmaschine der Eingabe (einschließlich @-Befehlen und der Sprachgeste); keine Abhängigkeit von AppKit
-- `Sources/AllInOneIMERime`: Wrapper für librime
+- `Core/Sources/AllInOneIMECore`: Bedrock-Client, SigV4, Prompts, die zweistufige Zustandsmaschine der Eingabe (einschließlich @-Befehlen und der Sprachgeste); keine Abhängigkeit von AppKit
+- `Core/Sources/AllInOneIMERime`: Wrapper für librime
 - `Sources/AllInOneIME`: die InputMethodKit-Eingabemethode, Kandidatenfenster, Einstellungsfenster, Spracherkennung
 - `Sources/AllInOneIMESettings`: der Starter "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" auf dem Disk-Image: installiert, aktualisiert und deinstalliert

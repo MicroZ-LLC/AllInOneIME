@@ -16,6 +16,8 @@ TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=
 SWIFT_BUILD = swift build -c $(CONFIG) $(foreach arch,$(ARCHS),--arch $(arch))
+# The core, the package every platform's shell shares (this one is macOS's).
+CORE := Core
 
 # Level one: official librime release build (BSD-3) and the rime-ice dictionaries (GPL-3.0).
 LIBRIME_VERSION := 1.16.1
@@ -25,7 +27,8 @@ RIME_ICE_TAG    := 2026.06.30
 RIME_ICE_ZIP    := rime-ice-$(RIME_ICE_TAG)-full.zip
 RIME_ICE_SHA256 := 675d23b070be00e1b800f9a6db033ef98f4493cd5b568ed8aa3b3541769c46ac
 
-DEPS       := ThirdParty
+# ALLINONEIME_THIRDPARTY: another folder for them (Package.swift reads it too), else ThirdParty here.
+DEPS       ?= $(or $(ALLINONEIME_THIRDPARTY),ThirdParty)
 RIME_DIST  := $(DEPS)/librime/dist
 RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
@@ -40,7 +43,7 @@ PACK_VERSION := 1.0.0
 PACK_NAME    := $(PACK_ID)-$(PACK_VERSION)
 PACK         := $(BUILD_DIR)/packs/$(PACK_NAME).tar.xz
 PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
-# Korean and Hindi: their tables, kept in this repository (LanguagePacks/<id>/), the same way.
+# Korean and Hindi: their tables, kept in this repository (Core/LanguagePacks/<id>/), the same way.
 KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
@@ -68,7 +71,7 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 	rm -rf $(RIME_DATA) && mkdir -p $(RIME_DATA)
 	unzip -q $(DEPS)/$(RIME_ICE_ZIP) -d $(RIME_DATA)
 	cp Resources/rime/default.custom.yaml $(RIME_DATA)/
-	DYLD_LIBRARY_PATH="$(CURDIR)/$(RIME_DIST)/lib" $(RIME_DIST)/bin/rime_deployer --build \
+	DYLD_LIBRARY_PATH="$(abspath $(RIME_DIST))/lib" $(RIME_DIST)/bin/rime_deployer --build \
 		$(RIME_DATA) $(RIME_DATA) $(RIME_DATA)/build > $(DEPS)/rime-prebuild.log 2>&1
 	rm -f $(RIME_DATA)/user.yaml $(RIME_DATA)/installation.yaml
 	rm -rf $(RIME_DATA)/*.userdb
@@ -79,11 +82,13 @@ build: deps
 
 # The interface text in languages other than Simplified Chinese and English (those two are in the code): the String
 # Catalog, compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict), which go into
-# the input method, AllInOneIME Settings and the installer. The English text is the key (Sources/AllInOneIME/UIText.swift:
-# tr). `make strings` adds the code's new texts to the catalog (Scripts/strings.swift); `make strings-check`, part of
-# `make test`, fails when one is missing or a language in it lacks a translation.
-STRINGS       := Resources/Localizable.xcstrings
+# the input method, AllInOneIME Settings and the installer. The English text is the key (`tr` in AllInOneIMEText).
+# `make strings` adds the code's new texts to the catalog (the core's Strings plugin, Core/Scripts/strings/main.swift);
+# `make strings-check`, part of `make test`, fails when one is missing or a language in it lacks a translation. For
+# now one catalog, the core's, for the app's text too.
+STRINGS       := $(CORE)/Resources/Localizable.xcstrings
 STRINGS_BUILD := $(BUILD_DIR)/strings
+STRINGS_TOOL  := swift package --package-path $(CORE) --allow-writing-to-package-directory strings --sources Sources --sources ../Sources
 
 $(STRINGS_BUILD): $(STRINGS)
 	rm -rf $@ && mkdir -p $@
@@ -91,20 +96,21 @@ $(STRINGS_BUILD): $(STRINGS)
 	touch $@
 
 strings:
-	swift Scripts/strings.swift
+	$(STRINGS_TOOL)
 
 strings-check:
-	swift Scripts/strings.swift --check
+	$(STRINGS_TOOL) --check
 
-# Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy of
-# /usr/share/dict/web2 (Webster's Second International, public domain).
+# Core/Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy
+# of /usr/share/dict/web2 (Webster's Second International, public domain).
 redaction-words:
-	swift Scripts/make-redaction-words.swift
+	cd $(CORE) && swift Scripts/make-redaction-words.swift
 
 app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
+	Scripts/check-weak-links.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/strip-rpaths.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
 	# The licenses travel with the binaries (librime's BSD license asks for its notice).
@@ -202,6 +208,7 @@ installer-app: app settings-app $(STRINGS_BUILD)
 	rm -rf "$(INSTALLER_APP)" "$(PAYLOAD_DIR)"
 	mkdir -p "$(INSTALLER_APP)/Contents/MacOS" "$(INSTALLER_APP)/Contents/Resources" "$(PAYLOAD_DIR)"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/AllInOneIMEInstaller" "$(INSTALLER_APP)/Contents/MacOS/AllInOneIMEInstaller"
+	Scripts/check-weak-links.sh "$(INSTALLER_APP)/Contents/MacOS/AllInOneIMEInstaller"
 	Scripts/strip-rpaths.sh "$(INSTALLER_APP)/Contents/MacOS/AllInOneIMEInstaller"
 	cp Resources/Installer-Info.plist "$(INSTALLER_APP)/Contents/Info.plist"
 	cp Resources/AppIcon.icns "$(INSTALLER_APP)/Contents/Resources/AppIcon.icns"
@@ -272,15 +279,21 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
+# The core's tests (Core/, a package of its own) with the input method's debug build as the child process the end-to-end
+# ones run, its lint guard, then this package's tests. Both packages' tests run even when the core's fail.
 test: deps strings-check check-ios
-	Scripts/check-core-portable-test.sh
-	Scripts/check-core-portable.sh
-	swift test
+	$(CORE)/Scripts/check-core-portable-test.sh
+	$(CORE)/Scripts/check-core-portable.sh
+	swift build --product $(APP_NAME)
+	@status=0; \
+	ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	swift test || exit; \
+	exit $$status
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
-# (Scripts/check-core-portable.sh checks its imports). Needs Xcode's iOS SDK; built in .build/ios.
+# (Core/Scripts/check-core-portable.sh checks its imports). Needs Xcode's iOS SDK; built in Core/.build/ios.
 check-ios:
-	xcodebuild -scheme AllInOneIMECore -destination generic/platform=iOS -derivedDataPath .build/ios -quiet build
+	cd $(CORE) && xcodebuild -scheme AllInOneIMECore -destination generic/platform=iOS -derivedDataPath .build/ios -quiet build
 
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for
 # Scripts/build-packs-index.swift. The minimum app version is this one.
@@ -290,16 +303,16 @@ pack: $(RIME_BUILT)
 # Every pack: Chinese, Korean, Hindi.
 packs: pack $(KO_PACK) $(HI_PACK)
 
-$(KO_PACK): LanguagePacks/ko-hangul/hangul.json
-	Scripts/make-language-pack.sh LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@
+$(KO_PACK): $(CORE)/LanguagePacks/ko-hangul/hangul.json
+	Scripts/make-language-pack.sh $(CORE)/LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@
 
-$(HI_PACK): LanguagePacks/hi-phonetic/hindi.json
-	Scripts/make-language-pack.sh LanguagePacks/hi-phonetic hi-phonetic 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/hi-phonetic-1.0.0/hi-phonetic-1.0.0.tar.xz" $@
+$(HI_PACK): $(CORE)/LanguagePacks/hi-phonetic/hindi.json
+	Scripts/make-language-pack.sh $(CORE)/LanguagePacks/hi-phonetic hi-phonetic 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/hi-phonetic-1.0.0/hi-phonetic-1.0.0.tar.xz" $@
 
 # The Chinese pack from this checkout's data, into the installed input method's packs folder, without a
 # download (a developer's Mac before the pack is published).
 install-pack: $(RIME_BUILT)
-	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(CURDIR)/$(RIME_DATA)" $(PACK_VERSION)
+	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(abspath $(RIME_DATA))" $(PACK_VERSION)
 
 # Stops the running IME (macOS relaunches it on next use), replaces the bundle, registers it
 # (--register also keeps it in the user's input sources, so Ctrl+Space reaches it).
@@ -343,7 +356,7 @@ status:
 # Drives the input controller (real Rime engine on this checkout's data, live Bedrock call) with a fake text field.
 OUT ?= /tmp/allinoneime-selftest
 selftest: app
-	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(CURDIR)/$(RIME_DATA)"
+	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(abspath $(RIME_DATA))"
 
 # README images, rendered by the self-test (needs a working Bedrock setup): docs/ with the Chinese
 # interface and captions, docs/en/ with the English ones (the same states, rendered in English).
@@ -411,10 +424,11 @@ realtest-cancel:
 
 cli:
 	swift build -c $(CONFIG) --product allinoneime-cli
+	Scripts/check-weak-links.sh "$$(swift build -c $(CONFIG) --show-bin-path)/allinoneime-cli"
 	@echo "Run: $$(swift build -c $(CONFIG) --show-bin-path)/allinoneime-cli <sentence>"
 
 clean:
-	rm -rf .build "$(BUILD_DIR)"
+	rm -rf .build "$(BUILD_DIR)" $(CORE)/.build
 
 distclean: clean
 	rm -rf $(DEPS)

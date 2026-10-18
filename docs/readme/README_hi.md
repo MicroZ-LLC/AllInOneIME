@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 कोई कमांड बिना इनपुट के भी हो सकता है (`input none`: उसके नाम पर ⏎ उसे चला देता है), `background` में चलकर पूरा होने पर आपको सूचना दे सकता है (तब तक मेन्यू बार पैनल उसे दिखाता है), कमांड की सूची में उसके नाम के बगल में एक `status` दिखा सकता है, या पहले पूछ सकता है (`confirm`)। यह अपने फ़ोल्डर में, आपके लॉगिन शेल के PATH और `ALLINONEIME_*` वेरिएबल के साथ चलता है: इंटरफ़ेस और इनपुट की भाषा, जिस ऐप में आप टाइप कर रहे हैं, और टेक्स्ट। **बंडल** एक फ़ोल्डर है जिसमें एक `extension.json` अपने कमांड गिनाता है: वे कोड और प्राथमिकताएँ साझा करते हैं, जो सेटिंग्स में दिखती हैं (पासवर्ड कीचेन में जाते हैं)। सेटिंग्स हर कमांड को एक स्विच के साथ दिखाती हैं, और छोड़ी गई स्क्रिप्ट को कारण के साथ।
 
-Raycast के मोड इस तरह मेल खाते हैं: `fullOutput` → `show`, `compact` और `silent` → `silent`, `refreshTime` वाला `inline` → एक status। पूरा प्रोटोकॉल [docs/extensions.md](../extensions.md) में है; [Examples/extensions](../../Examples/extensions) में हर तरह का एक उदाहरण है। एक्सटेंशन आपके Mac पर कोड चलाते हैं: उन्हीं का इस्तेमाल करें जिन पर आपको भरोसा है। वे सिर्फ़ तब चलते हैं जब आप उन्हें चलाते हैं (status या सूची आपके टाइप करते समय), सुरक्षित इनपुट के दौरान कभी नहीं, और इनपुट मेथड बंद होने पर रुक जाते हैं।
+Raycast के मोड इस तरह मेल खाते हैं: `fullOutput` → `show`, `compact` और `silent` → `silent`, `refreshTime` वाला `inline` → एक status। पूरा प्रोटोकॉल [docs/extensions.md](../extensions.md) में है; [Core/Examples/extensions](../../Core/Examples/extensions) में हर तरह का एक उदाहरण है। एक्सटेंशन आपके Mac पर कोड चलाते हैं: उन्हीं का इस्तेमाल करें जिन पर आपको भरोसा है। वे सिर्फ़ तब चलते हैं जब आप उन्हें चलाते हैं (status या सूची आपके टाइप करते समय), सुरक्षित इनपुट के दौरान कभी नहीं, और इनपुट मेथड बंद होने पर रुक जाते हैं।
 
 #### एक्सटेंशन के स्रोत (नया)
 
@@ -480,7 +480,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 कोड की बनावट:
 
-- `Sources/AllInOneIMECore`: Bedrock क्लाइंट, SigV4, प्रॉम्प्ट, दो-स्तरीय इनपुट स्टेट मशीन (@ कमांड और वॉइस जेस्चर सहित); AppKit पर निर्भरता नहीं
-- `Sources/AllInOneIMERime`: librime रैपर
+- `Core/Sources/AllInOneIMECore`: Bedrock क्लाइंट, SigV4, प्रॉम्प्ट, दो-स्तरीय इनपुट स्टेट मशीन (@ कमांड और वॉइस जेस्चर सहित); AppKit पर निर्भरता नहीं
+- `Core/Sources/AllInOneIMERime`: librime रैपर
 - `Sources/AllInOneIME`: InputMethodKit इनपुट मेथड, कैंडिडेट पैनल, सेटिंग्स विंडो, स्पीच रिकग्निशन
 - `Sources/AllInOneIMESettings`: "AllInOneIME Settings" लॉन्चर
 - `Sources/AllInOneIMEInstaller`: डिस्क इमेज पर "Install AllInOneIME": इंस्टॉल, अपडेट और अनइंस्टॉल करता है

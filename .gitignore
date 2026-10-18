@@ -5,7 +5,7 @@ build/
 xcuserdata/
 .DS_Store
 # librime release + rime-ice data, downloaded and checksummed by `make deps`
-ThirdParty/
+ThirdParty
 
 
 # wrangler (site/): its local cache

@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Sebuah perintah juga bisa tanpa input (`input none`: ⏎ pada namanya langsung menjalankannya), berjalan di `background` dan memberi tahu Anda saat selesai (panel bilah menu menampilkannya selama berjalan), menampilkan `status` di samping namanya di daftar perintah, atau bertanya lebih dulu (`confirm`). Perintah berjalan di foldernya sendiri dengan PATH dari login shell Anda dan variabel `ALLINONEIME_*`: bahasa antarmuka dan bahasa input, aplikasi tempat Anda mengetik, teksnya. Sebuah **bundle** adalah folder dengan `extension.json` yang menyebutkan perintah-perintahnya: perintah-perintah itu berbagi kode dan preferensi, yang ditampilkan di Settings (kata sandi disimpan di keychain). Settings menampilkan setiap perintah dengan sakelar, serta skrip yang tidak disertakan beserta alasannya.
 
-Mode Raycast dipetakan sebagai berikut: `fullOutput` → `show`, `compact` dan `silent` → `silent`, `inline` dengan `refreshTime` → sebuah status. Protokol lengkapnya ada di [docs/extensions.md](../extensions.md); [Examples/extensions](../../Examples/extensions) berisi satu contoh untuk setiap jenis. Ekstensi menjalankan kode di Mac Anda: gunakan yang Anda percayai. Ekstensi hanya berjalan ketika Anda menjalankannya (status atau list sambil Anda mengetiknya), tidak pernah selama input aman, dan berhenti ketika metode input ditutup.
+Mode Raycast dipetakan sebagai berikut: `fullOutput` → `show`, `compact` dan `silent` → `silent`, `inline` dengan `refreshTime` → sebuah status. Protokol lengkapnya ada di [docs/extensions.md](../extensions.md); [Core/Examples/extensions](../../Core/Examples/extensions) berisi satu contoh untuk setiap jenis. Ekstensi menjalankan kode di Mac Anda: gunakan yang Anda percayai. Ekstensi hanya berjalan ketika Anda menjalankannya (status atau list sambil Anda mengetiknya), tidak pernah selama input aman, dan berhenti ketika metode input ditutup.
 
 #### Sumber ekstensi (baru)
 
@@ -480,7 +480,7 @@ Semua pengaturan disimpan di `~/.config/allinoneime/config.json`; setelah ada pe
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Struktur kode:
 
-- `Sources/AllInOneIMECore`: klien Bedrock, SigV4, prompt, state machine input dua tingkat (termasuk perintah @ dan gestur suara); tanpa ketergantungan pada AppKit
-- `Sources/AllInOneIMERime`: wrapper librime
+- `Core/Sources/AllInOneIMECore`: klien Bedrock, SigV4, prompt, state machine input dua tingkat (termasuk perintah @ dan gestur suara); tanpa ketergantungan pada AppKit
+- `Core/Sources/AllInOneIMERime`: wrapper librime
 - `Sources/AllInOneIME`: metode input InputMethodKit, panel kandidat, jendela pengaturan, pengenalan suara
 - `Sources/AllInOneIMESettings`: peluncur "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" di disk image: menginstal, memperbarui, dan menghapus instalasi

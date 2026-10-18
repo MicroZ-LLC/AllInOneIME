@@ -182,7 +182,7 @@ echo "Flights from $1 to $2"
 
 Команда также может не принимать ввод (`input none`: ⏎ на её имени запускает её), выполняться в фоне (`background`) и уведомлять вас о завершении (тем временем панель в строке меню показывает её в списке), показывать `status` рядом со своим именем в списке команд или сначала спрашивать подтверждение (`confirm`). Она запускается в своей папке с PATH вашей оболочки входа и переменными `ALLINONEIME_*`: язык интерфейса и язык ввода, приложение, в котором вы печатаете, текст. **Пакет** (bundle) — это папка с файлом `extension.json`, где перечислены его команды: у них общий код и общие параметры, которые показываются в настройках (пароли хранятся в связке ключей). Настройки показывают каждую команду с переключателем, а также пропущенные скрипты с указанием причины.
 
-Режимы Raycast соответствуют так: `fullOutput` → `show`, `compact` и `silent` → `silent`, `inline` с `refreshTime` → статус. Полный протокол описан в [docs/extensions.md](../extensions.md); в [Examples/extensions](../../Examples/extensions) есть по одному примеру каждого вида. Расширения выполняют код на вашем Mac: используйте только те, которым доверяете. Они выполняются только тогда, когда вы их запускаете (статус или список — по мере ввода), никогда во время безопасного ввода и останавливаются, когда метод ввода завершает работу.
+Режимы Raycast соответствуют так: `fullOutput` → `show`, `compact` и `silent` → `silent`, `inline` с `refreshTime` → статус. Полный протокол описан в [docs/extensions.md](../extensions.md); в [Core/Examples/extensions](../../Core/Examples/extensions) есть по одному примеру каждого вида. Расширения выполняют код на вашем Mac: используйте только те, которым доверяете. Они выполняются только тогда, когда вы их запускаете (статус или список — по мере ввода), никогда во время безопасного ввода и останавливаются, когда метод ввода завершает работу.
 
 #### Источники расширений (новое)
 
@@ -480,7 +480,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
-make packs        # all the language packs: Chinese, and Korean and Hindi from LanguagePacks/ (ko-hangul, hi-phonetic)
+make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
 make realtest     # types into a real app's text field (needs the screen unlocked; takes over the foreground for about 1 minute)
 make screenshots  # regenerates the screenshots in docs/
@@ -494,8 +494,8 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 Структура кода:
 
-- `Sources/AllInOneIMECore`: клиент Bedrock, SigV4, промпты, двухуровневый конечный автомат ввода (включая @-команды и голосовой жест); без зависимости от AppKit
-- `Sources/AllInOneIMERime`: обёртка над librime
+- `Core/Sources/AllInOneIMECore`: клиент Bedrock, SigV4, промпты, двухуровневый конечный автомат ввода (включая @-команды и голосовой жест); без зависимости от AppKit
+- `Core/Sources/AllInOneIMERime`: обёртка над librime
 - `Sources/AllInOneIME`: метод ввода на InputMethodKit, панель кандидатов, окно настроек, распознавание речи
 - `Sources/AllInOneIMESettings`: ярлык "AllInOneIME Settings"
 - `Sources/AllInOneIMEInstaller`: "Install AllInOneIME" на образе диска: установка, обновление и удаление

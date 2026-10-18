@@ -1,1 +1,1 @@
-../AllInOneIMECoreTests/Timing.swift
+../../Core/Tests/AllInOneIMECoreTests/Timing.swift
