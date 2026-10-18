@@ -906,6 +906,9 @@
     "the selection can't be read in some apps" : {
       "comment" : "有的 App 里读不到选中的文字 — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "The text to insert is too long: %@ characters at most" : {
+      "comment" : "要插入的文字太长：最多 %@ 字 — Sources/AllInOneIMECore/Composer.swift"
+    },
     "The typing speed is out of range" : {
       "comment" : "打字速度超出范围 — Sources/AllInOneIMECore/Doctor.swift"
     },

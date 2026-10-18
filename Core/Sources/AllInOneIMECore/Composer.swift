@@ -142,6 +142,10 @@ public final class Composer {
         case cancelVoice(id: Int)
         /// Translate `input` for Translate as You Type (`session`); the translation arrives via `receive` and goes in at once.
         case startTranslateMode(input: String, session: TranslateMode.Session, id: Int)
+        /// Once the text before it is in (a snippet's, `.commit`, `.replaceSelection` or `.typeOut`): the caret goes `back`
+        /// UTF-16 units from the end of that text, to the snippet's `{cursor}`. Only where the field says where its caret
+        /// is and has that text before it; not in a terminal.
+        case moveCaret(back: Int)
     }
 
     public struct Response: Equatable, Sendable {
@@ -263,6 +267,13 @@ public final class Composer {
         public var agentNames: [AgentKind: String] = [:]
         /// The action key's name in the interface language (the controller sets it).
         public var actionKeyName = "⏎"
+        /// A snippet's text, filled in, longer than `Composer.maxNoteLength`: nothing goes in.
+        public var snippetTooLong = "要插入的文字太长：最多 \(Composer.maxNoteLength) 字"
+        /// The interface language's code (`InterfaceLanguage`): a snippet's `{date:FMT}` is in its locale.
+        public var language = "zh-Hans"
+
+        /// The interface language's locale (`language`).
+        public var locale: Locale { Locale(identifier: language) }
 
         /// Asks before running a script (`confirm`).
         public func confirm(_ script: ScriptCommand) -> String {
@@ -321,7 +332,9 @@ public final class Composer {
                 scriptRan: t.tr("已运行：", "Ran "),
                 scriptStarted: t.tr("在后台运行，完成后通知你：", "Running in the background, you'll be notified: "),
                 cantOpen: t.tr("打不开：", "Can't open: "),
-                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"))
+                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"),
+                snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
+                language: language)
         }
 
         public static let chinese = make(language: "zh-Hans")
@@ -423,8 +436,10 @@ public final class Composer {
     /// them (`questionMatches`). Whether it does, and keeps them (`Config.rememberQuestions`).
     public var questionHistory = QuestionHistory()
     public var remembersQuestions = true
-    /// The clock an answer is kept by (tests set their own).
+    /// The clock an answer is kept by, and a snippet's `{date}` and `{time}` read (tests set their own).
     public var now: () -> Date = Date.init
+    /// The time zone of a snippet's `{date}` and `{time}` (tests set their own).
+    public var timeZone: TimeZone = .current
     /// The recent question highlighted with ↑↓, for the draft it was picked in (once the draft changes: none).
     private var questionPick: (index: Int, draft: String)?
     /// The saved answer shown in level two (`showsSavedAnswer`), and the draft it was picked in (Esc goes back to it).
@@ -481,6 +496,9 @@ public final class Composer {
     /// The ⌘V whose clipboard text the draft is waiting for (`pasted`), and the last one's id.
     private var pendingPaste: Int?
     private var pasteCounter = 0
+    /// The request for a snippet's `{clipboard}` (by `pendingPaste`'s id), and the draft it was made for: the answer
+    /// fills the snippet in, unless the draft changed meanwhile.
+    private var snippetClipboard: (id: Int, draft: String)?
     /// Whether ⌘V in a draft takes the clipboard into it. False in apps that paste on ⌘V themselves
     /// whatever the input method does (terminals): the text would be pasted twice. There ⌃V takes the
     /// clipboard instead.
@@ -859,7 +877,7 @@ public final class Composer {
             return [Choice(label: "⏎", kind: .send, text: line.text, isComplete: line.isComplete)]
         case .report?:
             return pendingIssue.map { [Choice(label: "⏎", kind: .issue($0.url), text: $0.title, isComplete: true)] } ?? []
-        case .convert?, .terminal?, .settings?, .note?, nil:
+        case .convert?, .terminal?, .settings?, .note?, .snippet?, nil:
             break
         }
         let original = originalText
@@ -948,7 +966,7 @@ public final class Composer {
     public static func usesSelection(_ command: Command) -> Bool {
         guard command.script == nil else { return false }
         switch command.kind {
-        case .convert, .generate, .run, .link, .note: return true
+        case .convert, .generate, .run, .link, .note, .snippet: return true
         case .terminal, .search, .agents, .settings, .reminder, .message, .report: return false
         }
     }
@@ -991,13 +1009,13 @@ public final class Composer {
     }
 
     /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@agent`, a custom
-    /// one) or a script extension: no command inside its text runs first (`startAction`; Terminal, the agent and
-    /// the script get the text as typed), so an "@" in it is just text (no list to pick a command from, none
-    /// shown as picked).
+    /// one), a snippet (what is typed fills it in) or a script extension: no command inside its text runs first
+    /// (`startAction`; Terminal, the agent and the script get the text as typed), so an "@" in it is just text (no list
+    /// to pick a command from, none shown as picked).
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.kind == .report || command.isCode || command.script != nil
+            || command.kind == .report || command.kind == .snippet || command.isCode || command.script != nil
     }
 
     /// The commands the list can offer: all of them at the start, inside a text the ones that run there,
@@ -1918,6 +1936,10 @@ public final class Composer {
     private func paste(_ clipboard: String?, id: Int) -> [Effect] {
         guard pendingPaste == id else { return [] }
         pendingPaste = nil
+        if let pending = snippetClipboard, pending.id == id {
+            snippetClipboard = nil
+            return snippetPasted(clipboard, for: pending.draft)
+        }
         guard !isLevelTwo, voice == .off, !draft.isEmpty else { return [] }
         // A note keeps its lines and may be longer; every other command takes one line (its answer has one per row).
         let note = draftCommand?.kind == .note
@@ -2048,6 +2070,14 @@ public final class Composer {
         // Nothing to write after it: picked, it's done (only at the start of a draft).
         if command.kind == .settings, palette?.nested != true {
             return finish(committing: "") + [.openSettings, used(command)]
+        }
+        // A snippet that needs nothing typed goes in when the action key picks it; Tab and Space only complete its name.
+        if run, command.snippet?.needsTyping == false, palette?.nested != true {
+            draft = "@\(command.name) "
+            paletteHighlight = 0
+            setLevelOnePhase()
+            let effects = startAction().effects
+            return phase == .idle ? effects : [.updateMarkedText, .showPanel] + effects
         }
         // A script extension that takes no input runs when the action key picks it (or asks first); Tab and
         // Space only complete its name.
@@ -2583,12 +2613,14 @@ public final class Composer {
         // Only an @ command is ever sent: without one the input method just types.
         guard parsed != nil else { return .consumed() }
         resetRefine()
+        // Local, like a note: no AI, nothing sent, so neither a No-AI app nor secure input holds it back.
+        if let command = parsed?.command, command.kind == .snippet { return .consumed(insertSnippet(command)) }
         let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
         // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
         // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
         // `@translate`, below, an instruction for the selection).
         let selected = selectionInUse
-        let input: String
+        var input: String
         if let selected, !typed.isEmpty {
             input = parsed?.command.kind == .generate ? Prompt.question(typed, about: selected) : typed
         } else {
@@ -2642,7 +2674,11 @@ public final class Composer {
         // draft, commands that run code stay text (`draftHasOutsideText`).
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
         // Never inside a selection, text the user didn't write here (nor, with one, inside what is typed: one request).
-        let inner = local || parsed?.command.runsCode == true || selected != nil ? nil : innerPlan(input)
+        let plans = !(local || parsed?.command.runsCode == true || selected != nil)
+        // Snippets inside the text go in first, here (`@zoom`): the request is then the text as if typed with them.
+        let snippets = plans ? expandSnippets(input) : (text: input, used: [Command](), outside: false)
+        input = snippets.text
+        let inner = plans ? innerPlan(input, outside: snippets.outside) : nil
         let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
@@ -2681,8 +2717,79 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
+        let usage = ((parsed.map { [$0.command] } ?? []) + snippets.used + (plan?.inner.map(\.command) ?? [])).map(used)
         return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+    }
+
+    // MARK: Snippets
+
+    /// A snippet (`Command.Kind.snippet`): its text with the placeholders filled in goes in as any result does
+    /// (`finish`: inserted, typed out, or over the selection), the caret then moved to its `{cursor}` (`moveCaret`).
+    /// What is typed after the name is its `{input}` and fills its blanks (split on commas, as a script's arguments);
+    /// without either, it goes in after the snippet, after a space. A blank left empty is said (`scriptNeeds`) and the
+    /// draft stays; `{clipboard}` asks for the clipboard first (`snippetPasted`).
+    private func insertSnippet(_ command: Command, clipboard: String? = nil) -> [Effect] {
+        guard let template = command.snippet else { return [] }
+        guard (command.custom?.text ?? "").count <= Self.maxNoteLength else { return [.notice(messages.snippetTooLong)] }
+        let typed = sentText
+        var fields: [String] = []
+        if !template.fieldLabels.isEmpty {
+            fields = ScriptCommand.split(typed, into: template.fieldLabels.count)
+            let missing = zip(template.fieldLabels, fields).filter { $0.1.isEmpty }.map(\.0)
+            guard missing.isEmpty else { return [.notice(messages.scriptNeeds + missing.joined(separator: ", "))] }
+        } else if template.needs.contains(.input), typed.isEmpty {
+            return [.notice(messages.typeAfterCommand)]
+        }
+        if template.needs.contains(.clipboard), clipboard == nil {
+            let request = requestClipboard()
+            snippetClipboard = (pasteCounter, draft)
+            return [request]
+        }
+        var rendered = template.render(snippetValues(typed: typed, fields: fields, clipboard: clipboard ?? ""))
+        if !template.needsTyping, !typed.isEmpty {
+            rendered.text += " " + typed
+            rendered.caretBack = rendered.caretBack.map { $0 + 1 + typed.utf16.count }
+        }
+        guard rendered.text.count <= Self.maxNoteLength else { return [.notice(messages.snippetTooLong)] }
+        let text = rendered.text
+        let usage = used(command)
+        var effects = typesResults && !text.isEmpty ? finish(committing: "", selection: .replaced) + [.typeOut(text)]
+            : finish(committing: text, selection: .replaced)
+        if let back = rendered.caretBack, !text.isEmpty { effects.append(.moveCaret(back: back)) }
+        return effects + [usage]
+    }
+
+    /// The clipboard's text for a snippet's `{clipboard}` (nil: none, or it may not be read), asked for `draft`: the
+    /// snippet goes in with it; without text, a notice, and the draft stays.
+    private func snippetPasted(_ clipboard: String?, for asked: String) -> [Effect] {
+        guard !isLevelTwo, voice == .off, draft == asked, let command = draftCommand, command.kind == .snippet else { return [] }
+        if let clipboard, clipboard.utf16.count > Self.maxNoteLength * 8 { return [.notice(messages.snippetTooLong)] }
+        let text = clipboard.map(Self.noteText) ?? ""
+        guard !text.isEmpty else { return [.notice(messages.nothingToPaste)] }
+        return insertSnippet(command, clipboard: text)
+    }
+
+    /// What a snippet's placeholders are filled with now.
+    private func snippetValues(typed: String, fields: [String], clipboard: String = "") -> SnippetValues {
+        SnippetValues(input: typed, fields: fields, clipboard: clipboard, selection: selectionInUse ?? "", now: now(),
+                      timeZone: timeZone, locale: messages.locale)
+    }
+
+    /// The snippets inside `text` (`SnippetTemplate.expandInner`) replaced by what they insert, the ones used, and
+    /// whether what they put in has an "@" (a command written in a snippet doesn't run code: `innerPlan`'s `outside`).
+    private func expandSnippets(_ text: String) -> (text: String, used: [Command], outside: Bool) {
+        let expanded = SnippetTemplate.expanding(text, commands: commands, values: snippetValues(typed: "", fields: []))
+        return (expanded.text, expanded.used, expanded.used.contains { $0.custom?.text?.contains("@") == true })
+    }
+
+    /// What the snippet being written will insert (`@meet 张三，…`), for the panel: the blanks typed so far, the rest as
+    /// written (`{day?}`). Nil when the draft's command isn't a snippet.
+    public var snippetPreview: String? {
+        guard !isLevelTwo, let template = draftCommand?.snippet else { return nil }
+        let typed = sentText
+        let fields = template.fieldLabels.isEmpty ? [] : ScriptCommand.split(typed, into: template.fieldLabels.count)
+        let text = template.preview(snippetValues(typed: typed, fields: fields))
+        return !template.needsTyping && !typed.isEmpty ? text + " " + typed : text
     }
 
     /// `@improve` / `@translate` on the selection: its versions and rewrites as for a typed sentence when nothing else is
@@ -2930,8 +3037,10 @@ public final class Composer {
         searchResults = []
         highlightOverride = nil
         activeCommand = command
-        let (plan, codeLeft) = innerPlan(input)
-        let usage = plan.inner.map(\.command).map(used)
+        let snippets = expandSnippets(input)
+        let input = snippets.text
+        let (plan, codeLeft) = innerPlan(input, outside: snippets.outside)
+        let usage = (snippets.used + plan.inner.map(\.command)).map(used)
         let notice: [Effect] = codeLeft ? [.notice(messages.codeNotRun)] : []
         guard !plan.isEmpty else {
             phase = .choosing
@@ -2942,11 +3051,12 @@ public final class Composer {
         return .consumed([.startPlan(outer: command, plan: plan, id: requestCounter), .updateMarkedText, .showPanel] + usage + notice)
     }
 
-    /// The commands inside `input` that run first. With text the user didn't type in the draft (pasted,
-    /// dictated, given back), commands that run code stay text (`draftHasOutsideText`); `codeLeft`: some
-    /// did, which a notice says.
-    private func innerPlan(_ input: String) -> (plan: CommandPlan, codeLeft: Bool) {
-        guard draftHasOutsideText else { return (CommandPlan.make(input, commands: commands), false) }
+    /// The commands inside `input` that run first (snippets are in already: `expandSnippets`). With text the user
+    /// didn't type in the draft (pasted, dictated, given back; `outside`: from a snippet), commands that run code stay
+    /// text (`draftHasOutsideText`); `codeLeft`: some did, which a notice says.
+    private func innerPlan(_ input: String, outside: Bool = false) -> (plan: CommandPlan, codeLeft: Bool) {
+        let commands = commands.filter { $0.kind != .snippet }
+        guard draftHasOutsideText || outside else { return (CommandPlan.make(input, commands: commands), false) }
         let plan = CommandPlan.make(input, commands: commands.filter { !$0.runsCode })
         return (plan, CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode })
     }
@@ -2965,6 +3075,7 @@ public final class Composer {
         voice = .off
         actsAfterVoice = false
         pendingPaste = nil
+        snippetClipboard = nil
         highlightOverride = nil
         recalled = nil
         paletteHighlight = 0
@@ -3170,6 +3281,7 @@ public final class Composer {
         recalled = nil
         paletteHighlight = 0
         pendingPaste = nil  // a paste still on its way is dropped
+        snippetClipboard = nil
         liveResults = []
         liveResultsQuery = nil
         resetLiveHighlight()

@@ -79,7 +79,7 @@ struct PathCheckTests {
         let entries = (["ok.sh"] + out).enumerated().map { ["script": $1, "name": "c\($0)"] }
         let manifest = try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "name": "tools", "commands": entries])
         var asked: [String] = []
-        guard case let .success((_, commands, skipped)) = ExtensionStore.loadBundle(manifest, folder: folder, read: {
+        guard case let .success((_, commands, _, skipped)) = ExtensionStore.loadBundle(manifest, folder: folder, read: {
             asked.append($0.path)
             return nil
         }) else {
