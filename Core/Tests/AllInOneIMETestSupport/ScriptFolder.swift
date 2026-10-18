@@ -1,5 +1,5 @@
 import Foundation
-@testable import AllInOneIMECore
+import AllInOneIMECore
 
 // The script extensions' fixtures, for the tests of extensions in the core and in a shell.
 

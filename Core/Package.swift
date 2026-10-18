@@ -45,7 +45,13 @@ let package = Package(
         // The command line (`CLI.run`): level two from a terminal. Each shell runs it from its own main, with its platform.
         .target(name: "AllInOneIMECLI", dependencies: ["AllInOneIMECore"]),
 
-        // The tests' helpers, for the core's tests and a shell's (debug builds: it imports the core @testable).
+        // The tests' helpers, for the core's tests and a shell's; the tests' only, never a shell's app. Its own helpers use
+        // the core's public API. The acceptance helpers in it (Acceptance/, the acceptance tests' author's) still import
+        // the core @testable, which only a build with testing on allows (debug, or `swift test -c release`), though all
+        // they use is public or `package` (Prompt.liveDataRule): until that import is a plain one, a release build of the
+        // core is of its products, as a shell's is (`swift build -c release --product …`, each of them:
+        // Scripts/check-core-standalone.sh --release), and `swift build -c release` alone, which builds every target,
+        // fails on it.
         .target(name: "AllInOneIMETestSupport", dependencies: ["AllInOneIMECore"], path: "Tests/AllInOneIMETestSupport"),
 
         // The String Catalog's tool (Scripts/strings/main.swift) and the command that runs it in a package's folder.
