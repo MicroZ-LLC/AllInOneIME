@@ -62,6 +62,12 @@ public enum KeySync {
                 if !keepsFrom { _ = from.delete(account) }
                 moves.moved.append(account)
             case .mismatched:
+                // Taking the bad copy out of the synced store takes this device's copy too (its delete takes both
+                // kinds): the original is put back.
+                if !keepsFrom, from.attributes(account) == nil {
+                    _ = from.write(account, key, theirs.label ?? APIKeys.label(account: account), theirs.comment ?? "",
+                                   theirs.ending ?? APIKeys.ending(of: key))
+                }
                 moves.mismatched.append(account)
             }
         }
@@ -237,6 +243,7 @@ extension APIKeys.Keychain {
                     _ = legacy.delete(account)
                     APIKeys.log.notice("key moved from the login keychain at its first use: \(account)")
                 } else {
+                    if status == .ok { _ = target.delete(account) }  // a copy that reads back otherwise: the original stays
                     APIKeys.log.error("key not moved from the login keychain: \(account) (\(status.code))")
                 }
                 return key

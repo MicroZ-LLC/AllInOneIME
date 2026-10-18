@@ -70,3 +70,23 @@ private extension APIKeys.Keychain {
         return store
     }
 }
+
+/// A copy into iCloud Keychain that reads back otherwise is taken out, and as the synced store's delete takes this
+/// device's copy too (as the Apple one's does), the original is put back.
+struct KeySyncMismatchTests {
+    @Test func aBadCopyNeverCostsTheOriginal() throws {
+        let local = KeySyncTests.store(.local)
+        var synced = KeySyncTests.store(.synced)
+        let inner = synced
+        synced.read = { _ in "garbled" }
+        synced.delete = { account in
+            _ = local.delete(account)  // kSecAttrSynchronizableAny
+            return inner.delete(account)
+        }
+        _ = local.write("openai", "sk-test-local-0001-abcd", "AllInOneIME: test", "api.openai.com", "abcd")
+        let moves = try KeySync.merge(from: local, into: synced)
+        #expect(moves.mismatched == ["openai"] && moves.moved.isEmpty)
+        #expect(local.read("openai") == "sk-test-local-0001-abcd" && local.attributes("openai")?.comment == "api.openai.com")
+        #expect(inner.attributes("openai") == nil)
+    }
+}
