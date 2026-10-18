@@ -15,9 +15,10 @@ import os
 import re
 import sys
 
-# What the core may import outside Platform/Apple/: Foundation and the libraries of every platform's Swift.
+# What the core may import outside Platform/Apple/: Foundation and the libraries of every platform's Swift, and the
+# package's own modules below the core.
 ALLOWED = {"Foundation", "FoundationNetworking", "FoundationXML", "FoundationEssentials", "Dispatch", "Crypto",
-           "AllInOneIMEText", "Synchronization"}
+           "AllInOneIMEText", "AllInOneIMEScriptEngine", "Synchronization"}
 # The C libraries, each allowed under a guard that names it or its systems.
 APPLE_SYSTEMS = ["macOS", "iOS", "tvOS", "watchOS", "visionOS"]
 C_LIBRARIES = {

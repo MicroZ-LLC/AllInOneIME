@@ -2,8 +2,9 @@
 # Keeps Sources/AllInOneIMECore (all of it, subfolders too) platform-neutral (Scripts/check-core-portable.py reads the
 # code, comments and strings left out). It fails when
 #   - a core file imports anything but what every platform has (Foundation, FoundationNetworking, FoundationXML,
-#     FoundationEssentials, Dispatch, Crypto, AllInOneIMEText, Synchronization) outside Platform/Apple/; a C library
-#     (Darwin, Glibc, Musl, Android, WinSDK, ucrt) only under its own `#if canImport(...)` or `#if os(...)`;
+#     FoundationEssentials, Dispatch, Crypto, AllInOneIMEText, AllInOneIMEScriptEngine, Synchronization) outside
+#     Platform/Apple/; a C library (Darwin, Glibc, Musl, Android, WinSDK, ucrt) only under its own `#if canImport(...)`
+#     or `#if os(...)`;
 #   - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code in such a branch;
 #   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
 #     `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).

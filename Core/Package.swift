@@ -32,8 +32,12 @@ let package = Package(
         // the whole framework too (its Package.swift), so the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
-            dependencies: ["AllInOneIMEText", .product(name: "Crypto", package: "swift-crypto")]
+            dependencies: ["AllInOneIMEText", "AllInOneIMEScriptEngine", .product(name: "Crypto", package: "swift-crypto")]
         ),
+
+        // The JavaScript engine's interface (ScriptEngine), below the core so that AllInOneIMEQuickJS can implement it
+        // and still be the core's default. AllInOneIMECore re-exports it.
+        .target(name: "AllInOneIMEScriptEngine"),
 
         // QuickJS-ng's C sources as released (VENDORED.md), its header and quickjs-swift.h for Swift (module.modulemap).
         // Flat, as upstream has them, so their includes are each other's; the defines and libm are upstream's CMake ones.

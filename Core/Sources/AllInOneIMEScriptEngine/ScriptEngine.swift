@@ -1,7 +1,8 @@
 import Foundation
 
 /// A JavaScript engine, for plugins (`PluginScript`) and `@js` (`InlineCode`): JavaScriptCore on Apple platforms
-/// (`JavaScriptCoreEngine`); elsewhere one the shell brings (QuickJS-ng), or none (`UnsupportedScriptEngine`).
+/// (`JavaScriptCoreEngine`); elsewhere one the shell brings (QuickJS-ng), or none (`UnsupportedScriptEngine`). Its own
+/// module, below the core, so that an engine outside the core can be the core's default; the core re-exports it.
 public protocol ScriptEngine: Sendable {
     /// A fresh context, with nothing but the language; nil when there is no JavaScript here.
     func makeContext() -> (any ScriptEngineContext)?

@@ -121,6 +121,7 @@ import Foundation
 import FoundationNetworking
 #endif
 @_exported import AllInOneIMEText
+@_exported import AllInOneIMEScriptEngine
 internal import Dispatch
 @preconcurrency import Crypto
 import struct Foundation.URL
