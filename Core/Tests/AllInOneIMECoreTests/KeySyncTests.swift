@@ -51,11 +51,13 @@ struct KeySyncTests {
         }
         _ = legacy.write("gemini", "sk-test-legacy-0001-wxyz", "", "", nil, nil)
         _ = legacy.write("openai", "sk-test-legacy-0002-wxyz", "", "", nil, nil)
-        let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy, replaced: Self.store(.local), quietLegacy: quiet)
+        let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy, replaced: Self.store(.local),
+                                    quietLegacy: quiet)
         let moves = try stores.migrate()
         #expect(Set(moves.waiting) == ["gemini", "openai"] && moves.moved.isEmpty)
 
-        let loud = KeySync.Stores(local: local, synced: synced, legacy: quiet.withRead(legacy.read), replaced: Self.store(.local))
+        let loud = KeySync.Stores(local: local, synced: synced, legacy: quiet.withRead(legacy.read),
+                                  replaced: Self.store(.local))
         let moved = try loud.migrate()
         #expect(Set(moved.moved) == ["gemini", "openai"] && legacy.attributes("gemini") == nil)
         #expect(local.attributes("openai")?.label == "AllInOneIME: \(Provider.openai.displayName)")
@@ -80,7 +82,7 @@ struct KeySyncMismatchTests {
         let inner = synced
         synced.read = { _ in "garbled" }
         _ = local.write("openai", "sk-test-local-0001-abcd", "AllInOneIME: test", "api.openai.com", "abcd", nil)
-        let moves = try KeySync.merge(from: local, into: synced, replaced: KeySyncTests.store(.local))
+        let moves = try KeySync.merge(from: local, into: synced, aside: KeySyncTests.store(.local))
         #expect(moves.mismatched == ["openai"] && moves.moved.isEmpty && !moves.isComplete)
         #expect(local.read("openai") == "sk-test-local-0001-abcd" && local.attributes("openai")?.comment == "api.openai.com")
         #expect(inner.attributes("openai") == nil)
@@ -95,8 +97,9 @@ struct KeySyncMismatchTests {
         synced.read = { _ in "garbled" }
         _ = local.write("gemini", "sk-test-local-0001-abcd", "AllInOneIME: test", "", "abcd", Date(timeIntervalSince1970: 100))
         _ = legacy.write("openai", "sk-test-legacy-0001-wxyz", "AllInOneIME: test", "", "wxyz", nil)
-        let into = APIKeys.Keychain.routed(local: local, synced: synced, legacy: .unavailable, replaced: KeySyncTests.store(.local), syncs: { true })
-        let moves = try KeySync.migrate(legacy: legacy, into: into, replaced: KeySyncTests.store(.local), interactive: false)
+        let into = APIKeys.Keychain.routed(local: local, synced: synced, legacy: .unavailable,
+                                           replaced: KeySyncTests.store(.local), syncs: { true })
+        let moves = try KeySync.migrate(legacy: legacy, into: into, interactive: false, aside: KeySyncTests.store(.local))
         #expect(moves.mismatched == ["openai"] && inner.attributes("openai") == nil)
         #expect(legacy.read("openai") == "sk-test-legacy-0001-wxyz" && local.read("gemini") == "sk-test-local-0001-abcd")
     }
@@ -122,7 +125,7 @@ struct KeySyncSaveTimeTests {
         try APIKeys.save("sk-test-local-0001-abcd", account: "openai", label: "AllInOneIME: test", in: local)
         let saved = try #require(local.attributes("openai")?.saved)
         #expect(saved >= before.addingTimeInterval(-1) && saved <= Date())
-        try KeySync.merge(from: local, into: synced, replaced: KeySyncTests.store(.local))
+        try KeySync.merge(from: local, into: synced, aside: KeySyncTests.store(.local))
         #expect(synced.attributes("openai")?.saved == saved)
     }
 
@@ -137,12 +140,14 @@ struct KeySyncSaveTimeTests {
             let inner = legacy
             _ = inner.write("openai", key, "AllInOneIME: test", "", APIKeys.ending(of: key), nil)
             legacy.attributes = { inner.attributes($0).map { var found = $0; found.modified = changed; return found } }
-            return (legacy, .routed(local: local, synced: synced, legacy: .unavailable, replaced: KeySyncTests.store(.local), syncs: { true }))
+            return (legacy, .routed(local: local, synced: synced, legacy: .unavailable, replaced: KeySyncTests.store(.local),
+                                    syncs: { true }))
         }
         let a = mac("sk-test-mac-a-old-0001", changed: Self.year), b = mac("sk-test-mac-b-new-0002", changed: Self.week)
-        #expect(try KeySync.migrate(legacy: a.legacy, into: a.into, replaced: KeySyncTests.store(.local), interactive: false).moved == ["openai"])
+        let aside = KeySyncTests.store(.local)
+        #expect(try KeySync.migrate(legacy: a.legacy, into: a.into, interactive: false, aside: aside).moved == ["openai"])
         #expect(synced.attributes("openai")?.saved == Self.year)
-        #expect(try KeySync.migrate(legacy: b.legacy, into: b.into, replaced: KeySyncTests.store(.local), interactive: false).moved == ["openai"])
+        #expect(try KeySync.migrate(legacy: b.legacy, into: b.into, interactive: false, aside: aside).moved == ["openai"])
         #expect(synced.read("openai") == "sk-test-mac-b-new-0002" && synced.attributes("openai")?.saved == Self.week)
 
         // The other way round: the newer one first; the older one is set aside, where nothing reads it.
@@ -151,7 +156,7 @@ struct KeySyncSaveTimeTests {
         let c = mac("sk-test-mac-a-old-0001", changed: Self.year)
         let into = APIKeys.Keychain.routed(local: KeySyncTests.store(.local), synced: synced2, legacy: .unavailable,
                                            replaced: replaced, syncs: { true })
-        let moves = try KeySync.migrate(legacy: c.legacy, into: into, replaced: replaced, interactive: false)
+        let moves = try KeySync.migrate(legacy: c.legacy, into: into, interactive: false, aside: replaced)
         #expect(moves.superseded == ["openai"] && moves.setAside == ["openai"] && c.legacy.attributes("openai") == nil)
         #expect(replaced.read("openai") == "sk-test-mac-a-old-0001" && replaced.attributes("openai")?.saved == Self.year)
         #expect(synced2.read("openai") == "sk-test-mac-b-new-0002")
@@ -164,7 +169,7 @@ struct KeySyncSaveTimeTests {
         _ = synced.write("openai", "sk-test-synced-newer-0002", "AllInOneIME: test", "", nil, Self.week)
         _ = local.write("gemini", "sk-test-same-key-0003", "AllInOneIME: test", "", nil, Self.year)
         _ = synced.write("gemini", "sk-test-same-key-0003", "AllInOneIME: test", "", nil, Self.week)
-        let moves = try KeySync.merge(from: local, into: synced, replaced: replaced)
+        let moves = try KeySync.merge(from: local, into: synced, aside: replaced)
         #expect(Set(moves.superseded) == ["openai", "gemini"] && moves.moved.isEmpty && moves.setAside == ["openai"])
         #expect(local.attributes("openai") == nil && replaced.read("openai") == "sk-test-local-older-0001")
         #expect(replaced.attributes("openai")?.saved == Self.year && synced.read("openai") == "sk-test-synced-newer-0002")
@@ -173,7 +178,7 @@ struct KeySyncSaveTimeTests {
     }
 }
 
-/// Keys that lose, or are written over, set aside under `APIKeys.replacedService` (`Stores.replaced`): never read back
+/// Keys that lose, or are written over, set aside under `KeySync.replacedService` (`Stores.replaced`): never read back
 /// as the key in use, so a removed key never comes back; Remove… takes them too.
 struct KeySyncSetAsideTests {
     static let old = Date(timeIntervalSince1970: 1_760_000_000), new = Date(timeIntervalSince1970: 1_790_000_000)
