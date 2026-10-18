@@ -113,8 +113,8 @@ extension Composer {
             return [.notice(messages.reply.noText), .updateMarkedText, .showPanel]
         }
         var effects: [Effect]
-        if let command = draftCommand, !isLevelTwo, !command.usesAI {
-            // A command without AI: the text goes in as clipboard text would.
+        if let command = draftCommand, !isLevelTwo, Self.pastesScreenshot(command) {
+            // A command without AI, or `@agent`: the text goes in as clipboard text would.
             attachment = nil
             effects = insertPasted(text.text)
         } else if draftCommand?.kind == .convert, selectionInUse != nil {
@@ -125,12 +125,17 @@ extension Composer {
             attachment = .screenshot(.ready(text))
             effects = [.updateMarkedText, .showPanel]
         }
-        if start, !isLevelTwo, draftCommand != nil {
+        // `@agent` waits: what it's given is in its draft now, for the user to see first.
+        if start, !isLevelTwo, let command = draftCommand, command != .agent {
             setLevelOnePhase()
             effects += startAction().effects
         }
         return effects
     }
+
+    /// Whether `command` gets a screenshot's text pasted into its draft, as clipboard text, rather than attached: one
+    /// without AI, and `@agent`, which can act on what it's given, so it's never given text the user didn't see.
+    static func pastesScreenshot(_ command: Command) -> Bool { !command.usesAI || command == .agent }
 
     /// An image pasted (`pasted`): read on the device (`Effect.recognizeText`), the attachment shown as being read.
     func pasteScreenshot(_ image: Data) -> [Effect] {
@@ -168,7 +173,7 @@ extension Composer {
     /// The screenshot's text for `command` at the action key: the AI's commands' (nil for the others, which had it
     /// pasted, and when there is none).
     func screenshotText(for command: Command) -> String? {
-        guard case let .screenshot(.ready(text))? = attachment, command.usesAI else { return nil }
+        guard case let .screenshot(.ready(text))? = attachment, !Self.pastesScreenshot(command) else { return nil }
         return text.text
     }
 
