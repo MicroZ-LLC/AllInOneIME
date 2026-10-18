@@ -3322,10 +3322,11 @@ extension Composer {
     }
 
     /// An `@question` answered (`receive`, final): kept with its question, newest first (`questionHistory`), unless the
-    /// setting is off, secure input is on, it was asked on selected text or it's a saved answer shown again.
+    /// setting is off, secure input is on, it was asked on selected text or with something attached (a screenshot's text,
+    /// someone else's, isn't kept, nor synced; asked again later, it wouldn't be there), or it's a saved answer shown again.
     func rememberAnswer() -> [Effect] {
         guard remembersQuestions, phase == .choosing, recalled == nil, activeCommand == .question, selection == nil,
-              !secureInputActive(), let answer = result.versions.first, answer.isComplete,
+              attachment == nil, !secureInputActive(), let answer = result.versions.first, answer.isComplete,
               !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         let question = sentText
         guard !question.isEmpty else { return [] }

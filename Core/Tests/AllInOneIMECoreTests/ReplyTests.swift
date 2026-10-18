@@ -106,6 +106,25 @@ struct ReplyTests {
         #expect(c.handleKeyDown(enterKey).effects.contains(.replaceSelection("Lunch tomorrow?\nSure!", selection)))
     }
 
+    @Test func aQuestionAskedWithAScreenshotIsNotRemembered() {
+        func remembered(_ c: Composer) -> Bool {
+            type("what does it say", c)
+            let out = c.handleKeyDown(enterKey).effects
+            guard case let .startCommand(_, _, id)? = out.first else {
+                Issue.record("no request: \(out)")
+                return false
+            }
+            return c.receive(ConversionResult(versions: [CandidateLine("It says the PIN is 4821.")]), isFinal: true, id: id)
+                .contains { if case .rememberQuestion = $0 { true } else { false } }
+        }
+        let plain = draft("question")
+        #expect(remembered(plain))
+        let withScreenshot = draft("question")
+        _ = screenshot(["Your PIN is 4821"], withScreenshot)
+        #expect(!remembered(withScreenshot))
+        #expect(withScreenshot.questionHistory.entries.isEmpty)
+    }
+
     @Test func theAttachmentGoesWithTheDraft() {
         let c = draft("reply")
         paste(.text("hello"), c)
