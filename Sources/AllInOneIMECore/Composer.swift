@@ -2987,7 +2987,7 @@ public final class Composer {
         case .optionSpace:
             return event.key == .space && modifiers == .option
         case let .shortcut(key):
-            return key.matches(event)
+            return key.matches(event, roles: modifierRoles)
         case .optionTap, .space:
             return false
         }

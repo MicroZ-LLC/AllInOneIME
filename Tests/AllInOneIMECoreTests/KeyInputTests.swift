@@ -5,7 +5,8 @@ import Testing
 /// Keypad"), the Mac codes against HIToolbox/Events.h, the Windows ones against Microsoft's "USB HID to PS/2 Scan Code
 /// Translation Table" and Virtual-Key Codes reference; Chromium's dom_code_data.inc lists all three and agrees.
 struct KeyInputTests {
-    /// Every key code the code base names (`VirtualKey`, the action key's keys that type nothing), its key and usage.
+    /// Every key code the code base names (`VirtualKey`, and F13–F20, which the action key's keys that type nothing had),
+    /// its key and usage.
     static let namedCodes: [(UInt16, Key, UInt16)] = [
         (VirtualKey.returnKey, .enter, 0x28), (VirtualKey.keypadEnter, .keypadEnter, 0x58), (VirtualKey.tab, .tab, 0x2B),
         (VirtualKey.space, .space, 0x2C), (VirtualKey.delete, .backspace, 0x2A), (VirtualKey.escape, .escape, 0x29),
@@ -31,10 +32,6 @@ struct KeyInputTests {
             #expect(MacKeyCodes.key(code) == .f(i + 1))
             #expect(MacKeyCodes.usage(code) == 0x3A + UInt16(i))  // F1 … F12 are 0x3A … 0x45
             #expect(MacKeyCodes.code(usage: MacKeyCodes.usage(code)) == code)
-        }
-        for code in ActionKey.functionKeys {
-            #expect(MacKeyCodes.code(usage: MacKeyCodes.usage(code)) == code, "kVK \(code)")
-            #expect(MacKeyCodes.key(code) != .character && MacKeyCodes.key(code) != .other, "kVK \(code)")
         }
     }
 
