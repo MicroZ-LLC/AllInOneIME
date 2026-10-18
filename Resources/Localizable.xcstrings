@@ -62,11 +62,17 @@
     " (last synced %@)" : {
       "comment" : "（上次同步：%@） — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
+    " (name taken, not loaded)" : {
+      "comment" : "（名字被占用，没有加载） — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
+    },
     " (no language pack yet)" : {
       "comment" : "（还没有语言包） — Sources/AllInOneIME/InputController.swift"
     },
     " (not installed)" : {
       "comment" : "（未安装） — Sources/AllInOneIME/AgentSettings.swift"
+    },
+    " (off)" : {
+      "comment" : "（已关闭） — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
     },
     " (optional)" : {
       "comment" : "（可选） — Sources/AllInOneIME/UIText.swift"
@@ -2680,6 +2686,9 @@
     },
     "The name is taken by %@, found first" : {
       "comment" : "这个名字已经给了 %@（先找到的生效） — Sources/AllInOneIME/UIText.swift"
+    },
+    "The name is taken by the snippet %@, found first" : {
+      "comment" : "这个名字已经给了片段 %@（先找到的生效） — Sources/AllInOneIME/UIText.swift"
     },
     "The old AIPinyin (AI 拼音) is replaced; its settings and learned words move over." : {
       "comment" : "旧的 AI 拼音（AIPinyin）会被替换，设置和学到的词会搬过来。 — Sources/AllInOneIMEInstaller/main.swift"

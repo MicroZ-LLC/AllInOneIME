@@ -520,10 +520,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// to a shell). Elsewhere the caret stays at the end, as after any result.
     ///
     /// A text view keeps its caret where it is when a range is replaced (`insertText` with a range), so the caret is
-    /// moved with marked text, which puts it where it says: empty marked text at the place. Where that doesn't arrive
-    /// (the input method connection may drop empty text with a range), the character before the place is marked over
-    /// itself and committed, and the caret ends after it; a field that marks it elsewhere (it ignores the range) has
-    /// the marked text taken out again, so nothing in it changes.
+    /// moved with marked text, which puts it where it says: empty marked text at the place. Nothing else is tried: where
+    /// that doesn't arrive or isn't taken (the input method connection may drop empty text with a range; a browser may
+    /// report its caret late), the caret stays at the end, which is harmless. Marking a character of the text instead
+    /// could lose or double it where the field's ranges lag behind.
     @MainActor
     func moveCaret(back: Int, after inserted: String?, in client: IMKTextInput?) {
         guard back > 0, let inserted, let client, !Self.isTerminal(client) else { return }
@@ -539,22 +539,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let target = caret.location - back
         client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: NSRange(location: target, length: 0))
-        guard client.selectedRange().location != target, target > 0 else { return }
-        // The whole character before the place (a surrogate pair, an emoji with its modifiers), marked over itself.
-        let start = max(target - 16, 0)
-        guard let before = client.attributedSubstring(from: NSRange(location: start, length: target - start))?.string as NSString?,
-              before.length == target - start else { return }
-        let last = before.rangeOfComposedCharacterSequence(at: before.length - 1)
-        let character = before.substring(with: last)
-        let range = NSRange(location: start + last.location, length: last.length)
-        client.setMarkedText(character, selectionRange: NSRange(location: last.length, length: 0), replacementRange: range)
-        if client.markedRange() == range {
-            client.insertText(character, replacementRange: Self.notFound)
-        } else {
-            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
-            log.notice("caret not moved: the field doesn't take a range")
-        }
-        hasMarkedText = false
+        if client.selectedRange().location != target { log.notice("caret not moved: the field didn't take it; it stays at the end") }
     }
 
     /// Remembers `app` when its field didn't take a typo's fix (`TypoMemory`): no typos there again.

@@ -211,6 +211,8 @@ enum UIText {
             case .custom: return tr("\(name) 是一个自定义命令的名字", "\(name) is one of your custom commands")
             case let .command(id):
                 return tr("这个名字已经给了 \(id)（先找到的生效）", "The name is taken by \(id), found first")
+            case let .snippet(id):
+                return tr("这个名字已经给了片段 \(id)（先找到的生效）", "The name is taken by the snippet \(id), found first")
             }
         }
     }

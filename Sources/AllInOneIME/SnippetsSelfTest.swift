@@ -21,6 +21,7 @@ final class TextViewClient: NSObject, IMKTextInput {
         textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
         textView.isRichText = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
         window.contentView = textView
@@ -107,17 +108,17 @@ extension SelfTest {
         }
 
         // An NSTextView: the text goes in, the caret back to {cursor} (before ", thanks 😀": 11 UTF-16 units), by empty
-        // marked text there, or (where that doesn't arrive) the character before it marked and committed.
+        // marked text there; where that doesn't arrive, the caret stays at the end (18) and the text is as inserted.
         for drops in [false, true] {
             let view = TextViewClient()
             view.dropsEmptyMarkedText = drops
             view.textView.string = "Re: "
             view.textView.setSelectedRange(NSRange(location: 4, length: 0))
             insert("selftestthx", into: view)
-            check(view.text == "Re: Hi , thanks 😀" && view.caret == NSRange(location: 7, length: 0) && !view.textView.hasMarkedText()
-                  && !controller.composer.isComposing,
-                  "@selftestthx ⏎ in an NSTextView\(drops ? " that gets no empty marked text" : "") inserts the text, the caret at "
-                  + "{cursor} (\(view.text.debugDescription), caret \(view.caret.location))")
+            check(view.text == "Re: Hi , thanks 😀" && view.caret == NSRange(location: drops ? 18 : 7, length: 0)
+                  && !view.textView.hasMarkedText() && !controller.composer.isComposing,
+                  "@selftestthx ⏎ in an NSTextView\(drops ? " that gets no empty marked text" : "") inserts the text, the caret "
+                  + (drops ? "left at the end" : "at {cursor}") + " (\(view.text.debugDescription), caret \(view.caret.location))")
             view.close()
         }
 
@@ -170,19 +171,46 @@ extension SelfTest {
         window.alphaValue = 0
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }
-        window.makeFirstResponder(nil)
-        for type in [NSEvent.EventType.keyDown, .keyUp] {
-            if let key = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                                          windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",
-                                          isARepeat: false, keyCode: VirtualKey.returnKey) { window.sendEvent(key) }
+        /// ⏎ with nothing focused: Save, the default button.
+        func pressReturn() {
+            window.makeFirstResponder(nil)
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                if let key = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",
+                                              isARepeat: false, keyCode: VirtualKey.returnKey) { window.sendEvent(key) }
+            }
+            if saved == nil, let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                         windowNumber: window.windowNumber, context: nil, characters: "\r",
+                                                         charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: VirtualKey.returnKey) {
+                _ = window.performKeyEquivalent(with: key)  // the default button's key, where the window didn't take it as a key
+            }
+            _ = pump(timeout: 0.5) { saved != nil }
         }
-        if saved == nil, let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                                                     windowNumber: window.windowNumber, context: nil, characters: "\r",
-                                                     charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: VirtualKey.returnKey) {
-            _ = window.performKeyEquivalent(with: key)  // the default button's key, where the window didn't take it as a key
-        }
-        _ = pump(timeout: 0.5) { saved != nil }
+        pressReturn()
         check(saved == start, "Save hands back the snippet (\(String(describing: saved)))")
+
+        // Its text is an NSTextView that replaces nothing while typing (no smart quotes or dashes: JSON and code stay as
+        // typed), and a placeholder goes in at its caret, into what is saved.
+        func textViews(in view: NSView) -> [NSTextView] {
+            (view as? NSTextView).map { [$0] } ?? view.subviews.flatMap(textViews)
+        }
+        let textView = window.contentView.flatMap { textViews(in: $0).first { $0.string == "Best,\n{cursor}" } }
+        check(textView.map { !$0.isAutomaticQuoteSubstitutionEnabled && !$0.isAutomaticDashSubstitutionEnabled
+                             && !$0.isAutomaticTextReplacementEnabled && !$0.isRichText } == true,
+              "the snippet's text is typed as it is: no smart quotes, dashes or replacements (\(textView == nil ? "no text view" : "set"))")
+        if let textView {
+            let target = PlainTextEditor.Inserter()
+            target.textView = textView
+            textView.setSelectedRange(NSRange(location: 6, length: 0))
+            target.insert("{date} ", into: .constant(""))
+            textView.insertText("\"a\" -- b", replacementRange: textView.selectedRange())
+            _ = pump(timeout: 0.2) { false }
+            saved = nil
+            pressReturn()
+            check(textView.string == "Best,\n{date} \"a\" -- b{cursor}" && saved?.text == textView.string,
+                  "a placeholder goes in at the caret, and the text is saved as typed (\(textView.string.debugDescription), "
+                  + "saved \(saved?.text.debugDescription ?? "nothing"))")
+        }
         window.close()
         let image = snapshotDirectory.appendingPathComponent("command-editor-snippet.png")
         renderOffscreen(CommandEditor(edit: CommandEdit(index: nil, command: start), others: []) { _ in }, size: NSSize(width: 520, height: 520),

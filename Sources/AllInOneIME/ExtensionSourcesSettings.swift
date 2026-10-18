@@ -136,9 +136,23 @@ struct ExtensionSourcesSection: View {
         if let shown = Self.shownLoaded?[source.url] { return tr("已加载：", "Loaded: ") + shown.joined(separator: " ") }
         let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
         let bundle = model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }?.name
-        let names = model.extensionIndex.commands.filter { ExtensionSources.comparable($0.extensionDirectory.path) == folder }
-            .map { "@" + (model.extensionNames[$0.id] ?? $0.name) }
-            + model.extensionIndex.snippets.filter { $0.bundle == bundle }.map { "@" + $0.name }
+        // Each as it is offered: under its alias where its name is taken, or said to be off or left out.
+        func listed(_ name: String, offeredAs: String?, hidden: Bool, on: Bool) -> String {
+            if !on { return "@" + name + tr("（已关闭）", " (off)") }
+            if hidden { return "@" + name + tr("（名字被占用，没有加载）", " (name taken, not loaded)") }
+            return "@" + (offeredAs ?? name)
+        }
+        let off = Set(model.config.disabledExtensions)
+        let commands: [String] = model.extensionIndex.commands.filter { ExtensionSources.comparable($0.extensionDirectory.path) == folder }
+            .map { command in
+                listed(command.name, offeredAs: model.extensionNames[command.id], hidden: model.hiddenExtensions[command.id] != nil,
+                       on: !off.contains(command.id) && !(command.source.bundleName.map(off.contains) ?? false))
+            }
+        let snippets: [String] = model.extensionIndex.snippets.filter { $0.bundle == bundle }.map { snippet in
+            listed(snippet.name, offeredAs: model.snippetNames[snippet.id], hidden: model.hiddenSnippets[snippet.id] != nil,
+                   on: !off.contains(snippet.id) && !off.contains(snippet.bundle))
+        }
+        let names = commands + snippets
         if !names.isEmpty { return tr("已加载：", "Loaded: ") + names.joined(separator: " ") }
         if !trusted { return tr("没有加载：还没检查过", "Nothing loaded: not reviewed yet") }
         if !enabled { return tr("没有加载：不在加载列表里", "Nothing loaded: not in the load list") }

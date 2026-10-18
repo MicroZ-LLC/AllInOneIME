@@ -539,6 +539,9 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var skippedExtensions: [ExtensionStore.Skipped] = []
     /// The commands on but left out of the list because another command has their name: id → why.
     @Published private(set) var hiddenExtensions: [String: ScriptCommand.Problem] = [:]
+    /// The bundles' snippets ("<bundle>/<name>"): the name each got, and the ones on but left out (and why).
+    @Published private(set) var snippetNames: [String: String] = [:]
+    @Published private(set) var hiddenSnippets: [String: ScriptCommand.Problem] = [:]
     /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
     @Published private(set) var passwordsSaved: Set<String> = []
     /// Their last 4 characters, where kept ("bundle/name" → "a1b2").
@@ -552,11 +555,17 @@ final class SettingsModel: ObservableObject {
         let index = LiveExtensions.load(config)
         extensionIndex = index
         let enabled = index.enabled(config.disabledExtensions)
-        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins,
-                                        snippets: index.enabledSnippets(config.disabledExtensions))
-        extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled,
-                                                    snippets: index.enabledSnippets(config.disabledExtensions))
-            .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
+        let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
+        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins, snippets: enabledSnippets)
+        let catalog = Command.catalog(config.customCommands, plugins: plugins, scripts: enabled, snippets: enabledSnippets)
+        extensionNames = Dictionary(catalog.compactMap { command in command.script.map { ($0.id, command.name) } },
+                                    uniquingKeysWith: { first, _ in first })
+        snippetNames = Dictionary(catalog.compactMap { command -> (String, String)? in
+            guard command.kind == .snippet, let bundle = command.bundle, let custom = command.custom else { return nil }
+            return (bundle + "/" + custom.name, command.name)
+        }, uniquingKeysWith: { first, _ in first })
+        hiddenSnippets = Dictionary(Command.hiddenSnippets(enabledSnippets, scripts: enabled, custom: config.customCommands, plugins: plugins)
+            .map { ($0.snippet.id, .nameTaken($0.snippet.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
@@ -1884,7 +1893,7 @@ struct SettingsView: View {
         .sheet(item: $commandEdit) { edit in
             CommandEditor(edit: edit, others: model.config.customCommands.enumerated()
                             .filter { $0.offset != edit.index }.map(\.element),
-                          plugins: model.plugins.map(\.name)) { command in
+                          plugins: model.plugins.map(\.name), unread: model.config.unreadCustomCommandNames) { command in
                 if let index = edit.index {
                     model.config.customCommands[index] = command
                 } else {
