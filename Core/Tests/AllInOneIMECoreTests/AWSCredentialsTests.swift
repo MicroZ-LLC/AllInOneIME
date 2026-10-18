@@ -118,6 +118,13 @@ final class AWSCTRunner: Sendable {
 enum AWSCT {
     static var iso: ISO8601DateFormatter { ISO8601DateFormatter() }
 
+    #if os(Windows)
+    /// A program every system has, as a credential_process line writes it (its shlex rules keep "/", not "\").
+    static let echo = WindowsTestTools.systemProgram("where.exe").replacingOccurrences(of: "\\", with: "/")
+    #else
+    static let echo = "/bin/echo"
+    #endif
+
     static func processJSON(_ id: String, expiration: Date? = nil, token: String? = "process-token") -> AWSProcessResult {
         var fields = [#""Version": 1"#, #""AccessKeyId": "\#(id)""#, #""SecretAccessKey": "process-secret-\#(id)""#]
         if let token { fields.append(#""SessionToken": "\#(token)""#) }
@@ -796,7 +803,7 @@ struct AWSCredentialResolverTests {
     }
 
     @Test func doctorSaysWhenCredentialsWillBeFetchedAndALastRefreshThatFailed() async throws {
-        let home = try AWSCTHome(config: "[profile dev]\nrole_arn = arn:aws:iam::1:role/r\nsource_profile = keys\n[profile proc]\ncredential_process = /bin/echo\n",
+        let home = try AWSCTHome(config: "[profile dev]\nrole_arn = arn:aws:iam::1:role/r\nsource_profile = keys\n[profile proc]\ncredential_process = \(AWSCT.echo)\n",
                                  credentials: "[keys]\naws_access_key_id = AKIAKEYS\naws_secret_access_key = k\n")
         defer { home.remove() }
         // The checks tell the time by the real clock.
@@ -1132,7 +1139,7 @@ struct AWSCredentialResolverTests {
     @Test func statusLinesSayTheKindAndWhenTheCredentialsExpire() async throws {
         let home = try AWSCTHome(config: """
             [profile proc]
-            credential_process = /bin/echo
+            credential_process = \(AWSCT.echo)
             [profile role]
             role_arn = arn:aws:iam::1:role/r
             source_profile = sso
