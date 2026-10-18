@@ -14,6 +14,8 @@ final class QuickJSRuntime {
     private var thrown: JSValue?
     /// How deep in calls into QuickJS this is: a native function's body may call back in.
     private var depth = 0
+    /// Whether promise jobs were left unrun when the clock was up (`enter`), since that was said.
+    private var jobsLeft = false
     /// How far down this thread's stack Swift's own conversions go (`ThreadStack.floor`), from the outermost call.
     private(set) var stackFloor: UInt = 0
     /// When scripts stop.
@@ -64,7 +66,8 @@ final class QuickJSRuntime {
     /// Runs `body`, which calls into QuickJS. From the outermost call: first the stack's limits, QuickJS's and Swift's,
     /// for this thread (a context may move between threads from one call to the next), and after it the promise jobs it
     /// queued, as JavaScriptCore runs its microtasks before it returns (none once the clock is up: jobs that queue jobs
-    /// don't end).
+    /// don't end). Those left then are left, as the script would have been: "interrupted" is the exception, once
+    /// (they run on, should the limit be lifted).
     func enter<T>(_ body: () -> T) -> T {
         if depth == 0 {
             let stack = ThreadStack.current()
@@ -81,6 +84,9 @@ final class QuickJSRuntime {
             while !clock.isUp && JS_IsJobPending(rt) {
                 if JS_ExecutePendingJob(rt, &context) < 0 { takeException() }
             }
+            let left = JS_IsJobPending(rt)
+            if left && !jobsLeft { throwError(.internal, "interrupted") }
+            jobsLeft = left
         }
         return result
     }

@@ -51,7 +51,15 @@ struct QuickJSEngineTests {
         let jobs = try self.context()
         _ = jobs.limitTime(to: 0.1)
         jobs.evaluate("var count = 0; (function again() { count++; Promise.resolve().then(again) })()")
+        #expect(jobs.exception?.toString() == "InternalError: interrupted")
         #expect((jobs.global("count")?.numberValue ?? 0) > 1)
+        // A script that returned, its jobs left when the time was up: stopped all the same, not quietly.
+        let waiting = try self.context()
+        _ = waiting.limitTime(to: 0.2)
+        let start = Date()
+        #expect(waiting.evaluate("(async () => { for (;;) await 0 })(); 'returned'")?.toString() == "returned")
+        #expect(waiting.exception?.toString() == "InternalError: interrupted" && Date().timeIntervalSince(start) < 5)
+        #expect(waiting.global("Math")?.isObject == true)  // its values can still be read
     }
 
     @Test func anotherThreadStopsAScript() throws {
