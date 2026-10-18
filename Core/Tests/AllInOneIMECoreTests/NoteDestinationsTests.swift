@@ -223,6 +223,24 @@ struct NoteDestinationsTests {
         #expect(open("javascript:alert(1)") == nil)
     }
 
+    // MARK: - Names
+
+    @Test func moreReservedNamesAndNoFormatCharacters() {
+        typealias M = MarkdownFolderDestination
+        #expect(M.fileName(for: draft("CONIN$"), existing: []) == "CONIN$_.md")
+        #expect(M.fileName(for: draft("conout$"), existing: []) == "conout$_.md")
+        #expect(M.fileName(for: draft("COM0"), existing: []) == "COM0_.md")
+        #expect(M.fileName(for: draft("LPT0.x"), existing: []) == "LPT0_.x.md")
+        #expect(M.fileName(for: draft("COM¹"), existing: []) == "COM¹_.md")
+        #expect(M.fileName(for: draft("lpt³"), existing: []) == "lpt³_.md")
+        #expect(M.fileName(for: draft("COM10"), existing: []) == "COM10.md")
+        // Right-to-left override, a byte order mark, a zero-width space: left out.
+        #expect(M.fileName(for: draft("\u{FEFF}invoice\u{202E}dm.exe\u{200B}"), existing: []) == "invoicedm.exe.md")
+        #expect(M.fileName(for: draft("\u{202E}"), existing: []) == "Note 2026-10-14 1746.md")
+        // Emoji sequences keep their joiners.
+        #expect(M.fileName(for: draft("👩‍💻 notes"), existing: []) == "👩‍💻 notes.md")
+    }
+
     // MARK: - Notion
 
     @Test func notionComLinksAndUUIDs() {

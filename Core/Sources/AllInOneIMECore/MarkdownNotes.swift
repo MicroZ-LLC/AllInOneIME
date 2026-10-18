@@ -204,13 +204,24 @@ public struct MarkdownFolderDestination: NoteDestination {
     /// What Windows, macOS and Obsidian's links can't have in a name.
     private static let forbidden = Set("/\\:*?\"<>|#^[]".unicodeScalars)
 
-    /// Windows' device names, which no file may be called (whatever its extension).
-    private static let reserved: Set<String> = Set(["CON", "PRN", "AUX", "NUL"]
-        + (1...9).map { "COM\($0)" } + (1...9).map { "LPT\($0)" })
+    /// Windows' device names, which no file may be called (whatever its extension): COM0–9 and LPT0–9 with the
+    /// superscript digits ¹ ² ³ too, the console's CONIN$ and CONOUT$.
+    private static let reserved: Set<String> = {
+        let digits = (0...9).map(String.init) + ["¹", "²", "³"]
+        return Set(["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"] + digits.map { "COM" + $0 } + digits.map { "LPT" + $0 })
+    }()
+
+    /// Format characters (Unicode's Cf: U+202E, which shows a name backwards, U+FEFF, U+200B …) are left out of a name,
+    /// but for those emoji and some scripts are written with: the zero-width joiner and non-joiner, and the tags of a
+    /// subdivision's flag.
+    private static func isDroppedFormat(_ scalar: Unicode.Scalar) -> Bool {
+        guard scalar.properties.generalCategory == .format else { return false }
+        return !(scalar.value == 0x200C || scalar.value == 0x200D || (0xE0020...0xE007F).contains(scalar.value))
+    }
 
     static func sanitized(_ title: String) -> String {
         var out = ""
-        for scalar in title.unicodeScalars {
+        for scalar in title.unicodeScalars where !isDroppedFormat(scalar) {
             let control = scalar.properties.generalCategory == .control
             out.unicodeScalars.append(forbidden.contains(scalar) || control ? "-" : scalar)
         }
