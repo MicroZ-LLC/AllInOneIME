@@ -14,29 +14,15 @@
 #
 #   Scripts/check-core-standalone.sh            check (run by the macOS shell's `make test`, and in CI)
 #   Scripts/check-core-standalone.sh --list     print every offence, one a line
-#   Scripts/check-core-standalone.sh --release  build each of the package's library products in release, as a shell
-#                                               that depends on the core does (`make test`, and CI on macOS and Linux)
+#   Scripts/check-core-standalone.sh --release  build the package in release (`make test`, and CI on macOS and Linux)
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 
 if [ "${1:-}" = --release ]; then
-    # Each library product but AllInOneIMETestSupport, the tests' (its acceptance helpers import the core @testable,
-    # which a release build doesn't allow: Package.swift). The products as this system's manifest has them (on Linux
-    # and Windows without AllInOneIMERime), from `swift package describe`, so a new one is built too.
-    products=$(swift package --package-path "$root" describe | awk '
-        /^Products:/ { listing = 1; next }
-        /^[^ ]/ { listing = 0 }
-        listing && $1 == "Name:" { name = $2 }
-        listing && $1 == "Library:" && name != "AllInOneIMETestSupport" { print name }')
-    if [ -z "$products" ]; then
-        echo "core-standalone: no library products in $root/Package.swift"
-        exit 1
-    fi
-    for product in $products; do
-        echo "core-standalone: swift build -c release --product $product"
-        swift build --package-path "$root" -c release --product "$product"
-    done
-    echo "core-standalone: every product builds in release ($(echo $products))"
+    # Every target in release, as the core's own repository builds it (and a shell that depends on it).
+    echo "core-standalone: swift build -c release"
+    swift build --package-path "$root" -c release
+    echo "core-standalone: the core builds in release"
     exit 0
 fi
 exec python3 - "$root" "$@" <<'EOF'
