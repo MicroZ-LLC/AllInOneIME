@@ -107,6 +107,45 @@ struct KeyShortcutTests {
         #expect(recorded == .shortcut(KeyShortcut(keyCode: 0x26, modifiers: [.command, .shift], name: "Ctrl+Shift+J")))
     }
 
+    /// Ctrl and the Windows key change places with ⌘ and Ctrl: every combination stays a shortcut of its own.
+    @Test func thePrimaryRoleSwapsWithCommand() {
+        var pc = ModifierRoles.mac
+        pc.primary = .control
+        func j(_ modifiers: Modifiers) -> KeyEvent { KeyEvent(key: .character, usage: 0x0D, characters: "j", modifiers: modifiers) }
+        // Win+J recorded on Windows: the Mac's ⌃J, and pressed there again it is the shortcut.
+        guard case let .shortcut(winJ)? = ActionKey.recorded(key: .character, usage: 0x0D, modifiers: .command, name: "Win+J", roles: pc)
+        else {
+            Issue.record("Win+J not recorded")
+            return
+        }
+        #expect(winJ.modifiers == .control)
+        #expect(winJ.matches(j(.command), roles: pc))
+        #expect(!winJ.matches(j(.control), roles: pc) && !winJ.matches(j([.control, .command]), roles: pc))
+        #expect(winJ.matches(KeyEvent(keyCode: 0x26, characters: "j", modifiers: .control)))  // ⌃J on the Mac
+        // Ctrl+Win+J: another one, kept as ⌃⌘J.
+        guard case let .shortcut(both)? = ActionKey.recorded(key: .character, usage: 0x0D, modifiers: [.control, .command],
+                                                             name: "Ctrl+Win+J", roles: pc)
+        else {
+            Issue.record("Ctrl+Win+J not recorded")
+            return
+        }
+        #expect(both.modifiers == [.control, .command])
+        #expect(both.matches(j([.control, .command]), roles: pc))
+        #expect(!both.matches(j(.control), roles: pc) && !both.matches(j(.command), roles: pc))
+        // The Mac's ⌃⌘J and ⌘J stay two on Windows: Ctrl+Win+J and Ctrl+J.
+        let macBoth = KeyShortcut(keyCode: 0x26, modifiers: [.control, .command], name: "⌃⌘J")
+        let macJ = KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J")
+        #expect(macJ.matches(j(.control), roles: pc) && !macJ.matches(j([.control, .command]), roles: pc))
+        #expect(macBoth.matches(j([.control, .command]), roles: pc) && !macBoth.matches(j(.control), roles: pc))
+        #expect(!macBoth.matches(j(.command), roles: pc))
+        // Its own inverse; nothing changes on the Mac.
+        for raw in UInt16(0)..<16 {
+            let modifiers = Modifiers(rawValue: raw)
+            #expect(pc.swappingPrimary(pc.swappingPrimary(modifiers)) == modifiers)
+            #expect(ModifierRoles.mac.swappingPrimary(modifiers) == modifiers)
+        }
+    }
+
     @Test func recordedFromAKey() {
         #expect(ActionKey.recorded(key: .enter, usage: 0x28, modifiers: [], name: "Enter") == .enter)
         #expect(ActionKey.recorded(key: .keypadEnter, usage: 0x58, modifiers: [], name: "Enter") == .enter)

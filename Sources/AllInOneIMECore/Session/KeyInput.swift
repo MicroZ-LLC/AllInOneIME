@@ -119,6 +119,17 @@ public struct ModifierRoles: Hashable, Sendable {
     }
 
     public static let mac = ModifierRoles(primary: .command, voiceHold: .modifier(.option, .right), actionTap: .option)
+
+    /// A recorded shortcut's modifiers (`KeyShortcut`, in the Mac's terms) as this system's, or back: `primary` and ⌘
+    /// change places (on Windows Ctrl and the Windows key), so each of them stays a key of its own. Its own inverse.
+    public func swappingPrimary(_ modifiers: Modifiers) -> Modifiers {
+        let primary = Modifiers.kind(self.primary)
+        guard primary != .command else { return modifiers }
+        var swapped = modifiers.subtracting([primary, .command])
+        if modifiers.contains(primary) { swapped.insert(.command) }
+        if modifiers.contains(.command) { swapped.insert(primary) }
+        return swapped
+    }
 }
 
 /// The Mac's key codes (Carbon's `kVK_*`, HIToolbox/Events.h): each one's `Key` and USB HID usage (page 7, the

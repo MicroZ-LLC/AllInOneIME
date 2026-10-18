@@ -25,17 +25,12 @@ public enum ActionKey: Hashable, Sendable, CaseIterable {
         recorded(KeyShortcut(keyCode: keyCode, modifiers: modifiers, name: name), key: MacKeyCodes.key(keyCode))
     }
 
-    /// `recorded(keyCode:…)` from another system's key: its `Key` and usage, with `roles.primary` (Ctrl on Windows)
-    /// kept as ⌘, so the shortcut is the same one on every system (`KeyShortcut.matches`).
+    /// `recorded(keyCode:…)` from another system's key: its `Key` and usage, in the Mac's terms (`roles.primary`, Ctrl on
+    /// Windows, kept as ⌘ and ⌘, the Windows key, as Ctrl: `ModifierRoles.swappingPrimary`), so the shortcut is the same
+    /// one on every system (`KeyShortcut.matches`).
     public static func recorded(key: Key, usage: UInt16, modifiers: Modifiers, name: String,
                                 roles: ModifierRoles = .mac) -> ActionKey? {
-        var modifiers = modifiers
-        let primary = Modifiers.kind(roles.primary)
-        if primary != .command, modifiers.contains(primary) {
-            modifiers.remove(primary)
-            modifiers.insert(.command)
-        }
-        return recorded(KeyShortcut(usage: usage, modifiers: modifiers, name: name), key: key)
+        recorded(KeyShortcut(usage: usage, modifiers: roles.swappingPrimary(modifiers), name: name), key: key)
     }
 
     private static func recorded(_ shortcut: KeyShortcut, key: Key) -> ActionKey? {
@@ -93,7 +88,8 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
     public var keyCode: UInt16
     /// Where the key is (`KeyEvent.usage`), which it matches by; 0 for one the tables don't have, matched by `keyCode`.
     public var usage: UInt16
-    /// Recorded with ⌘ means with `ModifierRoles.primary` (Ctrl on Windows).
+    /// In the Mac's terms: recorded with ⌘ means with `ModifierRoles.primary` (Ctrl on Windows), and with Ctrl with the
+    /// Windows key there (`ModifierRoles.swappingPrimary`).
     public var modifiers: KeyModifiers
     public var name: String
 
@@ -136,14 +132,9 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
         try c.encode(name, forKey: .name)
     }
 
-    /// Whether `event` is this key (Caps Lock aside), ⌘ being `roles.primary`.
+    /// Whether `event` is this key (Caps Lock aside), ⌘ being `roles.primary` (`ModifierRoles.swappingPrimary`).
     public func matches(_ event: KeyEvent, roles: ModifierRoles = .mac) -> Bool {
-        var wanted = modifiers
-        let primary = Modifiers.kind(roles.primary)
-        if primary != .command, wanted.contains(.command) {
-            wanted.remove(.command)
-            wanted.insert(primary)
-        }
+        let wanted = roles.swappingPrimary(modifiers)
         let sameKey = usage != 0 ? event.usage == usage : event.keyCode == keyCode
         return sameKey && event.modifiers.intersection([.shift, .control, .option, .command]) == wanted
     }
