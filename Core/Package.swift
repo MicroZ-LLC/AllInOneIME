@@ -35,6 +35,22 @@ let package = Package(
             dependencies: ["AllInOneIMEText", .product(name: "Crypto", package: "swift-crypto")]
         ),
 
+        // QuickJS-ng's C sources as released (VENDORED.md), its header and quickjs-swift.h for Swift (module.modulemap).
+        // Flat, as upstream has them, so their includes are each other's; the defines and libm are upstream's CMake ones.
+        .target(
+            name: "CQuickJS",
+            exclude: ["LICENSE", "VENDORED.md"],
+            publicHeadersPath: ".",
+            cSettings: [
+                .define("_GNU_SOURCE"),
+                .define("NDEBUG", .when(configuration: .release)),
+                .define("WIN32_LEAN_AND_MEAN", .when(platforms: [.windows])),
+                .define("_WIN32_WINNT", to: "0x0601", .when(platforms: [.windows])),
+                .define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows])),
+            ],
+            linkerSettings: [.linkedLibrary("m", .when(platforms: [.linux, .android]))]
+        ),
+
         // librime's C API (its headers, from the official release, in include/); the library is the shell's to link
         // (`-L`): on macOS, ThirdParty/librime from `make deps`.
         .systemLibrary(name: "CRime"),
