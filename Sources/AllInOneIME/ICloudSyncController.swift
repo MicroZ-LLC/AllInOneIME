@@ -72,7 +72,7 @@ final class ICloudSyncController: ObservableObject {
     var composing: @MainActor () -> Bool = { AllInOneIMEInputController.activeController?.composer.isComposing ?? false }
     /// The things a run changed that need more than reading the config again (the self-test records them).
     var applyChanges: @MainActor (ICloudSyncEngine.Report) -> Void = { ICloudSyncController.applyLive($0) }
-    /// The keychain's stores when this build is entitled to the data protection keychain (`KeySync.system`, the one
+    /// The keychain's stores when this build is entitled to iCloud Keychain's items (`KeySync.system`, the one
     /// `Platform.mac` installed), else nil: keys aren't synced. The self-test gives in-memory ones, or none.
     var keys: KeySync.Stores? = KeySync.system
 
@@ -117,19 +117,13 @@ final class ICloudSyncController: ObservableObject {
     /// Rime's sync folder in the shared one.
     private var rimeFolder: URL { engine.folder.url.appendingPathComponent(ICloudSync.rimeFolder) }
 
-    /// When the input method starts: the keys of the login keychain moved (the silent pass), watches, timers and a first
-    /// run a moment later (Rime's once it's ready).
+    /// When the input method starts: the keys where key sync wants them (while it's on, the silent pass: the login
+    /// keychain's keys moved into iCloud Keychain, as turning it on does), watches, timers and a first run a moment later
+    /// (Rime's once it's ready).
     func start() {
         guard !started, !sample else { return }
         started = true
-        if let keys {
-            do {
-                try keys.migrate()
-            } catch {
-                log.error("keys not moved from the login keychain: \(String(describing: error), privacy: .public)")
-            }
-        }
-        applyKeySync()
+        applyKeySync(atLaunch: true)
         rewatch()
         poll = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { _ in
             MainActor.assumeIsolated { ICloudSyncController.shared.runIfOn() }
@@ -250,9 +244,9 @@ final class ICloudSyncController: ObservableObject {
         }
     }
 
-    /// Marks that this Mac's keys may be in iCloud Keychain (absent: they were last all kept here), beside the sync
-    /// record, so the self-test's is its own: written "moving" before turning key sync on moves anything, "done" once
-    /// every key moved (`KeysSynced`).
+    /// Marks that this Mac's keys may be in iCloud Keychain (absent: they were last all in the login keychain), beside
+    /// the sync record, so the self-test's is its own: written "moving" before turning key sync on moves anything, "done"
+    /// once every key moved (`KeysSynced`).
     var keysSyncedURL: URL { engine.stateURL.deletingLastPathComponent().appendingPathComponent("keys-synced") }
 
     /// What the keys-synced marker says: nil when there is none. A marker of an earlier build (empty) is `done`.
@@ -263,41 +257,52 @@ final class ICloudSyncController: ObservableObject {
         return KeysSynced(rawValue: String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) ?? .done
     }
 
-    private func markKeysSynced(_ state: KeysSynced?) {
+    /// The marker set (nil: removed); false when it couldn't be written.
+    @discardableResult
+    private func markKeysSynced(_ state: KeysSynced?) -> Bool {
         let fm = FileManager.default
         guard let state else {
             try? fm.removeItem(at: keysSyncedURL)
-            return
+            return true
         }
-        try? fm.createDirectory(at: keysSyncedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? Data(state.rawValue.utf8).write(to: keysSyncedURL, options: .atomic)
+        do {
+            try fm.createDirectory(at: keysSyncedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(state.rawValue.utf8).write(to: keysSyncedURL, options: .atomic)
+            return true
+        } catch {
+            log.error("keys-synced marker not written: \(String(describing: error), privacy: .public)")
+            return false
+        }
     }
 
     /// API keys and passwords through iCloud Keychain as the config says (`ICloudSyncSettings.syncsKeys`), when it changed
-    /// (in Settings, through the Assistant, while the input method wasn't running): turned on, this Mac's keys move into
-    /// iCloud Keychain; turned off, the synced ones are copied here and left in iCloud Keychain for the other Macs
-    /// (`KeySync.Stores.turn`). The marker (`keysSynced`) says "moving" before turning on moves a key, and "done" once
-    /// every key moved; turning off copies the synced keys back whenever there is a marker, even one left "moving" (keys
-    /// moved before a move stopped are in iCloud Keychain alone), and removes it only once every key is copied. A move that
-    /// failed, or left a key behind (one that couldn't be read, or whose copy didn't read back as written), is tried again
-    /// on the next run.
-    func applyKeySync() {
+    /// (in Settings, through the Assistant, while the input method wasn't running): turned on, the login keychain's keys
+    /// move into iCloud Keychain; turned off, the synced ones are copied back into the login keychain and left in iCloud
+    /// Keychain for the other Macs (`KeySync.Stores.turn`). The marker (`keysSynced`) says "moving" before turning on
+    /// moves a key (nothing moves when it can't be written), and "done" once every key moved; turning off copies the
+    /// synced keys back whenever there is a marker, even one left "moving" (keys moved before a move stopped are in iCloud
+    /// Keychain alone), and removes it only once every key is copied. A move that failed, or left a key behind (one that
+    /// couldn't be read, whose copy didn't read back as written, whose replaced copy couldn't be kept, or that would have
+    /// gone over a key that couldn't be read), is tried again on the next run. At launch (`atLaunch`) with key sync on,
+    /// the move is made even when the marker says "done": a key left behind for its first use, or one an earlier version
+    /// saved in the login keychain since, moves then.
+    func applyKeySync(atLaunch: Bool = false) {
         guard let keys else { return }
         let wanted = settings.syncsKeys
         let marker = keysSynced
-        guard wanted ? marker != .done : marker != nil else {
+        guard wanted ? marker != .done || atLaunch : marker != nil else {
             if keys.syncing != wanted { keys.start(syncing: wanted) }
             return
         }
-        if wanted { markKeysSynced(.moving) }
+        if wanted, !markKeysSynced(.moving) { return }
         do {
             let moves = try keys.turn(syncing: wanted)
             guard moves.isComplete else {
-                log.error("keys not all moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain, tried again later: \(moves.waiting.count) unreadable, \(moves.mismatched.count) not read back as written or not set aside")
+                log.error("keys not all moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain, tried again later: \(moves.waiting.count) unreadable, \(moves.mismatched.count) left as they were")
                 return
             }
             markKeysSynced(wanted ? .done : nil)
-            log.notice("keys \(wanted ? "sync through iCloud Keychain" : "stay on this Mac", privacy: .public): \(moves.moved.count) moved, \(moves.superseded.count) newer already, \(moves.setAside.count) set aside")
+            log.notice("keys \(wanted ? "sync through iCloud Keychain" : "stay in the login keychain", privacy: .public): \(moves.moved.count) moved, \(moves.superseded.count) newer already, \(moves.setAside.count) replaced copies kept")
         } catch {
             log.error("keys not moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain: \(String(describing: error), privacy: .public)")
         }

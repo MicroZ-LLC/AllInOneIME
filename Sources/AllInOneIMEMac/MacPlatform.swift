@@ -6,10 +6,10 @@ extension Platform {
     /// NSDataDetector, PDFKit), and programs started with the login shell's environment (`MacProcessLauncher`).
     /// The input method, its command line and the installer install it at launch.
     ///
-    /// The keys: in the input method signed with the provisioning profile (entitled to the shared keychain access group),
-    /// the data protection keychain, synced through iCloud Keychain as the config says (`KeySync.system`, its switch set
-    /// once from the config, then by the sync controller when the config changes); anywhere else (a development or ad-hoc
-    /// build, the command line, the installer) the login keychain, as before.
+    /// The keys: the login keychain, as before; in the input method signed with the provisioning profile (entitled to the
+    /// shared keychain access group), routed over it and iCloud Keychain's items, which hold the keys while key sync is on
+    /// (`KeySync.system`, its switch set once from the config, then by the sync controller when the config changes);
+    /// anywhere else (a development or ad-hoc build, the command line, the installer) the login keychain alone.
     public static var mac: Platform {
         var platform = Platform()
         platform.processes = MacProcessLauncher()
