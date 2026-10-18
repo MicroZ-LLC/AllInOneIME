@@ -172,8 +172,11 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 		codesign --force --sign - "$(APP)"; \
 	fi
 	codesign --verify --strict --deep "$(APP)"
-	# With a profile: macOS has to let it run (a profile that doesn't fit gets it killed at launch).
+	# With a profile: the signature carries the keychain entitlements (without them the keys of every user who had them
+	# synced or moved would seem gone), and macOS has to let it run (a profile that doesn't fit gets it killed at launch).
 	@if [ -n "$(PROFILE)" ]; then \
+		codesign -d --entitlements - --xml "$(APP)" 2>/dev/null | grep -q '<key>keychain-access-groups</key>' \
+			|| { echo "error: $(APP) is signed without the keychain-access-groups entitlement" >&2; exit 1; }; \
 		version=$$("$(APP)/Contents/MacOS/$(APP_NAME)" --version) && echo "launch check: $(APP_NAME) $$version runs" \
 			|| { echo "error: $(APP) doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
 	fi
@@ -276,6 +279,9 @@ DIST_ARCHS     ?= arm64 x86_64
 NOTARY_PROFILE ?=
 
 dmg:
+	@# A release without the profile would have no keychain entitlements: every key moved to (or synced through) the
+	@# data protection keychain by an earlier one would seem gone.
+	@[ -n "$(DIST_PROFILE)" ] || { echo "error: make dmg needs DIST_PROFILE (the Developer ID provisioning profile)" >&2; exit 1; }
 	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)" PROFILE="$(DIST_PROFILE)" PROFILE_ALL_DEVICES=1
 	Scripts/make-dmg.sh "$(INSTALLER_APP)" "$(DMG)" "$(APP_NAME) $(VERSION)" "$(DIST_IDENTITY)" "$(NOTARY_PROFILE)"
 	$(MAKE) update-zip
