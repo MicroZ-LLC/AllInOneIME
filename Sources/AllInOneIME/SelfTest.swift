@@ -1390,8 +1390,8 @@ enum SelfTest {
         at()
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
-        // @read is off for now (`Command.off`): @reminder comes first.
-        check(both.first == "@reminder" && !both.contains("@read"), "@r offers @reminder first, not @read (\(both))")
+        // @read is off for now (`Command.off`): @reply, then @reminder.
+        check(both.prefix(2) == ["@reply", "@reminder"] && !both.contains("@read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
         check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",

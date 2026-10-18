@@ -126,7 +126,13 @@ extension SelfTest {
             _ = runAsync(30) { try await ScreenText.recognize(png, with: vision, languages: ["zh-Hans", "en-US"]) }
             print(String(format: "  the first read after it: %.2fs", Date().timeIntervalSince(first)))
             let started = Date()
-            let read = runAsync(10) { try await ScreenText.recognize(png, with: vision, languages: ["zh-Hans", "en-US"]) }
+            let outcome = runAsync(10) { () async -> Result<ScreenText, Error> in
+                do { return .success(try await ScreenText.recognize(png, with: vision, languages: ["zh-Hans", "en-US"])) } catch {
+                    return .failure(error)
+                }
+            }
+            if case let .failure(error)? = outcome { print("  Vision: \(error)") }
+            let read = try? outcome?.get()
             let seconds = Date().timeIntervalSince(started)
             let text = read?.text ?? ""
             check(text.contains("加班") && text.contains("Friday") && seconds < 2,

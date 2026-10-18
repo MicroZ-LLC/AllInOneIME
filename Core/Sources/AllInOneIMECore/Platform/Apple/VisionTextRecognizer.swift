@@ -20,7 +20,10 @@ public struct VisionTextRecognizer: TextRecognizer {
                 do {
                     continuation.resume(returning: try Self.read(image, languages: languages))
                 } catch {
-                    continuation.resume(throwing: error)
+                    // Right after its models were first compiled, a request may fail once (an inference error): again.
+                    do { continuation.resume(returning: try Self.read(image, languages: languages)) } catch {
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
         }
