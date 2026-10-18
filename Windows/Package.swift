@@ -26,6 +26,7 @@ let package = Package(
         // The per-user engine: the wire server on the pipe.
         .executableTarget(name: "AllInOneIMEEngine",
                           dependencies: ["AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore")]),
-        .executableTarget(name: "allinoneime-cli", dependencies: [core("AllInOneIMECLI")]),
+        .executableTarget(name: "allinoneime-cli",
+                          dependencies: [core("AllInOneIMECLI"), core("AllInOneIMEWire"), "AllInOneIMEWindows"]),
     ]
 )
