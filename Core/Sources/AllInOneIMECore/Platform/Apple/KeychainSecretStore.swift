@@ -2,6 +2,15 @@
 import Foundation
 import Security
 
+/// `kSecUseAuthenticationUIFail`, deprecated for `kSecUseAuthenticationContext` with an `LAContext`, which is the data
+/// protection keychain's: the file-based one is what the silent pass reads (`APIKeys.Keychain.quietLogin`), so the constant
+/// stays. Reached through a protocol so that the deprecation isn't warned of at every build; the value is the same.
+private protocol AuthenticationUIFail { static var fail: CFString { get } }
+private enum DeprecatedKeychainConstants: AuthenticationUIFail {
+    @available(macOS, deprecated: 11) @available(iOS, deprecated: 14)
+    static var fail: CFString { kSecUseAuthenticationUIFail }
+}
+
 extension APIKeys.Keychain {
     /// The user's login keychain (on the Mac, the file-based one): generic passwords of `APIKeys.service`, one per account.
     /// Where keys were kept up to 0.6.4, and still are in a build without the keychain entitlement (`processIsEntitled`).
@@ -112,7 +121,7 @@ extension APIKeys.Keychain {
             read: { account in
                 guard !asking else { return read(query(account)) }
                 var silent = query(account)
-                silent[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+                silent[kSecUseAuthenticationUI as String] = (DeprecatedKeychainConstants.self as any AuthenticationUIFail.Type).fail
                 return withoutAsking { read(silent) }
             },
             write: { account, key, label, comment, ending, saved in
