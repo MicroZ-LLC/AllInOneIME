@@ -903,6 +903,9 @@
     "the repeats can be removed, nothing else changes" : {
       "comment" : "可以只去掉重复的，别的不动 — Sources/AllInOneIMECore/Doctor.swift"
     },
+    "The selected text is too long: %@ characters at most" : {
+      "comment" : "选中的文字太长：最多 %@ 字 — Sources/AllInOneIMECore/Composer.swift"
+    },
     "the selection can't be read in some apps" : {
       "comment" : "有的 App 里读不到选中的文字 — Sources/AllInOneIMECore/Doctor.swift"
     },

@@ -11,8 +11,9 @@ import Foundation
 ///   interface language's locale.
 /// - `{cursor}`: where the caret goes once it's in (at most one).
 ///
-/// `{{` writes "{" and `}}` writes "}"; any other `{…}` stays as it is, so JSON or code in a snippet doesn't break.
-/// Line breaks are kept (`\r\n` as `\n`); the text is plain, the same on every platform.
+/// `{{` writes "{", and the `}}` that closes it writes "}" (`{{input}}` is "{input}"); any other `}}` and `{…}` stay as
+/// they are, so JSON or code in a snippet doesn't break (`{"a":{"b":1}}`). Line breaks are kept (`\r\n` as `\n`); the
+/// text is plain, the same on every platform.
 public struct SnippetTemplate: Hashable, Sendable {
     public enum Part: Hashable, Sendable {
         case text(String)
@@ -71,16 +72,20 @@ public struct SnippetTemplate: Hashable, Sendable {
             parts.append(part)
         }
         let chars = Array(text)
+        // The `{{` written so far that no `}}` has closed yet: only such a `}}` is an escape.
+        var open = 0
         var i = 0
         while i < chars.count {
             let c = chars[i]
             if c == "{", i + 1 < chars.count, chars[i + 1] == "{" {
                 literal.append("{")
+                open += 1
                 i += 2
                 continue
             }
-            if c == "}", i + 1 < chars.count, chars[i + 1] == "}" {
+            if c == "}", open > 0, i + 1 < chars.count, chars[i + 1] == "}" {
                 literal.append("}")
+                open -= 1
                 i += 2
                 continue
             }
@@ -130,9 +135,9 @@ public struct SnippetTemplate: Hashable, Sendable {
     /// The text to insert, and where `{cursor}` is in it: UTF-16 units back from its end (nil without one). Blanks
     /// without a value are empty.
     public func render(_ values: SnippetValues) -> SnippetRender {
-        var text = ""
-        var cursorAt: Int?
-        var units = 0
+        // The text before `{cursor}` and after it (all of it in `before` without one).
+        var before = ""
+        var after: String?
         // One formatter for each pattern (a long snippet may have many dates).
         var formatted: [String: String] = [:]
         func date(_ pattern: String?, fallback: String) -> String {
@@ -143,9 +148,7 @@ public struct SnippetTemplate: Hashable, Sendable {
             return text
         }
         func append(_ piece: String) {
-            let piece = piece.replacingOccurrences(of: "\r\n", with: "\n")
-            text += piece
-            units += piece.utf16.count
+            if after != nil { after! += piece } else { before += piece }
         }
         for part in parts {
             switch part {
@@ -156,10 +159,14 @@ public struct SnippetTemplate: Hashable, Sendable {
             case .selection: append(values.selection)
             case let .date(pattern): append(date(pattern, fallback: Self.defaultDate))
             case let .time(pattern): append(date(pattern, fallback: Self.defaultTime))
-            case .cursor: if cursorAt == nil { cursorAt = units }
+            case .cursor: if after == nil { after = "" }
             }
         }
-        return SnippetRender(text: text, caretBack: cursorAt.map { units - $0 })
+        // `\r\n` as `\n` over the whole text, a pair split between a placeholder's value and the text around it too.
+        // A pair split by `{cursor}` becomes the "\n" after it: the caret goes where the "\r" was.
+        func lines(_ text: String) -> String { text.replacingOccurrences(of: "\r\n", with: "\n") }
+        let text = lines(before + (after ?? ""))
+        return SnippetRender(text: text, caretBack: after.map { min(lines($0).utf16.count, text.utf16.count) })
     }
 
     /// `values.now` with `pattern`, in `values.timeZone`: the default patterns with fixed digits (POSIX, Gregorian), a
@@ -202,7 +209,7 @@ public struct SnippetValues: Equatable, Sendable {
     public var locale: Locale
 
     public init(input: String = "", fields: [String] = [], clipboard: String = "", selection: String = "", now: Date = Date(),
-                timeZone: TimeZone = .current, locale: Locale = Locale(identifier: "en_US_POSIX")) {
+                timeZone: TimeZone = .autoupdatingCurrent, locale: Locale = Locale(identifier: "en_US_POSIX")) {
         self.input = input
         self.fields = fields
         self.clipboard = clipboard
@@ -227,22 +234,44 @@ public struct SnippetRender: Equatable, Sendable {
 extension SnippetTemplate {
     /// `text` with the snippets written inside it (`@zoom`, `@meet「周五 3点」`) replaced by what they insert, before
     /// the text is sent anywhere: the ones that can be used there (`canBeInner`), as `CommandPlan` finds them; their
-    /// `{cursor}` is dropped, and `values.input` is each one's argument.
+    /// `{cursor}` is dropped, and `values.input` is each one's argument. The composer plans a text once, with the other
+    /// commands in it (`CommandPlan.fillingSnippets`).
     public static func expandInner(_ text: String, commands: [Command], values: SnippetValues) -> String {
-        expanding(text, commands: commands, values: values).text
+        let snippets = commands.filter { $0.kind == .snippet }
+        guard !snippets.isEmpty, text.contains("@") else { return text }
+        return CommandPlan.make(text, commands: snippets).fillingSnippets(values).plan.input(outputs: [])
     }
+}
 
-    /// `expandInner`, and the snippets used, in order.
-    static func expanding(_ text: String, commands: [Command], values: SnippetValues) -> (text: String, used: [Command]) {
-        let snippets = commands.filter { $0.kind == .snippet && CommandPlan.canBeInner($0) }
-        guard !snippets.isEmpty, text.contains("@") else { return (text, []) }
-        let plan = CommandPlan.make(text, commands: snippets)
-        guard !plan.isEmpty else { return (text, []) }
-        let outputs = plan.inner.map { step -> String in
-            var filled = values
-            filled.input = step.argument
-            return step.command.snippet?.render(filled).text ?? ""
+extension CommandPlan {
+    /// The plan with its snippets put in (`Command.Kind.snippet`; `values.input` is each one's argument, its `{cursor}`
+    /// dropped), and the snippets used, in order. What a snippet inserts is text from then on: it is never read for
+    /// commands again, so an "@" in it (an address in a signature) neither runs a command nor keeps one from running.
+    public func fillingSnippets(_ values: SnippetValues) -> (plan: CommandPlan, used: [Command]) {
+        var parts: [Part] = []
+        var steps: [Inner] = []
+        var used: [Command] = []
+        func text(_ piece: String) {
+            guard !piece.isEmpty else { return }
+            if case let .text(last)? = parts.last { parts[parts.count - 1] = .text(last + piece) } else { parts.append(.text(piece)) }
         }
-        return (plan.input(outputs: outputs), plan.inner.map(\.command))
+        for part in self.parts {
+            switch part {
+            case let .text(piece): text(piece)
+            case let .inner(index):
+                guard index < inner.count else { continue }
+                let step = inner[index]
+                if step.command.kind == .snippet {
+                    var filled = values
+                    filled.input = step.argument
+                    text(step.command.snippet?.render(filled).text ?? "")
+                    used.append(step.command)
+                } else {
+                    parts.append(.inner(steps.count))
+                    steps.append(step)
+                }
+            }
+        }
+        return (CommandPlan(parts: parts, inner: steps), used)
     }
 }

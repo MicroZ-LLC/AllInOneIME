@@ -90,10 +90,12 @@ public struct ExtensionBundle: Hashable, Sendable {
         return preferences.filter { $0.required && (values[$0.name] ?? "").isEmpty }
     }
 
-    /// The bundle in `folder`, its commands' entries and its snippets' (the keys of each, as strings), or why it can't
-    /// be read. It must have a command or a snippet.
+    /// The bundle in `folder`, its commands' entries and its snippets' (the keys of each, as strings), and what's wrong
+    /// in it that doesn't keep the rest from loading (`problems`: a list that isn't one of entries next to one that is, a
+    /// snippet whose `text`, `name` … isn't a string); or why it can't be read. It must have a command or a snippet.
     static func read(_ data: Data, folder: URL)
-        -> Result<(bundle: ExtensionBundle, commands: [[String: String]], snippets: [[String: String]]), ScriptCommand.Problem> {
+        -> Result<(bundle: ExtensionBundle, commands: [[String: String]], snippets: [[String: String]],
+                   problems: [ScriptCommand.Problem]), ScriptCommand.Problem> {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return .failure(.badBundle(.notJSON))
         }
@@ -103,8 +105,16 @@ public struct ExtensionBundle: Hashable, Sendable {
               name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else {
             return .failure(.badBundle(.badName))
         }
-        let commands = json["commands"] as? [[String: Any]] ?? []
-        let snippets = json["snippets"] as? [[String: Any]] ?? []
+        var problems: [ScriptCommand.Problem] = []
+        // A list of entries; one that isn't (a string, an object, a number among them) is said, not ignored.
+        func entries(_ key: String) -> [[String: Any]] {
+            guard let value = json[key] else { return [] }
+            if let list = value as? [[String: Any]] { return list }
+            problems.append(.badValue(key: key, value: Self.shown(value)))
+            return []
+        }
+        let commands = entries("commands")
+        let snippets = entries("snippets")
         guard !commands.isEmpty || !snippets.isEmpty else { return .failure(.badBundle(.noCommands)) }
         var preferences: [Preference] = []
         for item in json["preferences"] as? [[String: Any]] ?? [] {
@@ -141,7 +151,30 @@ public struct ExtensionBundle: Hashable, Sendable {
             }
             return keys
         }
-        return .success((bundle, commands.map { strings($0, ["schemaVersion": String(version)]) }, snippets.map { strings($0, [:]) }))
+        // A snippet's keys are all text: one that isn't (`"text": ["a", "b"]`, `"text": 42`) leaves the snippet out.
+        let snippetEntries = snippets.compactMap { entry -> [String: String]? in
+            for key in BundleSnippet.keys {
+                if let value = entry[key], !(value is String) {
+                    problems.append(.badValue(key: key, value: Self.shown(value)))
+                    return nil
+                }
+            }
+            return entry.compactMapValues { $0 as? String }
+        }
+        return .success((bundle, commands.map { strings($0, ["schemaVersion": String(version)]) }, snippetEntries, problems))
+    }
+
+    /// A value of `extension.json` as a problem shows it: its JSON, at most 60 characters of it.
+    static func shown(_ value: Any) -> String {
+        let text: String
+        if let string = value as? String {
+            text = string
+        } else if JSONSerialization.isValidJSONObject(value), let data = try? JSONSerialization.data(withJSONObject: value) {
+            text = String(decoding: data, as: UTF8.self)
+        } else {
+            text = "\(value)"
+        }
+        return text.count > 60 ? String(text.prefix(60)) + "…" : text
     }
 }
 
@@ -181,15 +214,19 @@ public struct BundleSnippet: Hashable, Sendable {
         CustomCommand(name: name, type: .snippet, summary: summary, icon: icon, color: color, text: text)
     }
 
-    /// The snippet of an entry (its keys as strings), or why it can't be used: a name `ScriptCommand.isValidName` takes
+    /// An entry's keys, every one a string (`ExtensionBundle.read` leaves out an entry where one isn't).
+    static let keys = ["name", "alias", "text", "summary", "icon", "color"]
+
+    /// The snippet of an entry (its keys, strings), or why it can't be used: a name `ScriptCommand.isValidName` takes
     /// (and alias), a text that isn't blank and has `{cursor}` at most once.
     static func make(_ keys: [String: String], bundle: String) -> Result<BundleSnippet, ScriptCommand.Problem> {
         guard let name = keys["name"]?.lowercased(), !name.isEmpty else { return .failure(.noName) }
         guard ScriptCommand.isValidName(name) else { return .failure(.badValue(key: "name", value: name)) }
         let alias = keys["alias"]?.lowercased()
         if let alias, !ScriptCommand.isValidName(alias) { return .failure(.badValue(key: "alias", value: alias)) }
-        guard let text = keys["text"], CustomCommand.snippetProblem(text) == nil else {
-            return .failure(.badValue(key: "text", value: name))
+        guard let text = keys["text"] else { return .failure(.missing("text")) }
+        guard CustomCommand.snippetProblem(text) == nil else {
+            return .failure(.badValue(key: "text", value: ExtensionBundle.shown(text)))
         }
         func optional(_ key: String) -> String? { keys[key].flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
         return .success(BundleSnippet(bundle: bundle, name: name, alias: alias, text: text, summary: optional("summary"),
@@ -399,14 +436,14 @@ public enum ExtensionStore {
     /// entries that can't be used (two with one name: the first is kept).
     static func loadBundle(_ data: Data, folder: URL, read: (URL) -> ExtensionCache.File?)
         -> Result<(ExtensionBundle, [ScriptCommand], [BundleSnippet], [Skipped]), ScriptCommand.Problem> {
-        let bundle: ExtensionBundle, entries: [[String: String]], snippetEntries: [[String: String]]
+        let bundle: ExtensionBundle, entries: [[String: String]], snippetEntries: [[String: String]], problems: [ScriptCommand.Problem]
         switch ExtensionBundle.read(data, folder: folder) {
-        case let .success(read): (bundle, entries, snippetEntries) = read
+        case let .success(read): (bundle, entries, snippetEntries, problems) = read
         case let .failure(problem): return .failure(problem)
         }
         let manifest = folder.appendingPathComponent(ExtensionBundle.manifestName)
         var commands: [ScriptCommand] = []
-        var skipped: [Skipped] = []
+        var skipped = problems.map { Skipped(file: manifest, problem: $0) }
         for entry in entries {
             // A file of the bundle's folder as written (on every system's terms: no "..", "/x", "C:x", "..\x").
             guard let script = entry["script"], let file = CorePaths.file(script, in: folder) else {
@@ -440,9 +477,11 @@ public enum ExtensionStore {
         for entry in snippetEntries {
             switch BundleSnippet.make(entry, bundle: bundle.name) {
             case let .success(snippet):
-                // A name twice in the bundle (a command's or a snippet's): the first is kept.
-                if commands.contains(where: { $0.name == snippet.name }) || snippets.contains(where: { $0.name == snippet.name }) {
-                    skipped.append(Skipped(file: manifest, problem: .nameTaken(snippet.name, by: .command("\(bundle.name)/\(snippet.name)"))))
+                // A name twice in the bundle (a command's or a snippet's): the first is kept, and named.
+                if let command = commands.first(where: { $0.name == snippet.name }) {
+                    skipped.append(Skipped(file: manifest, problem: .nameTaken(snippet.name, by: .command(command.id))))
+                } else if let first = snippets.first(where: { $0.name == snippet.name }) {
+                    skipped.append(Skipped(file: manifest, problem: .nameTaken(snippet.name, by: .snippet(first.id))))
                 } else {
                     snippets.append(snippet)
                 }

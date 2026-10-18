@@ -277,13 +277,13 @@ public struct Command: Hashable, Sendable {
         var hidden: [(script: ScriptCommand, owner: ScriptCommand.Owner)] = []
         var hiddenSnippets: [(snippet: BundleSnippet, owner: ScriptCommand.Owner)] = []
         for item in extensionTier(scripts, snippets) {
-            let id: String
+            let owner: ScriptCommand.Owner
             switch item {
-            case let .script(script): id = script.id
-            case let .snippet(snippet): id = snippet.id
+            case let .script(script): owner = .command(script.id)
+            case let .snippet(snippet): owner = .snippet(snippet.id)
             }
             if let free = item.names.first(where: { owners[$0] == nil }) {
-                owners[free] = .command(id)
+                owners[free] = owner
             } else if let owner = owners[item.names[0]] {
                 switch item {
                 case let .script(script): hidden.append((script, owner))
@@ -457,14 +457,15 @@ extension CustomCommand {
         case twoCursors
     }
 
-    /// The first problem with this definition among `others` (the other custom commands) and the
-    /// installed plugins' names, or nil.
-    public func problem(among others: [CustomCommand], plugins: [String] = []) -> Problem? {
+    /// The first problem with this definition among `others` (the other custom commands), the installed plugins'
+    /// names and `unread` (the names of the custom commands a later version wrote: `Config.unreadCustomCommandNames`),
+    /// or nil.
+    public func problem(among others: [CustomCommand], plugins: [String] = [], unread: [String] = []) -> Problem? {
         let name = name.lowercased()
         if name.isEmpty { return .emptyName }
         if !name.allSatisfy({ $0.isASCII && $0.isLetter }) || name.count > 24 { return .nameNotLetters }
         if Command.builtins.contains(where: { $0.name == name }) || plugins.contains(name)
-            || others.contains(where: { $0.name.lowercased() == name }) {
+            || others.contains(where: { $0.name.lowercased() == name }) || unread.contains(where: { $0.lowercased() == name }) {
             return .nameTaken
         }
         switch type {

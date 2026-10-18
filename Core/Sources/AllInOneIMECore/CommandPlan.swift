@@ -30,7 +30,7 @@ public struct CommandPlan: Equatable, Sendable {
 
     /// Commands that can run inside a text: the ones that fetch something (not a Raycast script: its
     /// arguments, confirmation and modes are for running it on its own), and snippets that need nothing from the
-    /// clipboard or the selection and have no blanks (`SnippetTemplate.canBeInner`; the composer expands them first).
+    /// clipboard or the selection and have no blanks (`SnippetTemplate.canBeInner`; put in at once: `fillingSnippets`).
     public static func canBeInner(_ command: Command) -> Bool {
         if command.kind == .snippet { return command.snippet?.canBeInner == true }
         return command.kind == .run && command.script == nil

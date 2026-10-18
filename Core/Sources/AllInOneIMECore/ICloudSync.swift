@@ -804,15 +804,17 @@ public enum ICloudSync {
         case hiddenWordsKey:
             return strings() == nil ? .wrongType : nil
         case commandsKey:
-            // An entry this version can't read (a later one's type) is kept as the config file keeps it.
+            // An entry of a type this version doesn't know (a later one's) is kept as the config file keeps it; its name
+            // is taken all the same.
             guard case .array = value, let entries = decodes([CustomCommand.Entry].self, value) else { return .wrongType }
             var names = Set<String>()
             for entry in entries {
-                guard let command = entry.command else {
-                    guard case .object? = entry.unread else { return .wrongType }
-                    continue
+                if let command = entry.command {
+                    guard command.isValid, names.insert(command.name.lowercased()).inserted else { return .invalidCommand }
+                } else {
+                    guard let name = entry.unread.flatMap(CustomCommand.Entry.name) else { return .wrongType }
+                    guard names.insert(name.lowercased()).inserted else { return .invalidCommand }
                 }
-                guard command.isValid, names.insert(command.name.lowercased()).inserted else { return .invalidCommand }
             }
             return nil
         case jargonKey, questionsKey:

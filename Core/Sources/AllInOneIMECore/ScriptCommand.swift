@@ -167,6 +167,8 @@ public struct ScriptCommand: Hashable, Sendable {
         case builtIn, plugin, custom
         /// An extension command found before it (its id).
         case command(String)
+        /// A bundle's snippet found before it (its id, "<bundle>/<name>").
+        case snippet(String)
     }
 
     /// What keeps the text typed after the command from running it (shown as a notice).

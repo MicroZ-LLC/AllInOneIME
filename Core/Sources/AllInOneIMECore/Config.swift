@@ -63,8 +63,11 @@ public struct Config: Codable, Equatable, Sendable {
     /// The user's own @ commands, after the built-in ones (see `CustomCommand`).
     public var customCommands: [CustomCommand]
     /// The entries of `customCommands` in the file this version can't read (a later one's type): kept as they are and
-    /// written back after the others, never offered.
+    /// written back after the others, never offered. Their names are taken (`unreadCustomCommandNames`).
     public var unreadCustomCommands: [AIConfig.JSONValue] = []
+
+    /// The names of `unreadCustomCommands`: no command of this version's may have one (`CustomCommand.problem(among:)`).
+    public var unreadCustomCommandNames: [String] { unreadCustomCommands.compactMap(CustomCommand.Entry.name) }
     /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
     /// command and Raycast script in them is an @ command, after the custom ones. A new user has
     /// `ExtensionStore.defaultFolder`.
@@ -277,10 +280,16 @@ public struct Config: Codable, Equatable, Sendable {
         // One this version can't read (a later one's, or a recorded key gone wrong) is the default, not an error.
         actionKey = (try? c.decodeIfPresent(ActionKey.self, forKey: .actionKey)).flatMap { $0 } ?? d.actionKey
         uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
-        // One entry this version can't read (a later one's type) is kept aside, not an error for the whole list.
+        // An entry of a type this version doesn't know (a later one's) is kept aside, not an error for the whole list;
+        // anything else wrong in one still is.
         let entries = try c.decodeIfPresent([CustomCommand.Entry].self, forKey: .customCommands)
         customCommands = entries?.compactMap(\.command) ?? d.customCommands
-        unreadCustomCommands = entries?.compactMap(\.unread) ?? []
+        let unread = entries?.compactMap(\.unread) ?? []
+        unreadCustomCommands = unread
+        if !unread.isEmpty {
+            Self.log.notice("kept \(unread.count) custom command(s) of a type this version doesn't know, to write back as "
+                            + "they are: " + unread.compactMap(CustomCommand.Entry.name).map { "@" + $0 }.joined(separator: ", "))
+        }
         extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
         hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
@@ -491,19 +500,33 @@ extension Optional where Wrapped == String {
     public static var english: String? { "en" }
 }
 
+extension Config {
+    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "config")
+}
+
 extension CustomCommand {
-    /// An entry of `Config.customCommands` as the file has it: a command this version reads, or the JSON of one it
-    /// can't (kept, `Config.unreadCustomCommands`).
+    /// An entry of `Config.customCommands` as the file has it: a command this version reads, or the JSON of one whose
+    /// `type` is a string this version doesn't know and whose `name` is a string (a later version's: kept,
+    /// `Config.unreadCustomCommands`). Any other entry that can't be read is the error it always was.
     struct Entry: Decodable {
         var command: CustomCommand?
         var unread: AIConfig.JSONValue?
 
         init(from decoder: Decoder) throws {
-            if let command = try? CustomCommand(from: decoder) {
-                self.command = command
-            } else {
-                unread = try AIConfig.JSONValue(from: decoder)
+            do {
+                command = try CustomCommand(from: decoder)
+            } catch {
+                guard let json = try? AIConfig.JSONValue(from: decoder), Self.name(json) != nil else { throw error }
+                unread = json
             }
+        }
+
+        /// The name of an entry of a later version's (a JSON object whose `type` this version doesn't know and whose
+        /// `name` is a string), or nil when it isn't one.
+        static func name(_ json: AIConfig.JSONValue) -> String? {
+            guard case let .object(fields) = json, case let .string(type)? = fields["type"], CommandType(rawValue: type) == nil,
+                  case let .string(name)? = fields["name"] else { return nil }
+            return name
         }
     }
 }

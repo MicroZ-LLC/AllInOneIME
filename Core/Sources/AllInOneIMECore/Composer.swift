@@ -269,6 +269,8 @@ public final class Composer {
         public var actionKeyName = "⏎"
         /// A snippet's text, filled in, longer than `Composer.maxNoteLength`: nothing goes in.
         public var snippetTooLong = "要插入的文字太长：最多 \(Composer.maxNoteLength) 字"
+        /// A snippet with `{selection}` and a selection longer than `Composer.maxSelectionLength`: nothing goes in.
+        public var snippetSelectionTooLong = "选中的文字太长：最多 \(Composer.maxSelectionLength) 字"
         /// The interface language's code (`InterfaceLanguage`): a snippet's `{date:FMT}` is in its locale.
         public var language = "zh-Hans"
 
@@ -334,6 +336,7 @@ public final class Composer {
                 cantOpen: t.tr("打不开：", "Can't open: "),
                 openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"),
                 snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
+                snippetSelectionTooLong: t.tr("选中的文字太长：最多 \(Composer.maxSelectionLength) 字", "The selected text is too long: \(Composer.maxSelectionLength) characters at most"),
                 language: language)
         }
 
@@ -439,7 +442,7 @@ public final class Composer {
     /// The clock an answer is kept by, and a snippet's `{date}` and `{time}` read (tests set their own).
     public var now: () -> Date = Date.init
     /// The time zone of a snippet's `{date}` and `{time}` (tests set their own).
-    public var timeZone: TimeZone = .current
+    public var timeZone: TimeZone = .autoupdatingCurrent
     /// The recent question highlighted with ↑↓, for the draft it was picked in (once the draft changes: none).
     private var questionPick: (index: Int, draft: String)?
     /// The saved answer shown in level two (`showsSavedAnswer`), and the draft it was picked in (Esc goes back to it).
@@ -2675,11 +2678,11 @@ public final class Composer {
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
         // Never inside a selection, text the user didn't write here (nor, with one, inside what is typed: one request).
         let plans = !(local || parsed?.command.runsCode == true || selected != nil)
-        // Snippets inside the text go in first, here (`@zoom`): the request is then the text as if typed with them.
-        let snippets = plans ? expandSnippets(input) : (text: input, used: [Command](), outside: false)
-        input = snippets.text
-        let inner = plans ? innerPlan(input, outside: snippets.outside) : nil
+        // Snippets inside the text (`@zoom`) go in here, at once: with nothing else to run first, the request is the
+        // text as if typed with them.
+        let inner = plans ? innerPlan(input) : nil
         let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
+        if let plan, plan.isEmpty { input = plan.input(outputs: []) }
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
             guard !secureInputActive() else { return .consumed([.updateMarkedText, .notice(messages.secureInputCommand)]) }
@@ -2717,7 +2720,7 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        let usage = ((parsed.map { [$0.command] } ?? []) + snippets.used + (plan?.inner.map(\.command) ?? [])).map(used)
+        let usage = ((parsed.map { [$0.command] } ?? []) + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
         return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
     }
 
@@ -2740,6 +2743,8 @@ public final class Composer {
         } else if template.needs.contains(.input), typed.isEmpty {
             return [.notice(messages.typeAfterCommand)]
         }
+        // `{selection}` with a selection too long to use (`maxSelectionLength`): never put in empty, over it.
+        if template.needs.contains(.selection), selectionTooLong { return [.notice(messages.snippetSelectionTooLong)] }
         if template.needs.contains(.clipboard), clipboard == nil {
             let request = requestClipboard()
             snippetClipboard = (pasteCounter, draft)
@@ -2773,13 +2778,6 @@ public final class Composer {
     private func snippetValues(typed: String, fields: [String], clipboard: String = "") -> SnippetValues {
         SnippetValues(input: typed, fields: fields, clipboard: clipboard, selection: selectionInUse ?? "", now: now(),
                       timeZone: timeZone, locale: messages.locale)
-    }
-
-    /// The snippets inside `text` (`SnippetTemplate.expandInner`) replaced by what they insert, the ones used, and
-    /// whether what they put in has an "@" (a command written in a snippet doesn't run code: `innerPlan`'s `outside`).
-    private func expandSnippets(_ text: String) -> (text: String, used: [Command], outside: Bool) {
-        let expanded = SnippetTemplate.expanding(text, commands: commands, values: snippetValues(typed: "", fields: []))
-        return (expanded.text, expanded.used, expanded.used.contains { $0.custom?.text?.contains("@") == true })
     }
 
     /// What the snippet being written will insert (`@meet 张三，…`), for the panel: the blanks typed so far, the rest as
@@ -3037,28 +3035,27 @@ public final class Composer {
         searchResults = []
         highlightOverride = nil
         activeCommand = command
-        let snippets = expandSnippets(input)
-        let input = snippets.text
-        let (plan, codeLeft) = innerPlan(input, outside: snippets.outside)
-        let usage = (snippets.used + plan.inner.map(\.command)).map(used)
+        let (plan, snippets, codeLeft) = innerPlan(input)
+        let usage = (snippets + plan.inner.map(\.command)).map(used)
         let notice: [Effect] = codeLeft ? [.notice(messages.codeNotRun)] : []
         guard !plan.isEmpty else {
             phase = .choosing
-            result = ConversionResult(versions: [CandidateLine(input)])
-            return .consumed([.updateMarkedText, .showPanel] + notice)
+            result = ConversionResult(versions: [CandidateLine(plan.input(outputs: []))])
+            return .consumed([.updateMarkedText, .showPanel] + usage + notice)  // the snippets put in, if any
         }
         phase = .translating(id: requestCounter)
         return .consumed([.startPlan(outer: command, plan: plan, id: requestCounter), .updateMarkedText, .showPanel] + usage + notice)
     }
 
-    /// The commands inside `input` that run first (snippets are in already: `expandSnippets`). With text the user
-    /// didn't type in the draft (pasted, dictated, given back; `outside`: from a snippet), commands that run code stay
-    /// text (`draftHasOutsideText`); `codeLeft`: some did, which a notice says.
-    private func innerPlan(_ input: String, outside: Bool = false) -> (plan: CommandPlan, codeLeft: Bool) {
-        let commands = commands.filter { $0.kind != .snippet }
-        guard draftHasOutsideText || outside else { return (CommandPlan.make(input, commands: commands), false) }
-        let plan = CommandPlan.make(input, commands: commands.filter { !$0.runsCode })
-        return (plan, CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode })
+    /// The commands inside `input` that run first, planned once with the snippets in it, which are put in at once
+    /// (`CommandPlan.fillingSnippets`; `snippets`: the ones used): what a snippet inserts is text, never read for
+    /// commands again. With text the user didn't type in the draft (pasted, dictated, given back), commands that run code
+    /// stay text (`draftHasOutsideText`); `codeLeft`: some did, which a notice says.
+    private func innerPlan(_ input: String) -> (plan: CommandPlan, snippets: [Command], codeLeft: Bool) {
+        let usable = draftHasOutsideText ? commands.filter { !$0.runsCode } : commands
+        let filled = CommandPlan.make(input, commands: usable).fillingSnippets(snippetValues(typed: "", fields: []))
+        let codeLeft = draftHasOutsideText && CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode }
+        return (filled.plan, filled.used, codeLeft)
     }
 
     /// The app took the text being typed into the document on its own (`MarkedTextWatch`): start over
