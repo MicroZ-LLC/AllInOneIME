@@ -65,7 +65,19 @@ class Stuck(Exception):
 
 
 def log(message: str) -> None:
-    print(f"[{dt.datetime.now():%H:%M:%S}] {message}", flush=True)
+    print(f"[{dt.datetime.now():%H:%M:%S}] {scrub(message)}", flush=True)
+
+
+def scrub(text: str) -> str:
+    """Text that goes to GitHub or the log, without the job's token in any form."""
+    token = os.environ.get("GH_TOKEN", "")
+    if token:
+        text = text.replace(token, "***").replace(basic_auth(token), "***")
+    return re.sub(r"(?i)(authorization:\s*\w+\s+)\S+", r"\1***", text)
+
+
+def basic_auth(token: str) -> str:
+    return base64.b64encode(f"x-access-token:{token}".encode()).decode()
 
 
 def run(args: list[str], cwd: Path | None = None, env: dict | None = None, input: str | None = None,
@@ -121,7 +133,8 @@ def labels(number: int, add: list[str] = (), remove: list[str] = ()) -> None:
 
 
 def comment(number: int, body: str) -> None:
-    gh("api", "-X", "POST", f"repos/{REPO}/issues/{number}/comments", "--input", "-", input=json.dumps({"body": body}))
+    gh("api", "-X", "POST", f"repos/{REPO}/issues/{number}/comments", "--input", "-",
+       input=json.dumps({"body": scrub(body)}))
 
 
 def permission(login: str) -> str:
@@ -167,6 +180,7 @@ def issue_text(issue: dict) -> str:
 
 
 def ensure_pr(branch: str, base: str, title: str, body: str, draft: bool) -> dict:
+    body = scrub(body)
     prs = gh("api", f"repos/{REPO}/pulls?head={OWNER}:{branch}&state=open")
     if not prs:
         return gh("api", "-X", "POST", f"repos/{REPO}/pulls", "--input", "-", input=json.dumps(
@@ -183,10 +197,10 @@ def ensure_pr(branch: str, base: str, title: str, body: str, draft: bool) -> dic
 # MARK: git
 
 def push(*refspecs: str, force: bool = False) -> None:
-    """Pushes with the job's token, which is never stored in the clone."""
-    token = base64.b64encode(f"x-access-token:{os.environ['GH_TOKEN']}".encode()).decode()
-    git("-c", f"http.https://github.com/.extraheader=AUTHORIZATION: basic {token}",
-        "push", "-q", *(["--force"] if force else []), "origin", *refspecs)
+    """Pushes with the job's token, which is never stored in the clone nor on a command line."""
+    env = dict(os.environ, GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="http.https://github.com/.extraheader",
+               GIT_CONFIG_VALUE_0=f"AUTHORIZATION: basic {basic_auth(os.environ['GH_TOKEN'])}")
+    git("push", "-q", *(["--force"] if force else []), "origin", *refspecs, env=env)
 
 
 def commit(message: str, start: str) -> str | None:
@@ -371,7 +385,8 @@ def main(number: int) -> int:
                 ["git", "ls-remote", "--exit-code", "--heads", f"https://github.com/{REPO}.git", base]).returncode:
             raise Stuck(f"There's no branch `{base}` to build on.")
         version = base.removeprefix("release-")
-        branch = f"{version}/issue-{number}"
+        # 0.6.5/issue-N beside release-0.6.5; another base can't have branches under its own name.
+        branch = f"{version}/issue-{number}" if base.startswith("release-") else f"{base}-issue-{number}"
         labels(number, add=[WORKING], remove=[QUEUED, STUCK, DONE])
         log(f"#{number} ({kind}) on {branch} off {base}")
         base_sha = prepare(base, branch)
