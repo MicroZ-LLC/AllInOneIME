@@ -91,6 +91,58 @@ struct PathCheckTests {
         #expect(skipped.map(\.problem) == [.notRunnable] + out.map { .badValue(key: "script", value: $0) })
     }
 
+    /// A bundle's other paths name its own files too, from its script's folder: an `icon` image, a `status` program
+    /// given as a path, a relative `currentDirectoryPath`. A program the system finds by name, the home folder and an
+    /// absolute folder to run in still do; a script of the user's own may point anywhere, as before.
+    @Test func aBundlesOtherPathsStayInIt() throws {
+        let bin = folder.appendingPathComponent("bin", isDirectory: true), file = bin.appendingPathComponent("tool.sh")
+        func make(_ keys: [String: String], _ source: ScriptCommand.Source = .bundle("tools")) -> Result<ScriptCommand, ScriptCommand.Problem> {
+            ScriptCommand.make(keys.merging(["schemaVersion": "1"]) { $1 }, source: source, file: file, launch: [file.path],
+                               id: "tools/tool", extensionDirectory: folder)
+        }
+        func inBin(_ name: String) -> URL { bin.appendingPathComponent(name).standardizedFileURL }
+        let ok = try make(["icon": "icons/tool.png", "status": "./left.sh --short", "currentDirectoryPath": "data"]).get()
+        #expect(ok.icon == .image(inBin("icons/tool.png")))
+        #expect(ok.status?.launch == [inBin("left.sh").path, "--short"])
+        #expect(ok.directory == inBin("data"))
+        #expect(try make(["currentDirectoryPath": "."]).get().directory == bin.standardizedFileURL)
+        #expect(try make(["currentDirectoryPath": "~"]).get().directory.path == URL(fileURLWithPath: NSHomeDirectory()).standardizedFileURL.path)
+        #expect(try make(["status": "date +%H:%M"]).get().status?.launch == ["date", "+%H:%M"])
+        #expect(try make(["icon": "hammer"]).get().icon == .symbol("hammer"))
+        var out = [("icon", "../tool.png"), ("icon", "/tmp/tool.png"), ("icon", "a/../../tool.png"), ("status", "/usr/bin/pmset -g batt"),
+                   ("status", "../left.sh"), ("status", "\"/bin/sh\" -c x"), ("currentDirectoryPath", ".."), ("currentDirectoryPath", "a/../..")]
+        #if os(Windows)
+        // A status is a command line, where two backslashes stand for one.
+        out += [("icon", "C:\\tool.png"), ("icon", "\\\\server\\share\\tool.png"), ("status", "..\\\\left.cmd"), ("currentDirectoryPath", "..\\x")]
+        #endif
+        for (key, value) in out {
+            #expect(throws: ScriptCommand.Problem.badValue(key: key, value: value)) { try make([key: value]).get() }
+        }
+        let own = try make(["icon": "../tool.png", "status": "../left.sh", "currentDirectoryPath": ".."], .script).get()
+        #expect(own.icon == .image(folder.appendingPathComponent("tool.png").standardizedFileURL))
+        #expect(own.status?.launch == [folder.appendingPathComponent("left.sh").standardizedFileURL.path])
+        #expect(own.directory == folder.standardizedFileURL)
+        #if !os(Windows)
+        #expect(try make(["status": "/usr/bin/pmset -g batt"], .script).get().status?.launch == ["/usr/bin/pmset", "-g", "batt"])
+        #endif
+    }
+
+    /// The review before Enable shows what a command's status line runs, among the programs.
+    @Test func theReviewShowsTheStatusLine() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let manifest = #"{"schemaVersion": 1, "name": "tools", "commands": [{"script": "tool.sh", "name": "tool", "status": "./left.sh --short"}]}"#
+        try Data(manifest.utf8).write(to: folder.appendingPathComponent(ExtensionBundle.manifestName))
+        try Data("#!/bin/sh\necho\n".utf8).write(to: folder.appendingPathComponent("tool.sh"))
+        var config = Config.default
+        config.extensionFolders = []
+        config.findRaycastScripts = false
+        let review = ExtensionSourceReview.make(bundleFolder: folder, path: "", url: "file:///r.git", commit: nil, commitDate: nil, config: config)
+        #expect(review.commands.map(\.status) == ["left.sh --short"])
+        #expect(review.programs == ["/bin/sh tool.sh", "left.sh --short"])
+        #expect(review.summary.contains("  status:    left.sh --short"))
+    }
+
     /// A plugin's script: a file right in its folder.
     @Test func aPluginsScriptIsAFileOfItsFolder() {
         func problem(_ script: String) -> String? {

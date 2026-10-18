@@ -444,10 +444,15 @@ extension ScriptCommand {
             queryDelay = ms / 1000
         }
         let folder = file.deletingLastPathComponent()
-        func path(_ value: String) -> URL {
+        // A bundle's (a repository's) paths name its own files: from the script's folder as written, never out of it
+        // (`CorePaths.file`, the rule its `"script"` has; nil when one leads out). A script of the user's own may point anywhere.
+        let fromBundle: Bool
+        if case .bundle = source { fromBundle = true } else { fromBundle = false }
+        func anywhere(_ value: String) -> URL {
             let expanded = (value as NSString).expandingTildeInPath
             return (CorePaths.isAbsolute(expanded) ? URL(fileURLWithPath: expanded) : folder.appendingPathComponent(expanded)).standardizedFileURL
         }
+        func path(_ value: String) -> URL? { fromBundle ? CorePaths.file(value, in: folder)?.standardizedFileURL : anywhere(value) }
         var status: Status?
         if let value = keys["status"] {
             var refresh = Status.defaultRefresh
@@ -458,29 +463,50 @@ extension ScriptCommand {
             if value == "self" || value == "true" {
                 status = Status(launch: launch, refresh: refresh, isSelf: true)
             } else {
-                // A command line (no shell), its program from the script's folder when it's there.
+                // A command line (no shell), its program from the script's folder when it's there; a bare name that isn't
+                // is a program the system finds (PATH). A bundle's program given as a path is one of the bundle's files.
                 guard var argv = CustomCommand.arguments(fromCommandLine: value), let program = argv.first else {
                     return .failure(bad("status"))
                 }
-                if program.contains("/") || FileManager.default.fileExists(atPath: folder.appendingPathComponent(program).path) {
-                    argv[0] = path(program).path
+                if program.contains(where: CorePaths.isSeparator) || FileManager.default.fileExists(atPath: folder.appendingPathComponent(program).path) {
+                    guard let url = path(program) else { return .failure(bad("status")) }
+                    argv[0] = url.path
                 }
                 status = Status(launch: argv, refresh: refresh, isSelf: false)
             }
         }
-        let icon: Icon? = keys["icon"].flatMap { value in
-            if isEmoji(value) { return .emoji(value) }
-            if value.contains("://") { return nil }  // never fetched
+        var icon: Icon?
+        if let value = keys["icon"] {
             let images = ["png", "jpg", "jpeg", "gif", "tiff", "icns", "pdf", "heic"]
-            if images.contains((value as NSString).pathExtension.lowercased()) { return .image(path(value)) }
-            return .symbol(value)
+            if isEmoji(value) {
+                icon = .emoji(value)
+            } else if value.contains("://") {
+                icon = nil  // never fetched
+            } else if images.contains((value as NSString).pathExtension.lowercased()) {
+                guard let url = path(value) else { return .failure(bad("icon")) }
+                icon = .image(url)
+            } else {
+                icon = .symbol(value)
+            }
+        }
+        var directory: URL?
+        if let value = keys["currentDirectoryPath"] {
+            // A bundle's from its script's folder stays in the bundle ("." is that folder); the home folder ("~/…") or an
+            // absolute path is taken as it is: where it runs isn't what it runs.
+            if fromBundle, !value.hasPrefix("~"), !CorePaths.isAbsolute(value) {
+                let itself = CorePaths.isPlainRelative(value) && CorePaths.components(value).allSatisfy { $0 == "." }
+                guard let url = itself ? folder.standardizedFileURL : path(value) else { return .failure(bad("currentDirectoryPath")) }
+                directory = url
+            } else {
+                directory = anywhere(value)
+            }
         }
         return .success(ScriptCommand(
             id: id, source: source, file: file, name: name, alias: alias, title: keys["title"] ?? name,
             description: keys["description"], group: keys["group"],
             keywords: keys["keywords"].map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } } ?? [],
             icon: icon, input: input, arguments: arguments, output: output, background: background, status: status,
-            confirm: confirm, timeout: timeout, queryDelay: queryDelay, directory: keys["currentDirectoryPath"].map(path),
+            confirm: confirm, timeout: timeout, queryDelay: queryDelay, directory: directory,
             extensionDirectory: extensionDirectory, launch: launch))
     }
 

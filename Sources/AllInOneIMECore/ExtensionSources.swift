@@ -618,6 +618,8 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         /// Its script is a symbolic link out of the repository (to where it leads): it would run a file the review
         /// can't vouch for.
         public var leavesRepository: String? = nil
+        /// What its status line runs (`status`), written as `program` is; nil when it has none.
+        public var status: String? = nil
     }
 
     public var url: String
@@ -633,10 +635,10 @@ public struct ExtensionSourceReview: Equatable, Sendable {
     public var skipped: [ExtensionStore.Skipped]
 
     public var preferences: [ExtensionBundle.Preference] { bundle?.preferences ?? [] }
-    /// Every program it runs, once each.
+    /// Every program it runs, once each: its commands' and their status lines'.
     public var programs: [String] {
         var seen = Set<String>()
-        return commands.map(\.program).filter { seen.insert($0).inserted }
+        return commands.flatMap { [$0.program] + ($0.status.map { [$0] } ?? []) }.filter { seen.insert($0).inserted }
     }
 
     /// The bundle in `bundleFolder` as it would load next to what `config` loads now (`found`: the Raycast folders
@@ -658,12 +660,13 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         let hidden = Dictionary(AllInOneIMECore.Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
             .map { ($0.script.id, ScriptCommand.Problem.nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { (a: ScriptCommand.Problem, _: ScriptCommand.Problem) in a })
         let commands = index.commands.filter { $0.file.standardizedFileURL.path.hasPrefix(prefix) }.map { command in
-            let program = command.launch.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 }.joined(separator: " ")
+            func shown(_ launch: [String]) -> String { launch.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 }.joined(separator: " ") }
+            let program = shown(command.launch)
             let off = bundle.map { config.disabledExtensions.contains($0.name) } == true || config.disabledExtensions.contains(command.id)
             let outside = ExtensionSources.isInside(command.file, repository ?? folder) ? nil : command.file.resolvingSymlinksInPath().path
             return Command(name: command.name, title: command.title, description: command.description, output: command.output,
                            background: command.background, program: program, hidden: off ? nil : hidden[command.id],
-                           leavesRepository: outside)
+                           leavesRepository: outside, status: command.status.map { shown($0.launch) })
         }
         return ExtensionSourceReview(url: url, commit: commit, commitDate: commitDate, path: path, bundle: bundle, problem: problem,
                                      commands: commands, skipped: bundle == nil ? [] : mine)
@@ -694,6 +697,7 @@ public struct ExtensionSourceReview: Equatable, Sendable {
             lines.append("command:     @\(command.name) — \(command.title) (\(command.output.rawValue)\(command.background ? ", background" : ""))\(hidden)")
             if let description = command.description { lines.append("             \(description)") }
             lines.append("  runs:      \(command.program)")
+            if let status = command.status { lines.append("  status:    \(status)") }
             if let target = command.leavesRepository { lines.append("  WARNING:   its script is a link out of the repository, to \(target)") }
         }
         for preference in preferences {

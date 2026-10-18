@@ -3273,6 +3273,9 @@
     "status" : {
       "comment" : "状态 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "Status line runs: " : {
+      "comment" : "状态行运行： — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
+    },
     "Stop after %@ s" : {
       "comment" : "最多运行 %@ 秒 — Sources/AllInOneIME/CommandEditor.swift"
     },

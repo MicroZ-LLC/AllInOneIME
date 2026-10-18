@@ -545,6 +545,10 @@ struct ExtensionSourceReviewView: View {
                         }
                         if let description = command.description { Text(description).font(.caption).foregroundStyle(.secondary) }
                         Text(tr("运行：", "Runs: ") + command.program).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                        if let status = command.status {
+                            Text(tr("状态行运行：", "Status line runs: ") + status).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
                         if let hidden = command.hidden {
                             Label(UIText.describe(hidden, file: URL(fileURLWithPath: command.program)), systemImage: "eye.slash")
                                 .font(.caption).foregroundStyle(.secondary)
