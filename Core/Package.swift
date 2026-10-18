@@ -15,6 +15,9 @@ let package = Package(
         .library(name: "AllInOneIMECore", targets: ["AllInOneIMECore"]),
         .library(name: "AllInOneIMERime", targets: ["AllInOneIMERime"]),
         .library(name: "AllInOneIMECLI", targets: ["AllInOneIMECLI"]),
+        // The wire protocol's engine side (docs/wire-protocol-v1.md): messages, frames, the server and the Composer's
+        // adapter, whatever carries them (the Windows shell's pipe, later Android's JNI and the C ABI).
+        .library(name: "AllInOneIMEWire", targets: ["AllInOneIMEWire"]),
         // What a shell's tests share with the core's (`FakeEngine`, the keys, `ScriptFolder`, `Timing`, `PackData`).
         .library(name: "AllInOneIMETestSupport", targets: ["AllInOneIMETestSupport"]),
         // `swift package strings [--check]`: the String Catalog in step with the code, in the core or in a shell.
@@ -44,6 +47,9 @@ let package = Package(
 
         // The command line (`CLI.run`): level two from a terminal. Each shell runs it from its own main, with its platform.
         .target(name: "AllInOneIMECLI", dependencies: ["AllInOneIMECore"]),
+
+        // The wire protocol (docs/wire-protocol-v1.md), transport-independent: every platform's, as the core is.
+        .target(name: "AllInOneIMEWire", dependencies: ["AllInOneIMECore"]),
 
         // The tests' helpers, for the core's tests and a shell's (debug builds: it imports the core @testable).
         .target(name: "AllInOneIMETestSupport", dependencies: ["AllInOneIMECore"], path: "Tests/AllInOneIMETestSupport"),
