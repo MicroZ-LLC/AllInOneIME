@@ -3,9 +3,13 @@ import Foundation
 /// The Korean pack's data (`hangul.json`): the jamo each key types in the 2-set (Dubeolsik) layout, and how jamo
 /// make syllables. The rules that use it are the app's (`HangulComposer`); the pack holds no code.
 public struct HangulTables: Codable, Equatable, Sendable {
-    /// Jamo by key code (as a string: "12": "ㅂ"), and with Shift where it differs (the tense consonants, ㅒ ㅖ).
+    /// Jamo by the Mac's key code (as a string: "12": "ㅂ"), and with Shift where it differs (the tense consonants, ㅒ ㅖ).
     public var keys: [String: String]
     public var shiftKeys: [String: String]
+    /// The same by the key's USB HID usage (`KeyEvent.usage`, "20": "ㅂ"), the same key on every system: in the pack
+    /// from 1.1.0 on. Without them the usage is turned into the Mac's key code (`MacKeyCodes`), so 1.0.0 works anywhere.
+    public var usageKeys: [String: String]?
+    public var usageShiftKeys: [String: String]?
     /// Initials, medials and finals in Unicode's order (a syllable is 0xAC00 + (initial × 21 + medial) × 28 + final,
     /// final 0 being none).
     public var initials: String
@@ -29,6 +33,14 @@ public struct HangulTables: Codable, Equatable, Sendable {
         let key = String(keyCode)
         if shift, let tense = shiftKeys[key]?.first { return tense }
         return keys[key]?.first
+    }
+
+    /// The jamo of a key by its usage (the same key on every keyboard and system); nil for keys that aren't letters.
+    public func jamo(usage: UInt16, shift: Bool) -> Character? {
+        guard let usageKeys else { return MacKeyCodes.code(usage: usage).flatMap { jamo(keyCode: $0, shift: shift) } }
+        let key = String(usage)
+        if shift, let tense = usageShiftKeys?[key]?.first { return tense }
+        return usageKeys[key]?.first
     }
 }
 
@@ -62,7 +74,7 @@ public struct HangulComposer: Equatable, Sendable {
         return String(UnicodeScalar(0xAC00 + (l * 21 + v) * 28 + t)!)
     }
 
-    /// Takes one jamo (`HangulTables.jamo(keyCode:shift:)`); returns what is finished, if anything.
+    /// Takes one jamo (`HangulTables.jamo(usage:shift:)`); returns what is finished, if anything.
     public mutating func feed(_ jamo: Character) -> String {
         medials.contains(jamo) ? vowel(jamo) : consonant(jamo)
     }

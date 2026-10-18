@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AllInOneIMECore
 
@@ -59,6 +60,71 @@ struct HangulTests {
         for j in "ㅎㅏㄴ" { _ = hangul.feed(j) }
         #expect(hangul.flush() == "한")
         #expect(hangul.isEmpty)
+    }
+
+    /// The pack as 1.0.0 was: no usage maps.
+    static var withoutUsageMaps: HangulTables {
+        var tables = PackData.hangul
+        (tables.usageKeys, tables.usageShiftKeys) = (nil, nil)
+        return tables
+    }
+
+    @Test func eitherMapGivesTheSameJamo() throws {
+        #expect(PackData.hangul.usageKeys?.count == PackData.hangul.keys.count)  // this checkout's pack has them (1.1.0)
+        #expect(PackData.hangul.usageShiftKeys?.count == PackData.hangul.shiftKeys.count)
+        let old = Self.withoutUsageMaps
+        for entry in MacKeyCodes.entries {
+            for shift in [false, true] {
+                let byCode = PackData.hangul.jamo(keyCode: entry.code, shift: shift)
+                #expect(PackData.hangul.jamo(usage: entry.usage, shift: shift) == byCode, "kVK \(entry.code)")
+                #expect(old.jamo(usage: entry.usage, shift: shift) == byCode, "kVK \(entry.code)")
+            }
+        }
+        #expect(PackData.hangul.jamo(usage: 0x14, shift: false) == "ㅂ")  // Q
+        #expect(PackData.hangul.jamo(usage: 0x14, shift: true) == "ㅃ")
+        #expect(PackData.hangul.jamo(usage: 0, shift: false) == nil)
+
+        // A 1.0.0 pack's file (no usage maps) still reads, and 1.1.0's reads as the same tables plus the maps.
+        var json = try JSONSerialization.jsonObject(with: Data(contentsOf: PackData.folder
+            .appendingPathComponent("ko-hangul").appendingPathComponent(HangulTables.fileName))) as! [String: Any]
+        json["usageKeys"] = nil
+        json["usageShiftKeys"] = nil
+        let decoded = try JSONDecoder().decode(HangulTables.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(decoded == old)
+    }
+
+    /// Typed through the composer: the same syllables from either map, and from another system's events.
+    @Test func eitherMapTypesTheSameText() {
+        let codes: [Character: UInt16] = ["d": 0x02, "k": 0x28, "s": 0x01, "u": 0x20, "g": 0x05, "t": 0x11, "p": 0x23,
+                                          "y": 0x10, "r": 0x0F, "m": 0x2E, "f": 0x03, "e": 0x0E]
+        func run(_ tables: HangulTables, mac: Bool) -> ([String], String) {
+            let c = Composer(engine: FakeEngine(), actionKey: .enter)
+            c.hangulTables = tables
+            c.inputLanguages = [.english, .korean]
+            c.setInputMode(.korean)
+            var out: [String] = []
+            // 안녕하세요 한글 닭 까
+            for letter in "dkssudgktpdy gksrmf ekfr Rk" {
+                guard letter != " " else {
+                    out += commits(c.handleKeyDown(KeyEvent(keyCode: VirtualKey.space, characters: " ")))
+                    continue
+                }
+                let lower = Character(letter.lowercased()), shift = letter.isUppercase
+                let code = codes[lower]!
+                let event = mac
+                    ? KeyEvent(keyCode: code, characters: String(letter), charactersIgnoringModifiers: String(lower),
+                               modifiers: shift ? .shift : [])
+                    : KeyEvent(key: .character, usage: MacKeyCodes.usage(code), characters: String(letter),
+                               charactersIgnoringModifiers: String(lower), modifiers: shift ? .shift : [])
+                out += commits(c.handleKeyDown(event))
+            }
+            return (out, c.markedText)
+        }
+        let expected = run(PackData.hangul, mac: true)
+        #expect((expected.0.joined() + expected.1).replacingOccurrences(of: " ", with: "") == "안녕하세요한글닭까")
+        #expect(run(Self.withoutUsageMaps, mac: true) == expected)
+        #expect(run(PackData.hangul, mac: false) == expected)
+        #expect(run(Self.withoutUsageMaps, mac: false) == expected)
     }
 
     @Test func keysOfThe2SetLayout() {

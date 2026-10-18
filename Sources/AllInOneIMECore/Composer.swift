@@ -1239,7 +1239,7 @@ public final class Composer {
         guard typesHangul else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
         let back = event.key == .backspace && modifiers.isEmpty && !hangul.isEmpty
-        let jamo = modifiers.isSubset(of: .shift) ? hangul.tables.jamo(keyCode: event.keyCode, shift: modifiers.contains(.shift)) : nil
+        let jamo = modifiers.isSubset(of: .shift) ? hangul.tables.jamo(usage: event.usage, shift: modifiers.contains(.shift)) : nil
         guard back || jamo != nil else { return nil }
         shiftPressedAt = nil
         optionPressed = nil
