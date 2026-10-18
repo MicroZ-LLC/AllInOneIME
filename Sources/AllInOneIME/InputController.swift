@@ -115,6 +115,13 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
         composer.characterBeforeCaret = { [weak self] in MainActor.assumeIsolated { self?.characterBeforeCaret() } }
         composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
+        // @reply: the text around the caret, and whether the Chrome page goes along (ScreenshotAndReply.swift).
+        composer.readFieldText = { [weak self] in
+            MainActor.assumeIsolated { self.flatMap { $0.readFieldText(from: $0.keyClient ?? $0.clientOverride ?? $0.client()) } }
+        }
+        composer.pageContextApplies = { [weak self] in
+            MainActor.assumeIsolated { self.map { $0.agentPageContext && $0.pageProcess($0.appID ?? $0.activeApp) != nil } ?? false }
+        }
         return composer
     }()
     private var session: RimeSession?
@@ -142,7 +149,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var loadQuestionHistory: () -> QuestionHistory = { QuestionHistoryStore.history }
     var recordQuestion: (QuestionHistory.Entry) -> Void = { QuestionHistoryStore.record($0) }
     /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
-    private var keyClient: IMKTextInput?
+    var keyClient: IMKTextInput?
     /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
     /// self-test: it would reach the user's own frontmost app.
     var selectionByAccessibility = true
@@ -160,9 +167,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
     var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
     /// The bundle id of the app being typed in (its `AppProfile`), as the field of the key, else the client, says it.
-    private var appID: String? { (keyClient ?? clientOverride ?? client())?.bundleIdentifier() }
+    var appID: String? { (keyClient ?? clientOverride ?? client())?.bundleIdentifier() }
     /// The app of the text field that became active last (for what's shown on every key, without asking it again).
-    private var activeApp: String?
+    var activeApp: String?
     /// `@open`: finds files and apps, what it opened before first (`loadOpenHistory`), and opens the one
     /// picked, which `recordOpen` keeps. The self-test opens nothing and keeps its history in memory.
     var searchFiles: @MainActor (_ query: String, _ history: OpenHistory) async -> [SearchResult] = {
@@ -261,22 +268,18 @@ final class AllInOneIMEInputController: IMKInputController {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
-    /// ⌘V in a draft: the clipboard's text, or nil to let the app paste as usual (the self-test
-    /// supplies its own and never reads the real clipboard).
-    var readClipboard: () -> String? = { AllInOneIMEInputController.clipboardText(NSPasteboard.general) }
-
-    /// Text on `pasteboard` to take into a draft. Nil for none, for what password managers mark as
-    /// concealed or transient (nspasteboard.org, and the older markers), and when pasting from other
-    /// apps is denied to this one.
-    static func clipboardText(_ pasteboard: NSPasteboard) -> String? {
-        if #available(macOS 15.4, *), pasteboard.accessBehavior == .alwaysDeny { return nil }
-        let types = pasteboard.types ?? []
-        let hidden = ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType", "com.agilebits.onepassword",
-                      "de.petermaurer.TransientPasteboardType", "com.typeit4me.clipping", "Pasteboard generator type",
-                      "net.antelle.keeweb"].map { NSPasteboard.PasteboardType(rawValue: $0) }
-        guard types.contains(.string), hidden.allSatisfy({ !types.contains($0) }) else { return nil }
-        return pasteboard.string(forType: .string)
-    }
+    /// ⌘V or ⌃V in a draft: what the clipboard has for it (`clipboardContent`: its text, else an image), read only once
+    /// the key is answered and never during secure input (the self-test supplies its own and never reads the real
+    /// clipboard).
+    var readClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general) }
+    /// What reads a screenshot's text on this Mac (`Platform.current.text`: Vision; the self-test may supply its own).
+    var recognizeText: any TextRecognizer = Platform.current.text
+    /// The notice of the custom commands renamed for the built-in ones, once (`BuiltinRenames`; the self-test keeps its
+    /// own).
+    var takeRenameNotice: (Composer.ReplyMessages) -> String? = { BuiltinRenames.takeNotice($0) }
+    /// Whether a draft started with an image on the clipboard warms Vision up (`warmUpScreenshotReading`; not in the
+    /// self-test: it would look at the real clipboard's types).
+    var warmsUpVision = true
     /// `@imessage`: the address book (nil: no access), and sending (the self-test supplies stand-ins:
     /// never the real Contacts or Messages).
     var loadContacts: () async -> [Contact]? = {
@@ -360,6 +363,8 @@ final class AllInOneIMEInputController: IMKInputController {
             composer.pastesIntoDraft = !(app.map(SecureInput.terminals.contains) ?? false)
             // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
             composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
+            // A custom command renamed because a built-in has its name now (`BuiltinRenames`): said once.
+            tellBuiltinRenames(client: sender as? IMKTextInput)
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
         }
@@ -605,6 +610,7 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.typesResults = config.applying(app: app).typeOut
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
+        composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         composer.issueDiagnostics = { [weak self] in
             guard let self else { return IssueReporting.current(config: LiveConfig.current) }
@@ -667,7 +673,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// refused, another command), it's given back.
     @MainActor
     private func wakePageIfAgent() {
-        let writingAgent = composer.draftCommand == .agent
+        // `@reply` with nothing selected, copied or pasted takes the page too.
+        let writingAgent = composer.draftCommand == .agent || composer.draftCommand == .reply && composer.replyTakesPage
         if wokenPage != nil, !writingAgent { return releasePage() }
         guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession, writingAgent else { return }
         pageLookedFor = fieldSession
@@ -689,11 +696,13 @@ final class AllInOneIMEInputController: IMKInputController {
         if let pid = wokenPage { PageContextReader.release(pid: pid) }
     }
 
-    /// `prompt` with the page `@agent` was typed in (`PageContext`) when that applies (Chrome, the setting, Accessibility
-    /// allowed), read off the main thread; `start` then gets it on the main thread, with the page's title (nil: no page
-    /// taken along, `prompt` as typed — at once).
+    /// `prompt` with the page `@agent` (or `@reply`) was typed in (`PageContext`) when that applies (Chrome, the setting,
+    /// Accessibility allowed), read off the main thread, as `render` puts them together (`@agent`'s: `PageContext.prompt`);
+    /// `start` then gets it on the main thread, with the page's title (nil: no page taken along, `prompt` as typed — at
+    /// once).
     @MainActor
-    func withPage(_ prompt: String, _ start: @escaping @MainActor (String, String?) -> Void) {
+    func withPage(_ prompt: String, render: @escaping @Sendable (PageContext, String) -> String = { $0.prompt(request: $1) },
+                  _ start: @escaping @MainActor (String, String?) -> Void) {
         guard agentPageContext, let pid = wokenPage ?? pageProcess(appID ?? activeApp) else { return start(prompt, nil) }
         if wokenPage == nil { PageContextReader.wake(pid: pid) }  // typed fast (or pasted): asked for now
         wokenPage = nil  // released once read
@@ -712,7 +721,7 @@ final class AllInOneIMEInputController: IMKInputController {
                         log.notice("@agent: no page context")
                         return start(prompt, nil)
                     }
-                    let full = context.prompt(request: prompt)
+                    let full = render(context, prompt)
                     log.notice("@agent: page context \(full.count - prompt.count) chars")
                     start(full, context.title.isEmpty ? context.url : context.title)
                 }
@@ -893,6 +902,7 @@ final class AllInOneIMEInputController: IMKInputController {
         keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
+        warmUpScreenshotReading()  // a draft started with an image on the clipboard: Vision loaded for it
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         return response.handled
@@ -986,6 +996,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 startConversion(input, id: id, command: composer.activeCommand?.kind == .convert ? composer.activeCommand : nil)
             case let .startCommand(command, input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
+                // @reply with nothing selected, copied or pasted: the Chrome page as its context, when that applies.
+                if command == .reply, composer.replyTakesPage {
+                    withPage(input, render: { Prompt.replyMessage($1, page: $0) }) { [self] prompt, _ in
+                        self.startConversion(prompt, id: id, command: command)
+                    }
+                    break
+                }
                 startConversion(input, id: id, command: command)
             case let .startRefine(refinement, id):
                 // Sent to the model like the request it refines: refused during secure input the same way.
@@ -1126,11 +1143,15 @@ final class AllInOneIMEInputController: IMKInputController {
                 // the app isn't left waiting for the key (and doesn't paste on its own meanwhile).
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    let text = self.readClipboard()
-                    // Only how much: never the text itself.
-                    log.notice("clipboard for a command: \(text.map { "\($0.count) chars" } ?? "no usable text", privacy: .public)")
-                    self.perform(self.composer.pasted(text, id: id), client: nil)
+                    // Nothing is read during secure input.
+                    let content = self.secureInputActive() ? .none : self.readClipboard()
+                    // Only how much: never the text or the image itself.
+                    log.notice("clipboard for a command: \(Self.logged(content), privacy: .public)")
+                    self.perform(self.composer.pasted(content, id: id), client: nil)
                 }
+            case let .recognizeText(image, id):
+                // On this Mac (Vision): the image goes nowhere (ScreenshotAndReply.swift).
+                recognizeScreenshot(image, id: id)
             case .cancelConversion:
                 conversionTask?.cancel()
                 conversionTask = nil
@@ -1776,6 +1797,7 @@ final class AllInOneIMEInputController: IMKInputController {
             return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
         }
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
+        let replyContext = command == .reply ? composer.replyContext : nil
         if let plan, !plan.isEmpty {
             // @search inside a text is context for the AI, but not where the text goes out as written: into a
             // web page (a link) or to a person (a message).
@@ -1785,7 +1807,12 @@ final class AllInOneIMEInputController: IMKInputController {
                 // Its errors (no key, say) in the interface language.
                 command == .webSearch ? Self.described(WebSearch.stream(argument, output: innerSearch, loadKey: loadSearchKey))
                     : streamFor(command, argument)
-            }, outer: { streamFor(command, $0) })
+            }, outer: { text in
+                // @reply: the text with the commands' outputs is what to reply, sent with the rest of its context.
+                guard var context = replyContext else { return streamFor(command, text) }
+                context.intent = text
+                return streamFor(command, Prompt.replyMessage(context))
+            })
         } else {
             stream = streamFor(command, input)
         }
@@ -2039,8 +2066,15 @@ final class AllInOneIMEInputController: IMKInputController {
             let text = composer.sentText.isEmpty ? selected : composer.sentText
             return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
         }
-        // A command with nothing after it yet: what to do (the action key alone only hints).
-        if composer.sentText.isEmpty {
+        // @reply with nothing to reply to yet: what it takes.
+        if command == .reply, composer.sentText.isEmpty, composer.attachment == nil {
+            return tr("回复对方：⌃V 粘贴消息或截图", "Reply: ⌃V their message or a screenshot")
+        }
+        // A screenshot being read: the action key waits for it.
+        if composer.readingScreenshot { return composer.messages.reply.reading }
+        // A command with nothing after it yet: what to do (the action key alone only hints); with a screenshot or a
+        // message attached, what the action key does with it.
+        if composer.sentText.isEmpty, composer.attachment == nil {
             return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
         }
         return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
@@ -2054,6 +2088,25 @@ final class AllInOneIMEInputController: IMKInputController {
         guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
         let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
         return tr("已修改：", "Refined: ") + steps
+    }
+
+    /// The line about what the draft has attached (`Composer.attachment`): a screenshot being read or read (on this Mac:
+    /// only its text is sent), or the message copied into `@reply`.
+    @MainActor
+    func attachmentHeader() -> String? {
+        switch composer.attachment {
+        case .screenshot(.recognizing)?:
+            return composer.messages.reply.reading
+        case let .screenshot(.ready(text))?:
+            let lines = text.lineCount
+            return tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)") + "\n"
+                + tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")
+        case let .copiedText(message)?:
+            let count = message.count
+            return tr("复制的消息 · \(count) 字", "Copied message · \(count) characters")
+        case nil:
+            return nil
+        }
     }
 
     /// The line under the command being written on the selection (`Composer.selection`): what it works on, with its
@@ -2241,6 +2294,11 @@ final class AllInOneIMEInputController: IMKInputController {
                                          + "\n" + issue.lines.map { "· " + $0 }.joined(separator: "\n"))
                 }
                 model.footer = tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
+            case .choosing where command == .reply && composer.refineLine == nil && composer.refineError == nil:
+                // @reply's three: ⌘R three more; a letter starts an instruction for them, as for any AI's results.
+                model.footer = tr("⌘R 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回",
+                                  "⌘R three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back")
+                model.detail = lastFromCache ? tr("缓存", "cached") : lastElapsed.map { String(format: "%.1fs", $0) }
             case .choosing where command == .tasks:
                 model.footer = tr("⏎ 在终端打开 · 数字选择 · ⌘C 复制回复 · Esc 返回",
                                   "⏎ open in Terminal · digits pick · ⌘C copy the reply · Esc back")
@@ -2404,7 +2462,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // (An @question conversation's next question while its pinyin is typed.)
         let line = composer.isQuestionChat ? tr("追问 › ", "question › ") : tr("修改 › ", "refine › ")
         model.input = composer.refineLine.map { line + $0 + "▏" } ?? panelInput()
-        let headers = [selectionHeader(), refineHeader()].compactMap { $0 }
+        let headers = [selectionHeader(), attachmentHeader(), refineHeader()].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
         // Translate as You Type's pinyin (or dictation): its chip on top.

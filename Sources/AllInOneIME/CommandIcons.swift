@@ -13,6 +13,7 @@ enum CommandIcons {
         case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
         case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
         case .question: return CandidateView.Icon(symbol: "questionmark.bubble.fill", color: .systemBlue)
+        case .reply: return CandidateView.Icon(symbol: "arrowshape.turn.up.left.fill", color: .systemGreen)
         case .agent: return CandidateView.Icon(symbol: "sparkles", color: .systemOrange)
         case .open: return CandidateView.Icon(symbol: "magnifyingglass", color: .systemGray)
         case .read: return CandidateView.Icon(symbol: "doc.richtext.fill", color: .systemTeal)
