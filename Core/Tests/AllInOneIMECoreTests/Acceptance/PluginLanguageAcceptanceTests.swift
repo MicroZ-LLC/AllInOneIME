@@ -5,7 +5,8 @@ import Testing
 // Independent acceptance tests for "script plugins learn the input method's own UI language", written from the spec
 // (not from the implementation's own tests). They use `PluginScript.evaluate`, `PluginRunner.command` and
 // `PluginHost.invocation` (main.swift's `--run-plugin` arguments), and, when it is built, the app binary itself
-// (.build/debug/AllInOneIME, or $ALLINONEIME_TEST_BINARY) run as the child process with a plugin in a temporary folder.
+// ($ALLINONEIME_TEST_BINARY, or the repo root's .build/debug/AllInOneIME: `swift build` there) run as the child process
+// with a plugin in a temporary folder.
 //
 // The spec, as tested here:
 //   S1 the call: `run(input, context)`, context a plain object, exactly {language: "zh"} or {language: "en"};
@@ -372,15 +373,20 @@ struct PluginLanguageArgumentsAcceptanceTests {
 
 /// The built app binary, run as `--run-plugin` with the text on standard input.
 enum PlugLangCLI {
+    /// The core's package folder, Core/.
     static let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().deletingLastPathComponent()
+    /// The repo root, Core/'s parent: the macOS app, whose binary this is, is the package there.
+    static let repoRoot = package.deletingLastPathComponent()
 
+    /// $ALLINONEIME_TEST_BINARY, else the debug build at the repo root (`swift build` there), else one in Core/ (the
+    /// core builds no app, so normally there is none).
     static let binary: String? = {
         if let given = ProcessInfo.processInfo.environment["ALLINONEIME_TEST_BINARY"], FileManager.default.isExecutableFile(atPath: given) {
             return given
         }
-        let built = package.appendingPathComponent(".build/debug/AllInOneIME").path
-        return FileManager.default.isExecutableFile(atPath: built) ? built : nil
+        return [repoRoot, package].map { $0.appendingPathComponent(".build/debug/AllInOneIME").path }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
     }()
 
     static var available: Bool { binary != nil }
@@ -428,7 +434,10 @@ enum PlugLangCLI {
         posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_CLOEXEC_DEFAULT))
 
         var environment = ProcessInfo.processInfo.environment
-        environment["DYLD_LIBRARY_PATH"] = package.appendingPathComponent("ThirdParty/librime/dist/lib").path
+        // No DYLD_LIBRARY_PATH: the binary finds librime by its own rpath (the debug build's, to the folder it linked,
+        // $ALLINONEIME_THIRDPARTY's or the repo root's ThirdParty; a bundled app's, @executable_path/../Frameworks), so
+        // nothing here has to know where ThirdParty is. An inherited one is dropped: dyld would search it first.
+        environment.removeValue(forKey: "DYLD_LIBRARY_PATH")
         let argv: [UnsafeMutablePointer<CChar>?] = ([binary] + arguments).map { strdup($0) } + [nil]
         let envp: [UnsafeMutablePointer<CChar>?] = environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
         defer { (argv + envp).forEach { free($0) } }
@@ -456,7 +465,7 @@ enum PlugLangCLI {
 }
 
 @Suite("PluginLanguageAcceptance: the app binary as the child process",
-       .enabled(if: PlugLangCLI.available, "needs the built app binary (swift build)"))
+       .enabled(if: PlugLangCLI.available, "build the app first: swift build at the repo root, or set ALLINONEIME_TEST_BINARY"))
 struct PluginLanguageChildProcessAcceptanceTests {
     /// Prints arguments.length, JSON.stringify(arguments[1]) and the input.
     static let probe = "function run(input, context) { return arguments.length + ' ' + JSON.stringify(arguments[1]) + ' ' + input; }"
