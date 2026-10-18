@@ -307,8 +307,9 @@ class Checks:
         self.built, self.passed, self.failures, self.log = built, passed, failures, log
 
     def summary(self) -> str:
+        # make test runs several packages (Core/, then the macOS shell): each prints its own total.
         m = re.findall(r"Test run with (\d+) tests? in \d+ suites? (?:passed|failed)", self.log)
-        return f"{m[-1]} tests" if m else "the tests"
+        return f"{sum(map(int, m))} tests" if m else "the tests"
 
 
 FAILURE = [re.compile(r"^✘ Test (?!run with )(.+?)(?: with \d+ test cases?)? failed after", re.M),
