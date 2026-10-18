@@ -6,6 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
+- API keys and passwords can sync through iCloud Keychain, end-to-end encrypted: Settings → General → Sync through iCloud → "API keys and passwords" (on while sync is on; `iCloudSync.keys`). The newest change wins, and removing a key while syncing removes it on every Mac. The AllInOneIME Cloud sign-in stays on each Mac. Keys move once from the login keychain to the data protection keychain, so macOS no longer asks for the login password after updates. Older versions and `allinoneime-cli` no longer see keys from the keychain; shell variables still work.
 - Translate as You Type (a prototype to try): hold Shift on its own for 1 s to turn it on or off (a hint at 0.5 s; a
   tap of Shift still switches the input language), with a notice near the caret for about 1.5 s naming the language it
   translates into ("Translate as You Type on: Chinese → English · hold Shift again to turn off"); while it's on, the
