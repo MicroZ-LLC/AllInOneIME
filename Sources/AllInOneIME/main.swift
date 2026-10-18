@@ -138,6 +138,9 @@ func runServer(showSettings: Bool = false) -> Never {
     terminationSignal.resume()
     // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
     DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
+    // A custom command a built-in now has the name of (a custom @reply): renamed in the config, said once in the next
+    // text field (`BuiltinRenames`).
+    BuiltinRenames.apply()
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @agent tasks: notifications, and tasks from before a restart watched again.

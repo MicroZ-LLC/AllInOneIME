@@ -77,7 +77,8 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, 4 onward the rewrite styles (added and ordered in the settings), 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
 | `@translate` | Translate into the languages you added (settings → Translate, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
 | `@question` | Ask a question; the answer appears in the candidates, ⏎ or Space inserts it, ⌘C copies it. Type on and ⇧⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; ⌘R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
-| `@agent` | Hands the task to a coding agent on your Mac, picked in Settings → Agent: Claude Code (the default), Gemini CLI, Kiro CLI, or a command of your own (what you typed is added as its last argument). The page also shows whether each is installed and how it starts. Claude Code runs in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`; turn off "Runs in the background and notifies me" under Claude Code there to open it in Terminal. The other agents open in Terminal with what you typed as their first message. Each uses its own sign-in and settings. In Google Chrome it takes the page along: the address and title, the field you typed in with its form or section (★ marks where you are), the selected text and what's visible in the window — never a password field, never the whole page — so `@agent why doesn't this work` in a sign-in form's username field is about that field, and `@agent why is this blocked` on a pipeline page is about that page; the agent judges which. The page's text goes to the agent as read, marked as coming from the web (not as instructions from you). It needs Accessibility; Chrome builds its page tree for it only while `@agent` is being written there, turned back off after (Settings → Agent → "@agent takes the Chrome page along" turns it all off). The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK. (It was `@claude` before 0.6.4.) |
+| `@reply` | Writes three replies to the message you're answering, in the other party's language and the tone of the app (the app's first rewrite style in Settings → Apps, else casual in chat apps, formal in mail, where each reply is a whole email body). Give it the message by selecting it, copying it and pressing ⌃V in the draft, or taking a screenshot (⌃⇧⌘4, or WeChat's own) and pressing ⌃V; what you type after it says what to reply: `@reply politely decline`. ⌘R writes three more; see [Replying](#replying-with-reply-new) |
+| `@agent` | Hands the task to a coding agent on your Mac, picked in Settings → Agent: Claude Code (the default), Gemini CLI, Kiro CLI, or a command of your own (what you typed is added as its last argument). The page also shows whether each is installed and how it starts. Claude Code runs in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`; turn off "Runs in the background and notifies me" under Claude Code there to open it in Terminal. The other agents open in Terminal with what you typed as their first message. Each uses its own sign-in and settings. In Google Chrome it takes the page along: the address and title, the field you typed in with its form or section (★ marks where you are), the selected text and what's visible in the window — never a password field, never the whole page — so `@agent why doesn't this work` in a sign-in form's username field is about that field, and `@agent why is this blocked` on a pipeline page is about that page; the agent judges which. The page's text goes to the agent as read, marked as coming from the web (not as instructions from you). It needs Accessibility; Chrome builds its page tree for it only while `@agent` is being written there, turned back off after (Settings → Agent → "@agent and @reply take the Chrome page along" turns it all off). The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK. (It was `@claude` before 0.6.4.) |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply |
 | `@settings` | Opens the settings window right away (picking it is enough) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path |
@@ -108,7 +109,8 @@ people in chat apps still works.
 Typed right after a letter, a digit, `.`, `_` or `-`, as in `bob@example.com` or `ssh user@host`, `@` is just text: no
 list opens, in every app, terminals included. With the list open, ← → or a key that can't go on a command's name (`.`, `:`,
 `/`) close it and leave what you typed (`@`, `@im`) as it is; in a terminal ← → then only close the list.
-`@question`, `@improve` and `@translate` send to your own Bedrock only when you press the action key; `@open` searches only on this
+`@question`, `@improve`, `@translate` and `@reply` send to your own Bedrock only when you press the action key (a screenshot is read on
+this Mac and only its text is sent); `@open` searches only on this
 Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac; `@agent` uses the agent installed on your Mac (Claude Code's `claude` command by default) and its own account, and it asks
 you first, as usual, before changing files or running commands. Without the agent installed, `@agent` isn't offered.
 `@imessage` reads Contacts on this Mac only (names, phone numbers, emails), never goes through the AI, and Messages sends
@@ -126,6 +128,34 @@ instruction for `@improve` and `@translate` (`@translate ja`, `@improve more for
 `@imessage`, `@reportissue`, terminal commands and script extensions don't use it: they take what you type, and the
 selection stays as it is. Up to 5000 characters; never read during secure input or in a
 terminal. Turn it off under Settings → General → "Use the selected text" if it misbehaves in an app.
+
+### Replying with @reply (new)
+
+`@reply` writes three replies you could send to the message you're answering. Give it the message in any of these ways,
+then press ⏎:
+
+- **Select it** in the field, then type `@reply` (the reply you pick goes in after it, on a line of its own).
+- **Copy it**, type `@reply` and press ⌃V: the panel shows "Copied message · N characters", and the draft stays as it is.
+- **Take a screenshot** to the clipboard (⌃⇧⌘4, or WeChat's own screenshot), type `@reply` and press ⌃V: the panel
+  shows "Screenshot · N lines (read on this Mac)". The screenshot is read on this Mac (Apple's Vision, the first time a
+  little slower) and only its text is sent; the image goes nowhere and isn't kept. Lines on the left are the other
+  party's and on the right yours, as chat apps show them; the times between messages are left out. Use it for WeChat,
+  whose window can't be read any other way.
+
+Type what you want to say after it (`@reply politely decline`, `@reply 委婉拒绝`), or nothing for a sensible answer. The
+replies are in the other party's language unless you ask for another, and in the app's tone: the first rewrite style
+of its profile (Settings → Apps), else casual in chat apps and formal in mail apps, where each reply is a whole email
+body. The text around the cursor goes along too. ⌫ with nothing typed after `@reply` removes what was pasted. ⏎ or
+a digit inserts a reply; ⌘R writes three more (Esc brings these back), and typing an instruction refines them as for any
+AI result. In Google Chrome, with nothing selected or pasted, it takes the page along as `@agent` does (Settings →
+Agent → "@agent and @reply take the Chrome page along"). With nothing to reply to and nothing typed, it says what it
+needs. Hiding sensitive information covers the screenshot's text too; during secure input the clipboard isn't read
+and nothing is sent. A custom command you had named `reply` is now `@myreply`.
+
+A screenshot pasted into any other command works too: `@translate` ⌃V translates it (into the caret), `@question what
+does this say` ⌃V asks about it, and commands without AI get its text as if it had been copied (`@note` keeps its lines).
+With text selected, `@improve` and `@translate` keep working on the selection, and a notice says the screenshot wasn't
+used.
 
 ### Refining the results (new)
 

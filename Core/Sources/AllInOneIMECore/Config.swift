@@ -316,6 +316,39 @@ public struct Config: Codable, Equatable, Sendable {
         normalizeLanguages()
     }
 
+    /// Renames the custom commands whose names a built-in command now has (a custom `@reply` from before `@reply` was
+    /// built in), which the built-in would hide. Each gets the first name of `renameCandidates` (letters only, as a
+    /// command's name must be) that no built-in, no name in `taken` (the plugins' and script extensions', which the
+    /// caller knows) and no other custom command has, case aside: "myreply", "myownreply", "myreplyb" … "myreplyz"; none
+    /// free (unlikely): it stays as it is. Order and everything else are kept. What was renamed, in config order (none:
+    /// `[]`); run again, it renames nothing. The shell runs it once when it loads the config, writes it, and says so once
+    /// (`Composer.ReplyMessages.renamed`).
+    public mutating func freeBuiltinNames(taken extensions: [String]) -> [(old: String, new: String)] {
+        let builtins = Set(Command.builtins.map(\.name))
+        var taken = builtins.union(extensions.map { $0.lowercased() }).union(customCommands.map { $0.name.lowercased() })
+        var renamed: [(old: String, new: String)] = []
+        for index in customCommands.indices {
+            let name = customCommands[index].name
+            guard builtins.contains(name.lowercased()),
+                  let new = Self.renameCandidates(for: name).first(where: { !taken.contains($0) }) else { continue }
+            taken.insert(new)
+            customCommands[index].name = new
+            renamed.append((name, new))
+        }
+        return renamed
+    }
+
+    /// The names `freeBuiltinNames` tries for a custom command named `name`, in order: "my" before it, then "myown", then
+    /// "my" before it and a letter after ("b" … "z"); only those a command can have (`CustomCommand.isValid`: letters,
+    /// at most 24).
+    static func renameCandidates(for name: String) -> [String] {
+        let name = name.lowercased()
+        let letters = "bcdefghijklmnopqrstuvwxyz".map { "my" + name + String($0) }
+        return (["my" + name, "myown" + name] + letters).filter { candidate in
+            candidate.count <= 24 && candidate.allSatisfy { $0.isASCII && $0.isLetter }
+        }
+    }
+
     /// The chosen output language and the default input lead their lists (whoever sets
     /// `outputLanguage` or `defaultInput` moves it to the front); one to five input languages; no
     /// language twice. To reorder, set the list and then its first as the chosen one (`setOrder`).

@@ -78,12 +78,12 @@ struct InlineCodeTests {
     }
 
     @Test func insideAnotherCommandsText() {
-        let catalog = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply.")])
+        let catalog = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply.")])
         let engine = FakeEngine()
         let c = Composer(engine: engine)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        typeKeys("repl", c)
+        typeKeys("resp", c)
         _ = c.handleKeyDown(tab)
         typeKeys("nihao", c)
         _ = c.handleKeyDown(spaceKey)
@@ -91,16 +91,16 @@ struct InlineCodeTests {
         #expect(c.paletteMatches.map(\.name) == ["py", "js"])  // the commands that run inside a text
         typeKeys("p", c)
         _ = c.handleKeyDown(tab)
-        #expect(c.draft == "@reply 你好@py " && engine.ascii)
+        #expect(c.draft == "@respond 你好@py " && engine.ascii)
         typeKeys("2**100", c)
         let effects = c.handleKeyDown(enterKey).effects
         guard case let .startPlan(outer, plan, _)? = effects.first else {
             Issue.record("expected a plan, got \(effects)")
             return
         }
-        #expect(outer?.name == "reply" && plan.inner.map(\.command) == [.py] && plan.inner.map(\.argument) == ["2**100"])
+        #expect(outer?.name == "respond" && plan.inner.map(\.command) == [.py] && plan.inner.map(\.argument) == ["2**100"])
         #expect(plan.input(outputs: ["1267650600228229401496703205376"]) == "你好1267650600228229401496703205376")
-        #expect(effects.contains(.commandUsed("reply")) && effects.contains(.commandUsed("py")))
+        #expect(effects.contains(.commandUsed("respond")) && effects.contains(.commandUsed("py")))
         // Code with spaces in it is quoted.
         let quoted = CommandPlan.make("答案是 @py「sum(x * x for x in range(4))」吧，还有 @js \"[1, 2].map(x => x * 2)\"", commands: catalog)
         #expect(quoted.inner.map(\.argument) == ["sum(x * x for x in range(4))", "[1, 2].map(x => x * 2)"])

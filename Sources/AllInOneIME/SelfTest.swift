@@ -10,7 +10,7 @@ import SwiftUI
 /// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
 /// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
 /// which deletes it), and goes where the selection was (`insertionPoint`).
-final class FakeTextClient: NSObject, IMKTextInput {
+class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
     var inserted: [String] = []
@@ -588,7 +588,7 @@ enum SelfTest {
         // custom commands list marks it 「和内置命令重名，不会生效，请改名」.
         func custom(_ name: String) -> CustomCommand { CustomCommand(name: name, type: .prompt, prompt: "Reply.") }
         check(["note", "Reminder", "open", "settings"].map(custom).allSatisfy(SettingsView.hiddenByBuiltIn)
-              && !["notes", "reply", "remind"].map(custom).contains(where: SettingsView.hiddenByBuiltIn),
+              && !["notes", "respond", "remind"].map(custom).contains(where: SettingsView.hiddenByBuiltIn),
               "custom commands a built-in hides are marked in the list, the others aren't")
         check(model.profiles.contains(own.awsProfile), "profile picker lists \(own.awsProfile) (\(model.profiles))")
         needing(.bedrock)
@@ -1208,7 +1208,7 @@ enum SelfTest {
             at()
             type("o", controller, client)
             _ = press(controller, client, "\t", code: VirtualKey.tab)
-            controller.readClipboard = { query }
+            controller.readClipboard = { .text(query) }
             _ = press(controller, client, "v", code: 0x09, flags: .control)
             _ = pump(timeout: 1) { controller.composer.draft != "@open " }
             let results = live(query)
@@ -1223,7 +1223,7 @@ enum SelfTest {
                   "@open \(query) shows \(shown ?? "nothing") first, \(english ?? "nothing") in English (\(results.count) results)")
             _ = escape(controller, client)
         }
-        controller.readClipboard = { nil }
+        controller.readClipboard = { .none }
         // Typed in letters, Finder (listed with the apps first), and nothing from Python's folders (compiled
         // files, caches, packages) that is named like it.
         at()
@@ -1362,7 +1362,7 @@ enum SelfTest {
         check(pump(timeout: 2) { notes.count == 2 } && notes.last == "你好", "…also while secure input is on (\(notes))")
         controller.secureInputActive = saved.3
         // ⌃V takes the clipboard's text, its lines too, shown with 「 ↵ 」; ⏎ saves it as it was.
-        controller.readClipboard = { "牛奶\n鸡蛋\n面包" }
+        controller.readClipboard = { .text("牛奶\n鸡蛋\n面包") }
         note("", in: controller, client)
         check(press(controller, client, "v", code: 0x09, flags: .control) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
               "⌃V in an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
@@ -1390,14 +1390,14 @@ enum SelfTest {
         at()
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
-        // @read is off for now (`Command.off`): @reminder comes first.
-        check(both.first == "@reminder" && !both.contains("@read"), "@r offers @reminder first, not @read (\(both))")
+        // @read is off for now (`Command.off`): @reply, then @reminder.
+        check(both.prefix(2) == ["@reply", "@reminder"] && !both.contains("@read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
         check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
               "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
         tab()
-        controller.readClipboard = { "明天下午3点给张三打电话" }
+        controller.readClipboard = { .text("明天下午3点给张三打电话") }
         check(press(controller, client, "v", code: 0x09, flags: .command)
               && pump(timeout: 1) { client.marked == "reminder › 明天下午3点给张三打电话" },
               "⌘V puts the text in (\(client.marked))")
@@ -1559,7 +1559,7 @@ enum SelfTest {
             field.loadCommandUsage = { CommandUsage() }
             field.saveCommandUsage = { _ in }
             field.secureInputActive = { false }
-            field.readClipboard = { "买牛奶" }
+            field.readClipboard = { .text("买牛奶") }
             field.copyText = { copied.append($0) }
             field.saveNote = controller.saveNote
             field.ensureEngine()
@@ -1588,7 +1588,7 @@ enum SelfTest {
             terminal.loadCommandUsage = { CommandUsage() }
             terminal.saveCommandUsage = { _ in }
             terminal.secureInputActive = { false }
-            terminal.readClipboard = { lines }
+            terminal.readClipboard = { .text(lines) }
             terminal.copyText = { copied.append($0) }
             terminal.saveNote = controller.saveNote
             terminal.addReminder = controller.addReminder
@@ -2601,6 +2601,8 @@ enum SelfTest {
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
+        controller.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
+        controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions).
@@ -2649,7 +2651,7 @@ enum SelfTest {
         var openHistory = OpenHistory()
         controller.loadOpenHistory = { openHistory }
         controller.recordOpen = { openHistory.record($0) }
-        controller.readClipboard = { nil }  // never the real clipboard; the ⌘V section supplies its text
+        controller.readClipboard = { .none }  // never the real clipboard; the ⌘V section supplies its text
         // Never the real Contacts or Messages, nor the user's recent recipients (the @imessage section has its own).
         controller.loadContacts = { [] }
         controller.messageSender = StandInSender()
@@ -2755,7 +2757,7 @@ enum SelfTest {
         // ⌘V in the command: the clipboard's text (a fake one here) goes into it, not the document.
         section("@improve + ⌘V (live Bedrock)", needs: .composing)
         let clipboard = "这个项目的进度太慢了\n我们需要尽快想办法"
-        controller.readClipboard = { clipboard }
+        controller.readClipboard = { .text(clipboard) }
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
         _ = enter(controller, client)
@@ -2772,7 +2774,7 @@ enum SelfTest {
                   "the pasted text is improved (polished, still Chinese)")
             _ = enter(controller, client)
         }
-        controller.readClipboard = { nil }
+        controller.readClipboard = { .none }
         check(!press(controller, client, "v", code: 0x09, flags: .command), "⌘V with nothing pending is the app's")
         controller.commitComposition(client)
         needing(.composing)
@@ -2781,7 +2783,7 @@ enum SelfTest {
         client.bundleIDOverride = "com.mitchellh.ghostty"
         controller.activateServer(client)
         var clipboardReads = 0
-        controller.readClipboard = { clipboardReads += 1; return clipboard }
+        controller.readClipboard = { clipboardReads += 1; return .text(clipboard) }
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
         _ = enter(controller, client)  // picks @improve
@@ -2808,23 +2810,24 @@ enum SelfTest {
         _ = escape(controller, client)
         client.bundleIDOverride = nil
         controller.activateServer(client)
-        controller.readClipboard = { nil }
+        controller.readClipboard = { .none }
         // What is taken from a clipboard, on private pasteboards (the real one is never read here).
-        func reads(_ fill: (NSPasteboard) -> Void) -> String? {
+        func reads(_ fill: (NSPasteboard) -> Void) -> ClipboardContent {
             let board = NSPasteboard.withUniqueName()
             defer { board.releaseGlobally() }
             board.clearContents()
             fill(board)
-            return AllInOneIMEInputController.clipboardText(board)
+            return AllInOneIMEInputController.clipboardContent(board)
         }
-        check(reads { $0.setString("plain text", forType: .string) } == "plain text", "plain text is taken")
+        check(reads { $0.setString("plain text", forType: .string) } == .text("plain text"), "plain text is taken")
         for marker in ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType", "com.agilebits.onepassword"] {
             let item = NSPasteboardItem()
             item.setString("secret", forType: .string)
             item.setString("", forType: NSPasteboard.PasteboardType(rawValue: marker))
-            check(reads { $0.writeObjects([item]) } == nil, "a password marked \(marker) is not taken")
+            check(reads { $0.writeObjects([item]) } == .none, "a password marked \(marker) is not taken")
         }
-        check(reads { $0.setData(Data([0x49, 0x49, 0x2A, 0]), forType: .tiff) } == nil, "an image is not taken")
+        check(reads { $0.setData(Data([0x49, 0x49, 0x2A, 0]), forType: .tiff) } == .image(Data([0x49, 0x49, 0x2A, 0])),
+              "an image is taken as one: its text is read on this Mac (the screenshot section reads it)")
 
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }
 
@@ -3072,6 +3075,7 @@ enum SelfTest {
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
+        testReply(controller, client)
         testAIConfig(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)

@@ -212,8 +212,6 @@ struct CommandEditor: View {
     /// The menu's starting points.
     static var examples: [CustomCommand] {
         [
-            CustomCommand(name: "reply", type: .prompt, summary: tr("写一条回复", "Write a reply"),
-                          prompt: "Write a short, polite reply to the user's message, in the language of the message."),
             CustomCommand(name: "ja", type: .prompt, summary: tr("翻译成日语", "Translate to Japanese"),
                           prompt: "Translate the user's text into natural Japanese. Reply with the translation only."),
             // Python and sandboxed JavaScript are built in (@py, @js); Node.js with its files and modules isn't.

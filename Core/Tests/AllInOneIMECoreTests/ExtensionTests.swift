@@ -438,12 +438,12 @@ struct ExtensionTests {
         let one = ScriptFolder(), two = ScriptFolder()
         one.add("weather.sh", raycast(title: "Raycast Weather"))
         one.add("weather.py", script(["title Native Weather"]))
-        two.add("kit/extension.json", #"{"schemaVersion": 1, "name": "kit", "commands": [{"script": "w.sh", "name": "weather", "alias": "kitweather"}, {"script": "w.sh", "name": "note", "alias": "kitnote"}, {"script": "w.sh", "name": "reply"}]}"#)
+        two.add("kit/extension.json", #"{"schemaVersion": 1, "name": "kit", "commands": [{"script": "w.sh", "name": "weather", "alias": "kitweather"}, {"script": "w.sh", "name": "note", "alias": "kitnote"}, {"script": "w.sh", "name": "respond"}]}"#)
         two.add("kit/w.sh", "#!/bin/bash\n")
         let index = ExtensionStore.load([one.folder, two.folder])
         // Bundles first (whatever their folder), then single scripts, then Raycast scripts.
         #expect(index.commands.map(\.source) == [.bundle("kit"), .bundle("kit"), .bundle("kit"), .script, .raycast])
-        let custom = [CustomCommand(name: "reply", type: .prompt, prompt: "x")]
+        let custom = [CustomCommand(name: "respond", type: .prompt, prompt: "x")]
         let plugin = InstalledPlugin(manifest: PluginManifest(name: "kitnote", version: "1", type: .prompt, prompt: "x"), directory: one.url, isLocal: true)
         let catalog = Command.catalog(custom, plugins: [plugin], scripts: index.commands)
         let names = catalog.compactMap { command in command.script.map { "\($0.id)=\(command.name)" } }
@@ -451,7 +451,7 @@ struct ExtensionTests {
         #expect(names == ["kit/weather=weather"])
         let hidden = Command.hiddenScripts(index.commands, custom: custom, plugins: [plugin])
         #expect(hidden.map(\.owner) == [.builtIn, .custom, .command("kit/weather"), .command("kit/weather")])
-        #expect(hidden.map(\.script.name) == ["note", "reply", "weather", "weather"])
+        #expect(hidden.map(\.script.name) == ["note", "respond", "weather", "weather"])
         // A name that's taken: the alias, when that's free.
         let withAlias = Command.catalog([CustomCommand(name: "weather", type: .prompt, prompt: "x")], scripts: index.commands)
         #expect(withAlias.first { $0.script?.id == "kit/weather" }?.name == "kitweather")

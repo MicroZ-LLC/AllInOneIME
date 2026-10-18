@@ -6,82 +6,17 @@ import Foundation
 /// inserts the translation at once, with no candidates to pick from (⇧⏎ inserts the draft as typed). A long press of
 /// Shift on its own turns it on and off (`ShiftHold`); there is no command for it. It translates into the language picked
 /// last on its chip (`Chip`), at first the first output language (`target(last:outputs:)`), in a tone that follows the
-/// app (`tone(app:)`).
+/// app (`tone(app:config:)`).
 /// It is one input method's state across its text fields (`State`): switching to another app leaves it (`appActivated`,
 /// a text field or not), unless that app's profile translates always (`AppProfile.translateAlways`), where its field
 /// keeps it on or turns it on. The composer does the typing (Composer+TranslateMode.swift),
 /// the controller keeps the state and asks the model (`Converter.translateMode`, a request of its own:
 /// `Prompt.translateModeRequest`).
 public enum TranslateMode {
-    /// The tone of a translation: the app's first rewrite style (`AppProfile.rewriteStyles`), else one for the kind of
-    /// app (`AppClass`).
-    public enum Tone: String, CaseIterable, Equatable, Sendable {
-        case natural, casual, formal, concise, tactful, jargon
-
-        /// The tone of a rewrite style (`RewriteStyle.catalog`): Polish is natural.
-        public init(style: RewriteStyle) {
-            switch style.tag {
-            case "CASUAL": self = .casual
-            case "FORMAL": self = .formal
-            case "CONCISE": self = .concise
-            case "TACTFUL": self = .tactful
-            case RewriteStyle.jargonTag: self = .jargon
-            default: self = .natural
-            }
-        }
-
-        /// What the request adds to the translation rules (`Prompt.translateModeRequest`).
-        public var rule: String {
-            let tone: String
-            switch self {
-            case .natural: tone = "natural and neutral, as a native speaker would normally write it"
-            case .casual: tone = "casual and friendly, like chatting with a friend or a close colleague: relaxed everyday words, nothing stiff"
-            case .formal: tone = "formal and polite, as for a manager, a client or an email: professional, courteous wording"
-            case .concise: tone = "concise: as short as possible while keeping every point"
-            case .tactful: tone = "tactful and considerate: bluntness, criticism or a refusal softened, the point kept"
-            case .jargon: tone = "playful big-tech corporate jargon where it fits naturally, the point still recognizable"
-            }
-            return "Tone of the translation: \(tone). The tone changes only the wording: keep the meaning, the facts and the intent."
-        }
-    }
-
-    /// What kind of app a bundle id is, for the tone it gets by default.
-    public enum AppClass: Equatable, Sendable {
-        /// Messaging (WeChat, Slack, Messages, Telegram, Discord, Teams): casual.
-        case chat
-        /// Email (Mail, Outlook, Spark): formal.
-        case mail
-        /// Everything else: natural.
-        case other
-
-        static let chatApps: Set<String> = [
-            "com.tencent.xinwechat", "com.tinyspeck.slackmacgap", "com.apple.mobilesms", "com.apple.ichat",
-            "ru.keepcoder.telegram", "org.telegram.desktop", "com.tdesktop.telegram", "com.hnc.discord",
-            "com.microsoft.teams", "com.microsoft.teams2",
-        ]
-        static let mailApps: Set<String> = [
-            "com.apple.mail", "com.microsoft.outlook", "com.readdle.smartemail-mac", "com.readdle.sparkdesktop",
-            "com.readdle.spark",
-        ]
-
-        /// The class of `app` (a bundle id, any case).
-        public init(app: String?) {
-            let id = app?.lowercased() ?? ""
-            self = Self.chatApps.contains(id) ? .chat : Self.mailApps.contains(id) ? .mail : .other
-        }
-
-        public var tone: Tone {
-            switch self {
-            case .chat: return .casual
-            case .mail: return .formal
-            case .other: return .natural
-            }
-        }
-    }
-
-    /// The tone in `app`: the first of the app's own rewrite styles, else its class's (`AppClass`).
-    public static func tone(app: String?, config: Config) -> Tone {
-        if let first = config.profile(for: app)?.rewriteStyles.map(RewriteStyle.resolve)?.first { return Tone(style: first) }
+    /// The tone in `app` (`AppTone`, AppTone.swift): the first of the app's own rewrite styles, else its class's
+    /// (`AppClass`). `@reply` writes in it too.
+    public static func tone(app: String?, config: Config) -> AppTone {
+        if let first = config.profile(for: app)?.rewriteStyles.map(RewriteStyle.resolve)?.first { return AppTone(style: first) }
         return AppClass(app: app).tone
     }
 
@@ -374,13 +309,13 @@ extension Prompt {
     public static let translateModeVersion = 1
 
     /// The instructions of Translate as You Type: `system(plan)` for one translation line, then the tone.
-    static func translateModeSystem(_ plan: WritingPlan, tone: TranslateMode.Tone) -> String {
+    static func translateModeSystem(_ plan: WritingPlan, tone: AppTone) -> String {
         system(plan) + "\n- " + tone.rule
     }
 
     /// Translate as You Type's request: `input` into `target`, one line, in `tone`. No few-shot turns: the examples are
     /// neutral in tone and only in English and Chinese.
-    public static func translateModeRequest(for input: String, target: OutputLanguage, tone: TranslateMode.Tone,
+    public static func translateModeRequest(for input: String, target: OutputLanguage, tone: AppTone,
                                             config: Config) -> ConverseRequest {
         let plan = TranslateMode.plan(for: input, target: target, config: config)
         return ConverseRequest(

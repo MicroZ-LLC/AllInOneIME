@@ -245,10 +245,10 @@ struct RefineTests {
     }
 
     @Test func questionsAndPromptCommandsRefineTheirAnswer() {
-        let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]).last!
-        for (command, letters) in [(Command.question, "question"), (reply, "reply")] {
+        let respond = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply politely.")]).last!
+        for (command, letters) in [(Command.question, "question"), (respond, "respond")] {
             let c = Composer(engine: FakeEngine(), actionKey: .enter)
-            c.commands = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")])
+            c.commands = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply politely.")])
             c.setInputMode(.english)
             _ = c.handleKeyDown(at)
             _ = type(letters, c)
@@ -363,8 +363,8 @@ struct RefineTests {
         for word in ["weather", "news", "prices", "scores", "today", "can't check live information", "general guidance"] {
             #expect(Prompt.liveDataRule.contains(word), "\(word)")
         }
-        let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]).last!
-        for command in [Command.edit, .agent, reply] { #expect(!Prompt.commandSystem(command).contains(Prompt.liveDataRule)) }
+        let respond = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply politely.")]).last!
+        for command in [Command.edit, .agent, respond] { #expect(!Prompt.commandSystem(command).contains(Prompt.liveDataRule)) }
         #expect(!Prompt.system(styles: RewriteStyle.resolve(RewriteStyle.defaultNames)).contains("live information"))
     }
 

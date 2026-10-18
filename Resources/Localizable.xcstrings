@@ -127,11 +127,15 @@
     "@%@ doesn't use the selection; it stays as it is" : {
       "comment" : "@%@ 不用选中的文字，它保持原样 — Sources/AllInOneIME/InputController.swift"
     },
+    "@agent and @reply take the Chrome page along" : {
+      "comment" : "@agent 和 @reply 带上 Chrome 里的网页 — Sources/AllInOneIME/AgentSettings.swift"
+    },
     "@agent hands it to" : {
       "comment" : "@agent 交给 — Sources/AllInOneIME/AgentSettings.swift"
     },
     "@agent takes the Chrome page along" : {
-      "comment" : "@agent 带上 Chrome 里的网页 — Sources/AllInOneIME/AgentSettings.swift"
+      "comment" : "@agent 带上 Chrome 里的网页 — Sources/AllInOneIME/AgentSettings.swift",
+      "extractionState" : "stale"
     },
     "@agent's agent (%@)" : {
       "comment" : "@agent 的 agent（%@） — Sources/AllInOneIME/QuestionChatPanel.swift"
@@ -302,6 +306,9 @@
     },
     "⌃V paste · ⌫ delete · Esc clear" : {
       "comment" : "⌃V 粘贴 · ⌫ 删字 · Esc 清除 — Sources/AllInOneIME/InputController.swift"
+    },
+    "⌘R three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back" : {
+      "comment" : "⌘R 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回 — Sources/AllInOneIME/InputController.swift"
     },
     "⌘Z undo · Esc close (or @config undo within 10 minutes)" : {
       "comment" : "⌘Z 撤销 · Esc 关闭（10 分钟内也可以用 @config undo 撤销） — Sources/AllInOneIME/AIConfigController.swift",
@@ -889,6 +896,9 @@
     "Continue in Claude or another AI" : {
       "comment" : "在 Claude 或别的 AI 里接着聊 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
+    "Copied message · %@ characters" : {
+      "comment" : "复制的消息 · %@ 字 — Sources/AllInOneIME/InputController.swift"
+    },
     "Copy" : {
       "comment" : "复制 — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
@@ -1258,8 +1268,8 @@
     "In any case" : {
       "comment" : "不分大小写 — Sources/AllInOneIME/PrivacySettings.swift"
     },
-    "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page). Needs Accessibility." : {
-      "comment" : "在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）。需要「辅助功能」权限。 — Sources/AllInOneIME/AgentSettings.swift"
+    "In Chrome, @agent hands the agent the address, the field you're in with its form or section, the selection and what's visible on screen too (never a password field, never the whole page); @reply, with no message selected or pasted, sends the same to your AI provider to write its replies. Needs Accessibility." : {
+      "comment" : "在 Chrome 里打 @agent 时，把网址、你所在的输入框和它所在的表单或区块、选中的文字、屏幕上看得到的内容一起交给 agent（不读密码框，不发整页）；@reply 没有选中或粘贴消息时，把这些发给你选的 AI 服务商来写回复。需要「辅助功能」权限。 — Sources/AllInOneIME/AgentSettings.swift"
     },
     "In English, letters are typed as they are: nothing to set yet." : {
       "comment" : "英文模式直接打字母，暂时没有要设置的。 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2151,6 +2161,12 @@
     "Replace…" : {
       "comment" : "替换… — Sources/AllInOneIME/KeyRow.swift"
     },
+    "reply" : {
+      "comment" : "回复 — Sources/AllInOneIME/UIText.swift"
+    },
+    "Reply: ⌃V their message or a screenshot" : {
+      "comment" : "回复对方：⌃V 粘贴消息或截图 — Sources/AllInOneIME/InputController.swift"
+    },
     "Report an issue on GitHub, with your versions and settings" : {
       "comment" : "报告问题：在 GitHub 上新建问题，附上版本等信息 — Sources/AllInOneIME/UIText.swift"
     },
@@ -2298,6 +2314,9 @@
     },
     "Saving to Notes…" : {
       "comment" : "正在存到备忘录… — Sources/AllInOneIME/InputController.swift"
+    },
+    "Screenshot · %@ lines (read on this Mac)" : {
+      "comment" : "截图 · %@ 行（本机识别） — Sources/AllInOneIME/InputController.swift"
     },
     "Script Extensions" : {
       "comment" : "脚本扩展 — Sources/AllInOneIME/SettingsWindow.swift"
@@ -2644,6 +2663,9 @@
     "The expression is too long: %@ characters at most" : {
       "comment" : "算式太长：最多 %@ 个字符 — Sources/AllInOneIME/UIText.swift",
       "extractionState" : "stale"
+    },
+    "The image stays on this Mac; only its text is sent" : {
+      "comment" : "图片不会离开这台 Mac，只发送认出的文字 — Sources/AllInOneIME/InputController.swift"
     },
     "The input method goes into ~/Library/Input Methods and \"AllInOneIME Settings\" into ~/Applications, and AllInOneIME is added to your input sources. For this user only; no administrator password needed." : {
       "comment" : "输入法装到 ~/Library/Input Methods，「AllInOneIME 设置」装到 ~/Applications，并把 AllInOneIME 加进你的输入法列表。只装给当前用户，不需要管理员密码。 — Sources/AllInOneIMEInstaller/main.swift"
@@ -2994,7 +3016,8 @@
       "extractionState" : "stale"
     },
     "Write a reply" : {
-      "comment" : "写一条回复 — Sources/AllInOneIME/CommandEditor.swift"
+      "comment" : "写一条回复 — Sources/AllInOneIME/CommandEditor.swift",
+      "extractionState" : "stale"
     },
     "Write its command below." : {
       "comment" : "在下面写上命令。 — Sources/AllInOneIME/AgentSettings.swift"
@@ -3010,6 +3033,9 @@
     },
     "Write the instruction for the AI" : {
       "comment" : "写上给 AI 的指令 — Sources/AllInOneIME/CommandEditor.swift"
+    },
+    "write three replies" : {
+      "comment" : "写三条回复 — Sources/AllInOneIME/UIText.swift"
     },
     "Wrong arguments for %@" : {
       "comment" : "%@ 的参数不对 — Sources/AllInOneIME/UIText.swift",

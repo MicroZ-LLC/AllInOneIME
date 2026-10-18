@@ -5,7 +5,7 @@ import Testing
 struct CommandPlanTests {
     let catalog = Command.catalog([
         CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"]),
-        CustomCommand(name: "reply", type: .prompt, prompt: "Reply."),
+        CustomCommand(name: "respond", type: .prompt, prompt: "Reply."),
     ])
 
     func inner(_ text: String) -> [String] {
@@ -37,7 +37,7 @@ struct CommandPlanTests {
     }
 
     @Test func everythingElseIsText() {
-        for text in ["写信给 a@stock AAPL", "@张三 你好", "@stock", "@stock 现在多少", "@reply 好的", "@stockx AAPL", "@open docs"] {
+        for text in ["写信给 a@stock AAPL", "@张三 你好", "@stock", "@stock 现在多少", "@respond 好的", "@stockx AAPL", "@open docs"] {
             let plan = CommandPlan.make(text, commands: catalog)
             #expect(plan.isEmpty, "\(text)")
             #expect(plan.input(outputs: []) == text)
@@ -78,20 +78,20 @@ struct CommandPlanTests {
         let c = Composer(engine: FakeEngine())
         c.setInputMode(.english)
         c.commands = catalog
-        // "@reply 告诉他 @stock AAPL" typed in English mode, then the action key (Return).
+        // "@respond 告诉他 @stock AAPL" typed in English mode, then the action key (Return).
         let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
         let space = KeyEvent(keyCode: VirtualKey.space, characters: " ")
-        for ch in "@reply 告诉他 @stock AAPL" {
+        for ch in "@respond 告诉他 @stock AAPL" {
             _ = c.handleKeyDown(ch == "@" ? at : ch == " " ? space : k(String(ch)))
         }
-        #expect(c.draft == "@reply 告诉他 @stock AAPL")
+        #expect(c.draft == "@respond 告诉他 @stock AAPL")
         let effects = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r")).effects
         guard case let .startPlan(outer, plan, id)? = effects.first else {
             Issue.record("expected a plan, got \(effects)")
             return
         }
-        #expect(outer?.name == "reply" && id == 1 && plan.inner.map(\.argument) == ["AAPL"])
-        #expect(effects.contains(.commandUsed("reply")) && effects.contains(.commandUsed("stock")))
+        #expect(outer?.name == "respond" && id == 1 && plan.inner.map(\.argument) == ["AAPL"])
+        #expect(effects.contains(.commandUsed("respond")) && effects.contains(.commandUsed("stock")))
     }
 }
 

@@ -121,9 +121,13 @@ public final class Composer {
         case startPlan(outer: Command?, plan: CommandPlan, id: Int)
         /// Put `text` on the clipboard (⌘C on a result, or a note that can't be inserted: `Messages.noteNotSaved`).
         case copy(String)
-        /// Read the clipboard's text for the draft (⌘V) and hand it to `pasted(_:id:)`, after the key
-        /// has been answered: the system may ask the user first.
+        /// Read the clipboard for the draft (⌘V) and hand it to `pasted(_:id:)` (`ClipboardContent`: its text, else an
+        /// image), after the key has been answered: the system may ask the user first.
         case readClipboard(id: Int)
+        /// Read the text in a screenshot pasted into the draft, on the device (`ScreenText.recognize` with
+        /// `Platform.current.text`), and hand it to `recognized(_:id:)`, or why not to `recognitionFailed(_:id:)`
+        /// (Composer+Reply.swift).
+        case recognizeText(image: Data, id: Int)
         case cancelConversion
         /// Show or refresh the candidate panel.
         case showPanel
@@ -263,6 +267,8 @@ public final class Composer {
         public var agentNames: [AgentKind: String] = [:]
         /// The action key's name in the interface language (the controller sets it).
         public var actionKeyName = "⏎"
+        /// What `@reply` and a screenshot in a draft say (Composer+Reply.swift).
+        public var reply = ReplyMessages.chinese
 
         /// Asks before running a script (`confirm`).
         public func confirm(_ script: ScriptCommand) -> String {
@@ -321,7 +327,8 @@ public final class Composer {
                 scriptRan: t.tr("已运行：", "Ran "),
                 scriptStarted: t.tr("在后台运行，完成后通知你：", "Running in the background, you'll be notified: "),
                 cantOpen: t.tr("打不开：", "Can't open: "),
-                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"))
+                openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"),
+                reply: .make(language: language))
         }
 
         public static let chinese = make(language: "zh-Hans")
@@ -551,11 +558,15 @@ public final class Composer {
                 // The draft is done (Esc, inserted, given up, the app took it): a recent question picked in it isn't
                 // picked in the next one, even with the same text.
                 questionPick = nil
+                replyState.draftEnded()  // its attachment (a screenshot, a copied message) goes with it
             }
         }
     }
     /// The draft a script extension asked about (`confirm`): the action key on it again runs it.
     private var confirmedScript: String?
+    /// `@reply` and a screenshot pasted into the draft: the attachment, the recognition asked for, the shell's hooks
+    /// (Composer+Reply.swift).
+    var replyState = ReplyState()
     /// What the script extension of the request in level two printed (so far, for `show`).
     public private(set) var scriptOutput: ScriptOutput?
     /// The list a `list` command printed for the text as it's typed (`listQuery`), and the highlighted row.
@@ -849,6 +860,7 @@ public final class Composer {
         case .generate?, .run?, .link?:
             // An @question conversation: every round's answer, numbered (the questions aren't picked).
             if let chat = chatChoices { return chat }
+            if activeCommand == .reply { return replyChoices }
             var out = [Choice(label: "0", kind: .original, text: originalText, isComplete: true)]
             if let line = result.versions.first {
                 out.append(Choice(label: "1", kind: .answer, text: line.text, isComplete: line.isComplete))
@@ -903,6 +915,7 @@ public final class Composer {
             || activeCommand?.kind == .message || activeCommand?.kind == .report { return 0 }
         // A conversation: its latest answer (still coming in, it can't be picked yet).
         if isQuestionChat { return max(all.count - 1, 0) }
+        if let first = replyHighlight(all) { return first }
         if case .translating = phase { return 1 }
         // The first version, answer or translation (`@translate` into several languages has no versions).
         if let i = all.firstIndex(where: {
@@ -926,7 +939,7 @@ public final class Composer {
 
     /// `effects` for a field the draft isn't in (`draftInPanel`): nothing is marked there, so what would show the
     /// marked text again shows the panel.
-    private func forField(_ effects: [Effect]) -> [Effect] {
+    func forField(_ effects: [Effect]) -> [Effect] {
         guard draftInPanel, effects.contains(.updateMarkedText) else { return effects }
         let panel = effects.contains(.showPanel) || effects.contains(.hidePanel)
         return effects.filter { $0 != .updateMarkedText } + (panel ? [] : [.showPanel])
@@ -1377,6 +1390,8 @@ public final class Composer {
         }
         // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
         if let response = handleHandoffKey(event) { return response }
+        // ⌘R on @reply's replies: three more (Composer+Reply.swift).
+        if let response = handleReplyKey(event) { return response }
         // A word at a time is no shortcut where its modifier is the shortcuts' too (Ctrl+← on Windows): it moves on below.
         let byWord = leftOrRight && modifiers.subtracting(.shift) == Modifiers.kind(roles.word)
         if modifiers.contains(primary), !byWord {
@@ -1910,22 +1925,33 @@ public final class Composer {
         return .readClipboard(id: pasteCounter)
     }
 
-    /// The clipboard's text for ⌘V `id` (nil: no text, or it may not be read): it continues the draft,
-    /// as pasting continues a text. Dropped when the draft has been sent or cleared meanwhile.
-    public func pasted(_ clipboard: String?, id: Int) -> [Effect] { forField(paste(clipboard, id: id)) }
+    /// The clipboard for ⌘V `id` (`ClipboardContent`): its text continues the draft, as pasting continues a text (in
+    /// `@reply`, it is the message replied to); an image is a screenshot, its text read on the device
+    /// (Composer+Reply.swift); none (or it may not be read): a notice. Dropped when the draft has been sent or cleared
+    /// meanwhile.
+    public func pasted(_ content: ClipboardContent, id: Int) -> [Effect] { forField(paste(content, id: id)) }
 
     /// `pasted`, before `forField`.
-    private func paste(_ clipboard: String?, id: Int) -> [Effect] {
+    private func paste(_ content: ClipboardContent, id: Int) -> [Effect] {
         guard pendingPaste == id else { return [] }
         pendingPaste = nil
         guard !isLevelTwo, voice == .off, !draft.isEmpty else { return [] }
+        switch content {
+        case let .text(text): return pasteReplyMessage(text) ?? insertPasted(text)
+        case let .image(image): return pasteScreenshot(image)
+        case .none: return [.notice(messages.nothingToPaste)]
+        }
+    }
+
+    /// Text from the clipboard (or a screenshot's, for a command without AI) into the draft at the cursor.
+    func insertPasted(_ clipboard: String) -> [Effect] {
         // A note keeps its lines and may be longer; every other command takes one line (its answer has one per row).
         let note = draftCommand?.kind == .note
         let limit = note ? Self.maxNoteLength : Self.maxPasteLength
         let tooLong = note ? messages.noteTooLong : messages.pasteTooLong
         // Far too much is refused before it is looked at (this runs on the main thread).
-        if let clipboard, clipboard.utf16.count > limit * 8 { return [.notice(tooLong)] }
-        let text = clipboard.map(note ? Self.noteText : Self.oneLine) ?? ""
+        if clipboard.utf16.count > limit * 8 { return [.notice(tooLong)] }
+        let text = (note ? Self.noteText : Self.oneLine)(clipboard)
         guard !text.isEmpty else { return [.notice(messages.nothingToPaste)] }
         guard text.count <= limit else { return [.notice(tooLong)] }
         insertIntoDraft(text)
@@ -2181,6 +2207,8 @@ public final class Composer {
                 if let engine, !engine.snapshot().isAsciiMode { typeLetters(engine) }  // names, pinyin, numbers: typed as letters
                 return .consumed([.updateMarkedText, .showPanel])
             }
+            // Nothing typed after the command: the attachment goes first (Composer+Reply.swift).
+            if removeAttachment() { return .consumed([.updateMarkedText, .showPanel]) }
             deleteBeforeCursor()
             if draft.isEmpty, selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
             setLevelOnePhase()
@@ -2576,7 +2604,7 @@ public final class Composer {
         handoffRequested = false
     }
 
-    private func startAction() -> Response {
+    func startAction() -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
         let parsed = parse(draft)
@@ -2584,16 +2612,21 @@ public final class Composer {
         guard parsed != nil else { return .consumed() }
         resetRefine()
         let typed = sentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `@reply`, and any command while its screenshot is still being read (Composer+Reply.swift).
+        if let response = startReply(parsed!.command, typed: typed) { return response }
         // The text selected when the draft started (`selectionInUse`): the command's text when nothing is typed after
         // it; a question typed after it is about it. Otherwise what is typed is the text (and for `@improve` and
-        // `@translate`, below, an instruction for the selection).
-        let selected = selectionInUse
-        let input: String
+        // `@translate`, below, an instruction for the selection). A screenshot's text (`screenshotText`): what
+        // `@improve` and `@translate` work on when nothing is selected, what the AI's other commands are about.
+        let screenshot = screenshotText(for: parsed!.command)
+        let selected = selectionInUse ?? (parsed?.command.kind == .convert ? screenshot : nil)
+        var input: String
         if let selected, !typed.isEmpty {
             input = parsed?.command.kind == .generate ? Prompt.question(typed, about: selected) : typed
         } else {
             input = selected ?? typed
         }
+        if let screenshot, parsed?.command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
         if let command = parsed?.command, command.kind == .message { return startMessage(command, input: input) }
         if parsed?.command.kind == .settings, !isLevelTwo {
             return .consumed(finish(committing: "") + [.openSettings, used(parsed!.command)])
@@ -2642,7 +2675,8 @@ public final class Composer {
         // draft, commands that run code stay text (`draftHasOutsideText`).
         let local = parsed?.command.kind == .search || parsed?.command.kind == .reminder
         // Never inside a selection, text the user didn't write here (nor, with one, inside what is typed: one request).
-        let inner = local || parsed?.command.runsCode == true || selected != nil ? nil : innerPlan(input)
+        // Nor inside a screenshot's text.
+        let inner = local || parsed?.command.runsCode == true || selected != nil || screenshot != nil ? nil : innerPlan(input)
         let (plan, codeLeft) = (inner?.plan, inner?.codeLeft == true)
         if let command = parsed?.command, command.kind == .link, plan?.isEmpty != false {
             // A password field's text must not end up in an address (and the browser's history).
@@ -2652,25 +2686,19 @@ public final class Composer {
             case let .refused(message): return .consumed([.updateMarkedText, .notice(message)])  // the draft stays
             }
         }
-        requestCounter += 1
-        phase = .translating(id: requestCounter)
-        result = .empty
-        searchResults = []
-        pendingReminder = nil
-        highlightOverride = nil
-        activeCommand = parsed?.command
+        let id = beginRequest(parsed?.command)
         let start: Effect
         switch parsed?.command {
         case _ where plan?.isEmpty == false:
-            start = .startPlan(outer: parsed?.command, plan: plan!, id: requestCounter)
+            start = .startPlan(outer: parsed?.command, plan: plan!, id: id)
         case let command? where command.kind == .convert && selected != nil:
-            start = writing(command, typed: typed, selection: selected!, id: requestCounter)
-        case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: requestCounter)
-        case let command? where command.kind == .run: start = .startRun(command, input: input, id: requestCounter)
-        case .open?: start = .search(query: input, id: requestCounter)
+            start = writing(command, typed: typed, selection: selected!, id: id)
+        case let command? where command.kind == .generate: start = .startCommand(command, input: input, id: id)
+        case let command? where command.kind == .run: start = .startRun(command, input: input, id: id)
+        case .open?: start = .search(query: input, id: id)
         // Read by the controller on this Mac (nothing is sent anywhere, so secure input doesn't hold it back).
-        case .reminder?: start = .previewReminder(input: input, id: requestCounter)
-        default: start = .startConversion(input: input, id: requestCounter)
+        case .reminder?: start = .previewReminder(input: input, id: id)
+        default: start = .startConversion(input: input, id: id)
         }
         // What the results can be refined from: the AI's answers (not a program's output, nor a text with commands
         // inside it, whose outputs the model saw but the composer doesn't have).
@@ -2681,8 +2709,27 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        let usage = ((parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? [])).map(used)
-        return .consumed([start, .updateMarkedText, .showPanel] + usage + (codeLeft ? [.notice(messages.codeNotRun)] : []))
+        return requestStarted(start, commands: (parsed.map { [$0.command] } ?? []) + (plan?.inner.map(\.command) ?? []),
+                              codeLeft: codeLeft)
+    }
+
+    /// A request for `command` starts (`startAction`, `startReply`): its id, level two waiting for it, the results, search
+    /// results and reminder before it gone.
+    func beginRequest(_ command: Command?) -> Int {
+        requestCounter += 1
+        phase = .translating(id: requestCounter)
+        result = .empty
+        searchResults = []
+        pendingReminder = nil
+        highlightOverride = nil
+        activeCommand = command
+        return requestCounter
+    }
+
+    /// The response to the action key once `start` is the request's effect (`beginRequest`): the panel shows it, each of
+    /// `commands` (it and those inside its text) counts as used, and code in the text that wasn't run (`codeLeft`) is said.
+    func requestStarted(_ start: Effect, commands: [Command], codeLeft: Bool) -> Response {
+        .consumed([start, .updateMarkedText, .showPanel] + commands.map(used) + (codeLeft ? [.notice(messages.codeNotRun)] : []))
     }
 
     /// `@improve` / `@translate` on the selection: its versions and rewrites as for a typed sentence when nothing else is
@@ -2945,7 +2992,7 @@ public final class Composer {
     /// The commands inside `input` that run first. With text the user didn't type in the draft (pasted,
     /// dictated, given back), commands that run code stay text (`draftHasOutsideText`); `codeLeft`: some
     /// did, which a notice says.
-    private func innerPlan(_ input: String) -> (plan: CommandPlan, codeLeft: Bool) {
+    func innerPlan(_ input: String) -> (plan: CommandPlan, codeLeft: Bool) {
         guard draftHasOutsideText else { return (CommandPlan.make(input, commands: commands), false) }
         let plan = CommandPlan.make(input, commands: commands.filter { !$0.runsCode })
         return (plan, CommandPlan.make(input, commands: commands).inner.contains { $0.command.runsCode })
@@ -3118,6 +3165,8 @@ public final class Composer {
             // Sent, not inserted: the draft goes.
             return finish(committing: "") + [.sendMessage(recipient, text: all[index].text, command: command), used(command)]
         }
+        // A reply goes in after the message selected (Composer+Reply.swift).
+        if let effects = commitReply(all[index]) { return effects }
         if typesResults { return finish(committing: "", selection: .replaced) + [.typeOut(all[index].text)] }
         return finish(committing: all[index].text)
     }
@@ -3286,10 +3335,11 @@ extension Composer {
     }
 
     /// An `@question` answered (`receive`, final): kept with its question, newest first (`questionHistory`), unless the
-    /// setting is off, secure input is on, it was asked on selected text or it's a saved answer shown again.
+    /// setting is off, secure input is on, it was asked on selected text or with something attached (a screenshot's text,
+    /// someone else's, isn't kept, nor synced; asked again later, it wouldn't be there), or it's a saved answer shown again.
     func rememberAnswer() -> [Effect] {
         guard remembersQuestions, phase == .choosing, recalled == nil, activeCommand == .question, selection == nil,
-              !secureInputActive(), let answer = result.versions.first, answer.isComplete,
+              attachment == nil, !secureInputActive(), let answer = result.versions.first, answer.isComplete,
               !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         let question = sentText
         guard !question.isEmpty else { return [] }
