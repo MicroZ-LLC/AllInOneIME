@@ -2315,7 +2315,7 @@ final class AllInOneIMEInputController: IMKInputController {
                                          + "\n" + issue.lines.map { "· " + $0 }.joined(separator: "\n"))
                 }
                 model.footer = tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
-            case .choosing where command == .reply && composer.refineLine == nil && composer.refineError == nil:
+            case .choosing where composer.offersMoreReplies && composer.refineLine == nil && composer.refineError == nil:
                 // @reply's three: ⌘R three more; a letter starts an instruction for them, as for any AI's results.
                 model.footer = tr("⌘R 再写三条 · 打字后 ⇧⏎ 修改 · 空格 / ⏎ 上屏 · 数字选择 · Esc 返回",
                                   "⌘R three more · Type, ⇧⏎ refine · Space / ⏎ insert · digits pick · Esc back")

@@ -246,12 +246,18 @@ extension Composer {
         return finish(committing: selected.text + "\n" + choice.text, selection: .replaced)
     }
 
-    /// ⌘R on `@reply`'s replies: three more (a refine with `moreReplies`); Esc goes back to these. Nil: the key acts as
-    /// usual.
+    /// Whether ⌘R asks for three more replies now (`handleReplyKey`): `@reply`'s are up and can be refined (not while
+    /// they come in, nor after commands inside what was typed, `@reply … @stock`). The footer offers it only then.
+    public var offersMoreReplies: Bool { activeCommand == .reply && canRefine }
+
+    /// ⌘R on `@reply`'s replies: three more (a refine with `moreReplies`); Esc goes back to these. While `@reply`'s panel
+    /// is up the key never reaches the app (Mail replies on it, Chrome reloads): when there can't be more yet (still
+    /// coming in, or after a plan), it does nothing. Nil: not `@reply`'s, the key acts as usual.
     func handleReplyKey(_ event: KeyEvent) -> Response? {
         let modifiers = event.modifiers.subtracting(.capsLock), primary = Modifiers.kind(modifierRoles.primary)
-        guard activeCommand == .reply, phase == .choosing, canRefine, modifiers == primary,
+        guard activeCommand == .reply, isLevelTwo, modifiers == primary,
               event.charactersIgnoringModifiers.lowercased() == "r" else { return nil }
+        guard offersMoreReplies else { return .consumed() }
         if let engine, engine.snapshot().isComposing {
             engine.clearComposition()
             refreshEngineState()

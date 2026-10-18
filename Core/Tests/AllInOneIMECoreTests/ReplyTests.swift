@@ -119,6 +119,43 @@ struct ReplyTests {
         #expect(input?.contains("你好") == true && input?.contains("明天见") == true, "\(out)")
     }
 
+    @Test func commandRNeverReachesTheAppWhileRepliesAreUp() throws {
+        let commandR = k("r", mods: .command)
+        func refines(_ effects: [Composer.Effect]) -> Bool { effects.contains { if case .startRefine = $0 { true } else { false } } }
+        let replies = ConversionResult(versions: [CandidateLine("Sure"), CandidateLine("OK"), CandidateLine("No")])
+        // Still coming in: consumed, nothing asked.
+        let c = draft("reply")
+        paste(.text("Lunch?"), c)
+        guard case let .startCommand(_, _, id)? = c.handleKeyDown(enterKey).effects.first else {
+            Issue.record("no request")
+            return
+        }
+        #expect(!c.offersMoreReplies)
+        let early = c.handleKeyDown(commandR)
+        #expect(early.handled && !refines(early.effects), "\(early.effects)")
+        _ = c.receive(replies, isFinal: true, id: id)
+        #expect(c.offersMoreReplies)
+        let more = c.handleKeyDown(commandR)
+        #expect(more.handled && refines(more.effects))
+
+        // After commands inside what was typed: no refine, and the key still isn't the app's.
+        let stock = CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])
+        let p = draft("reply", commands: Command.catalog([stock]))
+        type("tell her @stock AAPL", p)
+        guard case let .startPlan(_, _, planID)? = p.handleKeyDown(enterKey).effects.first else {
+            Issue.record("no plan")
+            return
+        }
+        _ = p.receive(replies, isFinal: true, id: planID)
+        #expect(p.phase == .choosing && !p.offersMoreReplies)
+        let none = p.handleKeyDown(commandR)
+        #expect(none.handled && !refines(none.effects), "\(none.effects)")
+
+        // No @reply up: the app's.
+        let idle = Composer(engine: FakeEngine(), actionKey: .enter)
+        #expect(!idle.handleKeyDown(commandR).handled)
+    }
+
     @Test func anImageTooLargeIsSaidAndNothingIsRead() {
         let c = draft("reply")
         let out = paste(.image(Data(count: Composer.maxImageBytes + 1)), c)
