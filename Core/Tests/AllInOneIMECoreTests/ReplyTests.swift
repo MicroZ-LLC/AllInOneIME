@@ -105,6 +105,20 @@ struct ReplyTests {
         #expect(Prompt.withScreenshot(" ", "x").hasPrefix(Prompt.screenshotRule))
     }
 
+    @Test func aScreenshotInATranslateAsYouTypeDraftGoesInAsText() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.commands = Command.builtins
+        _ = c.setTranslateMode(TranslateMode.Session(target: .english))
+        for ch in "nihao" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(spaceKey)
+        #expect(!c.draft.isEmpty && c.draftCommand == nil)
+        _ = screenshot(["明天见"], c)
+        #expect(c.attachment == nil)
+        let out = c.handleKeyDown(enterKey).effects
+        let input = out.compactMap { if case let .startTranslateMode(input, _, _) = $0 { input } else { nil } }.first
+        #expect(input?.contains("你好") == true && input?.contains("明天见") == true, "\(out)")
+    }
+
     @Test func anImageTooLargeIsSaidAndNothingIsRead() {
         let c = draft("reply")
         let out = paste(.image(Data(count: Composer.maxImageBytes + 1)), c)

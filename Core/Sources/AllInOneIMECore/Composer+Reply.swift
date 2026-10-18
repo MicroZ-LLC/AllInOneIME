@@ -113,8 +113,9 @@ extension Composer {
             return [.notice(messages.reply.noText), .updateMarkedText, .showPanel]
         }
         var effects: [Effect]
-        if let command = draftCommand, !isLevelTwo, Self.pastesScreenshot(command) {
-            // A command without AI, or `@agent`: the text goes in as clipboard text would.
+        if !isLevelTwo, draftCommand.map(Self.pastesScreenshot) ?? true {
+            // A command without AI, `@agent`, or none (a Translate as You Type draft): the text goes in as clipboard text
+            // would.
             attachment = nil
             effects = insertPasted(text.text)
         } else if draftCommand?.kind == .convert, selectionInUse != nil {
