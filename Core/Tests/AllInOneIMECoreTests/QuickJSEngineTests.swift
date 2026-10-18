@@ -207,6 +207,7 @@ struct OnQuickJSTests {
             try tests.javaScriptIsREPLStyle()
             try tests.javaScriptHasNothingButTheLanguage()
             tests.javaScriptErrorsAreOneLine()
+            tests.javaScriptErrorLinesAreTheCodes()
         }
     }
 

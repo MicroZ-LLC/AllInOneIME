@@ -21,8 +21,9 @@ final class QuickJSRuntime {
     /// What it may allocate. Freed after QuickJS's runtime (stored properties go after `deinit`), which frees through it.
     private let memory: MemoryBudget
 
-    /// The file name QuickJS's messages and stacks give the scripts.
-    static let fileName = "<input>"
+    /// The file name QuickJS's messages and stacks give the scripts: one of ours, since QuickJS calls the text it parses
+    /// for `JSON.parse` and `eval` "<input>", and only the scripts' own places in a stack are their lines (`addLine`).
+    static let fileName = "<allinoneime>"
 
     init?(memoryLimit: Int) {
         let memory = MemoryBudget(limit: memoryLimit)
@@ -125,8 +126,10 @@ final class QuickJSRuntime {
         return QuickJSValue(self, value)
     }
 
-    /// The line an error was made on, as JavaScriptCore gives it (`line`), from the first place in its stack that has one
-    /// ("    at f (<input>:3:7)", "    at <input>:1:4" for a syntax error). `InlineCode` shows it.
+    /// The line an error was made on, as JavaScriptCore gives it (`line`), from the first place in its stack that is in
+    /// a script of ours ("    at f (<allinoneime>:3:7)", "    at <allinoneime>:1:4" for a syntax error), not in what
+    /// `JSON.parse` or `eval` parsed ("    at <input>:4:1"): the line of the call, as JavaScriptCore has it. `InlineCode`
+    /// shows it.
     private func addLine(to error: JSValue) {
         guard JS_IsError(error), JS_IsObject(error) else { return }
         let has = JS_GetPropertyStr(ctx, error, "line")
@@ -142,9 +145,11 @@ final class QuickJSRuntime {
             return
         }
         for frame in text.split(whereSeparator: \.isNewline) {
-            let place = frame.hasSuffix(")") ? frame.dropLast() : frame[...]
+            guard let file = frame.range(of: Self.fileName + ":", options: .backwards) else { continue }
+            let rest = frame[file.upperBound...]
+            let place = rest.hasSuffix(")") ? rest.dropLast() : rest
             let parts = place.split(separator: ":", omittingEmptySubsequences: false)
-            guard parts.count >= 3, Int(parts[parts.count - 1]) != nil, let line = Int32(parts[parts.count - 2]) else { continue }
+            guard parts.count == 2, Int(parts[1]) != nil, let line = Int32(parts[0]) else { continue }
             JS_DefinePropertyValueStr(ctx, error, "line", JS_NewInt32(ctx, line), Int32(JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE))
             return
         }
