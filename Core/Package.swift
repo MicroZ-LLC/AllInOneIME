@@ -47,7 +47,9 @@ let package = Package(
         .target(name: "AllInOneIMEScriptEngine"),
 
         // QuickJS-ng (QuickJSEngine): plugins and @js where there is no JavaScriptCore. On Apple platforms only the
-        // tests link it, to run the JavaScript tests on both engines.
+        // tests use it, to run the JavaScript tests on both engines; Swift Build still compiles CQuickJS there and links
+        // its object into every debug product (the app's too, about 480 JS_* functions), and release builds dead-strip
+        // it. This Swift module itself isn't linked into them.
         .target(name: "AllInOneIMEQuickJS", dependencies: ["AllInOneIMEScriptEngine", "CQuickJS"]),
 
         // QuickJS-ng's C sources as released (VENDORED.md), its header and quickjs-swift.h for Swift (module.modulemap).
@@ -96,8 +98,13 @@ let package = Package(
             path: "Scripts/StringsPlugin"
         ),
 
-        // AllInOneIMEQuickJS first: Swift Build (SwiftPM's default build system in Swift 6.4) goes by the first edge it
-        // meets to a target, and the core's to it (off Apple platforms only) left it unlinked on the Mac.
+        // AllInOneIMEQuickJS first. Swift Build (SwiftPM's default build system in Swift 6.4) takes a target into a
+        // product once, by the first edge it meets to it in the dependency graph, with that edge's platform condition.
+        // Listed after AllInOneIMECore, the first edge would be the core's, which is off Apple platforms only, and the
+        // tests' own (unconditional) one would be ignored: on the Mac the link fails, QuickJSEngine's protocol witness
+        // table undefined. It fails loudly, never quietly. (No upstream issue found to link; observed with Swift 6.4,
+        // 2026-10.) A shell on Apple platforms that depends on the AllInOneIMEQuickJS product needs it before the core
+        // the same way.
         .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMEQuickJS", "AllInOneIMECore", "AllInOneIMETestSupport"],
                     exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
                     resources: [.copy("Fixtures")]),
