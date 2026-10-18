@@ -478,7 +478,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
 - API keys and passwords go through iCloud Keychain, not iCloud Drive: with "API keys and passwords" on (while sync is
   on), a key saved or replaced on one Mac is there on the others. When two Macs have different keys, the one saved last
-  wins (by when it was saved, which every copy keeps), and the other isn't deleted: it stays where it was, unused.
+  wins (by when it was saved, which every copy keeps), and the other isn't deleted: it's kept on its Mac as a copy
+  (under "AllInOneIME replaced API key") that is never used, so it can't come back, and Remove… deletes it too.
   Turning it on moves this Mac's keys into iCloud Keychain, and turning it off copies them back to this Mac and leaves
   them in iCloud Keychain for your other Macs. Removing a key while it syncs removes it on every Mac that syncs keys
   (the question says "all your Macs"); a Mac with "API keys and passwords" off keeps its own copy, and puts it back if
@@ -486,8 +487,10 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   Mac"), and the copy in iCloud Keychain stays for your other Macs. Each key still goes only
   to the host it was saved for. The AllInOneIME Cloud sign-in never syncs: each Mac signs in itself. A key saved in the
   login keychain by an earlier version moves once to the data protection keychain (at launch, or when it's first used),
-  so macOS no longer asks for your login password after an update. A build without the provisioning profile (a
-  development build) keeps keys in the login keychain and can't sync them: the row says so.
+  so macOS no longer asks for your login password after an update. Keys that stay on a Mac aren't tied to it, so
+  Migration Assistant can take them to a new Mac, as it did the login keychain; the AllInOneIME Cloud sign-in is tied to
+  its Mac (sign in again on the new one). A build without the provisioning profile (a development build) keeps keys in
+  the login keychain and can't sync them: the row says so.
 - Never synced: the AllInOneIME Cloud sign-in, AWS credentials (in `~/.aws`), extension sources (they run code: each Mac decides),
   extension folders and plugins (paths on each Mac), the apps without typos and the recent apps, window state, and the
   sync switches themselves (each Mac's own).
