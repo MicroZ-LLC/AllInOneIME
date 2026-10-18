@@ -197,11 +197,13 @@ extension Composer {
         case let .screenshot(.ready(text))?: screen = text
         case .screenshot(.recognizing)?, nil: break
         }
-        let context = ReplyContext.make(intent: typed, selection: selectionInUse, message: message, screen: screen,
+        // Snippets inside what is typed (`@sig`) are put in at once (`innerPlan`): the intent is the text with them.
+        let (plan, snippets, codeLeft) = innerPlan(typed)
+        let intent = plan.isEmpty ? plan.input(outputs: []) : typed
+        let context = ReplyContext.make(intent: intent, selection: selectionInUse, message: message, screen: screen,
                                         field: readFieldText(), provider: provider)
         if context.isEmpty, !pageContextApplies() { return .consumed([.notice(messages.reply.hint)]) }
         if let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
-        let (plan, codeLeft) = innerPlan(typed)
         let input = Prompt.replyMessage(context)
         replyState.context = context
         let id = beginRequest(command)
@@ -214,7 +216,7 @@ extension Composer {
             refineRequest = nil
             start = .startPlan(outer: command, plan: plan, id: id)
         }
-        return requestStarted(start, commands: [command] + plan.inner.map(\.command), codeLeft: codeLeft)
+        return requestStarted(start, commands: [command] + snippets + plan.inner.map(\.command), codeLeft: codeLeft)
     }
 
     /// `@reply`'s rows: "0" what was typed (none when nothing was), "1"–"3" the replies.

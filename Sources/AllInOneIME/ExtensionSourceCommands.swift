@@ -233,14 +233,23 @@ enum ExtensionSourceCommands {
         let unreviewed = Set(ExtensionSources.untrustedFolders(in: config, statuses: statuses, root: options.root).map(ExtensionSources.comparable))
         let index = ExtensionStore.load(ExtensionSources.loadFolders(config, found: LiveExtensions.found, statuses: statuses, root: options.root))
         let enabled = index.enabled(config.disabledExtensions)
-        let names = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
-            .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
-        let hidden = Dictionary(Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
+        let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
+        let catalog = Command.catalog(config.customCommands, plugins: plugins, scripts: enabled, snippets: enabledSnippets)
+        let names = Dictionary(catalog.compactMap { command in command.script.map { ($0.id, command.name) } },
+                               uniquingKeysWith: { first, _ in first })
+        let hidden = Dictionary(Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins, snippets: enabledSnippets)
             .map { ($0.script.id, ScriptCommand.Problem.nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
+        // A bundle's snippets: the name each got ("<bundle>/<name>" → it), and the ones left out.
+        let snippetNames = Dictionary(catalog.compactMap { command -> (String, String)? in
+            guard command.kind == .snippet, let bundle = command.bundle, let custom = command.custom else { return nil }
+            return (bundle + "/" + custom.name, command.name)
+        }, uniquingKeysWith: { first, _ in first })
+        let hiddenSnippets = Dictionary(Command.hiddenSnippets(enabledSnippets, scripts: enabled, custom: config.customCommands, plugins: plugins)
+            .map { ($0.snippet.id, ScriptCommand.Problem.nameTaken($0.snippet.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         let sources = config.extensionSources.map { ($0.url, ExtensionSources.comparable(ExtensionSources.bundleFolder(for: $0, root: options.root).path)) }
-        func origin(_ command: ScriptCommand) -> String {
-            let folder = ExtensionSources.comparable(command.extensionDirectory.path)
-            return sources.first { $0.1 == folder }?.0 ?? ExtensionStore.abbreviated(command.extensionDirectory.path)
+        func origin(_ directory: URL) -> String {
+            let folder = ExtensionSources.comparable(directory.path)
+            return sources.first { $0.1 == folder }?.0 ?? ExtensionStore.abbreviated(directory.path)
         }
         for command in index.commands {
             let shown = names[command.id].map { "@" + $0 } ?? "@" + command.name
@@ -248,7 +257,17 @@ enum ExtensionSourceCommands {
             if !enabled.contains(command) { note = "  [off]" } else if let problem = hidden[command.id] {
                 note = "  [left out: " + UIText.describe(problem, file: command.file) + "]"
             }
-            print("\(shown)\t\(command.output.rawValue)\t\(origin(command))\(note)")
+            print("\(shown)\t\(command.output.rawValue)\t\(origin(command.extensionDirectory))\(note)")
+        }
+        for snippet in index.snippets {
+            let shown = "@" + (snippetNames[snippet.id] ?? snippet.name)
+            let folder = index.bundles.first { $0.name == snippet.bundle }?.folder
+            let manifest = (folder ?? URL(fileURLWithPath: "/")).appendingPathComponent(ExtensionBundle.manifestName)
+            var note = ""
+            if !enabledSnippets.contains(snippet) { note = "  [off]" } else if let problem = hiddenSnippets[snippet.id] {
+                note = "  [left out: " + UIText.describe(problem, file: manifest) + "]"
+            }
+            print("\(shown)\tsnippet\t\(folder.map(origin) ?? snippet.bundle)\(note)")
         }
         for folder in unreviewed.sorted() {
             print("skipped\t\(ExtensionStore.abbreviated(folder))\tan extension source's folder that isn't reviewed here (--add-source to review it)")

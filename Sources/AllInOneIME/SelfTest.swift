@@ -3068,6 +3068,7 @@ enum SelfTest {
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
         testAtAfterAWord(controller, client)
+        testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
@@ -3080,6 +3081,7 @@ enum SelfTest {
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
+        testSnippetEditorAndReview(snapshotDirectory: snapshotDirectory)
 
         section("error display (an invalid Bedrock model)", needs: [.composing, .bedrock])
         controller.converter = Converter(loadConfig: {

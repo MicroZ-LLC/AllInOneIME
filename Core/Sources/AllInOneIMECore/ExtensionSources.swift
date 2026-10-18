@@ -622,6 +622,15 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         public var status: String? = nil
     }
 
+    /// A text the bundle ships to insert (`BundleSnippet`): it runs nothing.
+    public struct Snippet: Equatable, Sendable {
+        public var name: String
+        /// Its row in the command list: its summary, or the start of its text (`Command.snippetRowText`).
+        public var text: String
+        /// Why it won't be offered (other commands have its name and alias), nil when it will.
+        public var hidden: ScriptCommand.Problem?
+    }
+
     public var url: String
     public var commit: String?
     public var commitDate: Date?
@@ -631,6 +640,7 @@ public struct ExtensionSourceReview: Equatable, Sendable {
     /// Why the bundle as a whole can't be loaded (no or bad `extension.json`, another bundle has its name).
     public var problem: ScriptCommand.Problem?
     public var commands: [Command]
+    public var snippets: [Snippet] = []
     /// Its entries that can't be loaded, and why (a script missing or not runnable, a name twice).
     public var skipped: [ExtensionStore.Skipped]
 
@@ -657,8 +667,20 @@ public struct ExtensionSourceReview: Equatable, Sendable {
         let manifest = folder.appendingPathComponent(ExtensionBundle.manifestName).path
         let problem = bundle == nil ? mine.first { $0.file.standardizedFileURL.path == manifest }?.problem ?? .badBundle(.notJSON) : nil
         let enabled = index.enabled(config.disabledExtensions)
-        let hidden = Dictionary(AllInOneIMECore.Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
+        let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
+        let hidden = Dictionary(AllInOneIMECore.Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins,
+                                                                      snippets: enabledSnippets)
             .map { ($0.script.id, ScriptCommand.Problem.nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { (a: ScriptCommand.Problem, _: ScriptCommand.Problem) in a })
+        let hiddenSnippets = Dictionary(AllInOneIMECore.Command.hiddenSnippets(enabledSnippets, scripts: enabled, custom: config.customCommands,
+                                                                               plugins: plugins)
+            .map { ($0.snippet.id, ScriptCommand.Problem.nameTaken($0.snippet.name, by: $0.owner)) }, uniquingKeysWith: { (a: ScriptCommand.Problem, _: ScriptCommand.Problem) in a })
+        let snippets: [Snippet] = bundle.map { bundle in
+            index.snippets.filter { $0.bundle == bundle.name }.map { snippet in
+                let off = config.disabledExtensions.contains(bundle.name) || config.disabledExtensions.contains(snippet.id)
+                let row = AllInOneIMECore.Command(name: snippet.name, kind: .snippet, custom: snippet.definition).snippetRowText ?? ""
+                return Snippet(name: snippet.name, text: row, hidden: off ? nil : hiddenSnippets[snippet.id])
+            }
+        } ?? []
         let commands = index.commands.filter { $0.file.standardizedFileURL.path.hasPrefix(prefix) }.map { command in
             func shown(_ launch: [String]) -> String { launch.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 }.joined(separator: " ") }
             let program = shown(command.launch)
@@ -669,7 +691,7 @@ public struct ExtensionSourceReview: Equatable, Sendable {
                            leavesRepository: outside, status: command.status.map { shown($0.launch) })
         }
         return ExtensionSourceReview(url: url, commit: commit, commitDate: commitDate, path: path, bundle: bundle, problem: problem,
-                                     commands: commands, skipped: bundle == nil ? [] : mine)
+                                     commands: commands, snippets: snippets, skipped: bundle == nil ? [] : mine)
     }
 
     /// The review as text, for `--add-source`, a problem in Swift's own words (`summary(describe:)` says it in a person's).
@@ -699,6 +721,10 @@ public struct ExtensionSourceReview: Equatable, Sendable {
             lines.append("  runs:      \(command.program)")
             if let status = command.status { lines.append("  status:    \(status)") }
             if let target = command.leavesRepository { lines.append("  WARNING:   its script is a link out of the repository, to \(target)") }
+        }
+        for snippet in snippets {
+            let hidden = snippet.hidden.map { "  [hidden: " + describe($0, URL(fileURLWithPath: ExtensionBundle.manifestName)) + "]" } ?? ""
+            lines.append("snippet:     @\(snippet.name) — \(snippet.text) (inserts text, runs nothing)\(hidden)")
         }
         for preference in preferences {
             lines.append("preference:  \(preference.name) (\(preference.kind.rawValue)\(preference.required ? ", required" : ""))")

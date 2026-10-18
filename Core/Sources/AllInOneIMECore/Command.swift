@@ -13,6 +13,11 @@ public struct Command: Hashable, Sendable {
     public let plugin: InstalledPlugin?
     /// The script extension, for a command from one (a `.run` command).
     public let script: ScriptCommand?
+    /// The extension bundle a snippet comes from (`ExtensionIndex.snippets`): its name ("team"); nil for every other
+    /// command, a snippet of the config's too.
+    public let bundle: String?
+    /// A snippet's text, read (`SnippetTemplate`): `custom.text`. Nil for every other command.
+    public let snippet: SnippetTemplate?
 
     public enum Kind: Equatable, Sendable {
         /// The improve conversion (versions and rewrites).
@@ -41,15 +46,33 @@ public struct Command: Hashable, Sendable {
         /// Opens GitHub's page for a new issue with the text as its title and a few diagnostics (`IssueReport`),
         /// shown in the panel first; nothing is sent or inserted.
         case report
+        /// Inserts a saved text (`custom.text`, `SnippetTemplate`) with its placeholders filled: no AI, no program.
+        case snippet
     }
 
-    init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil) {
+    init(name: String, kind: Kind, custom: CustomCommand? = nil, plugin: InstalledPlugin? = nil, script: ScriptCommand? = nil,
+         bundle: String? = nil) {
         self.name = name
         self.kind = kind
         self.custom = custom
         self.plugin = plugin
         self.script = script
+        self.bundle = bundle
+        snippet = kind == .snippet ? SnippetTemplate.parse(custom?.text ?? "") : nil
     }
+
+    /// What a snippet's row in the command list says: its summary, or else the start of its text (at most
+    /// `rowTextLength` characters, line breaks as "↵"). Nil for every other command.
+    public var snippetRowText: String? {
+        guard kind == .snippet, let custom else { return nil }
+        if let summary = custom.summary?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty { return summary }
+        let text = (custom.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " ↵ ")
+        return line.count > Self.rowTextLength ? String(line.prefix(Self.rowTextLength)) + "…" : line
+    }
+
+    public static let rowTextLength = 40
 
     /// Polish in the sentence's own language, with the rewrite styles (`WritingMode.improve`).
     public static let improve = Command(name: "improve", kind: .convert)
@@ -157,9 +180,10 @@ public struct Command: Hashable, Sendable {
     /// extensions (`ExtensionIndex.commands`: a bundle's, a single script's, a Raycast script's) likewise, one
     /// whose name is taken under its `alias` if that's free. When names clash, built-in > plugin > custom >
     /// extension; a plugin or custom command hidden by a built-in is logged (`logHidden`), an extension's
-    /// shows in Settings (`hiddenScripts`).
+    /// shows in Settings (`hiddenScripts`). The bundles' snippets (`ExtensionIndex.snippets`) are extensions too: after
+    /// the bundles' commands, before single scripts and Raycast's.
     public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = [],
-                               scripts: [ScriptCommand] = []) -> [Command] {
+                               scripts: [ScriptCommand] = [], snippets: [BundleSnippet] = []) -> [Command] {
         let builtinNames = Set(builtins.map(\.name))
         var taken = builtinNames
         let fromPlugins = plugins.compactMap { plugin -> Command? in
@@ -193,13 +217,40 @@ public struct Command: Hashable, Sendable {
             case .run: kind = .run
             case .terminal: kind = .terminal
             case .link: kind = .link
+            case .snippet: kind = .snippet
             }
             return Command(name: name, kind: kind, custom: definition)
-        } + scripts.compactMap { script in
-            script.names.first { taken.insert($0).inserted }.map { Command(name: $0, kind: .run, script: script) }
+        } + extensionTier(scripts, snippets).compactMap { item in
+            switch item {
+            case let .script(script):
+                return script.names.first { taken.insert($0).inserted }.map { Command(name: $0, kind: .run, script: script) }
+            case let .snippet(snippet):
+                return snippet.names.first { taken.insert($0).inserted }.map {
+                    Command(name: $0, kind: .snippet, custom: snippet.definition, bundle: snippet.bundle)
+                }
+            }
         }
         // Without child processes (iOS, Android) the commands that run a program aren't offered.
         return Platform.current.processes.canLaunch ? all : all.filter { !$0.needsChildProcess }
+    }
+
+    /// An extension in the order its names are given out: the bundles' commands, their snippets, then the rest.
+    private enum Extension {
+        case script(ScriptCommand)
+        case snippet(BundleSnippet)
+
+        var names: [String] {
+            switch self {
+            case let .script(script): return script.names
+            case let .snippet(snippet): return snippet.names
+            }
+        }
+    }
+
+    private static func extensionTier(_ scripts: [ScriptCommand], _ snippets: [BundleSnippet]) -> [Extension] {
+        guard !snippets.isEmpty else { return scripts.map(Extension.script) }
+        let bundled = scripts.prefix { $0.source.bundleName != nil }
+        return bundled.map(Extension.script) + snippets.map(Extension.snippet) + scripts.dropFirst(bundled.count).map(Extension.script)
     }
 
     /// It runs a program in a child process (`ProcessLauncher`): `@py`, `@js`, a custom `run` command, a script
@@ -207,23 +258,44 @@ public struct Command: Hashable, Sendable {
     public var needsChildProcess: Bool { isCode || kind == .run && (custom != nil || script != nil || plugin != nil) }
 
     /// The extensions `catalog` leaves out because another command has their name (and alias), and which.
-    public static func hiddenScripts(_ scripts: [ScriptCommand], custom: [CustomCommand],
-                                     plugins: [InstalledPlugin] = []) -> [(script: ScriptCommand, owner: ScriptCommand.Owner)] {
+    public static func hiddenScripts(_ scripts: [ScriptCommand], custom: [CustomCommand], plugins: [InstalledPlugin] = [],
+                                     snippets: [BundleSnippet] = []) -> [(script: ScriptCommand, owner: ScriptCommand.Owner)] {
+        hiddenExtensions(scripts, custom: custom, plugins: plugins, snippets: snippets).scripts
+    }
+
+    /// The bundles' snippets `catalog` leaves out because other commands have their name and alias, and which.
+    public static func hiddenSnippets(_ snippets: [BundleSnippet], scripts: [ScriptCommand], custom: [CustomCommand],
+                                      plugins: [InstalledPlugin] = []) -> [(snippet: BundleSnippet, owner: ScriptCommand.Owner)] {
+        hiddenExtensions(scripts, custom: custom, plugins: plugins, snippets: snippets).snippets
+    }
+
+    private static func hiddenExtensions(_ scripts: [ScriptCommand], custom: [CustomCommand], plugins: [InstalledPlugin],
+                                         snippets: [BundleSnippet])
+        -> (scripts: [(script: ScriptCommand, owner: ScriptCommand.Owner)], snippets: [(snippet: BundleSnippet, owner: ScriptCommand.Owner)]) {
         var owners: [String: ScriptCommand.Owner] = [:]
         for command in builtins { owners[command.name] = .builtIn }
         for plugin in plugins where owners[plugin.name] == nil { owners[plugin.name] = .plugin }
         for definition in custom where definition.isValid && owners[definition.name.lowercased()] == nil {
             owners[definition.name.lowercased()] = .custom
         }
-        var hidden: [(ScriptCommand, ScriptCommand.Owner)] = []
-        for script in scripts {
-            if let free = script.names.first(where: { owners[$0] == nil }) {
-                owners[free] = .command(script.id)
-            } else if let owner = owners[script.name] {
-                hidden.append((script, owner))
+        var hidden: [(script: ScriptCommand, owner: ScriptCommand.Owner)] = []
+        var hiddenSnippets: [(snippet: BundleSnippet, owner: ScriptCommand.Owner)] = []
+        for item in extensionTier(scripts, snippets) {
+            let owner: ScriptCommand.Owner
+            switch item {
+            case let .script(script): owner = .command(script.id)
+            case let .snippet(snippet): owner = .snippet(snippet.id)
+            }
+            if let free = item.names.first(where: { owners[$0] == nil }) {
+                owners[free] = owner
+            } else if let owner = owners[item.names[0]] {
+                switch item {
+                case let .script(script): hidden.append((script, owner))
+                case let .snippet(snippet): hiddenSnippets.append((snippet, owner))
+                }
             }
         }
-        return hidden
+        return (hidden, hiddenSnippets)
     }
 
     private static let catalogLog = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
@@ -263,12 +335,14 @@ public struct Command: Hashable, Sendable {
 /// - `terminal`: `argv` runs in a new Terminal window; nothing is inserted.
 /// - `link`: `url` (with `{input}` in its query) opens in the browser with the text in it; nothing is
 ///   inserted (`LinkTemplate`): `{ "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }`.
+/// - `snippet`: `text` is inserted, its placeholders filled (`SnippetTemplate`); no AI, no program:
+///   `{ "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" }`.
 ///
 /// `{input}` always stays inside the one argument it is written in: the text is never parsed by a
 /// shell unless `argv` itself says so (`["zsh", "-c", "{input}"]`).
 public struct CustomCommand: Codable, Hashable, Sendable {
     public enum CommandType: String, Codable, Sendable {
-        case prompt, run, terminal, link
+        case prompt, run, terminal, link, snippet
     }
 
     /// Letters only, as typed after "@" (digits pick from the command list).
@@ -293,10 +367,12 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     public var color: String?
     /// `link`: the web address, with `{input}` in its query (`LinkTemplate`).
     public var url: String?
+    /// `snippet`: the text it inserts, with its placeholders (`SnippetTemplate`).
+    public var text: String?
 
     public init(name: String, type: CommandType, summary: String? = nil, prompt: String? = nil,
                 argv: [String]? = nil, stdin: String? = nil, ascii: Bool? = nil, timeoutSeconds: Double? = nil,
-                icon: String? = nil, color: String? = nil, url: String? = nil) {
+                icon: String? = nil, color: String? = nil, url: String? = nil, text: String? = nil) {
         self.name = name
         self.type = type
         self.summary = summary
@@ -308,6 +384,7 @@ public struct CustomCommand: Codable, Hashable, Sendable {
         self.icon = icon
         self.color = color
         self.url = url
+        self.text = text
     }
 
     public static let placeholder = "{input}"
@@ -320,7 +397,14 @@ public struct CustomCommand: Codable, Hashable, Sendable {
         case .prompt: return !(prompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .run, .terminal: return !(argv?.first ?? "").isEmpty
         case .link: return LinkTemplate.problem(url) == nil
+        case .snippet: return Self.snippetProblem(text) == nil
         }
+    }
+
+    /// What keeps a snippet's text from being used: blank, or `{cursor}` twice.
+    static func snippetProblem(_ text: String?) -> Problem? {
+        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .emptyText }
+        return SnippetTemplate.parse(text).cursorCount > 1 ? .twoCursors : nil
     }
 
     public var typesLatin: Bool { ascii ?? Self.typesLatinByDefault(type) }
@@ -371,16 +455,21 @@ extension CustomCommand {
         case unbalancedQuote
         /// A `link` command's address can't be used.
         case link(LinkTemplate.Problem)
+        /// A snippet without text.
+        case emptyText
+        /// A snippet with `{cursor}` more than once.
+        case twoCursors
     }
 
-    /// The first problem with this definition among `others` (the other custom commands) and the
-    /// installed plugins' names, or nil.
-    public func problem(among others: [CustomCommand], plugins: [String] = []) -> Problem? {
+    /// The first problem with this definition among `others` (the other custom commands), the installed plugins'
+    /// names and `unread` (the names of the custom commands a later version wrote: `Config.unreadCustomCommandNames`),
+    /// or nil.
+    public func problem(among others: [CustomCommand], plugins: [String] = [], unread: [String] = []) -> Problem? {
         let name = name.lowercased()
         if name.isEmpty { return .emptyName }
         if !name.allSatisfy({ $0.isASCII && $0.isLetter }) || name.count > 24 { return .nameNotLetters }
         if Command.builtins.contains(where: { $0.name == name }) || plugins.contains(name)
-            || others.contains(where: { $0.name.lowercased() == name }) {
+            || others.contains(where: { $0.name.lowercased() == name }) || unread.contains(where: { $0.lowercased() == name }) {
             return .nameTaken
         }
         switch type {
@@ -390,6 +479,8 @@ extension CustomCommand {
             if (argv?.first ?? "").isEmpty { return .emptyCommand }
         case .link:
             if let problem = LinkTemplate.problem(url) { return .link(problem) }
+        case .snippet:
+            if let problem = Self.snippetProblem(text) { return problem }
         }
         return nil
     }

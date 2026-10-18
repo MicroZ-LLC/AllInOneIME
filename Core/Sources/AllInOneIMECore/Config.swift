@@ -62,6 +62,12 @@ public struct Config: Codable, Equatable, Sendable {
     public var uiLanguage: String?
     /// The user's own @ commands, after the built-in ones (see `CustomCommand`).
     public var customCommands: [CustomCommand]
+    /// The entries of `customCommands` in the file this version can't read (a later one's type): kept as they are and
+    /// written back after the others, never offered. Their names are taken (`unreadCustomCommandNames`).
+    public var unreadCustomCommands: [AIConfig.JSONValue] = []
+
+    /// The names of `unreadCustomCommands`: no command of this version's may have one (`CustomCommand.problem(among:)`).
+    public var unreadCustomCommandNames: [String] { unreadCustomCommands.compactMap(CustomCommand.Entry.name) }
     /// Folders of script extensions (`ScriptCommand`, docs/extensions.md), as "~/…": each script, bundle
     /// command and Raycast script in them is an @ command, after the custom ones. A new user has
     /// `ExtensionStore.defaultFolder`.
@@ -274,7 +280,16 @@ public struct Config: Codable, Equatable, Sendable {
         // One this version can't read (a later one's, or a recorded key gone wrong) is the default, not an error.
         actionKey = (try? c.decodeIfPresent(ActionKey.self, forKey: .actionKey)).flatMap { $0 } ?? d.actionKey
         uiLanguage = (try? c.decodeIfPresent(String.self, forKey: .uiLanguage)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
-        customCommands = try c.decodeIfPresent([CustomCommand].self, forKey: .customCommands) ?? d.customCommands
+        // An entry of a type this version doesn't know (a later one's) is kept aside, not an error for the whole list;
+        // anything else wrong in one still is.
+        let entries = try c.decodeIfPresent([CustomCommand.Entry].self, forKey: .customCommands)
+        customCommands = entries?.compactMap(\.command) ?? d.customCommands
+        let unread = entries?.compactMap(\.unread) ?? []
+        unreadCustomCommands = unread
+        if !unread.isEmpty {
+            Self.log.notice("kept \(unread.count) custom command(s) of a type this version doesn't know, to write back as "
+                            + "they are: " + unread.compactMap(CustomCommand.Entry.name).map { "@" + $0 }.joined(separator: ", "))
+        }
         extensionFolders = try c.decodeIfPresent([String].self, forKey: .extensionFolders) ?? d.extensionFolders
         findRaycastScripts = try c.decodeIfPresent(Bool.self, forKey: .findRaycastScripts) ?? d.findRaycastScripts
         hiddenExtensionFolders = try c.decodeIfPresent([String].self, forKey: .hiddenExtensionFolders) ?? d.hiddenExtensionFolders
@@ -326,6 +341,7 @@ public struct Config: Codable, Equatable, Sendable {
     public mutating func freeBuiltinNames(taken extensions: [String]) -> [(old: String, new: String)] {
         let builtins = Set(Command.builtins.map(\.name))
         var taken = builtins.union(extensions.map { $0.lowercased() }).union(customCommands.map { $0.name.lowercased() })
+            .union(unreadCustomCommandNames.map { $0.lowercased() })  // a later version's commands keep their names
         var renamed: [(old: String, new: String)] = []
         for index in customCommands.indices {
             let name = customCommands[index].name
@@ -401,7 +417,9 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(jargonFile, forKey: .jargonFile)  // null: the default file
         try c.encode(actionKey, forKey: .actionKey)
         try c.encode(uiLanguage, forKey: .uiLanguage)  // null: follow the system
-        try c.encode(customCommands, forKey: .customCommands)
+        var commands = c.nestedUnkeyedContainer(forKey: .customCommands)
+        for command in customCommands { try commands.encode(command) }
+        for entry in unreadCustomCommands { try commands.encode(entry) }
         try c.encode(extensionFolders, forKey: .extensionFolders)
         try c.encode(findRaycastScripts, forKey: .findRaycastScripts)
         try c.encode(hiddenExtensionFolders, forKey: .hiddenExtensionFolders)
@@ -514,4 +532,35 @@ extension Optional where Wrapped == String {
     /// `Language`: `config.uiLanguage = .chinese`.
     public static var chinese: String? { "zh" }
     public static var english: String? { "en" }
+}
+
+extension Config {
+    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "config")
+}
+
+extension CustomCommand {
+    /// An entry of `Config.customCommands` as the file has it: a command this version reads, or the JSON of one whose
+    /// `type` is a string this version doesn't know and whose `name` is a string (a later version's: kept,
+    /// `Config.unreadCustomCommands`). Any other entry that can't be read is the error it always was.
+    struct Entry: Decodable {
+        var command: CustomCommand?
+        var unread: AIConfig.JSONValue?
+
+        init(from decoder: Decoder) throws {
+            do {
+                command = try CustomCommand(from: decoder)
+            } catch {
+                guard let json = try? AIConfig.JSONValue(from: decoder), Self.name(json) != nil else { throw error }
+                unread = json
+            }
+        }
+
+        /// The name of an entry of a later version's (a JSON object whose `type` this version doesn't know and whose
+        /// `name` is a string), or nil when it isn't one.
+        static func name(_ json: AIConfig.JSONValue) -> String? {
+            guard case let .object(fields) = json, case let .string(type)? = fields["type"], CommandType(rawValue: type) == nil,
+                  case let .string(name)? = fields["name"] else { return nil }
+            return name
+        }
+    }
 }

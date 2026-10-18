@@ -393,6 +393,11 @@ final class AllInOneIMEInputController: IMKInputController {
     private var typingClient: IMKTextInput? { typingField?.client }
     /// Line breaks go in as a paste (a terminal; `TerminalPaste`).
     private var typingPastes = false
+    /// The text the last result put in (`.commit`, `.replaceSelection`): a snippet's caret goes back into it
+    /// (`Composer.Effect.moveCaret`).
+    private var lastInserted: String?
+    /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
+    private var caretAfterTyping: Int?
 
     /// Whether line breaks can go into a terminal as a paste, and pasting there (`TerminalPaste`; the
     /// self-test supplies its own and never posts keys or touches the clipboard).
@@ -520,9 +525,41 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             }
             guard let self, !Task.isCancelled else { return }
+            let typedInto = self.typingField?.client
             self.typingTask = nil
             self.typingField = nil
+            if let back = self.caretAfterTyping {
+                self.caretAfterTyping = nil
+                self.moveCaret(back: back, after: text, in: typedInto)
+            }
         }
+    }
+
+    /// A snippet's `{cursor}` (`Composer.Effect.moveCaret`): the caret goes `back` UTF-16 units into the text just put in.
+    /// Only in a field that says where its caret is and has that text right before it; not in a terminal (keys there go
+    /// to a shell). Elsewhere the caret stays at the end, as after any result.
+    ///
+    /// A text view keeps its caret where it is when a range is replaced (`insertText` with a range), so the caret is
+    /// moved with marked text, which puts it where it says: empty marked text at the place. Nothing else is tried: where
+    /// that doesn't arrive or isn't taken (the input method connection may drop empty text with a range; a browser may
+    /// report its caret late), the caret stays at the end, which is harmless. Marking a character of the text instead
+    /// could lose or double it where the field's ranges lag behind.
+    @MainActor
+    func moveCaret(back: Int, after inserted: String?, in client: IMKTextInput?) {
+        guard back > 0, let inserted, let client, !Self.isTerminal(client) else { return }
+        let caret = client.selectedRange()
+        let length = inserted.utf16.count
+        guard caret.location != NSNotFound, caret.length == 0, back <= length, caret.location >= length else { return }
+        // The end of what was inserted, before the caret (no more than a line or two of it is read back).
+        let checked = min(length, 200)
+        let expected = String(decoding: inserted.utf16.suffix(checked), as: UTF16.self)
+        guard client.attributedSubstring(from: NSRange(location: caret.location - checked, length: checked))?.string == expected else {
+            log.notice("caret not moved: the field doesn't have the snippet before its caret")
+            return
+        }
+        let target = caret.location - back
+        client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: NSRange(location: target, length: 0))
+        if client.selectedRange().location != target { log.notice("caret not moved: the field didn't take it; it stays at the end") }
     }
 
     /// Remembers `app` when its field didn't take a typo's fix (`TypoMemory`): no typos there again.
@@ -546,6 +583,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
         (typingTask, typist, typingField, typingPastes) = (nil, TypeOut.Typist([], start: 0), nil, false)
+        caretAfterTyping = nil  // a snippet's caret stays at the end
     }
 
     /// Whether a result is being typed out now (the self-test).
@@ -996,6 +1034,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
             case let .commit(text):
                 insert(text, into: target)
+                lastInserted = text
                 lastTyped.forget()  // a key that typed it says so (`handleKeyDown`)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
@@ -1007,10 +1046,15 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case let .replaceSelection(text, selection):
                 replaceSelection(text, selection, in: target)
+                lastInserted = text
                 lastTyped.forget()
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
+                lastInserted = nil
                 lastTyped.forget()
+            case let .moveCaret(back):
+                // A result being typed out: once it's all in.
+                if isTypingOut { caretAfterTyping = back } else { moveCaret(back: back, after: lastInserted, in: target) }
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
@@ -2094,6 +2138,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let key = composer.actionKey
         let how = key != .space ? UIText.name(key)
             : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
+        // A snippet: what it will insert, with the blanks typed so far.
+        if let preview = composer.snippetPreview { return "\(how) → “" + Self.selectionPreview(preview, limit: 80) + "”" }
         // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
         if let selected = composer.selectionInUse {
             if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {

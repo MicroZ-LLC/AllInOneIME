@@ -136,6 +136,9 @@ enum UIText {
         if let plugin = command.plugin {
             return plugin.manifest.summary?.text(chinese: chinese) ?? tr("插件", "Plugin")
         }
+        if let row = command.snippetRowText {
+            return command.bundle.map { row + " · " + tr("来自 \($0)", "From \($0)") } ?? row
+        }
         if let custom = command.custom { return custom.summary ?? customKind(custom) }
         if let script = command.script { return summary(script) }
         switch command {
@@ -209,6 +212,8 @@ enum UIText {
             case .custom: return tr("\(name) 是一个自定义命令的名字", "\(name) is one of your custom commands")
             case let .command(id):
                 return tr("这个名字已经给了 \(id)（先找到的生效）", "The name is taken by \(id), found first")
+            case let .snippet(id):
+                return tr("这个名字已经给了片段 \(id)（先找到的生效）", "The name is taken by the snippet \(id), found first")
             }
         }
     }
@@ -230,6 +235,7 @@ enum UIText {
         case .run: return tr("运行 ", "Run ") + (custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? "")
         case .terminal: return tr("在终端运行 ", "Run in Terminal: ") + (custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? "")
         case .link: return tr("在浏览器打开 ", "Open in the browser: ") + (LinkTemplate.host(custom.url) ?? "")
+        case .snippet: return tr("插入文字", "Insert text")
         }
     }
 
@@ -247,6 +253,7 @@ enum UIText {
         case .prompt?: return tr("AI 生成", "generate")
         case .run?: return tr("运行", "run")
         case .terminal?: return tr("在终端运行", "run in Terminal")
+        case .snippet?: return tr("插入文字", "Insert text")
         case .link?, nil: break
         }
         switch command {

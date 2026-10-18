@@ -254,7 +254,8 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 }
 ```
 
-- `schemaVersion`, `name` (letters, digits, `-`, `_`; two bundles can't share one) and `commands` are required.
+- `schemaVersion`, `name` (letters, digits, `-`, `_`; two bundles can't share one) and `commands` or `snippets` are
+  required.
 - Each command names its `script` (a path inside the bundle) and takes the keys of §2 in JSON: strings, `true` /
   `false`, numbers, and the `argumentN` objects as they are. They override the `@allinoneime.` lines in the script, if
   it has any.
@@ -268,15 +269,30 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
   a checkbox is `true` or `false`. Password values are kept in the macOS keychain, never in a file; the others in the
   config file. While a required preference has no value, its commands say so instead of running. Settings saves a
   text field on Return and when you leave it.
+- `snippets`: texts to insert, for a team's addresses, links and replies. Each has a `name` (and maybe an `alias`), its
+  `text` with the placeholders of a custom `snippet` command (`{input}`, `{name?}`, `{clipboard}`, `{selection}`,
+  `{date}`, `{time}`, `{cursor}`; see the README), and optionally a `summary`, an `icon` (an SF Symbol) and a `color`.
+  Every one of these is a string: a snippet with a `text` (or another key) that isn't one is left out, and Settings says
+  why. They run nothing. A bundle may ship only snippets. Plugins can't ship them. A `commands` or `snippets` that isn't
+  a list of entries is reported too, and the other list still loads.
+
+  ```json
+  "snippets": [
+    { "name": "addr", "text": "1 Main Street\nSpringfield", "summary": "Office address", "alias": "teamaddr" },
+    { "name": "wifi", "text": "guest / hunter2" }
+  ]
+  ```
 
 ## 7. Names, order, turning things off
 
 - **Collisions** are resolved in this order: built-in commands, plugins, custom commands, bundles, single scripts,
-  Raycast scripts; within each, the folders' order, then file names. A bundle command whose name is taken uses its
-  `alias` if that's free. Two commands with one name in a bundle: the first is kept. Settings marks each command left
-  out, and why.
+  Raycast scripts; within each, the folders' order, then file names. The bundles' snippets come after all the bundles'
+  commands, before single scripts. A bundle command or snippet whose name is taken uses its `alias` if that's free. Two
+  with one name in a bundle: the first is kept. Settings marks each command left out, and why; a snippet left out is
+  marked in its extension source's "Loaded" line and review, and in `--list-extensions`.
 - **Turning things off.** Each command, and each bundle as a whole, has a switch in Settings (`disabledExtensions` in
-  the config: a command's id, or a bundle's name). A command turned off frees its name.
+  the config: a command's id, or a bundle's name). A command turned off frees its name. A snippet is turned off with
+  `"<bundle>/<name>"` there.
 - **The command list** ranks by use. Typing finds names starting with the letters, then names containing them, then
   commands with a word of their title or a keyword starting with them. A digit right after letters is part of a name
   when a command's name goes on that way (`@base6` → `@base64`); otherwise digits pick a row.
