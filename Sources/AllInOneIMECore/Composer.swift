@@ -622,8 +622,12 @@ public final class Composer {
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`: a Shift-click
     /// or ⌥-click is no tap of the key (the mouse never reaches the input method). Set by the app.
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { _ in false }
-    /// Which Option key went down on its own, and when (nil once anything else happens).
-    private var optionPressed: (keyCode: UInt16, at: TimeInterval)?
+    /// Which modifier dictates and which is tapped as the action key, and which one recorded shortcuts mean by ⌘. Set by
+    /// the shell (the Mac's are `ModifierRoles.mac`).
+    public var modifierRoles = ModifierRoles.mac
+    /// Which Option key (the action tap's: `ModifierRoles.actionTap`) went down on its own, and when (nil once anything
+    /// else happens).
+    private var optionPressed: (key: Key, at: TimeInterval)?
     private var warnedNotReady = false
     /// The last thing added to the draft was a transcript (Space then runs the command right away).
     private var draftEndsWithVoice = false
@@ -1393,20 +1397,25 @@ public final class Composer {
     /// the sentence (a hold of the right one still dictates).
     /// The application always receives modifier changes as well. `timestamp` is in seconds.
     public func handleFlagsChanged(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
-        forField(flagsChanged(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp))
+        handleFlagsChanged(key: MacKeyCodes.key(keyCode), modifiers: modifiers, timestamp: timestamp)
+    }
+
+    /// A modifier changed: `key` the one that did (`.modifier(kind, side)`), `modifiers` those down now.
+    public func handleFlagsChanged(key: Key, modifiers: Modifiers, timestamp: TimeInterval) -> [Effect] {
+        forField(flagsChanged(key: key, modifiers: modifiers, timestamp: timestamp))
     }
 
     /// `handleFlagsChanged`, before `forField`.
-    private func flagsChanged(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
-        if let held = optionTapHeld(keyCode: keyCode, modifiers: modifiers, timestamp: timestamp),
+    private func flagsChanged(key: Key, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
+        if let held = optionTapHeld(key: key, modifiers: modifiers, timestamp: timestamp),
            !pointerUsedWithin(held), actionKey == .optionTap, let effects = actionKeyPressed() {
             voiceArmed = false  // a tap of right ⌥, not a hold
             shiftPressedAt = nil
             return effects
         }
-        if let effects = handleVoiceKey(keyCode: keyCode, modifiers: modifiers) { return effects }
-        let isShift = keyCode == VirtualKey.leftShift || keyCode == VirtualKey.rightShift
-        let others = modifiers.subtracting([.shift, .capsLock, .leftOption, .rightOption])
+        if let effects = handleVoiceKey(key: key, modifiers: modifiers) { return effects }
+        let isShift = key.modifierKind == .shift
+        let others = modifiers.subtracting([.shift, .capsLock]).subtracting(.sides)
         if isShift, modifiers.contains(.shift), others.isEmpty {
             shiftPressedAt = timestamp
             return []
@@ -1442,46 +1451,46 @@ public final class Composer {
     /// Tracks the Option keys. True for the release of one that went down on its own and came back
     /// up within `optionTapWindow`, with no key or other modifier (including the other Option) between:
     /// how long it was held. Nil otherwise.
-    private func optionTapHeld(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> TimeInterval? {
-        let side: KeyModifiers
-        switch keyCode {
-        case VirtualKey.leftOption: side = .leftOption
-        case VirtualKey.rightOption: side = .rightOption
-        default:
+    private func optionTapHeld(key: Key, modifiers: KeyModifiers, timestamp: TimeInterval) -> TimeInterval? {
+        guard case let .modifier(kind, keySide) = key, kind == modifierRoles.actionTap else {
             optionPressed = nil  // another modifier changed
             return nil
         }
-        let sided = !modifiers.isDisjoint(with: [.leftOption, .rightOption])
-        let down = sided ? modifiers.contains(side) : modifiers.contains(.option)
+        let side = Modifiers.side(keySide, of: kind), either = Modifiers.kind(kind)
+        let sided = !modifiers.isDisjoint(with: Modifiers.sides(of: kind))
+        let down = sided ? modifiers.contains(side) : modifiers.contains(either)
         if down {
-            let alone = modifiers.subtracting([.option, side, .capsLock]).isEmpty && optionPressed == nil
-            optionPressed = alone ? (keyCode, timestamp) : nil
+            let alone = modifiers.subtracting([either, side, .capsLock]).isEmpty && optionPressed == nil
+            optionPressed = alone ? (key, timestamp) : nil
             return nil
         }
         defer { optionPressed = nil }
-        guard let pressed = optionPressed, pressed.keyCode == keyCode else { return nil }
+        guard let pressed = optionPressed, pressed.key == key else { return nil }
         let held = timestamp - pressed.at
         return held <= Self.optionTapWindow ? max(held, 0) : nil
     }
 
     /// The voice key: arms on press, dictation runs while it is held, stops on release. Nil for
     /// modifier changes that are for the Shift logic.
-    private func handleVoiceKey(keyCode: UInt16, modifiers: KeyModifiers) -> [Effect]? {
-        let sided = !modifiers.isDisjoint(with: [.leftOption, .rightOption])
+    private func handleVoiceKey(key: Key, modifiers: KeyModifiers) -> [Effect]? {
+        let voiceKey = modifierRoles.voiceHold
+        guard case let .modifier(kind, side) = voiceKey else { return nil }
+        let held = Modifiers.side(side, of: kind), either = Modifiers.kind(kind)
+        let sided = !modifiers.isDisjoint(with: Modifiers.sides(of: kind))
         if case let .listening(id, text) = voice {
             // Released, also when the release itself went unseen (another modifier changed meanwhile).
-            let released = voiceKeySided ? !modifiers.contains(.rightOption) : !modifiers.contains(.option)
+            let released = voiceKeySided ? !modifiers.contains(held) : !modifiers.contains(either)
             if released { return releaseVoice(id: id, text: text) }
-            return keyCode == VirtualKey.rightOption ? [] : nil
+            return key == voiceKey ? [] : nil
         }
-        guard keyCode == VirtualKey.rightOption else {
+        guard key == voiceKey else {
             voiceArmed = false  // another modifier joined in: not a hold on its own
             return nil
         }
         shiftPressedAt = nil
-        let down = sided ? modifiers.contains(.rightOption) : modifiers.contains(.option)
+        let down = sided ? modifiers.contains(held) : modifiers.contains(either)
         if down {
-            let others = modifiers.subtracting([.option, .rightOption, .capsLock])
+            let others = modifiers.subtracting([either, held, .capsLock])
             guard others.isEmpty, voice == .off, voiceEnabled, engine != nil else {
                 voiceArmed = false
                 return []
