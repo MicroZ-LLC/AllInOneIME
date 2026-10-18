@@ -242,9 +242,9 @@ struct AppProfileTests {
         #expect([Command.improve, .translate, .question, .agent, .edit].allSatisfy { $0.usesAI })
         #expect(![Command.open, .read, .note, .reminder, .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
             .contains { $0.usesAI })
-        let custom = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply."),
+        let custom = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply."),
                                       CustomCommand(name: "shout", type: .run, argv: ["tr", "a-z", "A-Z"])])
-        #expect(custom.first { $0.name == "reply" }?.usesAI == true && custom.first { $0.name == "shout" }?.usesAI == false)
+        #expect(custom.first { $0.name == "respond" }?.usesAI == true && custom.first { $0.name == "shout" }?.usesAI == false)
     }
 
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)

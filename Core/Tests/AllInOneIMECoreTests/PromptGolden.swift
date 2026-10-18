@@ -24,13 +24,13 @@ enum PromptGolden {
             }
         }
         out["jargon-zh-improve"] = Prompt.request(for: sentences["zh"]!, mode: .improve, config: jargon, jargon: entries)
-        let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]).last!
+        let respond = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply politely.")]).last!
         out["question"] = Prompt.commandRequest(.question, input: "量子计算是什么", config: english)
         out["question-about-selection"] = Prompt.commandRequest(
             .question, input: Prompt.question("这是什么意思", about: "Lorem ipsum"), config: english)
         out["edit"] = Prompt.commandRequest(
             .edit, input: Prompt.editRequest(instruction: "improve: more formal", text: "hi\nthere"), config: english)
-        out["custom-prompt"] = Prompt.commandRequest(reply, input: "明天见", config: english)
+        out["custom-prompt"] = Prompt.commandRequest(respond, input: "明天见", config: english)
         return out
     }
 

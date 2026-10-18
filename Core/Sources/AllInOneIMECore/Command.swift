@@ -58,6 +58,9 @@ public struct Command: Hashable, Sendable {
     public static let translate = Command(name: "translate", kind: .convert)
     /// Answer a question; the answer can be inserted.
     public static let question = Command(name: "question", kind: .generate)
+    /// Three replies to the message being answered (selected, copied, or a screenshot pasted with ⌃V), in the other
+    /// party's language and the app's tone; what is typed after it says what to reply (`ReplyContext`, Reply.swift).
+    public static let reply = Command(name: "reply", kind: .generate)
     /// Hand the text to the coding agent picked in Settings (`Config.agent`: Claude Code, Gemini CLI, Kiro CLI or a
     /// custom one), in Terminal with the text as its first message (long work, conversations); nothing is inserted.
     public static let agent = Command(name: "agent", kind: .terminal)
@@ -104,7 +107,8 @@ public struct Command: Hashable, Sendable {
     /// Never offered in the list: the composer starts it (`Composer.selection`).
     public static let edit = Command(name: "edit", kind: .generate)
 
-    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .read, .note, .reminder,
+    /// `@reply` after the first five: the list opens on the ones it always had.
+    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .reply, .read, .note, .reminder,
                                              .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names

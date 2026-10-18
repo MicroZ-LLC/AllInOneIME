@@ -316,6 +316,30 @@ public struct Config: Codable, Equatable, Sendable {
         normalizeLanguages()
     }
 
+    /// Renames the custom commands whose names a built-in command now has (a custom `@reply` from before `@reply` was
+    /// built in), which the built-in would hide: each gets "my" before its name, and a number after that if it's taken
+    /// too ("myreply", "myreply2"). Order and everything else are kept. What was renamed, in config order (none: `[]`);
+    /// run again, it renames nothing. The shell runs it once when it loads the config, writes it, and says so once.
+    public mutating func freeBuiltinNames() -> [(old: String, new: String)] {
+        let builtins = Set(Command.builtins.map(\.name))
+        var taken = builtins.union(customCommands.map { $0.name.lowercased() })
+        var renamed: [(old: String, new: String)] = []
+        for index in customCommands.indices {
+            let name = customCommands[index].name
+            guard builtins.contains(name.lowercased()) else { continue }
+            let base = "my" + name.lowercased()
+            var new = base, number = 2
+            while taken.contains(new) {
+                new = base + String(number)
+                number += 1
+            }
+            taken.insert(new)
+            customCommands[index].name = new
+            renamed.append((name, new))
+        }
+        return renamed
+    }
+
     /// The chosen output language and the default input lead their lists (whoever sets
     /// `outputLanguage` or `defaultInput` moves it to the front); one to five input languages; no
     /// language twice. To reorder, set the list and then its first as the chosen one (`setOrder`).
