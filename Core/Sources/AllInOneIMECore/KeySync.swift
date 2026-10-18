@@ -192,11 +192,17 @@ public enum KeySync {
         }
 
         /// The switch changed (turned on: this device's keys go to iCloud Keychain; off: the synced ones are copied here);
-        /// the routed store follows it even when a move fails (the error is thrown, to be tried again).
+        /// the routed store follows it even when a move fails (the error is thrown, to be tried again). Turned on, it
+        /// follows first (reads try the synced store, then this device's, so a key is found while it moves); turned off,
+        /// once the synced keys are copied here (until then reads still find them there).
         @discardableResult
         public func turn(syncing: Bool) throws -> Moves {
-            defer { on.withLock { $0 = syncing } }
-            return syncing ? try KeySync.merge(from: local, into: synced) : try KeySync.merge(from: synced, into: local)
+            if syncing {
+                on.withLock { $0 = true }
+                return try KeySync.merge(from: local, into: synced)
+            }
+            defer { on.withLock { $0 = false } }
+            return try KeySync.merge(from: synced, into: local)
         }
 
         /// The silent pass at launch (`KeySync.migrate`), asking turned off.
