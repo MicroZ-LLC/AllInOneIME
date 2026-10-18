@@ -1004,8 +1004,11 @@
     "You haven't signed in to SSO for profile %@. Run `%@` in Terminal" : {
       "comment" : "AWS profile '%@' 还没有 SSO 登录。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"
     },
-    "Your own @reply is now @{name}: @reply is built in" : {
-      "comment" : "你自己的 @reply 改名为 @{name}：@reply 现在是内置命令 — Sources/AllInOneIMECore/Composer+Reply.swift"
+    "Your own @%@ is now @%@" : {
+      "comment" : "你自己的 @%@ 改名为 @%@ — Sources/AllInOneIMECore/Composer+Reply.swift"
+    },
+    "Your own @%@ is now @%@: @%@ is built in" : {
+      "comment" : "你自己的 @%@ 改名为 @%@：@%@ 现在是内置命令 — Sources/AllInOneIMECore/Composer+Reply.swift"
     },
     "Your SSO sign-in for profile %@ has expired. Run `%@` in Terminal" : {
       "comment" : "AWS profile '%@' 的 SSO 登录已过期。在终端里运行 `%@` — Sources/AllInOneIMECore/AWSCredentialError.swift"

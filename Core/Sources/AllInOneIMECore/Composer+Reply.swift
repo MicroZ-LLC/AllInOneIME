@@ -258,8 +258,8 @@ extension Composer {
         public var timedOut: String
         /// `@improve` / `@translate` with a selection and a screenshot: the selection was used.
         public var screenshotUnused: String
-        /// The custom commands renamed for the built-in ones (`Config.freeBuiltinNames`): "{name}" is the new name.
-        public var renamedFormat: String
+        /// The interface language they're in (`InterfaceWords`), for the ones made with what they say (`renamed`).
+        public var language: String
 
         /// What `problem` means, to say it.
         public func describe(_ problem: ScreenText.Problem) -> String {
@@ -270,8 +270,16 @@ extension Composer {
             }
         }
 
-        /// "Your own @reply is now @myreply: @reply is built in" for `new`, the new name.
-        public func renamed(_ new: String) -> String { renamedFormat.replacingOccurrences(of: "{name}", with: new) }
+        /// A custom command renamed for a built-in that has its name now (`Config.freeBuiltinNames`): "Your own @reply
+        /// is now @myreply: @reply is built in"; when that built-in is off (`Command.off`, not offered), only the rename.
+        public func renamed(old: String, new: String) -> String {
+            let t = InterfaceWords(language: language)
+            let old = old.lowercased()
+            guard !Command.off.contains(where: { $0.name == old }) else {
+                return t.tr("你自己的 @\(old) 改名为 @\(new)", "Your own @\(old) is now @\(new)")
+            }
+            return t.tr("你自己的 @\(old) 改名为 @\(new)：@\(old) 现在是内置命令", "Your own @\(old) is now @\(new): @\(old) is built in")
+        }
 
         public static func make(language: String) -> ReplyMessages {
             let t = InterfaceWords(language: language)
@@ -284,7 +292,7 @@ extension Composer {
                 imageTooLarge: t.tr("图片太大：最多 30 MB", "The image is too large: 30 MB at most"),
                 timedOut: t.tr("识别截图超时，再试一次", "Reading the screenshot took too long; try again"),
                 screenshotUnused: t.tr("已有选中的文字，截图没有用上", "Text is selected: the screenshot wasn't used"),
-                renamedFormat: t.tr("你自己的 @reply 改名为 @{name}：@reply 现在是内置命令", "Your own @reply is now @{name}: @reply is built in"))
+                language: language)
         }
 
         public static let chinese = make(language: "zh-Hans")

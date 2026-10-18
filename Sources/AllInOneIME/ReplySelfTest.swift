@@ -262,9 +262,9 @@ extension SelfTest {
         var own = Config.default
         own.customCommands = [CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")]
         try? own.write(to: url)
-        let renamed = BuiltinRenames.apply(configURL: url, defaults: defaults)
+        let renamed = BuiltinRenames.apply(configURL: url, defaults: defaults, taken: [])
         let written = (try? Config.load(from: url))?.customCommands.map(\.name) ?? []
-        check(renamed.map(\.new) == ["myreply"] && written == ["myreply"] && BuiltinRenames.apply(configURL: url, defaults: defaults).isEmpty,
+        check(renamed.map(\.new) == ["myreply"] && written == ["myreply"] && BuiltinRenames.apply(configURL: url, defaults: defaults, taken: []).isEmpty,
               "the custom @reply is @myreply in the config, once (\(written))")
         let takeBefore = controller.takeRenameNotice
         defer { controller.takeRenameNotice = takeBefore }

@@ -117,11 +117,17 @@ extension AllInOneIMEInputController {
 enum BuiltinRenames {
     static let key = "builtinRenamesToTell"
 
-    /// Renames them in the config at `url` (if any are to be), writes it, and keeps their new names to tell.
+    /// Renames them in the config at `url` (if any are to be), writes it, and keeps their new names to tell. The new
+    /// names are free of the plugins' and script extensions' too (`taken`; nil: the installed ones, looked for only when
+    /// a custom command has a built-in's name).
     @discardableResult
-    static func apply(configURL url: URL = Config.defaultURL, defaults: UserDefaults = .standard) -> [(old: String, new: String)] {
+    static func apply(configURL url: URL = Config.defaultURL, defaults: UserDefaults = .standard,
+                      taken: [String]? = nil) -> [(old: String, new: String)] {
         guard var config = try? Config.load(from: url) else { return [] }
-        let renamed = config.freeBuiltinNames()
+        let builtins = Set(Command.builtins.map(\.name))
+        guard config.customCommands.contains(where: { builtins.contains($0.name.lowercased()) }) else { return [] }
+        let others = taken ?? PluginStore.load().0.map(\.name) + LiveExtensions.load(config).commands.flatMap(\.names)
+        let renamed = config.freeBuiltinNames(taken: others)
         guard !renamed.isEmpty else { return [] }
         do {
             try config.write(to: url)
@@ -142,8 +148,7 @@ enum BuiltinRenames {
         return pairs.map { pair in
             let parts = pair.split(separator: "\t", maxSplits: 1).map(String.init)
             let (old, new) = parts.count == 2 ? (parts[0], parts[1]) : ("reply", pair)
-            // The notice names @reply; another built-in's name taken (rare) is said the same way.
-            return messages.renamed(new).replacingOccurrences(of: "@reply", with: "@" + old.lowercased())
+            return messages.renamed(old: old, new: new)
         }.joined(separator: "\n")
     }
 }

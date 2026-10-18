@@ -197,9 +197,27 @@ struct ReplyTests {
     @Test func otherBuiltInNamesAreFreedToo() {
         var config = Config.default
         config.customCommands = [CustomCommand(name: "Note", type: .prompt, prompt: "x"), CustomCommand(name: "mine", type: .prompt, prompt: "y")]
-        let renamed = config.freeBuiltinNames()
+        let renamed = config.freeBuiltinNames(taken: [])
         #expect(renamed.map(\.old) == ["Note"] && renamed.map(\.new) == ["mynote"])
         #expect(config.customCommands.map(\.name) == ["mynote", "mine"])
+        // Two that clash with the same built-in ("reply" and "Reply", say, one synced back from another Mac): each gets
+        // a name of letters, the catalog offers both.
+        var twice = Config.default
+        twice.customCommands = [CustomCommand(name: "reply", type: .prompt, prompt: "a"), CustomCommand(name: "Reply", type: .prompt, prompt: "b")]
+        #expect(twice.freeBuiltinNames(taken: ["MyReply"]).map(\.new) == ["myownreply", "myreplyb"])
+        let catalog = Command.catalog(twice.customCommands).map(\.name)
+        #expect(catalog.contains("myownreply") && catalog.contains("myreplyb"))
+        #expect(Config.renameCandidates(for: "reply").prefix(3) == ["myreply", "myownreply", "myreplyb"])
+        #expect(Config.renameCandidates(for: "reply").last == "myreplyz")
+    }
+
+    @Test func theRenameNoticeSaysWhatWasRenamedAndWhyOnlyForABuiltInOffered() {
+        #expect(Composer.ReplyMessages.english.renamed(old: "reply", new: "myreply") == "Your own @reply is now @myreply: @reply is built in")
+        #expect(Composer.ReplyMessages.chinese.renamed(old: "Note", new: "mynote") == "你自己的 @note 改名为 @mynote：@note 现在是内置命令")
+        // @read is built in but off (not offered): nothing is said about it being built in.
+        #expect(Command.off.contains(.read))
+        #expect(Composer.ReplyMessages.english.renamed(old: "read", new: "myread") == "Your own @read is now @myread")
+        #expect(Composer.ReplyMessages.chinese.renamed(old: "read", new: "myownread") == "你自己的 @read 改名为 @myownread")
     }
 
     @Test func theFieldTextIsCapped() {
