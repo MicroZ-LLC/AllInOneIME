@@ -636,6 +636,9 @@
     "Notion refused the note (%@)" : {
       "comment" : "Notion 没有接受这条笔记（%@） — Sources/AllInOneIMECore/NoteDestination.swift"
     },
+    "Notion refused the note: open Settings → Plugins → Notes and press Test" : {
+      "comment" : "Notion 没有接受这条笔记：打开设置 → 插件 → 笔记，按「测试」 — Sources/AllInOneIMECore/NoteDestination.swift"
+    },
     "off" : {
       "comment" : "关 — Sources/AllInOneIMECore/AIConfigText.swift"
     },

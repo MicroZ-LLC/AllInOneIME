@@ -75,6 +75,8 @@ public enum NoteError: Error, LocalizedError, Equatable, Sendable {
     case notionBusy
     /// 400 (or another 4xx): Notion's error code.
     case notionRefused(code: String)
+    /// 400 for a row of a database: most likely the database changed since Test (its title column, its data source).
+    case notionDatabaseRefused
     /// 5xx, or an answer that can't be read.
     case notionTrouble(status: Int)
     /// Not connected, the connection lost, the host not found.
@@ -103,6 +105,9 @@ public enum NoteError: Error, LocalizedError, Equatable, Sendable {
             return t.tr("Notion 正忙：稍后再试", "Notion is busy: try again in a moment")
         case let .notionRefused(code):
             return t.tr("Notion 没有接受这条笔记（\(code)）", "Notion refused the note (\(code))")
+        case .notionDatabaseRefused:
+            return t.tr("Notion 没有接受这条笔记：打开设置 → 插件 → 笔记，按「测试」",
+                        "Notion refused the note: open Settings → Plugins → Notes and press Test")
         case let .notionTrouble(status):
             return t.tr("Notion 出了问题（HTTP \(status)）", "Notion is having trouble (HTTP \(status))")
         case .offline:
@@ -119,7 +124,8 @@ public enum NoteError: Error, LocalizedError, Equatable, Sendable {
     /// Only the user can fix it, in Settings (the notice stays up longer, the text goes on the clipboard too).
     public var needsTheUser: Bool {
         switch self {
-        case .folderMissing, .notionUnauthorized, .notionNotShared, .notionNotSetUp, .notNotionLink: return true
+        case .folderMissing, .notionUnauthorized, .notionNotShared, .notionNotSetUp, .notNotionLink, .notionDatabaseRefused:
+            return true
         case .notionBusy, .notionRefused, .notionTrouble, .offline, .notionTimedOut: return false
         }
     }

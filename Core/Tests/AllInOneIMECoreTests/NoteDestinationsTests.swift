@@ -1,3 +1,6 @@
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -52,7 +55,7 @@ struct NoteDestinationsTests {
     }
 
     @Test func theSettingsCodeAsTheSpecSays() throws {
-        let target = NotionTarget(id: "a", kind: .page, title: "Journal")
+        let target = NotionTarget(id: "01234567-89ab-cdef-0123-456789abcdef", kind: .page, title: "Journal")
         let settings = NoteSettings(destination: .notion, notion: target)
         let json = try #require(String(data: JSONEncoder().encode(settings), encoding: .utf8))
         #expect(json.contains(#""destination":"notion""#) && !json.contains("folder"))
@@ -220,4 +223,132 @@ struct NoteDestinationsTests {
         #expect(open("javascript:alert(1)") == nil)
     }
 
+    // MARK: - Notion
+
+    @Test func notionComLinksAndUUIDs() {
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        for link in ["https://www.notion.com/team/Inbox-0123456789abcdef0123456789abcdef",
+                     "https://app.notion.com/p/0123456789abcdef0123456789abcdef",
+                     "https://notion.com/Inbox-0123456789abcdef0123456789abcdef"] {
+            #expect(NotionLink.id(from: link) == id, "\(link)")
+        }
+        #expect(NotionLink.id(from: "https://evil.notion.com/Inbox-0123456789abcdef0123456789abcdef") == nil)
+        #expect(NotionLink.uuid("0123456789ABCDEF0123456789abcdef") == id)
+        #expect(NotionLink.uuid(id.uppercased()) == id)
+        #expect(NotionLink.uuid("0123-456789abcdef0123456789abcdef") == nil)
+        #expect(NotionLink.uuid("../../v1/users") == nil)
+        #expect(NotionLink.uuid("") == nil)
+    }
+
+    @Test func aTargetFromTheConfigIsCheckedAsUUIDs() throws {
+        func notes(_ json: String) throws -> NoteSettings { try JSONDecoder().decode(NoteSettings.self, from: Data(json.utf8)) }
+        #expect(try notes(#"{"destination":"notion","notion":{"id":"../users/me","kind":"page"}}"#).notion == nil)
+        let row = try notes(#"{"destination":"notion","notion":{"id":"FEDCBA98-7654-3210-FEDC-BA9876543210","kind":"database","dataSource":"x/../y","titleProperty":"Name"}}"#).notion
+        #expect(row?.id == "fedcba98-7654-3210-fedc-ba9876543210" && row?.dataSource == nil)
+        let broken = NotionTarget(id: "../users", kind: .page)
+        #expect(throws: NoteError.notionNotSetUp) { _ = try NotionFormat.request(for: draft("x"), to: broken, token: "t") }
+    }
+
+    @Test func aRowIsTitledByThePropertysIDWhenItIsKnown() throws {
+        func titleKeys(_ target: NotionTarget) throws -> [String] {
+            let request = try NotionFormat.request(for: draft("Call the bank"), to: target, token: "t")
+            let body = try #require(try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any])
+            return Array((body["properties"] as? [String: Any] ?? [:]).keys)
+        }
+        let source = "11112222-3333-4444-5555-666677778888"
+        let database = "fedcba98-7654-3210-fedc-ba9876543210"
+        #expect(try titleKeys(NotionTarget(id: database, kind: .database, dataSource: source, titleProperty: "Task name",
+                                           titlePropertyID: "title")) == ["title"])
+        // A config from before the id was kept: the name.
+        #expect(try titleKeys(NotionTarget(id: database, kind: .database, dataSource: source, titleProperty: "Task name")) == ["Task name"])
+        let coded = try JSONDecoder().decode(NotionTarget.self, from: JSONEncoder().encode(
+            NotionTarget(id: database, kind: .database, dataSource: source, titleProperty: "Name", titlePropertyID: "title")))
+        #expect(coded.titlePropertyID == "title")
+    }
+
+    @Test func aRefusedRowSaysToTestAgainAndAnswersAreChecked() async throws {
+        let session = NoteTestStub.session()
+        let database = "fedcba98-7654-3210-fedc-ba9876543210"
+        let source = "11112222-3333-4444-5555-666677778888"
+        let row = NotionTarget(id: database, kind: .database, dataSource: source, titleProperty: "Name", titlePropertyID: "title")
+        let refusing = NoteTestStub.serve { _ in (400, #"{"object":"error","status":400,"code":"validation_error"}"#) }
+        do {
+            _ = try await NotionDestination(target: row, token: refusing, session: session).save(draft("x"))
+            Issue.record("saved")
+        } catch {
+            #expect(error as? NoteError == .notionDatabaseRefused)
+            #expect((error as? NoteError)?.message(language: "en") == "Notion refused the note: open Settings → Plugins → Notes and press Test")
+            #expect((error as? NoteError)?.needsTheUser == true)
+        }
+        // A page answer's URL elsewhere isn't kept for the panel.
+        let elsewhere = NoteTestStub.serve { _ in (200, #"{"object":"page","id":"99998888-7777-6666-5555-444433332222","url":"https://evil.example/x"}"#) }
+        let page = NotionTarget(id: database, kind: .page)
+        #expect(try await NotionDestination(target: page, token: elsewhere, session: session).save(draft("x")).id == nil)
+        // A database whose data source id isn't a UUID: not looked up.
+        let odd = NoteTestStub.serve { path in
+            path.hasPrefix("/v1/databases/")
+                ? (200, #"{"object":"database","id":"\#(database)","data_sources":[{"id":"../../users/me"}]}"#)
+                : (404, #"{"object":"error","status":404,"code":"object_not_found"}"#)
+        }
+        await #expect(throws: NoteError.self) { _ = try await NotionAPI.resolve(database, token: odd, session: session) }
+        #expect(NoteTestStub.paths(odd) == ["/v1/pages/\(database)", "/v1/databases/\(database)"])
+        // The title property's id is kept.
+        let good = NoteTestStub.serve { path in
+            switch path {
+            case "/v1/databases/\(database)":
+                return (200, #"{"object":"database","id":"\#(database)","title":[{"plain_text":"Inbox"}],"data_sources":[{"id":"\#(source)"}]}"#)
+            case "/v1/data_sources/\(source)":
+                return (200, #"{"object":"data_source","id":"\#(source)","properties":{"Task":{"id":"title","name":"Task","type":"title","title":{}}}}"#)
+            default:
+                return (404, #"{"object":"error","status":404,"code":"object_not_found"}"#)
+            }
+        }
+        let resolved = try await NotionAPI.resolve(database, token: good, session: session)
+        #expect(resolved.titleProperty == "Task" && resolved.titlePropertyID == "title" && resolved.dataSource == source)
+        await #expect(throws: NoteError.notNotionLink) { _ = try await NotionAPI.resolve("../users", token: good, session: session) }
+    }
+
+    @Test func aSaveTakesTwentySecondsAtMostInAll() {
+        #expect(NotionAPI.session.configuration.timeoutIntervalForResource == 20)
+    }
+}
+
+/// Notion's API, never reached: answers by the bearer token (a fresh one per test).
+private final class NoteTestStub: URLProtocol, @unchecked Sendable {
+    typealias Handler = @Sendable (_ path: String) -> (Int, String)
+    private static let routes = Locked(initialState: [String: (handler: Handler, paths: [String])]())
+
+    static func session() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [NoteTestStub.self]
+        return URLSession(configuration: configuration)
+    }
+
+    static func serve(_ handler: @escaping Handler) -> String {
+        let token = "secret_test_" + UUID().uuidString
+        routes.withLock { $0[token] = (handler, []) }
+        return token
+    }
+
+    static func paths(_ token: String) -> [String] { routes.withLock { $0[token]?.paths ?? [] } }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url else { return client!.urlProtocol(self, didFailWithError: URLError(.badURL)) }
+        let token = String((request.value(forHTTPHeaderField: "Authorization") ?? "").dropFirst("Bearer ".count))
+        let handler = Self.routes.withLock { routes -> Handler? in
+            routes[token]?.paths.append(url.path)
+            return routes[token]?.handler
+        }
+        guard let handler else { return client!.urlProtocol(self, didFailWithError: URLError(.cannotFindHost)) }
+        let (status, body) = handler(url.path)
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

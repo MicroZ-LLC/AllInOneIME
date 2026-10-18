@@ -14,18 +14,41 @@ public struct NotionTarget: Codable, Equatable, Sendable {
     /// The page's or database's id, a dashed UUID.
     public var id: String
     public var kind: Kind
-    /// A database's first data source, and its title property ("Name").
+    /// A database's first data source, and its title property: its name ("Name", for Settings) and its id (always
+    /// "title" in Notion's API), which a row is written under, so that renaming the column in Notion changes nothing.
+    /// Without the id (a config from before it was kept), the name.
     public var dataSource: String?
     public var titleProperty: String?
+    public var titlePropertyID: String?
     /// The page's or database's title, for Settings.
     public var title: String?
 
-    public init(id: String, kind: Kind, dataSource: String? = nil, titleProperty: String? = nil, title: String? = nil) {
+    public init(id: String, kind: Kind, dataSource: String? = nil, titleProperty: String? = nil, titlePropertyID: String? = nil,
+                title: String? = nil) {
         self.id = id
         self.kind = kind
         self.dataSource = dataSource
         self.titleProperty = titleProperty
+        self.titlePropertyID = titlePropertyID
         self.title = title
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, dataSource, titleProperty, titlePropertyID = "titlePropertyId", title
+    }
+
+    /// An id that isn't a UUID is no target (the config edited by hand); a data source that isn't one, none.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard let id = NotionLink.uuid(try c.decode(String.self, forKey: .id)) else {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: c, debugDescription: "not a UUID")
+        }
+        self.id = id
+        kind = try c.decode(Kind.self, forKey: .kind)
+        dataSource = (try? c.decodeIfPresent(String.self, forKey: .dataSource)).flatMap { $0 }.flatMap(NotionLink.uuid)
+        titleProperty = (try? c.decodeIfPresent(String.self, forKey: .titleProperty)).flatMap { $0 }
+        titlePropertyID = (try? c.decodeIfPresent(String.self, forKey: .titlePropertyID)).flatMap { $0 }
+        title = (try? c.decodeIfPresent(String.self, forKey: .title)).flatMap { $0 }
     }
 
     /// As Test shows it: "“Inbox” (database)".
@@ -68,9 +91,14 @@ public struct NotionDestination: NoteDestination {
         let (target, token) = try setUp()
         let request = try NotionFormat.request(for: draft, to: target, token: token)
         let (status, body) = try await NotionAPI.send(request, session: session)
-        guard (200..<300).contains(status) else { throw NotionAPI.error(status: status, body: body) }
+        guard (200..<300).contains(status) else {
+            // A row refused: most likely the database changed since Test (its data source, its title column).
+            if status == 400, target.kind == .database { throw NoteError.notionDatabaseRefused }
+            throw NotionAPI.error(status: status, body: body)
+        }
         let page = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
-        let url = (page?["url"] as? String).flatMap { $0.lowercased().hasPrefix("https:") ? $0 : nil }
+        // Kept for the panel (which opens it) only when it is a Notion page's address.
+        let url = (page?["url"] as? String).flatMap { URL(string: $0).map(NotionLink.isPage) == true ? $0 : nil }
         return SavedNoteRef(id: url, title: draft.title)
     }
 
@@ -90,7 +118,8 @@ public enum NotionLink {
         let text = link.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let components = URLComponents(string: text), let scheme = components.scheme?.lowercased(),
               scheme == "https" || scheme == "http", let host = components.host?.lowercased(),
-              ["notion.so", "notion.site"].contains(where: { host == $0 || host.hasSuffix("." + $0) }) else { return nil }
+              ["notion.so", "notion.site"].contains(where: { host == $0 || host.hasSuffix("." + $0) })
+                || ["notion.com", "www.notion.com", "app.notion.com"].contains(host) else { return nil }
         var runs: [String] = [], run = ""
         for character in components.path {
             if isHex(character) || character == "-" {
@@ -110,6 +139,16 @@ public enum NotionLink {
     }
 
     private static func isHex(_ c: Character) -> Bool { c.isASCII && c.isHexDigit }
+
+    /// `text` as a dashed lowercase UUID when it is one (8-4-4-4-12 hex digits, or 32 without the dashes); nil else.
+    /// Ids from the config and from Notion's answers go into request paths only as such.
+    public static func uuid(_ text: String) -> String? {
+        let lower = text.lowercased()
+        let hex = lower.filter { $0 != "-" }
+        guard hex.count == 32, hex.allSatisfy(isHex) else { return nil }
+        let uuid = dashed(hex)
+        return lower.contains("-") && lower != uuid ? nil : uuid
+    }
 
     /// Whether `url` is a Notion page's address, which a saved note's id may be and the panel may open: https on
     /// notion.so, a subdomain of it, or a notion.site one; no user or port.
@@ -194,12 +233,14 @@ public enum NotionFormat {
                                timeout: TimeInterval = NotionAPI.saveTimeout) throws -> URLRequest {
         let parent: [String: String]
         let titleName: String
+        guard let id = NotionLink.uuid(target.id) else { throw NoteError.notionNotSetUp }
         switch target.kind {
         case .page:
-            parent = ["type": "page_id", "page_id": target.id]
+            parent = ["type": "page_id", "page_id": id]
             titleName = "title"
         case .database:
-            guard let source = target.dataSource, !source.isEmpty, let property = target.titleProperty, !property.isEmpty else {
+            let property = target.titlePropertyID.flatMap { $0.isEmpty ? nil : $0 } ?? target.titleProperty
+            guard let source = target.dataSource.flatMap(NotionLink.uuid), let property, !property.isEmpty else {
                 throw NoteError.notionNotSetUp
             }
             parent = ["type": "data_source_id", "data_source_id": source]
@@ -280,6 +321,9 @@ public enum NotionAPI {
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
         configuration.urlCredentialStorage = nil
+        // The whole of a request's time (a request's own timeout is how long it may wait for the next bytes): a save
+        // never takes longer than the progress notice stays up.
+        configuration.timeoutIntervalForResource = 20
         return URLSession(configuration: configuration)
     }()
 
@@ -339,27 +383,40 @@ public enum NotionAPI {
             let (status, body) = try await send(request("GET", path, token: token, timeout: checkTimeout), session: session)
             return (status, (try? JSONSerialization.jsonObject(with: body)) as? [String: Any], body)
         }
+        guard let id = NotionLink.uuid(id) else { throw NoteError.notNotionLink }
+        /// An id in an answer, when it is a UUID (else the answer can't be used); `fallback` when there's none.
+        func answered(_ value: Any?, or fallback: String?, status: Int) throws -> String {
+            guard let value else {
+                if let fallback { return fallback }
+                throw NoteError.notionTrouble(status: status)
+            }
+            guard let text = value as? String, let uuid = NotionLink.uuid(text) else { throw NoteError.notionTrouble(status: status) }
+            return uuid
+        }
         let page = try await get("pages/\(id)")
         if page.status == 200 {
             let properties = page.object?["properties"] as? [String: Any] ?? [:]
             let title = properties.values.lazy.compactMap { $0 as? [String: Any] }.first { $0["type"] as? String == "title" }
                 .map { plainText($0["title"]) }
-            return NotionTarget(id: page.object?["id"] as? String ?? id, kind: .page, title: title)
+            return NotionTarget(id: try answered(page.object?["id"], or: id, status: page.status), kind: .page, title: title)
         }
         // A database isn't a page: 404 (or a validation error, as some versions answer).
         guard page.status == 404 || page.status == 400 else { throw error(status: page.status, body: page.body) }
         let database = try await get("databases/\(id)")
         guard database.status == 200 else { throw error(status: database.status, body: database.body) }
         let sources = database.object?["data_sources"] as? [[String: Any]] ?? []
-        guard let source = sources.first?["id"] as? String else { throw NoteError.notionTrouble(status: database.status) }
+        let source = try answered(sources.first?["id"], or: nil, status: database.status)
         let dataSource = try await get("data_sources/\(source)")
         guard dataSource.status == 200 else { throw error(status: dataSource.status, body: dataSource.body) }
         let properties = dataSource.object?["properties"] as? [String: Any] ?? [:]
         guard let (name, property) = properties.first(where: { ($0.value as? [String: Any])?["type"] as? String == "title" })
         else { throw NoteError.notionTrouble(status: dataSource.status) }
         let titleProperty = ((property as? [String: Any])?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? name
-        return NotionTarget(id: database.object?["id"] as? String ?? id, kind: .database, dataSource: source,
-                            titleProperty: titleProperty, title: plainText(database.object?["title"]))
+        // Its id ("title"): what a row is written under, whatever the column is called later.
+        let titlePropertyID = ((property as? [String: Any])?["id"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(100)) }
+        return NotionTarget(id: try answered(database.object?["id"], or: id, status: database.status), kind: .database,
+                            dataSource: source, titleProperty: titleProperty, titlePropertyID: titlePropertyID,
+                            title: plainText(database.object?["title"]))
     }
 
     /// A rich-text array's text.
