@@ -462,7 +462,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - Turning it on, a Mac takes the settings in iCloud already; its own fill in only what isn't there yet. Its
   collections are merged instead: recent questions (both lists, newest first, a question once), hidden words, custom
   commands (by name; iCloud's on a clash) and the jargon list's lines. The same when a switch under it is turned on for
-  the first time.
+  the first time. Once the merge has reached another Mac, what you take out of it there (a custom command deleted) stays
+  out.
 - Turned back on after it was off: what iCloud changed meanwhile comes in (also where this Mac changed it too), what only
   this Mac changed goes up, and a collection it added to meanwhile is merged, never dropped.
 - Recent questions of two Macs are merged; "Clear" on one Mac clears every question asked before it on the others too.
