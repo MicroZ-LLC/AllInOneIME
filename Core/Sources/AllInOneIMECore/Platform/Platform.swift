@@ -3,7 +3,8 @@ import Foundation
 /// What the core needs from the system it runs on, in one place. A shell (the macOS app, later the Windows, iOS and
 /// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
-/// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), and
+/// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), Windows'
+/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin), and
 /// elsewhere neutral stand-ins: a heuristic language guess, the date rules alone, and no JavaScript, on-device model,
 /// PDF text, text recognition or secret store ("not supported on this platform").
 public struct Platform: Sendable {
