@@ -901,15 +901,19 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
     public var learnedWords: Bool
     public var hiddenWords: Bool
     public var recentQuestions: Bool
+    /// API keys and passwords, through iCloud Keychain rather than iCloud Drive (`KeySync`): on by default, written in the
+    /// config only when off.
+    public var keys: Bool
 
     public init(enabled: Bool = false, settings: Bool = true, jargon: Bool = true, learnedWords: Bool = true,
-                hiddenWords: Bool = false, recentQuestions: Bool = false) {
+                hiddenWords: Bool = false, recentQuestions: Bool = false, keys: Bool = true) {
         self.enabled = enabled
         self.settings = settings
         self.jargon = jargon
         self.learnedWords = learnedWords
         self.hiddenWords = hiddenWords
         self.recentQuestions = recentQuestions
+        self.keys = keys
     }
 
     /// The categories turned on (none while sync is off).
@@ -924,7 +928,10 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
         return out
     }
 
-    private enum CodingKeys: String, CodingKey { case enabled, settings, jargon, learnedWords, hiddenWords, recentQuestions }
+    /// Keys go through iCloud Keychain: sync on, and its "API keys and passwords" row on.
+    public var syncsKeys: Bool { enabled && keys }
+
+    private enum CodingKeys: String, CodingKey { case enabled, settings, jargon, learnedWords, hiddenWords, recentQuestions, keys }
 
     /// Each switch on its own: a missing one, or one of the wrong type, keeps its default (never an error).
     public init(from decoder: Decoder) throws {
@@ -937,5 +944,18 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
         learnedWords = flag(.learnedWords, d.learnedWords)
         hiddenWords = flag(.hiddenWords, d.hiddenWords)
         recentQuestions = flag(.recentQuestions, d.recentQuestions)
+        keys = flag(.keys, d.keys)
+    }
+
+    /// As before `keys` came, and `keys` only when it's off (the default needs no line).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(enabled, forKey: .enabled)
+        try c.encode(settings, forKey: .settings)
+        try c.encode(jargon, forKey: .jargon)
+        try c.encode(learnedWords, forKey: .learnedWords)
+        try c.encode(hiddenWords, forKey: .hiddenWords)
+        try c.encode(recentQuestions, forKey: .recentQuestions)
+        if keys != ICloudSyncSettings().keys { try c.encode(keys, forKey: .keys) }
     }
 }
