@@ -73,7 +73,8 @@ extension SelfTest {
               "\(what) deleted with kSecAttrSynchronizableAny: gone")
     }
 
-    /// The controller's moves, with stores in memory: the silent pass at launch, then the switch turned on and off.
+    /// The controller's moves, with stores in memory: the silent pass at launch, then the switch turned on and off, and
+    /// the keys-synced marker through a turn on that stops halfway (acceptance S21's controller half).
     private static func testKeySyncMoves() {
         let sync = ICloudSyncController.shared
         let fm = FileManager.default
@@ -86,11 +87,22 @@ extension SelfTest {
             return store
         }
         let local = store(.local), legacy = store(.legacy), replaced = store(.local)
-        // iCloud Keychain, with keys that can be made unreadable (not there yet, say).
-        let unreadable = Locked<Set<String>>(initialState: [])
+        // iCloud Keychain, with keys that can be made unreadable (not there yet, say) or read back garbled once written,
+        // and the marker as it was when each key was written there.
+        let unreadable = Locked<Set<String>>(initialState: []), garbled = Locked<Set<String>>(initialState: [])
+        let markerURL = sync.keysSyncedURL
+        let markerAtWrites = Locked<[String?]>(initialState: [])
         var synced = store(.synced)
         let syncedItems = synced
-        synced.read = { account in unreadable.withLock { $0.contains(account) } ? nil : syncedItems.read(account) }
+        synced.read = { account in
+            if unreadable.withLock({ $0.contains(account) }) { return nil }
+            return garbled.withLock { $0.contains(account) } ? "garbled" : syncedItems.read(account)
+        }
+        synced.write = { account, key, label, comment, ending, saved in
+            let marker = (try? Data(contentsOf: markerURL)).map { String(decoding: $0, as: UTF8.self) }
+            markerAtWrites.withLock { $0.append(marker) }
+            return syncedItems.write(account, key, label, comment, ending, saved)
+        }
         let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy, replaced: replaced)
         sync.keys = stores
         try? fm.removeItem(at: sync.keysSyncedURL)
@@ -137,5 +149,49 @@ extension SelfTest {
         check(!stores.syncing && local.read("openai") == openAI && local.read("gemini") == gemini
               && synced.read("openai") == openAI && synced.read("gemini") == gemini && !fm.fileExists(atPath: sync.keysSyncedURL.path),
               "\"API keys and passwords\" turned off: the synced keys copied to this Mac and left in iCloud Keychain for the others")
+
+        // Turned on, one key's copy reads back garbled: the marker says "moving" before the first key moves, and still
+        // does after (never "done").
+        let anthropic = "sk-selftest-anthropic-0004"
+        _ = local.write("anthropic", anthropic, "AllInOneIME: Claude API", "", APIKeys.ending(of: anthropic), Date())
+        _ = synced.delete("openai")
+        _ = synced.delete("gemini")
+        markerAtWrites.withLock { $0 = [] }
+        garbled.withLock { $0 = ["gemini"] }
+        edit { $0.keys = true }
+        sync.applyKeySync()
+        let firstWrite = markerAtWrites.withLock { $0.first ?? nil }
+        check(firstWrite == "moving" && sync.keysSynced == .moving && stores.syncing,
+              "turned on: the marker says moving before the first key moves (\(firstWrite ?? "none")), and after a copy that didn't read back (\(sync.keysSynced.map(\.rawValue) ?? "none"))")
+        check(syncedItems.read("openai") == openAI && local.attributes("openai") == nil && local.read("gemini") == gemini,
+              "the keys that moved are in iCloud Keychain alone; the one whose copy was garbled stays here")
+
+        // Turned off before the turn on was done: the synced keys come back here all the same, and the marker goes.
+        edit { $0.keys = false }
+        sync.applyKeySync()
+        check(!stores.syncing && sync.keysSynced == nil && stores.store.read("openai") == openAI
+              && stores.store.read("anthropic") == anthropic && stores.store.read("gemini") == gemini,
+              "turned off after a turn on that stopped halfway: every key that moved is on this Mac again, and the marker is gone")
+
+        // Turned on again, nothing garbled: moving, then done.
+        garbled.withLock { $0 = [] }
+        markerAtWrites.withLock { $0 = [] }
+        edit { $0.keys = true }
+        sync.applyKeySync()
+        let onAgain = markerAtWrites.withLock { $0.first ?? nil }
+        check(onAgain == "moving" && sync.keysSynced == .done && syncedItems.read("gemini") == gemini && local.attributes("gemini") == nil,
+              "turned on again: moving (\(onAgain ?? "none")), then done once every key moved")
+
+        // At launch with the marker left "moving" and key sync on: the turn on is tried again.
+        try? Data("moving".utf8).write(to: markerURL)
+        let late = "sk-selftest-late-0005"
+        _ = local.write("perplexity", late, "AllInOneIME: test", "", APIKeys.ending(of: late), Date())
+        stores.start(syncing: true)
+        sync.applyKeySync()
+        check(sync.keysSynced == .done && syncedItems.read("perplexity") == late && local.attributes("perplexity") == nil,
+              "a marker left moving with key sync on: the turn on is tried again, then done")
+        // A marker from an earlier build (empty) is done.
+        try? Data().write(to: markerURL)
+        check(sync.keysSynced == .done, "an empty marker (an earlier build's) counts as done")
     }
 }
