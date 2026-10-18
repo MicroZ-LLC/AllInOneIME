@@ -40,10 +40,19 @@ public enum KeySync {
     }
 
     /// The newest wins: `a` over `b` only when its key was set later, by when it was saved (`ItemAttributes.saved`, which
-    /// copies carry), else by when its item was last changed; an item that says neither loses.
-    static func newer(_ a: APIKeys.ItemAttributes, than b: APIKeys.ItemAttributes) -> Bool {
-        (a.changed ?? .distantPast) > (b.changed ?? .distantPast)
+    /// copies carry), else by when its item was last changed; an item that says neither loses. A time later than a day
+    /// from `now` counts as `now`: a Mac whose clock was set far ahead doesn't win every merge after.
+    static func newer(_ a: APIKeys.ItemAttributes, than b: APIKeys.ItemAttributes, now: Date = Date()) -> Bool {
+        let latest = now.addingTimeInterval(clockSkew)
+        func when(_ item: APIKeys.ItemAttributes) -> Date {
+            let changed = item.changed ?? .distantPast
+            return changed > latest ? now : changed
+        }
+        return when(a) > when(b)
     }
+
+    /// How far ahead of now a save time may be before it counts as now (`newer`).
+    static let clockSkew: TimeInterval = 24 * 60 * 60
 
     /// Every item of `from` into `into`, the newest winning account by account (`APIKeys.neverSynced` left out). Turning
     /// sync on is `merge(from: local, into: synced)`, turning it off `merge(from: synced, into: local)`. The items of `from`

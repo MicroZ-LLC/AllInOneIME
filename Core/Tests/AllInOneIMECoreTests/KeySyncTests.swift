@@ -185,3 +185,21 @@ struct KeychainAccessibilityTests {
     }
 }
 #endif
+
+/// A Mac whose clock was set far ahead: its save times count as now, so they don't win every merge after.
+struct KeySyncClockTests {
+    static func item(_ saved: Date) -> APIKeys.ItemAttributes {
+        APIKeys.ItemAttributes(created: nil, modified: nil, comment: nil, saved: saved)
+    }
+
+    @Test func aSaveTimeFarAheadCountsAsNow() {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let ahead = Self.item(now.addingTimeInterval(400 * 86_400)), hourAgo = Self.item(now.addingTimeInterval(-3_600))
+        let minuteAgo = Self.item(now.addingTimeInterval(-60)), soon = Self.item(now.addingTimeInterval(3_600))
+        #expect(KeySync.newer(ahead, than: hourAgo, now: now))  // as now: still later than an hour ago
+        #expect(!KeySync.newer(ahead, than: soon, now: now))  // within a day ahead: as it says, later than now
+        #expect(KeySync.newer(soon, than: ahead, now: now))
+        #expect(KeySync.newer(minuteAgo, than: hourAgo, now: now) && !KeySync.newer(hourAgo, than: minuteAgo, now: now))
+        #expect(!KeySync.newer(ahead, than: Self.item(now.addingTimeInterval(500 * 86_400)), now: now))  // both now: neither
+    }
+}
