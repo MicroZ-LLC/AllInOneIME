@@ -75,8 +75,8 @@ enum PerAppAccGolden {
         var run: Run
     }
 
-    static let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Write a polite reply.")])
-        .first { $0.name == "reply" }!
+    static let reply = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Write a polite reply.")])
+        .first { $0.name == "respond" }!
 
     static var configs: [(String, Config)] {
         var base = Config.default
@@ -270,7 +270,7 @@ struct PerAppAcceptanceTests {
     }
 
     static let reply = PerAppAccGolden.reply
-    static let catalog = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Write a polite reply.")])
+    static let catalog = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Write a polite reply.")])
 
     /// Sends `run` through a real converter for `app` with `config` (pointed at a fresh recording host).
     /// The bodies sent and the error, if any.
@@ -478,7 +478,7 @@ struct PerAppAcceptanceTests {
             ("@translate hello world", "@translate hello world"),
             ("@translate @improve hello", "@translate @improve hello"),
             ("@question what is this", "@question what is this"),
-            ("@reply thanks a lot", "@reply thanks a lot"),
+            ("@respond thanks a lot", "@respond thanks a lot"),
             ("@agent fix the bug", "@agent fix the bug"),
             ("@improve total @py 2*3", "@improve total @py 2*3"),
         ]

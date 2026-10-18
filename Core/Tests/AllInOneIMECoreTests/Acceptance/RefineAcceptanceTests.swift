@@ -365,15 +365,15 @@ struct RefineAcceptanceTests {
         #expect(question.c.refineLine == "s", "@question")
 
         // A prompt custom command
-        let reply = CustomCommand(name: "reply", type: .prompt, prompt: "Write a polite reply.")
+        let reply = CustomCommand(name: "respond", type: .prompt, prompt: "Write a polite reply.")
         let catalog = Command.catalog([reply])
         let custom = RARig(commands: catalog)
         custom.c.setInputMode(.english)
-        custom.pick("repl")
-        #expect(custom.c.draft == "@reply ")
+        custom.pick("resp")
+        #expect(custom.c.draft == "@respond ")
         custom.type("thanks for the invite")
         let start = custom.key(enterKey)
-        #expect(start.contains { if case let .startCommand(c, _, _) = $0 { return c.name == "reply" } else { return false } })
+        #expect(start.contains { if case let .startCommand(c, _, _) = $0 { return c.name == "respond" } else { return false } })
         _ = custom.c.receive(ConversionResult(versions: [CandidateLine("Thank you, I'd be glad to come.")]), isFinal: true, id: 1)
         custom.type("s")
         #expect(custom.c.refineLine == "s", "prompt command")
@@ -1172,8 +1172,8 @@ func refineAcceptanceGoldenCases() -> [(name: String, request: ConverseRequest)]
             }
         }
     }
-    let reply = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Write a polite reply in the same language.")])
-        .first { $0.name == "reply" }!
+    let reply = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Write a polite reply in the same language.")])
+        .first { $0.name == "respond" }!
     let commandInputs: [(String, String)] = [
         ("zh", "量子计算是什么"), ("en", "what is a monad"),
         ("about", Prompt.question("总结一下", about: "Dear team, this sentance have a error.")),

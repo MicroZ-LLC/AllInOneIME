@@ -1685,12 +1685,12 @@ struct QuestionChatAcceptanceTests {
 
     /// CHANGE 2 prompt commands: the same keys.
     @Test func c2_promptCommandsRefineWithShiftReturnAndReturnInserts() async throws {
-        let catalog = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Write a polite reply.")])
+        let catalog = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Write a polite reply.")])
         for shift in [false, true] {
             let rig = QCRig(commands: catalog)
             QCStubProtocol.enqueue(rig.host, .answer("Thank you, I'd be glad to come."), .answer("Thanks, I'll come."))
-            await rig.pick("repl")
-            #expect(rig.c.draft == "@reply ")
+            await rig.pick("resp")
+            #expect(rig.c.draft == "@respond ")
             await rig.type("thanks for the invite")
             await rig.key(enterKey)
             #expect(rig.requestCount == 1 && rig.c.canRefine)
@@ -1782,8 +1782,8 @@ struct QuestionChatAcceptanceTests {
         await translate.type("hello")
         await translate.key(enterKey)
         others += translate.requests.map { ("@translate", $0) }
-        let reply = QCRig(commands: Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Write a polite reply.")]))
-        await reply.pick("repl")
+        let reply = QCRig(commands: Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Write a polite reply.")]))
+        await reply.pick("resp")
         await reply.type("thanks")
         await reply.key(enterKey)
         others += reply.requests.map { ("prompt command", $0) }
