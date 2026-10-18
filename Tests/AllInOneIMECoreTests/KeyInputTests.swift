@@ -119,6 +119,44 @@ struct KeyInputTests {
         #expect(WindowsKeyCodes.key(virtualKey: 0x2C, usage: 0x46) == .other)  // VK_SNAPSHOT
     }
 
+    /// Every extended key (lParam bit 24: scan code E0 xx), its usage and `Key`, and its twin without the bit: the
+    /// keypad's, or the left key of the two.
+    @Test func windowsExtendedKeys() {
+        let extended: [(scan: UInt8, usage: UInt16, vk: UInt16, key: Key, twin: UInt16)] = [
+            (0x48, 0x52, 0x26, .arrow(.up), 0x60), (0x50, 0x51, 0x28, .arrow(.down), 0x5A),  // ↑ ↓ (keypad 8 2)
+            (0x4B, 0x50, 0x25, .arrow(.left), 0x5C), (0x4D, 0x4F, 0x27, .arrow(.right), 0x5E),  // ← → (keypad 4 6)
+            (0x1C, 0x58, 0x0D, .keypadEnter, 0x28),  // keypad Enter (Enter)
+            (0x1D, 0xE4, 0x11, .modifier(.control, .right), 0xE0), (0x38, 0xE6, 0x12, .modifier(.option, .right), 0xE2),
+            (0x52, 0x49, 0x2D, .insert, 0x62), (0x53, 0x4C, 0x2E, .forwardDelete, 0x63),  // (keypad 0 .)
+            (0x47, 0x4A, 0x24, .home, 0x5F), (0x4F, 0x4D, 0x23, .end, 0x59),  // (keypad 7 1)
+            (0x49, 0x4B, 0x21, .pageUp, 0x61), (0x51, 0x4E, 0x22, .pageDown, 0x5B),  // (keypad 9 3)
+            (0x35, 0x54, 0x6F, .character, 0x38),  // keypad ÷ (/)
+            (0x37, 0x46, 0x2C, .other, 0x55),  // Print Screen, VK_SNAPSHOT (keypad *)
+            (0x5B, 0xE3, 0x5B, .modifier(.command, .left), 0), (0x5C, 0xE7, 0x5C, .modifier(.command, .right), 0),  // Win
+            (0x5D, 0x65, 0x5D, .other, 0),  // the context-menu key, VK_APPS
+            (0x45, 0x53, 0x90, .other, 0x48),  // Num Lock, VK_NUMLOCK (Pause)
+        ]
+        for k in extended {
+            #expect(WindowsKeyCodes.usage(scanCode: k.scan, extended: true) == k.usage, "E0 \(k.scan)")
+            #expect(WindowsKeyCodes.key(virtualKey: k.vk, usage: k.usage) == k.key, "E0 \(k.scan)")
+            #expect(WindowsKeyCodes.usage(scanCode: k.scan, extended: false) == k.twin, "\(k.scan)")
+        }
+        // The sided virtual keys say the same.
+        #expect(WindowsKeyCodes.key(virtualKey: 0xA3, usage: 0xE4) == .modifier(.control, .right))  // VK_RCONTROL
+        #expect(WindowsKeyCodes.key(virtualKey: 0xA5, usage: 0xE6) == .modifier(.option, .right))  // VK_RMENU
+        #expect(WindowsKeyCodes.key(virtualKey: 0x11, usage: 0xE0) == .modifier(.control, .left))
+        #expect(WindowsKeyCodes.key(virtualKey: 0x12, usage: 0xE2) == .modifier(.option, .left))
+        // Pause is 45 without the bit (Windows' report of E1 1D 45), VK_PAUSE.
+        #expect(WindowsKeyCodes.usage(scanCode: 0x45, extended: false) == 0x48)
+        #expect(WindowsKeyCodes.key(virtualKey: 0x13, usage: 0x48) == .other)
+        // Every extended scan code in the table is one of these, or a media key.
+        let media: Set<UInt16> = [0xE020, 0xE030, 0xE02E]
+        let listed = Set(extended.map { 0xE000 | UInt16($0.scan) })
+        for code in WindowsKeyCodes.usageByScanCode.keys where code >= 0xE000 {
+            #expect(listed.contains(code) || media.contains(code), "\(code)")
+        }
+    }
+
     /// Every key of the Mac's is on a PC keyboard too: the usage is what the two systems' codes meet at.
     @Test func everyMacKeyHasAWindowsScanCode() {
         let windows = Set(WindowsKeyCodes.usageByScanCode.values)
