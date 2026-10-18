@@ -82,7 +82,7 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         keyCode = try c.decode(UInt16.self, forKey: .keyCode)
-        modifiers = KeyModifiers(rawValue: try c.decode(UInt8.self, forKey: .modifiers))
+        modifiers = KeyModifiers(rawValue: try c.decode(UInt16.self, forKey: .modifiers))
         name = try c.decode(String.self, forKey: .name)
     }
 
