@@ -69,11 +69,12 @@
 | `@improve` | 推敲：1–3 は元の文と同じ言語の 3 つのバージョン、4 以降は書き換えスタイル（設定で追加・並べ替え）、0 は元の文です。翻訳はしません。「@improve also translates」（@improve でも翻訳する）をオンにすると、`@translate @improve` と同じ動作になります |
 | `@translate` | 追加した言語に翻訳します（設定 →「Translate」、ドラッグで並べ替え）。言語ごとに 1 行、言語が 1 つだけなら 3 つのバージョンです。元の文と同じ言語はスキップされます。`@translate @improve` と続けると、1 回のリクエストで翻訳と書き換えを行います |
 | `@question` | 質問します。答えは候補に表示され、⏎ または Space で挿入、⌘C でコピーします。続けて入力して ⇧⏎ を押すと追加の質問になり、パネルは最大 5 往復の会話になります。その後は Claude などの AI で続けることを提案します。後ろに何も入力しないと、最近の質問 5 件を新しい順に一覧表示します。入力すると絞り込めます（質問内のどこにある語でも、大文字小文字を区別せず、中国語でも）。数字キー、↑↓ のあと ⏎、またはクリックで、その質問の保存済みの答えをオフラインですぐに表示し、いつもどおり挿入やコピーができます。そこで ⌘R を押すと、もう一度質問して新しい答えを得ます。一致するものがないとき、または何も選ばないときは、⏎ で入力した内容を質問します |
-| `@agent` | タスクを Mac 上のコーディングエージェントに引き渡します。エージェントは Settings → Agent で選びます：Claude Code（デフォルト）、Gemini CLI、Kiro CLI、または独自のコマンド（入力した内容が最後の引数として追加されます）。このページには、それぞれがインストールされているかどうかと、どのように起動するかも表示されます。Claude Code はデフォルトでバックグラウンドで動き、終わると通知が届きます（クリックすると Terminal でそのセッションを開いて続けられます）。`@tasks` でも確認できます。このページの Claude Code の下にある「Runs in the background and notifies me」（バックグラウンドで実行し、終わったら通知する）をオフにすると Terminal で開きます。ほかのエージェントは Terminal で開き、入力した内容が最初のメッセージになります。どれもそれぞれのサインインと設定を使います。初めて Terminal を開くとき、macOS が AllInOneIME による Terminal の制御を許可するか尋ねるので、「OK」をクリックしてください。（0.6.4 より前は `@claude` という名前でした。） |
+| `@reply` | 返信しようとしているメッセージへの返信を 3 つ書きます。相手の言語で、アプリに合ったトーンになります（Settings → Apps でそのアプリに設定した最初の書き換えスタイル。なければチャットアプリではカジュアル、メールではフォーマルで、メールでは各返信がメール本文全体になります）。メッセージは、選択する、コピーして下書きで ⌃V を押す、スクリーンショットを撮って（⌃⇧⌘4、または WeChat 自体のスクリーンショット）⌃V を押す、のどれかで渡します。後ろに入力した内容で、どう返信するかを指示できます：`@reply politely decline`。⌘R でさらに 3 つ書きます。[@reply で返信する](#reply-で返信する新機能)を参照 |
+| `@agent` | タスクを Mac 上のコーディングエージェントに引き渡します。エージェントは Settings → Agent で選びます：Claude Code（デフォルト）、Gemini CLI、Kiro CLI、または独自のコマンド（入力した内容が最後の引数として追加されます）。このページには、それぞれがインストールされているかどうかと、どのように起動するかも表示されます。Claude Code はデフォルトでバックグラウンドで動き、終わると通知が届きます（クリックすると Terminal でそのセッションを開いて続けられます）。`@tasks` でも確認できます。このページの Claude Code の下にある「Runs in the background and notifies me」（バックグラウンドで実行し、終わったら通知する）をオフにすると Terminal で開きます。ほかのエージェントは Terminal で開き、入力した内容が最初のメッセージになります。どれもそれぞれのサインインと設定を使います。Google Chrome では、ページの情報も一緒に渡します：アドレスとタイトル、入力した欄とそのフォームやセクション（★ が今いる場所を示します）、選択したテキスト、ウインドウに見えている内容です。パスワード欄やページ全体は決して渡しません。そのため、サインインフォームのユーザー名欄で `@agent why doesn't this work` と入力すればその欄について、パイプラインのページで `@agent why is this blocked` と入力すればそのページについての依頼になります。どちらなのかはエージェントが判断します。ページのテキストは読み取ったままエージェントに渡され、Web から来たもの（あなたからの指示ではない）として示されます。アクセシビリティの許可が必要です。Chrome がそのためのページツリーを作るのは、そこで `@agent` を書いている間だけで、その後はオフに戻ります（Settings → Agent →「@agent and @reply take the Chrome page along」（@agent と @reply で Chrome のページを渡す）ですべてオフにできます）。初めて Terminal を開くとき、macOS が AllInOneIME による Terminal の制御を許可するか尋ねるので、「OK」をクリックしてください。（0.6.4 より前は `@claude` という名前でした。） |
 | `@tasks` | バックグラウンドの Claude タスク（作業中／完了／あなたの返答待ち）と、それぞれの最後の返信を一覧表示します。⏎ で Terminal で開き、⌘C で返信をコピーします |
 | `@settings` | 設定ウインドウをすぐに開きます（選ぶだけで開きます） |
 | `@open` | 入力に合わせて、一致するファイル、フォルダ、アプリを一覧表示します（Spotlight）。スペースで区切って複数のキーワードを使えます。それぞれがパスに含まれ、少なくとも 1 つが名前に含まれている必要があります（標準フォルダの名前はその中身にも当てはまります。`downloads pdf` で Downloads（ダウンロード）内の PDF が見つかります）。アプリと標準フォルダは中国語名でも見つかり、中国語インターフェイスではその名前で表示されます。`@open` で開いたものが先頭で、次にアプリとそれらのフォルダ、その次に最近使った、または変更したファイルが続きます。名前で見つかったファイルが 2 つ以下で、該当するアプリやそれらのフォルダがない場合は、ホームフォルダ内のファイルも内容で検索され、その行には「content」（内容）と表示されます。ほかに何もないときは、最初の項目を開く代わりに、⏎ でそれらが一覧表示されて選べます。Web アドレス（`github.com`、`localhost:3000`、`https://…`）を入力すると、最初の行は「open in the browser」（ブラウザで開く）になり、内容は検索されません。ちょうどその名前のファイル（たとえば `MANIFEST.in`）があれば、それが先頭に来ます。`~/` や `/` で始まるテキストはパスです。Tab で補完してフォルダの中へ進み、⏎ で開き、⌘C でパスをコピーします |
-| `@note` | テキストを Notes アプリの AllInOneIME というフォルダ（なければ作成）に保存します。何も挿入されません。貼り付けたテキストは改行を保持し、最大 20000 文字です |
+| `@note` | テキストを Notes アプリの AllInOneIME というフォルダ（なければ作成）に保存します。Settings → Plugins → Notes (@note) で、保存先を Notion か Markdown ファイルのフォルダ（Obsidian の保管庫や任意のフォルダ）にすることもできます。何も挿入されません。貼り付けたテキストは改行を保持し、最大 20000 文字です |
 | `@reminder` | Reminders アプリの AllInOneIME というリストにリマインダーを追加します。日時はテキストの中に書きます。日時は Mac 上で読み取られ、読み取った結果が 1 行で表示されます。⏎ または Space で追加、Esc で編集に戻ります。時刻があればその時刻に通知され、日付だけなら終日になります |
 | `@py` | Python を 1 行実行し（Mac の `python3`）、結果を挿入します。コードの最後の式の値（例：`@py 2**100`、`@py import math; math.sqrt(2)`）か、それがなければ出力した内容です。`python3` がない場合は表示されません（Xcode のコマンドラインツールに含まれています） |
 | `@js` | JavaScript を 1 行実行し、同じように挿入します。最後の式の値か、`console.log` が出力した内容です（例：`@js [1, 2, 3].map(x => x * 2)`）。macOS 内蔵の JavaScriptCore を使うので、インストールは不要です。ファイルの読み取り、ネットワークへのアクセス、ほかのプログラムの実行はできません |
@@ -88,11 +89,23 @@
 
 ![@open は入力に合わせてアプリを探す。/ で始めるとパスになり、フォルダの中身が表示され、Tab で補完](../en/open.png)
 
-`@john` のように `@` の後がコマンドでない場合は、`@` がいつもどおり入力されるので、チャットアプリでの @ メンションもそのまま使えます。文字、数字、`.`、`_`、`-` の直後に入力した `@` は（`bob@example.com` や `ssh user@host` のように）ただの文字で、リストは開きません。どのアプリでも同じで、ターミナルも含みます。リストが開いているときに ← → や、コマンド名に含まれ得ないキー（`.`、`:`、`/`）を押すと、リストが閉じ、入力した内容（`@`、`@im`）はそのまま残ります。ターミナルでは、このとき ← → はリストを閉じるだけです。`@question`、`@improve`、`@translate` があなた自身の Bedrock に送信するのは、実行キーを押したときだけです。`@open` はこの Mac 上だけを検索します。`@note` と `@reminder` が送る先は、この Mac の Notes と Reminders だけです。`@agent` は Mac にインストールされたエージェント（デフォルトでは Claude Code の `claude` コマンド）とそのアカウントを使い、ファイルの変更やコマンドの実行の前には、いつもどおり確認を求めます。そのエージェントがインストールされていなければ、`@agent` は表示されません。`@imessage` はこの Mac の Contacts（名前、電話番号、メールアドレス）だけを読み取り、AI を経由することはなく、メッセージは Messages が送信します。Messages アプリがなければ表示されません。
+`@john` のように `@` の後がコマンドでない場合は、`@` がいつもどおり入力されるので、チャットアプリでの @ メンションもそのまま使えます。文字、数字、`.`、`_`、`-` の直後に入力した `@` は（`bob@example.com` や `ssh user@host` のように）ただの文字で、リストは開きません。どのアプリでも同じで、ターミナルも含みます。リストが開いているときに ← → や、コマンド名に含まれ得ないキー（`.`、`:`、`/`）を押すと、リストが閉じ、入力した内容（`@`、`@im`）はそのまま残ります。ターミナルでは、このとき ← → はリストを閉じるだけです。`@question`、`@improve`、`@translate`、`@reply` があなた自身の Bedrock に送信するのは、実行キーを押したときだけです（スクリーンショットはこの Mac 上で読み取られ、送られるのはそのテキストだけです）。`@open` はこの Mac 上だけを検索します。`@note` と `@reminder` が送る先は、この Mac の Notes と Reminders だけです（`@note` は、フォルダや Notion を選んでいればそちらに送ります）。`@agent` は Mac にインストールされたエージェント（デフォルトでは Claude Code の `claude` コマンド）とそのアカウントを使い、ファイルの変更やコマンドの実行の前には、いつもどおり確認を求めます。そのエージェントがインストールされていなければ、`@agent` は表示されません。`@imessage` はこの Mac の Contacts（名前、電話番号、メールアドレス）だけを読み取り、AI を経由することはなく、メッセージは Messages が送信します。Messages アプリがなければ表示されません。
 
 ### 選択したテキストに対して（新機能）
 
 任意のアプリでテキストを選択し（メモの一文、メールの一段落など）、`@improve`、`@translate`、`@question` などテキストを受け取るコマンドを入力して ⏎ を押すと、コマンドは選択範囲を対象に動作し、選んだ結果で選択範囲が置き換わります。入力している間、選択範囲はそのまま選択された状態で残ります。コマンドは候補パネルに書かれ、その 1 行目は入力中の内容、次の行は「On the selection: “…” (N characters)」（選択範囲に対して：N 文字）です。Esc、⇧⏎、または別の場所のクリックでは、テキストは元のままです。途中で選択範囲を変えた場合も同じで、コマンドは取り消されます。コマンドの後に入力したテキストは、`@improve` と `@translate` では指示（`@translate ja`、`@improve more formal`）、`@question` では選択範囲についての質問（`@question what does this mean`）になります。`@open`、`@agent`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、ターミナルコマンド、スクリプト拡張機能は選択範囲を使いません。入力した内容だけを受け取り、選択範囲はそのまま残ります。最大 5000 文字で、セキュア入力中やターミナルでは決して読み取りません。あるアプリで正しく動かない場合は、Settings → General → 「Use the selected text」（選択したテキストを使う）でオフにしてください。
+
+### @reply で返信する（新機能）
+
+`@reply` は、返信しようとしているメッセージに送れる返信を 3 つ書きます。メッセージは次のどの方法でも渡せます。渡したら ⏎ を押します：
+
+- 欄の中でメッセージを**選択**してから `@reply` と入力します（選んだ返信は、その後ろに独立した行として入ります）。
+- メッセージを**コピー**し、`@reply` と入力して ⌃V を押します。パネルに「Copied message · N characters」（コピーしたメッセージ · N 文字）と表示され、下書きはそのままです。
+- **スクリーンショット**をクリップボードに撮り（⌃⇧⌘4、または WeChat 自体のスクリーンショット）、`@reply` と入力して ⌃V を押します。パネルに「Screenshot · N lines (read on this Mac)」（スクリーンショット · N 行、この Mac で読み取り）と表示されます。スクリーンショットはこの Mac 上で読み取られ（Apple の Vision。初回は少し遅くなります）、送られるのはそのテキストだけです。画像はどこにも送られず、保存もされません。チャットアプリの表示どおり、左側の行は相手、右側の行はあなたの発言として扱い、メッセージの間の時刻は省きます。ほかの方法ではウインドウを読み取れない WeChat で使ってください。
+
+後ろに言いたいことを入力するか（`@reply politely decline`、`@reply 委婉拒绝`）、何も入力しなければ無難な返信を書きます。返信は、別の言語を指定しない限り相手の言語で、アプリに合ったトーンになります：そのアプリのプロファイル（Settings → Apps）の最初の書き換えスタイル、なければチャットアプリではカジュアル、メールアプリではフォーマルで、メールでは各返信がメール本文全体になります。カーソルの周りのテキストも一緒に送られます。`@reply` の後に何も入力していないときに ⌫ を押すと、貼り付けた内容を取り除きます。⏎ または数字キーで返信を挿入します。⌘R でさらに 3 つ書き（Esc で前の 3 つに戻ります）、指示を入力すれば、ほかの AI の結果と同じように修正できます。Google Chrome では、何も選択も貼り付けもしていなければ、`@agent` と同じようにページの情報を渡します（Settings → Agent →「@agent and @reply take the Chrome page along」）。返信する相手のメッセージがなく、何も入力していないときは、何が必要かを表示します。機密情報を隠す設定はスクリーンショットのテキストにも適用されます。セキュア入力中はクリップボードを読み取らず、何も送りません。`reply` という名前の独自のコマンドを作っていた場合、それは `@myreply` になりました。
+
+ほかのコマンドにスクリーンショットを貼り付けることもできます。`@translate` で ⌃V を押すとそれを翻訳し（訳文はカーソル位置に入ります）、`@question what does this say` で ⌃V を押すとその内容について質問します。AI を使わないコマンドには、コピーしたときと同じようにそのテキストが渡ります（`@note` は行を保持します）。テキストを選択している場合、`@improve` と `@translate` はこれまでどおり選択範囲を対象にし、スクリーンショットを使わなかったことが通知されます。
 
 ### 結果の修正（新機能）
 
@@ -120,7 +133,13 @@
 
 ### メモとリマインダー
 
-`@note` は新しいメモを作成し、最初の行がタイトルになります。テキストをコピーした後、`@note ` の後で ⌃V（ターミナル以外では ⌘V も可）を押すと、改行ごと保存されます。改行はコマンド内で ↵ と表示されます。改行を含むメモが保存される前にテキスト欄を離れたり（ほかの場所をクリック、アプリを切り替え）、⇧⏎（入力したまま挿入）を押したりした場合、そのテキストはアプリに入力されず（ターミナルでは各行がコマンドとして実行されてしまうため）、代わりにクリップボードに入ります（「The note wasn't saved; its text is on the clipboard」）。1 行だけのメモは入力したまま挿入されます。
+`@note` は新しいメモを作成し、最初の行がタイトルになります。テキストをコピーした後、`@note ` の後で ⌃V（ターミナル以外では ⌘V も可）を押すと、改行ごと保存されます。改行はコマンド内で ↵ と表示されます。保存先は Settings → Plugins → Notes (@note) → Save to（保存先）で選びます：
+
+- **Notes**（これまでどおり）：AllInOneIME フォルダに新しいメモを作ります。
+- **Folder (Obsidian or any)**（フォルダ。Obsidian または任意のフォルダ）：選んだフォルダに、メモごとに Markdown ファイルを 1 つ作ります。ファイル名は最初の行です（`/\:*?"<>|#^[]` は `-` になり、同じ名前があれば「 2」「 3」が付きます）。ファイルには `created:` のフロントマターに続けて、入力したとおりの全文が入ります。ファイルが上書きされることはなく、存在しないフォルダ（マウントされていないドライブ、移動した保管庫）が作られることもありません。その場合はメモがコマンドに戻ります。Obsidian の保管庫（そのフォルダかその上位に `.obsidian` フォルダがある）では、通知は「Saved to Obsidian」となり、メニューバーパネルはメモを Obsidian で開きます。
+- **Notion**：「Create Integration…」（New integration → Internal → トークンをコピー）でインテグレーションを作ってトークンを貼り付け（キーチェーンに保存されます）、Notion でページまたはデータベースを開いて ··· → Connections → 作ったインテグレーションを追加し、そのリンクを貼り付けます。Test で「✓ “Inbox” (database)」と表示されます。ページには新しい子ページが、データベースには新しい行（最初の行がタイトル）が作られ、メモの残りが本文になります。送信は 1 回のリクエストです。オフラインのときや拒否されたときは、後で送るために取っておくことはせず、メモがコマンドに戻ります。セキュア入力中、`@note` は Notion に送りません。
+
+通知には保存先が表示されます（「Saved to Notion」、「Saved to “Inbox”」）。改行を含むメモが保存される前にテキスト欄を離れたり（ほかの場所をクリック、アプリを切り替え）、⇧⏎（入力したまま挿入）を押したりした場合、そのテキストはアプリに入力されず（ターミナルでは各行がコマンドとして実行されてしまうため）、代わりにクリップボードに入ります（「The note wasn't saved; its text is on the clipboard」）。1 行だけのメモは入力したまま挿入されます。
 
 `@reminder` は `tomorrow at 3pm`、`in 2 hours`、`in 3 days at 3pm`、`on the 15th`、`this weekend`、`in 1 month`、`next month`（その月の 1 日）、`end of the year` のような日時を読み取ります（中国語の日時表現も可）。日付と時刻は離れていてもかまいません（`tomorrow call Bob at 5`）。週は月曜日から始まります。午前・午後のない時刻（`at 5`）は次に来るその時刻で、午前 0 時から午前 6 時の間になることはありません。今日すでに過ぎた時刻は明日になりますが、まだ続いている時間帯（`this afternoon`、`tonight`）は今日の終日になります。今年すでに過ぎた日付は来年になります。繰り返しとして書いたもの（`standup every Monday at 9`）は、次の 1 回分だけ追加されます。その言葉はタイトルに残り、行には「once only」（1 回のみ）と表示されます。確認用の行には読み取った日時が表示されます（例：「tomorrow 3:00 PM」。Mac の 12／24 時間制の設定に従います）。間違っていれば、Esc でテキストに戻ります。日時も日付も含まれていなければ、日時なしになります（「no date」）。
 
@@ -128,7 +147,7 @@
 
 ### 独自のコマンド
 
-設定の「Custom @ Commands」（カスタム @ コマンド）で「Add Command…」（コマンドを追加…）をクリックし、名前を付けて動作（AI への指示、プログラム、Terminal で実行するプログラム、Web ページ）を選ぶか、例から始めます。独自のコマンドは組み込みコマンドの後に並びます。名前は英字のみで、組み込みコマンドと同じ名前は使えません。次の文から使えるようになります。コマンドは設定ファイル（`~/.config/allinoneime/config.json`）の `customCommands` に保存され、直接編集することもできます：
+設定の「Custom @ Commands」（カスタム @ コマンド）で「Add Command…」（コマンドを追加…）をクリックし、名前を付けて動作（AI への指示、プログラム、Terminal で実行するプログラム、Web ページ、挿入するテキスト）を選ぶか、例から始めます。独自のコマンドは組み込みコマンドの後に並びます。名前は英字のみで、組み込みコマンドと同じ名前は使えません。次の文から使えるようになります。コマンドは設定ファイル（`~/.config/allinoneime/config.json`）の `customCommands` に保存され、直接編集することもできます：
 
 ```json
 "customCommands": [
@@ -136,7 +155,8 @@
   { "name": "bc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
-  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }
+  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" },
+  { "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" }
 ]
 ```
 
@@ -146,6 +166,7 @@
 | `run` | `argv` をバックグラウンドで実行します。出力は候補に表示されます（複数行は出力されたとおりに、ターミナルでは 1 行で挿入）。エラーのときは最後の行が表示されます |
 | `terminal` | `argv` を新しい Terminal ウインドウで実行します。何も挿入されません |
 | `link` | テキストを Web アドレス `url` に入れて、デフォルトのブラウザで開きます。何も挿入されません |
+| `snippet` | `text` を、プレースホルダを埋めてすぐに挿入します（下記参照）。AI もプログラムも使いません |
 
 - `{input}` はコマンドの後に書いた内容に置き換えられ、常にそれが含まれる 1 つの引数の中に収まります。シェルは介在しません。シェルを使う場合は、上の `sh`（`zsh -c`）のように明示します。
 - `stdin`：プログラムの標準入力に渡す内容です。ここでも `{input}` が置き換えられます。
@@ -156,6 +177,24 @@
 - `argv` のプログラムが見つからない場合（たとえば `python3` がない）、そのコマンドは表示されず、`@python …` はテキストとして入力されます。インストールすれば、次のテキスト欄からコマンドが表示されます。
 
 `run` と `terminal` は Mac 上でコードを実行します。自分で書いて信頼できるコマンドだけを追加してください。これらも実行キーを押したときにだけ実行され、セキュア入力中には決して実行されません。
+
+#### スニペット：よく挿入するテキスト（新機能）
+
+`snippet` コマンド（エディタでは「Insert text」（テキストを挿入））は、署名、住所、会議のリンクなど、保存しておいたテキストを挿入します。`@sig` ⏎ ですぐに入ります（Tab や Space は名前を補完するだけです）。`text` にはプレースホルダを含められます：
+
+| プレースホルダ | 置き換わる内容 |
+|---|---|
+| `{input}` | 名前の後に書いた内容すべて。`#{input}` なら `@tag foo bar` で `#foo bar` が入ります |
+| `{name?}` | 空欄。書いた内容をカンマ（`,` または `，`）で区切って、順番に埋めます：`Dear {name?}, see you {day?}.` に `@meet Bob, Friday`。空のままの空欄があると、通知でその名前が示され、何も挿入されません |
+| `{clipboard}` | クリップボードのテキスト（macOS が先に確認することがあります） |
+| `{selection}` | `@` を入力したときに選択していたテキスト（選択範囲に対するほかのコマンドと同じく、置き換えられます） |
+| `{date}`、`{time}` | 今日の日付（`2026-10-17`）、時刻（`14:05`）。`{date:EEEE, MMM d}` のように[日付パターン](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table)も指定でき、インターフェイスの言語で書かれます |
+| `{cursor}` | 挿入後にカーソルを置く位置（1 回まで。ターミナルでは使えません） |
+
+- `{{` は `{` に、それを閉じる `}}` は `}` になります（`{{input}}` は `{input}` を挿入します）。それ以外の `}}` や `{…}` はそのまま残るので、スニペットに JSON やコードを入れても問題ありません：`{"a":{"b":1}}` は書いたとおりに入ります。
+- `{input}` も空欄もない場合、名前の後に書いた内容は、スニペットの後ろにスペースを挟んで入ります。
+- ほかのコマンドのテキストの中に `@sig` と書くと、それを埋め込めます：`@question summarize this @zoom` はリンクそのものを送ります。そこで使えるのは、`{clipboard}`、`{selection}`、空欄のないスニペットだけです。`{input}` があれば、対象は 1 語か引用符で囲んだ語句です：`@meet「Friday 3pm」`。
+- プレーンテキストのみ（改行は保持）で、最大 20,000 文字です。スニペットはこの Mac から出ないので、セキュア入力中や No AI に設定したアプリでも使えます。拡張機能のバンドルでも提供できます（`extension.json` の `snippets`。[docs/extensions.md](../extensions.md) を参照）。
 
 ### スクリプト拡張機能
 
@@ -227,6 +266,7 @@ Settings → Apps では、アプリごとに独自の設定を持たせられ�
 | そのアプリで `@improve` が出す書き換えスタイル | メールではフォーマルで丁寧、Slack ではカジュアル | `rewriteStyles` |
 | 結果をタイプ入力するかどうか | チャットアプリではオン、メールではオフ | `typeOut` |
 | このアプリでは AI を使わない | `@improve`、`@translate`、`@question`、`@agent` とあなたのプロンプトコマンドはそこでは何も送らず、その旨を表示します。入力やほかのコマンドは使えます | `noAI` |
+| 常に入力しながら翻訳する | WeChat では常に入力しながら翻訳（[入力しながら翻訳](#入力しながら翻訳translate-as-you-type)を参照） | `translateAlways` |
 
 「Add App…」（アプリを追加）は最近入力したアプリを一覧表示するか、/Applications から 1 つ選びます。入力メニューの「This App: <名前>」には、入力中のアプリ用のクイックスイッチがあります（No AI、Type Results Out、最初の言語）。設定ファイルでは、これらはバンドル ID ごとに `appProfiles` の下にあります：`"appProfiles": {"com.tinyspeck.slackmacgap": {"inputLanguage": "en", "rewriteStyles": ["casual"], "noAI": false}}`。バンドル ID は大文字小文字を区別せずに照合されます（`com.apple.Mail` はメールの `com.apple.mail` です）。`@reportissue` は何かを設定しているアプリの数を数えるだけで、名前は決して出しません。
 
@@ -239,7 +279,31 @@ Settings → Apps では、アプリごとに独自の設定を持たせられ�
 
 **一文で設定を変える**（「Change settings in a sentence」）：したいことを書いて（「translate into Japanese and English」、「candidates in a column」、「use Claude」）、Preview（または ⌘⏎）を押します。変更は 1 つずつ変更前 → 変更後で表示され、Apply で適用、Undo で 10 分以内なら元に戻せます。API キー、自作のコマンド、プラグイン、プログラムを実行するものはここでは変更されません。キーのないプロバイダは Settings → AI Provider のキー入力欄を開き、プロバイダを変えた後は Test Connection が実行されます。この Mac に Apple Intelligence があればそれで、なければあなたのプロバイダで動きます。
 
-**問題を確認する**（「Check for problems」）：入力メソッド、AI プロバイダ、権限、セキュア入力、言語パック、`config.json`、拡張機能、アップデート、最近のエラーを、ページを開いたときにこの Mac で確認し、問題を先に表示します（すべて問題なければ「Everything looks good」）。Check で Test Connection も含めてもう一度確認します。「What's wrong? (optional)」に質問を書くと、考えられる原因を AI が説明します。直せる行には Fix ボタンがあり、設定の変更は上のプレビューに Apply と Undo 付きで表示され、それ以外はすぐに実行されます。
+**問題を確認する**（「Check for problems」）：入力メソッド、AI プロバイダ、権限、セキュア入力、言語パック、`config.json`、拡張機能、アップデート、iCloud での同期（オン／オフ、最後に同期した時刻、最後のエラー、iCloud Drive が使えない、iCloud からの設定をここでは使っていない）、最近のエラーを、ページを開いたときにこの Mac で確認し、問題を先に表示します（すべて問題なければ「Everything looks good」）。Check で Test Connection も含めてもう一度確認します。「What's wrong? (optional)」に質問を書くと、考えられる原因を AI が説明します。直せる行には Fix ボタンがあり、設定の変更は上のプレビューに Apply と Undo 付きで表示され、それ以外はすぐに実行されます。
+
+### iCloud で同期（新機能）
+
+Settings → General → **Sync through iCloud**（iCloud で同期、デフォルトはオフ）をオンにすると、設定、Jargon 用語リスト、独自のコマンド、ピンインが学習した語が、あなた自身の iCloud Drive を通じて、すべての Mac で同じに保たれます。ほかにサインインするものはなく、開発者のサーバも経由しません。iCloud Drive が必要です（System Settings → Apple Account → iCloud（システム設定 → Apple アカウント → iCloud））。使えない場合、スイッチはオフのままでその旨を表示し、その設定画面を開くボタンが表示されます。
+
+| スイッチ | 同期されるもの | デフォルト |
+| --- | --- | --- |
+| Settings（設定） | `config.json` の設定：言語、書き換えスタイル、実行キー、タイプ入力、アプリごとの設定、機密情報を隠す設定（そのスイッチ）、AI プロバイダとモデル（キーは決して含みません）… | オン |
+| Jargon and custom commands（Jargon と独自のコマンド） | Jargon 用語リストと `customCommands` | オン |
+| Learned words（学習した語） | 選んだ語からピンインが学習した内容（Rime のユーザー辞書。librime のユーザー辞書の同期を使います。カスタムフレーズなど、あなた自身の Rime のファイルは Mac に残ります） | オン |
+| Hidden words（隠す語） | AI から隠す語（「iCloud Drive is end-to-end encrypted only with Advanced Data Protection」：iCloud Drive がエンドツーエンドで暗号化されるのは、高度なデータ保護を使っている場合だけです） | オフ |
+| Recent questions（最近の質問） | `@question` の最近の質問と答え（「Remember recent questions」がオンの間） | オフ |
+
+`iCloud Drive/AllInOneIME/settings.json` には、各設定が、いつどの Mac（ランダムな ID）で変更されたかとともに保存され、設定ごとに最新の変更が優先されます。リスト（独自のコマンド、書き換えスタイル）は 1 つの値として扱い、アプリごとの設定はアプリ単位で扱います。アプリの設定を削除することも 1 つの変更です。同期するのは、入力メソッドの起動時、何かを変更して約 5 秒後、ほかの Mac の変更を iCloud が届けたとき（と 5 分ごと）、**Sync Now**（今すぐ同期）を押したときです。学習した語は、入力メソッドの起動時、30 分ごと（入力が途切れたとき）、Sync Now のときです。ステータス行には「Last synced 2 min ago」（2 分前に同期）、「Waiting for iCloud…」（iCloud を待っています…）、またはエラーが表示されます。
+
+- オンにすると、その Mac は iCloud にすでにある設定を取り込み、自分の設定では iCloud にまだないものだけを補います。コレクションは代わりにマージされます：最近の質問（両方のリストを新しい順に。同じ質問は 1 つ）、隠す語、独自のコマンド（名前で照合し、重なったら iCloud のもの）、Jargon 用語リストの行です。その下のスイッチを初めてオンにしたときも同じです。その後ほかの Mac で取り除いたもの（削除した独自のコマンドや隠す語）は、取り除かれたままです。ただし次の場合は一度だけ戻ってきます（もう一度削除すれば、そのままになります）：同期を最初にオンにした Mac から来たもので、ほかの Mac がリストをマージしたときにその Mac がスリープしていた場合、まだ 0.6.4 の Mac で削除した場合、まだ 0.6.4 の Mac がそれを戻した場合です。Mac が同期をオンにしている最中に Settings で保存した設定は保持され、ほかの Mac にも届きます。
+- オフにした後でまたオンにすると、その間に iCloud で変わったものが取り込まれ（この Mac でも変えていたものも含みます）、この Mac だけで変わったものは iCloud に送られ、その間に追加したコレクションはマージされます。捨てられることはありません。
+- 2 台の Mac の最近の質問はマージされます。1 台で「Clear」を押すと、ほかの Mac でもそれより前の質問がすべて消えます。「Remember recent questions」をオフにすると、その Mac でだけ削除され、もう一度オンにすると、ほかの Mac の質問が戻ってきます。最近の質問を同期していない（または記憶していない）Mac での Clear は、その Mac だけに適用されます。
+- Hidden words や Recent questions をオフにしても、同期済みのものは iCloud に残ります。各スイッチの下の **Remove from iCloud…**（iCloud から削除…、確認あり）で取り除けます。ほかの Mac には残り、まだそれを同期している Mac は自分のものを戻します。
+- ほかの Mac から来た値でこの Mac が使えないもの（この Mac ではキーのないプロバイダ、この Mac にない AWS プロファイル、範囲外の値）は適用されません。どれなのかは、ステータス行と Settings → Assistant の問題の確認に表示されます。
+- iCloud がまだダウンロードしていないファイルは届くのを待ち、空とはみなしません。読み取れない `settings.json` は `settings (unreadable …).json` として脇に置き、上書きしません。新しいバージョンの設定はそのまま保持します。
+- 同期しないもの：キー、トークン、パスワード（キーチェーンにあります）、拡張機能のソース（コードを実行するので、Mac ごとに決めます）、拡張機能のフォルダとプラグイン（Mac ごとのパス）、打ち間違いをしないアプリと最近のアプリ、ウインドウの状態、同期のスイッチそのもの（Mac ごとの設定）。
+- オフにすると同期は止まり、この Mac でも iCloud でも、すべてそのまま残ります。**Remove from iCloud…**（確認あり）はフォルダをゴミ箱に移し、この Mac の同期をオフにします。
+- Settings → Assistant（「sync through iCloud」）でもオン／オフできます。隠す語と最近の質問を同期するかどうかは、Settings → General でだけ選べます。設定ファイルでは `iCloudSync`（`enabled`、`settings`、`jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`）です。
 
 ## メニューバーパネル
 
@@ -247,7 +311,7 @@ Settings → Apps では、アプリごとに独自の設定を持たせられ�
 
 メニューバーの AllInOneIME のアイコン（枠のない、∞ とカーソルのマーク。枠付きのほうは入力ソース）をクリックすると、その下にパネルが開きます。ほかの場所をクリックすると閉じます：
 
-- Notes（メモ）：`@note` で保存したメモの最新 5 件。クリックすると Notes で開きます。
+- Notes（メモ）：`@note` で保存したメモの最新 5 件。クリックすると保存先で開きます：Notes、Obsidian またはそのファイルのアプリ、あるいは Notion のページです。なくなったファイルは一覧から消えます。
 - Reminders（リマインダー）：Reminders の AllInOneIME リストにある未完了のリマインダー（`@reminder` はこのリストに追加します）。期限の近い順に 8 件表示されます。丸をクリックすると完了にし、タイトルをクリックすると Reminders を開きます。
 - Claude Tasks（Claude タスク）：`@tasks` と同じく、バックグラウンドの Claude タスク（`@agent` が Claude Code に引き渡したもの）を最大 30 件、一度に 5 件表示します。スクロールすると続きが見られ、検索ボックスでタイトルと返信を検索することもできます。進捗と最後の返信の 1 行目も表示されます。クリックすると Terminal で開いて続きができます。
 
@@ -308,6 +372,18 @@ two-way door = a decision you can undo at any time
 
 <img src="../en/panel-dark.png" width="420" alt="ダークモードの候補パネル">
 
+## 入力しながら翻訳（Translate as You Type）
+
+試作の機能なので、試してみてください。Shift だけを 1 秒押し続けると、入力しながら翻訳がオン（またはオフ）になります。Shift を軽く押したときは、これまでどおり入力言語が切り替わります。0.5 秒でカーソルの近くに「Keep holding → Translate as You Type」（押し続ける → 入力しながら翻訳）とヒントが表示され、1 秒で「Translate as You Type on: Chinese → English · hold Shift again to turn off」（入力しながら翻訳オン：中国語 → 英語 · もう一度 Shift を押し続けるとオフ）と、翻訳先の言語を示した確認が約 1.5 秒表示されます（オフにするときは「Keep holding → Translate as You Type off」、続いて「Translate as You Type off」）。それより前に離せば何も変わりません。Shift を文字（大文字）やほかのキーと一緒に押してもオンにはなりません。オンの間、メニューバーのアイコンに小さな点が付きます。この機能のためのコマンドはありません。
+
+オンの間、入力した内容は下書きにまとまり、その横のチップに言語が表示されます（「ZH → EN」。中国語インターフェイスでは「中 → 英」）。翻訳先は、最後にチップで選んだ言語（下記参照）で、どのアプリでも、再起動した後も同じです。選ぶまでは Settings の最初の翻訳先の言語で、選んだ言語が翻訳先の言語から外れたときもそれに戻ります。オンにしたときに入力していた言語で翻訳先が変わることはありません。⏎ で下書きを翻訳し、訳文がすぐに入ります。選ぶ候補はありません。その間、下書きには「Translating…」（翻訳中…）と表示され、⏎ はアプリには渡りません（もう一度押した ⏎ はアプリに渡ります）。⇧⏎ で下書きを入力したとおりに挿入します。翻訳中に Esc を押すと翻訳を止めて下書きを残します（⌫ でも止まり、下書きの上と同じく 1 文字削除します）。失敗したとき（ネットワーク、拒否、セキュア入力）は、下書きが残って 1 行の通知が表示され、⏎ で再試行します。翻訳先の言語で入力したテキスト（Shift を軽く押して英語に）は、入力したとおりに入ります。
+
+オンの間、入力中の行の下に小さなチップ「ZH → EN」（中国語インターフェイスでは「中 → 英」）が、入力メソッド自身のパネル（候補パネル。ピンインの入力中は候補の上）に表示されるので、アプリからフォーカスを奪うことはありません。「ZH」をクリックすると、Shift を軽く押したときと同じく入力言語が切り替わります。「EN」をクリックすると翻訳先の言語の短いリストが表示され、現在の言語にはチェックが付いています。どれかをクリックすると、すぐに（チップと次の翻訳がそれに従います）、そしてそれ以降もその言語に翻訳します。キーはこれまでどおり使え、キーを押すとリストは閉じます。
+
+- **トーン**：アプリに合わせます。Settings → Apps のそのアプリの最初の書き換えスタイル、なければチャットアプリ（WeChat、Slack、Messages、Telegram、Discord、Teams）ではカジュアル、メールアプリ（Mail、Outlook、Spark）ではフォーマル、それ以外では自然な文体です。
+- **アプリ**：ほかのアプリ（テキスト欄のないアプリも含みます）に切り替えると通知なしでオフになり、戻ってきてもオフのままです。ただし、Settings → Apps でそのアプリに「Always Translate as You Type」（常に入力しながら翻訳。中国語インターフェイスでは「总是边打边译」）を設定している場合（プロファイルの `translateAlways`）は、そのアプリで自動的にオンになります。No AI のアプリでは何もせず、テキストは入力したとおりに入り、通知が表示されます。セキュア入力中（パスワード欄）に入力したものも同じです。
+- **プライバシー**：`@translate` と同じです。⏎ を押したときにだけ、あなた自身の AI プロバイダに送られ、機密情報を隠す設定がオンなら隠されます。
+
 ## 音声入力
 
 <img src="../en/voice.png" width="340" alt="右 ⌥ を押したまま話す">
@@ -361,7 +437,7 @@ make install
 
 1. AWS コンソールで Bedrock を有効にし、選んだモデルが使えることを確認します。デフォルトは Claude Haiku 4.5 です。Anthropic のモデルを初めて使うときは、ユースケースのフォームに一度記入します。
 2. `bedrock:InvokeModelWithResponseStream` を許可された AWS プロファイルを使います。`~/.aws/credentials` の静的キー、または一時的な認証情報を取得するプロファイル（`credential_process`、ロール、SSO。下の「AWS プロファイル」を参照）です。
-3. 「AllInOneIME Settings」を開きます。Spotlight やアプリケーションフォルダで見つかるほか、メニューバーの入力メソッドのアイコン →「Settings…」（設定…）からも開けます。プロファイル、リージョン、モデルを選び、「Test Connection」（接続をテスト）をクリックします。設定ウインドウ上部の「Language」（言語）は英語か中国語にできます。デフォルト（「System」）ではシステムに従います（システムの優先する言語で中国語が英語より前にあれば中国語、そうでなければ英語）。設定ウインドウ、候補パネルのヒント、入力メニューはすべてこれに従います。設定ウインドウは Assistant のページで開きます。説明して設定を変える、問題を確認する、の 2 つです（下の Settings → Assistant を参照）。
+3. 「AllInOneIME Settings」を開きます。Spotlight やアプリケーションフォルダで見つかるほか、メニューバーの入力メソッドのアイコン →「Settings…」（設定…）からも開けます。プロファイル、リージョン、モデルを選び、「Test Connection」（接続をテスト）をクリックします。インターフェイスは English、简体中文（簡体字中国語）、繁體中文（繁体字中国語）、日本語、한국어、Deutsch、Français、Español、Português (Brasil) で使えます。デフォルト（Settings → General →「Interface language」（インターフェイスの言語）の「Follow the system」（システムに従う））では、システムの優先する言語（System Settings → General → Language & Region（システム設定 → 一般 → 言語と地域））に従います。その中でアプリにある最初の言語を使い、地域違いはその言語（de-AT なら Deutsch、es-MX なら Español、fr-CA なら Français）、zh-Hant、zh-TW、zh-HK は繁体字中国語、それ以外の中国語は簡体字中国語、ポルトガルのポルトガル語にもブラジルポルトガル語（英語より読みやすいため）を使い、どれもなければ英語になります。そこで、それぞれの言語自身の表記で並んだ一覧から選ぶこともできます。設定ウインドウ、候補パネルのヒント、入力メニューはすべてこれに従います。設定ウインドウは Assistant のページで開きます。説明して設定を変える、問題を確認して項目ごとに Fix で直す、の 2 つです（[Settings → Assistant](#settings--assistant新機能)を参照）。
 
 <img src="../en/settings.png" width="420" alt="設定ウインドウ">
 
@@ -437,7 +513,7 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 | `improveTranslates` | `@improve` でも翻訳する（`@translate @improve` と同じ） | `false` |
 | `voiceInput` | 右 ⌥ を押したまま話す | `true` |
 | `actionKey` | 実行キー：`"enter"`（⏎）、`"optionTap"`（Tap ⌥）、`"optionSpace"`（⌥Space）、`"space"`（Space） | `"enter"` |
-| `uiLanguage` | インターフェイスの言語（設定ウインドウ、候補パネルのヒント、メニュー）：`"zh"`、`"en"` | `null`（システムに従う） |
+| `uiLanguage` | インターフェイスの言語（設定ウインドウ、候補パネルのヒント、メニュー）：`"zh"`（簡体字中国語）、`"en"`、またはアプリに含まれるほかの言語のコード：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（システムに従う） |
 | `rewriteStyles` | 書き換えスタイル：`polish`、`concise`、`formal`、`casual`、`tactful`、`jargon`。例：`["polish", "concise", "jargon"]` | Polish、Concise、Formal |
 | `jargonFile` | 自分の Jargon 用語リストのファイル | `null`（つまり `~/.config/allinoneime/jargon.txt`） |
 | `menuBarIcon` | メニューバーのアイコンとそのドロップダウンパネル | `true` |
@@ -447,11 +523,13 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 | `checkForUpdates` | 1 日 1 回、バックグラウンドで新しいバージョンを探す。クリックするまで何もインストールされない | `true` |
 | `agent` | `@agent` がテキストを引き渡すコーディングエージェント（Settings → Agent）：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）、`custom` | `claude` |
 | `agentCommand` | 独自のエージェントのコマンド。入力した内容が最後の引数として追加されます。例：`["muse", "--"]` | `[]` |
+| `agentPageContext` | Google Chrome での `@agent` がページの情報を渡す（欄、そのフォームやセクション、選択範囲、見えているテキスト。パスワードは決して渡さない） | `true` |
 | `claudeInBackground` | Claude Code を使う `@agent` をバックグラウンドで実行し、終わったら通知する（ほかのエージェントは常に Terminal で開く） | `true` |
 | `rememberQuestions` | 最近の `@question` の質問 5 件と答えをこの Mac に保存し、`@question` の下に一覧表示する（「最近の質問」を参照） | `true` |
 | `questionRounds` | `@question` の会話が、ほかの場所で続けることを提案するまでにパネル内で行う往復数、2–10 | `5` |
 | `questionContinueIn` | `@question` の会話を続けられる場所（順番どおり、最初のものがデフォルト）：`agent`（`@agent` の引き渡し先。そのエージェント自身の項目の代わり）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各エージェント。インストールされている場合のみ）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、インストールされているほかのエージェント、Claude、ChatGPT、コピー |
-| `appProfiles` | アプリ 1 つの設定。バンドル ID ごとで、どれも任意：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`（「アプリごとの設定」を参照） | `{}` |
+| `appProfiles` | アプリ 1 つの設定。バンドル ID ごとで、どれも任意：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`（「アプリごとの設定」を参照） | `{}` |
+| `notes` | `@note` の保存先（Settings → Plugins → Notes）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`、または Test で見つけたページやデータベースと `"notion"`。iCloud で同期されることはありません（トークンはキーチェーンにあります） | `destination: "notes"` |
 | `redaction` | 機密情報を AI から隠す（プライバシーを参照）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`。各検出（`emails`、`phones`、`cards`、`keys`、`ips`）は `false` にしない限りオン | `enabled: false` |
 
 ## プライバシー
@@ -460,25 +538,27 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 - Settings → Assistant がモデルにテキストを送るのは、Preview を押したとき、または質問を書いて Check を押したときだけです。この Mac で Apple Intelligence が使えるときは常にそれを使い（何も Mac の外に出ません）、使えないときはあなたのプロバイダを使います。依頼では、あなたの文（その中に入力したキーは先に取り除かれます）と、変更できる設定の現在の値を送ります。キーや AI から隠す語は決して送らず（送るのはその数だけ）、AWS プロファイルの名前は文が AWS や Bedrock についてのときだけ送ります。質問は、マスクした確認結果とともに送ります。`~` より先のパスやキーは含まず、ログの行は決まった言い回しにします。機密情報を隠す設定はどちらにも適用されます。確認だけでは何も送りません。Check はそのほかに Test Connection のリクエストを送りますが、それもプロバイダにテストできるキーや認証情報があるときだけです。
 - `@question` の会話をほかの場所で続けると（最後の往復の後の ⌘1…、または ⌘⏎）、会話は入力した内容とともに、選んだサービスに Web アドレスまたはクリップボード経由で送られます：この Mac のコーディングエージェント（Claude Code、Gemini CLI、Kiro CLI、または独自のもの。それぞれ独自のアカウントとサービスを使います）、claude.ai、chatgpt.com、gemini.google.com。会話は表示されていたとおりに送られます。AI へのリクエストで隠していた値（下記参照）も、あなたが自分で送り先を選ぶため、そのまま含まれます。どれかを選ぶまではどこにも送られません。「Copy the conversation」はクリップボードに入れるだけです。
 - AllInOneIME Cloud を使う場合、文は開発者のサーバを経由してモデルプロバイダに送られます（現在は OpenRouter 経由）。サーバが保持するのは件数だけで、テキストは決して保持しません。サインインで保持されるのはメールアドレスだけです。
-- 機密情報を隠す（Settings → AI Provider → Privacy、デフォルトはオフ）：どのリクエストも送信前に（`@improve`、`@translate`、`@question`、あなたのプロンプトコマンドとプロンプトプラグイン。AllInOneIME Cloud を含むすべてのプロバイダで）、メールアドレス、電話番号、支払いカード番号（Luhn チェック済み）、API キーとトークン（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…`、長いランダムな文字列）、IP アドレス、自分で登録した語（コードネーム、名前）を、Mac 上で `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` のようなプレースホルダに置き換えます。同じ値には同じプレースホルダが付きます。モデルの結果は表示や挿入の前に本来の値に戻され、パネルには「2 items hidden from the AI」と表示されます。モデルがプレースホルダを判別できないほど変えてしまった結果は、書かれたとおりに表示され、「⚠ placeholder changed」の印が付きます。隠した値を含む Jargon 用語リストの項目は送信されません。種類ごとにオフにできます。全角の形（`zhang＠example.com`、`１３８…`）も見つけ、値や語句が改行で分かれていても認識します。メール、番号、キーのような形式のある値は認識できますが、名前や住所（自分の語として登録してください）や、ほかの文字体系の似た形の文字は認識できません。あなたの AI サービスへのリクエストに適用されます。`@agent`、Web サイトからデータを取得する（`@stock`）またはサイトを開く（`@x`）プラグイン、スクリプト拡張機能は、入力したとおりのテキストを送ります。設定ファイルでは `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）です。
+- 機密情報を隠す（Settings → AI Provider → Privacy、デフォルトはオフ）：どのリクエストも送信前に（`@improve`、`@translate`、`@question`、あなたのプロンプトコマンドとプロンプトプラグイン。AllInOneIME Cloud を含むすべてのプロバイダで）、メールアドレス、電話番号、支払いカード番号（Luhn チェック済み）、API キーとトークン（`sk-`、`sk-ant-`、`AKIA…`、`ghp_`、`xox…`、長いランダムな文字列）、IP アドレス、自分で登録した語（コードネーム、名前）を、Mac 上で `[EMAIL_1]`、`[PHONE_1]`、`[ITEM_1]` のようなプレースホルダに置き換えます。同じ値には同じプレースホルダが付きます。モデルの結果は表示や挿入の前に本来の値に戻され、パネルには「2 items hidden from the AI」と表示されます。モデルがプレースホルダを判別できないほど変えてしまった結果は、書かれたとおりに表示され、「⚠ placeholder changed」の印が付きます。隠した値を含む Jargon 用語リストの項目は送信されません。種類ごとにオフにできます。全角の形（`zhang＠example.com`、`１３８…`）も見つけ、値や語句が改行で分かれていても認識します。メール、番号、キーのような形式のある値は認識できますが、名前や住所（自分の語として登録してください）や、ほかの文字体系の似た形の文字は認識できません。あなたの AI サービスへのリクエストに適用されます。`@agent`（一緒に渡す Chrome のページも含む）、Web サイトからデータを取得する（`@stock`）またはサイトを開く（`@x`）プラグイン、スクリプト拡張機能は、入力したとおりのテキストを送ります。設定ファイルでは `redaction`（`enabled`、`emails`、`phones`、`cards`、`keys`、`ips`、`customWords`）です。
 - 音声は右 ⌥ を押している間だけ録音され、Mac 上で認識されます。認識されたテキストが送られるのは、上記のコマンドで実行キーを押したときだけです。
 - 入力メソッドがクリップボードのテキストを読み取るのは、コマンド内で ⌃V または ⌘V を押したときに一度だけです。パスワードマネージャが非表示扱いにした内容は読み取りません。テキストはまずコマンド内に表示され、これも実行キーを押したときにだけ送られます。最近の macOS では、AllInOneIME によるクリップボードの読み取りを許可するか尋ねられるので、許可してください。毎回尋ねられないようにするには、System Settings → Privacy & Security で AllInOneIME のペースト権限を常に許可に設定します。
 - パスワード欄では、macOS が独自のキーボード（U.S. または ABC）に切り替え、欄を離れると元に戻します。入力中のアプリがセキュア入力を保持している間、AllInOneIME は文字を合成せず、録音もできません。キーは入力したとおりに入ります。また、システムがセキュア入力の状態にある間（パスワード欄、Terminal の Secure Keyboard Entry（セキュアなキーボード入力）など）は、AI に何も送られません。
-- `@note` と `@reminder` は AI に送られません。AllInOneIME はテキストをこの Mac の Notes と Reminders に渡すだけで、リマインダーの日時も Mac 上で読み取ります（それらのアプリがほかのデバイスに同期するかどうかは、iCloud などのアカウント次第です）。そのため、セキュア入力中でも使えます。
+- `@note` と `@reminder` は AI に送られません。AllInOneIME はテキストをこの Mac の Notes と Reminders に渡すだけで、リマインダーの日時も Mac 上で読み取ります（それらのアプリがほかのデバイスに同期するかどうかは、iCloud などのアカウント次第です）。そのため、セキュア入力中でも使えます。フォルダへの `@note` は、この Mac にファイルを書き込みます（iCloud Drive や Obsidian Sync のフォルダのように、そのフォルダが同期されていれば同期されます）。Notion への `@note` は、メモを Notion（api.notion.com。キーチェーンに保存したインテグレーションのトークンを使用）に送ります。送るのはそのときだけで、セキュア入力中は送りません。
 - `@reportissue`（と「Report an Issue…」）は自分では何も送信しません。ブラウザで GitHub の新しい issue のページを開き、入力したタイトルと、上に挙げたバージョン、言語、プロバイダの種類、数を付けます。これらは先に候補パネルに表示されます。そこで Submit をクリックしない限り、GitHub には何も届きません。
 - `@open` はこの Mac 上だけを検索します。それで開いたもの（最新 200 件）を入力メソッド自身の環境設定（config.json ではなく）に記録し、先頭に表示するために使います。
 - Settings → Apps の「Add App…」のために、入力メソッドは最近入力した 12 個のアプリのバンドル ID を自身の環境設定に保存します。それ以外の情報は何も保存しません。
-- `@question` は最近の質問 5 件を、答えと質問した時刻とともに、この Mac の `~/Library/Application Support/AllInOneIME/recent-questions.json`（あなたのユーザーアカウントだけが読める）にだけ記憶し、`@question` の下に一覧表示します。保存済みの答えはそこから表示され、オンラインには接続しません。セキュア入力中は何も保存されず、選択したテキストについての質問はまったく保存されません（その答えは選択範囲についてのもので、保存すると選択範囲がディスクに残ってしまうため）。Settings → General で「Remember recent questions」をオフにすると質問も削除されますが、Settings → Assistant でオフにした場合（設定ファイルの `rememberQuestions`）は残るので、ちょうど元に戻せます。「Clear」で削除します。
-- メモを一覧表示するため、メニューバーパネルは `@note` で保存した最新 30 件のメモの ID と最初の行（最大 80 文字）を、入力メソッド自身の環境設定に保存します。パネルがオフのときも同様です。
+- `@question` は最近の質問 5 件を、答えと質問した時刻とともに、この Mac の `~/Library/Application Support/AllInOneIME/recent-questions.json`（あなたのユーザーアカウントだけが読める）にだけ記憶し（iCloud で同期することを選んだ場合を除きます。上記参照）、`@question` の下に一覧表示します。保存済みの答えはそこから表示され、オンラインには接続しません。セキュア入力中は何も保存されず、選択したテキストについての質問はまったく保存されません（その答えは選択範囲についてのもので、保存すると選択範囲がディスクに残ってしまうため）。Settings → General で「Remember recent questions」をオフにすると質問も削除されますが、Settings → Assistant でオフにした場合（設定ファイルの `rememberQuestions`）は残るので、ちょうど元に戻せます。「Clear」で削除します。
+- メモを一覧表示するため、メニューバーパネルは `@note` で保存した最新 30 件のメモの ID（Notes のメモの ID、ファイルのパス、または Notion のページのアドレス）と最初の行（最大 80 文字）を、入力メソッド自身の環境設定に保存します。パネルがオフのときも同様です。パネルを開いても、Notion に問い合わせることはありません。
 - `@py` と `@js` は実行キーを押したときにだけ、自分で入力または貼り付けたコードだけを実行します。AI の答えやほかのコマンドの出力がコードとして実行されることはありません。`@py` は Mac の `python3` を使うので、Terminal と同じようにファイルの読み書きやネットワークへのアクセスができます。`@js` は別プロセスで実行され、ファイルの読み取り、ネットワークへのアクセス、ほかのプログラムの実行はできません。どちらもセキュア入力中には実行されません。
 - アップデートの確認：1 日 1 回（「Check for updates automatically」がオフでない限り）、AllInOneIME は https://allinoneime.com/update.json とその署名をダウンロードします。リクエストには識別子も、入力した内容も含まれません。アップデートは、Update をクリックしたときにだけ、GitHub のリリースからダウンロードされます。
 - 拡張機能のソース：git はあなたの Mac 上で、あなたとして、あなたが追加したソースについてだけ実行されます。自動でチェックするソースについて 1 日 1 回の取得（固定したソースはなし）と、Check Now、Update、Re-clone をクリックしたときです。通信するのはリポジトリのホストだけで、あなた自身の git と SSH の設定で認証されます。入力した内容が一緒に送られることはありません。
+- iCloud で同期（デフォルトはオフ）：送り先はあなた自身の iCloud Drive の `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/` だけで、Apple がそれをほかの Mac に同期します。開発者のサーバには何も送られません。そこに置かれるのは、`settings.json`（同期する設定。それぞれに変更時刻と Mac ごとのランダムな ID が付きます。プログラムを実行するものも含めて独自のコマンドも入りますが、それらはこれまでどおり選んだときにだけ実行されます）、`jargon.txt`（Jargon 用語リスト）、`rime/`（ピンインが学習した内容の Mac ごとのスナップショット。Rime フォルダのそれ以外のものは含まず、カスタムフレーズや Rime の設定は Mac に残ります）、そしてオンにした場合だけ、AI から隠す語（`settings.json` 内）と `questions.json`（最近の質問と答え。あなたのユーザーアカウントだけが読めます）です。この 2 つはオフにしても、削除するまで iCloud に残ります（各スイッチの下の「Remove from iCloud…」）。決して置かれないもの：API キー、トークン、パスワード、拡張機能のソース、拡張機能のフォルダとプラグイン、打ち間違いをしないアプリ、最近のアプリ、ウインドウの状態、同期のスイッチ。iCloud Drive がエンドツーエンドで暗号化されるのは、高度なデータ保護を使っている場合だけです。この Mac が何を同期したかの記録は `~/Library/Application Support/AllInOneIME/iCloudSync/state.json` にあります。
 - ログには入力内容は記録されません。macOS はすべてのサードパーティ製入力メソッドについて「The developer can access anything you type with this input source」（開発者はこの入力ソースで入力したすべての内容にアクセスできます）と警告しますが、これはシステムの一般的な警告です。
 
 ## 開発
 
 ```sh
-make test         # unit tests, plus tests that run the real Rime engine
+make test         # unit tests, plus tests that run the real Rime engine (and make strings-check)
+make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
 make selftest     # drives the input method through a simulated text field: real Bedrock calls, plus on-device recognition tested with synthesized speech
@@ -492,10 +572,15 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 `make selftest` と `make realtest` は、あなたの設定に左右されません。セルフテストは独自の設定ファイルを使い（Amazon Bedrock で、AWS プロファイルとリージョンはあなたの設定から取り、それ以外はすべてデフォルト）、実アプリテストは実行中だけプロバイダを Bedrock にして、終わったらあなたの設定に戻します。その時点で確認できないものは失敗ではなくスキップになります。そのプロファイルの認証情報がない場合の Bedrock のライブ確認と、セキュア入力がオンの間（画面ロック中、パスワード欄）に入力するものすべてです。最後の行は成功、失敗、スキップした確認の数を示します。実行が失敗になるのは失敗があるときだけで、スキップがある実行は INCOMPLETE で終わり、入力を伴うものが何も実行されなかったときは SKIPPED（BLOCKED：実アプリテストが画面ロック中に始まった）で終わります。PASSED になることはありません。
 
-コードの構成：
+インターフェイスのテキストは `tr("中文", "English")` の形で書きます。簡体字中国語と英語はコードから、そのほかの言語は String Catalog から取ります。コアのテキストは `Core/Resources/Localizable.xcstrings`、アプリ自身のテキストは `Resources/Localizable.xcstrings` にあり（Makefile が Xcode の `xcstringstool` で各アプリにマージしてコンパイルします）、キーは英語のテキストで、補間ごとに `%@` を使います。テキストを追加または変更したら、`make strings` を実行してください（それまで `make test` は失敗します。セルフテストのテキスト（`*SelfTest.swift`）は翻訳の対象ではありません）。1 つの英語テキストが 2 つの意味を持つ場合（`make strings` が報告し、`make strings-check` はそれで失敗します）は、一方に独自のキーを付けます。使われる場所や使い方を表す、ドット区切りの短い名前です：`tr("删除", "Remove", key: "remove.delete")`。その英語は、カタログでのそのキーの英語の値になります。言語の追加は、カタログにその言語の列を加えることです。レビュー済みの翻訳（言語ごとに 1 つの JSON ファイルで、`"core\t<key>"` または `"app\t<key>"` → その翻訳）を `Scripts/import-translations.py <folder>` で取り込みます。このスクリプトは英語には決して手を付けず、プレースホルダがキーのものと一致しない翻訳は受け付けません。コア自身のテキストは、インターフェイスの言語のコードを受け取って同じ方法で検索します（`InterfaceText.lookup`。各アプリが設定し、macOS では `.lproj` バンドル、それ以外では `StringCatalog` がカタログのテーブルを読み取ります）。
+
+コードの構成：ルートは macOS アプリです。`Core/` はすべてのプラットフォームが共有するコアで、独立した Swift パッケージです（macOS、Linux、Windows で単独でビルドとテストができます）。`Windows/` は Windows アプリの始まりです。
 
 - `Core/Sources/AllInOneIMECore`：Bedrock クライアント、SigV4、プロンプト、2 階層の入力ステートマシン（@ コマンドと音声ジェスチャを含む）。AppKit には依存しません
+- `Core/Sources/AllInOneIMEText`：インターフェイスのテキストとその言語（`UIString`、`InterfaceText`、`InterfaceLanguage`、そして `.lproj` バンドルがない環境でカタログを読み取る `StringCatalog`）。設定を開くリンクもすべてここにあります（`AllInOneIMECore` がこれを再エクスポートします）
 - `Core/Sources/AllInOneIMERime`：librime のラッパー
+- `Core/Sources/AllInOneIMECLI`：コマンドライン `allinoneime-cli`（`make cli`）。各プラットフォーム自身の `main` から実行されます
+- `Sources/AllInOneIMEMac`：Mac にしかないもの（キーレイアウト、コード署名、Spotlight、AppleScript、アップデータのインストール処理）と `Platform.mac`
 - `Sources/AllInOneIME`：InputMethodKit の入力メソッド、候補パネル、設定ウインドウ、音声認識
 - `Sources/AllInOneIMESettings`：「AllInOneIME Settings」ランチャー
 - `Sources/AllInOneIMEInstaller`：ディスクイメージ内の「Install AllInOneIME」。インストール、アップデート、アンインストールを行います
