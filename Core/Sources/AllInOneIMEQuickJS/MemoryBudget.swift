@@ -17,14 +17,17 @@ final class MemoryBudget {
     /// Each block's size, in front of it: 16 bytes, which keeps malloc's alignment.
     static let header = 16
 
+    /// `limit` bytes (none, below 0).
     init(limit: Int) {
-        self.limit = limit
+        self.limit = max(0, limit)
     }
 
     /// A new runtime whose memory this is (nil when there is none for it). This must outlive it.
     func newRuntime() -> OpaquePointer? {
         var functions = JSMallocFunctions(
             js_calloc: { opaque, count, size in
+                // size_t as Swift's Int: past 2^63 negative, which no allocation may be.
+                guard count >= 0, size >= 0 else { return nil }
                 let (total, overflow) = count.multipliedReportingOverflow(by: size)
                 return overflow ? nil : MemoryBudget.of(opaque).allocate(total, zeroed: true)
             },
@@ -53,15 +56,22 @@ final class MemoryBudget {
     }
 
     /// Whether `more` bytes may be allocated: within the limit, or within the reserve once an allocation was refused.
+    /// Compared as what is left, so that no sum overflows (`more` is at most `Int.max - header`, `used` at least 0).
     private func allows(_ more: Int) -> Bool {
-        if more <= 0 || used + more <= limit { return true }
-        if exceeded { return used + more <= limit + Self.reserve }
+        if more <= 0 || more <= limit - used { return true }
+        if exceeded { return more - Self.reserve <= limit - used }
         exceeded = true
         return false
     }
 
+    /// Whether QuickJS may ask for `size` bytes at all: not a negative one (a size_t past 2^63, as Swift's Int), nor
+    /// one whose header doesn't fit.
+    private static func valid(_ size: Int) -> Bool {
+        size >= 0 && size <= Int.max - header
+    }
+
     private func allocate(_ size: Int, zeroed: Bool) -> UnsafeMutableRawPointer? {
-        guard size <= Int.max - Self.header, allows(size),
+        guard Self.valid(size), allows(size),
               let block = zeroed ? calloc(1, size + Self.header) : malloc(size + Self.header) else { return nil }
         block.storeBytes(of: size, as: Int.self)
         used += size
@@ -70,7 +80,7 @@ final class MemoryBudget {
 
     private func reallocate(_ block: UnsafeMutableRawPointer, to size: Int) -> UnsafeMutableRawPointer? {
         let old = Self.size(of: block)
-        guard size <= Int.max - Self.header, allows(size - old),
+        guard Self.valid(size), allows(size - old),
               let moved = realloc(block - Self.header, size + Self.header) else { return nil }
         moved.storeBytes(of: size, as: Int.self)
         used += size - old
