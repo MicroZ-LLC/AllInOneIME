@@ -3,8 +3,8 @@ import Foundation
 /// The API keys of the Claude, Gemini and OpenAI-compatible providers, and of other services the
 /// user brings a key for (the web search, `WebSearch`). They are kept in the keychain (never in the config file); a key
 /// set in the user's shell (`ANTHROPIC_API_KEY`, …) is used when the keychain has none. Which keychain is the platform's
-/// (`Platform.secrets`): on the Mac, the data protection keychain, synced through iCloud Keychain while that is on
-/// (`Keychain.routed`, `KeySync`), when the build is entitled to it; the login keychain when it isn't.
+/// (`Platform.secrets`): on the Mac the login keychain, as in 0.6.4, and while key sync is on (in a build entitled to
+/// it) the data protection keychain's items that iCloud Keychain syncs (`Keychain.routed`, `KeySync`).
 ///
 /// Reading a key from the login keychain may make macOS ask for the login password (an app signed otherwise than the
 /// one that saved it), so it is read only to be used, and once per process (`KeyCache`); whether there is one is told
@@ -237,11 +237,9 @@ public enum APIKeys {
     public struct Keychain: Sendable {
         /// Which keychain a store is, for the moves between them (`KeySync`).
         public enum Kind: Sendable {
-            /// The login keychain (the file-based one on the Mac), where keys were kept up to 0.6.4: read once to move
-            /// them out (`KeySync.migrate`), and where they stay in a build that isn't entitled to the others.
+            /// The login keychain (the file-based one on the Mac), where keys are kept as in 0.6.4 while key sync is off
+            /// (and always in a build that isn't entitled to the synced store); turning key sync on moves them out.
             case legacy
-            /// This device's items in the data protection keychain (never synced).
-            case local
             /// The items iCloud Keychain syncs: every Mac's. Never deleted from by a merge (`KeySync.merge`); the routed
             /// store counts as this too, since it holds them.
             case synced
@@ -265,9 +263,6 @@ public enum APIKeys {
         public var delete: @Sendable (_ account: String) -> KeychainStatus
         /// What a failure's code means, in words (nil: the code is all there is).
         public var message: @Sendable (_ code: Int32) -> String?
-        /// For a store routed over others (`routed`): the one a write of `account` goes to. Nil: this store itself.
-        /// `KeySync`'s moves read a copy back from, and take a bad one out of, that store alone.
-        public var target: (@Sendable (_ account: String) -> Keychain)? = nil
 
         public init(kind: Kind = .memory, accounts: @escaping @Sendable () -> [String] = { [] },
                     attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
@@ -287,7 +282,7 @@ public enum APIKeys {
 
         /// No secret store on this platform (until its shell brings one): nothing is kept, a save fails.
         public static let unavailable = Keychain(
-            kind: .local, attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
+            attributes: { _ in nil }, read: { _ in nil }, write: { _, _, _, _, _, _ in .failed(-4) }, setComment: { _, _ in .notFound },
             delete: { _ in .notFound }, message: { _ in "No secret store on this platform" })
 
         /// Items kept in memory, for tests and the self-test: the user's keychain is never touched.

@@ -2,48 +2,52 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// The stores the app uses (`KeySync.Stores`), beyond the acceptance tests' scenarios: the switch, the silent pass's store
-/// and the label a moved item gets. All in memory.
+/// The stores the app uses (`KeySync.Stores`), beyond the acceptance tests' scenarios: the switch, the quiet login
+/// keychain the moves use and the label a moved item gets. All in memory.
 struct KeySyncTests {
     static func store(_ kind: APIKeys.Keychain.Kind) -> APIKeys.Keychain {
         var store = APIKeys.Keychain.inMemory()
         store.kind = kind
         return store
     }
+    static func stores(syncing: Bool = false) -> KeySync.Stores {
+        KeySync.Stores(login: store(.legacy), synced: store(.synced), replaced: store(.legacy), syncing: syncing)
+    }
 
     @Test func theRoutedStoreFollowsTheSwitch() throws {
-        let local = Self.store(.local), synced = Self.store(.synced), legacy = Self.store(.legacy)
-        let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy, replaced: Self.store(.local))
+        let stores = Self.stores(), synced = stores.synced, legacy = stores.login
         #expect(!stores.syncing && stores.store.kind == .synced)
-        try APIKeys.save("sk-test-local-0001-abcd", account: "openai", label: "AllInOneIME: test", in: stores.store)
-        #expect(local.read("openai") != nil && synced.read("openai") == nil)
+        try APIKeys.save("sk-test-legacy-0001-abcd", account: "openai", label: "AllInOneIME: test", in: stores.store)
+        #expect(legacy.read("openai") != nil && synced.read("openai") == nil)
 
         try stores.turn(syncing: true)
-        #expect(stores.syncing && synced.read("openai") == "sk-test-local-0001-abcd" && local.read("openai") == nil)
+        #expect(stores.syncing && synced.read("openai") == "sk-test-legacy-0001-abcd" && legacy.read("openai") == nil)
         try APIKeys.save("sk-test-synced-0002-abcd", account: "gemini", label: "AllInOneIME: test", in: stores.store)
-        #expect(synced.read("gemini") != nil && local.read("gemini") == nil)
+        try APIKeys.save("token-test-hosted-0003", account: "hosted", label: "AllInOneIME: test", in: stores.store)
+        #expect(synced.read("gemini") != nil && legacy.read("gemini") == nil)
+        #expect(legacy.read("hosted") != nil && synced.read("hosted") == nil)
 
         try stores.turn(syncing: false)
-        #expect(!stores.syncing && local.read("gemini") == "sk-test-synced-0002-abcd" && synced.read("gemini") != nil)
+        #expect(!stores.syncing && legacy.read("gemini") == "sk-test-synced-0002-abcd" && synced.read("gemini") != nil)
         stores.start(syncing: true)  // as the config says at launch: nothing moved
-        #expect(stores.syncing && local.read("gemini") != nil)
+        #expect(stores.syncing && legacy.read("gemini") != nil)
     }
 
     /// A move that fails still leaves the store following the switch (the move is tried again later).
     @Test func aFailedMoveStillTurnsTheSwitch() {
         var synced = Self.store(.synced)
         synced.write = { _, _, _, _, _, _ in .failed(-34018) }
-        let local = Self.store(.local)
-        _ = local.write("openai", "sk-test-local-0001-abcd", "AllInOneIME: test", "", nil, nil)
-        let stores = KeySync.Stores(local: local, synced: synced, legacy: Self.store(.legacy), replaced: Self.store(.local))
+        let legacy = Self.store(.legacy)
+        _ = legacy.write("openai", "sk-test-legacy-0001-abcd", "AllInOneIME: test", "", nil, nil)
+        let stores = KeySync.Stores(login: legacy, synced: synced, replaced: Self.store(.legacy))
         #expect(throws: APIKeys.KeychainError.self) { try stores.turn(syncing: true) }
-        #expect(stores.syncing && local.read("openai") != nil)
+        #expect(stores.syncing && legacy.read("openai") != nil)
     }
 
-    /// The silent pass goes through the quiet login keychain into a store with nothing behind it; a moved item without
-    /// a label of its own gets the provider's.
-    @Test func theSilentPassUsesTheQuietLegacyStore() throws {
-        let local = Self.store(.local), synced = Self.store(.synced), legacy = Self.store(.legacy)
+    /// The moves go through the quiet login keychain and its quiet replaced copies; a moved item without a label of its
+    /// own gets the provider's.
+    @Test func theMovesUseTheQuietStores() throws {
+        let synced = Self.store(.synced), legacy = Self.store(.legacy), replaced = Self.store(.legacy)
         var quiet = legacy
         quiet.read = { _ in nil }  // every item would ask
         quiet.attributes = { account in
@@ -51,17 +55,37 @@ struct KeySyncTests {
         }
         _ = legacy.write("gemini", "sk-test-legacy-0001-wxyz", "", "", nil, nil)
         _ = legacy.write("openai", "sk-test-legacy-0002-wxyz", "", "", nil, nil)
-        let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy, replaced: Self.store(.local),
-                                    quietLegacy: quiet)
-        let moves = try stores.migrate()
-        #expect(Set(moves.waiting) == ["gemini", "openai"] && moves.moved.isEmpty)
+        let stores = KeySync.Stores(login: legacy, synced: synced, replaced: replaced, quietLogin: quiet,
+                                    quietReplaced: Self.store(.legacy))
+        let moves = try stores.turn(syncing: true)
+        #expect(Set(moves.waiting) == ["gemini", "openai"] && moves.moved.isEmpty && !moves.isComplete)
 
-        let loud = KeySync.Stores(local: local, synced: synced, legacy: quiet.withRead(legacy.read),
-                                  replaced: Self.store(.local))
-        let moved = try loud.migrate()
-        #expect(Set(moved.moved) == ["gemini", "openai"] && legacy.attributes("gemini") == nil)
-        #expect(local.attributes("openai")?.label == "AllInOneIME: \(Provider.openai.displayName)")
-        #expect(local.attributes("openai")?.ending == "wxyz")
+        let quietReplaced = Self.store(.legacy)
+        let loud = KeySync.Stores(login: legacy, synced: synced, replaced: replaced, quietLogin: quiet.withRead(legacy.read),
+                                  quietReplaced: quietReplaced)
+        let moved = try loud.turn(syncing: true)
+        #expect(Set(moved.moved) == ["gemini", "openai"] && legacy.attributes("gemini") == nil && moved.isComplete)
+        #expect(synced.attributes("openai")?.label == "AllInOneIME: \(Provider.openai.displayName)")
+        #expect(synced.attributes("openai")?.ending == "wxyz")
+        #expect(quietReplaced.read("openai") == "sk-test-legacy-0002-wxyz" && replaced.accounts().isEmpty)
+    }
+
+    /// A key left in the login keychain when key sync was turned on (it asked for the password) moves at its first use,
+    /// a replaced copy kept first; with key sync off, a read never moves anything.
+    @Test func aKeyLeftBehindMovesAtItsFirstUse() throws {
+        let off = Self.stores()
+        _ = off.login.write("openai", "sk-test-legacy-0001-abcd", "AllInOneIME: test", "api.openai.com", "abcd", nil)
+        #expect(off.store.read("openai") == "sk-test-legacy-0001-abcd")
+        #expect(off.login.read("openai") != nil && off.synced.accounts().isEmpty && off.replaced.accounts().isEmpty)
+
+        let on = Self.stores(syncing: true)
+        _ = on.login.write("openai", "sk-test-legacy-0001-abcd", "AllInOneIME: test", "api.openai.com", "abcd", nil)
+        _ = on.login.write("hosted", "token-test-hosted-0002", "AllInOneIME: test", "", nil, nil)
+        #expect(on.store.read("openai") == "sk-test-legacy-0001-abcd" && on.store.read("hosted") == "token-test-hosted-0002")
+        #expect(on.synced.read("openai") == "sk-test-legacy-0001-abcd" && on.login.attributes("openai") == nil)
+        #expect(on.synced.attributes("openai")?.comment == "api.openai.com")
+        #expect(on.replaced.read("openai") == "sk-test-legacy-0001-abcd")
+        #expect(on.login.read("hosted") != nil && on.synced.attributes("hosted") == nil)
     }
 }
 
@@ -73,40 +97,24 @@ private extension APIKeys.Keychain {
     }
 }
 
-/// A copy that reads back otherwise is taken out of the one store it was written to, and only when that store had no item
-/// for the account before: never this device's original, never an item another Mac synced.
+/// A copy that reads back otherwise is taken out of the store it was written to, and only when that store had no item for
+/// the account before: never the original, never an item another Mac synced.
 struct KeySyncMismatchTests {
     @Test func aBadCopyNeverCostsTheOriginal() throws {
-        let local = KeySyncTests.store(.local)
+        let legacy = KeySyncTests.store(.legacy)
         var synced = KeySyncTests.store(.synced)
         let inner = synced
         synced.read = { _ in "garbled" }
-        _ = local.write("openai", "sk-test-local-0001-abcd", "AllInOneIME: test", "api.openai.com", "abcd", nil)
-        let moves = try KeySync.merge(from: local, into: synced, aside: KeySyncTests.store(.local))
+        _ = legacy.write("openai", "sk-test-legacy-0001-abcd", "AllInOneIME: test", "api.openai.com", "abcd", nil)
+        let moves = try KeySync.merge(from: legacy, into: synced, aside: KeySyncTests.store(.legacy))
         #expect(moves.mismatched == ["openai"] && moves.moved.isEmpty && !moves.isComplete)
-        #expect(local.read("openai") == "sk-test-local-0001-abcd" && local.attributes("openai")?.comment == "api.openai.com")
+        #expect(legacy.read("openai") == "sk-test-legacy-0001-abcd" && legacy.attributes("openai")?.comment == "api.openai.com")
         #expect(inner.attributes("openai") == nil)
-    }
-
-    /// Through the routed store (the silent pass's), the bad copy is taken out of the store written to alone: this
-    /// device's item of the same account stays.
-    @Test func throughTheRoutedStoreOnlyTheStoreWrittenTo() throws {
-        let local = KeySyncTests.store(.local), legacy = KeySyncTests.store(.legacy)
-        var synced = KeySyncTests.store(.synced)
-        let inner = synced
-        synced.read = { _ in "garbled" }
-        _ = local.write("gemini", "sk-test-local-0001-abcd", "AllInOneIME: test", "", "abcd", Date(timeIntervalSince1970: 100))
-        _ = legacy.write("openai", "sk-test-legacy-0001-wxyz", "AllInOneIME: test", "", "wxyz", nil)
-        let into = APIKeys.Keychain.routed(local: local, synced: synced, legacy: .unavailable,
-                                           replaced: KeySyncTests.store(.local), syncs: { true })
-        let moves = try KeySync.migrate(legacy: legacy, into: into, interactive: false, aside: KeySyncTests.store(.local))
-        #expect(moves.mismatched == ["openai"] && inner.attributes("openai") == nil)
-        #expect(legacy.read("openai") == "sk-test-legacy-0001-wxyz" && local.read("gemini") == "sk-test-local-0001-abcd")
     }
 }
 
 /// Newest wins by when a key was saved, which every copy carries; the modification date only for an item that doesn't
-/// say (0.6.4's). A key that loses to a different one is never lost: it is set aside.
+/// say (0.6.4's). A key that loses to a different one is never lost: a replaced copy is kept.
 struct KeySyncSaveTimeTests {
     static let year = Date(timeIntervalSince1970: 1_760_000_000), week = Date(timeIntervalSince1970: 1_790_000_000)
 
@@ -120,182 +128,156 @@ struct KeySyncSaveTimeTests {
     }
 
     @Test func saveRecordsTheTimeAndCopiesCarryIt() throws {
-        let local = KeySyncTests.store(.local), synced = KeySyncTests.store(.synced)
+        let legacy = KeySyncTests.store(.legacy), synced = KeySyncTests.store(.synced), replaced = KeySyncTests.store(.legacy)
         let before = Date()
-        try APIKeys.save("sk-test-local-0001-abcd", account: "openai", label: "AllInOneIME: test", in: local)
-        let saved = try #require(local.attributes("openai")?.saved)
+        try APIKeys.save("sk-test-legacy-0001-abcd", account: "openai", label: "AllInOneIME: test", in: legacy)
+        let saved = try #require(legacy.attributes("openai")?.saved)
         #expect(saved >= before.addingTimeInterval(-1) && saved <= Date())
-        try KeySync.merge(from: local, into: synced, aside: KeySyncTests.store(.local))
-        #expect(synced.attributes("openai")?.saved == saved)
+        try KeySync.merge(from: legacy, into: synced, aside: replaced)
+        #expect(synced.attributes("openai")?.saved == saved && replaced.attributes("openai")?.saved == saved)
     }
 
-    /// Two Macs, each with its own key in the login keychain (0.6.4's: no save time), the older one migrating first: the
+    /// Two Macs, each with its own key in the login keychain (0.6.4's: no save time), the older one moving first: the
     /// copy it makes says when that key was last changed, not when it was copied, so the newer one wins on the second
-    /// Mac; and a Mac whose key loses sets it aside.
-    @Test func twoMacsMigrateOneAfterTheOther() throws {
+    /// Mac, and the first one's is kept as a replaced copy on each Mac.
+    @Test func twoMacsMoveOneAfterTheOther() throws {
         let synced = KeySyncTests.store(.synced)
-        func mac(_ key: String, changed: Date) -> (legacy: APIKeys.Keychain, into: APIKeys.Keychain) {
-            let local = KeySyncTests.store(.local)
+        func mac(_ key: String, changed: Date) -> APIKeys.Keychain {
             var legacy = KeySyncTests.store(.legacy)
             let inner = legacy
             _ = inner.write("openai", key, "AllInOneIME: test", "", APIKeys.ending(of: key), nil)
             legacy.attributes = { inner.attributes($0).map { var found = $0; found.modified = changed; return found } }
-            return (legacy, .routed(local: local, synced: synced, legacy: .unavailable, replaced: KeySyncTests.store(.local),
-                                    syncs: { true }))
+            return legacy
         }
         let a = mac("sk-test-mac-a-old-0001", changed: Self.year), b = mac("sk-test-mac-b-new-0002", changed: Self.week)
-        let aside = KeySyncTests.store(.local)
-        #expect(try KeySync.migrate(legacy: a.legacy, into: a.into, interactive: false, aside: aside).moved == ["openai"])
-        #expect(synced.attributes("openai")?.saved == Self.year)
-        #expect(try KeySync.migrate(legacy: b.legacy, into: b.into, interactive: false, aside: aside).moved == ["openai"])
+        let asideA = KeySyncTests.store(.legacy), asideB = KeySyncTests.store(.legacy)
+        #expect(try KeySync.merge(from: a, into: synced, aside: asideA).moved == ["openai"])
+        #expect(synced.attributes("openai")?.saved == Self.year && asideA.read("openai") == "sk-test-mac-a-old-0001")
+        #expect(try KeySync.merge(from: b, into: synced, aside: asideB).moved == ["openai"])
         #expect(synced.read("openai") == "sk-test-mac-b-new-0002" && synced.attributes("openai")?.saved == Self.week)
+        #expect(asideB.read("openai") == "sk-test-mac-a-old-0001")  // A's, written over
 
-        // The other way round: the newer one first; the older one is set aside, where nothing reads it.
-        let synced2 = KeySyncTests.store(.synced), replaced = KeySyncTests.store(.local)
+        // The other way round: the newer one first; the older one is kept as a replaced copy, where nothing reads it.
+        let synced2 = KeySyncTests.store(.synced), replaced = KeySyncTests.store(.legacy)
         _ = synced2.write("openai", "sk-test-mac-b-new-0002", "AllInOneIME: test", "", nil, Self.week)
         let c = mac("sk-test-mac-a-old-0001", changed: Self.year)
-        let into = APIKeys.Keychain.routed(local: KeySyncTests.store(.local), synced: synced2, legacy: .unavailable,
-                                           replaced: replaced, syncs: { true })
-        let moves = try KeySync.migrate(legacy: c.legacy, into: into, interactive: false, aside: replaced)
-        #expect(moves.superseded == ["openai"] && moves.setAside == ["openai"] && c.legacy.attributes("openai") == nil)
+        let moves = try KeySync.merge(from: c, into: synced2, aside: replaced)
+        #expect(moves.superseded == ["openai"] && moves.setAside == ["openai"] && c.attributes("openai") == nil)
         #expect(replaced.read("openai") == "sk-test-mac-a-old-0001" && replaced.attributes("openai")?.saved == Self.year)
         #expect(synced2.read("openai") == "sk-test-mac-b-new-0002")
     }
 
-    /// Turning sync on: a local key that loses to a different synced one is set aside; the same key twice goes.
-    @Test func aLosingLocalKeyIsSetAsideUnlessItIsTheSame() throws {
-        let local = KeySyncTests.store(.local), synced = KeySyncTests.store(.synced), replaced = KeySyncTests.store(.local)
-        _ = local.write("openai", "sk-test-local-older-0001", "AllInOneIME: test", "", nil, Self.year)
+    /// Turning sync on: a login keychain key that loses to a synced one is kept as a replaced copy before it goes, the
+    /// same key too (it leaves for iCloud Keychain); turning it off, the same key twice is only refreshed.
+    @Test func aLosingKeyIsKeptAsReplaced() throws {
+        let legacy = KeySyncTests.store(.legacy), synced = KeySyncTests.store(.synced), replaced = KeySyncTests.store(.legacy)
+        _ = legacy.write("openai", "sk-test-legacy-older-0001", "AllInOneIME: test", "", nil, Self.year)
         _ = synced.write("openai", "sk-test-synced-newer-0002", "AllInOneIME: test", "", nil, Self.week)
-        _ = local.write("gemini", "sk-test-same-key-0003", "AllInOneIME: test", "", nil, Self.year)
+        _ = legacy.write("gemini", "sk-test-same-key-0003", "AllInOneIME: test", "", nil, Self.year)
         _ = synced.write("gemini", "sk-test-same-key-0003", "AllInOneIME: test", "", nil, Self.week)
-        let moves = try KeySync.merge(from: local, into: synced, aside: replaced)
-        #expect(Set(moves.superseded) == ["openai", "gemini"] && moves.moved.isEmpty && moves.setAside == ["openai"])
-        #expect(local.attributes("openai") == nil && replaced.read("openai") == "sk-test-local-older-0001")
+        let moves = try KeySync.merge(from: legacy, into: synced, aside: replaced)
+        #expect(Set(moves.superseded) == ["openai", "gemini"] && moves.moved.isEmpty && Set(moves.setAside) == ["openai", "gemini"])
+        #expect(legacy.attributes("openai") == nil && replaced.read("openai") == "sk-test-legacy-older-0001")
         #expect(replaced.attributes("openai")?.saved == Self.year && synced.read("openai") == "sk-test-synced-newer-0002")
-        #expect(replaced.attributes("gemini") == nil)
-        #expect(local.attributes("gemini") == nil && synced.read("gemini") == "sk-test-same-key-0003")
+        #expect(replaced.read("gemini") == "sk-test-same-key-0003")
+        #expect(legacy.attributes("gemini") == nil && synced.read("gemini") == "sk-test-same-key-0003")
+
+        let back = KeySyncTests.store(.legacy), aside = KeySyncTests.store(.legacy)
+        _ = back.write("gemini", "sk-test-same-key-0003", "AllInOneIME: test", "", nil, Self.year)
+        let off = try KeySync.merge(from: synced, into: back, aside: aside)
+        #expect(off.moved.contains("gemini") && aside.accounts().isEmpty && back.attributes("gemini")?.saved == Self.week)
     }
 }
 
-/// Keys that lose, or are written over, set aside under `KeySync.replacedService` (`Stores.replaced`): never read back
-/// as the key in use, so a removed key never comes back; Remove… takes them too.
+/// Replaced copies (`KeySync.replacedService`, `Stores.replaced`): never read back as the key in use; Remove… takes
+/// them too; and an account whose copy can't be kept, or whose key in the other store can't be read, is left as it is.
 struct KeySyncSetAsideTests {
     static let old = Date(timeIntervalSince1970: 1_760_000_000), new = Date(timeIntervalSince1970: 1_790_000_000)
-    static func stores(syncing: Bool) -> KeySync.Stores {
-        KeySync.Stores(local: KeySyncTests.store(.local), synced: KeySyncTests.store(.synced),
-                       legacy: KeySyncTests.store(.legacy), replaced: KeySyncTests.store(.local), syncing: syncing)
-    }
-    static func write(_ store: APIKeys.Keychain, _ key: String, saved: Date?, account: String = "openai") {
-        _ = store.write(account, key, "AllInOneIME: test", "api.openai.com", APIKeys.ending(of: key), saved)
+    static func write(_ store: APIKeys.Keychain, _ key: String, saved: Date?, account: String = "openai",
+                      label: String = "AllInOneIME: test") {
+        _ = store.write(account, key, label, "api.openai.com", APIKeys.ending(of: key), saved)
     }
 
-    /// Review case A: the login keychain's older key, set aside at the silent pass, doesn't come back after another
-    /// Mac removed the synced one (not at its first use, not at the next silent pass).
-    @Test func aLegacyLoserNeverComesBack() throws {
-        let mac = Self.stores(syncing: true), legacy = mac.legacy
-        Self.write(legacy, "sk-test-legacy-older-0001", saved: Self.old)
-        Self.write(mac.synced, "sk-test-synced-newer-0002", saved: Self.new)
-        let moves = try mac.migrate()
-        #expect(moves.superseded == ["openai"] && moves.setAside == ["openai"])
-        #expect(legacy.attributes("openai") == nil && mac.replaced.read("openai") == "sk-test-legacy-older-0001")
-        #expect(mac.replaced.attributes("openai")?.saved == Self.old && mac.replaced.attributes("openai")?.comment == "api.openai.com")
-        #expect(mac.store.read("openai") == "sk-test-synced-newer-0002")
-
-        _ = mac.synced.delete("openai")  // removed on another Mac
-        #expect(mac.store.read("openai") == nil && mac.store.attributes("openai") == nil)
-        #expect(try mac.migrate().moved.isEmpty && mac.synced.attributes("openai") == nil)
-    }
-
-    /// Review case B: this Mac's older key, set aside when sync is turned on, doesn't go back to iCloud Keychain when it
-    /// is turned off and on again after another Mac removed the key.
-    @Test func aLocalLoserNeverReturnsToICloud() throws {
-        let stores = Self.stores(syncing: false)
-        Self.write(stores.local, "sk-test-local-older-0001", saved: Self.old)
-        Self.write(stores.synced, "sk-test-synced-newer-0002", saved: Self.new)
-        let on = try stores.turn(syncing: true)
-        #expect(on.setAside == ["openai"] && on.isComplete)
-        #expect(stores.local.attributes("openai") == nil && stores.replaced.read("openai") == "sk-test-local-older-0001")
-        _ = stores.synced.delete("openai")  // removed on another Mac
-        try stores.turn(syncing: false)
-        try stores.turn(syncing: true)
-        #expect(stores.synced.attributes("openai") == nil && stores.store.read("openai") == nil)
-        #expect(stores.replaced.read("openai") == "sk-test-local-older-0001")  // only the safety copy
-    }
-
-    /// Review case D: a newer key written over another Mac's in iCloud Keychain: that one is set aside first.
-    @Test func aKeyWrittenOverIsSetAside() throws {
-        let stores = Self.stores(syncing: false)
-        Self.write(stores.local, "sk-test-local-newer-0001", saved: Self.new)
-        Self.write(stores.synced, "sk-test-synced-older-0002", saved: Self.old)
+    /// A key written over in iCloud Keychain is kept first; the label of a replaced copy says so, once.
+    @Test func aKeyWrittenOverIsKept() throws {
+        let stores = KeySyncTests.stores()
+        Self.write(stores.login, "sk-test-legacy-newer-0001", saved: Self.new)
+        Self.write(stores.synced, "sk-test-synced-older-0002", saved: Self.old, label: "AllInOneIME: test (replaced)")
         let moves = try stores.turn(syncing: true)
-        #expect(moves.moved == ["openai"] && moves.setAside == ["openai"])
-        #expect(stores.synced.read("openai") == "sk-test-local-newer-0001")
+        #expect(moves.moved == ["openai"] && moves.setAside == ["openai"] && moves.isComplete)
+        #expect(stores.synced.read("openai") == "sk-test-legacy-newer-0001" && stores.login.attributes("openai") == nil)
         #expect(stores.replaced.read("openai") == "sk-test-synced-older-0002" && stores.replaced.attributes("openai")?.saved == Self.old)
+        #expect(stores.replaced.attributes("openai")?.label == "AllInOneIME: test (replaced)")
 
-        // The same key twice: nothing to set aside.
-        let same = Self.stores(syncing: false)
-        Self.write(same.local, "sk-test-same-key-0003", saved: Self.new)
+        // The same key twice: the one leaving the login keychain is kept (as it would be into an empty synced store).
+        let same = KeySyncTests.stores()
+        Self.write(same.login, "sk-test-same-key-0003", saved: Self.new)
         Self.write(same.synced, "sk-test-same-key-0003", saved: Self.old)
-        #expect(try same.turn(syncing: true).setAside.isEmpty && same.replaced.attributes("openai") == nil)
+        #expect(try same.turn(syncing: true).setAside == ["openai"] && same.replaced.read("openai") == "sk-test-same-key-0003")
+        #expect(same.login.attributes("openai") == nil && same.synced.attributes("openai")?.saved == Self.new)
     }
 
-    /// The silent pass writing a newer login keychain key over an older one: the older one is set aside.
-    @Test func migratingOverAnOlderKeySetsItAside() throws {
-        let stores = Self.stores(syncing: true)
-        Self.write(stores.legacy, "sk-test-legacy-newer-0001", saved: Self.new)
-        Self.write(stores.synced, "sk-test-synced-older-0002", saved: Self.old)
-        let moves = try stores.migrate()
-        #expect(moves.moved == ["openai"] && moves.setAside == ["openai"])
-        #expect(stores.synced.read("openai") == "sk-test-legacy-newer-0001" && stores.legacy.attributes("openai") == nil)
+    /// Two Macs turn key sync on with different keys before seeing each other: each keeps its own as a replaced copy, so
+    /// whichever iCloud Keychain keeps, the other survives.
+    @Test func twoMacsMovingUnseenBothSurvive() throws {
+        let a = KeySyncTests.stores(), b = KeySyncTests.stores()
+        Self.write(a.login, "sk-test-mac-a-0001", saved: Self.old)
+        Self.write(b.login, "sk-test-mac-b-0002", saved: Self.new)
+        #expect(try a.turn(syncing: true).setAside == ["openai"])
+        #expect(try b.turn(syncing: true).setAside == ["openai"])
+        #expect(a.replaced.read("openai") == "sk-test-mac-a-0001" && b.replaced.read("openai") == "sk-test-mac-b-0002")
+        #expect(a.login.attributes("openai") == nil && b.login.attributes("openai") == nil)
+    }
+
+    /// A replaced copy that can't be kept: nothing is written over or deleted, tried again later.
+    @Test func whatCantBeKeptStays() throws {
+        var replaced = KeySyncTests.store(.legacy)
+        replaced.write = { _, _, _, _, _, _ in .failed(-25293) }
+        let legacy = KeySyncTests.store(.legacy), synced = KeySyncTests.store(.synced)
+        let stores = KeySync.Stores(login: legacy, synced: synced, replaced: replaced)
+        Self.write(legacy, "sk-test-legacy-newer-0001", saved: Self.new)
+        Self.write(synced, "sk-test-synced-older-0002", saved: Self.old)
+        Self.write(legacy, "sk-test-legacy-older-0003", saved: Self.old, account: "gemini")
+        Self.write(synced, "sk-test-synced-newer-0004", saved: Self.new, account: "gemini")
+        Self.write(legacy, "sk-test-legacy-alone-0005", saved: Self.new, account: "anthropic")
+        let moves = try stores.turn(syncing: true)
+        #expect(Set(moves.mismatched) == ["openai", "gemini", "anthropic"] && !moves.isComplete && moves.setAside.isEmpty)
+        #expect(synced.read("openai") == "sk-test-synced-older-0002" && legacy.read("openai") == "sk-test-legacy-newer-0001")
+        #expect(legacy.read("gemini") == "sk-test-legacy-older-0003" && synced.read("gemini") == "sk-test-synced-newer-0004")
+        #expect(legacy.read("anthropic") != nil && synced.attributes("anthropic") == nil)
+    }
+
+    /// The other store's item there but its key unreadable (not arrived yet, say): never written over, tried again.
+    @Test func anUnreadableTargetIsNeverWrittenOver() throws {
+        let unreadable = Locked(initialState: true)
+        var synced = KeySyncTests.store(.synced)
+        let inner = synced
+        synced.read = { unreadable.withLock { $0 } ? nil : inner.read($0) }
+        let stores = KeySync.Stores(login: KeySyncTests.store(.legacy), synced: synced, replaced: KeySyncTests.store(.legacy))
+        Self.write(stores.login, "sk-test-legacy-newer-0001", saved: Self.new)
+        Self.write(inner, "sk-test-synced-older-0002", saved: Self.old)
+        let first = try stores.turn(syncing: true)
+        #expect(first.mismatched == ["openai"] && !first.isComplete)
+        #expect(inner.read("openai") == "sk-test-synced-older-0002" && stores.login.read("openai") != nil)
+        unreadable.withLock { $0 = false }
+        let again = try stores.turn(syncing: true)
+        #expect(again.moved == ["openai"] && again.isComplete && inner.read("openai") == "sk-test-legacy-newer-0001")
         #expect(stores.replaced.read("openai") == "sk-test-synced-older-0002")
     }
 
-    /// A key that can't be set aside is never written over, nor deleted where it was: tried again later.
-    @Test func whatCantBeSetAsideStays() throws {
-        var replaced = KeySyncTests.store(.local)
-        replaced.write = { _, _, _, _, _, _ in .failed(-34018) }
-        let local = KeySyncTests.store(.local), synced = KeySyncTests.store(.synced)
-        let stores = KeySync.Stores(local: local, synced: synced, legacy: KeySyncTests.store(.legacy), replaced: replaced)
-        Self.write(local, "sk-test-local-newer-0001", saved: Self.new)
-        Self.write(synced, "sk-test-synced-older-0002", saved: Self.old)
-        Self.write(local, "sk-test-local-older-0003", saved: Self.old, account: "gemini")
-        Self.write(synced, "sk-test-synced-newer-0004", saved: Self.new, account: "gemini")
-        let moves = try stores.turn(syncing: true)
-        #expect(moves.mismatched == ["openai"] && !moves.isComplete && moves.setAside.isEmpty)
-        #expect(synced.read("openai") == "sk-test-synced-older-0002" && local.read("openai") == "sk-test-local-newer-0001")
-        #expect(local.read("gemini") == "sk-test-local-older-0003" && synced.read("gemini") == "sk-test-synced-newer-0004")
-    }
-
-    /// Remove… takes the key set aside too, whether this Mac syncs keys or not; nothing else reads it.
-    @Test func removeTakesTheKeySetAside() throws {
+    /// Remove… takes the replaced copy too, whether this Mac syncs keys or not; nothing else reads it.
+    @Test func removeTakesTheReplacedCopy() throws {
         for syncing in [false, true] {
-            let stores = Self.stores(syncing: syncing)
+            let stores = KeySyncTests.stores(syncing: syncing)
             Self.write(stores.replaced, "sk-test-replaced-0001", saved: Self.old)
             #expect(stores.store.attributes("openai") == nil && stores.store.read("openai") == nil)
             #expect(!stores.store.accounts().contains("openai"))
-            Self.write(stores.local, "sk-test-local-0002", saved: Self.new)
+            Self.write(stores.login, "sk-test-legacy-0002", saved: Self.new)
             try APIKeys.remove(account: "openai", in: stores.store)
-            #expect(stores.replaced.attributes("openai") == nil && stores.local.attributes("openai") == nil)
+            #expect(stores.replaced.attributes("openai") == nil && stores.login.attributes("openai") == nil)
         }
     }
 }
-
-#if canImport(Security)
-import Security
-
-/// When the data protection keychain's items can be read: after the first unlock, so that this Mac's keys go to a new Mac
-/// with Migration Assistant; the never-synced AllInOneIME Cloud sign-in on this device only.
-struct KeychainAccessibilityTests {
-    @Test func onlyNeverSyncedItemsStayOnThisDevice() {
-        let firstUnlock = kSecAttrAccessibleAfterFirstUnlock as String
-        #expect(APIKeys.Keychain.accessibility(account: "openai", synchronizable: false) as String == firstUnlock)
-        #expect(APIKeys.Keychain.accessibility(account: "openai", synchronizable: true) as String == firstUnlock)
-        #expect(APIKeys.Keychain.accessibility(account: "hosted", synchronizable: false) as String
-                == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
-    }
-}
-#endif
 
 /// A Mac whose clock was set far ahead: its save times count as the oldest, so they never win a merge.
 struct KeySyncClockTests {

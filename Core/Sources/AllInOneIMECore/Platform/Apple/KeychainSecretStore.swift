@@ -3,7 +3,7 @@ import Foundation
 import Security
 
 /// `kSecUseAuthenticationUIFail`, deprecated for `kSecUseAuthenticationContext` with an `LAContext`, which is the data
-/// protection keychain's: the file-based one is what the silent pass reads (`APIKeys.Keychain.quietLogin`), so the constant
+/// protection keychain's: the file-based one is what the moves read (`APIKeys.Keychain.quietLogin`), so the constant
 /// stays. Reached through a protocol so that the deprecation isn't warned of at every build; the value is the same.
 private protocol AuthenticationUIFail { static var fail: CFString { get } }
 private enum DeprecatedKeychainConstants: AuthenticationUIFail {
@@ -13,53 +13,43 @@ private enum DeprecatedKeychainConstants: AuthenticationUIFail {
 
 extension APIKeys.Keychain {
     /// The user's login keychain (on the Mac, the file-based one): generic passwords of `APIKeys.service`, one per account.
-    /// Where keys were kept up to 0.6.4, and still are in a build without the keychain entitlement (`processIsEntitled`).
+    /// Where keys are kept as in 0.6.4 while key sync is off, and always in a build without the keychain entitlement
+    /// (`processIsEntitled`).
     public static let login = legacyKeychain(asking: true)
 
-    /// The login keychain with asking turned off, for the silent pass at launch (`KeySync.Stores.migrate`): a read that
-    /// would ask for the password gives nothing instead. Both ways are used: the process's user interaction turned off for
-    /// the call (`SecKeychainSetUserInteractionAllowed`, the file-based keychain's own switch) and
-    /// `kSecUseAuthenticationUIFail` on the query.
+    /// The login keychain with asking turned off, for the moves when key sync is turned on or off (`KeySync.Stores.turn`):
+    /// a read that would ask for the password gives nothing instead, and a write or delete that would ask fails. Both
+    /// ways are used: the process's user interaction turned off for the call (`SecKeychainSetUserInteractionAllowed`, the
+    /// file-based keychain's own switch) and `kSecUseAuthenticationUIFail` on the reads.
     static let quietLogin = legacyKeychain(asking: false)
 
-    /// Generic passwords of `service` in the data protection keychain, in the access group `group` (set on every query),
-    /// `synchronizable` ones (the items iCloud Keychain syncs: every Mac's) or this device's own. Readable after the first
-    /// unlock, so a key is there while the screen is locked; no item ever asks for the password. Items are
-    /// `kSecAttrAccessibleAfterFirstUnlock` (iCloud Keychain needs it of the synced ones; this device's go to a new Mac
-    /// with Migration Assistant, as the login keychain's did), except those of `APIKeys.neverSynced`, which are
-    /// `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`: the AllInOneIME Cloud sign-in is this Mac's, and never goes to
-    /// another, not even with a backup restored there. Every query, deletes too, is of its own kind alone
-    /// (`kSecAttrSynchronizable` true or false, never `kSecAttrSynchronizableAny`): taking a bad copy out of one store
-    /// never takes the other's item.
-    public static func dataProtection(group: String, synchronizable: Bool, service: String = APIKeys.service) -> APIKeys.Keychain {
+    /// The items iCloud Keychain syncs (every Mac's): synchronizable generic passwords of `service` in the data protection
+    /// keychain, in the access group `group` (set on every query), `kSecAttrAccessibleAfterFirstUnlock` (as iCloud
+    /// Keychain needs; a key is there while the screen is locked), never asking for the password. Only synced items are
+    /// kept there: keys that don't sync stay in the login keychain. Every query, deletes too, says
+    /// `kSecAttrSynchronizable` true (never `kSecAttrSynchronizableAny`).
+    public static func dataProtection(group: String, service: String = APIKeys.service) -> APIKeys.Keychain {
         @Sendable func query(_ account: String?) -> [String: Any] {
             var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                         kSecUseDataProtectionKeychain as String: true, kSecAttrAccessGroup as String: group,
-                                        kSecAttrSynchronizable as String: synchronizable ? kCFBooleanTrue! : kCFBooleanFalse!]
+                                        kSecAttrSynchronizable as String: kCFBooleanTrue!]
             if let account { query[kSecAttrAccount as String] = account }
             return query
         }
         return APIKeys.Keychain(
-            kind: synchronizable ? .synced : .local,
+            kind: .synced,
             accounts: { accounts(query(nil)) },
             attributes: { account in attributes(query(account)) },
             read: { account in read(query(account)) },
             write: { account, key, label, comment, ending, saved in
                 write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
-                      adding: [kSecAttrAccessible as String: accessibility(account: account, synchronizable: synchronizable)])
+                      adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
             },
             setComment: { account, comment in
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
             },
             delete: { account in keychainStatus(SecItemDelete(query(account) as CFDictionary)) },
             message: { code in SecCopyErrorMessageString(code, nil) as String? })
-    }
-
-    /// When the data protection keychain's item of `account` can be read (`kSecAttrAccessible`): after the first unlock,
-    /// on this device alone for `APIKeys.neverSynced`.
-    static func accessibility(account: String, synchronizable: Bool) -> CFString {
-        !synchronizable && APIKeys.neverSynced.contains(account) ? kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-                                                                  : kSecAttrAccessibleAfterFirstUnlock
     }
 
     /// Whether this process may use the shared access group (`KeySync.accessGroup`): its `keychain-access-groups`
@@ -76,7 +66,7 @@ extension APIKeys.Keychain {
     }()
 
     /// One item's attributes as the data protection keychain keeps them (its key not read), by their short names ("sync",
-    /// "agrp", "pdmn", …), for the self-test: `eitherSync` matches synced items and this device's alike
+    /// "agrp", "pdmn", …), for the self-test: `eitherSync` matches items synced or not
     /// (`kSecAttrSynchronizableAny`); without it the query leaves `kSecAttrSynchronizable` out, which matches only items
     /// that don't sync.
     public static func storedAttributes(service: String, account: String, group: String, eitherSync: Bool) -> [String: Any]? {
@@ -101,10 +91,11 @@ extension APIKeys.Keychain {
 
     // MARK: - The calls
 
-    /// The login keychain's generic passwords of `service` (`login`, `quietLogin`; the self-test's own service to check
-    /// that these queries never reach the data protection keychain). On the Mac every query says so
-    /// (`kSecUseDataProtectionKeychain` false): an item of the data protection keychain is never seen, read or deleted
-    /// by them, so the moves out of the login keychain never take the new store's items.
+    /// The login keychain's generic passwords of `service` (`login`, `quietLogin`; the replaced copies under
+    /// `KeySync.replacedService`; the self-test's own service to check that these queries never reach the data
+    /// protection keychain). On the Mac every query says so (`kSecUseDataProtectionKeychain` false): an item of the data
+    /// protection keychain is never seen, read or deleted by them, so the moves out of the login keychain never take the
+    /// synced items. With `asking` false, nothing it does asks for the password (`withoutAsking`).
     public static func legacyKeychain(service: String = APIKeys.service, asking: Bool) -> APIKeys.Keychain {
         @Sendable func query(_ account: String?) -> [String: Any] {
             var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service]
@@ -125,7 +116,8 @@ extension APIKeys.Keychain {
                 return withoutAsking { read(silent) }
             },
             write: { account, key, label, comment, ending, saved in
-                write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:])
+                let set = { write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:]) }
+                return asking ? set() : withoutAsking(set)
             },
             setComment: { account, comment in
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
@@ -203,14 +195,13 @@ extension APIKeys.Keychain {
 
 #if os(macOS)
 extension KeySync {
-    /// The Mac's stores when the process is entitled (`KeySync.system`): this device's and the synced items of the shared
-    /// group, and the login keychain behind them. The Mac only: on iOS the login keychain's queries would find the data
-    /// protection keychain's own items (there is no other), and moving them out would delete them.
+    /// The Mac's stores when the process is entitled (`KeySync.system`): the synced items of the shared group, and the
+    /// login keychain, with the replaced copies in it. The Mac only: on iOS the login keychain's queries would find the
+    /// data protection keychain's own items (there is no other), and moving them out would delete them.
     static let appleStores: Stores? = APIKeys.Keychain.processIsEntitled
-        ? Stores(local: .dataProtection(group: accessGroup, synchronizable: false),
-                 synced: .dataProtection(group: accessGroup, synchronizable: true),
-                 legacy: .login, replaced: .dataProtection(group: accessGroup, synchronizable: false, service: replacedService),
-                 quietLegacy: .quietLogin)
+        ? Stores(login: .login, synced: .dataProtection(group: accessGroup),
+                 replaced: .legacyKeychain(service: replacedService, asking: true), quietLogin: .quietLogin,
+                 quietReplaced: .legacyKeychain(service: replacedService, asking: false))
         : nil
 }
 #endif
