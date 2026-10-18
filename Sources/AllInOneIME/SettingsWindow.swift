@@ -210,19 +210,23 @@ final class SettingsModel: ObservableObject {
         CustomCommand.others(than: original, in: config.customCommands)
     }
 
-    /// The command editor's Save: `command` in place of the one named `original` wherever it is now, else added (it was
-    /// deleted elsewhere meanwhile). Not saved when another command has its name by now.
-    func saveCommand(_ command: CustomCommand, editing original: String?) {
+    /// The command editor's Save: `command` in place of the one named `original` wherever it is now (of two of that
+    /// name, the one the editor opened on, `shown`), else added (it was deleted elsewhere meanwhile). Not saved when
+    /// another command has its name by now: false, and the editor stays open saying so.
+    @discardableResult
+    func saveCommand(_ command: CustomCommand, editing original: String?, shown: CustomCommand? = nil) -> Bool {
         refresh()
-        guard let list = CustomCommand.saving(command, as: original, in: config.customCommands) else { return }
+        guard let list = CustomCommand.saving(command, as: original, in: config.customCommands, shown: shown) else { return false }
         config.customCommands = list
         save()
+        return true
     }
 
-    /// The Delete dialog's Delete: the command named `name`, wherever it is now.
-    func deleteCommand(named name: String) {
+    /// The Delete dialog's Delete: the command named `name`, wherever it is now; one only (of two of that name, the one
+    /// the dialog was opened on, `shown`).
+    func deleteCommand(named name: String, shown: CustomCommand? = nil) {
         refresh()
-        let list = CustomCommand.removing(name, from: config.customCommands)
+        let list = CustomCommand.removing(name, from: config.customCommands, shown: shown)
         guard list != config.customCommands else { return }
         config.customCommands = list
         save()
@@ -925,7 +929,7 @@ struct SettingsView: View {
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
     /// The name of the command the Delete dialog asks about (by name: sync may change the list while it is open).
-    @State private var commandToDelete: String?
+    @State private var commandToDelete: CustomCommand?
     /// The provider whose key row shows its paste field (Replace…, or the Assistant opening Settings at the key).
     @State private var editingKey: Provider?
     /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
@@ -1250,7 +1254,8 @@ struct SettingsView: View {
 
     @ViewBuilder private var commandsSection: some View {
         Section {
-            ForEach(Array(model.config.customCommands.enumerated()), id: \.element.name) { index, command in
+            // By place: two of one name (a config edited by hand) are two rows. Edit and Delete still go by the name.
+            ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         IconTile(icon: CommandIcons.icon(for: command))
@@ -1261,7 +1266,7 @@ struct SettingsView: View {
                         }
                         Spacer()
                         Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                        Button(tr("删除", "Delete")) { commandToDelete = command.name }
+                        Button(tr("删除", "Delete")) { commandToDelete = command }
                     }
                     if Self.hiddenByBuiltIn(command) {
                         Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
@@ -1931,17 +1936,17 @@ struct SettingsView: View {
         .sheet(item: $commandEdit) { edit in
             CommandEditor(edit: edit, others: model.otherCommands(than: edit.original),
                           plugins: model.plugins.map(\.name)) { command in
-                model.saveCommand(command, editing: edit.original)
+                model.saveCommand(command, editing: edit.original, shown: edit.original == nil ? nil : edit.command)
             }
         }
         .confirmationDialog(tr("删除这个命令？", "Delete this command?"),
                             isPresented: Binding(get: { commandToDelete != nil }, set: { if !$0 { commandToDelete = nil } })) {
             Button(tr("删除", "Delete"), role: .destructive) {
-                if let name = commandToDelete { model.deleteCommand(named: name) }
+                if let command = commandToDelete { model.deleteCommand(named: command.name, shown: command) }
                 commandToDelete = nil
             }
         } message: {
-            if let name = commandToDelete { Text("@" + name) }
+            if let command = commandToDelete { Text("@" + command.name) }
         }
         .confirmationDialog(tr("删除这个插件？", "Remove this plugin?"),
                             isPresented: Binding(get: { pluginToRemove != nil }, set: { if !$0 { pluginToRemove = nil } })) {

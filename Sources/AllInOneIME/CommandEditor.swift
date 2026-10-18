@@ -21,8 +21,11 @@ struct CommandEditor: View {
     /// The other custom commands and the installed plugins (their names are taken).
     let others: [CustomCommand]
     let plugins: [String]
-    let onSave: (CustomCommand) -> Void
+    /// Saves the definition; false when it wasn't (another command has its name by now): the editor stays open.
+    let onSave: (CustomCommand) -> Bool
     @Environment(\.dismiss) private var dismiss
+    /// A name the save found taken (a command of that name came in from another Mac while the editor was open).
+    @State private var takenOnSave: String?
 
     @State private var name: String
     @State private var type: CustomCommand.CommandType
@@ -39,7 +42,7 @@ struct CommandEditor: View {
     /// The program of the command line isn't on this Mac (looked up in the background).
     @State private var missingProgram: String?
 
-    init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], onSave: @escaping (CustomCommand) -> Void) {
+    init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], onSave: @escaping (CustomCommand) -> Bool) {
         original = edit
         self.others = others
         self.plugins = plugins
@@ -81,6 +84,7 @@ struct CommandEditor: View {
 
     private var problem: String? {
         guard let draft else { return Self.describe(.unbalancedQuote) }
+        if let takenOnSave, draft.name == takenOnSave { return Self.describe(.nameTaken) }
         return draft.problem(among: others, plugins: plugins).map(Self.describe)
     }
 
@@ -160,8 +164,7 @@ struct CommandEditor: View {
                 Button(tr("取消", "Cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(tr("保存", "Save")) {
                     guard let draft else { return }
-                    onSave(draft)
-                    dismiss()
+                    if onSave(draft) { dismiss() } else { takenOnSave = draft.name }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(problem != nil)

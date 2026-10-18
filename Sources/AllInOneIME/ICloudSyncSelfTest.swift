@@ -259,6 +259,16 @@ extension SelfTest {
         check(d34e.accepted && d34e.others == ["beta"] && d34e.file == [command("beta", "do beta"), command("omega", "do gamma")],
               "D34e: the last command (gamma, index 2) renamed omega after its index was gone: no crash, checked against "
               + "\(d34e.others), renamed in place: [\(describe(d34e.file))]")
+        // A command of the name being added came in from another Mac while the editor was open: not saved (the editor
+        // stays open with "Another command has this name"), the other Mac's kept.
+        let clash = commands()
+        let added = command("delta", "mine")
+        let checked = added.problem(among: clash.otherCommands(than: nil), plugins: clash.plugins.map(\.name)) == nil
+        syncWrites { $0.customCommands.append(command("delta", "theirs")) }
+        let saved = clash.saveCommand(added, editing: nil)
+        let deltas = file().customCommands.filter { $0.name == "delta" }
+        check(checked && !saved && deltas == [command("delta", "theirs")],
+              "S34-clash: @delta added while another Mac's @delta came in: not saved (the editor stays open), file's delta \(describe(deltas))")
         /// The page's Delete on the command at `index`, the sync, and the dialog's Delete.
         func delete(_ index: Int) -> (asked: String, file: [String]) {
             let model = commands()
