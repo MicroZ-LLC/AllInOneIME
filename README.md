@@ -669,7 +669,7 @@ Translations and rewrites go to the AI provider picked in Settings → AI Provid
 2. Use an AWS profile allowed `bedrock:InvokeModelWithResponseStream`: static keys in `~/.aws/credentials`, or a profile
    that gets temporary credentials (`credential_process`, a role, SSO; see "AWS profiles" below).
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
-   Pick the profile, region and model, and click "Test Connection". "Interface language" in Settings → General can be English or 简体中文; by default ("Follow the system") it follows the system's preferred languages (System Settings → General → Language & Region): the first of them the app has, Simplified Chinese for any Chinese, English when none is.
+   Pick the profile, region and model, and click "Test Connection". The interface comes in English, 简体中文 (Simplified Chinese), 繁體中文 (Traditional Chinese), 日本語, 한국어, Deutsch, Français, Español and Português (Brasil). By default ("Follow the system" in Settings → General → "Interface language") it follows the system's preferred languages (System Settings → General → Language & Region): the first of them the app has, a region in its language (Deutsch for de-AT, Español for es-MX, Français for fr-CA), Traditional Chinese for zh-Hant, zh-TW and zh-HK, other Chinese Simplified, Brazilian Portuguese for Portugal's too (it reads better there than English), English when none is. Or pick one of them there, each listed in its own language.
    The settings window, the hints in the candidate panel and the input menu all follow it.
    Settings opens on Assistant: change settings by describing them, and check for problems with a Fix for each (see
    [Settings → Assistant](#settings--assistant-new)).
@@ -773,7 +773,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `improveTranslates` | `@improve` also translates (as `@translate @improve`) | `false` |
 | `voiceInput` | Hold right ⌥ to talk | `true` |
 | `actionKey` | Action key: `"enter"` (⏎), `"optionTap"` (Tap ⌥), `"optionSpace"` (⌥Space), `"space"` (Space) | `"enter"` |
-| `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"` (Simplified Chinese), `"en"`, or the code of another language the app ships | `null` (follow the system) |
+| `uiLanguage` | Interface language (settings window, candidate panel hints, menu): `"zh"` (Simplified Chinese), `"en"`, or the code of another language the app ships: `"zh-Hant"`, `"ja"`, `"ko"`, `"de"`, `"fr"`, `"es"`, `"pt-BR"` | `null` (follow the system) |
 | `rewriteStyles` | Rewrite styles: `polish`, `concise`, `formal`, `casual`, `tactful`, `jargon`, e.g. `["polish", "concise", "jargon"]` | Polish, Concise, Formal |
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
@@ -850,7 +850,10 @@ English text with `%@` for each interpolation. After adding or changing text, ru
 `make strings` (`make test` fails until then; the self-tests' text, in `*SelfTest.swift`, isn't for translators). Where
 one English text means two things (`make strings` reports them, and `make strings-check` fails on them), give one a key
 of its own, a short dotted name for where or how it is used: `tr("删除", "Remove", key: "remove.delete")`; its English is
-the key's English value in the catalog. Adding a language is adding its column to the catalog. The core's own texts take the
+the key's English value in the catalog. Adding a language is adding its column to the catalog: reviewed translations,
+one JSON file per language (`"core\t<key>"` or `"app\t<key>"` → its translation), go in with
+`Scripts/import-translations.py <folder>`, which never touches English and refuses a translation whose placeholders aren't
+its key's. The core's own texts take the
 interface language's code and look it up the same way (`InterfaceText.lookup`, which each app sets: its `.lproj` bundles
 on macOS; elsewhere `StringCatalog` reads the catalog's tables).
 
