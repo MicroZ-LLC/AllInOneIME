@@ -27,7 +27,8 @@ extension SelfTest {
         testKeySyncMoves()
     }
 
-    /// Steps 1–4 of the spec's self-test for one kind of item, under the self-test's own service.
+    /// Steps 1–4 of the spec's self-test for one kind of item, under the self-test's own service; and the login keychain's
+    /// queries (`legacyKeychain`, asking and not) neither see nor delete it.
     private static func probeDataProtection(synchronizable: Bool) {
         let service = "AllInOneIME self-test key", account = "selftest", group = KeySync.accessGroup
         let what = synchronizable ? "a synced item" : "an item of this Mac's"
@@ -41,7 +42,7 @@ extension SelfTest {
         let sync = (stored?[kSecAttrSynchronizable as String] as? NSNumber)?.boolValue
         let accessGroup = stored?[kSecAttrAccessGroup as String] as? String
         let accessible = stored?[kSecAttrAccessible as String] as? String
-        let wanted = kSecAttrAccessibleAfterFirstUnlock as String
+        let wanted = (synchronizable ? kSecAttrAccessibleAfterFirstUnlock : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly) as String
         check(sync == synchronizable && accessGroup == group && accessible == wanted,
               "\(what): sync=\(sync.map { $0 ? 1 : 0 } ?? -1), agrp=\(accessGroup ?? "none"), pdmn=\(accessible ?? "none") (\(wanted))")
         check(store.read(account) == key && store.attributes(account)?.comment == "selftest.example"
@@ -51,6 +52,12 @@ extension SelfTest {
         check((plain != nil) == !synchronizable,
               synchronizable ? "a query without kSecAttrSynchronizable doesn't find the synced item"
                              : "a query without kSecAttrSynchronizable finds this Mac's item")
+        for asking in [true, false] {
+            let legacy = APIKeys.Keychain.legacyKeychain(service: service, asking: asking)
+            let unseen = legacy.attributes(account) == nil && legacy.read(account) == nil && !legacy.accounts().contains(account)
+            let kept = legacy.delete(account) == .notFound && store.read(account) == key
+            check(unseen && kept, "\(what): the login keychain's queries (\(asking ? "asking" : "silent")) don't see it (\(unseen)) or delete it (\(kept))")
+        }
         let other = APIKeys.Keychain.dataProtection(group: group, synchronizable: !synchronizable, service: service)
         check(other.attributes(account) == nil && other.delete(account) == .notFound && store.read(account) == key,
               "\(what): the other kind's store neither sees nor deletes it")

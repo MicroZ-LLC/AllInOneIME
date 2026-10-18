@@ -208,9 +208,11 @@ public enum KeySync {
 
     /// The stores this build uses: the data protection keychain's when the process is entitled to its access group (an
     /// app signed with the provisioning profile), else nil and the login keychain alone (`Platform.systemSecrets`), as in
-    /// development and ad-hoc builds. Chosen once, at launch; never by an error at run time.
+    /// development and ad-hoc builds. Chosen once, at launch; never by an error at run time. The Mac only: elsewhere
+    /// (iOS) there is no login keychain apart from the data protection one, so the moves out of it would take this
+    /// device's own items; a shell there brings its stores itself.
     public static var system: Stores? {
-        #if canImport(Security)
+        #if os(macOS)
         return appleStores
         #else
         return nil
