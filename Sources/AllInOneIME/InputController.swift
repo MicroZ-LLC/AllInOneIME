@@ -905,7 +905,7 @@ final class AllInOneIMEInputController: IMKInputController {
         keyClient = nil
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects, client: client)
-        warmUpScreenshotReading()  // a draft started with an image on the clipboard: Vision loaded for it
+        warmUpScreenshotReading()  // a command picked with an image on the clipboard: Vision loaded for it
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         return response.handled

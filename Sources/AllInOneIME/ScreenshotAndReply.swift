@@ -57,18 +57,20 @@ extension AllInOneIMEInputController {
         }
     }
 
-    /// Vision loaded ahead of time when a draft starts with an image on the clipboard (only the clipboard's types are
-    /// looked at), once per clipboard: the screenshot pasted next is read quickly.
+    /// Vision loaded ahead of time, in the languages a screenshot is read in (`ScreenText.languages`), once a command
+    /// that takes one is picked (`Composer.draftTakesScreenshot`; not on "@" alone, a mention in a chat app) with an image
+    /// on the clipboard (only the clipboard's types are looked at), once per clipboard: the screenshot pasted next is read
+    /// quickly.
     @MainActor
     func warmUpScreenshotReading() {
-        guard warmsUpVision, composer.draft == "@", !secureInputActive() else { return }
+        guard warmsUpVision, composer.draftTakesScreenshot, !secureInputActive() else { return }
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != Self.warmedFor else { return }
         Self.warmedFor = pasteboard.changeCount
         let types = pasteboard.types ?? []
         guard types.contains(.png) || types.contains(.tiff) else { return }
-        let recognizer = recognizeText
-        Task.detached(priority: .utility) { await recognizer.prepare() }
+        let recognizer = recognizeText, languages = ScreenText.languages(loadSettings())
+        Task.detached(priority: .utility) { await recognizer.prepare(languages: languages) }
     }
 
     /// The clipboard Vision was last warmed up for (`warmUpScreenshotReading`).

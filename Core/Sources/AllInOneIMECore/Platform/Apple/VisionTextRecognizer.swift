@@ -7,10 +7,11 @@ import Vision
 public struct VisionTextRecognizer: TextRecognizer {
     public init() {}
 
-    public func prepare() async {
-        // A tiny blank image read once: Vision's models are loaded for the next request. Nothing is found in it.
+    public func prepare(languages: [String]) async {
+        // A blank image read once in the same languages: Vision's models for them are loaded for the next request (the
+        // CJK ones and the Latin ones are apart). Nothing is found in it.
         guard let png = Self.blankPNG else { return }
-        _ = try? await recognize(image: png, languages: ["zh-Hans", "en-US"])
+        _ = try? await recognize(image: png, languages: languages)
     }
 
     public func recognize(image: Data, languages: [String]) async throws -> [RecognizedLine] {
@@ -33,9 +34,8 @@ public struct VisionTextRecognizer: TextRecognizer {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        // Only the languages Vision reads (it has no Hindi, say); none of them: its default.
-        let supported = Set((try? request.supportedRecognitionLanguages()) ?? [])
-        let wanted = languages.filter { supported.contains($0) }
+        // Only the languages Vision reads (it has no Hindi, say), by its own codes; none of them: its default.
+        let wanted = visionCodes(languages, supported: (try? request.supportedRecognitionLanguages()) ?? [])
         if !wanted.isEmpty { request.recognitionLanguages = wanted }
         let handler = VNImageRequestHandler(data: image, options: [:])
         try handler.perform([request])
@@ -45,6 +45,20 @@ public struct VisionTextRecognizer: TextRecognizer {
             let box = observation.boundingBox
             return RecognizedLine(text: best.string, box: CGRect(x: box.minX, y: 1 - box.maxY, width: box.width, height: box.height),
                                   confidence: Double(best.confidence))
+        }
+    }
+
+    /// BCP-47 codes (`TextRecognizer.recognize`) as Vision names them, in order, once each: the same code, else one of
+    /// the same language ("vi-VN" → Vision's "vi-VT"); those it doesn't read are left out.
+    static func visionCodes(_ languages: [String], supported: [String]) -> [String] {
+        func base(_ code: String) -> String { String(code.lowercased().prefix { $0 != "-" && $0 != "_" }) }
+        var seen = Set<String>()
+        return languages.compactMap { code -> String? in
+            let lower = code.lowercased()
+            // Chinese by its script: zh-Hans and zh-Hant are different models.
+            let match = supported.first { $0.lowercased() == lower }
+                ?? (base(code) == "zh" ? nil : supported.first { base($0) == base(code) })
+            return match.flatMap { seen.insert($0).inserted ? $0 : nil }
         }
     }
 

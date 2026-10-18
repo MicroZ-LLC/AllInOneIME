@@ -118,7 +118,7 @@ extension SelfTest {
         check(png != nil, "a screenshot of a conversation rendered (\(png?.count ?? 0) bytes)")
         let vision = VisionTextRecognizer()
         let warm = Date()
-        _ = runAsync(40) { await vision.prepare() }
+        _ = runAsync(40) { await vision.prepare(languages: ["zh-Hans", "en-US"]) }
         print(String(format: "  Vision warmed up in %.2fs", Date().timeIntervalSince(warm)))
         if let png {
             // The first real read may still load what the warm-up didn't need.

@@ -164,9 +164,26 @@ struct ReplyTests {
         #expect(transcript.last(3) == ["明天下午三点开会"])
     }
 
+    @Test func recognizersGetNeutralCodes() {
+        var config = Config.default
+        config.inputLanguages = [.english]
+        config.defaultInput = .english
+        config.outputLanguages = [.english, OutputLanguage("vi")]
+        #expect(ScreenText.languages(config) == ["en-US", "vi-VN"])
+    }
+
+    #if canImport(Vision)
+    @Test func visionGetsItsOwnCodes() {
+        let supported = ["en-US", "fr-FR", "zh-Hans", "zh-Hant", "ja-JP", "vi-VT"]
+        #expect(VisionTextRecognizer.visionCodes(["zh-Hans", "vi-VN", "en-GB", "en-US", "hi-IN"], supported: supported)
+                    == ["zh-Hans", "vi-VT", "en-US"])
+        // Chinese only by its script.
+        #expect(VisionTextRecognizer.visionCodes(["zh-HK"], supported: supported).isEmpty)
+    }
+    #endif
+
     @Test func aSlowRecognizerTimesOut() async {
         struct Slow: TextRecognizer {
-            func prepare() async {}
             func recognize(image: Data, languages: [String]) async throws -> [RecognizedLine] {
                 try await Task.sleep(nanoseconds: 120_000_000_000)
                 return []

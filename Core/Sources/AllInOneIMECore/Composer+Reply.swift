@@ -89,6 +89,14 @@ extension Composer {
         return forField([.notice(message), .updateMarkedText, wantsPanel ? .showPanel : .hidePanel])
     }
 
+    /// A command is picked whose draft a screenshot can be pasted into (not `@tasks` or `@settings`, which take no
+    /// text): the shell loads the recognizer ahead of time if the clipboard has an image (`TextRecognizer.prepare`).
+    /// Not on "@" alone, which in a chat app is often a mention.
+    public var draftTakesScreenshot: Bool {
+        guard !isLevelTwo, let command = draftCommand else { return false }
+        return command.kind != .agents && command.kind != .settings
+    }
+
     /// Whether the action key waits for the screenshot being read.
     public var readingScreenshot: Bool {
         if case .screenshot(.recognizing)? = attachment { return true }

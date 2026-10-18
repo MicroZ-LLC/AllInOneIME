@@ -91,10 +91,11 @@ public struct ScreenText: Equatable, Sendable {
         return codes.filter { seen.insert($0).inserted }
     }
 
-    /// An output language's code as recognizers name it ("en" → "en-US", "ja" → "ja-JP").
+    /// An output language's code as a BCP-47 code with its usual region or script ("en" → "en-US", "ja" → "ja-JP"): each
+    /// recognizer maps it to its own (`VisionTextRecognizer.visionCodes`).
     static func recognizerCode(_ language: OutputLanguage) -> String {
         let table = ["en": "en-US", "zh": "zh-Hans", "zh-Hant": "zh-Hant", "ja": "ja-JP", "ko": "ko-KR", "fr": "fr-FR",
-                     "de": "de-DE", "es": "es-ES", "pt": "pt-BR", "it": "it-IT", "ru": "ru-RU", "vi": "vi-VT", "th": "th-TH",
+                     "de": "de-DE", "es": "es-ES", "pt": "pt-BR", "it": "it-IT", "ru": "ru-RU", "vi": "vi-VN", "th": "th-TH",
                      "id": "id-ID", "ar": "ar-SA", "hi": "hi-IN"]
         return table[language.code] ?? language.code
     }
