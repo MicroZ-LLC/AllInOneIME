@@ -85,13 +85,13 @@ extension SelfTest {
             store.kind = kind
             return store
         }
-        let local = store(.local), legacy = store(.legacy)
+        let local = store(.local), legacy = store(.legacy), replaced = store(.local)
         // iCloud Keychain, with keys that can be made unreadable (not there yet, say).
         let unreadable = Locked<Set<String>>(initialState: [])
         var synced = store(.synced)
         let syncedItems = synced
         synced.read = { account in unreadable.withLock { $0.contains(account) } ? nil : syncedItems.read(account) }
-        let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy)
+        let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy, replaced: replaced)
         sync.keys = stores
         try? fm.removeItem(at: sync.keysSyncedURL)
         defer {
