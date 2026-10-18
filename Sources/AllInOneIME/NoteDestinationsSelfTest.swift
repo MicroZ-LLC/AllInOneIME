@@ -230,13 +230,14 @@ extension SelfTest {
         settings.notes = NoteSettings(destination: .folder, folder: inbox.path)
         controller.applySettings()
         let folderName = "“Inbox”"
-        check(UIText.summary(.note) == tr("存一条笔记到 \(folderName)", "Save a note to \(folderName)") && !controller.composer.noteLeavesDevice,
+        stand.notesFolder = inbox
+        check(UIText.summary(.note) == tr("存一条笔记到\(folderName)", "Save a note to \(folderName)") && !controller.composer.noteLeavesDevice,
               "the command list says where @note saves (\(UIText.summary(.note)))")
         settle()
         note("nihao")
         _ = enter(controller, client)
         let file = inbox.appendingPathComponent("你好.md")
-        let savedToFolder = pump(timeout: 3) { notice() == tr("已存到 \(folderName)", "Saved to \(folderName)") }
+        let savedToFolder = pump(timeout: 3) { notice() == tr("已存到\(folderName)", "Saved to \(folderName)") }
         let content = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
         check(savedToFolder
               && (try? fm.contentsOfDirectory(atPath: inbox.path)) == ["你好.md"]
@@ -247,19 +248,32 @@ extension SelfTest {
               "the menu bar panel is told of the file (\(saved?.id ?? "-"))")
         panel.toggleDropDown(below: anchor)
         check(pump(timeout: 2) { panel.notes.first?.id == file.absoluteString }, "…and lists it")
-        if let row = panel.notes.first { panel.open(row) }
-        check(stand.openedURLs.last.map { $0.isFileURL && $0.path == file.path } == true && stand.shownNotes.isEmpty,
+        // Looked at off the main thread, then opened: only a Markdown file in the notes folder.
+        func opened(_ row: SavedNotes.Note?) -> URL? {
+            let count = stand.openedURLs.count
+            if let row { panel.open(row) }
+            return pump(timeout: 3) { stand.openedURLs.count > count } ? stand.openedURLs.last : nil
+        }
+        let plainOpen = opened(panel.notes.first)
+        check(plainOpen.map { $0.isFileURL && $0.resolvingSymlinksInPath().path == file.resolvingSymlinksInPath().path } == true
+              && stand.shownNotes.isEmpty,
               "a file opens in its default app (the URL built, not opened)")
         // In an Obsidian vault (`.obsidian` in a parent): opened in Obsidian, by its path.
         try? fm.createDirectory(at: root.appendingPathComponent(".obsidian", isDirectory: true), withIntermediateDirectories: true)
-        if let row = panel.notes.first { panel.open(row) }
-        let obsidian = stand.openedURLs.last.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+        let obsidian = opened(panel.notes.first).flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
         check(obsidian?.scheme == "obsidian" && obsidian?.host == "open"
               && obsidian?.queryItems?.first { $0.name == "path" }?.value.map {
                   URL(fileURLWithPath: $0).resolvingSymlinksInPath().path == file.resolvingSymlinksInPath().path
               } == true,
               "…in a vault it opens in Obsidian (\(stand.openedURLs.last?.absoluteString ?? "-"))")
-        check(MarkdownFolderDestination(folder: inbox).name == "Obsidian", "…and its notices say Obsidian")
+        check(MarkdownFolderDestination(folder: inbox).name == "Obsidian", "…and its notices say Obsidian (remembered, not looked up here)")
+        // Outside the notes folder: not opened.
+        stand.notesFolder = root.appendingPathComponent("Elsewhere", isDirectory: true)
+        let openedBefore = stand.openedURLs.count
+        if let row = panel.notes.first { panel.open(row) }
+        check(pump(timeout: 3) { panel.message == tr("打不开这条笔记", "Couldn't open this note") } && stand.openedURLs.count == openedBefore,
+              "a file outside the notes folder isn't opened (\(panel.message ?? "no message"))")
+        stand.notesFolder = inbox
         // Gone (deleted, moved): no longer listed.
         try? fm.removeItem(at: file)
         panel.refresh()
@@ -293,8 +307,8 @@ extension SelfTest {
         check(savedToNotion && posted.ids.last == NotionSelfTestStub.pageURL
               && sent.map(\.method) == ["POST"] && sent.first?.path == "/v1/pages" && sent.first?.version == NotionAPI.version,
               "a save to Notion is one POST, and the panel is told of the page's URL (\(notice() ?? "no notice"))")
-        if let row = panel.notes.first(where: { $0.id == NotionSelfTestStub.pageURL }) { panel.open(row) }
-        check(stand.openedURLs.last?.absoluteString == NotionSelfTestStub.pageURL, "…which opens by its URL (not opened here)")
+        let page = opened(panel.notes.first(where: { $0.id == NotionSelfTestStub.pageURL }))
+        check(page?.absoluteString == NotionSelfTestStub.pageURL, "…which opens by its URL (not opened here)")
         // Secure input on: nothing goes to Notion, the draft stays, a notice says why.
         controller.secureInputActive = { true }
         let sentBefore = NotionSelfTestStub.seen.count

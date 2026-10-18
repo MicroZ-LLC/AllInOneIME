@@ -101,10 +101,13 @@ struct DashboardSources {
     /// permission first (the panel never asks on its own) or there's no such folder.
     var listNotes: @MainActor (_ limit: Int) async throws -> NotesListing
     var showNote: @MainActor (_ id: String) async throws -> Void
-    /// Opens a saved file (in Obsidian, or its default app) or a Notion page (`NoteDestinations.openURL`).
+    /// Opens a saved file (in Obsidian, or its default app) or a Notion page, as `NoteDestinations.openURL` checked it.
     var openURL: @MainActor (_ url: URL) -> Void
-    /// Whether a saved file is still there. Off the main thread (a folder on a network volume can be slow).
-    var fileExists: @Sendable (_ url: URL) -> Bool
+    /// Whether a saved file is gone: its folder is there and the file isn't. A folder that isn't there (a volume not
+    /// mounted now) says nothing of its files: they stay listed. Off the main thread (a network volume can be slow).
+    var fileIsGone: @Sendable (_ url: URL) -> Bool
+    /// The folder notes are saved to (`Config.notes.folder`): only files in it are opened.
+    var notesFolder: @MainActor () -> URL?
     var reminderAccess: @MainActor () async -> ReminderAccess
     /// The reminders not done (`RemindersBridge.incomplete`), the soonest first. Asks the user when
     /// access isn't decided yet: only called then from the panel's button.
@@ -137,7 +140,8 @@ struct DashboardSources {
             },
             showNote: { try await NotesBridge.show(id: $0) },
             openURL: { NSWorkspace.shared.open($0) },
-            fileExists: { FileManager.default.fileExists(atPath: $0.path) },
+            fileIsGone: { FloatingPanel.isGone($0) },
+            notesFolder: { LiveConfig.current.notes.folderURL },
             reminderAccess: { await Task.detached(priority: .utility) { ReminderAccess.current }.value },
             reminders: { try await RemindersBridge.incomplete(limit: FloatingPanel.reminderReadLimit, now: $0) },
             completeReminder: { try await RemindersBridge.complete(id: $0) },
@@ -548,9 +552,9 @@ final class FloatingPanel: ObservableObject {
     private func dropMissingFiles() {
         let files = SavedNotesStore.load(sources.defaults).files
         guard !files.isEmpty else { return }
-        let (exists, generation) = (sources.fileExists, self.generation)
+        let (gone, generation) = (sources.fileIsGone, self.generation)
         Task { [weak self] in
-            let there = await Task.detached(priority: .utility) { Set(files.filter(exists)) }.value
+            let there = await Task.detached(priority: .utility) { Set(files.filter { !gone($0) }) }.value
             guard let self, generation == self.generation else { return }
             var saved = SavedNotesStore.load(self.sources.defaults)
             // Only those looked at: a file saved meanwhile stays.
@@ -565,14 +569,7 @@ final class FloatingPanel: ObservableObject {
     /// Notes, running now, lists the folder), a file in Obsidian or its default app, a Notion page in the browser (or
     /// Notion's app). A file that's gone is dropped. Turned off meanwhile, it's left at that.
     func open(_ note: SavedNotes.Note) {
-        if !SavedNotes.isInNotes(note.id) {
-            guard let url = NoteDestinations.openURL(forSaved: note.id) else { return say(tr("打不开这条笔记", "Couldn't open this note")) }
-            if let file = URL(string: note.id), file.isFileURL, !sources.fileExists(file) {
-                dismiss(.note(note.id))
-                return say(tr("打不开这条笔记", "Couldn't open this note"))
-            }
-            return sources.openURL(url)
-        }
+        if !SavedNotes.isInNotes(note.id) { return openElsewhere(note.id) }
         let generation = self.generation
         Task { [weak self] in
             guard let self else { return }
@@ -589,6 +586,33 @@ final class FloatingPanel: ObservableObject {
             if let failure { self.say(failure) }
             self.refreshNoteTitles()
         }
+    }
+
+    /// A file or a Notion page: looked at off the main thread (the file, its folder's vault: a network volume can be
+    /// slow), then opened only as `NoteDestinations.openURL` allows (a Markdown file in the notes folder, a Notion page).
+    /// A file that's gone is dropped; one whose folder isn't there now (a volume not mounted) stays.
+    private func openElsewhere(_ id: String) {
+        let (gone, folder, generation) = (sources.fileIsGone, sources.notesFolder(), self.generation)
+        Task { [weak self] in
+            let (url, isGone) = await Task.detached(priority: .userInitiated) { () -> (URL?, Bool) in
+                if let file = URL(string: id), file.isFileURL, gone(file) { return (nil, true) }
+                return (NoteDestinations.openURL(forSaved: id, folder: folder), false)
+            }.value
+            guard let self else { return }
+            if let url { return self.sources.openURL(url) }
+            if isGone { self.dismiss(.note(id)) }
+            if generation == self.generation { self.say(tr("打不开这条笔记", "Couldn't open this note")) }
+        }
+    }
+
+    /// Whether a saved file is gone: its folder is there, it isn't (`DashboardSources.fileIsGone`).
+    nonisolated static func isGone(_ file: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: file.deletingLastPathComponent().path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return false
+        }
+        return !fm.fileExists(atPath: file.path)
     }
 
     // MARK: - Reminders
@@ -970,6 +994,13 @@ private struct ListHeightKey: PreferenceKey {
 /// What the menu bar panel shows: a header with the counts and three buttons, then the notes, the
 /// reminders and the Claude tasks. Follows light and dark mode and the interface language (`tr`).
 struct FloatingPanelView: View {
+    /// What VoiceOver says a note's row does, by where it was saved (its id's scheme).
+    static func openHint(_ id: String) -> String {
+        if SavedNotes.isInNotes(id) { return tr("在备忘录里打开", "Opens it in Notes") }
+        if id.lowercased().hasPrefix("file:") { return tr("打开这个 Markdown 文件", "Opens the Markdown file") }
+        return tr("在 Notion 里打开", "Opens it in Notion")
+    }
+
     @ObservedObject var panel: FloatingPanel
     /// A new version, as one quiet line at the top (`UpdateController`).
     @ObservedObject var updates: UpdateController = .shared
@@ -1098,7 +1129,7 @@ struct FloatingPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(title)
-                .accessibilityHint(SavedNotes.isInNotes(note.id) ? tr("在备忘录里打开", "Opens it in Notes") : "")
+                .accessibilityHint(Self.openHint(note.id))
             }
         }
     }

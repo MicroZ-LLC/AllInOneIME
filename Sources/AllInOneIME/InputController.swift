@@ -622,10 +622,12 @@ final class AllInOneIMEInputController: IMKInputController {
         composer.messages = .make(language: UIText.language)
         composer.messages.actionKeyName = UIText.name(config.actionKey)
         // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
-        // the Mac (then it isn't saved during secure input).
+        // the Mac (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk up
+        // its tree here: on a network volume that went away, that can hang); it is looked up in the background.
         let notes = noteDestination(config.notes)
         UIText.noteDestinationName = notes.name
         composer.noteLeavesDevice = notes.leavesDevice
+        nameNoteFolder(notes, settings: config.notes)
         composer.translateModeMessages = .make(language: UIText.language)
         translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
         nameAgent()  // the messages were just reset
@@ -1410,6 +1412,18 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Notes and Reminders
 
+    /// A folder destination's name ("Obsidian" when it is in a vault, else “Inbox”) looked up off the main thread (a
+    /// second at most, `VaultRoots`): the command list says it once it is known, while the settings still name it.
+    @MainActor
+    private func nameNoteFolder(_ destination: any NoteDestination, settings: NoteSettings) {
+        guard let folder = destination as? MarkdownFolderDestination else { return }
+        Task { @MainActor [weak self] in
+            let name = await Task.detached(priority: .utility) { folder.name }.value
+            guard let self, UIText.noteDestinationName != name, self.loadSettings().notes == settings else { return }
+            UIText.noteDestinationName = name
+        }
+    }
+
     /// `@note`: the text goes where `Config.notes` says (`noteDestination`: Notes, a folder of Markdown files, Notion) in
     /// the background (the first time, macOS may ask whether this may control Notes or write to the folder, and the save
     /// waits for the answer). 「正在存到 Notion…」 at once, up until a notice says where it is saved, or why not
@@ -1428,7 +1442,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         // The kind of place, not its name (a folder's may say something of the user).
         log.notice("@note: saving \(text.count) chars to \(String(describing: type(of: destination)), privacy: .public)")
-        let progress = tr("正在存到 \(name)…", "Saving to \(name)…")
+        let zhName = UIText.afterChineseWord(name)
+        let progress = tr("正在存到\(zhName)…", "Saving to \(name)…")
         showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
         let outcome = SaveOutcome(from: self, progress: progress)
         let draft = NoteDraft(text: text)
@@ -1439,7 +1454,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 if let id = saved.id {
                     NotificationCenter.default.post(name: .allInOneIMENoteSaved, object: nil, userInfo: ["id": id, "title": saved.title])
                 }
-                outcome.saved(tr("已存到 \(name)", "Saved to \(name)"))
+                // Where it went as the save found out (off the main thread): a folder in a vault is Obsidian.
+                let went = saved.destinationName ?? name
+                let zhWent = UIText.afterChineseWord(went)
+                outcome.saved(tr("已存到\(zhWent)", "Saved to \(went)"))
             } catch {
                 log.error("@note: not saved: \(Self.errorKind(error), privacy: .public)")
                 outcome.failed(error, command: .note, text: text)

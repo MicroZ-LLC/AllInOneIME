@@ -1569,6 +1569,9 @@
     "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above." : {
       "comment" : "还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。 — Sources/AllInOneIME/SettingsWindow.swift"
     },
+    "No folder chosen: notes go to Notes until you choose one" : {
+      "comment" : "还没选文件夹：笔记先存到备忘录 — Sources/AllInOneIME/SettingsWindow.swift"
+    },
     "no input" : {
       "comment" : "不用输入 — Sources/AllInOneIME/SettingsWindow.swift"
     },
@@ -1853,6 +1856,9 @@
     "Opens it in Notes" : {
       "comment" : "在备忘录里打开 — Sources/AllInOneIME/FloatingPanel.swift"
     },
+    "Opens it in Notion" : {
+      "comment" : "在 Notion 里打开 — Sources/AllInOneIME/FloatingPanel.swift"
+    },
     "Opens it in Terminal" : {
       "comment" : "在终端里打开 — Sources/AllInOneIME/FloatingPanel.swift"
     },
@@ -1864,6 +1870,9 @@
     },
     "Opens Settings → Custom Commands" : {
       "comment" : "打开设置里的「自定义命令」 — Sources/AllInOneIME/ExtensionSourcesSettings.swift"
+    },
+    "Opens the Markdown file" : {
+      "comment" : "打开这个 Markdown 文件 — Sources/AllInOneIME/FloatingPanel.swift"
     },
     "Opens what it printed" : {
       "comment" : "打开它的输出 — Sources/AllInOneIME/FloatingPanel.swift"
@@ -2313,7 +2322,7 @@
       "comment" : "保存 — Sources/AllInOneIME/CommandEditor.swift"
     },
     "Save a note to %@" : {
-      "comment" : "存一条笔记到 %@ — Sources/AllInOneIME/UIText.swift"
+      "comment" : "存一条笔记到%@ — Sources/AllInOneIME/UIText.swift"
     },
     "Save and Use %@" : {
       "comment" : "保存并使用 %@ — Sources/AllInOneIME/KeyRow.swift"
@@ -2322,7 +2331,7 @@
       "comment" : "存到 — Sources/AllInOneIME/SettingsWindow.swift"
     },
     "save to %@" : {
-      "comment" : "存到 %@ — Sources/AllInOneIME/UIText.swift"
+      "comment" : "存到%@ — Sources/AllInOneIME/UIText.swift"
     },
     "save to Notes" : {
       "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift",
@@ -2343,14 +2352,14 @@
       "comment" : "保存于%@ — Sources/AllInOneIME/QuestionChatPanel.swift"
     },
     "Saved to %@" : {
-      "comment" : "已存到 %@ — Sources/AllInOneIME/InputController.swift"
+      "comment" : "已存到%@ — Sources/AllInOneIME/InputController.swift"
     },
     "Saved to Notes" : {
       "comment" : "已存到备忘录 — Sources/AllInOneIME/InputController.swift",
       "extractionState" : "stale"
     },
     "Saving to %@…" : {
-      "comment" : "正在存到 %@… — Sources/AllInOneIME/InputController.swift"
+      "comment" : "正在存到%@… — Sources/AllInOneIME/InputController.swift"
     },
     "Saving to Notes…" : {
       "comment" : "正在存到备忘录… — Sources/AllInOneIME/InputController.swift",

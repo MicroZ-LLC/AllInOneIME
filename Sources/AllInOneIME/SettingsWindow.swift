@@ -498,11 +498,27 @@ final class SettingsModel: ObservableObject {
 
     static func notesPath(_ url: URL) -> String { (url.path as NSString).abbreviatingWithTildeInPath }
 
-    /// The folder chosen isn't there (an unmounted volume, a moved vault): a save would fail.
-    var notesFolderMissing: Bool {
-        guard config.notes.destination == .folder, let folder = config.notes.folderURL else { return false }
-        var isDirectory: ObjCBool = false
-        return !(FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory) && isDirectory.boolValue)
+    /// The folder chosen isn't there (an unmounted volume, a moved vault): a save would fail. Looked at off the main
+    /// thread (`refreshNotesFolder`: a network volume that went away can hang a `stat`), never while rendering.
+    @Published private(set) var notesFolderMissing = false
+    private var notesFolderLook = 0
+
+    /// Looks at the folder notes go to, in the background, and says whether it is missing (`notesFolderMissing`).
+    func refreshNotesFolder() {
+        notesFolderLook += 1
+        let look = notesFolderLook
+        guard config.notes.destination == .folder, let folder = config.notes.folderURL else {
+            notesFolderMissing = false
+            return
+        }
+        Task { [weak self] in
+            let missing = await Task.detached(priority: .utility) { () -> Bool in
+                var isDirectory: ObjCBool = false
+                return !(FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory) && isDirectory.boolValue)
+            }.value
+            guard let self, look == self.notesFolderLook else { return }
+            self.notesFolderMissing = missing
+        }
     }
 
     static func askForNotesFolder(_ current: URL?) -> URL? {
@@ -1649,7 +1665,11 @@ struct SettingsView: View {
                     Spacer()
                     Button(tr("选择文件夹…", "Choose Folder…")) { model.chooseNotesFolder() }
                 }
-                if model.notesFolderMissing {
+                if model.config.notes.folderURL == nil {
+                    // Only a config edited by hand gets here (the picker asks for a folder first): saved to Notes meanwhile.
+                    Text(tr("还没选文件夹：笔记先存到备忘录", "No folder chosen: notes go to Notes until you choose one"))
+                        .foregroundStyle(.orange)
+                } else if model.notesFolderMissing {
                     Text(NoteError.folderMissing(path: "").message(language: UIText.language)).foregroundStyle(.red)
                 }
             case .notion:
@@ -2143,12 +2163,14 @@ struct SettingsView: View {
         }
         .onChange(of: page) { if page == .commands { model.refreshExtensions(discover: true) } }
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
+        .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
             model.refreshPlugins()
             model.refreshExtensions(discover: page == .commands)
             model.refreshKeys()
             model.refreshSearchKey()
             model.refreshNotionToken()
+            model.refreshNotesFolder()
             model.refreshAccount()
             model.refreshVoice()
             model.refreshJargon()
@@ -2156,6 +2178,7 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+            model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
             model.refreshRecentQuestions()
             // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
             if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
