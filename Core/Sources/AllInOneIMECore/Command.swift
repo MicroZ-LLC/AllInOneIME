@@ -405,11 +405,14 @@ extension CustomCommand {
 
     /// `list` with `command` saved: in place of the one named `original` wherever it is now, else (added, or deleted
     /// elsewhere meanwhile) at the end. Nil when another command has its name by now.
-    public static func saving(_ command: CustomCommand, as original: String?, in list: [CustomCommand]) -> [CustomCommand]? {
+    /// Of two of one name (only a config edited by hand has them), the one that is `shown` (the command as the editor
+    /// or the Delete dialog opened on it) when it is still there, else the first.
+    public static func saving(_ command: CustomCommand, as original: String?, in list: [CustomCommand],
+                              shown: CustomCommand? = nil) -> [CustomCommand]? {
         let name = command.name.lowercased()
         guard !others(than: original, in: list).contains(where: { $0.name.lowercased() == name }) else { return nil }
         var out = list
-        if let original = original?.lowercased(), let index = out.firstIndex(where: { $0.name.lowercased() == original }) {
+        if let original, let index = index(of: original, shown: shown, in: out) {
             out[index] = command
         } else {
             out.append(command)
@@ -417,9 +420,21 @@ extension CustomCommand {
         return out
     }
 
-    /// `list` without the command named `name` (ignoring case); as it is when there is none by now.
-    public static func removing(_ name: String, from list: [CustomCommand]) -> [CustomCommand] {
-        list.filter { $0.name.lowercased() != name.lowercased() }
+    /// `list` without the command named `name` (ignoring case): one only, of two of that name the one `shown` when it
+    /// is still there (see `saving`); as it is when there is none by now.
+    public static func removing(_ name: String, from list: [CustomCommand], shown: CustomCommand? = nil) -> [CustomCommand] {
+        guard let index = index(of: name, shown: shown, in: list) else { return list }
+        var out = list
+        out.remove(at: index)
+        return out
+    }
+
+    /// Where the command named `name` (ignoring case) is in `list`: `shown` if it is there under that name, else the
+    /// first of that name.
+    static func index(of name: String, shown: CustomCommand?, in list: [CustomCommand]) -> Int? {
+        let name = name.lowercased()
+        if let shown, shown.name.lowercased() == name, let index = list.firstIndex(of: shown) { return index }
+        return list.firstIndex { $0.name.lowercased() == name }
     }
 
     /// Arguments as one line, quoted where needed: ["python3", "-c", "{input}"] → `python3 -c {input}`.
