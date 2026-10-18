@@ -22,7 +22,8 @@ generator.
 ## What is ours
 
 - `module.modulemap`: the module Swift imports (`CQuickJS`), of `quickjs.h` and `quickjs-swift.h` only.
-- `quickjs-swift.h`: `JS_UNDEFINED` and `JS_NULL` as functions; they are macros Swift can't import.
+- `quickjs-swift.h`: `JS_UNDEFINED` and `JS_NULL` as functions; they are macros Swift can't import. Off Apple platforms
+  and Windows, `QJS_ThreadStack` too (`pthread_getattr_np`, which Swift's Glibc doesn't declare), for `ThreadStack`.
 - `VENDORED.md`, this file.
 
 The target's settings (Package.swift) are upstream's CMake ones: `_GNU_SOURCE`; `NDEBUG` in release, as upstream's

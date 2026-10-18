@@ -9,6 +9,9 @@ import Android
 #elseif os(Windows)
 import WinSDK
 #endif
+#if !canImport(Darwin) && !os(Windows)
+internal import CQuickJS  // QJS_ThreadStack
+#endif
 
 /// The stack of the thread a script runs on, from where the caller is. QuickJS checks how deep a script goes against a
 /// size it is told, and throws ("RangeError: Maximum call stack size exceeded") when it gets there: that size has to fit
@@ -57,12 +60,10 @@ struct ThreadStack {
         GetCurrentThreadStackLimits(&low, &high)
         return UInt(low)
         #elseif canImport(Glibc) || canImport(Musl) || canImport(Android)
-        var attributes = pthread_attr_t()
-        guard pthread_getattr_np(pthread_self(), &attributes) == 0 else { return nil }
-        defer { pthread_attr_destroy(&attributes) }
+        // pthread_getattr_np, through CQuickJS: Swift's Glibc doesn't declare it (quickjs-swift.h).
         var address: UnsafeMutableRawPointer?
         var size = 0
-        guard pthread_attr_getstack(&attributes, &address, &size) == 0, let address else { return nil }
+        guard QJS_ThreadStack(&address, &size) == 0, let address else { return nil }
         return UInt(bitPattern: address)
         #else
         return nil
