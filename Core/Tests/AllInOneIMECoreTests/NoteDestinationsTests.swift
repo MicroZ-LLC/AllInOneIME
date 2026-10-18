@@ -71,4 +71,72 @@ struct NoteDestinationsTests {
         #expect(NoteDestinations.openURL(forSaved: "x-coredata://A/ICNote/p1") == nil)
         #expect(NoteDestinations.openURL(forSaved: "https://www.notion.so/x")?.absoluteString == "https://www.notion.so/x")
     }
+
+    // MARK: - Writing a file: never half of one, nothing left behind
+
+    private func tempFolder() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("note-dest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    private func names(_ folder: URL) -> Set<String> {
+        Set((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+    }
+
+    @Test func aWriteThatFailsHalfWayLeavesNoFileBehind() async throws {
+        let folder = try tempFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data("old".utf8).write(to: folder.appendingPathComponent("Big note.md"))
+        // The disk fills up half way: some of it written, then an error (not "the name is taken").
+        let destination = MarkdownFolderDestination(folder: folder) { data, file in
+            try data.prefix(10).write(to: file, options: .withoutOverwriting)
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+        await #expect(throws: CocoaError.self) { _ = try await destination.save(draft("Big note\n" + String(repeating: "x", count: 5000))) }
+        #expect(names(folder) == ["Big note.md"], "\(names(folder))")
+        #expect(try String(contentsOf: folder.appendingPathComponent("Big note.md"), encoding: .utf8) == "old")
+    }
+
+    @Test func aFolderThatGoesAwayDuringTheWriteIsMissingAndNothingIsLeft() async throws {
+        let parent = try tempFolder()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let folder = parent.appendingPathComponent("Inbox", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let destination = MarkdownFolderDestination(folder: folder) { _, _ in
+            try FileManager.default.removeItem(at: folder)
+            throw CocoaError(.fileNoSuchFile)
+        }
+        do {
+            _ = try await destination.save(draft("Hello"))
+            Issue.record("saved into a folder that went away")
+        } catch {
+            #expect(error as? NoteError == .folderMissing(path: folder.path), "\(error)")
+        }
+        #expect(names(parent).isEmpty)
+    }
+
+    @Test func aNameTakenWhileWritingGetsTheNextAndNothingIsOverwritten() async throws {
+        let folder = try tempFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        // Another app makes "Hello.md" between the listing and the rename.
+        let destination = MarkdownFolderDestination(folder: folder) { data, file in
+            try data.write(to: file, options: .withoutOverwriting)
+            try Data("theirs".utf8).write(to: folder.appendingPathComponent("Hello.md"), options: .withoutOverwriting)
+        }
+        let ref = try await destination.save(draft("Hello\nworld"))
+        #expect(names(folder) == ["Hello.md", "Hello 2.md"], "\(names(folder))")
+        #expect(try String(contentsOf: folder.appendingPathComponent("Hello.md"), encoding: .utf8) == "theirs")
+        #expect(ref.id.flatMap(URL.init(string:))?.lastPathComponent == "Hello 2.md")
+        #expect(try String(contentsOf: folder.appendingPathComponent("Hello 2.md"), encoding: .utf8)
+                == MarkdownFolderDestination.document(for: draft("Hello\nworld")))
+    }
+
+    @Test func onlyTheNameTakenCountsAsTaken() {
+        #expect(MarkdownFolderDestination.isTaken(POSIXError(.EEXIST)))
+        #expect(MarkdownFolderDestination.isTaken(CocoaError(.fileWriteFileExists)))
+        #expect(!MarkdownFolderDestination.isTaken(CocoaError(.fileWriteOutOfSpace)))
+        #expect(!MarkdownFolderDestination.isTaken(POSIXError(.EIO)))
+    }
+
 }

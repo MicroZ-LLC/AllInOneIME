@@ -4,12 +4,24 @@ import Foundation
 /// line (`fileName(for:existing:)`), holding front matter and then the whole text as typed (`document(for:)`). A file
 /// is only ever created, never written over: a name that's taken gets " 2", " 3" … The folder is never made: one that
 /// isn't there (an unmounted volume, a moved vault) is an error.
+///
+/// The note is written to a hidden file of its own in the folder first, then given its name in one step that fails when
+/// the name is taken (`FileOps.swap` without `exists`: `renamex_np(RENAME_EXCL)`, Linux's `renameat2(RENAME_NOREPLACE)`;
+/// where the volume can't, a hard link): there is never half a note under its name, and never one over another. A write
+/// that fails removes the hidden file: nothing is left behind.
 public struct MarkdownFolderDestination: NoteDestination {
     public let folder: URL
+    /// Writes a new file (the hidden one), never over one: injectable, for the tests to fail it.
+    public typealias Write = @Sendable (_ data: Data, _ file: URL) throws -> Void
+    private let write: Write
 
-    public init(folder: URL) {
+    public init(folder: URL, write: @escaping Write = MarkdownFolderDestination.writeNew) {
         self.folder = folder
+        self.write = write
     }
+
+    /// `data` in a new file at `file`; an error when something is there already.
+    public static let writeNew: Write = { data, file in try data.write(to: file, options: .withoutOverwriting) }
 
     /// "Obsidian" in a vault, else the folder's name in quotes, as the notice shows it: “Inbox”.
     public var name: String {
@@ -19,29 +31,65 @@ public struct MarkdownFolderDestination: NoteDestination {
     public var leavesDevice: Bool { false }
 
     public func save(_ draft: NoteDraft) async throws -> SavedNoteRef {
-        let fm = FileManager.default
         guard Self.isFolder(folder) else { throw NoteError.folderMissing(path: folder.path) }
         let data = Data(Self.document(for: draft).utf8)
-        var existing = Set((try? fm.contentsOfDirectory(atPath: folder.path)) ?? [])
+        var existing = Set((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+        let hidden = folder.appendingPathComponent(".\(UUID().uuidString).allinoneime-note.tmp", isDirectory: false)
+        do {
+            try write(data, hidden)
+        } catch {
+            throw failed(error, leaving: hidden)
+        }
         // A name taken meanwhile (another app writing there): the next one.
         for _ in 0..<1000 {
             let name = Self.fileName(for: draft, existing: existing)
             let file = folder.appendingPathComponent(name, isDirectory: false)
             do {
-                try data.write(to: file, options: .withoutOverwriting)
-                return SavedNoteRef(id: file.absoluteString, title: NotesFormat.title(of: draft.text))
-            } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                try Self.place(hidden, at: file)
+            } catch where Self.isTaken(error) {
                 existing.insert(name)
-            } catch where fm.fileExists(atPath: file.path) && !existing.contains(name) {
-                // Made by another app between the listing and the write (an exclusive create fails before writing).
-                existing.insert(name)
+                continue
             } catch {
-                // The folder went away meanwhile.
-                if !Self.isFolder(folder) { throw NoteError.folderMissing(path: folder.path) }
-                throw error
+                throw failed(error, leaving: hidden)
+            }
+            return SavedNoteRef(id: file.absoluteString, title: NotesFormat.title(of: draft.text))
+        }
+        try? FileManager.default.removeItem(at: hidden)
+        throw CocoaError(.fileWriteFileExists)
+    }
+
+    /// A write or a rename that failed: the hidden file removed (whatever of it was written), and the folder gone
+    /// meanwhile said as such.
+    private func failed(_ error: Error, leaving hidden: URL) -> Error {
+        try? FileManager.default.removeItem(at: hidden)
+        return Self.isFolder(folder) ? error : NoteError.folderMissing(path: folder.path)
+    }
+
+    /// `hidden` given the name `file`, never over another file: in one step, else (a volume that can't) as a second name
+    /// (a hard link), the hidden one then removed. Throws `isTaken` when the name is.
+    static func place(_ hidden: URL, at file: URL) throws {
+        do {
+            try Platform.current.files.swap(hidden, into: file, exists: false)
+            return
+        } catch where isTaken(error) {
+            throw error
+        } catch {
+            // No exclusive rename here (some network and FAT volumes): a link fails just the same when the name is taken.
+        }
+        try FileManager.default.linkItem(at: hidden, to: file)
+        try? FileManager.default.removeItem(at: hidden)
+    }
+
+    /// Whether `error` is the name being taken (EEXIST), and nothing else.
+    static func isTaken(_ error: Error) -> Bool {
+        if let error = error as? POSIXError { return error.code == .EEXIST }
+        if let error = error as? CocoaError {
+            if error.code == .fileWriteFileExists { return true }
+            if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+                return underlying.domain == NSPOSIXErrorDomain && underlying.code == Int(POSIXErrorCode.EEXIST.rawValue)
             }
         }
-        throw CocoaError(.fileWriteFileExists)
+        return false
     }
 
     public func check() async throws -> String {
