@@ -556,6 +556,27 @@ struct ICloudSyncTests {
         #expect(ICloudSync.Entry(json: .object(["value": .bool(true)])) == nil)
         #expect(ICloudSync.Entry(json: .object(["value": .bool(true), "deleted": .bool(true), "modified": .string("2026-10-16T18:00:00Z"), "by": .string("A")])) == nil)
         #expect(ICloudSync.date("2026-10-16T18:00:00Z") != nil && ICloudSync.date("2026-10-16T18:00:00.123Z") != nil)
+        // A collection's change carries the stamp it was made on (`base`): read back, ignored when it isn't a stamp, and
+        // no part of what makes two entries the same.
+        let based = ICloudSync.Entry(value: .array([.string("y")]), stamp: b, base: a)
+        #expect(ICloudSync.Entry(json: based.json)?.base == a)
+        guard case var .object(fields) = based.json else { return }
+        fields["base"] = .string("yesterday")
+        let odd = ICloudSync.Entry(json: .object(fields))
+        #expect(odd != nil && odd?.base == nil && odd == based)
+    }
+
+    @Test("merge: a collection changed after another Mac's join merge goes up with the stamp it was changed from")
+    func collectionChangeCarriesItsBase() {
+        let merge = ICloudSync.Entry(value: .array([.string("a"), .string("b")]), stamp: .init(modified: t(20), by: "A"))
+        let plan = ICloudSync.plan(local: ["redaction.customWords": .array([.string("b")])], known: ["redaction.customWords": merge],
+                                   remote: ["redaction.customWords": merge], categories: [.hiddenWords], mac: "B", now: t(40))
+        #expect(plan.outgoing["redaction.customWords"]?.base == merge.stamp)
+        // Not for a value that isn't a collection.
+        let tokens = ICloudSync.Entry(value: .number(1000), stamp: .init(modified: t(20), by: "A"))
+        let other = ICloudSync.plan(local: ["maxTokens": .number(2000)], known: ["maxTokens": tokens], remote: ["maxTokens": tokens],
+                                    categories: [.settings], mac: "B", now: t(40))
+        #expect(other.outgoing["maxTokens"] != nil && other.outgoing["maxTokens"]?.base == nil)
     }
 
     // MARK: The folder, Rime's sync folder
@@ -867,6 +888,41 @@ struct ICloudSyncJoinTests {
             #expect(Set(config.customCommands.map(\.name)) == ["theirs", "mine"])
             #expect(Set(try String(contentsOf: mac.jargonURL, encoding: .utf8).split(separator: "\n")) == ["B's line", "A's line"])
             #expect(Set(questions(mac)) == ["asked on A while off", "asked on B"])
+        }
+    }
+
+    @Test("Remove from iCloud: turned on again, the Mac joins under a new id and keeps what it added while off")
+    func aForgottenMacJoinsUnderANewID() throws {
+        let rig = try SyncRig()
+        let a = try rig.mac("A") { $0.customCommands = [CustomCommand(name: "alpha", type: .prompt, prompt: "A's")] }
+        a.sync(at: t(0))
+        let b = try rig.mac("B")
+        b.sync(at: t(1))
+        try b.edit(at: t(2)) { $0.customCommands.append(CustomCommand(name: "beta", type: .prompt, prompt: "B's")) }
+        b.sync(at: t(3))
+        a.sync(at: t(4))
+        #expect(try a.config().customCommands.map(\.name) == ["alpha", "beta"])
+        let before = a.state.macID
+        // Remove from iCloud… on A: sync off, the folder gone, the record forgotten.
+        try a.edit(at: t(5)) { $0.iCloudSync.enabled = false }
+        a.sync(at: t(5))
+        try FileManager.default.removeItem(at: rig.folder.url)
+        a.engine.forget()
+        let forgotten = a.state
+        #expect(forgotten.macID != before, "a new Mac id")
+        #expect(forgotten.entries.isEmpty && forgotten.joined.isEmpty && forgotten.paused.isEmpty && forgotten.lastSync == nil)
+        // Off, A adds gamma; turned on again while B sleeps, it joins an empty iCloud.
+        try a.edit(at: t(6)) { $0.customCommands.append(CustomCommand(name: "gamma", type: .prompt, prompt: "A's")) }
+        try a.edit(at: t(7)) { $0.iCloudSync.enabled = true }
+        a.sync(at: t(8))
+        #expect(try entry(rig, ICloudSync.commandsKey)?.stamp == .joining(a.state.macID))
+        // B wakes before A's files reach it, and its settings.json (its list, based on A's first join) wins in iCloud.
+        try FileManager.default.removeItem(at: rig.folder.url)
+        b.sync(at: t(9))
+        a.sync(at: t(10))
+        b.sync(at: t(11))
+        for mac in [a, b] {
+            #expect(Set(try mac.config().customCommands.map(\.name)) == ["alpha", "beta", "gamma"])
         }
     }
 

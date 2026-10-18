@@ -180,6 +180,58 @@ final class SettingsModel: ObservableObject {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
+    // MARK: Lists edited while sync may change them
+
+    // The window may not have read the file again yet when one of these saves (its reload waits while a slider is dragged
+    // or a menu is open), and sync through iCloud may have changed the list in it: each reads it again first (`refresh`),
+    // and edits the list by name, never by an index the page showed.
+
+    /// The file as it is now: what the window changed and hasn't saved yet saved (a save reads the file back), else the
+    /// file read again if something else changed it.
+    private func refresh() {
+        save()
+        reloadIfChanged()
+    }
+
+    /// The hidden-words field saved (Return, or leaving the page): its edit since it showed `shown` (`RedactionSettings.
+    /// edited`) on the words as the file has them now. The list to show.
+    @discardableResult
+    func saveWords(field text: String, shown: [String]) -> [String] {
+        refresh()
+        let list = RedactionSettings.edited(config.redaction.customWords, field: text, shown: shown)
+        guard list != config.redaction.customWords else { return list }
+        config.redaction.customWords = list
+        save()
+        return config.redaction.customWords
+    }
+
+    /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
+    func otherCommands(than original: String?) -> [CustomCommand] {
+        CustomCommand.others(than: original, in: config.customCommands)
+    }
+
+    /// The command editor's Save: `command` in place of the one named `original` wherever it is now (of two of that
+    /// name, the one the editor opened on, `shown`), else added (it was deleted elsewhere meanwhile). Not saved when
+    /// another command has its name by now: false, and the editor stays open saying so.
+    @discardableResult
+    func saveCommand(_ command: CustomCommand, editing original: String?, shown: CustomCommand? = nil) -> Bool {
+        refresh()
+        guard let list = CustomCommand.saving(command, as: original, in: config.customCommands, shown: shown) else { return false }
+        config.customCommands = list
+        save()
+        return true
+    }
+
+    /// The Delete dialog's Delete: the command named `name`, wherever it is now; one only (of two of that name, the one
+    /// the dialog was opened on, `shown`).
+    func deleteCommand(named name: String, shown: CustomCommand? = nil) {
+        refresh()
+        let list = CustomCommand.removing(name, from: config.customCommands, shown: shown)
+        guard list != config.customCommands else { return }
+        config.customCommands = list
+        save()
+    }
+
     /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
     /// the choice.
     func setUILanguage(_ language: String?) {
@@ -887,7 +939,8 @@ struct SettingsView: View {
     @State private var pluginToInstall: PluginIndex.Entry?
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
-    @State private var commandToDelete: Int?
+    /// The name of the command the Delete dialog asks about (by name: sync may change the list while it is open).
+    @State private var commandToDelete: CustomCommand?
     /// The provider whose key row shows its paste field (Replace…, or the Assistant opening Settings at the key).
     @State private var editingKey: Provider?
     /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
@@ -1212,6 +1265,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var commandsSection: some View {
         Section {
+            // By place: two of one name (a config edited by hand) are two rows. Edit and Delete still go by the name.
             ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
@@ -1223,7 +1277,7 @@ struct SettingsView: View {
                         }
                         Spacer()
                         Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                        Button(tr("删除", "Delete")) { commandToDelete = index }
+                        Button(tr("删除", "Delete")) { commandToDelete = command }
                     }
                     if Self.hiddenByBuiltIn(command) {
                         Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
@@ -1891,30 +1945,19 @@ struct SettingsView: View {
         .frame(minWidth: 760, idealWidth: 860, minHeight: 480, idealHeight: 720)
         // Text fields save on Return; everything else (pickers, steppers, toggles) saves on change.
         .sheet(item: $commandEdit) { edit in
-            CommandEditor(edit: edit, others: model.config.customCommands.enumerated()
-                            .filter { $0.offset != edit.index }.map(\.element),
+            CommandEditor(edit: edit, others: model.otherCommands(than: edit.original),
                           plugins: model.plugins.map(\.name), unread: model.config.unreadCustomCommandNames) { command in
-                if let index = edit.index {
-                    model.config.customCommands[index] = command
-                } else {
-                    model.config.customCommands.append(command)
-                }
-                model.save()
+                model.saveCommand(command, editing: edit.original, shown: edit.original == nil ? nil : edit.command)
             }
         }
         .confirmationDialog(tr("删除这个命令？", "Delete this command?"),
                             isPresented: Binding(get: { commandToDelete != nil }, set: { if !$0 { commandToDelete = nil } })) {
             Button(tr("删除", "Delete"), role: .destructive) {
-                if let index = commandToDelete, model.config.customCommands.indices.contains(index) {
-                    model.config.customCommands.remove(at: index)
-                    model.save()
-                }
+                if let command = commandToDelete { model.deleteCommand(named: command.name, shown: command) }
                 commandToDelete = nil
             }
         } message: {
-            if let index = commandToDelete, model.config.customCommands.indices.contains(index) {
-                Text("@" + model.config.customCommands[index].name)
-            }
+            if let command = commandToDelete { Text("@" + command.name) }
         }
         .confirmationDialog(tr("删除这个插件？", "Remove this plugin?"),
                             isPresented: Binding(get: { pluginToRemove != nil }, set: { if !$0 { pluginToRemove = nil } })) {

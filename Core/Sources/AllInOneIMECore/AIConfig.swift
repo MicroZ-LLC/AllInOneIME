@@ -484,8 +484,12 @@ public enum AIConfig {
     /// `old` is the config the writer last read or wrote. A missing file is written whole (`Config.write`).
     public static func writing(_ config: Config, from old: Config, keys: Set<String>, at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
+        try writing(encoded(config), from: encoded(old), keys: keys, at: url)
+    }
+
+    /// `writing` with the config and the one read before as the file holds them (`encoded`), into a file that exists.
+    static func writing(_ values: [String: JSONValue], from before: [String: JSONValue], keys: Set<String>, at url: URL) throws {
         guard !keys.isEmpty else { return }
-        let values = encoded(config), before = encoded(old)
         try patchingFile(at: url) { file in
             for key in keys.union(keys.flatMap { companions[$0] ?? [] }) {
                 file[key] = merged(file: file[key], old: before[key], new: values[key])

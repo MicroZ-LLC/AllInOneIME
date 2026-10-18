@@ -3,11 +3,16 @@ import AllInOneIMEMac
 import AppKit
 import SwiftUI
 
-/// A custom @ command being added (`index` nil) or edited in the settings.
+/// A custom @ command being added (`index` nil) or edited in the settings: the place the list showed it at, and the
+/// command as it was then.
 struct CommandEdit: Identifiable {
     let id = UUID()
     var index: Int?
     var command: CustomCommand
+
+    /// The name of the command being edited (nil: one being added). The edit is saved by it, never by `index`: sync
+    /// through iCloud may change the list while the editor is open (`SettingsModel.saveCommand`).
+    var original: String? { index == nil ? nil : command.name }
 }
 
 /// The form for one custom @ command: its name, what it does (an instruction for the AI, a program
@@ -20,8 +25,11 @@ struct CommandEditor: View {
     let others: [CustomCommand]
     let plugins: [String]
     let unread: [String]
-    let onSave: (CustomCommand) -> Void
+    /// Saves the definition; false when it wasn't (another command has its name by now): the editor stays open.
+    let onSave: (CustomCommand) -> Bool
     @Environment(\.dismiss) private var dismiss
+    /// A name the save found taken (a command of that name came in from another Mac while the editor was open).
+    @State private var takenOnSave: String?
 
     @State private var name: String
     @State private var type: CustomCommand.CommandType
@@ -43,7 +51,7 @@ struct CommandEditor: View {
     @State private var missingProgram: String?
 
     init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], unread: [String] = [],
-         onSave: @escaping (CustomCommand) -> Void) {
+         onSave: @escaping (CustomCommand) -> Bool) {
         original = edit
         self.others = others
         self.plugins = plugins
@@ -89,6 +97,7 @@ struct CommandEditor: View {
 
     private var problem: String? {
         guard let draft else { return Self.describe(.unbalancedQuote) }
+        if let takenOnSave, draft.name == takenOnSave { return Self.describe(.nameTaken) }
         return draft.problem(among: others, plugins: plugins, unread: unread).map(Self.describe)
     }
 
@@ -194,8 +203,7 @@ struct CommandEditor: View {
                 Button(tr("取消", "Cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(tr("保存", "Save")) {
                     guard let draft else { return }
-                    onSave(draft)
-                    dismiss()
+                    if onSave(draft) { dismiss() } else { takenOnSave = draft.name }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(problem != nil)

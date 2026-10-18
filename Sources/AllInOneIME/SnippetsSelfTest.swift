@@ -165,7 +165,7 @@ extension SelfTest {
         // The editor in a window: Save (⏎) hands the snippet back as typed.
         var saved: CustomCommand?
         let start = CustomCommand(name: "selftestsig", type: .snippet, summary: "Signature", text: "Best,\n{cursor}")
-        let editor = CommandEditor(edit: CommandEdit(index: nil, command: start), others: []) { saved = $0 }
+        let editor = CommandEditor(edit: CommandEdit(index: nil, command: start), others: []) { saved = $0; return true }
         let window = NSWindow(contentViewController: NSHostingController(rootView: editor))
         window.setFrameOrigin(NSPoint(x: -20000, y: -20000))
         window.alphaValue = 0
@@ -213,7 +213,7 @@ extension SelfTest {
         }
         window.close()
         let image = snapshotDirectory.appendingPathComponent("command-editor-snippet.png")
-        renderOffscreen(CommandEditor(edit: CommandEdit(index: nil, command: start), others: []) { _ in }, size: NSSize(width: 520, height: 520),
+        renderOffscreen(CommandEditor(edit: CommandEdit(index: nil, command: start), others: []) { _ in true }, size: NSSize(width: 520, height: 520),
                         to: image)
         check(FileManager.default.fileExists(atPath: image.path), "the editor with a snippet renders (\(image.lastPathComponent))")
 
