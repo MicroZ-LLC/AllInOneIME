@@ -349,8 +349,12 @@ public enum AWSProcessRunner {
     static let maxOutput = 1 << 20
 
     /// The program as the AWS CLI finds it: a name without "/" on `path`, else the path itself (relative to `directory`),
-    /// with nothing expanded (no `~`). Nil when it isn't there or can't be run.
+    /// with nothing expanded (no `~`). Nil when it isn't there or can't be run. On Windows as Windows finds one
+    /// (`WindowsPrograms.find`: "\" a separator too, `path` split on ";", PATHEXT's extensions added).
     public static func resolve(_ program: String, path: String?, directory: URL) -> URL? {
+        #if os(Windows)
+        return WindowsPrograms.find(program, path: path, directory: directory)
+        #else
         let fm = FileManager.default
         if program.contains("/") {
             let url = program.hasPrefix("/") ? URL(fileURLWithPath: program) : directory.appendingPathComponent(program)
@@ -361,11 +365,12 @@ public enum AWSProcessRunner {
             if fm.isExecutableFile(atPath: candidate.path) { return candidate }
         }
         return nil
+        #endif
     }
 
     public static func run(_ request: AWSProcessRequest) async throws -> AWSProcessResult {
         guard let program = request.arguments.first,
-              let url = resolve(program, path: request.environment["PATH"], directory: request.directory) else {
+              let url = resolve(program, path: CommandRunner.searchPath(request.environment), directory: request.directory) else {
             throw AWSProcessError.notFound(request.arguments.first ?? "")
         }
         let run = Run()

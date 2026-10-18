@@ -381,7 +381,15 @@ extension ScriptCommand {
     /// byte order mark (the system doesn't read it then), runs through the program on that line ("#!/usr/bin/env
     /// python3" → /usr/bin/env python3 file); an executable text file without one runs with /bin/sh, as a shell
     /// does when the system can't run it (ENOEXEC). Nil when it's neither executable nor has a "#!" line.
+    /// On Windows, which has no executable bit and reads no "#!" line, the file itself, which the launcher starts by its
+    /// kind (`WindowsPrograms`): a program or batch file (`executable`), or a script through its interpreter (.sh, .ps1,
+    /// .py, or one with a "#!" line); nil for any other file.
     static func launch(for file: URL, firstLine: String, executable: Bool, binary: Bool = false) -> [String]? {
+        #if os(Windows)
+        let line = firstLine.hasPrefix("\u{FEFF}") ? String(firstLine.dropFirst()) : firstLine
+        let script = ["sh", "ps1", "py", "pyw"].contains(file.pathExtension.lowercased())
+        return executable || script || line.hasPrefix("#!") ? [file.path] : nil
+        #else
         if executable, binary { return [file.path] }
         let bom = firstLine.hasPrefix("\u{FEFF}")
         let line = bom ? String(firstLine.dropFirst()) : firstLine
@@ -389,6 +397,7 @@ extension ScriptCommand {
         if executable, !bom { return [file.path] }
         let words = line.dropFirst(2).split(whereSeparator: \.isWhitespace).map(String.init)
         return words.isEmpty ? nil : words + [file.path]
+        #endif
     }
 
     /// The command for the protocol's `keys` (a script's, a Raycast script's mapped, a bundle entry's), or the
