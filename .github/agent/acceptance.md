@@ -14,9 +14,11 @@ $implementation
   keystrokes, Command for `@` commands, Config for settings), but don't read the implementer's own tests or shape
   yours after its internals.
 - Test every behaviour the issue asks for, with the edge cases it implies, including what must stay as it was.
-- Put them in `Tests/AllInOneIMECoreTests/Acceptance/Issue${number}AcceptanceTests.swift` (in
-  `Tests/AllInOneIMERimeTests/` if they need Rime), in Swift Testing like the files beside it.
-- Change nothing outside `Tests/`: the pipeline drops it.
+- Put them in `Core/Tests/AllInOneIMECoreTests/Acceptance/Issue${number}AcceptanceTests.swift` (the core's; on a
+  branch without `Core/`, `Tests/AllInOneIMECoreTests/Acceptance/`), in `Tests/AllInOneIMEMacTests/Acceptance/` if
+  they need the macOS app's own code, or in `Tests/AllInOneIMERimeTests/` if they need Rime, in Swift Testing like the
+  files beside them.
+- Change nothing outside `Tests/` and `Core/Tests/`: the pipeline drops it.
 - Run them. A test that fails because the implementation is wrong stays as it is; it goes back to the implementer.
   Fix only tests that are themselves wrong.
 

@@ -11,9 +11,11 @@ you. Don't commit, push or use `gh` yourself.
 
 ## The product
 
-AllInOneIME is a macOS input method (InputMethodKit) with Rime pinyin and AI `@` commands. `Sources/AllInOneIMECore`
-is the logic, with no AppKit (Composer is the input state machine, Command the `@` commands, Config `config.json`);
-`Sources/AllInOneIME` is the input method process and its settings window; README.md describes every feature.
+AllInOneIME is a macOS input method (InputMethodKit) with Rime pinyin and AI `@` commands. `Core/` is the core every
+platform shares, a Swift package of its own (`Sources/` and `Tests/` inside it; on a branch from before 0.6.5 they are
+in the root): `Core/Sources/AllInOneIMECore` is the logic, with no AppKit (Composer is the input state machine, Command
+the `@` commands, Config `config.json`); `Sources/AllInOneIME` is the input method process and its settings window;
+README.md describes every feature.
 
 - Small and instant, like Raycast: features finish in seconds, in place, in one step, with no setup. Bigger jobs are
   handed off (`@agent`, `@question`'s "continue in"), not built in.
@@ -35,14 +37,16 @@ is the logic, with no AppKit (Composer is the input state machine, Command the `
 
 ## Checking your work
 
-- `make test` runs every unit and Rime test (a minute or two); `swift test --filter Name` while you iterate;
-  `swift build` builds every target.
+- `make test` runs every unit and Rime test, the core's and the app's (a few minutes); while you iterate,
+  `swift test --package-path Core --filter Name` for the core's tests, `swift test --filter Name` for the app's.
+  `swift build` builds every target of the app, the core's they use included.
 - The settings window: `make app`, then `build/AllInOneIME.app/Contents/MacOS/AllInOneIME --settings-image DIR` (add
   `zh` for Chinese) renders its pages to PNG files you can look at. Delete `build/AllInOneIME.app` afterwards.
 - Not possible on this Mac: `make selftest` (needs a Bedrock key), `make realtest` and `make install` (need an
   installed input method and Accessibility). Don't run them.
-- Tests under `Tests/*/Acceptance/` are written by a separate agent from the issue. The pipeline puts them back if
-  anyone else changes them: make the code pass them, and if you think one is wrong, say so in your summary.
+- Tests under `Core/Tests/*/Acceptance/` and `Tests/*/Acceptance/` are written by a separate agent from the issue. The
+  pipeline puts them back if anyone else changes them: make the code pass them, and if you think one is wrong, say so
+  in your summary.
 
 ## Docs, for changes a user would notice
 
