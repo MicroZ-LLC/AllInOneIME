@@ -222,12 +222,11 @@ def commit(message: str, start: str) -> str | None:
     return git("rev-parse", "HEAD")
 
 
-def changed_paths() -> list[str]:
-    """Paths the working tree changed since HEAD (staged, unstaged or untracked, not ignored)."""
-    git("add", "-A")
-    paths = git("diff", "--cached", "--name-only").splitlines()
-    git("reset", "-q")
-    return paths
+def changed_since(at: str) -> list[str]:
+    """Paths that differ from commit `at`: committed since, staged, unstaged or untracked (not ignored)."""
+    tracked = git("diff", "--name-only", at).splitlines()
+    untracked = git("ls-files", "--others", "--exclude-standard").splitlines()
+    return sorted(set(tracked) | set(untracked))
 
 
 def put_back(paths: list[str], at: str) -> list[str]:
@@ -248,14 +247,14 @@ def put_back(paths: list[str], at: str) -> list[str]:
 def guard(protected: list[str], protected_at: str | None, base_sha: str) -> list[str]:
     """Puts back what an implementer may not change: the test author's files and anything under .github/."""
     notes = [f"{p} (written by the test author)" for p in put_back(protected, protected_at)] if protected_at else []
-    workflow = [p for p in changed_paths() if p.startswith(".github/")]
+    workflow = [p for p in changed_since(base_sha) if p.startswith(".github/")]
     return notes + [f"{p} (.github/ is off limits)" for p in put_back(workflow, base_sha)]
 
 
 def tests_only(start: str) -> list[str]:
     """For the test author and the reproducer: drops their changes outside Tests/, returns the test files."""
-    put_back([p for p in changed_paths() if not p.startswith("Tests/")], start)
-    return changed_paths()
+    put_back([p for p in changed_since(start) if not p.startswith("Tests/")], start)
+    return changed_since(start)
 
 
 def prepare(base: str, branch: str) -> str:
@@ -301,7 +300,7 @@ class Checks:
         return f"{m[-1]} tests" if m else "the tests"
 
 
-FAILURE = [re.compile(r"^✘ Test (.+?)(?: with \d+ test cases?)? failed after", re.M),
+FAILURE = [re.compile(r"^✘ Test (?!run with )(.+?)(?: with \d+ test cases?)? failed after", re.M),
            re.compile(r"^Test Case '-\[(\S+ \S+)\]' failed", re.M)]
 
 
