@@ -106,9 +106,9 @@ struct PathCheckTests {
 
     /// An extension source's bundle path in its clone.
     @Test func aSourcesBundlePathStaysInItsClone() throws {
-        var out = ["..", "../x", "a/../../x"]
+        var out = ["..", "../x", "a/../../x", "a\0b", "\0", "ext/\0/x"]
         #if os(Windows)
-        out += ["..\\x", "a\\..\\..\\x", "C:\\x", "C:x"]
+        out += ["..\\x", "a\\..\\..\\x", "C:\\x", "C:x", "CON", "ext\\nul.txt"]
         #endif
         for path in out {
             let source = ExtensionSource(url: "https://example.com/r.git", path: path)

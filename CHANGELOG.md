@@ -38,7 +38,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Fixed
 
 - Web pages read for the AI no longer keep runs of blank space: spaces, tabs and no-break spaces in a row inside a line become one space.
-- Stricter checks of the files an extension bundle (`extension.json`'s `"script"`), a plugin (`plugin.json`'s `"script"`) or an extension source's bundle path names: a path that starts with a drive letter (`C:x`) or a backslash (`\\server\x`) is refused like one that starts with `/` or climbs out with `..`, and a script must stay inside its bundle's folder as written. A language pack with a Windows program or script in it (`.exe`, `.dll`, `.bat`, `.ps1`, …) is refused as code, like one with a `.sh`. Extensions, plugins and packs that worked before still do.
+- Stricter checks of the script an extension bundle (`extension.json`'s `"script"`) or a plugin (`plugin.json`'s `"script"`) names: a path that starts with a drive letter (`C:x`) or a backslash (`\x`, `\\server\x`) is refused, like one that starts with `/` or climbs out with `..`: a script must be a file inside its bundle's folder as written. An extension source's bundle path that climbs out of the repository with `..` loads nothing, as before (other paths, `/x` too, are folders of the repository), and now so does one with a NUL character in it. A language pack with a Windows program or script in it (`.exe`, `.dll`, `.bat`, `.ps1`, …) is refused as code, like one with a `.sh`. Extensions, plugins and packs that worked before still do.
 
 ## 0.6.4 (2026-10-16)
 
