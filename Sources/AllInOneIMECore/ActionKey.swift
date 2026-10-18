@@ -20,9 +20,10 @@ public enum ActionKey: Hashable, Sendable, CaseIterable {
 
     /// What a recorded key press becomes: Return, Space and ⌥Space are the keys with their own
     /// handling; a key that types text needs ⌃, ⌥ or ⌘ (else it couldn't be typed any more).
-    /// Nil: not usable (Esc, a plain letter). The Mac's key code.
-    public static func recorded(keyCode: UInt16, modifiers: KeyModifiers, name: String) -> ActionKey? {
-        recorded(KeyShortcut(keyCode: keyCode, modifiers: modifiers, name: name), key: MacKeyCodes.key(keyCode))
+    /// Nil: not usable (Esc, a plain letter). The Mac's key code, and the key's usage where the shell knows it better
+    /// than the table (`KeyEvent.init(keyCode:usage:…)`).
+    public static func recorded(keyCode: UInt16, usage: UInt16? = nil, modifiers: KeyModifiers, name: String) -> ActionKey? {
+        recorded(KeyShortcut(keyCode: keyCode, usage: usage, modifiers: modifiers, name: name), key: MacKeyCodes.key(keyCode))
     }
 
     /// `recorded(keyCode:…)` from another system's key: its `Key` and usage, in the Mac's terms (`roles.primary`, Ctrl on
@@ -95,9 +96,9 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
     public var modifiers: KeyModifiers
     public var name: String
 
-    public init(keyCode: UInt16, modifiers: KeyModifiers, name: String) {
+    public init(keyCode: UInt16, usage: UInt16? = nil, modifiers: KeyModifiers, name: String) {
         self.keyCode = keyCode
-        usage = MacKeyCodes.usage(keyCode)
+        self.usage = usage ?? MacKeyCodes.usage(keyCode)
         self.modifiers = modifiers
         self.name = name
     }

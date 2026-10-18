@@ -320,7 +320,10 @@ public enum MacKeyCodes {
         (0x53, .character, 0x59), (0x54, .character, 0x5A), (0x55, .character, 0x5B), (0x56, .character, 0x5C),  // keypad 1 2 3 4
         (0x57, .character, 0x5D), (0x58, .character, 0x5E), (0x59, .character, 0x5F), (0x5B, .character, 0x60),  // keypad 5 6 7 8
         (0x5C, .character, 0x61), (0x52, .character, 0x62), (0x41, .character, 0x63),                            // keypad 9 0 .
-        (0x0A, .character, 0x64),  // ISO §, next to left Shift (the HID's "Non-US \")
+        // kVK_ISO_Section: the HID's Non-US \ (next to the left Shift on ISO keyboards). On Apple's ISO keyboards macOS
+        // reports that key as kVK_ANSI_Grave and the § left of 1 as this: the Mac shell swaps the two before the usage
+        // (`MacKeyboard`, AllInOneIMEMac), as Chromium and Firefox do.
+        (0x0A, .character, 0x64),
         (0x6E, .other, 0x65),  // the context-menu key
         (0x51, .character, 0x67),  // keypad =
         (0x69, .f(13), 0x68), (0x6B, .f(14), 0x69), (0x71, .f(15), 0x6A), (0x6A, .f(16), 0x6B), (0x40, .f(17), 0x6C),
