@@ -203,8 +203,9 @@ final class AllInOneIMEInputController: IMKInputController {
     var readPageContext: @Sendable (pid_t, CGPoint) -> PageContext? = { PageContextReader.read(pid: $0, pointer: $1) }
     /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
     var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
-    /// `@note`: saves the text to Apple Notes (the self-test saves nothing).
-    var saveNote: @MainActor (String) async throws -> Void = { _ = try await NotesBridge.save($0) }
+    /// `@note`: where the text is saved (`Config.notes`: Apple Notes, a folder, Notion), made for each save (the self-test
+    /// supplies stand-ins, or a folder of its own).
+    var noteDestination: @MainActor (NoteSettings) -> any NoteDestination = { NoteSaving.destination($0) }
     /// `@reminder`: reads the reminder in a text by the real clock (the self-test may supply its own), and
     /// adds a confirmed one to Apple Reminders (the self-test adds nothing).
     var parseReminder: (String) -> ReminderDraft = { ReminderParser().parse($0, now: Date()) }
@@ -679,6 +680,13 @@ final class AllInOneIMEInputController: IMKInputController {
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language)
         composer.messages.actionKeyName = UIText.name(config.actionKey)
+        // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
+        // the Mac (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk up
+        // its tree here: on a network volume that went away, that can hang); it is looked up in the background.
+        let notes = noteDestination(config.notes)
+        UIText.noteDestinationName = notes.name
+        composer.noteLeavesDevice = notes.leavesDevice
+        nameNoteFolder(notes, settings: config.notes)
         composer.translateModeMessages = .make(language: UIText.language)
         translateModeFollow(config)  // Translate as You Type's target removed: the first output language at once
         nameAgent()  // the messages were just reset
@@ -1197,8 +1205,8 @@ final class AllInOneIMEInputController: IMKInputController {
                     showNotice(UIText.describe(error), client: target)
                 }
             case let .saveNote(text):
-                // Kept on this Mac, nothing goes to a model: not refused while secure input is on, unlike the
-                // requests above (the field that turned it on doesn't compose at all).
+                // Nothing goes to a model: kept on this Mac (Notes, a folder), not refused while secure input is on,
+                // unlike the requests above; to Notion it is (the composer refuses it, and so does `saveToNotes`).
                 saveToNotes(text)
             case let .previewReminder(input, id):
                 // Read here by the real clock (NSDataDetector and the parser's own rules), quick enough for
@@ -1500,21 +1508,52 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Notes and Reminders
 
-    /// `@note`: the text goes to Notes in the background (the first time, macOS asks whether this may
-    /// control Notes, and the save waits for the answer). 「正在存到备忘录…」 at once, up until a notice says it is
-    /// saved, or why not (`progressNoticeLimit` at most); a text that couldn't be saved is never lost
-    /// (`SaveOutcome`). Only its length is logged.
+    /// A folder destination's name ("Obsidian" when it is in a vault, else “Inbox”) looked up off the main thread (a
+    /// second at most, `VaultRoots`): the command list says it once it is known, while the settings still name it.
+    @MainActor
+    private func nameNoteFolder(_ destination: any NoteDestination, settings: NoteSettings) {
+        guard let folder = destination as? MarkdownFolderDestination else { return }
+        Task { @MainActor [weak self] in
+            let name = await Task.detached(priority: .utility) { folder.name }.value
+            guard let self, UIText.noteDestinationName != name, self.loadSettings().notes == settings else { return }
+            UIText.noteDestinationName = name
+        }
+    }
+
+    /// `@note`: the text goes where `Config.notes` says (`noteDestination`: Notes, a folder of Markdown files, Notion) in
+    /// the background (the first time, macOS may ask whether this may control Notes or write to the folder, and the save
+    /// waits for the answer). 「正在存到 Notion…」 at once, up until a notice says where it is saved, or why not
+    /// (`progressNoticeLimit` at most); a text that couldn't be saved is never lost (`SaveOutcome`). A saved note the
+    /// menu bar panel can list is posted (`.allInOneIMENoteSaved`). Only its length is logged.
     @MainActor
     private func saveToNotes(_ text: String) {
-        log.notice("@note: saving \(text.count) chars")
-        let progress = tr("正在存到备忘录…", "Saving to Notes…")
+        let destination = noteDestination(loadSettings().notes)
+        let name = destination.name
+        // The composer refuses it already; the setting may have changed since it was told.
+        if destination.leavesDevice, secureInputActive() {
+            log.notice("@note: not sent to Notion while secure input is on")
+            if let effects = composer.restoreDraft(.note, text: text) { perform(effects, client: nil) } else { copyText(text) }
+            showNotice(composer.messages.secureInputNote, client: nil)
+            return
+        }
+        // The kind of place, not its name (a folder's may say something of the user).
+        log.notice("@note: saving \(text.count) chars to \(String(describing: type(of: destination)), privacy: .public)")
+        let zhName = UIText.afterChineseWord(name)
+        let progress = tr("正在存到\(zhName)…", "Saving to \(name)…")
         showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
-        let (save, outcome) = (saveNote, SaveOutcome(from: self, progress: progress))
+        let outcome = SaveOutcome(from: self, progress: progress)
+        let draft = NoteDraft(text: text)
         Task { @MainActor in
             do {
-                try await save(text)
+                let saved = try await destination.save(draft)
                 log.notice("@note: saved")
-                outcome.saved(tr("已存到备忘录", "Saved to Notes"))
+                if let id = saved.id {
+                    NotificationCenter.default.post(name: .allInOneIMENoteSaved, object: nil, userInfo: ["id": id, "title": saved.title])
+                }
+                // Where it went as the save found out (off the main thread): a folder in a vault is Obsidian.
+                let went = saved.destinationName ?? name
+                let zhWent = UIText.afterChineseWord(went)
+                outcome.saved(tr("已存到\(zhWent)", "Saved to \(went)"))
             } catch {
                 log.error("@note: not saved: \(Self.errorKind(error), privacy: .public)")
                 outcome.failed(error, command: .note, text: text)
@@ -1608,6 +1647,8 @@ final class AllInOneIMEInputController: IMKInputController {
         case NotesBridge.NotesError.notPermitted, RemindersBridge.RemindersError.notPermitted,
              RemindersBridge.RemindersError.noAccount:
             return true
+        case let error as NoteError:
+            return error.needsTheUser
         default:
             return false
         }
@@ -2014,6 +2055,9 @@ final class AllInOneIMEInputController: IMKInputController {
         case RemindersBridge.RemindersError.noAccount: return "reminders no account"
         case RemindersBridge.RemindersError.notFound: return "reminder not found"
         case let RemindersBridge.RemindersError.failed(code): return "reminders error \(code)"
+        case let NoteError.notionRefused(code): return "notion refused \(code)"
+        case let NoteError.notionTrouble(status): return "notion http \(status)"
+        case let error as NoteError: return "note \(String(describing: error).prefix { $0 != "(" })"
         case let urlError as URLError: return "url \(urlError.code.rawValue)"
         default: return String(describing: type(of: error))
         }

@@ -157,7 +157,7 @@ enum UIText {
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
         case .settings: return tr("打开设置", "Open the settings")
-        case .note: return tr("存到备忘录", "Save to Notes")
+        case .note: return tr("存一条笔记到\(afterChineseWord(noteDestinationName))", "Save a note to \(noteDestinationName)")
         case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
         case .py: return tr("运行 Python，结果可以直接上屏", "Run Python; insert the result")
         case .js: return tr("运行 JavaScript，结果可以直接上屏", "Run JavaScript; insert the result")
@@ -276,7 +276,7 @@ enum UIText {
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
         case .settings: return tr("打开设置", "open the settings")
-        case .note: return tr("存到备忘录", "save to Notes")
+        case .note: return tr("存到\(afterChineseWord(noteDestinationName))", "save to \(noteDestinationName)")
         case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
         case .py: return tr("运行 Python", "run Python")
         case .js: return tr("运行 JavaScript", "run JavaScript")
@@ -302,6 +302,20 @@ enum UIText {
     /// The agent `@agent` hands the text to, by name (`AgentKind.displayName`; the controller sets it with the settings).
     /// Main thread only.
     static var agentName = AgentKind.claude.displayName()
+
+    /// Where `@note` saves, by name (`NoteDestination.name`: 备忘录 / Notes, Notion, Obsidian, “Inbox”; the controller
+    /// sets it with the settings). Main thread only.
+    static var noteDestinationName = tr("备忘录", "Notes")
+
+    /// `name` as it follows a Chinese word ("存到"): straight after it when it starts with Chinese or a full-width mark
+    /// (备忘录, “收件箱”, 「…」), else after a space (Notion, Obsidian).
+    static func afterChineseWord(_ name: String) -> String {
+        guard let first = name.unicodeScalars.first else { return name }
+        let joined = first.properties.isIdeographic || [0x201C, 0x2018].contains(first.value)
+            || (0x2E80...0x303F).contains(first.value) || (0x3040...0x30FF).contains(first.value)
+            || (0xAC00...0xD7AF).contains(first.value) || (0xFF00...0xFFEF).contains(first.value)
+        return joined ? name : " " + name
+    }
 
     /// Added to the notice when `@agent` took the Chrome page along: " · 带上了网页「标题」".
     static func withPage(_ title: String) -> String {
@@ -340,6 +354,7 @@ enum UIText {
            [Command.read, .py, .js, .webSearch].contains(where: { $0.name == name }) {
             return "@" + name + tr("：", ": ") + underlying
         }
+        if let error = error as? NoteError { return error.message(language: language) }
         if let error = error as? NotesBridge.NotesError {
             switch error {
             case .notPermitted:

@@ -135,6 +135,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var redaction: RedactionSettings
     /// Sync through iCloud (`ICloudSync`) and what syncs: this Mac's own, never synced. Off by default.
     public var iCloudSync: ICloudSyncSettings
+    /// Where `@note` saves (`NoteSettings`): Notes by default, a folder of Markdown files, or Notion. This Mac's own (a
+    /// path on it), never synced.
+    public var notes: NoteSettings
 
     /// The settings of an API-key provider, with its defaults filled in.
     public func settings(for provider: Provider) -> ProviderSettings {
@@ -219,6 +222,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.appProfiles = [:]
         self.redaction = RedactionSettings()
         self.iCloudSync = ICloudSyncSettings()
+        self.notes = NoteSettings()
         normalizeLanguages()
     }
 
@@ -243,6 +247,7 @@ public struct Config: Codable, Equatable, Sendable {
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
         case iCloudSync
+        case notes
         case extensionSources
         case provider, anthropic, gemini, openai
     }
@@ -324,6 +329,7 @@ public struct Config: Codable, Equatable, Sendable {
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
         extensionSources = ExtensionSource.decodeAll(c, forKey: .extensionSources)
         iCloudSync = (try? c.decodeIfPresent(ICloudSyncSettings.self, forKey: .iCloudSync)).flatMap { $0 } ?? d.iCloudSync
+        notes = (try? c.decodeIfPresent(NoteSettings.self, forKey: .notes)).flatMap { $0 } ?? d.notes
         provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
         anthropic = try c.decodeIfPresent(ProviderSettings.self, forKey: .anthropic) ?? d.anthropic
         gemini = try c.decodeIfPresent(ProviderSettings.self, forKey: .gemini) ?? d.gemini
@@ -451,6 +457,8 @@ public struct Config: Codable, Equatable, Sendable {
         if !extensionSources.isEmpty { try c.encode(extensionSources, forKey: .extensionSources) }
         // Only once it was turned on: a file from before sync doesn't gain the key.
         if iCloudSync != ICloudSyncSettings() { try c.encode(iCloudSync, forKey: .iCloudSync) }
+        // Only once it differs from Notes: a file from before the setting doesn't gain the key.
+        if notes != NoteSettings() { try c.encode(notes, forKey: .notes) }
         try c.encode(provider, forKey: .provider)
         try c.encode(anthropic, forKey: .anthropic)
         try c.encode(gemini, forKey: .gemini)

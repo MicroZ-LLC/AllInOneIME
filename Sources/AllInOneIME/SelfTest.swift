@@ -1345,12 +1345,15 @@ enum SelfTest {
         var notes: [String] = [], reminders: [ReminderDraft] = [], copied: [String] = []
         var failure: Error?
         var held = false  // a save waits while this is set (something is typed meanwhile)
-        let saved = (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+        let saved = (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
                      controller.readClipboard, controller.copyText)
-        controller.saveNote = { text in
-            while held { try await Task.sleep(nanoseconds: 10_000_000) }
-            if let failure { throw failure }
-            notes.append(text)
+        // Notes, as the settings have it by default: a stand-in for it.
+        controller.noteDestination = { _ in
+            StandInNotes { text in
+                while held { try await Task.sleep(nanoseconds: 10_000_000) }
+                if let failure { throw failure }
+                notes.append(text)
+            }
         }
         controller.addReminder = { reminder in
             while held { try await Task.sleep(nanoseconds: 10_000_000) }
@@ -1367,7 +1370,7 @@ enum SelfTest {
             }
         }
         defer {
-            (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+            (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
              controller.readClipboard, controller.copyText) = saved
             observers.forEach { NotificationCenter.default.removeObserver($0) }
         }
@@ -1392,7 +1395,7 @@ enum SelfTest {
         at()
         type("n", controller, client)
         let offered = controller.panelModel().rows.first
-        check(offered?.text == "@note" && offered?.comment == "存到备忘录",
+        check(offered?.text == "@note" && offered?.comment == "存一条笔记到备忘录",
               "@n offers @note first (\(offered?.text ?? "-") \(offered?.comment ?? ""))")
         tab()
         type("nihao", controller, client)
@@ -1611,7 +1614,7 @@ enum SelfTest {
             field.secureInputActive = { false }
             field.readClipboard = { .text("买牛奶") }
             field.copyText = { copied.append($0) }
-            field.saveNote = controller.saveNote
+            field.noteDestination = controller.noteDestination
             field.ensureEngine()
             field.applySettings()
             note("", in: field, otherClient)
@@ -1640,7 +1643,7 @@ enum SelfTest {
             terminal.secureInputActive = { false }
             terminal.readClipboard = { .text(lines) }
             terminal.copyText = { copied.append($0) }
-            terminal.saveNote = controller.saveNote
+            terminal.noteDestination = controller.noteDestination
             terminal.addReminder = controller.addReminder
             terminal.activateServer(terminalClient)
             /// ⌃V in an empty @note: the clipboard's lines in the draft.
@@ -3112,6 +3115,7 @@ enum SelfTest {
         controller.applySettings()
         testCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
+        testNoteDestinations(controller, client, snapshotDirectory: snapshotDirectory)
         testToolCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)

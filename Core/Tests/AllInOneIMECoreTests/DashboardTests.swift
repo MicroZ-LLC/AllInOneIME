@@ -59,28 +59,30 @@ struct DashboardTests {
     }
 
     @Test func notesListedByNotesUpdateAndDrop() {
+        // Notes' own ids: only those are checked against it.
+        func n(_ id: String) -> String { "x-coredata://T/ICNote/" + id }
         func saved() -> SavedNotes {
             var notes = SavedNotes()
-            notes.add(id: "old", title: "旧笔记", at: t0)
-            notes.add(id: "mid", title: "中间", at: t0 + 3600)
-            notes.add(id: "new", title: "新笔记", at: t0 + 7200)
+            notes.add(id: n("old"), title: "旧笔记", at: t0)
+            notes.add(id: n("mid"), title: "中间", at: t0 + 3600)
+            notes.add(id: n("new"), title: "新笔记", at: t0 + 7200)
             return notes
         }
         // The whole folder (fewer than asked for): titles follow edits, a missing note is gone; a note
         // whose first line is a picture (no name) keeps the title it had.
         var notes = saved()
-        let changed = notes.reconcile(with: [("new", "新笔记（改过）", t0 + 9000), ("old", "", t0 + 10)], limit: 200)
-        #expect(changed && notes.notes.map(\.id) == ["new", "old"] && notes.notes.map(\.title) == ["新笔记（改过）", "旧笔记"])
-        let again = notes.reconcile(with: [("new", "新笔记（改过）", t0 + 9000), ("old", "", t0 + 10)], limit: 200)
+        let changed = notes.reconcile(with: [(n("new"), "新笔记（改过）", t0 + 9000), (n("old"), "", t0 + 10)], limit: 200)
+        #expect(changed && notes.notes.map(\.id) == [n("new"), n("old")] && notes.notes.map(\.title) == ["新笔记（改过）", "旧笔记"])
+        let again = notes.reconcile(with: [(n("new"), "新笔记（改过）", t0 + 9000), (n("old"), "", t0 + 10)], limit: 200)
         #expect(!again)
         // A full list (as many as asked for): only notes saved after the oldest listed change can be
         // told to be gone (a minute's margin); older ones may just be further down the folder.
         notes = saved()
-        notes.reconcile(with: [("x", "x", t0 + 5000), ("y", "y", t0 + 1800)], limit: 2)
-        #expect(notes.notes.map(\.id) == ["old"])
+        notes.reconcile(with: [(n("x"), "x", t0 + 5000), (n("y"), "y", t0 + 1800)], limit: 2)
+        #expect(notes.notes.map(\.id) == [n("old")])
         notes = saved()
-        notes.reconcile(with: [("x", "x", t0 + 3590), ("y", "y", t0 + 3595)], limit: 2)
-        #expect(notes.notes.map(\.id) == ["mid", "old"])  // "mid" was saved within the minute: kept
+        notes.reconcile(with: [(n("x"), "x", t0 + 3590), (n("y"), "y", t0 + 3595)], limit: 2)
+        #expect(notes.notes.map(\.id) == [n("mid"), n("old")])  // "mid" was saved within the minute: kept
         // No such folder (Notes' default account switched, the folder renamed): that says nothing of
         // the notes saved, and none is dropped.
         notes = saved()

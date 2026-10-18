@@ -10588,6 +10588,53 @@
         }
       }
     },
+    "Choose Folder…" : {
+      "comment" : "选择文件夹… — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner auswählen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir carpeta…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir un dossier…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを選択…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 선택…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolher Pasta…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇檔案夾⋯"
+          }
+        }
+      }
+    },
     "Choose from Applications…" : {
       "comment" : "从「应用程序」里选… — Sources/AllInOneIME/AppProfiles.swift",
       "localizations" : {
@@ -12934,6 +12981,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新到 %@"
+          }
+        }
+      }
+    },
+    "Create Integration…" : {
+      "comment" : "创建集成… — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integration erstellen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear integración…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer une intégration…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテグレーションを作成…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "통합 만들기…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criar Integração…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立整合⋯"
           }
         }
       }
@@ -15770,6 +15864,53 @@
         }
       }
     },
+    "Folder (Obsidian or any)" : {
+      "comment" : "文件夹（Obsidian 等） — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner (z. B. Obsidian)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carpeta (Obsidian u otra)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dossier (Obsidian ou autre)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ（Obsidianなど）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 (Obsidian 등)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasta (Obsidian ou qualquer outra)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案夾（Obsidian 或其他）"
+          }
+        }
+      }
+    },
     "Follow the system" : {
       "comment" : "跟随系统 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -17182,6 +17323,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "英文模式下字母會直接輸入：目前沒有需要設定的。"
+          }
+        }
+      }
+    },
+    "In Notion, open the page → ··· → Connections → add your integration" : {
+      "comment" : "在 Notion 里打开那个页面 → ··· → 连接 → 加上你的集成 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Notion die Seite öffnen → ··· → Verbindungen → deine Integration hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En Notion, abre la página → ··· → Conexiones → añade tu integración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans Notion, ouvrez la page → ··· → Connexions → ajoutez votre intégration"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionでページを開く → ··· → コネクト → 作成したインテグレーションを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion에서 페이지 열기 → ··· → 연결 → 내 통합 추가"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Notion, abra a página → ··· → Conexões → adicione sua integração"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Notion 中打開該頁面 → ··· → 連線 → 加入你的整合"
           }
         }
       }
@@ -20723,6 +20911,53 @@
         }
       }
     },
+    "New integration → Internal → copy the token" : {
+      "comment" : "新建集成 → 内部 → 复制令牌 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Integration → Intern → Token kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva integración → Interna → copia el token"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvelle intégration → Interne → copiez le jeton"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいインテグレーション → 内部 → トークンをコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 통합 → 내부 → 토큰 복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nova integração → Interna → copie o token"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增整合 → 內部 → 拷貝權杖"
+          }
+        }
+      }
+    },
     "new issue on GitHub" : {
       "comment" : "在 GitHub 上新建问题 — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
@@ -21377,6 +21612,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有擴充功能。把腳本、擴充套件或 Raycast 腳本指令放進上方的檔案夾即可。"
+          }
+        }
+      }
+    },
+    "No folder chosen: notes go to Notes until you choose one" : {
+      "comment" : "还没选文件夹：笔记先存到备忘录 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Ordner ausgewählt: Bis du einen auswählst, werden Notizen in der App „Notizen“ gesichert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No has elegido ninguna carpeta: las notas van a Notas hasta que elijas una"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun dossier choisi : les notes sont enregistrées dans Notes jusqu’à ce que vous en choisissiez un"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダが選択されていません：選択するまではメモAppに保存されます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 폴더 없음: 폴더를 선택할 때까지 메모는 메모 앱에 저장됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma pasta escolhida: as notas vão para o Notas até você escolher uma"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未選擇檔案夾：選擇前，筆記會先儲存到「備忘錄」"
           }
         }
       }
@@ -23638,7 +23920,7 @@
       }
     },
     "Notes" : {
-      "comment" : "备忘录 — Sources/AllInOneIME/FloatingPanel.swift",
+      "comment" : "备忘录 — Sources/AllInOneIME/AppleNotesDestination.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23680,6 +23962,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "備忘錄"
+          }
+        }
+      }
+    },
+    "Notes (@note)" : {
+      "comment" : "笔记（@note） — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notizen (@note)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notas (@note)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes (@note)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモ（@note）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모 (@note)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notas (@note)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筆記（@note）"
           }
         }
       }
@@ -25476,6 +25805,53 @@
         }
       }
     },
+    "Opens it in Notion" : {
+      "comment" : "在 Notion 里打开 — Sources/AllInOneIME/FloatingPanel.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet sie in Notion"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La abre en Notion"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre la note dans Notion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionで開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion에서 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre no Notion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Notion 中打開"
+          }
+        }
+      }
+    },
     "Opens it in Terminal" : {
       "comment" : "在终端里打开 — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -25660,6 +26036,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開設定 → 自訂指令"
+          }
+        }
+      }
+    },
+    "Opens the Markdown file" : {
+      "comment" : "打开这个 Markdown 文件 — Sources/AllInOneIME/FloatingPanel.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet die Markdown-Datei"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre el archivo Markdown"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre le fichier Markdown"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdownファイルを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown 파일 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre o arquivo Markdown"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開這個 Markdown 檔案"
           }
         }
       }
@@ -25899,6 +26322,53 @@
         }
       }
     },
+    "Page or database link" : {
+      "comment" : "页面或数据库链接 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link zur Seite oder Datenbank"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enlace de la página o base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lien de la page ou de la base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ページまたはデータベースのリンク"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "페이지 또는 데이터베이스 링크"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link da página ou do banco de dados"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面或資料庫連結"
+          }
+        }
+      }
+    },
     "panel.clauseSeparator" : {
       "comment" : "， — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -25948,6 +26418,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "，"
+          }
+        }
+      }
+    },
+    "panel.notes" : {
+      "comment" : "笔记 — Sources/AllInOneIME/FloatingPanel.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notizen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筆記"
           }
         }
       }
@@ -26042,6 +26565,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上新的 API 金鑰"
+          }
+        }
+      }
+    },
+    "Paste a Notion integration token" : {
+      "comment" : "粘贴 Notion 集成的令牌 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integrationstoken für Notion einsetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pega un token de integración de Notion"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collez un jeton d’intégration Notion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionインテグレーションのトークンをペースト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 통합 토큰 붙여넣기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cole um token de integração do Notion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上 Notion 整合權杖"
           }
         }
       }
@@ -29947,6 +30517,53 @@
         }
       }
     },
+    "Remove the Notion token from the keychain?" : {
+      "comment" : "删除钥匙串里的 Notion 令牌？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion-Token aus dem Schlüsselbund entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar del llavero el token de Notion?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le jeton Notion du trousseau ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーチェーンからNotionのトークンを削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키체인에서 Notion 토큰을 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover o token do Notion das Chaves do macOS?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從鑰匙圈中移除 Notion 權杖嗎？"
+          }
+        }
+      }
+    },
     "Remove the recent questions from iCloud?" : {
       "comment" : "从 iCloud 移除最近的问题？ — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "localizations" : {
@@ -32397,6 +33014,53 @@
         }
       }
     },
+    "Save a note to %@" : {
+      "comment" : "存一条笔记到%@ — Sources/AllInOneIME/UIText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notiz in %@ sichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar una nota en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer une note dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 저장"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvar uma nota em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存筆記到%@"
+          }
+        }
+      }
+    },
     "Save and Use %@" : {
       "comment" : "保存并使用 %@ — Sources/AllInOneIME/KeyRow.swift",
       "localizations" : {
@@ -32444,96 +33108,96 @@
         }
       }
     },
-    "save to Notes" : {
-      "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift",
+    "Save to" : {
+      "comment" : "存到 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "in Notizen sichern"
+            "value" : "Sichern in"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "guardar en Notas"
+            "value" : "Guardar en"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "enregistrer dans Notes"
+            "value" : "Enregistrer dans"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモに保存"
+            "value" : "保存先"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모에 저장"
+            "value" : "저장 위치"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "salvar no Notas"
+            "value" : "Salvar em"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "儲存到「備忘錄」"
+            "value" : "儲存到"
           }
         }
       }
     },
-    "Save to Notes" : {
-      "comment" : "存到备忘录 — Sources/AllInOneIME/UIText.swift",
+    "save to %@" : {
+      "comment" : "存到%@ — Sources/AllInOneIME/UIText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In Notizen sichern"
+            "value" : "in %@ sichern"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guardar en Notas"
+            "value" : "guardar en %@"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enregistrer dans Notes"
+            "value" : "enregistrer dans %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモに保存"
+            "value" : "%@に保存"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모에 저장"
+            "value" : "%@에 저장"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salvar no Notas"
+            "value" : "salvar em %@"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "儲存到「備忘錄」"
+            "value" : "儲存到%@"
           }
         }
       }
@@ -32632,96 +33296,96 @@
         }
       }
     },
-    "Saved to Notes" : {
-      "comment" : "已存到备忘录 — Sources/AllInOneIME/InputController.swift",
+    "Saved to %@" : {
+      "comment" : "已存到%@ — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In Notizen gesichert"
+            "value" : "In %@ gesichert"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guardado en Notas"
+            "value" : "Guardado en %@"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enregistré dans Notes"
+            "value" : "Enregistré dans %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモに保存しました"
+            "value" : "%@に保存しました"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모에 저장됨"
+            "value" : "%@에 저장됨"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salvo no Notas"
+            "value" : "Salvo em %@"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已儲存到「備忘錄」"
+            "value" : "已儲存到%@"
           }
         }
       }
     },
-    "Saving to Notes…" : {
-      "comment" : "正在存到备忘录… — Sources/AllInOneIME/InputController.swift",
+    "Saving to %@…" : {
+      "comment" : "正在存到%@… — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wird in Notizen gesichert …"
+            "value" : "Wird in %@ gesichert …"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guardando en Notas…"
+            "value" : "Guardando en %@…"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enregistrement dans Notes…"
+            "value" : "Enregistrement dans %@…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモに保存中…"
+            "value" : "%@に保存中…"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모에 저장하는 중…"
+            "value" : "%@에 저장하는 중…"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salvando no Notas…"
+            "value" : "Salvando em %@…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在儲存到「備忘錄」⋯"
+            "value" : "正在儲存到%@⋯"
           }
         }
       }
@@ -39966,6 +40630,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天的日期"
+          }
+        }
+      }
+    },
+    "Token" : {
+      "comment" : "令牌 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeton"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "토큰"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權杖"
           }
         }
       }

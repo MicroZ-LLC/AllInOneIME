@@ -142,6 +142,53 @@
         }
       }
     },
+    " (database)" : {
+      "comment" : "（数据库） — Sources/AllInOneIMECore/NotionNotes.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (Datenbank)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (base de datos)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (base de données)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（データベース）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (데이터베이스)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (banco de dados)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（資料庫）"
+          }
+        }
+      }
+    },
     " (fix it in the file, Settings → Advanced; it's never deleted for you)" : {
       "comment" : "（打开设置 → 高级 → 配置文件修正它；不会自动删除） — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -232,6 +279,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "（會被忽略）"
+          }
+        }
+      }
+    },
+    " (page)" : {
+      "comment" : "（页面） — Sources/AllInOneIMECore/NotionNotes.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (Seite)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (página)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (page)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（ページ）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (페이지)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (página)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（頁面）"
           }
         }
       }
@@ -8937,6 +9031,53 @@
         }
       }
     },
+    "Not a Notion link" : {
+      "comment" : "不是 Notion 链接 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Notion-Link"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No es un enlace de Notion"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce n’est pas un lien Notion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionのリンクではありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 링크가 아님"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não é um link do Notion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是 Notion 連結"
+          }
+        }
+      }
+    },
     "not a valid AWS region" : {
       "comment" : "不是有效的 AWS 区域 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -9501,6 +9642,288 @@
         }
       }
     },
+    "Notion didn't answer within %@ s" : {
+      "comment" : "Notion %@ 秒内没有回应 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion hat nicht innerhalb von %@ s geantwortet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion no respondió en %@ s"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion n’a pas répondu en %@ s"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionから%@秒以内に応答がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion이 %@초 안에 응답하지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion não respondeu em %@ s"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 在 %@ 秒內沒有回應"
+          }
+        }
+      }
+    },
+    "Notion is busy: try again in a moment" : {
+      "comment" : "Notion 正忙：稍后再试 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion ist gerade ausgelastet: Versuch es gleich noch einmal"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion está ocupado: vuelve a intentarlo en un momento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion est occupé : réessayez dans un instant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionが混み合っています：しばらくしてからもう一度お試しください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 서버가 혼잡함: 잠시 후 다시 시도하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion está ocupado: tente de novo em instantes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 忙碌中：請稍後再試"
+          }
+        }
+      }
+    },
+    "Notion is having trouble (HTTP %@)" : {
+      "comment" : "Notion 出了问题（HTTP %@） — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion hat Probleme (HTTP %@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion tiene problemas (HTTP %@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion rencontre un problème (HTTP %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionで問題が発生しています（HTTP %@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion에 문제가 발생함 (HTTP %@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion está com problemas (HTTP %@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 發生問題（HTTP %@）"
+          }
+        }
+      }
+    },
+    "Notion isn't set up: Settings → Plugins → Notes" : {
+      "comment" : "Notion 还没设置好：设置 → 插件 → 笔记 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion ist nicht eingerichtet: Einstellungen → Plug-ins → Notizen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion no está configurado: Ajustes → Plugins → Notas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion n’est pas configuré : Réglages → Plug-ins → Notes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionが設定されていません：設定 → プラグイン → メモ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion이 설정되지 않음: 설정 → 플러그인 → 메모"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion não está configurado: Ajustes → Plug-ins → Notas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未設定 Notion：設定 → 外掛 → 筆記"
+          }
+        }
+      }
+    },
+    "Notion refused the note (%@)" : {
+      "comment" : "Notion 没有接受这条笔记（%@） — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion hat die Notiz abgelehnt (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion rechazó la nota (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion a refusé la note (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionがメモを受け付けませんでした（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion에서 메모를 거부함 (%@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion recusou a nota (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 拒絕了這則筆記（%@）"
+          }
+        }
+      }
+    },
+    "Notion refused the note: open Settings → Plugins → Notes and press Test" : {
+      "comment" : "Notion 没有接受这条笔记：打开设置 → 插件 → 笔记，按「测试」 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion hat die Notiz abgelehnt: Öffne Einstellungen → Plug-ins → Notizen und klicke auf „Testen“"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion rechazó la nota: abre Ajustes → Plugins → Notas y pulsa “Probar”"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion a refusé la note : ouvrez Réglages → Plug-ins → Notes et cliquez sur « Tester »"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionがメモを受け付けませんでした：設定 → プラグイン → メモを開いて「テスト」をクリックしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion에서 메모를 거부함: 설정 → 플러그인 → 메모를 열고 테스트를 누르세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Notion recusou a nota: abra Ajustes → Plug-ins → Notas e clique em Testar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 拒絕了這則筆記：請打開設定 → 外掛 → 筆記，按「測試」"
+          }
+        }
+      }
+    },
     "off" : {
       "comment" : "关 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -9544,6 +9967,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉"
+          }
+        }
+      }
+    },
+    "Offline: not saved to Notion" : {
+      "comment" : "没有联网：没有存到 Notion — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline: nicht in Notion gesichert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin conexión: no se guardó en Notion"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hors ligne : non enregistré dans Notion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフラインです：Notionに保存できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오프라인: Notion에 저장하지 못함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline: não salvo no Notion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前離線：未儲存到 Notion"
           }
         }
       }
@@ -11424,6 +11894,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安全輸入已開啟（密碼欄位或鎖定畫面）：對話未送出"
+          }
+        }
+      }
+    },
+    "Secure input is on: not saved to Notion" : {
+      "comment" : "系统安全输入已开启，没有存到 Notion — Sources/AllInOneIMECore/Composer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichere Eingabe ist aktiv: nicht in Notion gesichert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada segura está activada: no se guardó en Notion"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La saisie sécurisée est activée : non enregistré dans Notion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セキュア入力がオンです：Notionには保存しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보안 입력이 켜져 있음: Notion에 저장하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada segura ativada: não salvo no Notion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全輸入已開啟：未儲存到 Notion"
           }
         }
       }
@@ -13481,6 +13998,147 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "備忘錄未儲存；文字已在剪貼簿中"
+          }
+        }
+      }
+    },
+    "The notes folder is gone: choose it again in Settings" : {
+      "comment" : "笔记文件夹不在了：在设置里重新选择 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Notizordner ist nicht mehr vorhanden: in den Einstellungen erneut auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carpeta de notas ya no existe: vuelve a elegirla en Ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le dossier des notes n’existe plus : choisissez-le de nouveau dans les réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモの保存先フォルダが見つかりません：設定で選択し直してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모 폴더가 더 이상 없음: 설정에서 다시 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A pasta de notas não existe mais: escolha-a de novo nos Ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筆記檔案夾已不存在：請在設定中重新選擇"
+          }
+        }
+      }
+    },
+    "The Notion page isn't shared with your integration: ··· → Connections" : {
+      "comment" : "这个 Notion 页面没有分享给你的集成：··· → 连接 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Notion-Seite ist nicht für deine Integration freigegeben: ··· → Verbindungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La página de Notion no está compartida con tu integración: ··· → Conexiones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La page Notion n’est pas partagée avec votre intégration : ··· → Connexions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionのページがインテグレーションと共有されていません：··· → コネクト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 페이지가 내 통합과 공유되지 않음: ··· → 연결"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A página do Notion não está compartilhada com sua integração: ··· → Conexões"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Notion 頁面尚未分享給你的整合：··· → 連線"
+          }
+        }
+      }
+    },
+    "The Notion token isn't valid: paste a new one in Settings → Plugins" : {
+      "comment" : "Notion 令牌无效：在设置 → 插件里粘贴新的 — Sources/AllInOneIMECore/NoteDestination.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Notion-Token ist ungültig: in Einstellungen → Plug-ins ein neues einsetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El token de Notion no es válido: pega uno nuevo en Ajustes → Plugins"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le jeton Notion n’est pas valide : collez-en un nouveau dans Réglages → Plug-ins"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notionのトークンが無効です：設定 → プラグインで新しいトークンをペーストしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 토큰이 유효하지 않음: 설정 → 플러그인에서 새 토큰을 붙여넣으세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O token do Notion não é válido: cole um novo em Ajustes → Plug-ins"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion 權杖無效：請在設定 → 外掛中貼上新的權杖"
           }
         }
       }

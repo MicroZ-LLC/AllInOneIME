@@ -271,6 +271,8 @@ public final class Composer {
         public var agentNames: [AgentKind: String] = [:]
         /// The action key's name in the interface language (the controller sets it).
         public var actionKeyName = "⏎"
+        /// `@note` to Notion (`noteLeavesDevice`) while secure input is on: nothing is saved.
+        public var secureInputNote = "系统安全输入已开启，没有存到 Notion"
         /// What `@reply` and a screenshot in a draft say (Composer+Reply.swift).
         public var reply = ReplyMessages.chinese
         /// A snippet's text, filled in, longer than `Composer.maxNoteLength`: nothing goes in.
@@ -341,6 +343,7 @@ public final class Composer {
                 scriptStarted: t.tr("在后台运行，完成后通知你：", "Running in the background, you'll be notified: "),
                 cantOpen: t.tr("打不开：", "Can't open: "),
                 openedAgent: t.tr("已在终端打开 {agent}", "Opened {agent} in Terminal"),
+                secureInputNote: t.tr("系统安全输入已开启，没有存到 Notion", "Secure input is on: not saved to Notion"),
                 reply: .make(language: language),
                 snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
                 snippetSelectionTooLong: t.tr("选中的文字太长：最多 \(Composer.maxSelectionLength) 字", "The selected text is too long: \(Composer.maxSelectionLength) characters at most"),
@@ -516,8 +519,11 @@ public final class Composer {
     /// Whether secure input is on anywhere (set by the input controller). Nothing is sent to a model
     /// then: a terminal command doesn't start its agent or program, and its text stays in the draft. (The other
     /// commands are refused by the controller, which sends their requests; `@note` and `@reminder`
-    /// stay on this Mac and go ahead.)
+    /// stay on this Mac and go ahead, but for `@note` to Notion: `noteLeavesDevice`.)
     public var secureInputActive: () -> Bool = { false }
+    /// Whether `@note` sends the note off this Mac (`NoteDestination.leavesDevice`: Notion), as the controller sets it
+    /// from where it saves: then it isn't saved while secure input is on (`Messages.secureInputNote`), its draft stays.
+    public var noteLeavesDevice = false
     /// Why AI commands don't run here (the app's profile says no AI, `AppProfile.noAI`), as the notice says it; nil:
     /// they do. Asked when a command starts (set by the input controller, for the app being typed in): a command
     /// that sends its text to a model (`Command.usesAI`) is refused, before any command inside its text runs, and its
@@ -2704,8 +2710,9 @@ public final class Composer {
             return .consumed(finish(committing: "") + [.runInTerminal(prompt: input), .notice(messages.openedTerminal), usage])
         }
         if let command = parsed?.command, command.kind == .note {
-            // Saved on this Mac (Apple Notes) and nothing goes to a model, so secure input doesn't hold it
-            // back. The controller says when it is saved, or why not.
+            // Saved on this Mac (Notes, a folder) and nothing goes to a model, so secure input doesn't hold it
+            // back; but a note to Notion leaves the Mac. The controller says when it is saved, or why not.
+            if noteLeavesDevice, secureInputActive() { return .consumed([.updateMarkedText, .notice(messages.secureInputNote)]) }
             let usage = used(command)
             return .consumed(finish(committing: "") + [.saveNote(text: input), usage])
         }
