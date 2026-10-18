@@ -52,13 +52,14 @@ public struct RedactionSettings: Codable, Equatable, Sendable {
     }
 
     /// The words field's edit applied to `list`, the words as they are now (read again first: sync through iCloud may
-    /// have brought another Mac's): the words taken out of the field since it showed `shown` go, the words typed in are
-    /// added, and the others, one added elsewhere since included, stay.
+    /// have brought another Mac's): the words taken out of the field since it showed `shown` go, the words typed in
+    /// (those it didn't show) are added, and the others, one added elsewhere since included, stay. A word the field
+    /// still shows that is gone from `list` (deleted on another Mac meanwhile) stays deleted.
     public static func edited(_ list: [String], field text: String, shown: [String]) -> [String] {
         let typed = words(from: text)
         let removed = Set(shown).subtracting(typed)
         var out = list.filter { !removed.contains($0) }
-        for word in typed where !out.contains(word) { out.append(word) }
+        for word in typed where !shown.contains(word) && !out.contains(word) { out.append(word) }
         return out
     }
 }
