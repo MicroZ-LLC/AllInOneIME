@@ -52,9 +52,10 @@ let package = Package(
 
         // QuickJS-ng's C sources as released (VENDORED.md), its header and quickjs-swift.h for Swift (module.modulemap).
         // Flat, as upstream has them, so their includes are each other's; the defines and libm are upstream's CMake ones.
+        // Each .c is built through its swift-*.c, which includes it with -Wshorten-64-to-32 off, so it is excluded.
         .target(
             name: "CQuickJS",
-            exclude: ["LICENSE", "VENDORED.md"],
+            exclude: ["LICENSE", "VENDORED.md", "quickjs.c", "dtoa.c", "libregexp.c", "libunicode.c"],
             publicHeadersPath: ".",
             cSettings: [
                 .define("_GNU_SOURCE"),
