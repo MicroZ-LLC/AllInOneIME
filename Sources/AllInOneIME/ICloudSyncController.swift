@@ -257,7 +257,8 @@ final class ICloudSyncController: ObservableObject {
     /// API keys and passwords through iCloud Keychain as the config says (`ICloudSyncSettings.syncsKeys`), when it changed
     /// (in Settings, through the Assistant, while the input method wasn't running): turned on, this Mac's keys move into
     /// iCloud Keychain; turned off, the synced ones are copied here and left in iCloud Keychain for the other Macs
-    /// (`KeySync.Stores.turn`). A move that failed is tried again on the next run.
+    /// (`KeySync.Stores.turn`). A move that failed, or left a key behind (one that couldn't be read, or whose copy didn't
+    /// read back as written), isn't marked done: it is tried again on the next run.
     func applyKeySync() {
         guard let keys else { return }
         let wanted = settings.syncsKeys
@@ -269,13 +270,17 @@ final class ICloudSyncController: ObservableObject {
         }
         do {
             let moves = try keys.turn(syncing: wanted)
+            guard moves.isComplete else {
+                log.error("keys not all moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain, tried again later: \(moves.waiting.count) unreadable, \(moves.mismatched.count) not read back as written")
+                return
+            }
             if wanted {
                 try? fm.createDirectory(at: keysSyncedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                 fm.createFile(atPath: keysSyncedURL.path, contents: Data())
             } else {
                 try? fm.removeItem(at: keysSyncedURL)
             }
-            log.notice("keys \(wanted ? "sync through iCloud Keychain" : "stay on this Mac", privacy: .public): \(moves.moved.count) moved, \(moves.superseded.count) newer already, \(moves.mismatched.count + moves.waiting.count) not moved")
+            log.notice("keys \(wanted ? "sync through iCloud Keychain" : "stay on this Mac", privacy: .public): \(moves.moved.count) moved, \(moves.superseded.count) newer already")
         } catch {
             log.error("keys not moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain: \(String(describing: error), privacy: .public)")
         }

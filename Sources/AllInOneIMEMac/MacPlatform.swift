@@ -8,16 +8,22 @@ extension Platform {
     ///
     /// The keys: in the input method signed with the provisioning profile (entitled to the shared keychain access group),
     /// the data protection keychain, synced through iCloud Keychain as the config says (`KeySync.system`, its switch set
-    /// here); anywhere else (a development or ad-hoc build, the command line, the installer) the login keychain, as before.
+    /// once from the config, then by the sync controller when the config changes); anywhere else (a development or ad-hoc
+    /// build, the command line, the installer) the login keychain, as before.
     public static var mac: Platform {
         var platform = Platform()
         platform.processes = MacProcessLauncher()
-        if let keys = KeySync.system {
-            keys.start(syncing: ((try? Config.load()) ?? .default).iCloudSync.syncsKeys)
-            platform.secrets = keys.store
-        }
+        if let macKeys { platform.secrets = macKeys }
         return platform
     }
+
+    /// The routed store of `KeySync.system`, its switch set as the config has it at launch: once, however often `mac` is
+    /// asked for.
+    private static let macKeys: SecretStore? = {
+        guard let keys = KeySync.system else { return nil }
+        keys.start(syncing: ((try? Config.load()) ?? .default).iCloudSync.syncsKeys)
+        return keys.store
+    }()
 }
 
 /// Programs as the input method starts them on the Mac: Foundation's `Process` (`FoundationProcessLauncher`), with the

@@ -78,7 +78,12 @@ extension SelfTest {
             store.kind = kind
             return store
         }
-        let local = store(.local), synced = store(.synced), legacy = store(.legacy)
+        let local = store(.local), legacy = store(.legacy)
+        // iCloud Keychain, with keys that can be made unreadable (not there yet, say).
+        let unreadable = Locked<Set<String>>(initialState: [])
+        var synced = store(.synced)
+        let syncedItems = synced
+        synced.read = { account in unreadable.withLock { $0.contains(account) } ? nil : syncedItems.read(account) }
         let stores = KeySync.Stores(local: local, synced: synced, legacy: legacy)
         sync.keys = stores
         try? fm.removeItem(at: sync.keysSyncedURL)
@@ -115,6 +120,12 @@ extension SelfTest {
               "keys are read from iCloud Keychain, and that's remembered")
 
         edit { $0.keys = false }
+        unreadable.withLock { $0 = ["gemini"] }
+        sync.applyKeySync()
+        check(!stores.syncing && local.read("openai") == openAI && local.attributes("gemini") == nil
+              && fm.fileExists(atPath: sync.keysSyncedURL.path),
+              "turned off with a synced key unreadable: the others copied here, and it isn't marked done (tried again)")
+        unreadable.withLock { $0 = [] }
         sync.applyKeySync()
         check(!stores.syncing && local.read("openai") == openAI && local.read("gemini") == gemini
               && synced.read("openai") == openAI && synced.read("gemini") == gemini && !fm.fileExists(atPath: sync.keysSyncedURL.path),
