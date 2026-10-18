@@ -4,8 +4,9 @@ import AllInOneIMEScriptEngine
 /// QuickJS-ng (Sources/CQuickJS), the JavaScript of the systems without JavaScriptCore: Windows, Linux and Android.
 /// Like JavaScriptCore, the language and nothing else (no files, programs, network or timers), with the values
 /// JavaScriptCore gives Swift (`QuickJSValue`). Unlike it, a script can be stopped where it runs (`limitTime`,
-/// `QuickJSContext.interrupter`): each context is a runtime of its own, with its clock, its memory (`MemoryBudget`),
-/// and a stack limit that fits the thread it runs on (`ThreadStack`).
+/// `QuickJSContext.interrupter`), as far as QuickJS checks (best effort: see `limitTime`): each context is a runtime of
+/// its own, with its clock, its memory (`MemoryBudget`), and a stack limit that fits the thread it runs on
+/// (`ThreadStack`).
 public struct QuickJSEngine: ScriptEngine {
     /// The most a context's scripts may allocate, in bytes; past it what allocates throws ("out of memory").
     public var memoryLimit: Int
@@ -56,6 +57,13 @@ public final class QuickJSContext: ScriptEngineContext {
 
     /// From now on, `seconds` more for whatever runs here: past them a running script throws ("InternalError:
     /// interrupted", which it can't catch), and so does any script or call after it. `.infinity` lifts the limit.
+    ///
+    /// Best effort: QuickJS checks the clock as scripts run (loops, calls, regular expressions, promise jobs), but some
+    /// of its built-in functions loop in C without checking it, and those run to their end however long that takes:
+    /// `reverse`, `copyWithin`, `shift`, `unshift`, `splice`, `sort`, `join` and `flat` on an array-like object with an
+    /// enormous `length` (`Array.prototype.reverse.call({length: 2 ** 53 - 1})` runs on long past any limit). So a
+    /// script from anyone but the core itself still runs in a child process that can be killed (as `PluginHost` and
+    /// `--run-js` do); this limit only makes the usual stuck script end sooner and with an error.
     public func limitTime(to seconds: Double) -> Bool {
         runtime.clock.limit(to: seconds)
         return true
@@ -67,6 +75,7 @@ public final class QuickJSContext: ScriptEngineContext {
     }
 
     /// `interrupt`, for another thread to call while a script runs here (Esc, say): the context itself stays on its own.
+    /// Best effort, as `limitTime`: a built-in function that doesn't check runs on until it returns.
     public var interrupter: @Sendable () -> Void {
         let clock = runtime.clock
         return { clock.interrupt() }

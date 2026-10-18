@@ -25,7 +25,10 @@ public protocol ScriptEngineContext: AnyObject {
     /// for `setGlobal`; nil: undefined).
     func function(_ body: @escaping ([any ScriptValue]) -> Any?) -> any ScriptValue
     /// Stops whatever runs here once it has run `seconds` (it throws). False when the engine can't: then the script
-    /// has to run where it can be stopped from outside (a child process, as on the Mac).
+    /// has to run where it can be stopped from outside (a child process, as on the Mac). True is best effort, not a
+    /// promise: an engine stops a script where it checks the clock, and some of its built-in functions run long without
+    /// checking (QuickJS-ng's `Array.prototype.reverse.call({length: 2 ** 53 - 1})`, say). Plugins and `@js` run in a
+    /// child process all the same, which the runner kills (`PluginHost`, `--run-js`).
     func limitTime(to seconds: Double) -> Bool
 }
 
