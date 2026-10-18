@@ -289,7 +289,8 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-# The core's lint guards (platform-neutral, standalone) and its products' release build, then its tests (Core/, a package of its own) with the input
+# The core's lint guards (platform-neutral, standalone), its products' release build and the String Catalog tool's
+# check, Core/.split-paths' paths free in the root; then the core's tests (Core/, a package of its own) with the input
 # method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
 # after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
 test: deps strings-check check-ios
@@ -298,6 +299,7 @@ test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-standalone.sh
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
+	Scripts/check-split-paths.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
 	ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
