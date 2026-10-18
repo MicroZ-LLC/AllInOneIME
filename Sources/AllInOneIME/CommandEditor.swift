@@ -2,11 +2,16 @@ import AllInOneIMECore
 import AllInOneIMEMac
 import SwiftUI
 
-/// A custom @ command being added (`index` nil) or edited in the settings.
+/// A custom @ command being added (`index` nil) or edited in the settings: the place the list showed it at, and the
+/// command as it was then.
 struct CommandEdit: Identifiable {
     let id = UUID()
     var index: Int?
     var command: CustomCommand
+
+    /// The name of the command being edited (nil: one being added). The edit is saved by it, never by `index`: sync
+    /// through iCloud may change the list while the editor is open (`SettingsModel.saveCommand`).
+    var original: String? { index == nil ? nil : command.name }
 }
 
 /// The form for one custom @ command: its name, what it does (an instruction for the AI, a program
