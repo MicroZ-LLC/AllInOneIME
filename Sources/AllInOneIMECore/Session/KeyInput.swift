@@ -283,14 +283,24 @@ public enum WindowsKeyCodes {
         usageByScanCode[(extended ? 0xE000 : 0) | UInt16(scanCode)] ?? 0
     }
 
+    /// The Shift Windows sends of its own around a keypad key pressed with Shift while Num Lock is on, to make it the
+    /// navigation key (E0 2A or E0 36, and E0 AA or E0 B6 as its release: Shift's scan code with the extended bit). No
+    /// key was pressed: the shell drops it, so it is never a tap of Shift (and `key(virtualKey:usage:)`, its usage
+    /// being 0, makes it no Shift either).
+    public static func isFakeShift(scanCode: UInt8, extended: Bool) -> Bool {
+        extended && (scanCode == 0x2A || scanCode == 0x36)
+    }
+
     /// A virtual key's `Key`. The keys Windows gives one code for both of (`VK_RETURN`, `VK_SHIFT`, `VK_CONTROL`,
-    /// `VK_MENU`) are told apart by the key's `usage` (`usage(scanCode:extended:)`).
+    /// `VK_MENU`) are told apart by the key's `usage` (`usage(scanCode:extended:)`); a `VK_SHIFT` at neither Shift's
+    /// usage (`isFakeShift`'s) is `.other`.
     public static func key(virtualKey vk: UInt16, usage: UInt16) -> Key {
         switch vk {
         case 0x08: return .backspace                                   // VK_BACK
         case 0x09: return .tab                                         // VK_TAB
         case 0x0D: return usage == 0x58 ? .keypadEnter : .enter        // VK_RETURN
-        case 0x10: return .modifier(.shift, usage == 0xE5 ? .right : .left)    // VK_SHIFT
+        case 0x10:                                                     // VK_SHIFT
+            return usage == 0xE1 ? .modifier(.shift, .left) : usage == 0xE5 ? .modifier(.shift, .right) : .other
         case 0x11: return .modifier(.control, usage == 0xE4 ? .right : .left)  // VK_CONTROL
         case 0x12: return .modifier(.option, usage == 0xE6 ? .right : .left)   // VK_MENU (Alt)
         case 0x14: return .capsLock                                    // VK_CAPITAL

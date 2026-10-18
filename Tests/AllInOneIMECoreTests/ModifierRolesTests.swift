@@ -125,6 +125,37 @@ extension ComposerTests {
         #expect(pc(.character, 0x14, "q", [.control, .option]).printableText == nil)
     }
 
+    /// Shift+keypad 7 with Num Lock on, as Windows sends it: real Shift down, its own Shift up (E0 AA), Home, its own
+    /// Shift down (E0 2A), real Shift up. No tap of Shift: the language stays.
+    @Test func windowsOwnShiftIsNoTap() {
+        typealias Change = (scanCode: UInt8, extended: Bool, down: Bool)
+        let numLockSeven: [Change] = [(0x2A, false, true), (0x2A, true, false), (0x2A, true, true), (0x2A, false, false)]
+        #expect(WindowsKeyCodes.isFakeShift(scanCode: 0x2A, extended: true) && WindowsKeyCodes.isFakeShift(scanCode: 0x36, extended: true))
+        #expect(!WindowsKeyCodes.isFakeShift(scanCode: 0x2A, extended: false) && !WindowsKeyCodes.isFakeShift(scanCode: 0x36, extended: false))
+        #expect(WindowsKeyCodes.key(virtualKey: 0x10, usage: WindowsKeyCodes.usage(scanCode: 0x2A, extended: true)) == .other)
+
+        /// The changes as a shell gives them (`drops`: it leaves out Windows' own, as it should), with Home between.
+        func language(after changes: [Change], drops: Bool) -> Language {
+            let c = Composer(engine: FakeEngine(), actionKey: .enter)
+            c.modifierRoles = .windows
+            var time = 1.0
+            for (i, change) in changes.enumerated() {
+                if i == 2 { _ = c.handleKeyDown(pc(.home, 0x4A)) }
+                guard !drops || !WindowsKeyCodes.isFakeShift(scanCode: change.scanCode, extended: change.extended) else { continue }
+                let usage = WindowsKeyCodes.usage(scanCode: change.scanCode, extended: change.extended)
+                let key = WindowsKeyCodes.key(virtualKey: 0x10, usage: usage)
+                _ = c.handleFlagsChanged(key: key, modifiers: change.down ? [.shift, .leftShift] : [], timestamp: time)
+                time += 0.05
+            }
+            return c.inputLanguage
+        }
+        let start = Composer(engine: FakeEngine(), actionKey: .enter).inputLanguage
+        #expect(language(after: numLockSeven, drops: true) == start)
+        #expect(language(after: numLockSeven, drops: false) == start)  // even let through, Windows' own is no Shift
+        // A real tap still switches.
+        #expect(language(after: [(0x2A, false, true), (0x2A, false, false)], drops: true) != start)
+    }
+
     @Test func theMacsRolesAreTheMacsKeys() {
         let mac = ModifierRoles.mac
         #expect(mac.primary == .command && mac.word == .option && mac.lineEdge == .command && mac.pasteAnywhere == .control)
