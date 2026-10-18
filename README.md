@@ -206,7 +206,7 @@ When a save fails (no permission, say), the notice says why and the text comes b
 ### Your own commands
 
 In the settings, under "Custom @ Commands", click "Add Command…": give it a name and choose what it does (an AI
-instruction, a program, a program in Terminal, or a web page), or start from an example. Your commands come after the built-in
+instruction, a program, a program in Terminal, a web page, or a text to insert), or start from an example. Your commands come after the built-in
 ones; names are English letters only and can't be a built-in command's; they work from the next sentence.
 They're kept in `customCommands` in the config file (`~/.config/allinoneime/config.json`), which you can also edit:
 
@@ -216,7 +216,8 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
   { "name": "bc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
-  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }
+  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" },
+  { "name": "sig", "type": "snippet", "summary": "Email signature", "text": "Best,\nWei\n{cursor}" }
 ]
 ```
 
@@ -226,6 +227,7 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 | `run` | Runs `argv` in the background; what it prints appears in the candidates (several lines are inserted as printed, in a terminal as one line). On an error, its last line is shown |
 | `terminal` | Runs `argv` in a new Terminal window; nothing is inserted |
 | `link` | Puts the text into the web address `url` and opens it in the default browser; nothing is inserted |
+| `snippet` | Inserts `text` at once, with its placeholders filled in (below); no AI, no program |
 
 - `{input}` becomes what you wrote after the command, and it always stays within the one argument it's in: no shell is involved. For a shell, say so, like `sh` above (`zsh -c`).
 - `stdin`: what goes to the program's standard input, with `{input}` replaced too.
@@ -236,6 +238,29 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 - When the program in `argv` isn't found (say, no `python3`), the command isn't offered and `@python …` is inserted as text; once it's installed, the command appears in the next text field.
 
 `run` and `terminal` run code on your Mac: only add commands you wrote and trust. They, too, run only when you press the action key, and never during secure input.
+
+#### Snippets: text you insert often (new)
+
+A `snippet` command ("Insert text" in the editor) inserts text you saved, such as a signature, an address or a meeting
+link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `text` can hold placeholders:
+
+| Placeholder | Becomes |
+|---|---|
+| `{input}` | everything you wrote after the name: `@tag foo bar` with `#{input}` inserts `#foo bar` |
+| `{name?}` | a blank, filled from what you wrote, separated by commas (`,` or `，`), in order: `Dear {name?}, see you {day?}.` with `@meet Bob, Friday`. One left empty is named in a notice, and nothing goes in |
+| `{clipboard}` | the clipboard's text (macOS may ask first) |
+| `{selection}` | the text selected when you typed `@` (it's replaced, as by any command on the selection) |
+| `{date}`, `{time}` | today as `2026-10-17`, the time as `14:05`; `{date:EEEE, MMM d}` with a [date pattern](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table), in the interface language |
+| `{cursor}` | where the caret goes after it's in (once at most; not in a terminal) |
+
+- `{{` writes `{` and `}}` writes `}`; any other `{…}` stays as it is, so JSON or code in a snippet is fine.
+- With no `{input}` and no blanks, what you write after the name goes in after the snippet, after a space.
+- Write `@sig` inside another command's text to include it: `@question summarize this @zoom` sends the link itself. Only
+  snippets with no `{clipboard}`, `{selection}` or blanks work there; with `{input}`, it's one word or a quoted phrase:
+  `@meet「Friday 3pm」`.
+- Plain text only (line breaks kept), at most 20,000 characters. Snippets stay on this Mac, so they work during secure
+  input and in apps set to No AI. Extension bundles can ship them too (`snippets` in `extension.json`, see
+  [docs/extensions.md](docs/extensions.md)).
 
 ### Script extensions
 

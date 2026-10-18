@@ -171,7 +171,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 
 ### 自己加命令
 
-在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页），也可以从例子开始。
+在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页、插入文字），也可以从例子开始。
 命令排在内置命令后面，名字只能用英文字母，不能和内置命令重名；保存后下一句就能用。
 它们存在配置文件（`~/.config/allinoneime/config.json`）的 `customCommands` 里，也可以直接改：
 
@@ -181,7 +181,8 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
   { "name": "bc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
-  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }
+  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" },
+  { "name": "sig", "type": "snippet", "summary": "邮件签名", "text": "Best,\nWei\n{cursor}" }
 ]
 ```
 
@@ -191,6 +192,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 | `run` | 在后台运行 `argv`，打印的内容出现在候选里（多行照原样上屏，在终端里合成一行）；出错时显示错误的最后一行 |
 | `terminal` | 在新的终端窗口里运行 `argv`，不上屏 |
 | `link` | 把内容填进网址 `url`，在默认浏览器里打开，不上屏 |
+| `snippet` | 直接插入 `text`，里面的占位符先填好（见下）；不用 AI，不运行程序 |
 
 - `{input}` 换成命令后面写的内容，而且永远只占它所在的那一个参数，不经过 shell。要用 shell 就像上面的 `sh` 那样明确写 `zsh -c`。
 - `stdin`：给程序标准输入的内容，`{input}` 同样会被替换。
@@ -201,6 +203,27 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 - 找不到 `argv` 里的程序时（比如没装 `python3`），这个命令不显示，`@python …` 照常当文字上屏；装好后切换一下输入框就会出现。
 
 `run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
+
+#### 片段：常用的文字（新）
+
+`snippet` 命令（编辑器里的「插入文字」）插入存好的文字，比如签名、地址、会议链接：`@sig` ⏎ 直接上屏（Tab、空格只补全名字）。
+`text` 里可以写占位符：
+
+| 占位符 | 换成 |
+|---|---|
+| `{input}` | 名字后面写的全部内容：`#{input}` 配 `@tag foo bar` 插入 `#foo bar` |
+| `{名字?}` | 要填的空，按你写的内容用逗号（`,` 或 `，`）分开依次填：`Dear {name?}, see you {day?}.` 配 `@meet 张三，周五`。少写了会提示缺哪个，不上屏 |
+| `{clipboard}` | 剪贴板里的文字（macOS 可能先问一下） |
+| `{selection}` | 打 `@` 时选中的文字（会被替换掉，和别的命令作用在选中文字上一样） |
+| `{date}`、`{time}` | 今天 `2026-10-17`，时间 `14:05`；`{date:M月d日 EEEE}` 用[日期格式](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table)，按界面语言显示 |
+| `{cursor}` | 插入后光标停在这里（最多一个；终端里不移动） |
+
+- `{{` 写出 `{`，`}}` 写出 `}`；别的 `{…}` 原样保留，片段里放 JSON 或代码没问题。
+- 没有 `{input}` 也没有空时，名字后面写的内容接在片段后面，中间一个空格。
+- 在别的命令的文字里写 `@sig` 也会展开：`@question 总结一下 @zoom` 发出去的是链接本身。只有不含 `{clipboard}`、`{selection}`
+  和空的片段能这样用；带 `{input}` 的取一个词或引号里的内容：`@meet「周五 3点」`。
+- 只是纯文字（换行保留），最多 20000 字。片段只在这台 Mac 上处理，安全输入时、设成「不用 AI」的 App 里也能用。扩展包也能带片段
+  （`extension.json` 里的 `snippets`，见 [docs/extensions.md](docs/extensions.md)）。
 
 ### 脚本扩展
 

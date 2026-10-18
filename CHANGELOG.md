@@ -6,6 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Added
 
+- Snippets: a custom command can now insert text you saved, such as a signature, an address or a meeting link: `@sig` ⏎. Placeholders: `{input}`, `{name?}` blanks filled from what you type (separated by commas), `{clipboard}`, `{selection}`, `{date}`, `{time}` (with `{date:FORMAT}`), and `{cursor}` for where the caret ends up. Write `@sig` inside another command's text to include it. Create them in Settings → Custom Commands → Insert text. Extension sources can ship them (`snippets` in `extension.json`). A custom command of a type this version doesn't know is now kept in the config file as it is; an older version (0.6.4) syncing through iCloud can't read the custom commands once one is a snippet.
 - Translate as You Type (a prototype to try): hold Shift on its own for 1 s to turn it on or off (a hint at 0.5 s; a
   tap of Shift still switches the input language), with a notice near the caret for about 1.5 s naming the language it
   translates into ("Translate as You Type on: Chinese → English · hold Shift again to turn off"); while it's on, the
