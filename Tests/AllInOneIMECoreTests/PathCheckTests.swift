@@ -117,6 +117,29 @@ struct PathCheckTests {
         }
     }
 
+    /// A list row's path on another computer ("\\server\share\x" on Windows) is put in as text, never opened or looked
+    /// for: reaching the share would hand that computer the user's sign-in. Elsewhere "//x" is this computer's "/x".
+    @Test func aShareIsTextNotSomethingToOpen() {
+        func open(_ arg: String) -> URL? { ScriptItem(title: "x", arg: arg, action: .open).openURL }
+        for share in ["\\\\server\\share\\x.txt", "\\\\server\\share", "\\\\?\\UNC\\server\\share\\x.txt",
+                      "file:////server/share/x.txt"] {
+            #expect(open(share) == nil, "\(share)")
+        }
+        #expect(ScriptItem(title: "x", arg: "\\\\server\\share\\x.txt").action == .insert)
+        #if os(Windows)
+        #expect(ScriptItem.namesShare("\\\\server\\x") && ScriptItem.namesShare("//server/x") && ScriptItem.namesShare("\\/server"))
+        for share in ["//server/share/x.txt", "\\\\server\\share\\x.txt", "\\\\.\\pipe\\x"] {
+            #expect(ScriptItem(title: "x", arg: share).action == .insert, "\(share)")
+            #expect(open(share) == nil, "\(share)")
+        }
+        #expect(ScriptItem(title: "x", arg: "C:\\Users\\x.txt").action == .open)
+        #else
+        #expect(!ScriptItem.namesShare("//x") && !ScriptItem.namesShare("\\\\server\\x"))
+        #expect(ScriptItem(title: "x", arg: "//tmp").action == .open && open("//tmp") != nil)
+        #endif
+        #expect(!ScriptItem.namesShare("/x") && !ScriptItem.namesShare("C:/x") && !ScriptItem.namesShare("x"))
+    }
+
     /// A language pack is data on every system: Windows' programs and scripts are code too.
     @Test func windowsProgramsAreCodeInALanguagePack() {
         for kind in ["exe", "dll", "bat", "cmd", "ps1", "vbs", "msi"] { #expect(LanguagePackStore.codeExtensions.contains(kind), "\(kind)") }
