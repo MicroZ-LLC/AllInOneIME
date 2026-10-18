@@ -27,6 +27,7 @@ swift build --build-tests     # macOS, Linux, Windows
 swift test                    # the core's tests (the end-to-end ones run the input method: ALLINONEIME_TEST_BINARY)
 Scripts/check-core-portable.sh       # the core stays platform-neutral (imports, Platform/Apple/, no processes started)
 Scripts/check-core-portable-test.sh  # the check's own tests
+Scripts/check-core-standalone.sh     # nothing here reaches outside this folder
 ```
 
 Off macOS the tests build against small stand-ins for what they import of Apple's (`Tests/LinuxShims`). On Windows

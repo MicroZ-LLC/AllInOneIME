@@ -1,8 +1,9 @@
 # The core's own checks, for when it is its own repository (MicroZ-LLC/AllInOneIME-Core); GitHub doesn't read workflows
 # in a subfolder, so until then the macOS repository's core-portable.yml runs the same on an export of this folder.
-# On macOS, Linux and Windows the core and its tests must build, and the lint guard (Scripts/check-core-portable.sh)
-# and its self-test must pass; on Windows the suites of what differs there run too. (The tests run in full on macOS
-# with the macOS shell's `make test`, which gives the end-to-end ones the input method to run.)
+# On macOS, Linux and Windows the core and its tests must build, and the lint guards (Scripts/check-core-portable.sh,
+# its self-test, Scripts/check-core-standalone.sh) must pass; on Windows the suites of what differs there run too.
+# (The tests run in full on macOS with the macOS shell's `make test`, which gives the end-to-end ones the input method
+# to run.)
 name: Core
 
 on:
@@ -24,6 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: Scripts/check-core-portable-test.sh
       - run: Scripts/check-core-portable.sh
+      - run: Scripts/check-core-standalone.sh
 
   macos:
     runs-on: macos-26

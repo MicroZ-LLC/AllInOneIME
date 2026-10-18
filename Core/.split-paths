@@ -1,0 +1,37 @@
+# The core's own repository (MicroZ-LLC/AllInOneIME-Core), from a fresh clone of AllInOneIME, with its history:
+#
+#   git filter-repo --paths-from-file Core/.split-paths
+#
+# Core/ uses the repository's layout, so the paths its files had before they moved here (0.6.5) need no renames: they
+# are kept as they were, and Core/ becomes the root. Paths the macOS shell uses again after the move are left out (the
+# file there now is the shell's), so their history from before the move isn't in the core's:
+# Resources/Localizable.xcstrings (the whole catalog until the app's text got its own), Sources/allinoneime-cli/main.swift
+# (now Sources/AllInOneIMECLI/CLI.swift) and LICENSE, Package.resolved (copies).
+
+# Today's core, as the root.
+Core/
+Core/==>
+
+# Where its files were before 0.6.5.
+Sources/AllInOneIMEText/
+Sources/AllInOneIMECore/
+Sources/CRime/
+Sources/AllInOneIMERime/
+Tests/AllInOneIMECoreTests/
+Tests/LinuxShims/
+Scripts/check-core-portable.sh
+Scripts/check-core-portable.py
+Scripts/check-core-portable-test.sh
+Scripts/core-portable-allowlist.txt
+Scripts/make-redaction-words.swift
+Scripts/make-eventstream-fixture.py
+Scripts/strings.swift
+LanguagePacks/
+Plugins/
+Examples/
+.gitattributes
+
+# And before the rename to AllInOneIME (0.2.0).
+Sources/AIPinyinCore/
+Sources/AIPinyinRime/
+Tests/AIPinyinCoreTests/
