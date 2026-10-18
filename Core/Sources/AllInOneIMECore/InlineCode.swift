@@ -9,7 +9,8 @@ import Foundation
 /// user's shell PATH, the home folder as the working directory), never in the input method: a script
 /// that doesn't end couldn't be stopped there. `@py` runs the user's `python3`; `@js` runs in this
 /// app's own executable (`runJavaScriptHost`), in the platform's JavaScript (`Platform.scripts`: JavaScriptCore,
-/// which is part of macOS), which has nothing but the language (no files, programs, network or timers).
+/// which is part of macOS; QuickJS-ng elsewhere), which has nothing but the language (no files, programs, network or
+/// timers).
 ///
 /// The code is what the user typed or pasted: it never contains the output of other commands
 /// (`Command.isCode`), let alone a model's.

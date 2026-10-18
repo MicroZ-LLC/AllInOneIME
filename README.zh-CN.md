@@ -785,6 +785,7 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 
 - `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
 - `Core/Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
+- `Core/Sources/AllInOneIMEQuickJS`：QuickJS-ng（C 源码在 `Core/Sources/CQuickJS`），没有 JavaScriptCore 的平台（Windows、Linux、Android）上插件和 `@js` 用的 JavaScript
 - `Core/Sources/AllInOneIMERime`：librime 封装
 - `Core/Sources/AllInOneIMECLI`：命令行 `allinoneime-cli`（`make cli`），由各平台自己的 `main` 运行
 - `Sources/AllInOneIMEMac`：只有 Mac 才有的部分（键盘布局、代码签名、Spotlight、AppleScript、更新的安装）和 `Platform.mac`

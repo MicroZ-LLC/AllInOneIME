@@ -1,11 +1,14 @@
 import Foundation
+#if !canImport(JavaScriptCore) && canImport(AllInOneIMEQuickJS)
+import AllInOneIMEQuickJS
+#endif
 
 /// What the core needs from the system it runs on, in one place. A shell (the macOS app, later the Windows, iOS and
 /// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
 /// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), and
-/// elsewhere neutral stand-ins: a heuristic language guess, the date rules alone, and no JavaScript, on-device model,
-/// PDF text, text recognition or secret store ("not supported on this platform").
+/// elsewhere QuickJS-ng for JavaScript (AllInOneIMEQuickJS) and neutral stand-ins: a heuristic language guess, the date
+/// rules alone, and no on-device model, PDF text, text recognition or secret store ("not supported on this platform").
 public struct Platform: Sendable {
     /// API keys and the like (`APIKeys`).
     public var secrets: SecretStore
@@ -75,10 +78,13 @@ extension Platform {
         #endif
     }
 
-    /// JavaScriptCore where there is one.
+    /// JavaScriptCore where there is one; QuickJS-ng on Windows, Linux and Android (AllInOneIMEQuickJS, a dependency of
+    /// the core there only).
     public static var systemScripts: any ScriptEngine {
         #if canImport(JavaScriptCore)
         return JavaScriptCoreEngine()
+        #elseif canImport(AllInOneIMEQuickJS)
+        return QuickJSEngine()
         #else
         return UnsupportedScriptEngine()
         #endif

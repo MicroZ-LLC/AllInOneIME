@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import AllInOneIMECore
+import AllInOneIMEQuickJS
 
 /// `@py` and `@js` (`InlineCode`): a line of code run in a child process, REPL style.
 struct InlineCodeTests {
@@ -310,13 +311,17 @@ struct InlineCodeTests {
     }
 
     @Test(.enabled(if: Available.javaScript)) func javaScriptErrorsAreOneLine() {
+        // The engine's own words for its own errors: JavaScriptCore's, or QuickJS-ng's (Windows, Linux, Android, and
+        // OnQuickJSTests).
+        let quickJS = Platform.current.scripts is QuickJSEngine
+        func notFound(_ name: String) -> String { quickJS ? "\(name) is not defined" : "Can't find variable: \(name)" }
         let cases: [(code: String, error: String)] = [
-            ("x.y", "ReferenceError: Can't find variable: x"),
+            ("x.y", "ReferenceError: \(notFound("x"))"),
             ("throw new Error('first line\\nsecond line')", "Error: first line"),
             ("throw 'oops'", "oops"),
             ("throw {code: 1}", "{code: 1}"),
-            ("1 +", "SyntaxError: Unexpected end of script"),
-            ("1\n2\nnope", "ReferenceError: Can't find variable: nope (line 3)"),
+            ("1 +", quickJS ? "SyntaxError: unexpected token in expression: ''" : "SyntaxError: Unexpected end of script"),
+            ("1\n2\nnope", "ReferenceError: \(notFound("nope")) (line 3)"),
             ("({get a() { throw new RangeError('no') }})", "RangeError: no"),  // showing the value failed
         ]
         for (code, error) in cases {

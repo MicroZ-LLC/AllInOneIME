@@ -4,7 +4,8 @@
 It reads each file with its comments and string literals blanked out (line numbers kept), so nothing in a comment or a
 string counts, and nothing there (an unbalanced \"\"\" in a comment, say) changes how the rest is read. It fails when
   - a core file imports a module that isn't one every platform has (ALLOWED), anywhere but Platform/Apple/; a C library
-    (C_LIBRARIES) only under its own guard (`#if canImport(Glibc)`, `#elseif os(Linux)`, ...);
+    (C_LIBRARIES), or one of the package's own that the core depends on only on some systems (OWN_GUARDED), only under
+    its own guard (`#if canImport(Glibc)`, `#elseif os(Linux)`, ...);
   - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one;
   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
     `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
@@ -29,6 +30,9 @@ C_LIBRARIES = {
     "WinSDK": ["Windows"],
     "ucrt": ["Windows"],
 }
+# The package's own modules that the core depends on only on some systems, each allowed under its guard as a C library
+# is: QuickJS, the JavaScript where there is no JavaScriptCore (Package.swift's condition).
+OWN_GUARDED = {"AllInOneIMEQuickJS": ["Linux", "Windows", "Android"]}
 LAUNCHERS = {"Platform/FoundationProcessLauncher.swift"}
 
 IMPORT = re.compile(
@@ -189,9 +193,11 @@ def check(root):
             conditions = where[line] or []
             if module in ALLOWED:
                 continue
-            if module in C_LIBRARIES:
-                if not any(guards(c, "canImport", [module]) or guards(c, "os", C_LIBRARIES[module]) for c in conditions):
-                    found.append(f"{shown}:{line + 1}: import {module} (a C library, only under #if canImport({module}) or its os(...))")
+            if module in C_LIBRARIES or module in OWN_GUARDED:
+                systems = C_LIBRARIES.get(module) or OWN_GUARDED[module]
+                what = "a C library" if module in C_LIBRARIES else "the core's on some systems only"
+                if not any(guards(c, "canImport", [module]) or guards(c, "os", systems) for c in conditions):
+                    found.append(f"{shown}:{line + 1}: import {module} ({what}, only under #if canImport({module}) or its os(...))")
                 continue
             if not apple:
                 found.append(f"{shown}:{line + 1}: import {module} (not one every platform has: only in Platform/Apple/)")

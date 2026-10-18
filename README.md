@@ -921,6 +921,7 @@ builds and tests on its own, on macOS, Linux and Windows); `Windows/` is the sta
 
 - `Core/Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including @ commands and the voice gesture); no AppKit dependency
 - `Core/Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
+- `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng (its C sources in `Core/Sources/CQuickJS`), the JavaScript of plugins and `@js` where there is no JavaScriptCore (Windows, Linux, Android)
 - `Core/Sources/AllInOneIMERime`: librime wrapper
 - `Core/Sources/AllInOneIMECLI`: the command line, `allinoneime-cli` (`make cli`), run by each platform's own `main`
 - `Sources/AllInOneIMEMac`: what only the Mac has (key layouts, code signing, Spotlight, AppleScript, the updater's install), and `Platform.mac`

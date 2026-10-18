@@ -102,8 +102,9 @@ public struct Command: Hashable, Sendable {
     /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
     /// `@py 2**100`. It runs with the user's `python3`.
     public static let py = Command(name: "py", kind: .run)
-    /// JavaScript code, the same way: `@js [1, 2, 3].map(x => x * 2)`. It runs in JavaScriptCore, in this
-    /// app's own child process (no files, programs or network).
+    /// JavaScript code, the same way: `@js [1, 2, 3].map(x => x * 2)`. It runs in the platform's JavaScript
+    /// (JavaScriptCore on the Mac, QuickJS-ng off Apple platforms), in this app's own child process (no files,
+    /// programs or network).
     public static let js = Command(name: "js", kind: .run)
 
     /// `@search`: a web search with the user's own key (`WebSearch`). On its own, a list of the top

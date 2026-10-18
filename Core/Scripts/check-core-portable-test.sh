@@ -61,6 +61,11 @@ caught "WinSDK unguarded" 'import WinSDK\n'
 caught "WinSDK under Linux's guard" '#if os(Linux)\nimport WinSDK\n#endif\n'
 caught "ucrt under Darwin's guard" '#if canImport(Darwin)\nimport ucrt\n#endif\n'
 
+# The package's own modules that are the core's on some systems only: under their guard too.
+caught "AllInOneIMEQuickJS unguarded" 'import AllInOneIMEQuickJS\n'
+caught "AllInOneIMEQuickJS under a negated guard" '#if !canImport(AllInOneIMEQuickJS)\nimport AllInOneIMEQuickJS\n#endif\n'
+caught "AllInOneIMEQuickJS under Darwin's guard" '#if canImport(Darwin)\nimport AllInOneIMEQuickJS\n#endif\n'
+
 # MARK: - Programs
 
 caught "Process()" 'let p = Process()\n'
@@ -162,6 +167,14 @@ import WinSDK
 #endif
 #if os(macOS) || os(iOS)
 import Darwin
+#endif
+EOF
+allowed "AllInOneIMEQuickJS under its guard" <<'EOF'
+#if !canImport(JavaScriptCore) && canImport(AllInOneIMEQuickJS)
+import AllInOneIMEQuickJS
+#endif
+#if os(Windows)
+import AllInOneIMEQuickJS
 #endif
 EOF
 fresh

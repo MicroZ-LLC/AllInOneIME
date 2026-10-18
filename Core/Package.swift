@@ -34,7 +34,12 @@ let package = Package(
         // the whole framework too (its Package.swift), so the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
-            dependencies: ["AllInOneIMEText", "AllInOneIMEScriptEngine", .product(name: "Crypto", package: "swift-crypto")]
+            dependencies: [
+                "AllInOneIMEText", "AllInOneIMEScriptEngine",
+                // The JavaScript where there is no JavaScriptCore (Platform.systemScripts).
+                .target(name: "AllInOneIMEQuickJS", condition: .when(platforms: [.linux, .windows, .android])),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
         ),
 
         // The JavaScript engine's interface (ScriptEngine), below the core so that AllInOneIMEQuickJS can implement it
@@ -90,7 +95,7 @@ let package = Package(
             path: "Scripts/StringsPlugin"
         ),
 
-        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport"],
+        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport", "AllInOneIMEQuickJS"],
                     exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
                     resources: [.copy("Fixtures")]),
     ]
@@ -113,7 +118,7 @@ package.targets += [
     .target(name: "CoreGraphics", path: "Tests/LinuxShims/CoreGraphics"),
 ]
 if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" }) {
-    tests.dependencies = ["AllInOneIMECore", "AllInOneIMETestSupport", "os", "CryptoKit", "CoreGraphics"]
+    tests.dependencies = ["AllInOneIMECore", "AllInOneIMETestSupport", "AllInOneIMEQuickJS", "os", "CryptoKit", "CoreGraphics"]
     tests.exclude += ["Acceptance/PluginLanguageAcceptanceTests.swift"]
     #if os(Windows)
     // Windows has no POSIX calls for the tests to check processes and files with (pid_t, kill, process groups, realpath,
