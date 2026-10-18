@@ -130,6 +130,7 @@ struct NoteDestinationsTests {
         #expect(ref.id.flatMap(URL.init(string:))?.lastPathComponent == "Hello 2.md")
         #expect(try String(contentsOf: folder.appendingPathComponent("Hello 2.md"), encoding: .utf8)
                 == MarkdownFolderDestination.document(for: draft("Hello\nworld")))
+        #expect(ref.destinationName == "“\(folder.lastPathComponent)”")
     }
 
     @Test func onlyTheNameTakenCountsAsTaken() {
@@ -137,6 +138,47 @@ struct NoteDestinationsTests {
         #expect(MarkdownFolderDestination.isTaken(CocoaError(.fileWriteFileExists)))
         #expect(!MarkdownFolderDestination.isTaken(CocoaError(.fileWriteOutOfSpace)))
         #expect(!MarkdownFolderDestination.isTaken(POSIXError(.EIO)))
+    }
+
+    // MARK: - Vaults, looked up off the main thread
+
+    @Test func aSlowLookupIsUnknownAndNotTriedAgainForAMinute() async throws {
+        let calls = Locked(initialState: 0)
+        let clock = Locked(initialState: Date(timeIntervalSince1970: 1_792_000_000))
+        let release = DispatchSemaphore(value: 0)
+        let roots = VaultRoots(timeout: 0.5, retryAfter: 60, now: { clock.withLock { $0 } }) { _ in
+            calls.withLock { $0 += 1 }
+            release.wait()
+            return nil
+        }
+        let folder = URL(fileURLWithPath: "/Volumes/Gone NAS/Vault/Inbox", isDirectory: true)
+        #expect(roots.lookUp(folder) == .unknown)  // waited half a second at most
+        #expect(roots.lookUp(folder, fresh: true) == .unknown)  // at once: not tried again
+        #expect(roots.cached(folder) == .unknown)
+        #expect(calls.withLock { $0 } == 1, "one lookup at a time")
+        release.signal()
+        for _ in 0..<200 where roots.cached(folder) == .unknown { try await Task.sleep(nanoseconds: 10_000_000) }
+        #expect(roots.cached(folder) == VaultRoots.Answer.noVault, "what the slow lookup found is kept")
+        // A minute later it may be asked again.
+        clock.withLock { $0 += 61 }
+        release.signal()
+        #expect(roots.lookUp(folder, fresh: true) == VaultRoots.Answer.noVault)
+        #expect(calls.withLock { $0 } == 2)
+    }
+
+    @Test func theCacheIsOnlyReadAndALookupStartsInTheBackground() async throws {
+        let root = try tempFolder()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(".obsidian"), withIntermediateDirectories: true)
+        let inbox = root.appendingPathComponent("Inbox", isDirectory: true)
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        let roots = VaultRoots()
+        #expect(roots.cached(inbox) == .unknown)  // nothing yet: a lookup started
+        for _ in 0..<200 where roots.cached(inbox) == .unknown { try await Task.sleep(nanoseconds: 10_000_000) }
+        #expect(roots.cached(inbox).isVault)
+        #expect(MarkdownFolderDestination(folder: inbox, roots: roots).name == "Obsidian")
+        let saved = try await MarkdownFolderDestination(folder: inbox, roots: roots).save(draft("Hi"))
+        #expect(saved.destinationName == "Obsidian")
     }
 
 }

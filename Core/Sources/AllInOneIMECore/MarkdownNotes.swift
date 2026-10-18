@@ -14,18 +14,26 @@ public struct MarkdownFolderDestination: NoteDestination {
     /// Writes a new file (the hidden one), never over one: injectable, for the tests to fail it.
     public typealias Write = @Sendable (_ data: Data, _ file: URL) throws -> Void
     private let write: Write
+    private let roots: VaultRoots
 
-    public init(folder: URL, write: @escaping Write = MarkdownFolderDestination.writeNew) {
+    public init(folder: URL, roots: VaultRoots = .shared, write: @escaping Write = MarkdownFolderDestination.writeNew) {
         self.folder = folder
+        self.roots = roots
         self.write = write
     }
 
     /// `data` in a new file at `file`; an error when something is there already.
     public static let writeNew: Write = { data, file in try data.write(to: file, options: .withoutOverwriting) }
 
-    /// "Obsidian" in a vault, else the folder's name in quotes, as the notice shows it: “Inbox”.
+    /// "Obsidian" in a vault, else the folder's name in quotes, as the notice shows it: “Inbox”. On the main thread only
+    /// what is remembered (`VaultRoots.cached`: the folder's name until a lookup in the background has answered);
+    /// elsewhere looked up, a second at most.
     public var name: String {
-        Self.vaultRoot(of: folder) != nil ? "Obsidian" : "“" + folder.lastPathComponent + "”"
+        Self.name(of: folder, Thread.isMainThread ? roots.cached(folder) : roots.lookUp(folder))
+    }
+
+    static func name(of folder: URL, _ answer: VaultRoots.Answer) -> String {
+        answer.isVault ? "Obsidian" : "“" + folder.lastPathComponent + "”"
     }
 
     public var leavesDevice: Bool { false }
@@ -52,7 +60,10 @@ public struct MarkdownFolderDestination: NoteDestination {
             } catch {
                 throw failed(error, leaving: hidden)
             }
-            return SavedNoteRef(id: file.absoluteString, title: NotesFormat.title(of: draft.text))
+            // Looked up again here, off the main thread: the notice says where it went ("Saved to Obsidian").
+            let answer = roots.lookUp(folder, fresh: true)
+            return SavedNoteRef(id: file.absoluteString, title: NotesFormat.title(of: draft.text),
+                                destinationName: Self.name(of: folder, answer))
         }
         try? FileManager.default.removeItem(at: hidden)
         throw CocoaError(.fileWriteFileExists)
@@ -140,21 +151,34 @@ public struct MarkdownFolderDestination: NoteDestination {
         return "---\ncreated: \(formatter.string(from: draft.created))\n---\n" + text
     }
 
-    /// The folder holding `.obsidian` (an Obsidian vault): `folder` itself or one it is in; nil when there is none.
+    /// The folder holding `.obsidian` (an Obsidian vault): `folder` itself or one it is in, on the same volume (the walk
+    /// stops where the volume does, its device number changing: never up through `/Volumes` or `/`); nil when there is
+    /// none, or `folder` isn't there. It looks at the disk, so not on the main thread (`VaultRoots`).
     public static func vaultRoot(of folder: URL) -> URL? {
-        var current = folder.standardizedFileURL
+        // Links followed first: a vault reached through one (~/Vault → /Volumes/Disk/Vault) is on the volume it leads to.
+        var current = folder.resolvingSymlinksInPath().standardizedFileURL
+        guard let volume = device(of: current) else { return nil }
         while true {
             if isFolder(current.appendingPathComponent(".obsidian", isDirectory: true)) { return current }
             let parent = current.deletingLastPathComponent().standardizedFileURL
             if parent.path == current.path || current.path == "/" || current.path.isEmpty { return nil }
+            guard device(of: parent) == volume else { return nil }
             current = parent
         }
     }
 
+    /// The volume `url` is on (`stat`'s `st_dev`); nil when it isn't there.
+    private static func device(of url: URL) -> UInt64? {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.systemNumber] as? NSNumber)?.uint64Value
+    }
+
     /// What opens a saved file: Obsidian (`obsidian://open?path=`, the file's absolute path) when it is in a vault, else
-    /// the file itself (in its default app).
+    /// the file itself (in its default app). On the main thread, only what `VaultRoots` remembers of its folder;
+    /// elsewhere looked up again, a second at most.
     public static func openURL(for file: URL) -> URL {
-        guard vaultRoot(of: file.deletingLastPathComponent()) != nil else { return file }
+        let folder = file.deletingLastPathComponent()
+        let answer = Thread.isMainThread ? VaultRoots.shared.cached(folder) : VaultRoots.shared.lookUp(folder, fresh: true)
+        guard answer.isVault else { return file }
         let path = file.standardizedFileURL.path.addingPercentEncoding(withAllowedCharacters: unreserved) ?? file.path
         return URL(string: "obsidian://open?path=" + path) ?? file
     }

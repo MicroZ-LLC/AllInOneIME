@@ -52,10 +52,14 @@ public struct NoteDraft: Equatable, Sendable {
 public struct SavedNoteRef: Equatable, Sendable {
     public var id: String?
     public var title: String
+    /// Where it went, as the "Saved to …" notice says it, when the save found out better than `NoteDestination.name`
+    /// could before (a folder found to be in an Obsidian vault: "Obsidian"); nil: the destination's name.
+    public var destinationName: String?
 
-    public init(id: String?, title: String) {
+    public init(id: String?, title: String, destinationName: String? = nil) {
         self.id = id
         self.title = title
+        self.destinationName = destinationName
     }
 }
 
