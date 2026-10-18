@@ -42,6 +42,8 @@ public enum ActionKey: Hashable, Sendable, CaseIterable {
         case (.escape, _): return nil
         default: break
         }
+        // A key the tables don't have (usage 0) couldn't be told from another such key.
+        guard shortcut.usage != 0 else { return nil }
         if !typesNothing(key), modifiers.isDisjoint(with: [.control, .option, .command]) { return nil }
         var recorded = shortcut
         recorded.modifiers = modifiers
@@ -132,10 +134,11 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
         try c.encode(name, forKey: .name)
     }
 
-    /// Whether `event` is this key (Caps Lock aside), ⌘ being `roles.primary` (`ModifierRoles.swappingPrimary`).
+    /// Whether `event` is this key (Caps Lock aside), ⌘ being `roles.primary` (`ModifierRoles.swappingPrimary`). One with
+    /// neither a usage nor a Mac code is no key: not every key the Mac doesn't have.
     public func matches(_ event: KeyEvent, roles: ModifierRoles = .mac) -> Bool {
         let wanted = roles.swappingPrimary(modifiers)
-        let sameKey = usage != 0 ? event.usage == usage : event.keyCode == keyCode
+        let sameKey = usage != 0 ? event.usage == usage : keyCode != KeyEvent.noKeyCode && event.keyCode == keyCode
         return sameKey && event.modifiers.intersection([.shift, .control, .option, .command]) == wanted
     }
 }

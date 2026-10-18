@@ -146,6 +146,18 @@ struct KeyShortcutTests {
         }
     }
 
+    @Test func aKeyWithNoUsageIsNoShortcut() throws {
+        #expect(ActionKey.recorded(key: .other, usage: 0, modifiers: .control, name: "?") == nil)
+        #expect(ActionKey.recorded(key: .f(5), usage: 0, modifiers: [], name: "?") == nil)
+        #expect(ActionKey.recorded(keyCode: 0x34, modifiers: .control, name: "?") == nil)  // no such Mac key
+        // Read with neither (another system's unknown key): no key matches it, not every key the Mac lacks.
+        let none = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"usage": 0, "modifiers": 2, "name": "?"}"#.utf8))
+        #expect(none.keyCode == KeyEvent.noKeyCode && none.usage == 0)
+        #expect(!none.matches(KeyEvent(key: .other, usage: 0x46, characters: "", modifiers: .control)))  // Print Screen
+        #expect(!none.matches(KeyEvent(key: .f(24), usage: 0x73, characters: "", modifiers: .control)))
+        #expect(!none.matches(KeyEvent(key: .other, usage: 0, characters: "", modifiers: .control)))
+    }
+
     @Test func recordedFromAKey() {
         #expect(ActionKey.recorded(key: .enter, usage: 0x28, modifiers: [], name: "Enter") == .enter)
         #expect(ActionKey.recorded(key: .keypadEnter, usage: 0x58, modifiers: [], name: "Enter") == .enter)
