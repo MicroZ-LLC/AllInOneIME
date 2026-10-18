@@ -5,10 +5,12 @@ import SwiftUI
 
 /// A text field that is a real NSTextView: what the input method does goes to the text view's own text input methods,
 /// so its caret moves as an NSTextView moves it. Empty text with a replacement range never arrives, as through the
-/// input method connection (`FakeTextClient.dropsEmptyReplacements`). Main thread only.
+/// input method connection (`FakeTextClient.dropsEmptyReplacements`); with `dropsEmptyMarkedText`, empty marked text with
+/// one doesn't either. Main thread only.
 final class TextViewClient: NSObject, IMKTextInput {
     let textView: NSTextView
     private let window: NSWindow
+    var dropsEmptyMarkedText = false
 
     @MainActor
     override init() {
@@ -38,6 +40,8 @@ final class TextViewClient: NSObject, IMKTextInput {
 
     func setMarkedText(_ string: Any!, selectionRange: NSRange, replacementRange: NSRange) {
         let marked: Any = string ?? ""
+        if dropsEmptyMarkedText, replacementRange.location != NSNotFound,
+           ((marked as? NSAttributedString)?.string ?? marked as? String ?? "").isEmpty { return }
         MainActor.assumeIsolated { textView.setMarkedText(marked, selectedRange: selectionRange, replacementRange: replacementRange) }
     }
 
@@ -74,10 +78,11 @@ extension SelfTest {
     /// caret it stays at the end; into a terminal a text of several lines goes in as a paste, the caret left alone.
     static func testSnippets(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
         section("snippets (an NSTextView, a field without a caret, a terminal)", needs: .composing)
-        let commands = controller.composer.commands
+        let before = settings.customCommands
         let pasteAllowed = controller.canPasteInTerminal, paste = controller.pasteInTerminal
         defer {
-            controller.setCommands(commands)
+            settings.customCommands = before
+            controller.applySettings()
             controller.canPasteInTerminal = pasteAllowed
             controller.pasteInTerminal = paste
             controller.composer.setInputMode(settings.defaultInput)
@@ -86,8 +91,12 @@ extension SelfTest {
         func snippet(_ name: String, _ text: String) -> CustomCommand {
             CustomCommand(name: name, type: .snippet, text: text)
         }
-        controller.setCommands(Command.catalog([snippet("selftestthx", "Hi {cursor}, thanks 😀"),
-                                                snippet("selftestaddr", "1 Main Street\nSpringfield{cursor}\nUSA")]))
+        // In the settings: a field's activation builds the command list from them.
+        settings.customCommands = before + [snippet("selftestthx", "Hi {cursor}, thanks 😀"),
+                                            snippet("selftestaddr", "1 Main Street\nSpringfield{cursor}\nUSA")]
+        controller.applySettings()
+        controller.activateServer(client)
+        check(pump(timeout: 10) { controller.composer.commands.contains { $0.name == "selftestaddr" } }, "the snippets are offered")
         func insert(_ name: String, into field: IMKTextInput) {
             controller.activateServer(field)
             controller.composer.setInputMode(.english)
@@ -97,14 +106,20 @@ extension SelfTest {
             _ = pump(timeout: 0.3) { false }
         }
 
-        // An NSTextView: the text goes in, the caret back to {cursor} (before ", thanks 😀": 11 UTF-16 units).
-        let view = TextViewClient()
-        view.textView.string = "Re: "
-        view.textView.setSelectedRange(NSRange(location: 4, length: 0))
-        insert("selftestthx", into: view)
-        check(view.text == "Re: Hi , thanks 😀" && view.caret == NSRange(location: 7, length: 0) && !controller.composer.isComposing,
-              "@selftestthx ⏎ in an NSTextView inserts the text, the caret at {cursor} (\(view.text.debugDescription), caret \(view.caret.location))")
-        view.close()
+        // An NSTextView: the text goes in, the caret back to {cursor} (before ", thanks 😀": 11 UTF-16 units), by empty
+        // marked text there, or (where that doesn't arrive) the character before it marked and committed.
+        for drops in [false, true] {
+            let view = TextViewClient()
+            view.dropsEmptyMarkedText = drops
+            view.textView.string = "Re: "
+            view.textView.setSelectedRange(NSRange(location: 4, length: 0))
+            insert("selftestthx", into: view)
+            check(view.text == "Re: Hi , thanks 😀" && view.caret == NSRange(location: 7, length: 0) && !view.textView.hasMarkedText()
+                  && !controller.composer.isComposing,
+                  "@selftestthx ⏎ in an NSTextView\(drops ? " that gets no empty marked text" : "") inserts the text, the caret at "
+                  + "{cursor} (\(view.text.debugDescription), caret \(view.caret.location))")
+            view.close()
+        }
 
         // A field that tells no caret: inserted, the caret left at the end (nothing replaced).
         let blind = FakeTextClient()
@@ -117,7 +132,8 @@ extension SelfTest {
         let other = FakeTextClient()
         other.ignoresRanges = true
         insert("selftestthx", into: other)
-        check(other.document == "Hi , thanks 😀" && other.replacements == 0, "…nor in one that ignores ranges (\(other.document.debugDescription))")
+        check(other.document == "Hi , thanks 😀" && other.marked.isEmpty && other.replacements == 0,
+              "…nor in one that ignores ranges, and its text stays as it is (\(other.document.debugDescription))")
 
         // A terminal: the lines go in as a paste, and the caret isn't moved there (keys go to the shell).
         var pasted: [String] = []

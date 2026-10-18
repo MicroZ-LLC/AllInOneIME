@@ -58,8 +58,8 @@ struct CommandEditor: View {
     /// The definition as the form has it now (nil: the command line has an open quote).
     private var draft: CustomCommand? {
         var c = CustomCommand(name: name.trimmingCharacters(in: .whitespaces).lowercased(), type: type)
-        let text = summary.trimmingCharacters(in: .whitespaces)
-        c.summary = text.isEmpty ? nil : text
+        let description = summary.trimmingCharacters(in: .whitespaces)
+        c.summary = description.isEmpty ? nil : description
         switch type {
         case .prompt:
             c.prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
