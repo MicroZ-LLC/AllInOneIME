@@ -15,6 +15,8 @@ let package = Package(
         .library(name: "AllInOneIMECore", targets: ["AllInOneIMECore"]),
         .library(name: "AllInOneIMERime", targets: ["AllInOneIMERime"]),
         .library(name: "AllInOneIMECLI", targets: ["AllInOneIMECLI"]),
+        // QuickJS-ng as a ScriptEngine: the core's JavaScript off Apple platforms, and an Apple shell's if it wants it.
+        .library(name: "AllInOneIMEQuickJS", targets: ["AllInOneIMEQuickJS"]),
         // What a shell's tests share with the core's (`FakeEngine`, the keys, `ScriptFolder`, `Timing`, `PackData`).
         .library(name: "AllInOneIMETestSupport", targets: ["AllInOneIMETestSupport"]),
         // `swift package strings [--check]`: the String Catalog in step with the code, in the core or in a shell.
@@ -32,7 +34,36 @@ let package = Package(
         // the whole framework too (its Package.swift), so the app still runs on macOS 14.
         .target(
             name: "AllInOneIMECore",
-            dependencies: ["AllInOneIMEText", .product(name: "Crypto", package: "swift-crypto")]
+            dependencies: [
+                "AllInOneIMEText", "AllInOneIMEScriptEngine",
+                // The JavaScript where there is no JavaScriptCore (Platform.systemScripts).
+                .target(name: "AllInOneIMEQuickJS", condition: .when(platforms: [.linux, .windows, .android])),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
+        ),
+
+        // The JavaScript engine's interface (ScriptEngine), below the core so that AllInOneIMEQuickJS can implement it
+        // and still be the core's default. AllInOneIMECore re-exports it.
+        .target(name: "AllInOneIMEScriptEngine"),
+
+        // QuickJS-ng (QuickJSEngine): plugins and @js where there is no JavaScriptCore. On Apple platforms only the
+        // tests link it, to run the JavaScript tests on both engines.
+        .target(name: "AllInOneIMEQuickJS", dependencies: ["AllInOneIMEScriptEngine", "CQuickJS"]),
+
+        // QuickJS-ng's C sources as released (VENDORED.md), its header and quickjs-swift.h for Swift (module.modulemap).
+        // Flat, as upstream has them, so their includes are each other's; the defines and libm are upstream's CMake ones.
+        .target(
+            name: "CQuickJS",
+            exclude: ["LICENSE", "VENDORED.md"],
+            publicHeadersPath: ".",
+            cSettings: [
+                .define("_GNU_SOURCE"),
+                .define("NDEBUG", .when(configuration: .release)),
+                .define("WIN32_LEAN_AND_MEAN", .when(platforms: [.windows])),
+                .define("_WIN32_WINNT", to: "0x0601", .when(platforms: [.windows])),
+                .define("_CRT_SECURE_NO_WARNINGS", .when(platforms: [.windows])),
+            ],
+            linkerSettings: [.linkedLibrary("m", .when(platforms: [.linux, .android]))]
         ),
 
         // librime's C API (its headers, from the official release, in include/); the library is the shell's to link
@@ -64,7 +95,9 @@ let package = Package(
             path: "Scripts/StringsPlugin"
         ),
 
-        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport"],
+        // AllInOneIMEQuickJS first: Swift Build (SwiftPM's default build system in Swift 6.4) goes by the first edge it
+        // meets to a target, and the core's to it (off Apple platforms only) left it unlinked on the Mac.
+        .testTarget(name: "AllInOneIMECoreTests", dependencies: ["AllInOneIMEQuickJS", "AllInOneIMECore", "AllInOneIMETestSupport"],
                     exclude: ["Acceptance/ICloudSyncAppLevelCases.md"],  // specs for the macOS shell's self-test
                     resources: [.copy("Fixtures")]),
     ]
@@ -87,7 +120,7 @@ package.targets += [
     .target(name: "CoreGraphics", path: "Tests/LinuxShims/CoreGraphics"),
 ]
 if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" }) {
-    tests.dependencies = ["AllInOneIMECore", "AllInOneIMETestSupport", "os", "CryptoKit", "CoreGraphics"]
+    tests.dependencies = ["AllInOneIMECore", "AllInOneIMETestSupport", "AllInOneIMEQuickJS", "os", "CryptoKit", "CoreGraphics"]
     tests.exclude += ["Acceptance/PluginLanguageAcceptanceTests.swift"]
     #if os(Windows)
     // Windows has no POSIX calls for the tests to check processes and files with (pid_t, kill, process groups, realpath,

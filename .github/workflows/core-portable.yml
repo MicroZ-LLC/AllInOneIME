@@ -3,7 +3,8 @@
 # repository will be: the lint guards (Scripts/check-core-portable.sh, its self-test, Scripts/check-core-standalone.sh)
 # must pass, and on macOS, Linux and Windows the core and its tests must build (on macOS and Linux in release
 # too). On Windows the suites of what differs
-# there (paths, the folder swap, the word list) run too, and the Windows shell (Windows/) builds; the rest of the tests
+# there (paths, the folder swap, the word list, the JavaScript engine: QuickJS-ng) run too, and the Windows shell
+# (Windows/) builds; the rest of the tests
 # aren't run there yet: some still fail for known reasons (the tools in the image, POSIX programs, Apple-only
 # assumptions). The tests run in full on the Mac with `make test`.
 name: Core on other platforms
@@ -99,7 +100,7 @@ jobs:
         run: swift build --build-tests
         working-directory: ../core
       - name: Run the tests of what differs on Windows
-        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests'
+        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests|ScriptEngineTests|QuickJSEngineTests|OnQuickJSTests'
         working-directory: ../core
       - name: Build the Windows shell
         run: swift build
