@@ -212,7 +212,7 @@ extension SelfTest {
         stand.sample(chinese: false)
         panel.refresh()
         check(pump(timeout: 3) { loaded() && taskRows().first?.title == "Refactor the login module" && panel.notes.first?.title == "Weekly meeting notes" }
-              && !panel.chinese, "the English interface, at once")
+              && panel.language == "en", "the English interface, at once")
         check(panel.counts == "2 reminders · 1 task running" && FloatingPanel.completeLabel("Pay the rent") == "Complete \u{201C}Pay the rent\u{201D}",
               "English header and VoiceOver labels: \(panel.counts)")
         render("14-dashboard-en")
@@ -220,7 +220,7 @@ extension SelfTest {
         stand.sample(chinese: true)
         panel.refresh()
         _ = pump(timeout: 3) { loaded() && taskRows().first?.title == "重构登录模块" && panel.notes.first?.title == "周会要点" }
-        check(panel.chinese && FloatingPanel.completeLabel("交房租") == "完成「交房租」", "back to Chinese; the checkbox says 「完成「交房租」」")
+        check(panel.language == "zh-Hans" && FloatingPanel.completeLabel("交房租") == "完成「交房租」", "back to Chinese; the checkbox says 「完成「交房租」」")
 
         // Clicks: a checkbox completes the reminder (the stand-in), a row opens what it shows.
         if case let .list(items) = panel.reminders, let rent = items.first {

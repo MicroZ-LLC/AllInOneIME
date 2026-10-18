@@ -50,14 +50,21 @@ enum UIText {
     /// The same, as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
     static var pluginLanguage: Language { chinese ? .chinese : .english }
 
+    /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
+    /// language name), for the Chinese interface: as it is in Simplified Chinese, in Traditional characters in
+    /// Traditional Chinese (ICU's Hans-Hant transform), never Simplified Chinese there.
+    static func chineseOnly(_ text: String) -> String {
+        guard !InterfaceLanguage.isSimplifiedChinese(language) else { return text }
+        return text.applyingTransform(StringTransform(rawValue: "Hans-Hant"), reverse: false) ?? text
+    }
+
     /// "单按 ⌥" / "Tap ⌥", …
     static func name(_ key: ActionKey) -> String {
-        guard !chinese else { return key.displayName }
         switch key {
         case .enter: return "⏎"
-        case .optionTap: return "Tap ⌥"
-        case .optionSpace: return "⌥Space"
-        case .space: return "Space"
+        case .optionTap: return tr("单按 ⌥", "Tap ⌥")
+        case .optionSpace: return tr("⌥空格", "⌥Space")
+        case .space: return tr("空格", "Space")
         case let .shortcut(key): return key.name
         }
     }
@@ -69,13 +76,12 @@ enum UIText {
 
     /// "单按 ⌥" / "tap ⌥", "按空格" / "press Space", …
     static func howToPress(_ key: ActionKey) -> String {
-        guard !chinese else { return key.howToPress() }
         switch key {
-        case .enter: return "press Return"
-        case .optionTap: return "tap ⌥"
-        case .optionSpace: return "press ⌥Space"
-        case .space: return "press Space"
-        case let .shortcut(key): return "press " + key.name
+        case .enter: return tr("按 ⏎", "press Return")
+        case .optionTap: return tr("单按 ⌥", "tap ⌥")
+        case .optionSpace: return tr("按 ⌥空格", "press ⌥Space")
+        case .space: return tr("按空格", "press Space")
+        case let .shortcut(key): return tr("按 \(key.name)", "press \(key.name)")
         }
     }
 
@@ -400,24 +406,8 @@ enum UIText {
             }
         }
         if let error = error as? AppleModelError { return describe(error) }
-        if chinese, let error = error as? PluginLibraryError {
-            switch error {
-            case let .unreachable(host): return "连不上 \(host)"
-            case let .http(status, file): return "插件库返回 HTTP \(status)（\(file)）"
-            case let .tooLarge(file): return "\(file) 太大"
-            case .missingSignature: return "插件库的索引没有签名"
-            case .badSignature: return "插件库的索引没有通过签名验证（可能正在更新，过几分钟再试）"
-            case let .unsupportedSchema(schema): return "插件库需要更新版本的 AllInOneIME（索引格式 \(schema)）"
-            case .malformedIndex: return "读不懂插件库的索引"
-            case let .invalidName(name): return "插件名字不合规：\(name)"
-            case let .invalidFile(file): return "插件里有不合规的文件：\(file)"
-            case let .hashMismatch(file): return "\(file) 和签名的索引对不上；什么都没有改"
-            case let .invalidManifest(detail): return "插件的 plugin.json 有问题：\(detail)"
-            case let .incompatible(problem): return "这个插件不能用：\(problem)"
-            case let .localPlugin(name): return "已经有一个叫 \(name) 的本地插件；先删除它才能装插件库里的"
-            }
-        }
-        guard !chinese else { return AllInOneIMEInputController.describe(error) }
+        if chinese, let error = error as? PluginLibraryError { return chineseOnly(describeInChinese(error)) }
+        guard !chinese else { return chineseOnly(AllInOneIMEInputController.describe(error)) }
         switch error {
         case let error as URLError:
             switch error.code {
@@ -450,9 +440,33 @@ enum UIText {
         }
     }
 
+    /// A plugin library's error in Simplified Chinese (`describe`).
+    private static func describeInChinese(_ error: PluginLibraryError) -> String {
+        switch error {
+        case let .unreachable(host): return "连不上 \(host)"
+        case let .http(status, file): return "插件库返回 HTTP \(status)（\(file)）"
+        case let .tooLarge(file): return "\(file) 太大"
+        case .missingSignature: return "插件库的索引没有签名"
+        case .badSignature: return "插件库的索引没有通过签名验证（可能正在更新，过几分钟再试）"
+        case let .unsupportedSchema(schema): return "插件库需要更新版本的 AllInOneIME（索引格式 \(schema)）"
+        case .malformedIndex: return "读不懂插件库的索引"
+        case let .invalidName(name): return "插件名字不合规：\(name)"
+        case let .invalidFile(file): return "插件里有不合规的文件：\(file)"
+        case let .hashMismatch(file): return "\(file) 和签名的索引对不上；什么都没有改"
+        case let .invalidManifest(detail): return "插件的 plugin.json 有问题：\(detail)"
+        case let .incompatible(problem): return "这个插件不能用：\(problem)"
+        case let .localPlugin(name): return "已经有一个叫 \(name) 的本地插件；先删除它才能装插件库里的"
+        }
+    }
+
     /// An error of Apple Intelligence on this Mac: what to do about it.
     static func describe(_ error: AppleModelError) -> String {
         guard chinese else { return error.errorDescription ?? "\(error)" }
+        return chineseOnly(describeInChinese(error))
+    }
+
+    /// An error of Apple Intelligence in Simplified Chinese (`describe`).
+    private static func describeInChinese(_ error: AppleModelError) -> String {
         switch error {
         case let .unavailable(reason):
             switch reason {

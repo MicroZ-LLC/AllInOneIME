@@ -67,9 +67,11 @@ enum TranslateModeShared {
 }
 
 extension TranslateMode.Chip {
-    /// As the panel draws it: 「中 → 英」 in the Chinese interface, the language codes ("ZH → EN") in the others.
+    /// As the panel draws it: 「中 → 英」 in the Chinese interface (「中 → 韓」 in Traditional Chinese), the language codes
+    /// ("ZH → EN") in the others.
     var panel: CandidateView.Chip {
-        UIText.chinese ? CandidateView.Chip(source: sourceText, target: targetText) : CandidateView.Chip(source: sourceTag, target: targetTag)
+        UIText.chinese ? CandidateView.Chip(source: UIText.chineseOnly(sourceText), target: UIText.chineseOnly(targetText))
+            : CandidateView.Chip(source: sourceTag, target: targetTag)
     }
 }
 

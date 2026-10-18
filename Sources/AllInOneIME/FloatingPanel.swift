@@ -234,7 +234,7 @@ final class FloatingPanel: ObservableObject {
     /// The time the rows are shown for ("10 分钟前", "明天 15:00").
     @Published private(set) var now: Date
     /// The interface language it was drawn in: it redraws when that changes.
-    @Published private(set) var chinese = UIText.chinese
+    @Published private(set) var language = UIText.language
     /// The lists' height, measured by the view: the window is as tall as they need, up to `maxHeight`.
     @Published var listHeight: CGFloat = 0 {
         didSet { if listHeight != oldValue { resize() } }
@@ -341,7 +341,7 @@ final class FloatingPanel: ObservableObject {
     }
 
     private func open(below anchor: CGRect) {
-        chinese = UIText.chinese
+        language = UIText.language
         now = sources.now()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         scriptRuns = ScriptTasks.shared.background
@@ -427,7 +427,7 @@ final class FloatingPanel: ObservableObject {
         on(.allInOneIMEScriptRunsChanged) { panel, _ in panel.scriptRuns = ScriptTasks.shared.background }
         // Displays changed (one unplugged, the resolution): closed, like a menu; the icon opens it again.
         on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.closeDropDown() }
-        on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.chinese = UIText.chinese }
+        on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.language = UIText.language }
         // Seen again after a while unseen (the screen unlocked, the display awake): what changed meanwhile.
         on(NSWindow.didChangeOcclusionStateNotification, window) { panel, _ in
             guard panel.isOnScreen else {
@@ -946,7 +946,7 @@ struct FloatingPanelView: View {
     static var glass = true
 
     var body: some View {
-        let _ = panel.chinese  // drawn again in the other language
+        let _ = panel.language  // drawn again in the other language
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
         let dark = scheme == .dark
         VStack(spacing: 0) {

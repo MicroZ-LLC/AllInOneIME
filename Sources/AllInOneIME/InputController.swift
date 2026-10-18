@@ -2104,7 +2104,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let folder = ((result.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
         let place = result.path.hasSuffix(".app") ? tr("应用", "app")
             : result.isFolder && !folder.hasSuffix("/") ? folder + "/" : folder
-        return (UIText.chinese ? result.chineseName ?? result.name : result.name,
+        // The Chinese name is the simplified one: Traditional Chinese has Finder's name, as the other languages.
+        return (InterfaceLanguage.isSimplifiedChinese(UIText.language) ? result.chineseName ?? result.name : result.name,
                 result.matchedContent ? tr("内容", "content") + " · " + place : place)
     }
 
