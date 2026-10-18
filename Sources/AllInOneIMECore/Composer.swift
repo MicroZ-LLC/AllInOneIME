@@ -1778,7 +1778,7 @@ public final class Composer {
         if let response = handleModeKey(event) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.
-        if event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter, modifiers.isEmpty,
+        if event.key == .enter || event.key == .keypadEnter, modifiers.isEmpty,
            draftCommand != nil, let effects = actionKeyPressed() {
             return .consumed(effects)
         }
@@ -1809,10 +1809,10 @@ public final class Composer {
         var rimeEvent = event
         if composing { rimeEvent.modifiers.remove(.capsLock) }
         // ⇧Return is "as typed" (the action key may be Return): librime gets a plain Return.
-        if event.keyCode == VirtualKey.returnKey || event.keyCode == VirtualKey.keypadEnter { rimeEvent.modifiers.remove(.shift) }
+        if event.key == .enter || event.key == .keypadEnter { rimeEvent.modifiers.remove(.shift) }
         if composing, horizontalCandidates, !engineState.candidates.isEmpty, modifiers.isEmpty {
-            switch horizontalKey(event.keyCode, engine) {
-            case let .send(keyCode)?: rimeEvent.keyCode = keyCode
+            switch horizontalKey(event.key, engine) {
+            case let .send(key)?: rimeEvent.key = key
             case .nothing?: return .consumed()
             case nil: break
             }
@@ -1849,7 +1849,7 @@ public final class Composer {
 
     private enum HorizontalKey {
         /// The engine gets this key instead.
-        case send(UInt16)
+        case send(Key)
         /// Nothing to do (no other page).
         case nothing
     }
@@ -1857,12 +1857,12 @@ public final class Composer {
     /// An arrow key on candidates in a row: ← → are the previous and next candidate (the engine's ↑↓ in a column,
     /// on to the next page from the last), ↑↓ the previous and next page (its Page Up and Down). Hindi's spellings are
     /// one page: ↑↓ do nothing there. Nil for the other keys, which act as in a column (-/= turn the page there too).
-    private func horizontalKey(_ keyCode: UInt16, _ engine: PinyinEngine) -> HorizontalKey? {
-        switch keyCode {
-        case VirtualKey.left: return .send(VirtualKey.up)
-        case VirtualKey.right: return .send(VirtualKey.down)
-        case VirtualKey.up: return engine.language == .hindi ? .nothing : .send(VirtualKey.pageUp)
-        case VirtualKey.down: return engine.language == .hindi ? .nothing : .send(VirtualKey.pageDown)
+    private func horizontalKey(_ key: Key, _ engine: PinyinEngine) -> HorizontalKey? {
+        switch key {
+        case .arrow(.left): return .send(.arrow(.up))
+        case .arrow(.right): return .send(.arrow(.down))
+        case .arrow(.up): return engine.language == .hindi ? .nothing : .send(.pageUp)
+        case .arrow(.down): return engine.language == .hindi ? .nothing : .send(.pageDown)
         default: return nil
         }
     }

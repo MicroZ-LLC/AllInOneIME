@@ -125,17 +125,28 @@ public enum RimeKey {
     public static let delete: Int32 = 0xFFFF
     public static let f1: Int32 = 0xFFBE
 
-    static let specialKeys: [UInt16: Int32] = {
-        var keys: [UInt16: Int32] = [
-            VirtualKey.returnKey: returnKey, VirtualKey.keypadEnter: returnKey,
-            VirtualKey.tab: tab, VirtualKey.space: space,
-            VirtualKey.delete: backSpace, VirtualKey.forwardDelete: delete, VirtualKey.escape: escape,
-            VirtualKey.home: home, VirtualKey.end: end, VirtualKey.pageUp: pageUp, VirtualKey.pageDown: pageDown,
-            VirtualKey.left: left, VirtualKey.right: right, VirtualKey.up: up, VirtualKey.down: down,
-        ]
-        for (i, code) in VirtualKey.functionKeys.enumerated() { keys[code] = f1 + Int32(i) }
-        return keys
-    }()
+    /// The keysym of a key that types nothing (F1–F12 only, as before the key model: F13 and up are nil, as other
+    /// function keys).
+    static func special(_ key: Key) -> Int32? {
+        switch key {
+        case .enter, .keypadEnter: return returnKey
+        case .tab: return tab
+        case .space: return space
+        case .backspace: return backSpace
+        case .forwardDelete: return delete
+        case .escape: return escape
+        case .home: return home
+        case .end: return end
+        case .pageUp: return pageUp
+        case .pageDown: return pageDown
+        case .arrow(.left): return left
+        case .arrow(.right): return right
+        case .arrow(.up): return up
+        case .arrow(.down): return down
+        case let .f(n) where (1...12).contains(n): return f1 + Int32(n - 1)
+        default: return nil
+        }
+    }
 
     public static func mask(for modifiers: KeyModifiers) -> Int32 {
         var mask: Int32 = 0
@@ -151,7 +162,7 @@ public enum RimeKey {
     /// (non-ASCII characters, dead keys, unknown function keys). Follows Squirrel's mapping.
     public static func map(_ event: KeyEvent) -> (keycode: Int32, mask: Int32)? {
         let mask = mask(for: event.modifiers)
-        if let special = specialKeys[event.keyCode] { return (special, mask) }
+        if let special = special(event.key) { return (special, mask) }
 
         var chars = event.charactersIgnoringModifiers
         let capitalOnly = event.modifiers.isSubset(of: [.shift, .capsLock])
