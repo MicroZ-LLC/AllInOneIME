@@ -13,7 +13,8 @@ public enum SessionEvent: Sendable {
     case blur
     /// The app wants what's pending in now (a click elsewhere in it).
     case commit
-    /// A row of the candidate panel clicked; its list scrolled by `steps` rows.
+    /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
+    /// scrolled by `steps` rows.
     case pick(Int)
     case scroll(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id`.

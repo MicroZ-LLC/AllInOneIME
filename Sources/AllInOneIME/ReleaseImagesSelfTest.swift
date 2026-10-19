@@ -155,7 +155,7 @@ extension SelfTest {
             let ready = pump(timeout: 15) { if case .screenshot(.ready)? = controller.composer.attachment { return true } else { return false } }
             if english { type("yes, but ask for 4 pm", controller, client) }
             _ = pump(timeout: 0.3) { false }
-            check(ready, "the screenshot is read (\(controller.panelModel().header ?? "-"))")
+            check(ready, "the screenshot is read (\(controller.panelModel().headerText ?? "-"))")
             snapshot("release-reply-screenshot\(suffix)", in: snapshotDirectory)
             try? Data(client.marked.utf8).write(to: snapshotDirectory.appendingPathComponent("release-reply-screenshot\(suffix).marked.txt"))
             _ = enter(controller, client)

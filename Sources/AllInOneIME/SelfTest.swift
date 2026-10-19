@@ -244,7 +244,7 @@ enum SelfTest {
     }
 
     /// The hint shown under a draft in `input`, for the current action key and interface language.
-    static func draftHint(_ c: AllInOneIMEInputController, input: Language) -> CandidateView.Status {
+    static func draftHint(_ c: AllInOneIMEInputController, input: Language) -> PanelModel.Status {
         let key = c.composer.actionKey
         let how = key != .space ? UIText.name(key) : c.composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
         return .hint("\(how) → " + UIText.action(input: input, config: settings))
@@ -328,14 +328,14 @@ enum SelfTest {
         let model = controller.panelModel()
         check(controller.composer.draft == "@improve " && controller.composer.draftInPanel && untouched(),
               "\"@improve\" on the selection: nothing marked, the text and its selection untouched ('\(client.document)', marked '\(client.marked)')")
-        check(model.input == "improve › ▏" && (model.header ?? "").contains(part) && (model.header ?? "").contains("27"),
-              "the panel shows the command as typed, then the selection (\(model.input ?? "-") / \(model.header ?? "-"))")
+        check(model.inputText == "improve › ▏" && (model.headerText ?? "").contains(part) && (model.headerText ?? "").contains("27"),
+              "the panel shows the command as typed, then the selection (\(model.inputText ?? "-") / \(model.headerText ?? "-"))")
         // Pinyin in the command's text: in the panel's input line, its candidates below; Space picks.
         type("nihao", controller, client)
         let pinyin = controller.panelModel()
-        check(untouched() && pinyin.input?.hasPrefix("improve › ") == true && pinyin.input?.contains("ni") == true
+        check(untouched() && pinyin.inputText?.hasPrefix("improve › ") == true && pinyin.inputText?.contains("ni") == true
               && pinyin.rows.contains { $0.text == "你好" },
-              "pinyin is shown in the panel's input line with its candidates, not in the field (\(pinyin.input ?? "-"))")
+              "pinyin is shown in the panel's input line with its candidates, not in the field (\(pinyin.inputText ?? "-"))")
         _ = space(controller, client)
         check(controller.composer.draft == "@improve 你好" && untouched(), "Space picks 你好 into the command (\(controller.composer.draft))")
         _ = escape(controller, client)
@@ -799,8 +799,8 @@ enum SelfTest {
         let before = versions(), beforeResult = controller.composer.result
         type("shorter", controller, client)
         let typing = controller.panelModel()
-        check(controller.composer.refineLine == "shorter" && typing.input == "修改 › shorter▏" && controller.composer.phase == .choosing,
-              "letters start the refine line, the results stay (\(typing.input ?? "no line"))")
+        check(controller.composer.refineLine == "shorter" && typing.inputText == "修改 › shorter▏" && controller.composer.phase == .choosing,
+              "letters start the refine line, the results stay (\(typing.inputText ?? "no line"))")
         check(typing.footer.hasPrefix("⇧⏎ 修改 · ⏎ 上屏"), "the footer says ⇧⏎ refines, ⏎ inserts (\(typing.footer))")
         readmeSnapshot("refine-typing", controller, client, in: snapshotDirectory)  // release notes
         check(shiftEnter(controller, client) && controller.composer.isRefining, "⇧⏎ runs the refine")
@@ -808,7 +808,7 @@ enum SelfTest {
             let after = versions()
             check(after.count >= 2 && average(after) < average(before),
                   String(format: "the refined versions are shorter (%.0f → %.0f characters on average)", average(before), average(after)))
-            let header = controller.panelModel().header ?? ""
+            let header = controller.panelModel().headerText ?? ""
             check(header == "已修改：shorter", "the header names the step (\(header))")
             readmeSnapshot("refine", controller, client, in: snapshotDirectory)  // release notes
             check(controller.panelModel().footer.contains("Esc 上一版"), "the footer offers the step back (\(controller.panelModel().footer))")
@@ -1504,7 +1504,7 @@ enum SelfTest {
 
         // How the row shows a day, no date and a time that is over (stand-ins for the parser); Space, 1
         // and ⏎ add it; secure input doesn't hold it back.
-        func confirmRow(_ reminder: ReminderDraft) -> CandidateView.Row? {
+        func confirmRow(_ reminder: ReminderDraft) -> PanelModel.Row? {
             controller.services.parseReminder = { _ in reminder }
             at()
             type("rem", controller, client)
@@ -1916,8 +1916,8 @@ enum SelfTest {
         check(fitted.string.hasSuffix("…") && width <= CandidateView.Metrics.maxCellTextWidth
               && width > CandidateView.Metrics.maxCellTextWidth - CandidateView.Fonts.candidate.pointSize * 2,
               "a long candidate is cut to fit, no gap after the … (\(Int(width)) of \(Int(CandidateView.Metrics.maxCellTextWidth)) pt)")
-        panel.show(CandidateView.Model(rows: ["你好", long, "拟好"].enumerated().map {
-            CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+        panel.show(PanelModel(rows: ["你好", long, "拟好"].enumerated().map {
+            PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
         snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
         // The setting is on the Input page (with the input languages), and the search finds it there.

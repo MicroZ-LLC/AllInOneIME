@@ -50,12 +50,12 @@ enum PanelShowcase {
                 // The candidate panel, as under a line being typed at the backdrop's left.
                 panel.closeDropDown()
                 let rows = (chinese ? ["哦", "噢", "喔", "欧", "偶"] : ["oh", "ok", "of", "on", "out"]).enumerated().map {
-                    CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+                    PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
                 }
                 let line = NSRect(x: backdrop.minX + 60, y: backdrop.maxY - 150, width: 2, height: 20)
                 CandidatePanel.shared.appearance = appearance
-                CandidatePanel.shared.show(CandidateView.Model(rows: rows, highlighted: 0,
-                                                               footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands"),
+                CandidatePanel.shared.show(PanelModel(rows: rows, highlighted: 0,
+                                                      footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands"),
                                            anchor: line)
             }
         }
@@ -64,12 +64,12 @@ enum PanelShowcase {
                 capture("candidates.png")
                 // The same in a row (`candidateLayout`), the second highlighted as → would.
                 let rows = (chinese ? ["我们", "我门", "握们", "沃们", "卧"] : ["we", "well", "were", "went", "west"]).enumerated().map {
-                    CandidateView.Row(label: "\($0.offset + 1)", text: $0.element, style: .candidate)
+                    PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
                 }
                 let line = NSRect(x: backdrop.minX + 60, y: backdrop.maxY - 150, width: 2, height: 20)
-                CandidatePanel.shared.show(CandidateView.Model(rows: rows, highlighted: 1,
-                                                               footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands",
-                                                               detail: chinese ? "第 1 页" : "page 1", horizontal: true),
+                CandidatePanel.shared.show(PanelModel(rows: rows, highlighted: 1,
+                                                      footer: chinese ? "空格 选词 · 开头打 @ 用命令" : "Space picks · @ for commands",
+                                                      detail: chinese ? "第 1 页" : "page 1", horizontal: true),
                                            anchor: line)
             }
         }

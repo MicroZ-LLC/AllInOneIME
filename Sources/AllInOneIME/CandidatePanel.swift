@@ -20,7 +20,7 @@ final class CandidatePanel: NSPanel {
         set { view.onScroll = newValue }
     }
 
-    /// A part of Translate as You Type's chip clicked (`CandidateView.Model.chip`).
+    /// A part of Translate as You Type's chip clicked (`PanelModel.chip`).
     var onChip: ((CandidateView.ChipPart) -> Void)? {
         get { view.onChip }
         set { view.onChip = newValue }
@@ -74,8 +74,8 @@ final class CandidatePanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    func show(_ model: CandidateView.Model, anchor: NSRect) {
-        // A conversation grows up to about half the screen it's on, then scrolls (`Model.transcript`).
+    func show(_ model: PanelModel, anchor: NSRect) {
+        // A conversation grows up to about half the screen it's on, then scrolls (`PanelModel.transcript`).
         view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
         view.model = model
         let size = view.contentSize
@@ -85,7 +85,7 @@ final class CandidatePanel: NSPanel {
     }
 
     /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
-    func shows(_ model: CandidateView.Model, anchor: NSRect) -> Bool {
+    func shows(_ model: PanelModel, anchor: NSRect) -> Bool {
         guard isVisible, view.model == model else { return false }
         let size = view.contentSize
         return frame == NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
@@ -126,25 +126,10 @@ final class CandidatePanel: NSPanel {
     }
 }
 
-/// Draws the candidate list. Layout is computed when the model changes; drawing is appearance-aware. Its model is the
-/// core's `PanelModel` (`Model.init(_:)`), with the icons as the Mac draws them.
+/// Draws the candidate list: the core's `PanelModel`, with the icons as the Mac draws them (`Icon`), its caret as "▏"
+/// and the choices where a conversation can go on as lines of text (`PanelModel.inputText`). Layout is computed when the
+/// model changes; drawing is appearance-aware.
 final class CandidateView: NSView {
-    struct Row: Equatable {
-        /// Level-one pinyin candidate, the sentence as typed (level two, row 0), or a version or rewrite from the model.
-        typealias Style = PanelModel.Row.Kind
-
-        var label: String
-        var text: String
-        var comment: String = ""
-        var style: Style
-        var isComplete: Bool = true
-        /// A symbol in a colored rounded square before the text, like the icons of iOS Settings.
-        var icon: Icon? = nil
-        /// A click picks it and the pointer over it highlights it (`onSelect`); not a line a script printed or a
-        /// list's information, which nothing picks.
-        var pickable = true
-    }
-
     /// An SF Symbol, drawn white on `color`.
     struct Icon: Equatable {
         var symbol: String
@@ -154,32 +139,9 @@ final class CandidateView: NSView {
         var image: String? = nil
     }
 
-    typealias Status = PanelModel.Status
-
     /// Translate as You Type's chip (「中 → 英」): the language typed and the one it translates into, each a part to click.
     typealias Chip = PanelModel.Chip
     typealias ChipPart = PanelModel.ChipPart
-
-    struct Model: Equatable {
-        var rows: [Row] = []
-        var highlighted: Int?
-        var status: Status = .none
-        /// The command being written, as a line of input with its caret (▏), first: it isn't marked in the field (a
-        /// command on the selected text).
-        var input: String?
-        /// A line above the rows: what the panel works on (the text selected in the field).
-        var header: String?
-        var footer = ""
-        var detail: String?
-        /// The rows side by side, as macOS's own panel (`Config.candidateLayout`): the engine's candidates only.
-        var horizontal = false
-        /// The rows are a conversation (`QuestionChatPanel`): the panel is no taller than `CandidateView.maxHeight`, the
-        /// rows scrolled to show the last one (or the highlighted one, when it's above).
-        var transcript = false
-        /// Translate as You Type's chip on top (`onChip`); with it the panel is only as wide as it needs, unless a
-        /// footer is there.
-        var chip: Chip? = nil
-    }
 
     enum Metrics {
         static let padding: CGFloat = 6
@@ -196,7 +158,7 @@ final class CandidateView: NSView {
         static let iconGap: CGFloat = 8
         /// Distance from the panel's left edge to where candidate text starts.
         static let textInsetX: CGFloat = padding + rowInsetX + labelWidth + labelGap
-        /// Candidates in a row (`Model.horizontal`): the number closer to its word, the cells apart, the widest a
+        /// Candidates in a row (`PanelModel.horizontal`): the number closer to its word, the cells apart, the widest a
         /// line gets before the next candidates go on another, and the most of a long candidate shown.
         static let cellLabelGap: CGFloat = 4
         static let cellSpacing: CGFloat = 2
@@ -218,8 +180,8 @@ final class CandidateView: NSView {
         static let footer = NSFont.systemFont(ofSize: 11)
         static let chip = NSFont.systemFont(ofSize: 13, weight: .medium)
 
-        static func text(for style: Row.Style) -> NSFont {
-            switch style {
+        static func text(for kind: PanelModel.Row.Kind) -> NSFont {
+            switch kind {
             case .candidate: return candidate
             case .original: return chinese
             case .translation: return english
@@ -243,7 +205,7 @@ final class CandidateView: NSView {
     /// on for an offscreen image, which has nothing behind it to blur.
     var drawsBackground = true
 
-    var model = Model() {
+    var model = PanelModel() {
         didSet {
             guard model != oldValue else { return }
             // The newest rows (or the highlighted one) come into view again, unless the wheel moved a conversation up
@@ -256,12 +218,12 @@ final class CandidateView: NSView {
     /// Whether a conversation the wheel scrolled up stays put as the model goes from `old` to `model`: the same rows
     /// with the same one picked, only their text (or the line on top, the status, the footer) changed. Scrolled back
     /// to the bottom, it follows the end again.
-    private func keepsScroll(from old: Model) -> Bool {
+    private func keepsScroll(from old: PanelModel) -> Bool {
         guard let scrolled, scrolled < overflow - 0.5, model.transcript, old.transcript else { return false }
         return model.rows.count == old.rows.count && model.highlighted == old.highlighted
     }
 
-    /// The tallest a conversation's panel gets (`Model.transcript`); nil: no limit.
+    /// The tallest a conversation's panel gets (`PanelModel.transcript`); nil: no limit.
     var maxHeight: CGFloat? {
         didSet { if maxHeight != oldValue, model.transcript { relayout() } }
     }
@@ -319,7 +281,7 @@ final class CandidateView: NSView {
             let frames = layoutChip(chip, top: y)
             chipFrames = frames
             widest = max(widest, frames.whole.maxX - Metrics.textInsetX - Metrics.rowInsetX)
-            let alone = model.rows.isEmpty && model.status == .none && model.footer.isEmpty && model.input == nil && model.header == nil
+            let alone = model.rows.isEmpty && model.status == .none && model.footer.isEmpty && model.inputText == nil && model.header.isEmpty
             y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
         }
         inputFrame = nil
@@ -344,7 +306,7 @@ final class CandidateView: NSView {
         let iconColumn = model.rows.contains { $0.icon != nil } ? Metrics.iconSize + Metrics.iconGap : 0
         for row in model.rows where !horizontal {
             let (_, text) = strings(for: row, highlighted: false)
-            let font = Fonts.text(for: row.style)
+            let font = Fonts.text(for: row.kind)
             let size = Self.measure(text, minHeight: max(ceil(font.ascender - font.descender + font.leading),
                                                           iconColumn > 0 ? Metrics.iconSize : 0))
             widest = max(widest, size.width + iconColumn)
@@ -442,7 +404,7 @@ final class CandidateView: NSView {
         footerY -= overflow
     }
 
-    /// The candidates side by side (`Model.horizontal`), as many to a line as fit in `maxRowWidth`
+    /// The candidates side by side (`PanelModel.horizontal`), as many to a line as fit in `maxRowWidth`
     /// (`CandidateLayout.flow`): each a cell with its number and word, one line, a long one cut short with "…".
     /// The y below them, and the panel width they need.
     private func layoutCells(top: CGFloat) -> (bottom: CGFloat, width: CGFloat) {
@@ -506,10 +468,10 @@ final class CandidateView: NSView {
 
     // MARK: - Strings
 
-    private func strings(for row: Row, highlighted: Bool) -> (NSAttributedString, NSAttributedString) {
-        let primary: NSColor = highlighted ? .white : (row.style == .original ? .secondaryLabelColor : .labelColor)
+    private func strings(for row: PanelModel.Row, highlighted: Bool) -> (NSAttributedString, NSAttributedString) {
+        let primary: NSColor = highlighted ? .white : (row.kind == .original ? .secondaryLabelColor : .labelColor)
         let secondary: NSColor = highlighted ? NSColor.white.withAlphaComponent(0.85) : .secondaryLabelColor
-        let font = Fonts.text(for: row.style)
+        let font = Fonts.text(for: row.kind)
         let label = NSAttributedString(string: row.label, attributes: [.font: Fonts.label, .foregroundColor: secondary])
         let text = NSMutableAttributedString(string: row.text, attributes: [.font: font, .foregroundColor: primary])
         if !row.isComplete {
@@ -534,11 +496,11 @@ final class CandidateView: NSView {
     }
 
     private func inputString() -> NSAttributedString? {
-        model.input.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+        model.inputText.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
     }
 
     private func headerString() -> NSAttributedString? {
-        model.header.map {
+        model.headerText.map {
             NSAttributedString(string: $0, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
         }
     }
@@ -553,6 +515,10 @@ final class CandidateView: NSView {
             ])
         case let .hint(text):
             return NSAttributedString(string: text, attributes: [
+                .font: Fonts.status, .foregroundColor: NSColor.labelColor,
+            ])
+        case .list:
+            return NSAttributedString(string: model.statusText ?? "", attributes: [
                 .font: Fonts.status, .foregroundColor: NSColor.labelColor,
             ])
         case let .error(message):
@@ -624,7 +590,7 @@ final class CandidateView: NSView {
             }
             let (label, text) = strings(for: model.rows[index], highlighted: highlighted)
             label.draw(at: layout.labelOrigin)
-            if let icon = model.rows[index].icon, let frame = layout.iconFrame { Self.draw(icon, in: frame) }
+            if let icon = model.rows[index].icon, let frame = layout.iconFrame { Self.draw(Icon(icon), in: frame) }
             // A candidate in a row keeps to its one line, cut short with "…" (as measured: `layoutCells`).
             if model.horizontal {
                 Self.fitted(text, width: Metrics.maxCellTextWidth).draw(with: layout.textFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
@@ -736,20 +702,37 @@ final class CandidateView: NSView {
     }
 }
 
-
-extension CandidateView.Model {
-    /// The core's panel, as this view draws it.
-    init(_ panel: PanelModel) {
-        self.init(rows: panel.rows.map(CandidateView.Row.init), highlighted: panel.highlighted, status: panel.status,
-                  input: panel.input, header: panel.header, footer: panel.footer, detail: panel.detail,
-                  horizontal: panel.horizontal, transcript: panel.transcript, chip: panel.chip)
+extension PanelModel {
+    /// What the Mac draws on top, in the input line's font: where a conversation can go on, its title and its choices as
+    /// lines of text (up to 4 on a line, more 3 a line, so the panel stays as wide), then the line of input with "▏" at
+    /// its caret. Nil: neither.
+    var inputText: String? {
+        var lines: [String] = []
+        if let handoff {
+            let labels = handoff.choices.map { $0.shortcut + " " + $0.name }
+            let perLine = labels.count <= 4 ? 4 : 3
+            lines.append(handoff.title)
+            lines.append(stride(from: 0, to: labels.count, by: perLine)
+                .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n"))
+        }
+        if let input {
+            let text = input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text
+            lines.append(input.prompt + text)
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
-}
 
-extension CandidateView.Row {
-    init(_ row: PanelModel.Row) {
-        self.init(label: row.label, text: row.text, comment: row.comment, style: row.kind, isComplete: row.isComplete,
-                  icon: row.icon.map(CandidateView.Icon.init), pickable: row.pickable)
+    /// The header's lines as the Mac draws them, one under the other; nil without.
+    var headerText: String? { header.isEmpty ? nil : header.joined(separator: "\n") }
+
+    /// The status's text as the Mac draws it (a list's items under it, after "· "); nil without one. An error's, without
+    /// its "⚠︎".
+    var statusText: String? {
+        switch status {
+        case .none: return nil
+        case let .loading(text), let .hint(text), let .error(text): return text
+        case let .list(title, items): return title + "\n" + items.map { "· " + $0 }.joined(separator: "\n")
+        }
     }
 }
 

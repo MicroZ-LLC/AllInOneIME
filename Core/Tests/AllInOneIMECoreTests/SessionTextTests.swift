@@ -98,7 +98,6 @@ struct SessionTextTests {
         #expect(SessionText.inputName(.chinese, language: "zh-Hans") == "中文（拼音）")
         #expect(SessionText.inputName(.chinese, language: "en") == "Chinese (pinyin)")
         #expect(SessionText.inputName(.english, language: "en") == "English")
-        #expect(SessionText.chatChoice(row: 0) == nil && SessionText.chatChoice(row: 3) == 1)
         #expect(SessionText.noticeDuration("x", long: true) == 12 && SessionText.noticeDuration("", long: false) == 1.2)
         #expect(SessionText.noticeDuration(String(repeating: "x", count: 200), long: false) == 5)
         #expect(SessionText.shortName(.atAgent, picked: .claude, language: "en") == "@agent's agent (Claude Code)")

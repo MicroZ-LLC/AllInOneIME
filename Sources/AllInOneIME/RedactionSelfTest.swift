@@ -113,7 +113,7 @@ extension SelfTest {
               "the version picked goes in with the real values ('\(client.document)')")
 
         // Without hiding (the setting off), the panel says nothing of it.
-        var shown = CandidateView.Model()
+        var shown = PanelModel()
         RedactionPanel.annotate(&shown, choices: [], hidden: 0, phase: .choosing)
         check(shown.detail == nil, "nothing hidden: no line about it")
     }

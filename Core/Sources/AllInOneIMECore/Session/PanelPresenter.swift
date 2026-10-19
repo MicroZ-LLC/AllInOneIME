@@ -196,9 +196,9 @@ public struct PanelPresenter {
             case .choosing where command?.kind == .report:
                 // Everything the page will hold besides the title, before it opens.
                 if let issue = composer.pendingIssue {
-                    model.status = .hint(t.tr("会一起填进去（不含你打的其他字、路径、密钥和命令名）：",
-                                            "Also filled in (no other text you typed, no paths, keys or command names):")
-                                         + "\n" + issue.lines.map { "· " + $0 }.joined(separator: "\n"))
+                    model.status = .list(t.tr("会一起填进去（不含你打的其他字、路径、密钥和命令名）：",
+                                              "Also filled in (no other text you typed, no paths, keys or command names):"),
+                                         items: issue.lines)
                 }
                 model.footer = t.tr("⏎ 在浏览器打开，在 GitHub 上点提交 · Esc 返回", "⏎ open in the browser, submit it on GitHub · Esc back")
             case .choosing where composer.offersMoreReplies && composer.refineLine == nil && composer.refineError == nil:
@@ -372,14 +372,16 @@ public struct PanelPresenter {
                 ? t.tr("\(paste) 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "\(paste) paste · ⌫ delete · Esc cancel, the selection stays")
                 : t.tr("\(paste) 粘贴 · ⌫ 删字 · Esc 清除", "\(paste) paste · ⌫ delete · Esc clear")
         }
-        // The refine instruction being typed, as a line of input with its caret, in place of the command's.
+        // The refine instruction being typed, as a line of input with its caret at its end, in place of the command's.
         // (An @question conversation's next question while its pinyin is typed.)
         let line = composer.isQuestionChat ? t.tr("追问 › ", "question › ") : t.tr("修改 › ", "refine › ")
-        model.input = composer.refineLine.map { line + $0 + "▏" } ?? SessionText.panelInput(composer)
-        let headers = [SessionText.selectionHeader(composer, language: language),
-                       SessionText.attachmentHeader(composer, language: language, terms: terms),
-                       SessionText.refineHeader(composer, language: language)].compactMap { $0 }
-        model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
+        model.input = composer.refineLine.map { PanelModel.Input(prompt: line, text: $0, caret: $0.count) }
+            ?? SessionText.panelInput(composer)
+        model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
+            + SessionText.attachmentHeader(composer, language: language, terms: terms)
+            + [SessionText.refineHeader(composer, language: language)].compactMap { $0 }
+        // A click on a row picks what its number would.
+        for index in model.rows.indices { model.rows[index].choice = index }
         if let notice { model.detail = notice }
         // Translate as You Type's pinyin (or dictation): its chip on top.
         if composer.inModeComposition { model.chip = chip().map { PanelModel.Chip($0, language: language) } }
@@ -409,13 +411,13 @@ public struct PanelPresenter {
         for (index, round) in rounds.enumerated() {
             let latest = index == rounds.count - 1
             model.rows.append(PanelModel.Row(label: "", text: t.tr("问：", "Q: ") + SessionText.preview(line(round.question), limit: Self.earlierLimit),
-                                             kind: .original, pickable: false))
+                                             kind: .original, pickable: false, choice: nil))
             let answer = latest ? SessionText.preview(round.answer, limit: Self.latestLimit)
                 : SessionText.preview(line(round.answer), limit: Self.earlierLimit)
             let choice = choices.indices.contains(index) ? choices[index] : nil
             model.rows.append(PanelModel.Row(label: String(index + 1), text: t.tr("答：", "A: ") + answer,
                                              kind: latest ? .translation : .original, isComplete: choice?.isComplete ?? true,
-                                             pickable: choice.map(Composer.picks) ?? false))
+                                             pickable: choice.map(Composer.picks) ?? false, choice: index))
         }
         model.highlighted = 2 * composer.highlighted + 1
         // The values hidden from the AI, and an answer whose placeholder it changed past telling.
@@ -426,26 +428,25 @@ public struct PanelPresenter {
                 if model.rows.indices.contains(row) { model.rows[row].comment = PanelRedaction.changed(language: language) }
             }
         }
-        // The line on top: where the conversation can go on, or the next question.
-        let typed = composer.refineLine.map { $0 + "▏" } ?? "▏"
+        // On top: where the conversation can go on (and what was typed to take along), or the next question, the caret
+        // after what is typed.
+        let typed = composer.refineLine ?? ""
         if composer.showsHandoff {
-            // Up to 4 on a line; more (the agents installed, the web …), 3 a line, so the panel stays as wide.
-            let labels = composer.handoffChoices.enumerated().map {
-                terms.pick($0.offset + 1) + " " + SessionText.shortName($0.element, picked: agent, custom: agentCommand, language: language)
-            }
-            let perLine = labels.count <= 4 ? 4 : 3
-            let choices = stride(from: 0, to: labels.count, by: perLine)
-                .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n")
             let title = composer.chatAtLimit
                 ? t.tr("已经聊了 \(composer.chatRound) 轮：在 Claude 或别的 AI 里接着聊", "\(composer.chatRound) rounds in: continue in Claude or another AI")
                 : t.tr("在 Claude 或别的 AI 里接着聊", "Continue in Claude or another AI")
-            model.input = title + "\n" + choices + (composer.refineLine == nil ? "" : "\n" + t.tr("接着说 › ", "then › ") + typed)
+            model.handoff = PanelModel.Handoff(title: title, choices: composer.handoffChoices.enumerated().map {
+                PanelModel.Handoff.Choice(shortcut: terms.pick($0.offset + 1),
+                                          name: SessionText.shortName($0.element, picked: agent, custom: agentCommand, language: language))
+            })
+            model.input = composer.refineLine.map { PanelModel.Input(prompt: t.tr("接着说 › ", "then › "), text: $0, caret: $0.count) }
         } else if composer.typesRefine {
             let next = min(composer.chatRound + 1, QuestionChat.rounds(composer.questionRounds))
-            model.input = t.tr("追问 \(next)/\(QuestionChat.rounds(composer.questionRounds)) › ", "question \(next)/\(QuestionChat.rounds(composer.questionRounds)) › ")
-                + typed
+            model.input = PanelModel.Input(prompt: t.tr("追问 \(next)/\(QuestionChat.rounds(composer.questionRounds)) › ",
+                                                        "question \(next)/\(QuestionChat.rounds(composer.questionRounds)) › "),
+                                           text: typed, caret: typed.count)
         }
-        model.header = SessionText.selectionHeader(composer, language: language)
+        model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(t.tr("AI 回答中…", "Answering…")) }
         let count = composer.handoffChoices.count
@@ -492,8 +493,8 @@ public struct PanelPresenter {
         let t = InterfaceWords(language: language)
         var model = PanelModel()
         model.chip = PanelModel.Chip(chip, language: language)
-        model.rows = (chip.choices ?? []).map {
-            PanelModel.Row(label: chip.checks($0) ? "✓" : "", text: t.name($0), kind: .candidate)
+        model.rows = (chip.choices ?? []).enumerated().map {
+            PanelModel.Row(label: chip.checks($0.element) ? "✓" : "", text: t.name($0.element), kind: .candidate, choice: $0.offset)
         }
         if let notice { model.status = .hint(notice) }
         return model
@@ -515,17 +516,10 @@ public enum PanelRedaction {
         InterfaceWords(language: language).tr("⚠ 占位符被改动", "⚠ placeholder changed")
     }
 
-    /// `model`'s rows marked, and the line about what was hidden before its detail, while results are shown.
+    /// `model`'s rows marked (the row of each choice, in order), and the line about what was hidden before its detail,
+    /// while results are shown.
     public static func annotate(_ model: inout PanelModel, choices: [Composer.Choice], hidden: Int, phase: Composer.Phase,
                                 language: String) {
-        var comments = model.rows.map(\.comment)
-        annotate(comments: &comments, detail: &model.detail, choices: choices, hidden: hidden, phase: phase, language: language)
-        for index in model.rows.indices { model.rows[index].comment = comments[index] }
-    }
-
-    /// The same for a panel of a shell's own: its rows' comments, in order, and its detail.
-    public static func annotate(comments: inout [String], detail: inout String?, choices: [Composer.Choice], hidden: Int,
-                                phase: Composer.Phase, language: String) {
         guard hidden > 0 else { return }
         switch phase {
         case .translating, .choosing: break
@@ -533,10 +527,11 @@ public enum PanelRedaction {
         }
         let changed = changed(language: language)
         let original = choices.first { $0.kind == .original }?.text ?? ""
-        for (index, choice) in choices.enumerated() where comments.indices.contains(index) && choice.kind != .original
+        for (index, choice) in choices.enumerated() where model.rows.indices.contains(index) && choice.kind != .original
             && choice.isComplete && Redaction.isAltered(choice.text, original: original) {
-            comments[index] = comments[index].isEmpty ? changed : comments[index] + " · " + changed
+            let comment = model.rows[index].comment
+            model.rows[index].comment = comment.isEmpty ? changed : comment + " · " + changed
         }
-        detail = [hiddenLine(hidden, language: language), detail].compactMap { $0 }.joined(separator: " · ")
+        model.detail = [hiddenLine(hidden, language: language), model.detail].compactMap { $0 }.joined(separator: " · ")
     }
 }

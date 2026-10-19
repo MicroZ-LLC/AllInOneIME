@@ -134,14 +134,12 @@ public final class InputSession {
                 fieldText = nil
             case .commit:
                 perform(composer.commitAll())
-            case let .pick(index):
-                // A conversation's rows are its questions and answers: a click picks an answer (`SessionText.chatChoice`).
-                if composer.isQuestionChat, !composer.refineIsComposing {
-                    guard let answer = SessionText.chatChoice(row: index) else { return }
-                    perform(composer.choose(index: answer))
-                } else {
-                    perform(composer.choose(index: index))
-                }
+            case let .pick(row):
+                // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
+                // round, nothing for a question.
+                let rows = panelModel().rows
+                guard rows.indices.contains(row), let choice = rows[row].choice else { return }
+                perform(composer.choose(index: choice))
             case let .scroll(steps):
                 perform(composer.scrollPalette(by: steps))
             case let .clipboard(content, id):

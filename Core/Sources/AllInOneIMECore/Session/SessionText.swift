@@ -117,29 +117,29 @@ public enum SessionText {
         return InterfaceWords(language: language).tr("已修改：", "Refined: ") + steps
     }
 
-    /// The line about what the draft has attached (`Composer.attachment`): a screenshot being read or read (on this
-    /// device, as `terms` call it: only its text is sent), or the message copied into `@reply`.
+    /// The lines about what the draft has attached (`Composer.attachment`): a screenshot being read, or read (two: on
+    /// this device, as `terms` call it, and only its text is sent), or the message copied into `@reply`; none without.
     public static func attachmentHeader(_ composer: Composer, language: String,
-                                        terms: PlatformTerms = Platform.current.terms) -> String? {
+                                        terms: PlatformTerms = Platform.current.terms) -> [String] {
         let t = InterfaceWords(language: language)
         switch composer.attachment {
         case .screenshot(.recognizing)?:
-            return composer.messages.reply.reading
+            return [composer.messages.reply.reading]
         case let .screenshot(.ready(text))?:
             let lines = text.lineCount
             switch terms.device {
             case .mac:
-                return t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)") + "\n"
-                    + t.tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")
+                return [t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)"),
+                        t.tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")]
             case .pc:
-                return t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this PC)") + "\n"
-                    + t.tr("图片不会离开这台电脑，只发送认出的文字", "The image stays on this PC; only its text is sent")
+                return [t.tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this PC)"),
+                        t.tr("图片不会离开这台电脑，只发送认出的文字", "The image stays on this PC; only its text is sent")]
             }
         case let .copiedText(message)?:
             let count = message.count
-            return t.tr("复制的消息 · \(count) 字", "Copied message · \(count) characters")
+            return [t.tr("复制的消息 · \(count) 字", "Copied message · \(count) characters")]
         case nil:
-            return nil
+            return []
         }
     }
 
@@ -161,13 +161,12 @@ public enum SessionText {
     }
 
     /// The command being written on the selection, for the panel's input line: as it would be marked, with its caret
-    /// (`Composer.markedCursor`) while it's written.
-    public static func panelInput(_ composer: Composer) -> String? {
+    /// (`Composer.markedCursor`) while it's written, none once it's sent.
+    public static func panelInput(_ composer: Composer) -> PanelModel.Input? {
         guard composer.draftInPanel else { return nil }
         let text = composer.markedText
-        guard !composer.isLevelTwo else { return text }
-        let at = min(max(composer.markedCursor, 0), text.count)
-        return String(text.prefix(at)) + "▏" + String(text.dropFirst(at))
+        guard !composer.isLevelTwo else { return PanelModel.Input(text: text, caret: nil) }
+        return PanelModel.Input(text: text, caret: min(max(composer.markedCursor, 0), text.count))
     }
 
     /// The candidate panel's footer while pinyin is typed in Translate as You Type: what ⏎ and ⇧⏎ do.
@@ -179,9 +178,6 @@ public enum SessionText {
     }
 
     // MARK: - An @question conversation
-
-    /// The answer a click on row `row` of a conversation picks (rows alternate: a question, then its answer).
-    public static func chatChoice(row: Int) -> Int? { row % 2 == 1 ? row / 2 : nil }
 
     /// A destination's name in the panel and the settings: an agent by its name ("Claude Code", "Gemini CLI" …; the custom
     /// one's from `custom`, its command), `.atAgent` by `picked`'s ("@agent's agent (Gemini CLI)").

@@ -292,7 +292,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func showTranslateChip(_ client: IMKTextInput?) -> Bool {
         guard let client, let chip = translateChip() else { return false }
-        let model = CandidateView.Model(PanelPresenter.chipModel(chip, notice: notice, language: UIText.language))
+        let model = PanelPresenter.chipModel(chip, notice: notice, language: UIText.language)
         let panel = CandidatePanel.shared
         panel.owner = self
         panel.onSelect = { [weak self] index in self?.pickTranslateTarget(row: index) }

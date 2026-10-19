@@ -633,6 +633,35 @@ struct InputSessionTests {
         }
     }
 
+    /// A click on a row picks what the panel says it does (`PanelModel.Row.choice`): a candidate by its number; in a
+    /// conversation, whose rows are its questions and answers, an answer by its round, and nothing for a question.
+    @Test func aClickPicksTheRowsChoice() {
+        inEnglish {
+            let typing = host()
+            typing.type("nihao")
+            #expect(typing.panel?.rows.map(\.choice).prefix(2) == [0, 1])
+            typing.send(.pick(1))
+            #expect(typing.document == "拟好", "the second candidate (\(typing.document))")
+
+            let settings = Settings()
+            settings.config.provider = .apple
+            let stub = StubAppleModel(answer: ["Canberra is the capital."])
+            let converter = Converter(loadConfig: { settings.config }, loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                      loadKey: { _, _ in nil }, loadJargon: { _ in [] }, appleModel: stub)
+            let host = host(settings) { $0.converter = converter }
+            host.composer.setInputMode(.english)
+            pick("que", in: host)
+            host.type("capital of australia")
+            host.press(FakeHost.enter)
+            #expect(host.settle { host.composer.phase == .choosing }, "\(host.composer.phase)")
+            #expect(host.panel?.transcript == true && host.panel?.rows.map(\.choice) == [nil, 0], "\(host.panel?.rows.map(\.choice) ?? [])")
+            host.send(.pick(0))
+            #expect(host.document.isEmpty && host.composer.isQuestionChat, "the question picks nothing")
+            host.send(.pick(1))
+            #expect(host.document == "Canberra is the capital.", "the answer goes in (\(host.document))")
+        }
+    }
+
     @Test func improveWithTheModel() {
         inEnglish {
             let settings = Settings()

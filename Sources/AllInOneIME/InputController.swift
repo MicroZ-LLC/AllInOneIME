@@ -652,7 +652,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     let panel = CandidatePanel.shared
                     panel.owner = self
                     panel.onSelect = nil
-                    panel.show(CandidateView.Model(.notice(text)), anchor: anchor(target))
+                    panel.show(.notice(text), anchor: anchor(target))
                 }
             case let .noticeElsewhere(text, long, progress):
                 // In the field being typed in now, else near the pointer; the progress notice here goes.
@@ -879,7 +879,7 @@ final class AllInOneIMEInputController: IMKInputController {
         panel.onSelect = { [weak self] index in self?.received(.pick(index)) }
         panel.onScroll = { [weak self] steps in self?.received(.scroll(steps)) }
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
-        panel.show(CandidateView.Model(model), anchor: anchor(client))
+        panel.show(model, anchor: anchor(client))
     }
 
     /// The panel as the composer has it now, in `client`.
@@ -911,9 +911,9 @@ final class AllInOneIMEInputController: IMKInputController {
         apply(session.endNotice(text), client: nil)
     }
 
-    /// The candidate panel for the composer as it is now (`InputSession.panelModel`), as `CandidateView` draws it.
+    /// The candidate panel for the composer as it is now (`InputSession.panelModel`).
     @MainActor
-    func panelModel() -> CandidateView.Model { CandidateView.Model(session.panelModel()) }
+    func panelModel() -> PanelModel { session.panelModel() }
 
     /// What the panel is made from besides the composer.
     @MainActor
@@ -941,7 +941,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let panel = CandidatePanel.shared
         panel.owner = looseNoticeOwner
         panel.onSelect = nil
-        panel.show(CandidateView.Model(.notice(text)), anchor: .zero)  // an empty anchor: at the mouse pointer
+        panel.show(.notice(text), anchor: .zero)  // an empty anchor: at the mouse pointer
         DispatchQueue.main.asyncAfter(deadline: .now() + SessionText.noticeDuration(text, long: long)) {
             if panel.owner === looseNoticeOwner { panel.hide() }
         }

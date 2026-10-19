@@ -188,7 +188,7 @@ extension SelfTest {
         ReplySelfTestEndpoint.reset()
         controlV()
         let ready = pump(timeout: 15) { if case .screenshot(.ready)? = controller.composer.attachment { return true } else { return false } }
-        let header = controller.panelModel().header ?? ""
+        let header = controller.panelModel().headerText ?? ""
         check(ready && clipboardReads == 1 && header.hasPrefix("截图 · 2 行（本机识别）") && header.contains("图片不会离开这台 Mac"),
               "⌃V: the screenshot is read on this Mac, the panel says so (\(header.replacingOccurrences(of: "\n", with: " | ")))")
         _ = enter(controller, client)

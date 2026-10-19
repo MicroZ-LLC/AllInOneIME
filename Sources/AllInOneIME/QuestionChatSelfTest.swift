@@ -123,12 +123,12 @@ extension SelfTest {
         check(panel.transcript && panel.rows.map(\.text) == ["问：what is rust", "答：" + answers["what is rust"]!]
               && panel.rows.map(\.label) == ["", "1"] && panel.highlighted == 1,
               "round 1: the question and its answer, numbered (\(panel.rows.map(\.text)))")
-        check(panel.input == "追问 2/3 › ▏" && panel.footer == "⇧⏎ 追问 · ⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
-              "the next question's line on top, with its round; the footer's keys (\(panel.input ?? "-") | \(panel.footer))")
+        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⇧⏎ 追问 · ⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
+              "the next question's line on top, with its round; the footer's keys (\(panel.inputText ?? "-") | \(panel.footer))")
 
         type("who made", controller, client)
-        check(controller.panelModel().input == "追问 2/3 › who made▏" && controller.composer.phase == .choosing,
-              "typing goes into the next question (\(controller.panelModel().input ?? "-"))")
+        check(controller.panelModel().inputText == "追问 2/3 › who made▏" && controller.composer.phase == .choosing,
+              "typing goes into the next question (\(controller.panelModel().inputText ?? "-"))")
         type(" it", controller, client)
         _ = shiftEnter(controller, client)
         check(controller.composer.isQuestionChat && controller.composer.chatRound == 2, "⇧⏎ asks it as round 2")
@@ -139,8 +139,8 @@ extension SelfTest {
                   "round 2 is sent as turns: the first question and answer, then the new question, plainly")
         }
         panel = controller.panelModel()
-        check(panel.rows.count == 4 && panel.rows[0].style == .original && panel.rows[1].style == .original
-              && panel.rows[3].style == .translation && panel.highlighted == 3 && panel.rows[0].pickable == false,
+        check(panel.rows.count == 4 && panel.rows[0].kind == .original && panel.rows[1].kind == .original
+              && panel.rows[3].kind == .translation && panel.highlighted == 3 && panel.rows[0].pickable == false,
               "the earlier round dimmed, the latest answer selected; questions aren't picked")
         readmeSnapshot("question-chat", controller, client, in: snapshotDirectory)
 
@@ -152,7 +152,7 @@ extension SelfTest {
 
         // ⌘⏎ shows where it can go on, before the last round; Esc hides it.
         _ = command("\r", code: VirtualKey.returnKey)
-        check(controller.composer.showsHandoff && (controller.panelModel().input ?? "").contains("⌘1 "), "⌘⏎ shows where to go on")
+        check(controller.composer.showsHandoff && (controller.panelModel().inputText ?? "").contains("⌘1 "), "⌘⏎ shows where to go on")
         _ = escape(controller, client)
         check(!controller.composer.showsHandoff && controller.composer.chatRound == 2, "Esc hides it again")
 
@@ -160,11 +160,11 @@ extension SelfTest {
         guard followUp("why is it safe") else { return }
         panel = controller.panelModel()
         let choices = controller.composer.handoffChoices
-        check(controller.composer.showsHandoff && (panel.input ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n⌘1 ")
+        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n⌘1 ")
               && panel.footer.hasPrefix("⌘1–⌘\(choices.count) 接着聊"),
-              "after round 3: where to go on (\(panel.input?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
-        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && (panel.input ?? "").contains("⌘1 Claude Code")
-              && (panel.input ?? "").contains("⌘2 Gemini CLI"),
+              "after round 3: where to go on (\(panel.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
+        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && (panel.inputText ?? "").contains("⌘1 Claude Code")
+              && (panel.inputText ?? "").contains("⌘2 Gemini CLI"),
               "the agent @agent hands to first, then the other agents installed, then the web and Copy (\(choices.map(\.rawValue)))")
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the image without round 2's "copied"
         readmeSnapshot("question-chat-handoff", controller, client, in: snapshotDirectory)
@@ -207,10 +207,10 @@ extension SelfTest {
         recall()
         let six = controller.panelModel()
         _ = command("3", code: 0x14)
-        check(controller.composer.handoffChoices.count == 6 && (six.input ?? "").contains("⌘1 echo") && (six.input ?? "").contains("⌘2 Claude Code")
-              && (six.input ?? "").contains("⌘6 复制") && six.footer.hasPrefix("⌘1–⌘6 接着聊") && agentArguments.last == ["gemini", "-i"],
+        check(controller.composer.handoffChoices.count == 6 && (six.inputText ?? "").contains("⌘1 echo") && (six.inputText ?? "").contains("⌘2 Claude Code")
+              && (six.inputText ?? "").contains("⌘6 复制") && six.footer.hasPrefix("⌘1–⌘6 接着聊") && agentArguments.last == ["gemini", "-i"],
               "another agent picked: ⌘1 is it, the others after it, ⌘3 starts Gemini CLI as `gemini -i` "
-              + "(\(six.input?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(six.footer) | \(agentArguments.last ?? []))")
+              + "(\(six.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(six.footer) | \(agentArguments.last ?? []))")
         recall()
         _ = command("1", code: 0x12)
         check(agentArguments.last == ["/bin/echo", "--"] && started.last?.hasSuffix("Let's continue this discussion.") == true,
@@ -259,7 +259,7 @@ extension SelfTest {
 
     /// The wheel scrolls a conversation taller than the panel: while it's scrolled up, an answer coming in leaves the
     /// rows where they are; scrolled back to the bottom, they follow the answer's end again.
-    static func testChatScroll(_ model: CandidateView.Model, anchor: NSRect) {
+    static func testChatScroll(_ model: PanelModel, anchor: NSRect) {
         let panel = CandidatePanel.shared
         var streaming = model
         func comeIn(_ text: String) {

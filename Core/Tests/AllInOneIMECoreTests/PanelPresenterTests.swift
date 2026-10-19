@@ -40,7 +40,9 @@ struct PanelPresenterTests {
         #expect(zh.highlighted == 0)
         #expect(zh.footer == "空格 选词 · 开头打 @ 用命令")
         #expect(en.footer == "Space picks · type @ first for commands")
-        #expect(zh.status == .none && zh.input == nil && zh.header == nil && zh.chip == nil && !zh.transcript)
+        #expect(zh.status == .none && zh.input == nil && zh.header.isEmpty && zh.chip == nil && !zh.transcript)
+        // A click on a row picks what its number would.
+        #expect(zh.rows.map(\.choice) == [0, 1])
     }
 
     @Test func nothingTypedIsAnEmptyPanel() {
@@ -133,10 +135,13 @@ struct PanelPresenterTests {
                                                                                            .init(speaker: .me, text: "hey")],
                                                                                 labelled: true))))
         #expect(SessionText.attachmentHeader(c, language: "en", terms: .mac)
-                == "Screenshot · 2 lines (read on this Mac)\nThe image stays on this Mac; only its text is sent")
+                == ["Screenshot · 2 lines (read on this Mac)", "The image stays on this Mac; only its text is sent"])
         #expect(SessionText.attachmentHeader(c, language: "en", terms: .windows)
-                == "Screenshot · 2 lines (read on this PC)\nThe image stays on this PC; only its text is sent")
-        #expect(SessionText.attachmentHeader(c, language: "zh-Hans", terms: .windows) == "截图 · 2 行（本机识别）\n图片不会离开这台电脑，只发送认出的文字")
+                == ["Screenshot · 2 lines (read on this PC)", "The image stays on this PC; only its text is sent"])
+        #expect(SessionText.attachmentHeader(c, language: "zh-Hans", terms: .windows) == ["截图 · 2 行（本机识别）", "图片不会离开这台电脑，只发送认出的文字"])
+        // In the panel, each a line of the header.
+        #expect(PanelPresenter(config: .default, language: "en", terms: .windows).model(for: c).header
+                == ["Screenshot · 2 lines (read on this PC)", "The image stays on this PC; only its text is sent"])
     }
 
     // MARK: - Results
@@ -216,6 +221,96 @@ struct PanelPresenterTests {
         #expect(model.rows.map(\.comment) == ["", "⚠ placeholder changed", "", "", "日语 · ⚠ placeholder changed"])
         #expect(model.detail == "1 item hidden from the AI · 1.0s")
         #expect(PanelRedaction.changed(language: "zh-Hans") == "⚠ 占位符被改动")
+    }
+
+    // MARK: - An @question conversation
+
+    let commandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)
+
+    /// "@question what is rust" ⏎ in English, answered (request 1); then `followUps`, each asked with ⇧⏎ and answered.
+    func conversation(rounds: Int = 5, handoff: [ChatHandoff.Destination] = [.claudeCode, .claudeWeb, .chatgpt, .copy],
+                      followUps: [(String, String)] = []) -> Composer {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.questionRounds = rounds
+        c.handoffChoices = handoff
+        c.remembersQuestions = false
+        c.setInputMode(.english)
+        _ = c.handleKeyDown(at)
+        for ch in "question" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(tab)
+        for ch in "what is rust" { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
+        _ = c.handleKeyDown(enterKey)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("A systems language.")]), isFinal: true, id: 1)
+        for (question, answer) in followUps {
+            for ch in question { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
+            let started = c.handleKeyDown(shiftEnterKey).effects.lazy.compactMap { effect -> Int? in
+                if case let .startRefine(_, id) = effect { return id } else { return nil }
+            }.first
+            if let started { _ = c.receive(ConversionResult(versions: [CandidateLine(answer)]), isFinal: true, id: started) }
+        }
+        return c
+    }
+
+    /// Its rounds as question and answer rows, oldest first: a click on an answer picks its round, on a question nothing;
+    /// the highlight is on the answer picked; the line on top is the next question, its caret after what is typed.
+    @Test func aConversationIsItsRoundsWithTheNextQuestionOnTop() throws {
+        let c = conversation(followUps: [("who made it", "Graydon Hoare.")])
+        try #require(c.isQuestionChat && c.phase == .choosing && c.chatRounds.count == 2)
+        let model = en.model(for: c)
+        #expect(model.transcript)
+        #expect(model.rows.map(\.text) == ["Q: what is rust", "A: A systems language.", "Q: who made it", "A: Graydon Hoare."])
+        #expect(model.rows.map(\.label) == ["", "1", "", "2"] && model.rows.map(\.choice) == [nil, 0, nil, 1])
+        #expect(model.rows.map(\.pickable) == [false, true, false, true])
+        #expect(model.rows.map(\.kind) == [.original, .original, .original, .translation])
+        #expect(model.highlighted == 2 * c.highlighted + 1 && model.highlighted == 3)
+        _ = c.handleKeyDown(upKey)
+        #expect(en.model(for: c).highlighted == 1, "↑: the first answer")
+        #expect(model.input == PanelModel.Input(prompt: "question 3/5 › ", text: "", caret: 0))
+        #expect(model.handoff == nil && model.header.isEmpty)
+        #expect(model.footer == "⇧⏎ ask · ⏎ insert · 1–5 pick · ⌘C copy · Esc back")
+        for ch in "when" { _ = c.handleKeyDown(k(String(ch))) }
+        #expect(en.model(for: c).input == PanelModel.Input(prompt: "question 3/5 › ", text: "when", caret: 4))
+        #expect(zh.model(for: c).input?.prompt == "追问 3/5 › ")
+    }
+
+    /// After the last round (or ⌘⏎), where it can go on: a title, and the destinations with the shortcuts that pick them.
+    @Test func whereAConversationCanGoOn() throws {
+        let c = conversation(rounds: 2, handoff: [.claudeCode, .claudeWeb, .chatgpt, .gemini, .copy],
+                             followUps: [("who made it", "Graydon Hoare.")])
+        try #require(c.showsHandoff)
+        let model = en.model(for: c)
+        let handoff = try #require(model.handoff)
+        #expect(handoff.title == "2 rounds in: continue in Claude or another AI")
+        #expect(handoff.choices.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"])
+        #expect(handoff.choices.map(\.name) == ["Claude Code", "Claude", "ChatGPT", "Gemini", "Copy"])
+        #expect(model.input == nil, "nothing typed to take along")
+        #expect(model.footer == "⌘1–⌘5 continue · ⏎ insert · 1–2 pick · ⌘C copy · Esc back")
+        // What is typed goes along: its line under the choices.
+        for ch in "and" { _ = c.handleKeyDown(k(String(ch))) }
+        let typed = en.model(for: c)
+        #expect(typed.input == PanelModel.Input(prompt: "then › ", text: "and", caret: 3))
+        #expect(typed.footer == "⌘1–⌘5 continue, with what you typed · ⏎ insert · 1–2 pick · ⌘C copy · Esc back")
+        // On Windows, picked with Ctrl.
+        let windows = PanelPresenter(config: .default, language: "en", terms: .windows).model(for: c)
+        #expect(windows.handoff?.choices.map(\.shortcut) == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"])
+        #expect(windows.footer == "Ctrl+1–5 continue, with what you typed · ⏎ insert · 1–2 pick · Ctrl+C copy · Esc back")
+        // Before the last round, ⌘⏎ shows them.
+        let early = conversation(handoff: [.copy])
+        #expect(en.model(for: early).handoff == nil)
+        _ = early.handleKeyDown(commandReturn)
+        #expect(en.model(for: early).handoff == PanelModel.Handoff(title: "Continue in Claude or another AI",
+                                                                   choices: [.init(shortcut: "⌘1", name: "Copy")]))
+        #expect(en.model(for: early).footer.hasPrefix("⌘1 continue · "))
+    }
+
+    /// An answer whose placeholder the model changed past telling is marked on its row; the detail says what was hidden.
+    @Test func aConversationsChangedPlaceholderIsMarked() throws {
+        let c = conversation(followUps: [("and its email", "Write to EMAIL_1.")])
+        try #require(c.chatRounds.count == 2)
+        let model = PanelPresenter(config: .default, language: "en", elapsed: 1, hidden: 1).model(for: c)
+        #expect(model.rows.map(\.comment) == ["", "", "", "⚠ placeholder changed"])
+        #expect(model.detail == "1 item hidden from the AI · 1.0s")
+        #expect(PanelPresenter(config: .default, language: "en", elapsed: 1).model(for: c).rows.allSatisfy { $0.comment.isEmpty })
     }
 
     // MARK: - Notices and the chip

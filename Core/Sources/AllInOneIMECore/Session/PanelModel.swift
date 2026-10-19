@@ -1,8 +1,10 @@
 import Foundation
 
 /// The candidate panel as data, the same on every platform: what `PanelPresenter` makes of the composer, and what each
-/// shell draws (the Mac: `CandidateView`). From top to bottom: Translate as You Type's chip, the input line, the header,
-/// the rows, the status, and the footer with the detail on its right.
+/// shell draws (the Mac: `CandidateView`). From top to bottom: Translate as You Type's chip, where a conversation can go
+/// on (`handoff`), the input line, the header's lines, the rows, the status, and the footer with the detail on its
+/// right. Its text is in the language and with the key names it was made with; what is structure (a caret, a list of
+/// choices, lines) is data, for each shell to draw its own way.
 public struct PanelModel: Equatable, Sendable {
     public struct Row: Equatable, Sendable {
         /// How a row is drawn.
@@ -28,9 +30,13 @@ public struct PanelModel: Equatable, Sendable {
         /// A click picks it and the pointer over it highlights it; not a line a script printed or a list's information,
         /// which nothing picks.
         public var pickable: Bool
+        /// What a click on it picks: the index `Composer.choose(index:)` takes, which the session finds here for the row
+        /// a shell says was clicked (`SessionEvent.pick`). The row's own index, but in a conversation, whose rows are its
+        /// questions and answers, an answer's round, and nil for a question.
+        public var choice: Int?
 
         public init(label: String, text: String, comment: String = "", kind: Kind, isComplete: Bool = true,
-                    icon: IconToken? = nil, pickable: Bool = true) {
+                    icon: IconToken? = nil, pickable: Bool = true, choice: Int? = nil) {
             self.label = label
             self.text = text
             self.comment = comment
@@ -38,6 +44,7 @@ public struct PanelModel: Equatable, Sendable {
             self.isComplete = isComplete
             self.icon = icon
             self.pickable = pickable
+            self.choice = choice
         }
     }
 
@@ -47,8 +54,49 @@ public struct PanelModel: Equatable, Sendable {
         /// Waiting for something (dimmed).
         case loading(String)
         case hint(String)
-        /// Drawn in red, after "⚠︎".
+        /// A hint with a list under it, an item a line (what an issue report fills in besides its title).
+        case list(String, items: [String])
+        /// Drawn in red, after "⚠︎". A message from elsewhere (a script's error, a server's) may have line breaks.
         case error(String)
+    }
+
+    /// The line of input on top, with its caret: a command written on the selected text (it isn't marked in the field),
+    /// a refine instruction or an `@question` conversation's next question being typed.
+    public struct Input: Equatable, Sendable {
+        /// What it is, before the text: "refine › ", "question 2/5 › " (empty: the text says it, "improve › …").
+        public var prompt: String
+        public var text: String
+        /// Where the caret is in `text`, in characters (`Character`, 0 … text.count); nil: none, the text only shown (a
+        /// command sent).
+        public var caret: Int?
+
+        public init(prompt: String = "", text: String, caret: Int?) {
+            self.prompt = prompt
+            self.text = text
+            self.caret = caret
+        }
+    }
+
+    /// Where an `@question` conversation can go on (after its last round, or ⌘⏎): a title, and the destinations, each
+    /// with the shortcut that picks it ("⌘1", "Ctrl+1").
+    public struct Handoff: Equatable, Sendable {
+        public struct Choice: Equatable, Sendable {
+            public var shortcut: String
+            public var name: String
+
+            public init(shortcut: String, name: String) {
+                self.shortcut = shortcut
+                self.name = name
+            }
+        }
+
+        public var title: String
+        public var choices: [Choice]
+
+        public init(title: String, choices: [Choice]) {
+            self.title = title
+            self.choices = choices
+        }
     }
 
     /// Translate as You Type's chip (「中 → 英」): the language typed and the one it translates into, each a part to click.
@@ -81,11 +129,13 @@ public struct PanelModel: Equatable, Sendable {
     public var rows: [Row]
     public var highlighted: Int?
     public var status: Status
-    /// The command being written, as a line of input with its caret (▏), first: it isn't marked in the field (a
-    /// command on the selected text).
-    public var input: String?
-    /// A line above the rows: what the panel works on (the text selected in the field).
-    public var header: String?
+    /// The line of input with its caret, first (or after `handoff`).
+    public var input: Input?
+    /// Where a conversation can go on, on top.
+    public var handoff: Handoff?
+    /// The lines above the rows, each its own: what the panel works on (the text selected in the field), what the draft
+    /// has attached (a screenshot's two), the refinements so far.
+    public var header: [String]
     public var footer: String
     /// On the footer's right: the page, the time a result took, a notice.
     public var detail: String?
@@ -97,12 +147,14 @@ public struct PanelModel: Equatable, Sendable {
     /// Translate as You Type's chip on top; with it the panel is only as wide as it needs, unless a footer is there.
     public var chip: Chip?
 
-    public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: String? = nil, header: String? = nil,
-                footer: String = "", detail: String? = nil, horizontal: Bool = false, transcript: Bool = false, chip: Chip? = nil) {
+    public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: Input? = nil, handoff: Handoff? = nil,
+                header: [String] = [], footer: String = "", detail: String? = nil, horizontal: Bool = false,
+                transcript: Bool = false, chip: Chip? = nil) {
         self.rows = rows
         self.highlighted = highlighted
         self.status = status
         self.input = input
+        self.handoff = handoff
         self.header = header
         self.footer = footer
         self.detail = detail
