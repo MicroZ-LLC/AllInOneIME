@@ -46,6 +46,8 @@ Composition::~Composition() {
 
 void Composition::Terminated() noexcept {
     ForgetRange();
+    shown_.clear();
+    typed_.clear();
     if (composition_) {
         ITfRange* range = nullptr;
         if (SUCCEEDED(composition_->GetRange(&range)) && range) terminatedRange_ = range;
@@ -159,9 +161,13 @@ HRESULT Composition::SetComposition(TfEditCookie ec, const wire::CompositionOutp
         composition_->EndComposition(ec);
         composition_->Release();
         composition_ = nullptr;
+        shown_.clear();
+        typed_.clear();
         return hr;
     }
     ForgetRange();
+    shown_ = output.text;
+    typed_ = output.typed && *output.typed != output.text ? *output.typed : wire::Text();
 
     HRESULT hr = Start(ec);
     if (FAILED(hr)) return hr;
@@ -218,17 +224,47 @@ HRESULT Composition::Commit(TfEditCookie ec, const wire::CommitOutput& output) n
         composition_->Release();
         composition_ = nullptr;
     }
+    shown_.clear();
+    typed_.clear();
     return hr;
 }
 
 HRESULT Composition::EndKeepingText(TfEditCookie ec) noexcept {
     ForgetRange();
     if (!composition_) return S_OK;
+    // The user's text stays as they typed it, "@" and all, rather than as the engine showed it. Only over what we set:
+    // if the app changed the composition's text, that is what the document keeps.
+    Com<ITfRange> range;
+    if (!typed_.empty() && SUCCEEDED(composition_->GetRange(&range)) && range) {
+        wire::Text now;
+        if (ReadText(ec, range, now) && now == shown_ &&
+            SUCCEEDED(range->SetText(ec, 0, typed_.c_str(), static_cast<LONG>(typed_.size())))) {
+            Com<ITfRange> full;
+            if (SUCCEEDED(composition_->GetRange(&full)) && full) {
+                SetSelection(ec, full, static_cast<LONG>(typed_.size()));
+            }
+        }
+    }
     ClearDisplayAttributes(ec);
     HRESULT hr = composition_->EndComposition(ec);
     composition_->Release();
     composition_ = nullptr;
+    shown_.clear();
+    typed_.clear();
     return hr;
+}
+
+bool Composition::ReadText(TfEditCookie ec, ITfRange* range, wire::Text& out) noexcept {
+    Com<ITfRange> cursor;
+    if (FAILED(range->Clone(&cursor))) return false;
+    out.clear();
+    for (;;) {
+        ULONG got = 0;
+        wchar_t buffer[256];
+        if (FAILED(cursor->GetText(ec, TF_TF_MOVESTART, buffer, static_cast<ULONG>(std::size(buffer)), &got))) return false;
+        out.append(buffer, got);
+        if (got < std::size(buffer)) return true;
+    }
 }
 
 bool Composition::CompositionLength(TfEditCookie ec, LONG& length) const noexcept {

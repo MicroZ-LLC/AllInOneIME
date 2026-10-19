@@ -194,6 +194,8 @@ bool ReadOutputs(const json& j, std::vector<Output>& out, bool& bad) {
             CompositionOutput c;
             ReadText(o, "text", c.text, bad);
             ReadI64(o, "caret", c.caret, bad);
+            Text typed;
+            if (ReadText(o, "typed", typed, bad)) c.typed = std::move(typed);
             auto segs = o.find("segments");
             if (segs != o.end() && !segs->is_null()) {
                 if (!segs->is_array()) {

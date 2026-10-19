@@ -36,7 +36,9 @@ public:
     // put the caret after `text`.
     HRESULT Commit(TfEditCookie ec, const wire::CommitOutput& output) noexcept;
 
-    // End the composition, keeping its text (§2.5). Clears the display attributes. No-op if not composing.
+    // End the composition, keeping its text (§2.5): the draft as the user typed it (`typed`), if the engine showed it
+    // otherwise and the document still holds what was shown; else the text as it is. Clears the display attributes and
+    // puts the caret after the text. No-op if not composing.
     HRESULT EndKeepingText(TfEditCookie ec) noexcept;
 
     // The length of the composition as the document has it now (§5.1 `comp`), or nullopt if not composing.
@@ -57,6 +59,7 @@ private:
     HRESULT ClearDisplayAttributes(TfEditCookie ec) noexcept;
     HRESULT MarkSegments(TfEditCookie ec, ITfRange* fullRange, const wire::CompositionOutput& output) noexcept;
     HRESULT SetSelection(TfEditCookie ec, ITfRange* start, LONG offset) noexcept;
+    static bool ReadText(TfEditCookie ec, ITfRange* range, wire::Text& out) noexcept;
 
     ITfContext* context_ = nullptr;
     TfClientId clientId_ = TF_CLIENTID_NULL;
@@ -64,6 +67,8 @@ private:
     ITfCompositionSink* sink_ = nullptr;
     ITfComposition* composition_ = nullptr;
     ITfRange* terminatedRange_ = nullptr;
+    wire::Text shown_; // the text we last set
+    wire::Text typed_; // what was typed, when that isn't `shown_`
 };
 
 } // namespace aio

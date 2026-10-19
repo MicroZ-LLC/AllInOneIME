@@ -39,6 +39,8 @@ public:
     STDMETHODIMP GetSRGS(BSTR* srgs) override { *srgs = nullptr; return S_FALSE; }
     STDMETHODIMP GetXML(BSTR* xml) override { *xml = nullptr; return S_FALSE; }
 
+    void Set(InputScope scope) { scope_ = scope; }
+
 private:
     LONG refs_ = 1;
     InputScope scope_;
@@ -331,6 +333,14 @@ void TextStore::ExternalReplace(LONG start, LONG end, const std::wstring& text) 
         sink_->OnTextChange(0, &change);
     }
     if (sink_ && (sinkMask_ & TS_AS_SEL_CHANGE)) sink_->OnSelectionChange();
+}
+
+void TextStore::SetInputScope(InputScope scope) {
+    if (inputScope_) inputScope_->Set(scope);
+    if (sink_ && (sinkMask_ & TS_AS_ATTR_CHANGE)) {
+        const TS_ATTRID changed = GUID_PROP_INPUTSCOPE;
+        sink_->OnAttrsChange(0, static_cast<LONG>(text_.size()), 1, &changed);
+    }
 }
 
 } // namespace aio::test

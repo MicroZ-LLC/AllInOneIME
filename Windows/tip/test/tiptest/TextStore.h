@@ -65,6 +65,8 @@ public:
     LONG SelEnd() const { return selEnd_; }
     // Emulates the app replacing [start,end) with `text` (a passed-through key the TIP didn't handle), notifying TSF.
     void ExternalReplace(LONG start, LONG end, const std::wstring& text);
+    // The field's input scope changes (the app made it a URL field, say): TSF is told the attribute changed.
+    void SetInputScope(InputScope scope);
 
 private:
     ~TextStore();

@@ -383,6 +383,11 @@ int main(int argc, char** argv) {
                 Pump(step.waitMs);
                 continue;
             }
+            if (step.kind == Step::Kind::scope) {
+                store->SetInputScope(static_cast<InputScope>(step.scope));
+                Pump(40);
+                continue;
+            }
             const TypeKey& k = step.key;
             ApplyModifierState(k);
             const LPARAM lp = MakeLParam(k);

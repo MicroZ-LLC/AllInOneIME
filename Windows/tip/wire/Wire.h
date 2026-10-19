@@ -104,6 +104,9 @@ struct CompositionOutput {
     Text text;
     int64_t caret = 0;
     std::vector<Segment> segments;
+    // The draft as the user typed it, when the engine shows it otherwise ("@improve helo" shown as `improve › helo`):
+    // what stays in the document if the DLL ends the composition on its own (a timeout, a lost engine).
+    std::optional<Text> typed;
 };
 
 struct PanelOutput {

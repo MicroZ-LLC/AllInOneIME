@@ -15,7 +15,10 @@ TIP_WIN="$(cygpath -w "$TIP_UNIX")"
 EXE_DIR="$TIP_WIN\\build\\x64\\Release"
 DLL="$EXE_DIR\\AllInOneTIP.dll"
 GOLDENS_WIN="$TIP_WIN\\test\\goldens"
-GOLDENS="notepad-improve notepad-improve-click terminated retest secure-field engine-missing timeout-resync reconnect"
+GOLDENS="terminated retest secure-field engine-missing timeout-resync reconnect focus-resent"
+# The engine's goldens a client replays as they are: both sides are tested against the same transcripts.
+CORE_GOLDENS_WIN="$(cygpath -w "$TIP_UNIX/../../Core/Tests/AllInOneIMEWireTests/WireGoldens")"
+CORE_GOLDENS="notepad-improve notepad-improve-click"
 TSFSTATE="$EXE_DIR\\tsfstate.exe"
 cd "$TIP_UNIX" || exit 1
 
@@ -57,6 +60,10 @@ echo "== wiretest over SSH (session 0: the pipe half must skip, by §2.1) =="
 
 echo "== wiretest (interactive session) =="
 run wiretest "$EXE_DIR\\wiretest.exe"
+for g in $CORE_GOLDENS; do
+  echo "== tiptest $g (the engine's golden) =="
+  run "tiptest-$g" "$EXE_DIR\\tiptest.exe" "$CORE_GOLDENS_WIN\\$g.jsonl"
+done
 for g in $GOLDENS; do
   echo "== tiptest $g =="
   run "tiptest-$g" "$EXE_DIR\\tiptest.exe" "$GOLDENS_WIN\\$g.jsonl"

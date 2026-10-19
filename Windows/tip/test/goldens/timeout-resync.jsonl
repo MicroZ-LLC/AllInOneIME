@@ -1,6 +1,7 @@
-# A key the engine doesn't answer in time, mid-draft (§5.4): after 150 ms the DLL ends its composition keeping the
-# text (§2.5), passes the key through (the app types it), discards the late result, and resyncs with
-# endComposition {timeout} without waiting; the engine's reset (an empty composition, §5.5) has nothing left to remove.
+# A key the engine doesn't answer in time, mid-draft (§5.4): after 150 ms the DLL ends its composition, leaving the
+# draft as typed ("@i", which the engine shows as "i": composition.typed), passes the key through (the app types it),
+# discards the late result, and resyncs with endComposition {timeout} without waiting. The engine's reset hides its
+# panel and sends no composition, so the document keeps everything typed.
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
 < {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
 > {"v":1,"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
@@ -8,17 +9,19 @@
 > {"v":1,"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
 < {"v":1,"id":2,"re":4,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
 > {"v":1,"id":5,"type":"caret","sid":1,"rect":[812,440,9,20],"hwnd":"$any"}
-# the engine holds back the result for this key
 > {"v":1,"id":6,"type":"keyDown","sid":1,"t":1200,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
-> {"v":1,"id":7,"type":"endComposition","sid":1,"reason":"timeout"}
+< {"v":1,"id":3,"re":6,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
+# the engine holds back the result for this key
+> {"v":1,"id":7,"type":"keyDown","sid":1,"t":1400,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[1,1],"comp":1}}
+> {"v":1,"id":8,"type":"endComposition","sid":1,"reason":"timeout"}
 # the late result is discarded
-< {"v":1,"id":3,"re":6,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@i","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}]}]}
-# the engine resets: an empty composition, and its panel goes
-< {"v":1,"id":4,"re":7,"type":"result","outputs":[{"op":"composition","text":""},{"op":"panel","shown":false}]}
-# back in step: the "@" and the "i" the app typed are both there, as plain text
-> {"v":1,"id":8,"type":"keyDown","sid":1,"t":1400,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[2,2],"before":"@i"}}
-< {"v":1,"id":5,"re":8,"type":"result"}
-> {"v":1,"id":9,"type":"blur","sid":1}
+< {"v":1,"id":4,"re":7,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}],"typed":"@im"}]}
+# the engine starts over: its panel goes, and no composition removes what the document kept
+< {"v":1,"id":5,"re":8,"type":"result","outputs":[{"op":"panel","shown":false}]}
+# back in step: the "@i" the DLL kept and the "m" the app typed, as plain text
+> {"v":1,"id":9,"type":"keyDown","sid":1,"t":1600,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[3,3],"before":"@im"}}
 < {"v":1,"id":6,"re":9,"type":"result"}
-> {"v":1,"id":10,"type":"close","sid":1}
-#! expect-document "@ix"
+> {"v":1,"id":10,"type":"blur","sid":1}
+< {"v":1,"id":7,"re":10,"type":"result"}
+> {"v":1,"id":11,"type":"close","sid":1}
+#! expect-document "@imx"

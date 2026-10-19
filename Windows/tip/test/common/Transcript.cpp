@@ -173,7 +173,13 @@ bool Transcript::Load(const std::string& path, Transcript& out, std::string& err
             else if (entry.directive == "expect-document") {
                 out.hasExpectDocument = true;
                 std::string a = entry.arg;
-                if (a.size() >= 2 && a.front() == '"' && a.back() == '"') a = a.substr(1, a.size() - 2);
+                // A JSON string (the engine's goldens write it so); else the text between the quotes as it is.
+                json quoted = json::parse(a, nullptr, false);
+                if (!quoted.is_discarded() && quoted.is_string()) {
+                    a = quoted.get<std::string>();
+                } else if (a.size() >= 2 && a.front() == '"' && a.back() == '"') {
+                    a = a.substr(1, a.size() - 2);
+                }
                 out.expectDocument = Widen(a);
             } else if (entry.directive == "type") {
                 out.steps.push_back({Step::Kind::key, ParseType(entry.arg), 0});
@@ -181,6 +187,8 @@ bool Transcript::Load(const std::string& path, Transcript& out, std::string& err
                 out.steps.push_back({Step::Kind::terminate, {}, 0});
             } else if (entry.directive == "wait") {
                 out.steps.push_back({Step::Kind::wait, {}, static_cast<DWORD>(strtoul(entry.arg.c_str(), nullptr, 10))});
+            } else if (entry.directive == "scope") {
+                out.steps.push_back({Step::Kind::scope, {}, 0, atoi(entry.arg.c_str())});
             }
             out.lines.push_back(std::move(entry));
             continue;
@@ -199,6 +207,7 @@ bool Transcript::Load(const std::string& path, Transcript& out, std::string& err
                 error = path + ":" + std::to_string(lineNo) + ": bad JSON";
                 return false;
             }
+            if (!entry.body.contains("v")) entry.body["v"] = 1;
             const std::string type = entry.body.value("type", "");
             if (fromDll && (type == "keyDown" || type == "keyUp") && entry.body.contains("key")) {
                 out.steps.push_back({Step::Kind::key, KeyFromFrame(entry.body, type == "keyDown"), 0});

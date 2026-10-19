@@ -178,6 +178,19 @@ void TestDecoder() {
               std::get<wire::CompositionOutput>(m.result.outputs[0]).segments[0].style == wire::Style::raw,
           "an unknown style is raw (§6)");
 
+    Check(wire::Decode(R"({"v":1,"id":20,"re":23,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › helo","caret":14,"typed":"@improve helo"}]})", m) ==
+                  wire::DecodeError::none &&
+              std::get<wire::CompositionOutput>(m.result.outputs[0]).typed == std::optional<wire::Text>(L"@improve helo") &&
+              std::get<wire::CompositionOutput>(m.result.outputs[0]).text.size() == 14,
+          "composition: the draft as typed (spec notes), and the shown text with its one-unit '›'");
+    Check(wire::Decode(R"({"v":1,"id":2,"re":4,"type":"result","outputs":[{"op":"composition","text":"@","caret":1}]})", m) ==
+                  wire::DecodeError::none &&
+              !std::get<wire::CompositionOutput>(m.result.outputs[0]).typed,
+          "composition: no `typed` when it shows what was typed");
+    Check(wire::Decode(R"({"v":1,"id":2,"re":4,"type":"result","outputs":[{"op":"composition","text":"i","typed":7}]})", m) ==
+              wire::DecodeError::badMessage,
+          "composition: a `typed` that isn't a string is a badMessage");
+
     Check(wire::Decode(R"({"v":1,"id":3,"re":5,"type":"result","outputs":[{"op":"composition","text":"😀","caret":2}]})", m) ==
                   wire::DecodeError::none &&
               std::get<wire::CompositionOutput>(m.result.outputs[0]).text.size() == 2,

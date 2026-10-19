@@ -40,6 +40,18 @@ bool IsNoLayout(HRESULT hr) {
     return hr == TF_E_NOLAYOUT || hr == TS_E_NOLAYOUT;
 }
 
+// Milliseconds since `start` (QueryPerformanceCounter), for the key timings in the log.
+double MsSince(const LARGE_INTEGER& start) {
+    static const LONGLONG frequency = [] {
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        return f.QuadPart;
+    }();
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return static_cast<double>(now.QuadPart - start.QuadPart) * 1000.0 / static_cast<double>(frequency);
+}
+
 } // namespace
 
 Session::~Session() {
@@ -559,6 +571,8 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID, BOOL* eaten) {
 bool TextService::HandleKey(Session& s, WPARAM wParam, LPARAM lParam, bool down, wire::Result& result) {
     result = {};
     if (!Ready()) return false;
+    LARGE_INTEGER started;
+    QueryPerformanceCounter(&started);
 
     // A fresh read lock, so `sel`/`before`/`comp` are the document's now (the app may have inserted passed-through keys
     // since the last edit), and so a changed layout or input scope is seen before the key goes out (§4, §8). If TSF
@@ -585,10 +599,18 @@ bool TextService::HandleKey(Session& s, WPARAM wParam, LPARAM lParam, bool down,
     event.ctx = s.lastCtx;
 
     wire::EngineMessage response;
+    LARGE_INTEGER sent;
+    QueryPerformanceCounter(&sent);
     const auto outcome = pipe_->Request([&event](uint32_t id) {
         event.id = id;
         return wire::Encode(event);
     }, kKeyBudgetMs, response);
+    // The key as the DLL sees it: the request's round trip (written to answer read), and the whole of it here (the ctx
+    // read under a lock first). Times only, never the key.
+    const double roundTrip = MsSince(sent);
+    Log("key %s: round trip %.3f ms, in the DLL %.3f ms, %s", down ? "down" : "up", roundTrip, MsSince(started),
+        outcome == PipeClient::Outcome::response ? "answered" :
+        outcome == PipeClient::Outcome::timeout ? "timed out" : "failed");
 
     if (outcome == PipeClient::Outcome::response) {
         keyTimeouts_ = 0;
@@ -598,8 +620,8 @@ bool TextService::HandleKey(Session& s, WPARAM wParam, LPARAM lParam, bool down,
     }
     if (outcome == PipeClient::Outcome::timeout) {
         // §5.4: pass the key through, discard the late result (OnPipeMessage drops it), resync without waiting, and
-        // drop the connection after three in a row. Our composition ends first, keeping its text (as §2.5 does for a
-        // lost engine): the app's key then lands after it rather than in a range the engine's reset would empty.
+        // drop the connection after three in a row. Our composition ends first, keeping the text as typed (as §2.5
+        // does for a lost engine): the app's key then lands after it, and the engine's reset leaves the document alone.
         ++keyTimeouts_;
         Log("a key timed out (%d in a row)", keyTimeouts_);
         if (s.composition->Active()) {
@@ -981,7 +1003,7 @@ void TextService::OnEngineLost() {
     Log("engine lost: ending compositions, passing keys through");
     keyCache_ = {};
     pendingResults_.clear();
-    // §2.5: end every composition, keeping its text, so nothing typed is lost.
+    // §2.5: end every composition, keeping its text as typed, so nothing typed is lost.
     for (auto& [context, session] : sessions_) {
         Session& s = *session;
         s.opened = false;

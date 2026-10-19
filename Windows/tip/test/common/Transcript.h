@@ -19,6 +19,11 @@
 //   #! terminate                  the app ends the composition (ITfContextOwnerCompositionServices)
 //   #! wait <ms>                  the host runs its message loop for a while before the next step
 //   #! reconnect                  the engine drops the connection and takes the DLL's next one
+//   #! scope <n>                  the field's input scope becomes n (the DLL notices at its next key)
+//
+// The engine's goldens (Core/Tests/AllInOneIMEWireTests/WireGoldens) replay here too: a line without `v` gets
+// `"v":1` (the spec notes' golden format: the engine sends `v` in every frame, and the DLL does), and an
+// `expect-document` argument is a JSON string.
 
 #pragma once
 
@@ -42,9 +47,10 @@ struct TypeKey {
 
 // What the test host does, in transcript order: type a key, or act as the app would.
 struct Step {
-    enum class Kind { key, terminate, wait } kind = Kind::key;
+    enum class Kind { key, terminate, wait, scope } kind = Kind::key;
     TypeKey key;    // for Kind::key
     DWORD waitMs = 0; // for Kind::wait
+    int scope = 0;    // for Kind::scope
 };
 
 struct Line {
