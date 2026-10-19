@@ -6,10 +6,10 @@ import WinSDK
 #endif
 
 /// Level one's pinyin in the engine: librime (`AllInOneIMERime`) with rime-ice's data. The data and `rime.dll` are
-/// beside the program in an installed copy (Program Files\AllInOneIME\<version>\rime-data, rime.dll), and only there
-/// (`isInstalled`); a build finds them in ThirdParty (`$ALLINONEIME_THIRDPARTY`, else a `ThirdParty` above the program,
-/// as Windows/.build/release is). Its user folder (the learned words, the deployed schemas) is
-/// `%APPDATA%\AllInOneIME\rime`.
+/// beside the program in an installed copy (Program Files\AllInOneIME\<version>\rime-data, rime.dll), and in any copy
+/// that isn't a build of this package; only a build (`isBuild`: Windows/.build/release) finds them in ThirdParty
+/// (`$ALLINONEIME_THIRDPARTY`, else a `ThirdParty` above it). Its user folder (the learned words, the deployed schemas)
+/// is `%APPDATA%\AllInOneIME\rime`.
 ///
 /// librime is one per process and the engine has a queue per client connection: every call into it goes through one
 /// lock (`EngineRime.lock`), so two apps' keys never reach it at once (its sessions' table isn't guarded). A key is a
@@ -42,18 +42,19 @@ public final class EngineRime: @unchecked Sendable {
     /// Where the data and the library are: `sharedData` if given (with `rime.dll` beside the program, or in ThirdParty),
     /// else beside the program, else in ThirdParty. Nil when either is missing.
     ///
-    /// An installed copy (`installed`, nil: `isInstalled(executable)`) takes both from beside itself only, whatever the
-    /// environment or the arguments say: a `ThirdParty` above Program Files\AllInOneIME\<version> is C:\ThirdParty,
-    /// which any user of the PC can make, and rime.dll is code, as rime-ice's Lua scripts in its data are.
+    /// Only a build (`build`, nil: `isBuild(executable)`) looks anywhere but beside itself: any other copy, the installed
+    /// one first, takes both from beside itself, whatever the environment or the arguments say. A `ThirdParty` above
+    /// Program Files\AllInOneIME\<version>, or above D:\Apps\AllInOneIME, is C:\ThirdParty or D:\ThirdParty, which any
+    /// user of the PC can make, and rime.dll is code, as rime-ice's Lua scripts in its data are.
     public static func locate(executable: URL, sharedData: URL? = nil,
                               environment: [String: String] = ProcessInfo.processInfo.environment,
-                              installed: Bool? = nil) -> Location? {
+                              build: Bool? = nil) -> Location? {
         let fm = FileManager.default
         let folder = executable.deletingLastPathComponent()
         let beside = Location(sharedData: folder.appendingPathComponent("rime-data", isDirectory: true),
                               library: folder.appendingPathComponent("rime.dll"))
         func usable(_ data: URL) -> Bool { fm.fileExists(atPath: data.appendingPathComponent("default.yaml").path) }
-        if installed ?? isInstalled(executable) {
+        guard build ?? isBuild(executable) else {
             return fm.fileExists(atPath: beside.library.path) && usable(beside.sharedData) ? beside : nil
         }
         var thirdParties: [URL] = []
@@ -72,29 +73,63 @@ public final class EngineRime: @unchecked Sendable {
         return Location(sharedData: data, library: library)
     }
 
-    /// Whether `executable` is an installed copy: in a Program Files folder (the installer's
-    /// Program Files\AllInOneIME\<version>), which only administrators can write to.
-    public static func isInstalled(_ executable: URL, programFiles: [URL] = programFilesFolders) -> Bool {
-        let path = windowsPath(executable).lowercased()
-        return programFiles.contains { folder in
-            let prefix = windowsPath(folder).lowercased()
-            return !prefix.isEmpty && path.hasPrefix(prefix.hasSuffix("\\") ? prefix : prefix + "\\")
-        }
+    /// Whether `executable` is a build of this package, as `swift build` makes one (in a `.build` folder), and not the
+    /// installed copy (`isInstalled`), whatever folder that was installed to.
+    public static func isBuild(_ executable: URL, installFolder: URL? = registeredInstallFolder) -> Bool {
+        let inBuild = windowsPath(executable).split(separator: "\\").dropLast().contains { $0.lowercased() == ".build" }
+        return inBuild && !isInstalled(executable, installFolder: installFolder)
     }
 
-    /// The Program Files folders (64-bit and x86), as Windows knows them (`SHGetKnownFolderPath`), not from the
-    /// environment.
-    public static var programFilesFolders: [URL] {
+    /// Whether `executable` is the installed copy: in the folder the installer wrote down (`registeredInstallFolder`),
+    /// which only administrators can change. Compared as folders, not as paths: the same whatever the case, the 8.3
+    /// short names or the links it is written with.
+    public static func isInstalled(_ executable: URL, installFolder: URL? = registeredInstallFolder) -> Bool {
+        guard let installFolder else { return false }
+        return isSameFolder(executable.deletingLastPathComponent(), installFolder)
+    }
+
+    /// The folder the MSI installed to: `HKLM\Software\AllInOneIME`, value `InstallDir` (its INSTALLFOLDER, wherever that
+    /// was: Program Files\AllInOneIME\<version>, or a folder given as `msiexec INSTALLFOLDER=D:\…`). Nil when AllInOneIME
+    /// isn't installed.
+    public static var registeredInstallFolder: URL? {
         #if os(Windows)
-        var ids = [FOLDERID_ProgramFiles, FOLDERID_ProgramFilesX64, FOLDERID_ProgramFilesX86]
-        return (0..<ids.count).compactMap { index -> URL? in
-            var path: PWSTR?
-            defer { CoTaskMemFree(path) }
-            guard SHGetKnownFolderPath(&ids[index], 0, nil, &path) == S_OK, let path else { return nil }
-            return URL(fileURLWithPath: String(decodingCString: path, as: UTF16.self), isDirectory: true)
+        let flags = DWORD(RRF_RT_REG_SZ) | DWORD(RRF_SUBKEY_WOW6464KEY)
+        let found = #"Software\AllInOneIME"#.withCString(encodedAs: UTF16.self) { key in
+            "InstallDir".withCString(encodedAs: UTF16.self) { name -> String? in
+                var size: DWORD = 0
+                guard RegGetValueW(HKEY_LOCAL_MACHINE, key, name, flags, nil, nil, &size) == ERROR_SUCCESS, size > 2 else { return nil }
+                var buffer = [WCHAR](repeating: 0, count: Int(size) / 2 + 1)
+                guard RegGetValueW(HKEY_LOCAL_MACHINE, key, name, flags, nil, &buffer, &size) == ERROR_SUCCESS else { return nil }
+                return String(decodingCString: buffer, as: UTF16.self)
+            }
         }
+        guard let found, !found.isEmpty else { return nil }
+        return URL(fileURLWithPath: found, isDirectory: true)
         #else
-        return []
+        return nil
+        #endif
+    }
+
+    /// Whether `a` and `b` are the same folder, both there: the same volume and file id.
+    static func isSameFolder(_ a: URL, _ b: URL) -> Bool {
+        #if os(Windows)
+        func identity(_ url: URL) -> [DWORD]? {
+            let handle = windowsPath(url).withCString(encodedAs: UTF16.self) {
+                CreateFileW($0, DWORD(FILE_READ_ATTRIBUTES), DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), nil,
+                            DWORD(OPEN_EXISTING), DWORD(FILE_FLAG_BACKUP_SEMANTICS), nil)
+            }
+            guard let handle, handle != INVALID_HANDLE_VALUE else { return nil }
+            defer { CloseHandle(handle) }
+            var info = BY_HANDLE_FILE_INFORMATION()
+            guard GetFileInformationByHandle(handle, &info), info.dwFileAttributes & DWORD(FILE_ATTRIBUTE_DIRECTORY) != 0 else {
+                return nil
+            }
+            return [info.dwVolumeSerialNumber, info.nFileIndexHigh, info.nFileIndexLow]
+        }
+        guard let first = identity(a) else { return false }
+        return first == identity(b)
+        #else
+        return a.standardizedFileURL == b.standardizedFileURL
         #endif
     }
 

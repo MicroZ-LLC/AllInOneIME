@@ -24,8 +24,8 @@ import WinSDK
 //   --config      the settings from FILE instead of %APPDATA%\AllInOneIME\config.json
 //   --no-keychain API keys only from the environment (ANTHROPIC_API_KEY, ...), never the Credential Manager: for tests,
 //                 which must neither read the user's keys nor tie them to a stub's address
-//   --rime-data   rime-ice's data (default: rime-data beside the program, else ThirdParty's); an installed engine
-//                 (in Program Files) takes librime and its data from beside itself only
+//   --rime-data   rime-ice's data (default: rime-data beside the program, else ThirdParty's); only a build (in .build)
+//                 does: any other engine, the installed one first, takes librime and its data from beside itself
 //   --rime-user   librime's user folder (default: %APPDATA%\AllInOneIME\rime): tests use their own, so that what they
 //                 type isn't learned in the user's
 //   --no-rime     Latin letters only
@@ -185,8 +185,8 @@ func runEngine(_ options: EngineOptions) -> Never {
     if !options.test, !options.noRime {
         let executable = URL(fileURLWithPath: hostOptions.executable)
         let data = options.rimeData.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        if data != nil, EngineRime.isInstalled(executable) {
-            log("rime: an installed engine takes rime-data from beside itself only: --rime-data ignored", always: true)
+        if data != nil, !EngineRime.isBuild(executable) {
+            log("rime: an engine that isn't a build takes rime-data from beside itself only: --rime-data ignored", always: true)
         }
         if let location = EngineRime.locate(executable: executable, sharedData: data) {
             let userData = options.rimeUser.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? EngineRime.defaultUserData
