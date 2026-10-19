@@ -36,7 +36,7 @@ let package = Package(
         ),
 
         // librime's C API (its headers, from the official release, in include/); the library is the shell's to link
-        // (`-L`): on macOS, ThirdParty/librime from `make deps`.
+        // (`-L`): on macOS, ThirdParty/librime from `make deps`; on Windows, rime.lib from Windows/Scripts/fetch-librime.sh.
         .systemLibrary(name: "CRime"),
 
         // Swift wrapper around librime: level one (local pinyin).
@@ -73,12 +73,14 @@ let package = Package(
 // The core builds for iOS too (`make check-ios` in the repository's root).
 package.platforms?.append(.iOS(.v17))
 
-// Elsewhere (Linux, Windows, Android) the package is the core and its tests: librime (an official macOS build, which
-// the macOS shell links) is macOS's for now.
+// Elsewhere (Linux, Windows, Android) the package is the core and its tests. librime is there on macOS and Windows,
+// whose shells link its official builds; elsewhere it isn't yet.
 #if !os(macOS)
-let macOnly: Set = ["CRime", "AllInOneIMERime"]
-package.targets.removeAll { macOnly.contains($0.name) }
+#if !os(Windows)
+let rimeOnly: Set = ["CRime", "AllInOneIMERime"]
+package.targets.removeAll { rimeOnly.contains($0.name) }
 package.products.removeAll { $0.name == "AllInOneIMERime" }
+#endif
 // The core's tests as they are: what they import of Apple's (os's lock, CryptoKit, CoreGraphics) is shimmed
 // (Tests/LinuxShims), and the one that needs Darwin's posix_spawn is left out.
 package.targets += [
