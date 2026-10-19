@@ -64,8 +64,21 @@ func parseOptions() -> EngineOptions {
 }
 
 func fail(_ message: String) -> Never {
-    FileHandle.standardError.write(Data("AllInOneIMEEngine: \(message)\n".utf8))
+    writeStandardError("AllInOneIMEEngine: \(message)\n")
     exit(2)
+}
+
+/// Writes to stderr, or nowhere when there is none. Started at logon (the installer's Run entry) or by the DLL, the
+/// engine has no console and no standard handles, and `FileHandle.standardError` traps on a write to a missing one.
+func writeStandardError(_ text: String) {
+    #if os(Windows)
+    guard let handle = GetStdHandle(STD_ERROR_HANDLE), handle != invalidHandle else { return }
+    var bytes = Array(text.utf8)
+    var written: DWORD = 0
+    _ = WriteFile(handle, &bytes, DWORD(bytes.count), &written, nil)
+    #else
+    FileHandle.standardError.write(Data(text.utf8))
+    #endif
 }
 
 /// Logs to stderr: sizes and kinds, never a payload (§8).
@@ -80,7 +93,7 @@ final class EngineLog: @unchecked Sendable {
         guard always || !quiet else { return }
         let ms = Int((ProcessInfo.processInfo.systemUptime - start) * 1000)
         lock.lock()
-        FileHandle.standardError.write(Data("[engine +\(ms)ms] \(message)\n".utf8))
+        writeStandardError("[engine +\(ms)ms] \(message)\n")
         lock.unlock()
     }
 }
@@ -176,7 +189,7 @@ func runEngine(_ options: EngineOptions) -> Never {
     // Ctrl+C, Ctrl+Break, the console closed, logoff, shutdown: tell every client first (§2.5).
     SetConsoleCtrlHandler({ _ in
         runningServer?.bye(reason: "restart", retryMs: 500)
-        FileHandle.standardError.write(Data("[engine] bye sent: exiting\n".utf8))
+        writeStandardError("[engine] bye sent: exiting\n")
         exit(0)
     }, true)
 
