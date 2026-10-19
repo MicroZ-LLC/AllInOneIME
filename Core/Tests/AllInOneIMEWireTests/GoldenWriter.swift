@@ -94,12 +94,16 @@ final class GoldenWriter {
     var documents: [UInt32: Document] = [:]
     /// Answer each `apply` with `applied` (else the scenario does).
     var answersApplies = true
+    /// What a `<` line shows of an answer: all of it, unless a scenario leaves out what varies ("$any").
+    var shown: (JSONValue) -> JSONValue = { $0 }
+    private let directory: URL
 
     init(fixture: String?, directory: URL, inputLanguage: String = "english", header: [String]) throws {
         let fixtureValue = try fixture.map {
             try WireJSON.decode(ScriptedProvider.Fixture.self, from: Data(contentsOf: directory.appendingPathComponent($0)))
         }
         engine = TestEngine(fixture: fixtureValue, inputLanguage: Language(goldenName: inputLanguage) ?? .english)
+        self.directory = directory
         lines += header.map { "# " + $0 }
         if let fixture { lines.append("#! provider \(fixture)") }
         lines.append("#! inputLanguage \(inputLanguage)")
@@ -130,7 +134,7 @@ final class GoldenWriter {
             // The engine's version and process vary: "$any" (the spec's golden has them so).
             let written = answer["type"] == "welcome" ? answer.setting("engine", to: .any).setting("enginePid", to: .any)
                 : answer.removing("v")
-            lines.append("< " + Self.line(written))
+            lines.append("< " + Self.line(shown(written)))
             let frame = try! WireJSON.decode(EngineFrame.self, from: WireJSON.encode(answer))
             switch frame.message {
             case let .result(_, handled, outputs):
@@ -184,12 +188,16 @@ final class GoldenWriter {
             precondition(!engine.server.isOpen(connection!), "the engine didn't close the connection")
             engine.server.disconnect(connection!)
             connection = nil
+        case let settings where settings.hasPrefix("settings "):
+            let file = directory.appendingPathComponent(String(settings.dropFirst("settings ".count)))
+            let config = String(decoding: try! Data(contentsOf: file), as: UTF8.self)
+            precondition(engine.server.useTestSettings(config: config), "the test's settings couldn't be made")
         default:
             precondition(engine.server.perform(text, on: connection!), "unknown directive")
             engine.runUntilIdle()
             for data in engine.takePushes(for: connection!) {
                 let answer = try! JSONValue(parsing: String(decoding: data, as: UTF8.self))
-                lines.append("< " + Self.line(answer.removing("v")))
+                lines.append("< " + Self.line(shown(answer.removing("v"))))
                 if case let .apply(sid, _, outputs) = try! WireJSON.decode(EngineFrame.self, from: data).message {
                     pendingApplies.append((try! WireJSON.decode(EngineFrame.self, from: data).id, sid, outputs))
                 }
@@ -330,6 +338,7 @@ final class GoldenWriter {
         "shown", "field", "app", "process", "secure", "readOnly", "scopes", "layout", "rect", "hwnd", "exact", "reason",
         "code", "message", "versions", "client", "platform", "arch", "pid", "tid", "version", "engine", "enginePid",
         "capabilities", "limits", "contextBefore", "selection", "retryMs", "directive",
+        "action", "item", "value", "revision", "problem", "document",
     ]
 
     static func line(_ value: JSONValue) -> String {

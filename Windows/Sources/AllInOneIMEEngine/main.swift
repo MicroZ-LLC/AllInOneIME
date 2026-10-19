@@ -237,6 +237,12 @@ func runEngine(_ options: EngineOptions) -> Never {
     let environment = WireEnvironment(host: host, clock: clock, makeComposer: { host.makeComposer($0, $1) }, log: { log($0) })
     let server = WireServer(configuration: configuration, environment: environment)
     server.testDirective = { host.testDirective($0, $1) }
+    // The settings for a settings window (§12): the file the engine reads, through the core's rules, the keys in the
+    // Credential Manager (with --no-keychain, in memory). In test mode a golden gives its own (`#! settings`).
+    if !options.test {
+        let store = SettingsStore(configURL: hostOptions.settings.url, fresh: { EngineSettings.fresh })
+        server.settings = SettingsService(store: store, platform: .windows, secrets: options.noKeychain ? .inMemory() : nil)
+    }
     runningServer = server
 
     var listenerOptions = PipeListener.Options()
@@ -279,6 +285,9 @@ func runEngine(_ options: EngineOptions) -> Never {
     }, true)
 
     // The watchdog (§2.5): a session queue stalled for more than 2 s, and the engine exits so that it is relaunched.
+    // About once a second, the settings file: changed by something else (allinoneime-cli, an editor), the settings
+    // windows are told (§12.6).
+    var ticks = 0
     while true {
         Sleep(250)
         let busy = server.longestBusy
@@ -286,6 +295,8 @@ func runEngine(_ options: EngineOptions) -> Never {
             log("a session queue has been busy for \(Int(busy * 1000)) ms: exiting", always: true)
             exit(3)
         }
+        ticks += 1
+        if ticks % 4 == 0 { server.settings?.checkForChanges() }
     }
 }
 

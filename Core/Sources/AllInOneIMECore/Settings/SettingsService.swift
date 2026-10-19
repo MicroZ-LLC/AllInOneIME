@@ -17,6 +17,9 @@ public final class SettingsService: @unchecked Sendable {
     /// What the plugin library offers, once browsed (`browse`).
     private var libraryEntries: [PluginIndex.Entry]?
     private let library: PluginLibrary
+    /// The secret store its keys go to, when not the platform's (`Platform.secrets`): an engine's test mode keeps them
+    /// in memory, never in the user's.
+    private let secrets: APIKeys.Keychain?
 
     /// Called after each change (here, or found in the file by `checkForChanges`), with the new revision, on the thread
     /// that made it, outside the lock. Set before the service is used.
@@ -30,10 +33,12 @@ public final class SettingsService: @unchecked Sendable {
     /// The Notion link's Test.
     public var notionSession: URLSession = NotionAPI.session
 
-    public init(store: SettingsStore, platform: SettingsPlatform, library: PluginLibrary = PluginLibrary()) {
+    public init(store: SettingsStore, platform: SettingsPlatform, library: PluginLibrary = PluginLibrary(),
+                secrets: APIKeys.Keychain? = nil) {
         self.store = store
         self.platform = platform
         self.library = library
+        self.secrets = secrets
         observation = store.observe { [unowned self] change in
             guard !change.intersection([.config, .keys]).isEmpty else { return }
             revisionValue += 1
@@ -46,7 +51,7 @@ public final class SettingsService: @unchecked Sendable {
     /// The settings now (the file read again if something else changed it), for this platform.
     public func document() -> SettingsDocument {
         changing { store.reloadIfChanged() }
-        return locked { build().document }
+        return scoped { locked { build().document } }
     }
 
     /// Reads the file again if something else changed it (another process, an editor): `changed` says so.
@@ -56,6 +61,10 @@ public final class SettingsService: @unchecked Sendable {
 
     /// Changes one setting (`Field.id`) to `value`, checked against what the field takes, and saves it.
     public func set(_ id: String, to value: AIConfig.JSONValue) -> Result<Void, SettingsProblem> {
+        scoped { setting(id, to: value) }
+    }
+
+    private func setting(_ id: String, to value: AIConfig.JSONValue) -> Result<Void, SettingsProblem> {
         changing { () -> Result<Void, SettingsProblem> in
             store.reloadIfChanged()
             let built = build()
@@ -78,8 +87,50 @@ public final class SettingsService: @unchecked Sendable {
         }
     }
 
+    /// Whether an action runs a while (a test, a download): `perform` it; any other is done at once (`performNow`).
+    public static func takesAWhile(_ action: SettingsAction) -> Bool {
+        [SettingsAction.test, SettingsAction.browse, SettingsAction.install].contains(action.name)
+    }
+
     /// Runs one of a field's `actions`.
     public func perform(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        guard let secrets else { return await performing(action) }
+        var platform = Platform.current
+        platform.secrets = secrets
+        return await Platform.$override.withValue(platform) { await performing(action) }
+    }
+
+    /// Runs an action that is done at once (`takesAWhile` false), on the caller's thread; one that takes a while is
+    /// refused (`perform` it).
+    public func performNow(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
+        scoped { () -> Result<SettingsActionOutcome, SettingsProblem> in
+            if let problem = check(action) { return .failure(problem) }
+            return now(action)
+        }
+    }
+
+    private func performing(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        if let problem = check(action) { return .failure(problem) }
+        switch action.name {
+        case SettingsAction.test: return await test(action)
+        case SettingsAction.browse: return await browse(action)
+        case SettingsAction.install: return await install(action)
+        default: return now(action)
+        }
+    }
+
+    /// The actions done at once.
+    private func now(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
+        switch action.name {
+        case SettingsAction.setKey, SettingsAction.removeKey: return changing { secret(action) }
+        case SettingsAction.remove: return changing { remove(action) }
+        case SettingsAction.save, SettingsAction.delete: return changing { command(action) }
+        default: return .failure(SettingsProblem(.notChangeable, field: action.field, message: Self.notChangeable))
+        }
+    }
+
+    /// Whether the field is there and has the action (or an item of it does).
+    private func check(_ action: SettingsAction) -> SettingsProblem? {
         let found = changing { () -> Result<SettingsDocument.Field, SettingsProblem> in
             store.reloadIfChanged()
             let document = build().document
@@ -90,19 +141,19 @@ public final class SettingsService: @unchecked Sendable {
             }
             return .success(field)
         }
-        guard case .success = found else { return found.map { _ in SettingsActionOutcome() } }
-        switch action.name {
-        case SettingsAction.setKey, SettingsAction.removeKey: return changing { secret(action) }
-        case SettingsAction.test: return await test(action)
-        case SettingsAction.browse: return await browse(action)
-        case SettingsAction.install: return await install(action)
-        case SettingsAction.remove: return changing { remove(action) }
-        case SettingsAction.save, SettingsAction.delete: return changing { command(action) }
-        default: return .failure(SettingsProblem(.notChangeable, field: action.field, message: Self.notChangeable))
-        }
+        if case let .failure(problem) = found { return problem }
+        return nil
     }
 
     // MARK: Locking
+
+    /// `body` with the keys in `secrets`, when the service has its own.
+    private func scoped<T>(_ body: () -> T) -> T {
+        guard let secrets else { return body() }
+        var platform = Platform.current
+        platform.secrets = secrets
+        return Platform.$override.withValue(platform, operation: body)
+    }
 
     private func locked<T>(_ body: () -> T) -> T {
         lock.lock()
@@ -266,8 +317,8 @@ public final class SettingsService: @unchecked Sendable {
     /// Whether `value` is one `field` takes, by its kind, bounds and choices.
     static func check(_ value: AIConfig.JSONValue, for field: SettingsDocument.Field) -> SettingsProblem? {
         func bad(_ message: String = badValue) -> SettingsProblem { SettingsProblem(.badValue, field: field.id, message: message) }
-        if value == .null {
-            return field.optional == true && [.number, .text, .choice].contains(field.kind) ? nil : bad()
+        if value == .null, field.kind != .choice {
+            return field.optional == true && [.number, .text].contains(field.kind) ? nil : bad()
         }
         switch field.kind {
         case .toggle:

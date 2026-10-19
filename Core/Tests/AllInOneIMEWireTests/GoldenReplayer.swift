@@ -78,6 +78,13 @@ struct GoldenReplayer {
                 switch words.first {
                 case "provider", "inputLanguage", "keys", "expect-document":
                     continue
+                case "settings":
+                    try unexpected(line)
+                    guard words.count == 2 else { throw Failure(line: line, message: "#! settings <file>") }
+                    let config = String(decoding: try Data(contentsOf: directory.appendingPathComponent(words[1])), as: UTF8.self)
+                    guard engine.server.useTestSettings(config: config) else {
+                        throw Failure(line: line, message: "the test's settings couldn't be made")
+                    }
                 case "connect":
                     try unexpected(line)
                     connection = engine.server.connect(WirePeer())

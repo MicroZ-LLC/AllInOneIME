@@ -1,0 +1,47 @@
+# A settings window (§12), Windows' Settings app: the settings as a document, one change at a time, a key and a
+# custom command. The test's own config (fixtures/settings.json) and keys in memory. The document and the
+# messages are in the interface language: "$any" here (the core's tests check them).
+#! inputLanguage english
+#! settings fixtures/settings.json
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["settings"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":["settings"],"limits":{"contextBefore":32,"selection":10002}}
+# The settings as a document: sections of fields, for Windows (the Mac's own fields left out)
+> {"id":2,"type":"settingsGet"}
+< {"id":2,"re":2,"type":"settings","revision":1,"document":"$any"}
+# One change: saved, answered with the document, and every settings client told (this one too)
+> {"id":3,"type":"settingsSet","field":"maxTokens","value":1500}
+< {"id":3,"re":3,"type":"settings","revision":2,"document":"$any"}
+< {"id":4,"type":"settingsChanged","revision":2}
+# Refused, with why: out of its bounds; a field the Mac has and Windows doesn't; nothing changes
+> {"id":4,"type":"settingsSet","field":"maxTokens","value":50}
+< {"id":5,"re":4,"type":"settings","revision":2,"problem":{"field":"maxTokens","code":"badValue","message":"$any"},"document":"$any"}
+> {"id":5,"type":"settingsSet","field":"menuBarIcon","value":false}
+< {"id":6,"re":5,"type":"settings","revision":2,"problem":{"field":"menuBarIcon","code":"unknownField","message":"$any"},"document":"$any"}
+# Null is a value: the base URL unset, the default applies (as it did: nothing changed, nobody told)
+> {"id":6,"type":"settingsSet","field":"anthropic.baseURL","value":null}
+< {"id":7,"re":6,"type":"settings","revision":2,"document":"$any"}
+# A key goes once, to the secret store; the document says only that it is saved, and its last 4
+> {"id":7,"type":"settingsAction","key":"sk-test-golden-0000-a1b2","field":"anthropic.key","action":"setKey"}
+< {"id":8,"re":7,"type":"settings","revision":3,"document":"$any"}
+< {"id":9,"type":"settingsChanged","revision":3}
+> {"id":8,"type":"settingsAction","field":"anthropic.key","action":"removeKey"}
+< {"id":10,"re":8,"type":"settings","revision":4,"document":"$any"}
+< {"id":11,"type":"settingsChanged","revision":4}
+# A custom command, with the editor's rules: saved, a name taken refused, deleted
+> {"id":9,"type":"settingsAction","field":"commands.custom","action":"save","value":{"type":"prompt","name":"polite","prompt":"Make it polite"}}
+< {"id":12,"re":9,"type":"settings","revision":5,"document":"$any"}
+< {"id":13,"type":"settingsChanged","revision":5}
+> {"id":10,"type":"settingsAction","field":"commands.custom","action":"save","value":{"type":"prompt","name":"improve","prompt":"Mine"}}
+< {"id":14,"re":10,"type":"settings","revision":5,"problem":{"field":"commands.custom","code":"badValue","message":"$any"},"document":"$any"}
+> {"id":11,"type":"settingsAction","field":"commands.custom","action":"delete","item":"polite"}
+< {"id":15,"re":11,"type":"settings","revision":6,"document":"$any"}
+< {"id":16,"type":"settingsChanged","revision":6}
+# A change without its value is no change: badMessage
+> {"id":12,"type":"settingsSet","field":"maxTokens"}
+< {"id":17,"re":12,"type":"error","code":"badMessage","message":"missing value"}
+# A client that didn't ask for the settings (a text service's) doesn't have them
+#! connect
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"id":2,"type":"settingsGet"}
+< {"id":2,"re":2,"type":"error","code":"unknownType","message":"unknown type"}

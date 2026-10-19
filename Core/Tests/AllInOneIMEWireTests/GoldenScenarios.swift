@@ -20,6 +20,7 @@ enum GoldenScenarios {
         ("reconnect", reconnect),
         ("unknown-type", unknownType),
         ("limits", limits),
+        ("settings", settings),
     ]
 
     /// Notepad, the handshake, "hi " and "@improve hello" up to its level two.
@@ -280,6 +281,50 @@ enum GoldenScenarios {
         w.blur(1)
         w.close(1)
         w.close(2)
+        return w.text
+    }
+
+    /// A settings window (§12): the document, a change, one refused, a key (sent once, never back), a custom command; a
+    /// client that didn't ask for the settings doesn't have them.
+    static func settings(_ directory: URL) throws -> String {
+        let w = try GoldenWriter(fixture: nil, directory: directory, header: [
+            "A settings window (§12), Windows' Settings app: the settings as a document, one change at a time, a key and a",
+            "custom command. The test's own config (fixtures/settings.json) and keys in memory. The document and the",
+            "messages are in the interface language: \"$any\" here (the core's tests check them).",
+        ])
+        w.shown = { answer in
+            guard answer["type"] == "settings" else { return answer }
+            var shown = answer
+            if answer["document"] != nil { shown = shown.setting("document", to: .any) }
+            if let problem = answer["problem"] { shown = shown.setting("problem", to: problem.setting("message", to: .any)) }
+            return shown
+        }
+        w.directive("settings fixtures/settings.json")
+        w.hello(capabilities: ["settings"])
+        w.comment("The settings as a document: sections of fields, for Windows (the Mac's own fields left out)")
+        w.send(["type": "settingsGet"])
+        w.comment("One change: saved, answered with the document, and every settings client told (this one too)")
+        w.send(["type": "settingsSet", "field": "maxTokens", "value": 1500])
+        w.comment("Refused, with why: out of its bounds; a field the Mac has and Windows doesn't; nothing changes")
+        w.send(["type": "settingsSet", "field": "maxTokens", "value": 50])
+        w.send(["type": "settingsSet", "field": "menuBarIcon", "value": false])
+        w.comment("Null is a value: the base URL unset, the default applies (as it did: nothing changed, nobody told)")
+        w.send(["type": "settingsSet", "field": "anthropic.baseURL", "value": .null])
+        w.comment("A key goes once, to the secret store; the document says only that it is saved, and its last 4")
+        w.send(["type": "settingsAction", "field": "anthropic.key", "action": "setKey", "key": "sk-test-golden-0000-a1b2"])
+        w.send(["type": "settingsAction", "field": "anthropic.key", "action": "removeKey"])
+        w.comment("A custom command, with the editor's rules: saved, a name taken refused, deleted")
+        w.send(["type": "settingsAction", "field": "commands.custom", "action": "save",
+                "value": ["name": "polite", "type": "prompt", "prompt": "Make it polite"]])
+        w.send(["type": "settingsAction", "field": "commands.custom", "action": "save",
+                "value": ["name": "improve", "type": "prompt", "prompt": "Mine"]])
+        w.send(["type": "settingsAction", "field": "commands.custom", "action": "delete", "item": "polite"])
+        w.comment("A change without its value is no change: badMessage")
+        w.send(["type": "settingsSet", "field": "maxTokens"])
+        w.comment("A client that didn't ask for the settings (a text service's) doesn't have them")
+        w.directive("connect")
+        w.hello()
+        w.send(["type": "settingsGet"])
         return w.text
     }
 

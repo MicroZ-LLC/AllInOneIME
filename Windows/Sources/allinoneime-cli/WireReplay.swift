@@ -269,12 +269,12 @@ extension WireReplay {
             }
 
             /// Sends an `x-test` directive and reads up to its answer: what came before it, and whether it was done.
-            func direct(_ directive: String, fixture: ScriptedProvider.Fixture? = nil, line: Int,
+            func direct(_ directive: String, fixture: ScriptedProvider.Fixture? = nil, config: String? = nil, line: Int,
                         keyID: UInt32? = nil, sent: Double = 0) throws -> (frames: [Data], ok: Bool) {
                 guard let connection = client else { throw Failure(line: line, message: "not connected") }
                 if !closedByEngine {
                     do {
-                        try connection.send(WireJSON.encode(TestFrame(directive: directive, fixture: fixture)))
+                        try connection.send(WireJSON.encode(TestFrame(directive: directive, fixture: fixture, config: config)))
                     } catch PipeChannel.Failure.closed {
                         closedByEngine = true
                     }
@@ -366,7 +366,12 @@ extension WireReplay {
                             fixture = try WireJSON.decode(ScriptedProvider.Fixture.self,
                                                           from: Data(contentsOf: directory.appendingPathComponent(words[1])))
                         }
-                        let (frames, ok) = try direct(text, fixture: fixture, line: line)
+                        // The test's settings (§12): the config file's text.
+                        var config: String?
+                        if words.first == "settings", words.count == 2 {
+                            config = String(decoding: try Data(contentsOf: directory.appendingPathComponent(words[1])), as: UTF8.self)
+                        }
+                        let (frames, ok) = try direct(text, fixture: fixture, config: config, line: line)
                         guard ok else {
                             throw Failure(line: line, message: "the engine didn't do \"\(text)\" (is it in test mode?)")
                         }

@@ -103,6 +103,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 | `endComposition` | `result` |
 | `ping` | `pong` |
 | `apply` (engine → DLL) | `applied` |
+| `settingsGet`, `settingsSet`, `settingsAction` (§12) | `settings` |
 
 - **Error frame:** `{"v":1,"id":9,"re":4,"type":"error","code":"noSession","message":"…"}`. `message` is English text for logs only and never contains user text.
 - **Error codes:**
@@ -118,6 +119,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 | `notFocused` | session not focused | no |
 | `limit` | a rate or count exceeded | no |
 | `internal` | engine-side failure | no |
+| `notAllowed` | the settings (§12) asked for by a client that may not have them | no |
 
 - **The DLL after an error on a key:** if a request it is waiting on returns `error`, it treats the request as `handled:false` with no outputs.
 
@@ -332,7 +334,8 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
   - **`trusted`:** medium integrity or higher, not in an AppContainer.
   - **`untrusted`:** low integrity or AppContainer.
 - **No secrets over the pipe:**
-  - API keys, tokens and credentials never travel.
+  - API keys, tokens and credentials never travel, with one exception: a key a settings client saves goes once, from
+    the client to the engine, and never comes back (§12.8).
   - Secure fields send neither keys nor context.
   - Logs record sizes and types, never payloads.
 - **What a malicious low-integrity or AppContainer process could do, and the bound on each:**
@@ -357,8 +360,8 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
   - an unknown type from the DLL gets `error unknownType`;
   - the DLL silently ignores unknown types from the engine.
 - **v1 capabilities:**
-  - client: `allowForeground`;
-  - engine: `keyUps`, `limits.contextBefore`, `limits.selection`.
+  - client: `allowForeground`, `settings` (§12);
+  - engine: `keyUps`, `limits.contextBefore`, `limits.selection`, `settings` (§12).
 - **v2:** breaking changes only. The client sends `versions:[1,2]`. The engine keeps one decoder and encoder per version, both mapping to the same internal model, and speaks the current version and the one before it: a DLL left in a long-running app after an update still connects.
 
 ## 10. Golden transcript (`WireGoldens/notepad-improve.jsonl`)
@@ -424,6 +427,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 - `reconnect`
 - `unknown-type`
 - `limits`
+- `settings` (§12)
 
 ## 11. What lives where
 
@@ -468,6 +472,202 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
   - The test synthesizes each `>` key frame's `vk`, `scan` and `modifiers` through `ITfKeystrokeMgr`.
   - It checks the frames the DLL sends against the `>` lines.
 
+
+## 12. Settings (v1, capability `settings`)
+
+A settings window (Windows' Settings app, a separate C# WinUI 3 program) reads and changes the settings through the
+engine, over the same pipe, framing and handshake. **The core decides everything:** what there is to set, its text (in
+the interface language), which fields apply now and on this platform, whether a change is valid, and the rules each
+change follows (the same as the Mac's settings window: the core's `SettingsStore`). The client draws the document it is
+given and sends back what the user did. It opens no sessions.
+
+### 12.1 Handshake
+
+```json
+{"v":1,"id":1,"type":"hello","versions":[1],"client":"settings/0.7.0","platform":"win","arch":"x64","pid":5120,"capabilities":["settings"]}
+{"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"0.7.0","enginePid":3100,"capabilities":["settings"],"limits":{"contextBefore":32,"selection":10002}}
+```
+
+- **Granted** (`settings` in `welcome.capabilities`) when the client asked, is `trusted` (§8: medium integrity or
+  higher, not in an AppContainer) and the engine has settings.
+- **Not granted:** the settings frames get `error notAllowed` when the client asked, `unknownType` when it didn't (as
+  any unknown type, §9). Text services (the DLL) don't ask.
+
+### 12.2 Messages
+
+| Client → engine (request) | Fields | Engine → client |
+|---|---|---|
+| `settingsGet` | — | `settings` |
+| `settingsSet` | `field`, `value` | `settings` |
+| `settingsAction` | `field`, `action`, and as the action takes: `item`, `value`, `key` | `settings` |
+
+| Engine → client (notification) | Fields |
+|---|---|
+| `settingsChanged` | `revision` |
+
+```json
+{"v":1,"id":2,"type":"settingsGet"}
+{"v":1,"id":2,"re":2,"type":"settings","revision":1,"document":{…}}
+{"v":1,"id":3,"type":"settingsSet","field":"maxTokens","value":1500}
+{"v":1,"id":3,"re":3,"type":"settings","revision":2,"document":{…}}
+{"v":1,"id":4,"type":"settingsChanged","revision":2}
+{"v":1,"id":4,"type":"settingsSet","field":"maxTokens","value":50}
+{"v":1,"id":5,"re":4,"type":"settings","revision":2,"problem":{"code":"badValue","field":"maxTokens","message":"Between 200 and 4000"},"document":{…}}
+{"v":1,"id":5,"type":"settingsAction","field":"anthropic.key","action":"setKey","key":"sk-ant-…"}
+{"v":1,"id":6,"re":5,"type":"settings","revision":3,"document":{…}}
+```
+
+**`settings`**, the answer to all three:
+
+| Field | Meaning |
+|---|---|
+| `revision` | moves with each change of the settings or the keys (u64); the document's |
+| `document` | the settings as they are now (§12.3): after the change, or as they were when it was refused |
+| `problem` | a change or action refused: `{code, field, message}` (§12.4) |
+| `message` | what an action that worked says: a test's outcome, "✓ 1.2 s: …" |
+
+- `problem.message` and `message` are interface text for the user, in the interface language. They never repeat the
+  value sent. (An `error` frame's `message` stays English for logs, §3.)
+- An `error` frame instead of `settings` means the frame itself is wrong: `badMessage` (a field missing, `value`
+  missing: null is a value, no value isn't), `notAllowed`, `unknownType`.
+
+### 12.3 The document
+
+```json
+{"language":"en","platform":"windows","sections":[
+  {"id":"general","title":"General","fields":[
+    {"id":"typeOut","kind":"toggle","label":"Type results out","help":"A command's result is typed in …","value":false},
+    {"id":"uiLanguage","kind":"choice","label":"Interface language","choices":[{"value":null,"label":"Follow the system"},{"value":"en","label":"English"},{"value":"zh-Hans","label":"简体中文"}]}]},
+  {"id":"provider","title":"AI Provider","fields":[
+    {"id":"provider","kind":"choice","label":"Provider","value":"anthropic","choices":[{"value":"bedrock","label":"Amazon Bedrock"},{"value":"anthropic","label":"Claude API"},…]},
+    {"id":"anthropic.model","kind":"text","label":"Model","placeholder":"claude-haiku-5-5","optional":true,"choices":[{"value":"claude-haiku-5-5","label":"Claude Haiku 5.5","note":"Default: fastest, cheapest"},…]},
+    {"id":"anthropic.key","kind":"secret","label":"API key","status":"✓ Saved · ends in a1b2","isSet":true,"actions":["setKey","removeKey"]},
+    {"id":"provider.test","kind":"button","label":"Test Connection","actions":["test"]}]},
+  …]}
+```
+
+- **Document:** `language` (the text's: "zh-Hans", "en", "fr" …), `platform` (`windows`, `mac`), `loadError` (the
+  config file can't be read: every field is `readOnly`, nothing is changed, the file stays as it is), `saveError`,
+  `sections`.
+- **Section:** `id`, `title`, `footer` (a note under it), `fields`. Sections without fields are left out.
+- **Field:** `id` (what `settingsSet` and `settingsAction` name), `kind`, `label`, and as it has them: `help`, `value`,
+  `placeholder` (what an empty text stands for: the default), `choices` (`{value, label, note, disabled}`), `ordered`,
+  `minCount`, `maxCount`, `min`, `max`, `step`, `optional`, `readOnly`, `platforms`, `status`, `isSet`, `actions`,
+  `items` (`{id, title, detail, value, actions}`).
+- **Canonical form** (§1): what a field doesn't have is left out, and so is a `value` that is null: no `value` means
+  null (a text not set, "follow the system").
+
+| `kind` | `value` | `settingsSet` takes |
+|---|---|---|
+| `toggle` | bool | a bool |
+| `integer` | number | a whole number in `min`…`max`, in steps of `step` from `min` |
+| `number` | number, or null when `optional` | a number in `min`…`max`; null when `optional` (`step`: a slider's) |
+| `text` | string or null | a string; null when `optional`. `choices`, if any, are suggestions |
+| `choice` | one of `choices`' values | one of them, not `disabled` (null when a choice's value is null) |
+| `choices` | an array of `choices`' values | each once, `minCount`…`maxCount` of them; `ordered`: the order matters (the first is the default) |
+| `words` | an array of strings | an array of strings |
+| `secret` | — (never) | — : `status`, `isSet`; changed with `setKey` / `removeKey` |
+| `items` | — | — : each item's `actions`, and the field's |
+| `info` | text to show | — |
+| `button` | — | — : its `actions` (one); `status`: what the last run said |
+
+- **Which fields apply:** only those that apply *now* are in the document: a provider's own fields while it is the one
+  in use, the typing speed while typing out is on, fuzzy pinyin with Chinese among the input languages. After a
+  change, draw the new document: fields come and go.
+- **Which platform:** a document is made for the client's platform (the engine's: `windows`). The Mac's own fields
+  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput`, `agentPageContext`
+  (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
+  (`notes.destination` `notes`), the providers `apple` (Apple Intelligence) and `hosted` (its sign-in is the Mac's). A
+  choice only the other platform has is shown, `disabled`, when it is the value now (Apple Notes, a new user's
+  default). Messages (`@imessage`) has no setting. A field's `platforms`, when present, says where it applies.
+- **Field ids** (stable; a later version may add fields, and a client draws any it is given):
+
+| Section | Fields |
+|---|---|
+| `general` | `actionKey`, `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
+| `input` | `inputLanguages`, `candidateLayout`, `fuzzyPinyin`; the Mac's: `voiceInput` |
+| `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
+| `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
+| `request` | `maxTokens`, `temperature` (Bedrock), `timeoutSeconds` |
+| `privacy` | `redaction.enabled`, `redaction.emails`, `.phones`, `.cards`, `.keys`, `.ips`, `redaction.customWords` |
+| `agent` | `agent`, `agentCommand` (a custom agent), `claudeInBackground` (Claude Code); the Mac's: `agentPageContext` |
+| `plugins` | `plugins.installed`, `plugins.library` |
+| `search` | `search.key` |
+| `notes` | `notes.destination`, `notes.folder`, `notes.notionToken`, `notes.notion` |
+| `commands` | `commands.custom` |
+| `advanced` | `configFile` |
+
+### 12.4 Changes (`settingsSet`)
+
+- **One at a time:** `field` and `value`. The value is checked against the field (its kind, bounds, choices), then set
+  through the core's rules (the first input language is the default, a provider field emptied is unset …), then
+  saved: only the keys that changed are written into `config.json`, the rest of the file as it was (keys a later version
+  wrote too). Something else may have changed the file meanwhile: it is read again first.
+- **Refused:** `problem.code`:
+
+| Code | Meaning |
+|---|---|
+| `unknownField` | no such field here: not on this platform, or not now (another provider's) |
+| `badValue` | not a value the field takes (`message` says why: "Between 200 and 4000") |
+| `notChangeable` | not changed this way: read-only, or an action the field doesn't have |
+| `configBroken` | the config file can't be read; nothing is changed until it is fixed |
+| `failed` | taken, but not done: the file couldn't be written, the secret store refused, a test failed |
+
+### 12.5 Actions (`settingsAction`)
+
+| `action` | On | Takes | Does |
+|---|---|---|---|
+| `setKey` | a `secret` | `key` | saves the key, for a provider's base URL as it is now (§12.8) |
+| `removeKey` | a `secret` with it | — | removes the saved key |
+| `test` | `provider.test`, `search.key`, `notes.notion` | `value`: the link, for `notes.notion` (none: the page kept) | Test Connection, a web search, the Notion link (found: @note saves there) |
+| `browse` | `plugins.library` | — | downloads the library's signed index; the field's `items` are then what it offers |
+| `install` | `plugins.library` | `item` (a plugin's name) | installs or updates it |
+| `remove` | `plugins.installed` | `item` | removes the plugin |
+| `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
+| `delete` | `commands.custom` | `item` | deletes the command |
+
+- An action must be in the field's `actions` (or its item's).
+- **Done at once:** `setKey`, `removeKey`, `remove`, `save`, `delete`: the answer comes as any other.
+- **Takes a while:** `test`, `browse`, `install` (a request to an AI provider, a download): the answer comes when it is
+  done, perhaps after other frames; match it by `re`. The connection goes on meanwhile. A failed test is a `problem`
+  (`failed`, "✗ …"); a test that passed says so in `message` ("✓ …"). Either is also the field's `status` from then on.
+
+### 12.6 `settingsChanged`
+
+- Sent to every client that has the settings after any change: one it made (after its answer), another client's, a
+  key saved or removed, a test's outcome, the file changed by something else (the engine looks about once a second:
+  `allinoneime-cli set-provider`, an editor, sync).
+- `revision` is the new one. A client whose document is older sends `settingsGet` (at its own pace: several
+  notifications may come for one change it hasn't fetched yet).
+
+### 12.7 Ordering
+
+- Answers and notifications go out in the order the engine made them (the pipe's `answersThroughPush`, Spec notes). A
+  `settingsSet`, or an action done at once, is answered before the `settingsChanged` it causes; an action that takes a
+  while may come after the `settingsChanged` of its outcome.
+
+### 12.8 Security
+
+- **A key travels once:** `settingsAction setKey`'s `key`, client → engine. It is never in an answer, a document, a
+  notification or a log: a document says only whether a key is set (`isSet`), where it is from and its last 4
+  characters (`status`: "✓ Saved · ends in a1b2", "✓ From $OPENAI_API_KEY"), as the Mac's window shows it. It is kept
+  in the Credential Manager (Windows), tied to the host of the provider's base URL as it is when saved.
+- **Only trusted clients** (§12.1). A low-integrity or AppContainer process can't read or change the settings.
+- **Logs:** the field and the action's name, never a value.
+- **Limits:** `field` and `action` ≤ 256 units (over: `badMessage`); the frame limit (64 KiB, §2.2) bounds the rest.
+
+### 12.9 What lives where
+
+- **Core (AllInOneIMECore/Settings):** `SettingsStore` (config.json read and written key by key, the rules, the keys:
+  the Mac's `SettingsModel` is a SwiftUI adapter over it), `SettingsService` (the document, `set`, the actions, the
+  revision; thread-safe), `SettingsSchema` (the fields), `SettingsDocument` (the JSON).
+- **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), and
+  `useTestSettings` (`#! settings`, test mode).
+- **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
+  checked for changes about once a second.
+- **Golden:** `settings.jsonl` (its documents and messages `"$any"`: they are in the interface language; the core's
+  `SettingsServiceTests` check them).
+
 ---
 
 ## Open questions
@@ -511,7 +711,8 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
   - `#! keys <text>`: typed in a field the client sends nothing from (the app gets the keys).
   - `#! connect`, `#! disconnect`: a new connection, or the client's end closed.
   - `#! closed`: the engine must have closed the connection.
-- **Over a real transport** (`allinoneime-cli wire-replay`, engine started with `--test`), directives travel as `{"v":1,"id":0,"type":"x-test","directive":"…"}`, answered `{"id":0,"re":0,"type":"x-test","ok":true}`. `provider` carries its file's contents in `fixture`. After each `>` line the replayer sends `x-test idle`: the frames before its answer are that line's. `x-test` is outside both sides' id counts, and an engine not in test mode answers it `unknownType`.
+  - `#! settings <file>`: the engine's settings are the test's own (§12): a config file with that file's text, in a folder of its own, its keys in memory and its plugins in that folder, never the user's.
+- **Over a real transport** (`allinoneime-cli wire-replay`, engine started with `--test`), directives travel as `{"v":1,"id":0,"type":"x-test","directive":"…"}`, answered `{"id":0,"re":0,"type":"x-test","ok":true}`. `provider` carries its file's contents in `fixture`, `settings` its file's text in `config`. After each `>` line the replayer sends `x-test idle`: the frames before its answer are that line's. `x-test` is outside both sides' id counts, and an engine not in test mode answers it `unknownType`.
 
 ### Behaviour the text leaves open
 

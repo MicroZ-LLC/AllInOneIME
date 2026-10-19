@@ -7,7 +7,8 @@ import WinSDK
 /// The engine's settings: the core's `config.json` (`Config`, in `%APPDATA%\AllInOneIME` on Windows, or the file
 /// `--config` names), read again only when the file changed (by its modification date), as the Mac's `LiveConfig`. A
 /// file that doesn't parse reads as the defaults, and says why (`problem`). There is no Settings window on Windows yet:
-/// the file is edited by hand, or with `allinoneime-cli set-provider` and friends.
+/// the file is edited by hand, with `allinoneime-cli set-provider` and friends, or by a settings window over the pipe
+/// (the core's `SettingsService`, wire protocol §12).
 public final class EngineSettings: @unchecked Sendable {
     public let url: URL
     private let lock = NSLock()

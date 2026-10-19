@@ -16,7 +16,8 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
   rime-ice's data (see "Level one: librime and rime-ice").
 - The installer, in `installer/`: an MSI that makes AllInOneIME an input method like any other (see "Installing").
 
-The settings window comes next.
+The settings window comes next, a C# WinUI 3 app on the engine's pipe: the engine already serves the settings to it
+(wire protocol §12, see "Settings over the wire").
 
 ```
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
@@ -62,7 +63,7 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
 
 ## Settings: a provider and its key
 
-There is no settings window on Windows yet. The settings are the core's `config.json`, in
+There is no settings window on Windows yet (the engine serves one already: "Settings over the wire"). The settings are the core's `config.json`, in
 `%APPDATA%\AllInOneIME\config.json` (the same format as the Mac's `~/.config/allinoneime/config.json`; edit it by hand
 for the rest), and the command line, installed beside the engine, sets the ones that matter first:
 
@@ -86,6 +87,23 @@ allinoneime-cli set-input zh,en                        # optional: start in Chin
 - **A file that doesn't parse** is never overwritten by the commands; the engine uses the defaults meanwhile (and logs
   why).
 
+
+## Settings over the wire
+
+The engine serves the settings to a settings window over its pipe (`../Core/docs/wire-protocol-v1.md` §12): a client
+that says `hello` with the capability `settings` (and is trusted: medium integrity, no AppContainer) gets the settings
+as a document of sections and fields, in the interface language and for Windows (the Mac's own fields left out), sends
+one change at a time (`settingsSet`, checked and saved by the core, `config.json` written key by key), runs the fields'
+actions (`settingsAction`: a key saved once and never sent back, Test Connection, the plugin library, a custom command
+saved or deleted), and hears of every change (`settingsChanged`, also when `config.json` changed elsewhere: the engine
+looks about once a second). The core's `SettingsService` does all of it; the engine only gives it its config file
+(`--config`, else `%APPDATA%\AllInOneIME\config.json`) and, with `--no-keychain`, keeps its keys in memory. In test
+mode the goldens bring their own (`#! settings`); `settings.jsonl` replays over the pipe as the others do.
+
+Not done yet: the engine doesn't take its interface language from the settings when it starts, so the document's text
+is in the process's language (English, or Simplified Chinese), and other languages need the engine to read the String
+Catalog's translations (`InterfaceText.tableLookup`). The interface language changed in the settings applies to the
+engine's process at once.
 ## What's still missing
 
 - **The settings window**, and with it the sign-in to AllInOneIME Cloud, the language packs (Korean, Hindi: their

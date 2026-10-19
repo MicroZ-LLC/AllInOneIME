@@ -81,6 +81,20 @@ public final class WireServer: @unchecked Sendable {
     private var connections: [ConnectionID: Connection] = [:]
     private var lastID: ConnectionID = 0
     private var connects: [UInt32: [Double]] = [:]
+    private var settingsService: SettingsService?
+    /// A test's settings (`#! settings`): their folder, removed when they are replaced.
+    private var testSettingsFolder: URL?
+
+    /// The settings a settings window may read and change over the wire (§12); nil (the default): none, and a client
+    /// that asks for them gets no `settings` capability. Setting it makes the server tell the clients that have them of
+    /// every change (`settingsChanged`).
+    public var settings: SettingsService? {
+        get { lock.guarded { settingsService } }
+        set {
+            lock.guarded { settingsService = newValue }
+            newValue?.changed = { [weak self] revision in self?.settingsChanged(revision) }
+        }
+    }
 
     public init(configuration: Configuration = Configuration(), environment: WireEnvironment) {
         self.configuration = configuration
@@ -222,9 +236,13 @@ public final class WireServer: @unchecked Sendable {
             if let problem = Self.check(hello) { return closing(connection, re: id, .badMessage, problem) }
             connection.version = common
             connection.capabilities = Set(hello.capabilities)
-            environment.log("connection \(connection.id): hello from \(hello.client.prefix(32)), v\(common)")
+            // The settings only for a client that asks for them and may have them (§12, §8), when there are any.
+            connection.settings = hello.capabilities.contains(Hello.settings) && connection.peer.trusted && settings != nil
+            environment.log("connection \(connection.id): hello from \(hello.client.prefix(32)), v\(common)"
+                + (connection.settings ? ", settings" : ""))
             let welcome = Welcome(version: common, engine: configuration.engineVersion, enginePid: configuration.enginePid,
-                                  capabilities: configuration.capabilities, limits: configuration.limits)
+                                  capabilities: configuration.capabilities + (connection.settings ? [Hello.settings] : []),
+                                  limits: configuration.limits)
             return encodeAll(connection, [connection.frame(.welcome(re: id, welcome))])
         }
         guard frame.v == version else {
@@ -330,9 +348,109 @@ public final class WireServer: @unchecked Sendable {
             }
             return []
 
+        case .settingsGet, .settingsSet, .settingsAction:
+            return answerSettings(message, id: id, on: connection)
+
         case let .unknown(type):
             environment.log("connection \(connection.id): unknown type (\(type.count) chars)")
             return error(.unknownType, "unknown type")
+        }
+    }
+
+    // MARK: - Settings (§12)
+
+    /// A settings request: answered with the settings as they now are, and what was refused or said. An action that
+    /// takes a while (a test, a download) is answered when it is done, through `push`; meanwhile the connection goes on.
+    private func answerSettings(_ message: ClientMessage, id: UInt32, on connection: Connection) -> [EngineFrame] {
+        guard connection.settings, let service = settings else {
+            // Not asked for: the type is unknown to this client, as before §12. Asked for and refused: not allowed.
+            guard connection.capabilities.contains(Hello.settings) else {
+                return [connection.error(re: id, .unknownType, "unknown type")]
+            }
+            return [connection.error(re: id, .notAllowed, "the settings are for a trusted client only")]
+        }
+        func answer(_ problem: SettingsProblem? = nil, message: String? = nil) -> EngineFrame {
+            Self.settingsAnswer(service, re: id, on: connection, problem: problem, message: message)
+        }
+        switch message {
+        case .settingsGet:
+            return [answer()]
+        case let .settingsSet(field, value):
+            guard field.utf16.count <= FieldLimits.app else { return [connection.error(re: id, .badMessage, "field over its limit")] }
+            environment.log("connection \(connection.id): settingsSet \(field.prefix(64))")
+            if case let .failure(problem) = service.set(field, to: value) { return [answer(problem)] }
+            return [answer()]
+        case let .settingsAction(action):
+            guard action.field.utf16.count <= FieldLimits.app, action.name.utf16.count <= FieldLimits.app else {
+                return [connection.error(re: id, .badMessage, "field or action over its limit")]
+            }
+            // The field and the action, never the key or a value.
+            environment.log("connection \(connection.id): settingsAction \(action.name.prefix(16)) on \(action.field.prefix(64))")
+            guard SettingsService.takesAWhile(action) else {
+                switch service.performNow(action) {
+                case let .success(outcome): return [answer(message: outcome.message)]
+                case let .failure(problem): return [answer(problem)]
+                }
+            }
+            Task {
+                let result = await service.perform(action)
+                connection.queue.async {
+                    guard connection.isOpen else { return }
+                    let frame: EngineFrame
+                    switch result {
+                    case let .success(outcome): frame = Self.settingsAnswer(service, re: id, on: connection, message: outcome.message)
+                    case let .failure(problem): frame = Self.settingsAnswer(service, re: id, on: connection, problem: problem)
+                    }
+                    if let data = self.encode(frame) { self.push(connection.id, data) }
+                }
+            }
+            return []
+        default:
+            return []
+        }
+    }
+
+    /// The answer to the settings request `re`: the settings now, and what was refused or said.
+    private static func settingsAnswer(_ service: SettingsService, re: UInt32, on connection: Connection,
+                                       problem: SettingsProblem? = nil, message: String? = nil) -> EngineFrame {
+        connection.frame(.settings(re: re, SettingsAnswer(revision: service.revision, document: service.document(),
+                                                          problem: problem, message: message)))
+    }
+
+    /// Tells every client that has the settings that they changed (`settingsChanged`), on its queue.
+    private func settingsChanged(_ revision: UInt64) {
+        for connection in lock.guarded({ Array(connections.values) }) where connection.settings {
+            connection.queue.async { [weak self] in
+                guard let self, connection.isOpen else { return }
+                if let data = self.encode(connection.frame(.settingsChanged(revision: revision))) { self.push(connection.id, data) }
+            }
+        }
+    }
+
+    /// Test mode (`#! settings <file>`): settings of their own, from `config` (a config file's text) in a folder of their
+    /// own, with their keys in memory and their plugins in that folder: never the user's.
+    public func useTestSettings(config: String) -> Bool {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("allinoneime-wire-settings-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent("config.json")
+            try Data(config.utf8).write(to: url)
+            let library = PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true))
+            let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: library,
+                                          secrets: .inMemory())
+            // Keys from the test's store only, never the environment's.
+            service.keySource = { APIKeys.hasKeychainKey(account: $0.rawValue) ? .keychain : .none }
+            let previous = lock.guarded { () -> URL? in
+                defer { testSettingsFolder = folder }
+                return testSettingsFolder
+            }
+            if let previous { try? FileManager.default.removeItem(at: previous) }
+            settings = service
+            return true
+        } catch {
+            environment.log("test settings: \(error)")
+            return false
         }
     }
 
@@ -507,7 +625,12 @@ public final class WireServer: @unchecked Sendable {
 
     private func testAnswer(_ test: TestFrame, on connection: Connection) -> Data {
         let directive = test.directive ?? ""
-        let ok = perform(directive, on: connection.id) || testDirective(directive, test)
+        let ok: Bool
+        if directive.hasPrefix("settings "), let config = test.config {
+            ok = useTestSettings(config: config)
+        } else {
+            ok = perform(directive, on: connection.id) || testDirective(directive, test)
+        }
         let answer = TestFrame(v: connection.version ?? WireVersion.current, id: 0, re: test.id, type: TestFrame.type,
                                directive: nil, ok: ok)
         return (try? WireJSON.encode(answer)) ?? Data()
@@ -524,16 +647,19 @@ public struct TestFrame: Codable, Sendable {
     public var type: String
     public var directive: String?
     public var fixture: ScriptedProvider.Fixture?
+    /// `#! settings <file>`: the file's text, the test's config (§12).
+    public var config: String?
     public var ok: Bool?
 
     public init(v: Int? = WireVersion.current, id: UInt32 = 0, re: UInt32? = nil, type: String = TestFrame.type,
-                directive: String?, fixture: ScriptedProvider.Fixture? = nil, ok: Bool? = nil) {
+                directive: String?, fixture: ScriptedProvider.Fixture? = nil, config: String? = nil, ok: Bool? = nil) {
         self.v = v
         self.id = id
         self.re = re
         self.type = type
         self.directive = directive
         self.fixture = fixture
+        self.config = config
         self.ok = ok
     }
 }
@@ -559,6 +685,8 @@ final class Connection: @unchecked Sendable {
     /// The version agreed in `hello`; nil before it.
     var version: Int?
     var capabilities: Set<String> = []
+    /// It has the settings (§12): it asked for them, may have them, and the engine has some.
+    var settings = false
     var sessions: [UInt32: SessionRecord] = [:]
     var focused: UInt32?
     /// When the keys of the last second came.

@@ -68,7 +68,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         /// A string; null (`optional`) leaves it unset, so that the default (`placeholder`) applies. `choices`, if
         /// any, are suggestions: any text is taken.
         case text
-        /// One of `choices`' values.
+        /// One of `choices`' values (null when one of them is: "follow the system").
         case choice
         /// Some of `choices`' values, each once, between `minCount` and `maxCount` of them; `ordered`: in the order
         /// given, which matters (the first is the default).
@@ -104,7 +104,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         public var min: Double?
         public var max: Double?
         public var step: Double?
-        /// Null is a value too (`number`, `text`, `choice`).
+        /// Null is a value too (`number`, `text`).
         public var optional: Bool?
         /// Shown, not changed here (the file can't be read, or it is changed another way).
         public var readOnly: Bool?
@@ -170,7 +170,7 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
 
 /// Why a change or an action was refused, as the window shows it (in the interface language), and the field it is
 /// about.
-public struct SettingsProblem: Error, Equatable, Sendable {
+public struct SettingsProblem: Error, Codable, Equatable, Sendable {
     public enum Code: String, Codable, Sendable {
         /// No such field here (not on this platform, or not now: another provider's).
         case unknownField

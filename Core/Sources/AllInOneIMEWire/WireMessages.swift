@@ -318,6 +318,8 @@ public struct WireErrorCode: RawRepresentable, Codable, Hashable, Sendable, Cust
     /// A rate or count exceeded.
     public static let limit = WireErrorCode(rawValue: "limit")
     public static let `internal` = WireErrorCode(rawValue: "internal")
+    /// A client that asked for the settings (§12) and isn't one that may have them: low integrity, an AppContainer.
+    public static let notAllowed = WireErrorCode(rawValue: "notAllowed")
 
     /// The codes after which the connection closes.
     public var isFatal: Bool { self == .badFrame || self == .tooLarge || self == .unsupportedVersion }
@@ -374,6 +376,9 @@ public struct Hello: Codable, Equatable, Sendable {
 
     /// The client capability for the `allowForeground` op (§9).
     public static let allowForeground = "allowForeground"
+    /// The client is a settings window (§12): the engine answers it with `settings` in `welcome.capabilities` when it
+    /// may have them, and then takes its `settingsGet`, `settingsSet` and `settingsAction`.
+    public static let settings = "settings"
 }
 
 /// `keyDown` and `keyUp` (§5.1).
@@ -410,6 +415,12 @@ public enum ClientMessage: Equatable, Sendable {
     case caret(sid: UInt32, rect: [Int], hwnd: UInt64?, exact: Bool)
     /// The answer to the engine's `apply` `re`: `ok`, or why not (`reason`), and the document after it.
     case applied(re: UInt32, ok: Bool, reason: String?, ctx: FieldContext?)
+    /// The settings as a document (§12).
+    case settingsGet
+    /// One setting changed (§12): the field's id and its new value (null is one).
+    case settingsSet(field: String, value: AIConfig.JSONValue)
+    /// One of a field's actions (§12): a key saved (`key`, sent once), a test, a plugin installed, a command saved….
+    case settingsAction(SettingsAction)
     /// A type this version doesn't know.
     case unknown(type: String)
 
@@ -426,6 +437,9 @@ public enum ClientMessage: Equatable, Sendable {
         case .ping: return "ping"
         case .caret: return "caret"
         case .applied: return "applied"
+        case .settingsGet: return "settingsGet"
+        case .settingsSet: return "settingsSet"
+        case .settingsAction: return "settingsAction"
         case let .unknown(type): return type
         }
     }
@@ -438,7 +452,7 @@ public enum ClientMessage: Equatable, Sendable {
             return sid
         case let .keyDown(frame), let .keyUp(frame):
             return frame.sid
-        case .hello, .ping, .applied, .unknown:
+        case .hello, .ping, .applied, .settingsGet, .settingsSet, .settingsAction, .unknown:
             return nil
         }
     }
@@ -446,7 +460,7 @@ public enum ClientMessage: Equatable, Sendable {
     /// Whether the engine answers it (§3): a request.
     public var isRequest: Bool {
         switch self {
-        case .hello, .keyDown, .keyUp, .blur, .endComposition, .ping: return true
+        case .hello, .keyDown, .keyUp, .blur, .endComposition, .ping, .settingsGet, .settingsSet, .settingsAction: return true
         case .open, .focus, .close, .caret, .applied, .unknown: return false
         }
     }
@@ -467,7 +481,7 @@ public struct ClientFrame: Equatable, Sendable {
 
 extension ClientFrame: Codable {
     enum CodingKeys: String, CodingKey {
-        case v, id, type, sid, re, field, focus, t, key, ctx, reason, rect, hwnd, exact, ok
+        case v, id, type, sid, re, field, focus, t, key, ctx, reason, rect, hwnd, exact, ok, value, action, item
     }
 
     public init(from decoder: Decoder) throws {
@@ -505,6 +519,21 @@ extension ClientFrame: Codable {
             message = .applied(re: try c.decode(UInt32.self, forKey: .re), ok: try c.decode(Bool.self, forKey: .ok),
                                reason: try c.decodeIfPresent(String.self, forKey: .reason),
                                ctx: try c.decodeIfPresent(FieldContext.self, forKey: .ctx))
+        case "settingsGet":
+            message = .settingsGet
+        case "settingsSet":
+            // The value is required, and may be null (a text field emptied, "follow the system").
+            guard c.contains(.value) else {
+                throw DecodingError.keyNotFound(CodingKeys.value, .init(codingPath: c.codingPath, debugDescription: "no value"))
+            }
+            let value = try c.decodeNil(forKey: .value) ? AIConfig.JSONValue.null : try c.decode(AIConfig.JSONValue.self, forKey: .value)
+            message = .settingsSet(field: try c.decode(String.self, forKey: .field), value: value)
+        case "settingsAction":
+            message = .settingsAction(SettingsAction(
+                field: try c.decode(String.self, forKey: .field), name: try c.decode(String.self, forKey: .action),
+                item: try c.decodeIfPresent(String.self, forKey: .item),
+                value: try c.decodeIfPresent(AIConfig.JSONValue.self, forKey: .value),
+                key: try c.decodeIfPresent(String.self, forKey: .key)))
         default:
             message = .unknown(type: type)
         }
@@ -539,7 +568,16 @@ extension ClientFrame: Codable {
             try c.encode(ok, forKey: .ok)
             try c.encodeIfPresent(reason, forKey: .reason)
             try c.encodeIfPresent(ctx, forKey: .ctx)
-        case .blur, .close, .ping, .unknown:
+        case let .settingsSet(field, value):
+            try c.encode(field, forKey: .field)
+            try c.encode(value, forKey: .value)
+        case let .settingsAction(action):
+            try c.encode(action.field, forKey: .field)
+            try c.encode(action.name, forKey: .action)
+            try c.encodeIfPresent(action.item, forKey: .item)
+            try c.encodeIfPresent(action.value, forKey: .value)
+            try c.encodeIfPresent(action.key, forKey: .key)
+        case .blur, .close, .ping, .settingsGet, .unknown:
             break
         }
     }
@@ -594,6 +632,10 @@ public enum EngineMessage: Equatable, Sendable {
     case apply(sid: UInt32, focus: UInt32, outputs: [Output])
     /// The engine is about to exit ("update", "restart"): reconnect after `retryMs`.
     case bye(reason: String, retryMs: Int)
+    /// The answer to `settingsGet`, `settingsSet` and `settingsAction` (§12).
+    case settings(re: UInt32, SettingsAnswer)
+    /// The settings changed (here, by another client, or in the file): `settingsGet` has them (§12).
+    case settingsChanged(revision: UInt64)
     case unknown(type: String)
 
     public var type: String {
@@ -604,6 +646,8 @@ public enum EngineMessage: Equatable, Sendable {
         case .pong: return "pong"
         case .apply: return "apply"
         case .bye: return "bye"
+        case .settings: return "settings"
+        case .settingsChanged: return "settingsChanged"
         case let .unknown(type): return type
         }
     }
@@ -624,7 +668,7 @@ public struct EngineFrame: Equatable, Sendable {
 
 extension EngineFrame: Codable {
     enum CodingKeys: String, CodingKey {
-        case v, id, re, type, sid, handled, outputs, code, message, versions, focus, reason, retryMs
+        case v, id, re, type, sid, handled, outputs, code, message, versions, focus, reason, retryMs, revision, document, problem
     }
 
     public init(from decoder: Decoder) throws {
@@ -651,6 +695,14 @@ extension EngineFrame: Codable {
         case "bye":
             message = .bye(reason: try c.decodeIfPresent(String.self, forKey: .reason) ?? "",
                            retryMs: try c.decodeIfPresent(Int.self, forKey: .retryMs) ?? 0)
+        case "settings":
+            message = .settings(re: try re(), SettingsAnswer(
+                revision: try c.decodeIfPresent(UInt64.self, forKey: .revision) ?? 0,
+                document: try c.decodeIfPresent(SettingsDocument.self, forKey: .document),
+                problem: try c.decodeIfPresent(SettingsProblem.self, forKey: .problem),
+                message: try c.decodeIfPresent(String.self, forKey: .message)))
+        case "settingsChanged":
+            message = .settingsChanged(revision: try c.decodeIfPresent(UInt64.self, forKey: .revision) ?? 0)
         default:
             message = .unknown(type: type)
         }
@@ -683,9 +735,34 @@ extension EngineFrame: Codable {
         case let .bye(reason, retryMs):
             try c.encode(reason, forKey: .reason)
             try c.encodeUnlessDefault(retryMs, forKey: .retryMs)
+        case let .settings(re, answer):
+            try c.encode(re, forKey: .re)
+            try c.encode(answer.revision, forKey: .revision)
+            try c.encodeIfPresent(answer.document, forKey: .document)
+            try c.encodeIfPresent(answer.problem, forKey: .problem)
+            try c.encodeIfPresent(answer.message, forKey: .message)
+        case let .settingsChanged(revision):
+            try c.encode(revision, forKey: .revision)
         case .unknown:
             break
         }
+    }
+}
+
+/// What the engine answers a settings request with (§12): the settings' revision and document as they are now, and,
+/// for a change or an action that was refused, why (`problem`, in the interface language); for an action that worked, what
+/// it says (`message`: a test's outcome).
+public struct SettingsAnswer: Equatable, Sendable {
+    public var revision: UInt64
+    public var document: SettingsDocument?
+    public var problem: SettingsProblem?
+    public var message: String?
+
+    public init(revision: UInt64, document: SettingsDocument? = nil, problem: SettingsProblem? = nil, message: String? = nil) {
+        self.revision = revision
+        self.document = document
+        self.problem = problem
+        self.message = message
     }
 }
 
