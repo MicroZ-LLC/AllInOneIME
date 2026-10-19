@@ -1,13 +1,81 @@
 import Foundation
 
-/// An icon of the command list and the panel's rows, like the colored squares of iOS Settings, as data: a symbol (or
-/// an emoji, or an image file) drawn white on a color. Each shell draws it its own way (the Mac: an SF Symbol on a
-/// rounded square, `CandidateView.Icon`).
+/// An icon of the command list and the panel's rows, like the colored squares of iOS Settings, as data: a glyph drawn
+/// white on a color. Each shell draws it its own way (the Mac: an SF Symbol on a rounded square, `CandidateView.Icon`).
 ///
-/// `symbol` is a name in SF Symbols' vocabulary, which built-in commands use and custom commands, plugins and script
-/// extensions name theirs in (`CustomCommand.icon`, `PluginManifest.icon`, `ScriptCommand.Icon.symbol`); a shell
-/// without SF Symbols maps the names it knows to its own icon set and draws a generic one for the others.
+/// The glyph is one of four (`Glyph`): one of the core's own icons, named for what it stands for (`Builtin`, a list a
+/// shell maps to its icon set); a symbol a custom command, a plugin or a script extension named, in SF Symbols'
+/// vocabulary (`CustomCommand.icon`, `PluginManifest.icon`, `ScriptCommand.Icon.symbol`); a script extension's emoji or
+/// image file. The last three carry the built-in icon for what they are (`fallback`), drawn where the platform has no
+/// such symbol or can't read the image.
 public struct IconToken: Equatable, Sendable {
+    /// The core's own icons, by what they stand for. A shell maps each to its icon set; on Apple platforms they are SF
+    /// Symbols (`appleSymbol`). The names (`rawValue`) are the list a shell's mapping goes by:
+    ///
+    /// - the built-in commands: `improve`, `translate`, `question`, `reply`, `agent`, `open`, `read`, `note`,
+    ///   `reminder`, `python`, `javascript`, `webSearch`, `tasks`, `settings`, `message` (`@imessage`), `reportIssue`,
+    ///   and `command` for one without an icon of its own;
+    /// - plugins and custom commands, by what they are: `plugin`, `link`, `prompt`, `run`, `terminal`, `snippet`;
+    /// - script extensions, by what they do: `scriptInsert`, `scriptShow`, `scriptList`, `scriptSilent`,
+    ///   `scriptBackground`, `scriptStatus` (one with a status line);
+    /// - a background task's state (`@tasks`): `done`, `working`, `needsYou`.
+    public enum Builtin: String, CaseIterable, Sendable {
+        case improve, translate, question, reply, agent, open, read, note, reminder, python, javascript, webSearch, tasks
+        case settings, message, reportIssue, command
+        case plugin, link, prompt, run, terminal, snippet
+        case scriptInsert, scriptShow, scriptList, scriptSilent, scriptBackground, scriptStatus
+        case done, working, needsYou
+
+        /// Its SF Symbol, on Apple platforms.
+        public var appleSymbol: String {
+            switch self {
+            case .improve: return "wand.and.stars"
+            case .translate: return "translate"
+            case .question: return "questionmark.bubble.fill"
+            case .reply: return "arrowshape.turn.up.left.fill"
+            case .agent: return "sparkles"
+            case .open: return "magnifyingglass"
+            case .read: return "doc.richtext.fill"
+            case .note: return "note.text"
+            case .reminder: return "bell.fill"
+            case .python, .run: return "chevron.left.forwardslash.chevron.right"
+            case .javascript: return "curlybraces"
+            case .webSearch: return "globe"
+            case .tasks: return "checklist"
+            case .settings: return "gearshape.fill"
+            case .message: return "message.fill"
+            case .reportIssue: return "exclamationmark.bubble.fill"
+            case .command: return "command"
+            case .plugin: return "puzzlepiece.extension.fill"
+            case .link: return "link"
+            case .prompt: return "text.bubble.fill"
+            case .terminal: return "apple.terminal.fill"
+            case .snippet: return "text.insert"
+            case .scriptInsert: return "text.cursor"
+            case .scriptShow: return "text.alignleft"
+            case .scriptList: return "list.bullet"
+            case .scriptSilent: return "bolt.fill"
+            case .scriptBackground: return "clock.arrow.circlepath"
+            case .scriptStatus: return "gauge.with.dots.needle.33percent"
+            case .done: return "checkmark"
+            case .working: return "hourglass"
+            case .needsYou: return "exclamationmark"
+            }
+        }
+    }
+
+    /// What is drawn on the square: exactly one of these.
+    public enum Glyph: Equatable, Sendable {
+        case builtin(Builtin)
+        /// A symbol named in SF Symbols' vocabulary (a custom command's, a plugin's, a script extension's own): drawn
+        /// where the platform has it, else `fallback`.
+        case symbol(String, fallback: Builtin)
+        /// A script extension's emoji, drawn as text instead of the square (`fallback` where the platform can't).
+        case emoji(String, fallback: Builtin)
+        /// A script extension's image file (a path), drawn instead of the square; where it can't be read, `fallback`.
+        case image(path: String, fallback: Builtin)
+    }
+
     /// The square's color: the system's named colors (each shell's own shade of them), a gray by its brightness, or an
     /// exact sRGB one ("#34C759").
     public enum Color: Equatable, Sendable {
@@ -33,22 +101,23 @@ public struct IconToken: Equatable, Sendable {
         }
     }
 
-    /// The symbol drawn on the square.
-    public var symbol: String
+    public var glyph: Glyph
     public var color: Color
-    /// Drawn instead of the symbol on its square: a script extension's own emoji, or image file (a path; when it can't
-    /// be read, the symbol).
-    public var emoji: String?
-    public var image: String?
-    /// For a symbol a script extension named itself: the one drawn when the platform has no `symbol`.
-    public var fallbackSymbol: String?
 
-    public init(symbol: String, color: Color, emoji: String? = nil, image: String? = nil, fallbackSymbol: String? = nil) {
-        self.symbol = symbol
+    public init(_ glyph: Glyph, color: Color) {
+        self.glyph = glyph
         self.color = color
-        self.emoji = emoji
-        self.image = image
-        self.fallbackSymbol = fallbackSymbol
+    }
+
+    public init(_ builtin: Builtin, color: Color) { self.init(.builtin(builtin), color: color) }
+
+    /// What is drawn where the glyph can't be (a symbol the platform hasn't, an image it can't read): a built-in's own,
+    /// else the one for what it is.
+    public var fallback: Builtin {
+        switch glyph {
+        case let .builtin(builtin): return builtin
+        case let .symbol(_, fallback), let .emoji(_, fallback), let .image(_, fallback): return fallback
+        }
     }
 }
 
@@ -62,71 +131,72 @@ extension IconToken {
         if let custom = command.custom { return Self.custom(custom) }
         if let script = command.script { return Self.script(script) }
         switch command {
-        case .improve: return IconToken(symbol: "wand.and.stars", color: .purple)
-        case .translate: return IconToken(symbol: "translate", color: .blue)
-        case .question: return IconToken(symbol: "questionmark.bubble.fill", color: .blue)
-        case .reply: return IconToken(symbol: "arrowshape.turn.up.left.fill", color: .green)
-        case .agent: return IconToken(symbol: "sparkles", color: .orange)
-        case .open: return IconToken(symbol: "magnifyingglass", color: .gray)
-        case .read: return IconToken(symbol: "doc.richtext.fill", color: .teal)
-        case .note: return IconToken(symbol: "note.text", color: .yellow)
-        case .reminder: return IconToken(symbol: "bell.fill", color: .red)
-        case .py: return IconToken(symbol: "chevron.left.forwardslash.chevron.right", color: .blue)
-        case .js: return IconToken(symbol: "curlybraces", color: .yellow)
-        case .webSearch: return IconToken(symbol: "globe", color: .cyan)
-        case .tasks: return IconToken(symbol: "checklist", color: .green)
-        case .settings: return IconToken(symbol: "gearshape.fill", color: .gray)
-        case .imessage: return IconToken(symbol: "message.fill", color: .green)
-        case .reportIssue: return IconToken(symbol: "exclamationmark.bubble.fill", color: .orange)
-        default: return IconToken(symbol: "command", color: .gray)
+        case .improve: return IconToken(.improve, color: .purple)
+        case .translate: return IconToken(.translate, color: .blue)
+        case .question: return IconToken(.question, color: .blue)
+        case .reply: return IconToken(.reply, color: .green)
+        case .agent: return IconToken(.agent, color: .orange)
+        case .open: return IconToken(.open, color: .gray)
+        case .read: return IconToken(.read, color: .teal)
+        case .note: return IconToken(.note, color: .yellow)
+        case .reminder: return IconToken(.reminder, color: .red)
+        case .py: return IconToken(.python, color: .blue)
+        case .js: return IconToken(.javascript, color: .yellow)
+        case .webSearch: return IconToken(.webSearch, color: .cyan)
+        case .tasks: return IconToken(.tasks, color: .green)
+        case .settings: return IconToken(.settings, color: .gray)
+        case .imessage: return IconToken(.message, color: .green)
+        case .reportIssue: return IconToken(.reportIssue, color: .orange)
+        default: return IconToken(.command, color: .gray)
         }
     }
 
-    /// A plugin's own icon, or a puzzle piece (a chain link for a link plugin).
+    /// A plugin's own icon, or a puzzle piece (a chain link for a link plugin), which its own falls back to.
     public static func plugin(_ plugin: InstalledPlugin) -> IconToken {
-        IconToken(symbol: plugin.manifest.icon ?? (plugin.manifest.type == .link ? "link" : "puzzlepiece.extension.fill"),
-                  color: Color.named(plugin.manifest.color) ?? .pink)
+        let kind: Builtin = plugin.manifest.type == .link ? .link : .plugin
+        return IconToken(plugin.manifest.icon.map { .symbol($0, fallback: kind) } ?? .builtin(kind),
+                         color: Color.named(plugin.manifest.color) ?? .pink)
     }
 
-    /// A script extension's icon: its emoji, its image file, or its symbol; else one for what it does, in teal
-    /// (Raycast's red for a Raycast script).
+    /// A script extension's icon: its emoji, its image file, or its symbol; else, and where those can't be drawn, one
+    /// for what it does, in teal (Raycast's red for a Raycast script).
     public static func script(_ script: ScriptCommand) -> IconToken {
         let color: Color = script.source == .raycast ? .red : .teal
-        let symbol = script.background ? "clock.arrow.circlepath" : script.status != nil ? "gauge.with.dots.needle.33percent" : {
+        let kind: Builtin = script.background ? .scriptBackground : script.status != nil ? .scriptStatus : {
             switch script.output {
-            case .insert: return "text.cursor"
-            case .show: return "text.alignleft"
-            case .list: return "list.bullet"
-            case .silent: return "bolt.fill"
+            case .insert: return .scriptInsert
+            case .show: return .scriptShow
+            case .list: return .scriptList
+            case .silent: return .scriptSilent
             }
         }()
         switch script.icon {
-        case let .emoji(emoji)?: return IconToken(symbol: symbol, color: color, emoji: emoji)
-        case let .image(url)?: return IconToken(symbol: symbol, color: color, image: url.path)
-        case let .symbol(name)?: return IconToken(symbol: name, color: color, fallbackSymbol: symbol)
-        case nil: return IconToken(symbol: symbol, color: color)
+        case let .emoji(emoji)?: return IconToken(.emoji(emoji, fallback: kind), color: color)
+        case let .image(url)?: return IconToken(.image(path: url.path, fallback: kind), color: color)
+        case let .symbol(name)?: return IconToken(.symbol(name, fallback: kind), color: color)
+        case nil: return IconToken(kind, color: color)
         }
     }
 
-    /// A custom command's own icon, or one for its type.
+    /// A custom command's own icon, or one for its type, which its own falls back to.
     public static func custom(_ custom: CustomCommand) -> IconToken {
-        let (symbol, fallback): (String, Color)
+        let (kind, fallback): (Builtin, Color)
         switch custom.type {
-        case .prompt: (symbol, fallback) = ("text.bubble.fill", .indigo)
-        case .run: (symbol, fallback) = ("chevron.left.forwardslash.chevron.right", .brown)
-        case .terminal: (symbol, fallback) = ("apple.terminal.fill", .grayscale(0.25))
-        case .link: (symbol, fallback) = ("link", .blue)
-        case .snippet: (symbol, fallback) = ("text.insert", .mint)
+        case .prompt: (kind, fallback) = (.prompt, .indigo)
+        case .run: (kind, fallback) = (.run, .brown)
+        case .terminal: (kind, fallback) = (.terminal, .grayscale(0.25))
+        case .link: (kind, fallback) = (.link, .blue)
+        case .snippet: (kind, fallback) = (.snippet, .mint)
         }
-        return IconToken(symbol: custom.icon ?? symbol, color: Color.named(custom.color) ?? fallback)
+        return IconToken(custom.icon.map { .symbol($0, fallback: kind) } ?? .builtin(kind), color: Color.named(custom.color) ?? fallback)
     }
 
     /// A background task's state in `@tasks`.
     public static func progress(_ progress: AgentSession.Progress) -> IconToken {
         switch progress {
-        case .done: return IconToken(symbol: "checkmark", color: .green)
-        case .working: return IconToken(symbol: "hourglass", color: .orange)
-        case .needsYou: return IconToken(symbol: "exclamationmark", color: .yellow)
+        case .done: return IconToken(.done, color: .green)
+        case .working: return IconToken(.working, color: .orange)
+        case .needsYou: return IconToken(.needsYou, color: .yellow)
         }
     }
 }

@@ -58,7 +58,7 @@ struct PanelPresenterTests {
         #expect(model.rows.allSatisfy { $0.text.hasPrefix("@") && $0.icon != nil })
         #expect(model.rows.map(\.label) == (1...model.rows.count).map(String.init))
         let improve = try #require(model.rows.first { $0.text == "@improve" })
-        #expect(improve.icon == IconToken(symbol: "wand.and.stars", color: .purple))
+        #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
         #expect(zh.model(for: c).rows.first { $0.text == "@improve" }?.comment == "润色，再给几种改写（不翻译）")
         #expect(model.footer == "⏎ / Tab / Space choose · Esc cancel")
@@ -343,24 +343,61 @@ struct IconTokenTests {
         #expect(IconToken.Color.named("#12345") == nil)
     }
 
+    /// Each built-in command has a built-in icon of its own; none is the generic one.
     @Test func eachBuiltInCommandHasItsOwn() {
         let builtins = [Command.improve, .translate, .question, .reply, .agent, .open, .read, .note, .reminder, .py, .js,
                         .webSearch, .tasks, .settings, .imessage, .reportIssue]
-        let icons = builtins.map(IconToken.command)
-        #expect(!icons.contains(IconToken(symbol: "command", color: .gray)))
-        #expect(IconToken.command(.reminder) == IconToken(symbol: "bell.fill", color: .red))
-        #expect(IconToken.progress(.done) == IconToken(symbol: "checkmark", color: .green))
+        let glyphs = builtins.map { IconToken.command($0).glyph }
+        #expect(Set(glyphs.map { "\($0)" }).count == builtins.count, "one each")
+        #expect(glyphs.allSatisfy { if case let .builtin(builtin) = $0 { return builtin != .command } else { return false } })
+        #expect(IconToken.command(Command(name: "made-up", kind: .convert)).glyph == .builtin(.command))
     }
 
+    /// The list a shell maps (`Builtin`): its names are the ones documented, each with an Apple symbol.
+    @Test func theBuiltInsAreTheListAShellMaps() {
+        #expect(IconToken.Builtin.allCases.map(\.rawValue) == [
+            "improve", "translate", "question", "reply", "agent", "open", "read", "note", "reminder", "python", "javascript",
+            "webSearch", "tasks", "settings", "message", "reportIssue", "command", "plugin", "link", "prompt", "run",
+            "terminal", "snippet", "scriptInsert", "scriptShow", "scriptList", "scriptSilent", "scriptBackground",
+            "scriptStatus", "done", "working", "needsYou",
+        ])
+        #expect(IconToken.Builtin.allCases.allSatisfy { !$0.appleSymbol.isEmpty && IconToken.Builtin(rawValue: $0.rawValue) == $0 })
+    }
+
+    /// A script extension's own glyph, one of emoji, image or symbol, falls back to the icon for what it does.
     @Test func aScriptNamesItsOwnWithAFallback() {
         var script = ScriptCommand(file: URL(fileURLWithPath: "/tmp/s.sh"), name: "s")
         let plain = IconToken.script(script)
-        #expect(plain.color == .teal && plain.fallbackSymbol == nil && plain.emoji == nil && plain.image == nil)
+        #expect(plain == IconToken(.scriptInsert, color: .teal) && plain.fallback == .scriptInsert)
         script.icon = .symbol("airplane")
-        #expect(IconToken.script(script) == IconToken(symbol: "airplane", color: .teal, fallbackSymbol: plain.symbol))
+        #expect(IconToken.script(script).glyph == .symbol("airplane", fallback: .scriptInsert))
         script.icon = .emoji("🍅")
-        #expect(IconToken.script(script) == IconToken(symbol: plain.symbol, color: .teal, emoji: "🍅"))
+        #expect(IconToken.script(script).glyph == .emoji("🍅", fallback: .scriptInsert))
         script.icon = .image(URL(fileURLWithPath: "/tmp/icon.png"))
-        #expect(IconToken.script(script).image == "/tmp/icon.png")
+        #expect(IconToken.script(script).glyph == .image(path: "/tmp/icon.png", fallback: .scriptInsert))
+        script.output = .list
+        #expect(IconToken.script(script).fallback == .scriptList)
+    }
+
+    /// A plugin's and a custom command's own symbol falls back to the icon for what they are.
+    @Test func pluginsAndCustomCommandsFallBackByWhatTheyAre() {
+        var manifest = PluginManifest(name: "stock", version: "1", type: .prompt, prompt: "x")
+        let directory = URL(fileURLWithPath: "/tmp/stock")
+        #expect(IconToken.plugin(InstalledPlugin(manifest: manifest, directory: directory, isLocal: true)) == IconToken(.plugin, color: .pink))
+        manifest.icon = "chart.line.uptrend.xyaxis"
+        manifest.color = "green"
+        #expect(IconToken.plugin(InstalledPlugin(manifest: manifest, directory: directory, isLocal: true))
+                == IconToken(.symbol("chart.line.uptrend.xyaxis", fallback: .plugin), color: .green))
+        manifest.type = .link
+        #expect(IconToken.plugin(InstalledPlugin(manifest: manifest, directory: directory, isLocal: true)).fallback == .link)
+        let top = CustomCommand(name: "top", type: .terminal, argv: ["/usr/bin/top"])
+        #expect(IconToken.custom(top) == IconToken(.terminal, color: .grayscale(0.25)))
+        let mine = CustomCommand(name: "mine", type: .prompt, prompt: "x", icon: "star.fill", color: "#FF0000")
+        #expect(IconToken.custom(mine) == IconToken(.symbol("star.fill", fallback: .prompt), color: .rgb(red: 255, green: 0, blue: 0)))
+    }
+
+    @Test func aTasksStateIsItsOwn() {
+        #expect([AgentSession.Progress.done, .working, .needsYou].map { IconToken.progress($0).glyph }
+                == [.builtin(.done), .builtin(.working), .builtin(.needsYou)])
     }
 }

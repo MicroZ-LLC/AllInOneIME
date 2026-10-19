@@ -3,7 +3,8 @@ import AppKit
 
 /// The icons of the command list, like the colored squares of iOS Settings, as the Mac draws them: the core's tokens
 /// (`IconToken`: one for each built-in command, one for each kind of custom command, a plugin's own or a puzzle piece,
-/// a script extension's own emoji, image or symbol), and the settings window's sections.
+/// a script extension's own emoji, image or symbol, each with the built-in one it falls back to), and the settings
+/// window's sections.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon { CandidateView.Icon(IconToken.command(command)) }
 
@@ -54,15 +55,21 @@ enum CommandIcons {
 }
 
 extension CandidateView.Icon {
-    /// `token` as the Mac draws it: a symbol the Mac doesn't have (one a script extension named) is the token's
-    /// fallback, and an image file that can't be read isn't drawn.
+    /// `token` as the Mac draws it: a built-in icon as its SF Symbol; a symbol the Mac doesn't have (one a custom command,
+    /// a plugin or a script extension named) as the token's fallback; an emoji instead of the square; an image file, or
+    /// the fallback when it can't be read.
     init(_ token: IconToken) {
-        var symbol = token.symbol
-        if let fallback = token.fallbackSymbol, NSImage(systemSymbolName: symbol, accessibilityDescription: nil) == nil {
-            symbol = fallback
+        let color = NSColor.icon(token.color), fallback = token.fallback.appleSymbol
+        switch token.glyph {
+        case let .builtin(builtin):
+            self.init(symbol: builtin.appleSymbol, color: color)
+        case let .symbol(name, _):
+            self.init(symbol: NSImage(systemSymbolName: name, accessibilityDescription: nil) == nil ? fallback : name, color: color)
+        case let .emoji(emoji, _):
+            self.init(symbol: fallback, color: color, emoji: emoji)
+        case let .image(path, _):
+            self.init(symbol: fallback, color: color, image: CommandIcons.image(path) != nil ? path : nil)
         }
-        let image = token.image.flatMap { CommandIcons.image($0) != nil ? $0 : nil }
-        self.init(symbol: symbol, color: .icon(token.color), emoji: token.emoji, image: image)
     }
 }
 
