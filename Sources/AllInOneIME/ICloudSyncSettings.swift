@@ -55,7 +55,7 @@ struct ICloudSyncSection: View {
                               "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them."))
                 }
                 removeRow(.recentQuestions)
-                let keysRow = Self.keysRow(entitled: APIKeys.Keychain.processIsEntitled)
+                let keysRow = Self.keysRow(entitled: Self.entitled)
                 Toggle(isOn: keysRow.enabled ? binding(\.keys) : .constant(false)) {
                     titled(tr("API 密钥和密码", "API keys and passwords"), keysRow.note)
                 }
@@ -112,7 +112,12 @@ struct ICloudSyncSection: View {
     }
 
     /// Keys sync through iCloud Keychain while sync is on: the build is entitled to it, and "API keys and passwords" is on.
-    private var syncsKeys: Bool { APIKeys.Keychain.processIsEntitled && model.config.iCloudSync.keys }
+    private var syncsKeys: Bool { Self.entitled && model.config.iCloudSync.keys }
+
+    /// Whether this build can sync keys as the section shows it: as entitled for the settings' images
+    /// (`--settings-image`, a build without a provisioning profile), else as it is.
+    static var shownEntitled: Bool?
+    static var entitled: Bool { shownEntitled ?? APIKeys.Keychain.processIsEntitled }
 
     /// The "API keys and passwords" row (off by default): it can be turned on only in a build entitled to the data
     /// protection keychain (signed with the provisioning profile); elsewhere off and greyed, saying why.

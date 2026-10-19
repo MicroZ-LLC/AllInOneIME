@@ -255,9 +255,17 @@ extension SelfTest {
     static func sampleAssistant(_ rig: AssistantRig) -> AssistantModel {
         rig.facts = troubledFacts
         let shown = AssistantModel()
-        rig.model.answer = assistantChanges
-        shown.request = UIText.chinese ? "翻译成英语和法语，微信里用中文，候选竖排"
-            : "translate into English and French, Chinese in WeChat, candidates in a column"
+        if UIText.chinese {
+            rig.model.answer = assistantChanges
+            shown.request = "翻译成英语和法语，微信里用中文，候选竖排"
+        } else {
+            // In English, nothing Chinese: translating into German before, Spanish and French after.
+            var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
+            config.setOrder([OutputLanguage.english, OutputLanguage("de")])
+            try? config.write(to: rig.url)
+            rig.model.answer = assistantChangesInEnglish
+            shown.request = "translate into Spanish and French, sync through iCloud, candidates in a column"
+        }
         shown.sendRequest()
         _ = pump(timeout: 5) { !shown.working }
         shown.probe(now: true)
@@ -268,6 +276,12 @@ extension SelfTest {
     /// The canned answer the page's images show: three changes.
     static let assistantChanges = """
         {"changes": [{"key": "outputLanguages", "value": ["en", "fr"]}, {"key": "appProfiles.*.inputLanguage", "app": "WeChat", "value": "zh"},
+                     {"key": "candidateLayout", "value": "vertical"}]}
+        """
+
+    /// The English images' canned answer: three changes, none of them about Chinese.
+    static let assistantChangesInEnglish = """
+        {"changes": [{"key": "outputLanguages", "value": ["es", "fr"]}, {"key": "iCloudSync.enabled", "value": true},
                      {"key": "candidateLayout", "value": "vertical"}]}
         """
 

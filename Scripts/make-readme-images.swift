@@ -16,6 +16,10 @@
 // question-chat-handoff.png   after the last round: where to go on (the agents installed, Claude, ChatGPT, a copy)
 // panel-dark.png, settings.png, dashboard.png   copies of the renders (dashboard: the floating panel, sample data)
 // settings-assistant.png   Settings → Assistant: a request's preview and the checks (a canned answer, made-up findings)
+// translate-as-you-type.png   Translate as You Type on: its chip near the caret over a draft, and its notice
+// reply-screenshot.png   @reply with a screenshot pasted (read on this Mac) → three replies (canned)
+// agent-page.png   @agent's notice when it took the Chrome page along
+// snippet-editor.png   the custom command editor's "Insert text": a signature with a blank, the date and the caret's place
 import AppKit
 
 let args = CommandLine.arguments
@@ -231,12 +235,31 @@ try composite([
          marked: marked("question-chat-handoff", "question › what is rust"), panel: load("question-chat-handoff")),
 ], to: "question-chat-handoff.png")
 
+// 0.6.5's release notes (the self-test's `release-*` renders: canned answers, made-up content).
+/// The text line a `release-*` render was taken under, in the images' language.
+func releaseMarked(_ name: String, _ fallback: String) -> String { marked(name + (language == "en" ? "-en" : ""), fallback) }
+try composite([
+    Step(caption: tr("单独按住 Shift 1 秒：边打边译。打的字先成草稿，⏎ 直接上屏译文",
+                     "Hold Shift for 1 s: Translate as You Type. Type a draft; ⏎ puts in the translation"),
+         marked: releaseMarked("release-translate-mode", ""), panel: load("release-translate-mode")),
+], to: "translate-as-you-type.png")
+try composite([
+    Step(caption: tr("① @reply 后按 ⌃V 贴上截图：在本机识别", "① @reply, then ⌃V a screenshot: read on this Mac"),
+         marked: releaseMarked("release-reply-screenshot", "reply › "), panel: load("release-reply-screenshot")),
+    Step(caption: tr("② 按 ⏎：三条回复，用对方的语言", "② Press ⏎: three replies, in their language"),
+         marked: releaseMarked("release-reply", "reply › "), panel: load("release-reply")),
+], to: "reply-screenshot.png")
+try composite([
+    Step(caption: tr("在 Chrome 里 @agent 加问题按 ⏎：网页也交给 agent", "@agent and a question in Chrome, ⏎: the page goes along"),
+         marked: "", panel: load("release-agent-page")),
+], to: "agent-page.png")
+
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
 for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png"),
-                   (render("assistant"), "settings-assistant.png")] {
+                   (render("assistant"), "settings-assistant.png"), (render("release-snippet-editor"), "snippet-editor.png")] {
     try? FileManager.default.removeItem(at: output.appendingPathComponent(to))
     try FileManager.default.copyItem(at: from, to: output.appendingPathComponent(to))
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
       + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png, question-chat.png, question-chat-handoff.png, "
-      + "settings-assistant.png")
+      + "settings-assistant.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png")

@@ -3133,6 +3133,7 @@ enum SelfTest {
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
         testReply(controller, client)
+        testReleaseImages(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)
