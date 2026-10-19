@@ -480,8 +480,8 @@ public enum PanelRedaction {
         count == 1 ? tr("已对 AI 隐藏 1 项", "1 item hidden from the AI") : tr("已对 AI 隐藏 \(count) 项", "\(count) items hidden from the AI")
     }
 
-    /// The mark of a changed placeholder (in the interface language when it was first used).
-    public static let changed = tr("⚠ 占位符被改动", "⚠ placeholder changed")
+    /// The mark of a changed placeholder, in the interface language as it is now.
+    public static var changed: String { tr("⚠ 占位符被改动", "⚠ placeholder changed") }
 
     /// `model`'s rows marked, and the line about what was hidden before its detail, while results are shown.
     public static func annotate(_ model: inout PanelModel, choices: [Composer.Choice], hidden: Int, phase: Composer.Phase) {

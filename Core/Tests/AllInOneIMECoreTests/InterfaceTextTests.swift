@@ -336,3 +336,34 @@ struct InterfaceTextTests {
         #expect(InterfaceText.translate(english, in: hant) == hant[" (%@)"].flatMap { InterfaceText.fill($0, ["12"]) })
     }
 }
+
+/// The interface language as the process keeps it (`UIText`): a change is told on the main thread, whatever thread made
+/// it, so a panel on screen all along redraws where it draws.
+struct InterfaceLanguageStateTests {
+    @Test func aChangeMadeOffTheMainThreadIsToldOnIt() throws {
+        // This test waits for the main thread: it can't be on it.
+        guard !Thread.isMainThread else { return }
+        try withInterfaceLanguage("en") {
+            // Each notice: on the main thread or not, and the language then.
+            let notices = Locked(initialState: [(main: Bool, language: String)]())
+            let told = DispatchSemaphore(value: 0)
+            let observer = NotificationCenter.default.addObserver(forName: .allInOneIMEInterfaceLanguageChanged, object: nil,
+                                                                  queue: nil) { _ in
+                notices.withLock { $0.append((Thread.isMainThread, UIText.language)) }
+                told.signal()
+            }
+            defer { NotificationCenter.default.removeObserver(observer) }
+            // A session on a thread of its own (a queue) picks another language.
+            DispatchQueue.global().async { UIText.choice = "zh" }
+            while !notices.withLock({ $0.contains { $0.language == "zh-Hans" } }) {
+                try #require(told.wait(timeout: .now() + 10) == .success, "no notice in Chinese")
+            }
+            #expect(notices.withLock { $0.allSatisfy(\.main) })
+        }
+    }
+
+    @Test func thePlaceholderMarkIsInTheLanguageAsItIsNow() {
+        #expect(withInterfaceLanguage("en") { PanelRedaction.changed } == "⚠ placeholder changed")
+        #expect(withInterfaceLanguage("zh") { PanelRedaction.changed } == "⚠ 占位符被改动")
+    }
+}

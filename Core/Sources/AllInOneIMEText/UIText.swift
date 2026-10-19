@@ -7,7 +7,8 @@ import Foundation
 ///
 /// The process's own: what every text the shell and the core make reads (`tr`). The core's texts that name its types
 /// (commands, providers, errors …) are in AllInOneIMECore's extensions of it (UIText+Names.swift, UIText+Errors.swift).
-/// Safe from any thread; a shell changes it from one (the Mac: the main thread).
+/// Safe from any thread; a shell changes it from one (the Mac: the main thread), and a change is told on the main thread
+/// (`.allInOneIMEInterfaceLanguageChanged`).
 public enum UIText {
     private struct State {
         var choice: String?
@@ -19,38 +20,46 @@ public enum UIText {
 
     /// Worked out once, on the first read: `language` is read on the candidate panel's hot path (`tr`), so it is worked
     /// out when `choice` or `app` changes, not per text. The first read hands the core the app's translations
-    /// (`useApp`), unless the shell installed its own (`InterfaceText.lookup`, a shell without `.lproj` bundles).
+    /// (`InterfaceText.bundleLookup`), unless the shell installed its own (`InterfaceText.lookup`, a shell without
+    /// `.lproj` bundles).
     private static let state: Locked<State> = {
         let app = Bundle.main
         let shipped = InterfaceLanguage.shipped(in: app)
         if !InterfaceText.lookupInstalled { InterfaceText.lookup = InterfaceText.bundleLookup(app: app) }
         let language = picked(choice: nil, shipped: shipped)
-        return Locked(State(choice: nil, app: app, shipped: shipped, language: language,
-                            chinese: InterfaceLanguage.isChinese(language)))
+        return Locked(initialState: State(choice: nil, app: app, shipped: shipped, language: language,
+                                          chinese: InterfaceLanguage.isChinese(language)))
     }()
 
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
-    /// text field or the window opens); nil follows the system. A change posts `.allInOneIMEInterfaceLanguageChanged`.
+    /// text field or the window opens); nil follows the system. A change posts `.allInOneIMEInterfaceLanguageChanged` on
+    /// the main thread: at once when it is changed there, else soon after, on the main queue.
     public static var choice: String? {
-        get { state.value.choice }
+        get { state.withLock { $0.choice } }
         set {
-            let changed = state.update { state -> Bool in
+            let changed = state.withLock { state -> Bool in
                 guard state.choice != newValue else { return false }
                 state.choice = newValue
                 state.language = picked(choice: newValue, shipped: state.shipped)
                 state.chinese = InterfaceLanguage.isChinese(state.language)
                 return true
             }
-            // A panel on screen all along (the Mac's menu bar panel) redraws in the new language.
-            if changed { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) }
+            // A panel on screen all along (the Mac's menu bar panel) redraws in the new language, on the thread it draws
+            // on, also when a session on a thread of its own changed it.
+            guard changed else { return }
+            if Thread.isMainThread {
+                NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil)
+            } else {
+                DispatchQueue.main.async { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) }
+            }
         }
     }
 
     /// Where the translations are (`<code>.lproj`): the app; a stand-in while the self-test checks them.
     public static var app: Bundle {
-        get { state.value.app }
+        get { state.withLock { $0.app } }
         set {
-            state.update { state in
+            state.withLock { state in
                 state.app = newValue
                 state.shipped = InterfaceLanguage.shipped(in: newValue)
                 state.language = picked(choice: state.choice, shipped: state.shipped)
@@ -61,25 +70,21 @@ public enum UIText {
     }
 
     /// The languages `app` ships: "en", "zh-Hans" and its other `.lproj` folders.
-    public static var shipped: [String] { state.value.shipped }
+    public static var shipped: [String] { state.withLock { $0.shipped } }
 
     /// The system's pick among what the app ships, read once per process (macOS relaunches apps after a language change).
     public static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages,
                                                                shipped: InterfaceLanguage.shipped(in: .main))
 
     /// The interface language's code: "zh-Hans", "en", …
-    public static var language: String { state.value.language }
+    public static var language: String { state.withLock { $0.language } }
 
     /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
-    public static var chinese: Bool { state.value.chinese }
+    public static var chinese: Bool { state.withLock { $0.chinese } }
 
     private static func picked(choice: String?, shipped: [String]) -> String {
         InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage
     }
-
-    /// Points `InterfaceText.lookup`, which the core's texts and `tr` look translations up through, at `app`'s compiled
-    /// `<code>.lproj` bundles (each found once).
-    public static func useApp() { InterfaceText.lookup = InterfaceText.bundleLookup(app: app) }
 
     /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
     /// language name), for the Chinese interface: as it is in Simplified Chinese, in Traditional characters in
@@ -91,8 +96,8 @@ public enum UIText {
 }
 
 extension Notification.Name {
-    /// The interface language changed (`UIText.choice`): a panel on screen all along redraws in it. Posted on the thread
-    /// that changed it.
+    /// The interface language changed (`UIText.choice`): a panel on screen all along redraws in it. Posted on the main
+    /// thread.
     public static let allInOneIMEInterfaceLanguageChanged = Notification.Name("AllInOneIMEInterfaceLanguageChanged")
 }
 

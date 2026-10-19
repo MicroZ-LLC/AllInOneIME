@@ -431,6 +431,8 @@ public final class SessionTasks {
         cancel(.recipients)
         guard let query else { return }
         let recent = recent()
+        // In the interface language as it is now: the search answers on another thread, maybe after it changed.
+        let t = InterfaceWords(language: UIText.language)
         start(.recipients) { post in
             try? await Task.sleep(nanoseconds: 80_000_000)
             guard !Task.isCancelled else { return }
@@ -438,10 +440,10 @@ public final class SessionTasks {
             guard !Task.isCancelled else { return }
             let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
             let note = contacts == nil
-                ? tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
-                     "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
-                : found.isEmpty ? (query.isEmpty ? tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
-                                                 : tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
+                ? t.tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
+                       "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
+                : found.isEmpty ? (query.isEmpty ? t.tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
+                                                 : t.tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
                 : nil
             post(.recipients(found, note: note, query: query))
         }
@@ -457,8 +459,10 @@ public final class SessionTasks {
                                         preferences: @escaping @Sendable (ExtensionBundle, Config) -> [String: String],
                                         status: Bool = false, action: Bool = false)
         -> @Sendable () async -> Result<[String: String], DescribedError> {
+        // In the interface language as it is when the maker is made: it runs on another thread, maybe after it changed.
+        let t = InterfaceWords(language: UIText.language)
         let missingMessage = { @Sendable (missing: ExtensionBundle.Preference, bundle: ExtensionBundle) in
-            tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
+            t.tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
         }
         return {
             await Task.detached(priority: .userInitiated) { () -> Result<[String: String], DescribedError> in

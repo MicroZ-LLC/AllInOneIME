@@ -67,15 +67,15 @@ public enum InterfaceText {
     /// that take a language code. Set by the shell when it starts (the input method: `bundleLookup(app:)` on its bundle).
     /// Until then there are none, and every language but Simplified Chinese shows English.
     public static var lookup: Lookup {
-        get { current.value ?? { _, _ in nil } }
-        set { current.value = newValue }
+        get { current.withLock { $0 } ?? { _, _ in nil } }
+        set { current.withLock { $0 = newValue } }
     }
 
     /// Whether a shell (or `UIText`) has set `lookup`: `UIText` hands it the app's `.lproj` bundles on its first read
     /// unless one is set already (a shell that has tables instead, `tableLookup`).
-    public static var lookupInstalled: Bool { current.value != nil }
+    public static var lookupInstalled: Bool { current.withLock { $0 != nil } }
 
-    private static let current = Locked<Lookup?>(nil)
+    private static let current = Locked<Lookup?>(initialState: nil)
 
     /// The translation of `english` in `bundle` (a `<code>.lproj` bundle, or a bundle whose localization is
     /// already chosen), filled in with english's arguments; nil when the bundle has no entry for english.format.
@@ -141,9 +141,9 @@ public enum InterfaceText {
 
     /// The translations in `app`'s `<code>.lproj` bundles (Apple platforms), each language's bundle found once.
     public static func bundleLookup(app: Bundle) -> Lookup {
-        let bundles = Locked<(app: Bundle, found: [String: Bundle?])>((app, [:]))
+        let bundles = Locked<(app: Bundle, found: [String: Bundle?])>(initialState: (app, [:]))
         return { key, language in
-            let lproj = bundles.update { state -> Bundle? in
+            let lproj = bundles.withLock { state -> Bundle? in
                 if let found = state.found[language] { return found }
                 let found = bundle(language, app: state.app)
                 state.found[language] = found
@@ -226,21 +226,20 @@ public struct InterfaceWords: Sendable {
     }
 }
 
-/// A value behind a lock: the process-wide lookup, and the bundles a lookup has found.
-final class Locked<Value>: @unchecked Sendable {
-    private var stored: Value
+/// A value behind a lock, like `OSAllocatedUnfairLock(initialState:)` (Apple-only) or `Mutex` (macOS 15): an `NSLock`,
+/// which every Foundation has. A class, so copies share the value. The interface text's (the process-wide lookup, the
+/// bundles a lookup has found, `UIText`'s state) and, through AllInOneIMECore's re-export, the core's and the shells'.
+public final class Locked<State>: @unchecked Sendable {
     private let lock = NSLock()
+    private var state: State
 
-    init(_ value: Value) { stored = value }
-
-    var value: Value {
-        get { lock.lock(); defer { lock.unlock() }; return stored }
-        set { lock.lock(); defer { lock.unlock() }; stored = newValue }
+    public init(initialState: State) {
+        state = initialState
     }
 
-    func update<T>(_ body: (inout Value) -> T) -> T {
+    public func withLock<R>(_ body: (inout State) throws -> R) rethrows -> R {
         lock.lock()
         defer { lock.unlock() }
-        return body(&stored)
+        return try body(&state)
     }
 }

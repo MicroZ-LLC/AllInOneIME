@@ -258,15 +258,15 @@ extension UIText {
     }
 
     /// Where `@note` saves, by name (`NoteDestination.name`: 备忘录 / Notes, Notion, Obsidian, “Inbox”; the session
-    /// sets it with the settings). Until then 备忘录 / Notes, in the interface language when it is first read.
+    /// sets it with the settings). Until then 备忘录 / Notes, in the interface language as it is when read.
     public static var noteDestinationName: String {
-        get { noteDestinationState.withLock { $0 } }
+        get { noteDestinationState.withLock { $0 } ?? tr("备忘录", "Notes") }
         set { noteDestinationState.withLock { $0 = newValue } }
     }
 
     private static let clock24State = Locked<Bool?>(initialState: nil)
     private static let agentNameState = Locked(initialState: AgentKind.claude.displayName())
-    private static let noteDestinationState = Locked(initialState: tr("备忘录", "Notes"))
+    private static let noteDestinationState = Locked<String?>(initialState: nil)
 
     /// `name` as it follows a Chinese word ("存到"): straight after it when it starts with Chinese or a full-width mark
     /// (备忘录, “收件箱”, 「…」), else after a space (Notion, Obsidian).

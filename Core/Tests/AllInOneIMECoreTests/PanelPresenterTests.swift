@@ -59,7 +59,7 @@ struct PanelPresenterTests {
         #expect(model.rows.map(\.label) == (1...model.rows.count).map(String.init))
         let improve = try #require(model.rows.first { $0.text == "@improve" })
         #expect(improve.icon == IconToken(symbol: "wand.and.stars", color: .purple))
-        #expect(improve.comment == UIText.summary(Command.improve))
+        #expect(improve.comment == "Polish in the same language, plus rewrites")
         #expect(model.footer == "⏎ / Tab / Space choose · Esc cancel")
         // More commands than rows: where the list is.
         if c.paletteMatches.count > Composer.paletteRows {
