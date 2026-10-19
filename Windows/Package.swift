@@ -2,10 +2,11 @@
 import PackageDescription
 
 // The Windows shell: the engine (the per-user process the TSF text service talks to over a named pipe, wire protocol
-// v1), the command line (the core's, AllInOneIMECLI, on the core's own platform, plus wire-replay), and the tests of
-// the core's librime binding (AllInOneIMERime) on librime's Windows build. The text service itself is a C++ DLL
-// (Windows/tip), its installer an MSI (Windows/installer, with its helper AllInOneIMESetup); its settings come next,
-// as the macOS shell has them.
+// v1: pinyin through librime, the candidate window, the AI requests and the rest of what the Composer asks for), the
+// command line (the core's, AllInOneIMECLI, on the core's own platform, plus wire-replay and the settings commands),
+// and the tests of the core's librime binding (AllInOneIMERime) on librime's Windows build. The text service itself is
+// a C++ DLL (Windows/tip), its installer an MSI (Windows/installer, with its helper AllInOneIMESetup); its settings
+// window comes next, as the macOS shell has them.
 
 /// The core's package: every product of it goes through `core`, so that when the core comes from its own repository
 /// (`.package(url:)`, whose identity is "allinoneime-core") only this changes.
@@ -40,15 +41,31 @@ let package = Package(
         // Windows' own: the pipe's two ends (PipeListener for the engine, PipeClient for the replay CLI) and the
         // Win32 they need (tokens, SIDs, the security descriptor). Empty off Windows.
         .target(name: "AllInOneIMEWindows", dependencies: [core("AllInOneIMEWire")]),
+        // The candidate window (M6): a layered, no-activate, topmost Win32 window drawn with Direct2D and DirectWrite, on
+        // a thread of its own, behind a C interface (include/AllInOneIMEPanel.h). Empty off Windows.
+        .target(name: "CAllInOneIMEPanel",
+                linkerSettings: ["user32", "gdi32", "d2d1", "dwrite", "windowscodecs", "shcore", "ole32"].map {
+                    .linkedLibrary($0, .when(platforms: [.windows]))
+                }),
+        // What the engine does, as a library its tests use too: the WireHost (pinyin through librime, the panel's model
+        // and window, level two through the core's Converter, the clipboard, opening, terminals), the settings.
+        .target(name: "AllInOneIMEEngineKit",
+                dependencies: ["AllInOneIMEWindows", "CAllInOneIMEPanel", core("AllInOneIMEWire"), core("AllInOneIMECore"),
+                               core("AllInOneIMERime")],
+                swiftSettings: [.swiftLanguageMode(.v5)]),
         // The per-user engine: the wire server on the pipe.
         .executableTarget(name: "AllInOneIMEEngine",
-                          dependencies: ["AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore")]),
+                          dependencies: ["AllInOneIMEEngineKit", "AllInOneIMEWindows", core("AllInOneIMEWire"),
+                                         core("AllInOneIMECore")],
+                          linkerSettings: linksRime),
         .executableTarget(name: "allinoneime-cli",
                           dependencies: [core("AllInOneIMECLI"), core("AllInOneIMEWire"), "AllInOneIMEWindows"]),
         // The pipe's security, as the DLL's server check sees it. Windows only (empty elsewhere).
         .testTarget(name: "AllInOneIMEWindowsTests",
                     dependencies: ["AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore")]),
-    ]
+    ],
+    // The candidate window's C++ (Direct2D, DirectWrite).
+    cxxLanguageStandard: .cxx17
 )
 
 #if os(Windows)
@@ -58,6 +75,17 @@ package.targets.append(
     .testTarget(
         name: "AllInOneIMERimeTests",
         dependencies: [core("AllInOneIMERime"), core("AllInOneIMECore")],
+        swiftSettings: [.swiftLanguageMode(.v5)],
+        linkerSettings: linksRime
+    )
+)
+// The engine's host through the wire: pinyin with the real librime, the panel's model and window, level two against a
+// stub provider on localhost (never a paid API), the other effects, the settings commands.
+package.targets.append(
+    .testTarget(
+        name: "AllInOneIMEEngineTests",
+        dependencies: ["AllInOneIMEEngineKit", "AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore"),
+                       core("AllInOneIMERime")],
         swiftSettings: [.swiftLanguageMode(.v5)],
         linkerSettings: linksRime
     )

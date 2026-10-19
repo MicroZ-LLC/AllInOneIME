@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEEngineKit
 import AllInOneIMEWire
 import Foundation
 #if os(Windows)
@@ -8,25 +9,46 @@ import WinSDK
 
 // The per-user engine (wire protocol v1, docs/wire-protocol-v1.md in the core): one process per user and session,
 // single-instance through `Local\AllInOneIME-Engine-<SID>`, serving the TSF DLLs of every app over
-// `\\.\pipe\AllInOneIME-<SID>-v1`. Each client connection gets a serial queue and its fields a Composer each.
+// `\\.\pipe\AllInOneIME-<SID>-v1`. Each client connection gets a serial queue and its fields a Composer each: pinyin
+// through librime, the candidate window, level two through the core's Converter (`EngineHost`).
 //
-//   AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--instances N] [--quiet]
+//   AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
+//                     [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
 //
-//   --test        test mode: a manual clock, level two from a golden's scripted provider, `x-test` directives
-//                 accepted (`allinoneime-cli wire-replay` drives it), clients taken to own the foreground
+//   --test        test mode: Latin letters, a manual clock, level two from a golden's scripted provider, `x-test`
+//                 directives accepted (`allinoneime-cli wire-replay` drives it), clients taken to own the foreground
 //   --provider    test mode: level two from this scripted provider (a golden's fixture) from the start, as
 //                 `#! provider` sets it
 //   --clock       test mode: `manual` (the default: time moves only with `x-test advance` and `run tasks`) or
 //                 `system`, so a scripted stream plays out in real time for a real app (the end-to-end test)
+//   --config      the settings from FILE instead of %APPDATA%\AllInOneIME\config.json
+//   --no-keychain API keys only from the environment (ANTHROPIC_API_KEY, ...), never the Credential Manager: for tests,
+//                 which must neither read the user's keys nor tie them to a stub's address
+//   --rime-data   rime-ice's data (default: rime-data beside the program, else ThirdParty's)
+//   --rime-user   librime's user folder (default: %APPDATA%\AllInOneIME\rime): tests use their own, so that what they
+//                 type isn't learned in the user's
+//   --no-rime     Latin letters only
+//   --no-panel    no candidate window
 //   --instances   pipe instances kept waiting for a client (at least 4)
 //   --quiet       log only the engine's start, its errors and its end
+//
+// It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in.
 
-let usage = "usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--instances N] [--quiet]"
+let usage = """
+    usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
+                             [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
+    """
 
 struct EngineOptions {
     var test = false
     var provider: String?
     var systemClock = false
+    var config: String?
+    var noKeychain = false
+    var rimeData: String?
+    var rimeUser: String?
+    var noRime = false
+    var noPanel = false
     var instances = 4
     var quiet = false
 }
@@ -34,19 +56,27 @@ struct EngineOptions {
 func parseOptions() -> EngineOptions {
     var options = EngineOptions()
     var args = CommandLine.arguments.dropFirst()
+    func value(_ flag: String) -> String {
+        guard let value = args.popFirst() else { fail("\(flag) needs a value") }
+        return value
+    }
     while let arg = args.popFirst() {
         switch arg {
         case "--test": options.test = true
         case "--quiet": options.quiet = true
-        case "--provider":
-            guard let file = args.popFirst() else { fail("--provider needs a fixture file") }
-            options.provider = file
+        case "--provider": options.provider = value(arg)
         case "--clock":
             switch args.popFirst() {
             case "manual": options.systemClock = false
             case "system": options.systemClock = true
             default: fail("--clock is manual or system")
             }
+        case "--config": options.config = value(arg)
+        case "--no-keychain": options.noKeychain = true
+        case "--rime-data": options.rimeData = value(arg)
+        case "--rime-user": options.rimeUser = value(arg)
+        case "--no-rime": options.noRime = true
+        case "--no-panel": options.noPanel = true
         case "--instances":
             guard let n = args.popFirst().flatMap(Int.init), n >= 4 else { fail("--instances needs a number, 4 or more") }
             options.instances = n
@@ -112,6 +142,13 @@ func msSinceProcessStart() -> Double? {
     return Double(ticks(now) &- ticks(creation)) / 10_000
 }
 
+/// This program's full path (GetModuleFileNameW): what `@js` and script plugins are started as.
+func executablePath() -> String {
+    var buffer = [WCHAR](repeating: 0, count: 32_768)
+    let count = GetModuleFileNameW(nil, &buffer, DWORD(buffer.count))
+    return count > 0 ? String(decoding: buffer.prefix(Int(count)), as: UTF16.self) : CommandLine.arguments[0]
+}
+
 func runEngine(_ options: EngineOptions) -> Never {
     let log = EngineLog(quiet: options.quiet)
     let sid: String
@@ -129,10 +166,57 @@ func runEngine(_ options: EngineOptions) -> Never {
         exit(1)
     }
 
+    // The candidate window is laid out per monitor, in physical pixels, as the caret reports come.
+    _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+    if options.noKeychain {
+        // Keys from the environment only (`APIKeys.load` falls back to it when the store has none).
+        APIKeys.keychain = .inMemory()
+    }
+
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
-    let host = EngineHost(testMode: options.test, clock: clock,
-                          foreground: { peer in peer.pid != nil && Win32.foregroundProcess() == peer.pid },
-                          log: { log($0) })
+    var hostOptions = EngineHost.Options(system: WindowsSystem())
+    hostOptions.testMode = options.test
+    hostOptions.foreground = { peer in peer.pid != nil && Win32.foregroundProcess() == peer.pid }
+    hostOptions.settings = EngineSettings(url: options.config.map { URL(fileURLWithPath: $0) } ?? Config.userURL)
+    hostOptions.executable = executablePath()
+    if !options.test, !options.noRime {
+        let executable = URL(fileURLWithPath: hostOptions.executable)
+        let data = options.rimeData.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        if let location = EngineRime.locate(executable: executable, sharedData: data) {
+            let userData = options.rimeUser.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? EngineRime.defaultUserData
+            let rime = EngineRime(location: location, userData: userData, log: { log($0, always: true) })
+            do {
+                try rime.start()
+                hostOptions.rime = rime
+            } catch {
+                log("rime: can't start: \(error): Latin letters only", always: true)
+            }
+        } else {
+            log("rime: no rime.dll and rime-data beside the program or in ThirdParty: Latin letters only", always: true)
+        }
+    }
+    if !options.noPanel {
+        if let window = CandidateWindow() {
+            hostOptions.panel = window
+        } else {
+            log("no candidate window (no desktop in this session?): the panel isn't drawn", always: true)
+        }
+    }
+    let host = EngineHost(clock: clock, options: hostOptions, log: { log($0) })
+    if let rime = hostOptions.rime {
+        // Deployed in the background (a second or so the first time): the fields focused meanwhile get it then.
+        let started = ProcessInfo.processInfo.systemUptime
+        Thread.detachNewThread {
+            if rime.waitUntilReady(timeout: 300) {
+                log("rime: ready in \(Int((ProcessInfo.processInfo.systemUptime - started) * 1000)) ms", always: true)
+                host.rimeBecameReady()
+            } else {
+                log("rime: not ready after 300 s: Latin letters only", always: true)
+            }
+        }
+    }
+    if let config = options.config { log("settings from \(config)", always: true) }
+    if let problem = hostOptions.settings.problem { log("the settings file can't be read, defaults used: \(problem)", always: true) }
     if let file = options.provider {
         do {
             host.provider = try ScriptedProvider(contentsOf: URL(fileURLWithPath: file), clock: clock)
@@ -184,7 +268,8 @@ func runEngine(_ options: EngineOptions) -> Never {
     log("ready in \(ready) ms since the process started: \(listener.pipeName), \(options.instances) instances waiting, "
         + "pid \(GetCurrentProcessId())"
         + (options.test ? ", test mode (\(options.systemClock ? "system" : "manual") clock"
-            + (options.provider != nil ? ", scripted provider)" : ")") : ""), always: true)
+            + (options.provider != nil ? ", scripted provider)" : ")") : "")
+        + (options.noKeychain ? ", keys from the environment only" : ""), always: true)
 
     // Ctrl+C, Ctrl+Break, the console closed, logoff, shutdown: tell every client first (§2.5).
     SetConsoleCtrlHandler({ _ in
@@ -204,6 +289,15 @@ func runEngine(_ options: EngineOptions) -> Never {
     }
 }
 
+// The child processes this program is too: `@js` code and script plugins (the core's `InlineCode`, `PluginRunner`).
+let arguments = Array(CommandLine.arguments.dropFirst())
+if arguments.first == InlineCode.javaScriptHostOption {
+    exit(InlineCode.runJavaScriptHost())
+}
+if arguments.first == "--run-plugin" {
+    guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+}
 runEngine(parseOptions())
 
 #else
