@@ -58,8 +58,11 @@ let package = Package(
                           dependencies: ["AllInOneIMEEngineKit", "AllInOneIMEWindows", core("AllInOneIMEWire"),
                                          core("AllInOneIMECore")],
                           linkerSettings: linksRime),
+        // The command line: the core's, wire-replay, and the settings commands (set-provider, set-key...).
         .executableTarget(name: "allinoneime-cli",
-                          dependencies: [core("AllInOneIMECLI"), core("AllInOneIMEWire"), "AllInOneIMEWindows"]),
+                          dependencies: [core("AllInOneIMECLI"), core("AllInOneIMEWire"), "AllInOneIMEWindows",
+                                         "AllInOneIMEEngineKit"],
+                          linkerSettings: linksRime),
         // The pipe's security, as the DLL's server check sees it. Windows only (empty elsewhere).
         .testTarget(name: "AllInOneIMEWindowsTests",
                     dependencies: ["AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore")]),
