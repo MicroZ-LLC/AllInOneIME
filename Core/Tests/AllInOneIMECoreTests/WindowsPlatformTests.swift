@@ -85,7 +85,24 @@ struct WindowsPlatformTests {
         #expect(WindowsPrograms.find("planted", path: nil) == nil)
         #expect(WindowsPrograms.find(WindowsPrograms.windowsPath(batch), path: nil) != nil)
         #expect(WindowsPrograms.find(#".\planted.bat"#, path: nil, directory: folder.url) != nil)
-        #expect(WindowsPrograms.folders(inPath: #"C:\a;;"C:\b c";C:/d:/e"#) == [#"C:\a"#, #"C:\b c"#, "C:/d", "/e"])
+        #expect(WindowsPrograms.folders(inPath: #"C:\a;;"C:\b c";C:/d:C:/e"#) == [#"C:\a"#, #"C:\b c"#, "C:/d", "C:/e"])
+    }
+
+    /// Only PATH's folders written in full are looked in: not ".", "bin", "C:bin", "\bin" or "/usr/bin", which are
+    /// wherever the input method runs, on whichever drive.
+    @Test func onlyFullyQualifiedPathFolders() throws {
+        #expect(WindowsPrograms.folders(inPath: #".;bin;..\bin;C:bin;C:;\bin;/usr/bin;C:\a;C:/b;\\server\share\c;\\?\C:\d;"C:\e f";C:/g:/h"#)
+                == [#"C:\a"#, "C:/b", #"\\server\share\c"#, #"\\?\C:\d"#, #"C:\e f"#, "C:/g"])
+        let folder = try Folder()
+        let bin = folder.url.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        try Data("@echo planted\r\n".utf8).write(to: bin.appendingPathComponent("planted.bat"))
+        let full = WindowsPrograms.windowsPath(bin)
+        #expect(WindowsPrograms.find("planted", path: full) != nil)
+        // The same folder from the current drive's root ("\Users\…"): not taken.
+        let rooted = String(full.dropFirst(2))
+        #expect(WindowsPrograms.find("planted", path: rooted) == nil)
+        #expect(WindowsPrograms.find("planted", path: rooted.replacingOccurrences(of: "\\", with: "/")) == nil)
     }
 
     /// .ps1 runs with PowerShell, .py with Python, .sh and "#!/bin/sh" with Git Bash: each gets its arguments as given.

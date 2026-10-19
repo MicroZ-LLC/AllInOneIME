@@ -6,8 +6,9 @@ import WinSDK
 /// `ScriptCommand.launch`, `WindowsProcessLauncher`). Windows has no executable bit and no "#!": a file runs by its
 /// extension. Here, as in cmd.exe:
 ///
-/// - a bare name is looked for in PATH's folders (split on ";"), with PATHEXT's extensions (".COM;.EXE;.BAT;.CMD;…"),
-///   never in the current folder (cmd.exe looks there first: a program planted where a command runs isn't taken);
+/// - a bare name is looked for in PATH's folders (split on ";", those written in full only), with PATHEXT's extensions
+///   (".COM;.EXE;.BAT;.CMD;…"), never in the current folder (cmd.exe looks there first: a program planted where a
+///   command runs isn't taken);
 /// - a .exe or .com starts itself; a .bat or .cmd through cmd.exe, its arguments escaped (`WindowsCommandLine.batch`);
 /// - a script through its interpreter: .ps1 with PowerShell, .py with the Python launcher (py, else python), .vbs and
 ///   the other Windows Script Host files with cscript, .sh and a file whose first line is "#!" with Git Bash's bash when
@@ -65,9 +66,11 @@ enum WindowsPrograms {
         return nil
     }
 
-    /// PATH's folders in order: split on ";", quotes dropped, empty ones left out. A ":" that isn't a drive's ("C:")
-    /// splits too, so that a list written the POSIX way ("C:/Users/me/bin:/usr/bin") still reads (no Windows path has
-    /// one anywhere else).
+    /// PATH's folders in order: split on ";", quotes dropped, and only those written in full (`isFullyQualified`: "C:\…",
+    /// "\\server\share\…"). One that isn't (".", "bin", "C:bin", "\bin", "/usr/bin") is a folder of wherever the input
+    /// method or the program runs, on whichever drive: a program planted there isn't taken, as cmd.exe's current folder
+    /// isn't. A ":" that isn't a drive's ("C:") splits too, so that a list written the POSIX way ("C:/Users/me/bin:C:/tools")
+    /// still reads (no Windows path has one anywhere else).
     static func folders(inPath path: String?) -> [String] {
         var folders: [String] = []
         for entry in (path ?? "").split(separator: ";") {
@@ -82,7 +85,16 @@ enum WindowsPrograms {
             }
             folders.append(part)
         }
-        return folders.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return folders.filter(isFullyQualified)
+    }
+
+    /// Whether `folder` is written in full, the same wherever it is read from: a drive and its root ("C:\…", "C:/…"),
+    /// or a share or a device's namespace ("\\server\share\…", "\\?\C:\…").
+    static func isFullyQualified(_ folder: String) -> Bool {
+        let start = Array(folder.prefix(3))
+        guard start.count == 3 else { return false }
+        if start[0].isASCII, start[0].isLetter, start[1] == ":", CorePaths.isSeparator(start[2]) { return true }
+        return CorePaths.isSeparator(start[0]) && CorePaths.isSeparator(start[1]) && !CorePaths.isSeparator(start[2])
     }
 
     /// PATHEXT's extensions, lowercased, in its order (".com", ".exe", ".bat", ".cmd" when it isn't set).
