@@ -100,8 +100,8 @@ public enum KeySync {
             }
             if !wins {
                 if !keepsFrom, let key = from.read(account), !key.isEmpty {
-                    if key == current, into.kind != .synced {
-                        _ = from.delete(account)  // the same key twice
+                    if key == current, into.kind != .synced || aside.attributes(account) != nil {
+                        _ = from.delete(account)  // the same key twice (and kept aside already, if it leaves for a synced store)
                     } else if setAside(account, key: key, attributes: theirs, in: aside) {
                         _ = from.delete(account)
                         moves.setAside.append(account)
@@ -123,9 +123,9 @@ public enum KeySync {
                     continue
                 }
                 moves.setAside.append(account)
-            } else if !keepsFrom, into.kind == .synced {
-                // Into a synced store that had none (or the same key, an earlier attempt's): another Mac may be moving a
-                // different key there unseen.
+            } else if !keepsFrom, into.kind == .synced, ours == nil || aside.attributes(account) == nil {
+                // Into a synced store that had none (or the same key, an earlier attempt's, unless that kept it aside
+                // already): another Mac may be moving a different key there unseen.
                 guard setAside(account, key: key, attributes: theirs, in: aside) else {
                     moves.mismatched.append(account)
                     continue
