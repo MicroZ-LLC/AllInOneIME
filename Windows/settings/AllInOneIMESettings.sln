@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings", "AllI
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings.Tests", "AllInOneIMESettings.Tests\AllInOneIMESettings.Tests.csproj", "{BF12C787-6332-440A-8780-46CA11BE9C25}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllInOneIMESettings.UITests", "AllInOneIMESettings.UITests\AllInOneIMESettings.UITests.csproj", "{069017CD-CE48-4097-B8DE-15A3E7347CCA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{BF12C787-6332-440A-8780-46CA11BE9C25}.Debug|Any CPU.Build.0 = Debug|x64
 		{BF12C787-6332-440A-8780-46CA11BE9C25}.Release|Any CPU.ActiveCfg = Release|x64
 		{BF12C787-6332-440A-8780-46CA11BE9C25}.Release|Any CPU.Build.0 = Release|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Debug|Any CPU.Build.0 = Debug|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Release|Any CPU.ActiveCfg = Release|x64
+		{069017CD-CE48-4097-B8DE-15A3E7347CCA}.Release|Any CPU.Build.0 = Release|x64
 	EndGlobalSection
 EndGlobal

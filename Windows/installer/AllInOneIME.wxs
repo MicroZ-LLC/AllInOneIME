@@ -4,9 +4,11 @@
 
   Per machine, x64, into Program Files\AllInOneIME\<version>\, so an app that loaded an older DLL keeps it until it
   restarts while new apps load the new one. It installs the TSF text service (AllInOneTIP.dll), the per-user engine
-  (AllInOneIMEEngine.exe) with librime (rime.dll) and rime-ice's data (rime-data\) for pinyin, the command line
-  (allinoneime-cli.exe: set-provider, set-key...), the Swift and VC++ runtime DLLs they need, and AllInOneIMESetup.exe,
-  the helper for what an MSI can't author itself.
+  (AllInOneIMEEngine.exe) with librime (rime.dll) and rime-ice's data (rime-data\) for pinyin and the interface text's
+  String Catalog (Localizable.xcstrings), the command line (allinoneime-cli.exe: set-provider, set-key...), the Swift and
+  VC++ runtime DLLs they need, AllInOneIMESetup.exe, the helper for what an MSI can't author itself, and the Settings app
+  (Settings\AllInOneIMESettings.exe, self-contained: .NET and the Windows App SDK in its folder), with its Start menu
+  shortcut, "AllInOneIME Settings".
 
   - The text service: its DllRegisterServer, run as SelfReg (the COM server in HKLM, the en-US and zh-CN profiles
     through ITfInputProcessorProfileMgr, the categories); DllUnregisterServer at uninstall.
@@ -48,14 +50,17 @@
       <Directory Id="ProductFolder" Name="AllInOneIME">
         <Directory Id="INSTALLFOLDER" Name="$(Version)">
           <Directory Id="RimeDataFolder" Name="rime-data" />
+          <Directory Id="SettingsFolder" Name="Settings" />
         </Directory>
       </Directory>
     </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
 
     <Feature Id="Main" Title="AllInOneIME">
       <ComponentGroupRef Id="Program" />
       <ComponentGroupRef Id="Runtime" />
       <ComponentGroupRef Id="RimeData" />
+      <ComponentGroupRef Id="SettingsApp" />
       <ComponentRef Id="MachineSettings" />
     </Feature>
 
@@ -75,6 +80,28 @@
       <!-- librime: the engine delay-loads it from its own folder. -->
       <Component>
         <File Id="rime.dll" Source="$(StageDir)\rime.dll" />
+      </Component>
+      <!-- The interface text in its nine languages: the engine reads it at its start (the settings document, notices). -->
+      <Component>
+        <File Id="Localizable.xcstrings" Source="$(StageDir)\Localizable.xcstrings" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- The Settings app, as `dotnet publish` made it (build.ps1): everything it runs on is in its folder. @settings starts
+         it from there (Settings\ beside the engine), and so does its shortcut. -->
+    <ComponentGroup Id="SettingsApp" Directory="SettingsFolder">
+      <Files Include="$(StageDir)\Settings\**">
+        <Exclude Files="$(StageDir)\Settings\AllInOneIMESettings.exe" />
+      </Files>
+      <Component Id="SettingsProgram">
+        <File Id="AllInOneIMESettings.exe" Source="$(StageDir)\Settings\AllInOneIMESettings.exe" KeyPath="yes" />
+      </Component>
+      <!-- In the Start menu (every user's: the package is per machine). A shortcut's component keeps a value of the
+           installing user's as its key path, as Windows Installer wants (ICE43, ICE57). -->
+      <Component Id="SettingsShortcut" Directory="ProgramMenuFolder">
+        <Shortcut Id="SettingsShortcut" Name="AllInOneIME Settings" Description="The settings of AllInOneIME, the input method"
+                  Target="[#AllInOneIMESettings.exe]" WorkingDirectory="SettingsFolder" Icon="AllInOneIME.ico" />
+        <RegistryValue Root="HKCU" Key="Software\AllInOneIME" Name="SettingsShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>
 

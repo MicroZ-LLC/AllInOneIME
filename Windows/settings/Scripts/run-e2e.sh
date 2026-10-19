@@ -7,6 +7,7 @@
 # UI Automation's patterns only.
 #
 #   Windows/settings/Scripts/run-e2e.sh
+#   APP=Windows/installer/build/stage/Settings/AllInOneIMESettings.exe Windows/settings/Scripts/run-e2e.sh
 #
 # The report and the screenshots: Windows/settings/build/e2e/ (e2e-report.txt, e2e-shots/ as the window shows, PrintWindow;
 # app-shots/ every section drawn by the app itself, light and dark, its lists open).
@@ -21,9 +22,11 @@ export DOTNET_CLI_UI_LANGUAGE=en
 dotnet build "$SETTINGS/AllInOneIMESettings/AllInOneIMESettings.csproj" -c Debug -nologo -v:q
 dotnet build "$SETTINGS/AllInOneIMESettings.UITests/AllInOneIMESettings.UITests.csproj" -c Debug -nologo -v:q
 
-APP="$(find "$SETTINGS/AllInOneIMESettings/bin/Debug" -name AllInOneIMESettings.exe | head -1)"
+# APP: another build of the app to test (the installer's, published and trimmed: Windows/installer/build/stage/Settings).
+APP="${APP:-$(find "$SETTINGS/AllInOneIMESettings/bin/Debug" -name AllInOneIMESettings.exe | head -1)}"
 DRIVER="$(find "$SETTINGS/AllInOneIMESettings.UITests/bin/Debug" -name AllInOneIMESettings.UITests.exe | head -1)"
-ENGINE="$WINDOWS/.build/debug/AllInOneIMEEngine.exe"
+# ENGINE: another build of the engine (the installer's: a GUI program, its catalog beside it).
+ENGINE="${ENGINE:-$WINDOWS/.build/debug/AllInOneIMEEngine.exe}"
 PYTHON="${PYTHON:-$(python -c 'import sys; print(sys.executable)')}"
 rm -rf "$OUT"
 mkdir -p "$OUT"
