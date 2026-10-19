@@ -22,7 +22,9 @@
   - 64 KiB in and out buffers.
 - **Pending instances:** the engine keeps at least 4 instances waiting in `ConnectNamedPipe`. If the DLL gets `ERROR_PIPE_BUSY`, it calls `WaitNamedPipe` for 100 ms and retries.
 - **Security descriptor (SDDL):**
-  `D:P(A;;GA;;;<UserSID>)(A;;GA;;;SY)(A;;GRGW;;;AC)(A;;GRGW;;;S-1-15-2-2)S:(ML;;NW;;;LW)`
+  `O:<UserSID>D:P(A;;GA;;;<UserSID>)(A;;GA;;;SY)(A;;GRGW;;;AC)(A;;GRGW;;;S-1-15-2-2)S:(ML;;NW;;;LW)`
+  - The user is the owner. The DLL's server check requires the pipe's owner to be the user (below); without `O:` the
+    owner is the token's default, which is `Administrators` for an elevated engine, so it is named explicitly.
   - The user and SYSTEM get full access.
   - `ALL APPLICATION PACKAGES` and `ALL RESTRICTED APPLICATION PACKAGES` get read/write, so AppContainer apps can connect.
   - The low mandatory label lets low-integrity processes write.
@@ -251,7 +253,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 
 - **Reasons:** `"terminated"` comes from `ITfCompositionSink::OnCompositionTerminated`; `"timeout"` comes from §5.4.
 - **Applying the result:** the DLL applies the result's outputs with the write cookie it was given. A `commit` there replaces the range the composition covered.
-- **Engine side:** `commitAll` for `terminated`. For `timeout`, the engine resets and returns `composition` with empty text.
+- **Engine side:** `commitAll` for `terminated`. For `timeout`, the engine resets its draft and returns `panel shown:false` with **no** `composition`: the DLL has already ended the composition (keeping the draft as typed) and the app has had the key, so an empty `composition` would only remove text the document should keep. The two sides are back in step.
 
 ## 6. Outputs
 
@@ -260,7 +262,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 | op | Fields | DLL action |
 |---|---|---|
 | `commit` | `text`, `deleteBefore`, `deleteAfter`, `afterKey` | **R** = our composition range if there is one, else the selection. Extend R by `deleteBefore`/`deleteAfter` units (clamped). Replace R with `text`, end the composition, and put the caret after `text`. With `afterKey: true`, apply in a separate `TF_ES_ASYNC` session, after the app has had the key (the Composer's `commitAfterKey`). |
-| `composition` | `text`, `caret`, `segments: [{from,to,style}]` | Start the composition if needed, set its text, and set the selection to start + `caret`. Map each segment's `style` to a registered display attribute: `raw`, `draft`, `converted` or `target`. Parts not covered, and unknown styles, are `raw`. Empty `text` removes the text and ends the composition. |
+| `composition` | `text`, `caret`, `segments: [{from,to,style}]`, `typed` | Start the composition if needed, set its text, and set the selection to start + `caret`. Map each segment's `style` to a registered display attribute: `raw`, `draft`, `converted` or `target`. Parts not covered, and unknown styles, are `raw`. Empty `text` removes the text and ends the composition. `typed` (optional) is the draft as the user typed it, present only when that differs from the shown `text` (the Composer shows a command without its "@": "@improve helo" shows `improve › helo`). The DLL keeps `text` while composing; if it ends the composition on its own — a key timeout (§5.4) or a lost engine (§2.5) — it leaves `typed` in the document instead, so the user keeps what they typed, "@" and all. |
 | `panel` | `shown` | The engine is or isn't showing UI anchored at the caret. While `shown`, report `caret` (below). |
 | `allowForeground` | none | `AllowSetForegroundWindow(enginePid)`, before the engine opens a URL, path or terminal. Only for clients that announced `allowForeground`. |
 
@@ -416,6 +418,8 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 - `esc-mid-stream`
 - `blur-mid-stream`
 - `terminated`
+- `focus-moves`
+- `focus-resent`
 - `timeout-resync`
 - `reconnect`
 - `unknown-type`
@@ -514,11 +518,14 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
 - **First frame.** Anything but `hello` first gets `badMessage` and the connection closes. A frame whose `v` isn't the agreed version gets `badMessage` and the connection goes on.
 - **Errors on notifications** (`open`, `focus`, `caret`, `close`, `applied`) carry `re`, the notification's id. `badFrame` and `tooLarge` carry no `re`: the frame wasn't read.
 - **`open` again** for a known `sid` replaces its `field` and is not an error.
+- **`focus` re-sent while focused** (§4: a new keyboard layout or input scope, noticed at the next key) keeps the same serial — the DLL increments the serial only for a real new focus or a reconnect — so an `apply` the engine already pushed for that focus still matches and applies. It doesn't blur or commit the draft. The DLL and engine agree on this (`focus-resent`).
 - **`focus` without a `blur`** of the previously focused session: the engine blurs that session itself, and its outputs are dropped. The DLL must always send `blur` first (§4).
+- **Order on a focus move.** TSF terminates a live composition before it moves the focus, so the DLL sends `endComposition {terminated}` (the draft committed as typed) and *then* `blur`, which finds nothing left to commit (`focus-moves`).
+- **Caret reports** are sent only while the panel is shown (§6). The engine forgets the last caret when the panel hides, so a panel shown again waits for a fresh report rather than anchoring at the stale rectangle.
 - **A field that turns secure** (`focus` re-sent with `secure:true`) while a draft is pending gets the draft committed as typed, pushed as `apply` (`focus` has no result), with `panel shown:false`. A key from a secure field, if one comes anyway, is `handled:false`, with a notice in the engine and no composition.
 - **`blur` and `endComposition terminated`** commit the draft *as typed*, with its "@" (`@improve helo`), not as shown, and hide the panel.
-- **`endComposition timeout`** returns `composition ""` and `panel shown:false`. The passed-through key stays in the document and the draft before it is gone. In `timeout-resync`, "@im" + "p" leaves "p". This is lossy, but it is what §5.5 asks for.
-- **A lost engine** (§2.5): the client keeps its composition's text *as shown*. After a broken pipe during "@imp" the document keeps "imp", without the "@" (`reconnect`).
+- **`endComposition timeout`** returns `panel shown:false` and **no** `composition` (reconciled with the DLL; the earlier draft said `composition ""`). The DLL ended the composition itself before passing the key, keeping the draft *as typed* (`composition.typed`), so the text is not lost: in `timeout-resync`, "@im" + "p" (the engine shows "im") leaves "@imp" plus the passed-through key. An empty `composition` from the engine would wrongly delete that kept text.
+- **A lost engine** (§2.5): the client keeps its composition's text *as typed* (`composition.typed`), not as shown. After a broken pipe during "@imp" the document keeps "@im" (the engine showed "im"), with the "@" (`reconnect`). (The earlier draft kept the shown text, "imp"; the DLL and engine now agree the user's typed text is what survives.)
 - **Esc during a stream:** the first Esc cancels and returns the draft (style `draft`) with the panel still shown. A second Esc gives the draft up (`composition ""`, `panel shown:false`).
 - **A failed request** (`Composer.fail`) only shows the failure in the engine's panel: no frame. Esc gives the draft back.
 - **The `comp` check** (§5.1): when the app took the composition, the key that reveals it is answered `handled:true` and dropped (so ⏎ doesn't send half a sentence). Its outputs come from the Composer's `appTookMarkedText`: `panel shown:false`, and a running request stops. The document's text is left as it is.
