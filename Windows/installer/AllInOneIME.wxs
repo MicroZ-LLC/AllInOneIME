@@ -4,8 +4,9 @@
 
   Per machine, x64, into Program Files\AllInOneIME\<version>\, so an app that loaded an older DLL keeps it until it
   restarts while new apps load the new one. It installs the TSF text service (AllInOneTIP.dll), the per-user engine
-  (AllInOneIMEEngine.exe) with the Swift and VC++ runtime DLLs it needs, and AllInOneIMESetup.exe, the helper for what
-  an MSI can't author itself.
+  (AllInOneIMEEngine.exe) with librime (rime.dll) and rime-ice's data (rime-data\) for pinyin, the command line
+  (allinoneime-cli.exe: set-provider, set-key...), the Swift and VC++ runtime DLLs they need, and AllInOneIMESetup.exe,
+  the helper for what an MSI can't author itself.
 
   - The text service: its DllRegisterServer, run as SelfReg (the COM server in HKLM, the en-US and zh-CN profiles
     through ITfInputProcessorProfileMgr, the categories); DllUnregisterServer at uninstall.
@@ -45,13 +46,16 @@
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="AllInOneIME">
-        <Directory Id="INSTALLFOLDER" Name="$(Version)" />
+        <Directory Id="INSTALLFOLDER" Name="$(Version)">
+          <Directory Id="RimeDataFolder" Name="rime-data" />
+        </Directory>
       </Directory>
     </StandardDirectory>
 
     <Feature Id="Main" Title="AllInOneIME">
       <ComponentGroupRef Id="Program" />
       <ComponentGroupRef Id="Runtime" />
+      <ComponentGroupRef Id="RimeData" />
       <ComponentRef Id="MachineSettings" />
     </Feature>
 
@@ -65,6 +69,19 @@
       <Component>
         <File Id="AllInOneIMESetup.exe" Source="$(StageDir)\AllInOneIMESetup.exe" />
       </Component>
+      <Component>
+        <File Id="allinoneime_cli.exe" Source="$(StageDir)\allinoneime-cli.exe" />
+      </Component>
+      <!-- librime: the engine delay-loads it from its own folder. -->
+      <Component>
+        <File Id="rime.dll" Source="$(StageDir)\rime.dll" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- rime-ice's data, as build.ps1 staged it (its folders kept): read-only here; librime's user folder is each
+         user's %APPDATA%\AllInOneIME\rime. -->
+    <ComponentGroup Id="RimeData" Directory="RimeDataFolder">
+      <Files Include="$(StageDir)\rime-data\**" />
     </ComponentGroup>
 
     <!-- The Swift runtime and the VC++ runtime the engine links, next to it (build.ps1 finds them with dumpbin). -->

@@ -4,10 +4,13 @@
 #
 # 1. the TSF DLL (Windows\tip\AllInOneTIP.vcxproj) and the installer's helper (setup\AllInOneIMESetup.vcxproj), with
 #    MSBuild, into Windows\installer\build\ (not the tip's build folder, whose DLL a test may have left loaded in an app);
-# 2. the engine, `swift build -c release --product AllInOneIMEEngine` in Windows\;
-# 3. the stage, Windows\installer\build\stage\: the three programs, the engine made a GUI-subsystem program (editbin),
-#    so that started at logon it opens no console window, and in runtime\ the DLLs it needs (dumpbin, transitively)
-#    from the Swift runtime and the VC++ redistributable;
+# 2. the engine and the command line, `swift build -c release --product AllInOneIMEEngine` and `allinoneime-cli` in
+#    Windows\, on librime and rime-ice's data in ThirdParty (Windows\Scripts\build-rime-data.sh makes them, run here
+#    with Git Bash when they aren't there);
+# 3. the stage, Windows\installer\build\stage\: the four programs, the engine made a GUI-subsystem program (editbin),
+#    so that started at logon it opens no console window; librime (rime.dll) and its data (rime-data\: rime-ice's
+#    schemas and prebuilt dictionaries) beside the engine; and in runtime\ the DLLs the engine and the command line
+#    need (dumpbin, transitively) from the Swift runtime and the VC++ redistributable;
 # 4. Windows\installer\build\AllInOneIME-<version>-x64.msi, with `wix build`. The version is the app's
 #    (Resources\Info.plist, CFBundleShortVersionString).
 #
@@ -66,6 +69,17 @@ foreach ($ext in 'WixToolset.UI.wixext', 'WixToolset.Util.wixext') {
     if (-not ($extensions | Select-String -SimpleMatch $ext)) { Run $wix @('extension', 'add', '-g', "$ext/$wixVersion") }
 }
 
+# librime and rime-ice's data, as the Rime tests and the engine's use them.
+$thirdParty = if ($env:ALLINONEIME_THIRDPARTY) { $env:ALLINONEIME_THIRDPARTY } else { Join-Path $windows 'ThirdParty' }
+$rimeDll = Join-Path $thirdParty 'librime\dist\lib\rime.dll'
+$rimeData = Join-Path $thirdParty 'rime-data'
+if (-not $SkipBuild -and (-not (Test-Path $rimeDll) -or -not (Test-Path (Join-Path $rimeData 'build\rime_ice.table.bin')))) {
+    $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
+    if (-not (Test-Path $bash)) { Fail "no librime and rime-data in ${thirdParty}: run Windows/Scripts/build-rime-data.sh in Git Bash" }
+    Write-Host '== librime and rime-ice (Scripts/build-rime-data.sh)'
+    Run $bash @((Join-Path $windows 'Scripts\build-rime-data.sh'))
+}
+
 # The version: the app's.
 $plist = Get-Content -Raw -Encoding UTF8 (Join-Path $repo 'Resources\Info.plist')
 $version = if ($plist -match '<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>') { $Matches[1] }
@@ -82,9 +96,12 @@ if (-not $SkipBuild) {
         '-p:Platform=x64', "-p:OutDir=$tipOut", "-p:IntDir=$(Join-Path $out 'obj\AllInOneTIP\')")
     Run $msbuild @((Join-Path $here 'setup\AllInOneIMESetup.vcxproj'), '-nologo', '-v:minimal',
         '-p:Configuration=Release', '-p:Platform=x64')
-    Write-Host '== the engine (swift build -c release)'
+    Write-Host '== the engine and the command line (swift build -c release)'
     Push-Location $windows
-    try { Run 'swift' @('build', '-c', 'release', '--product', 'AllInOneIMEEngine') } finally { Pop-Location }
+    try {
+        Run 'swift' @('build', '-c', 'release', '--product', 'AllInOneIMEEngine')
+        Run 'swift' @('build', '-c', 'release', '--product', 'allinoneime-cli')
+    } finally { Pop-Location }
 }
 
 # ---- 3: the stage ----
@@ -94,12 +111,21 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 $runtime = Join-Path $stage 'runtime'
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 $engineBuilt = Join-Path $windows '.build\release\AllInOneIMEEngine.exe'
-foreach ($file in (Join-Path $tipOut 'AllInOneTIP.dll'), (Join-Path $tipOut 'AllInOneIMESetup.exe'), $engineBuilt) {
+$cliBuilt = Join-Path $windows '.build\release\allinoneime-cli.exe'
+foreach ($file in (Join-Path $tipOut 'AllInOneTIP.dll'), (Join-Path $tipOut 'AllInOneIMESetup.exe'), $engineBuilt, $cliBuilt,
+                  $rimeDll) {
     if (-not (Test-Path $file)) { Fail "not built: $file" }
     Copy-Item $file $stage
 }
 $engine = Join-Path $stage 'AllInOneIMEEngine.exe'
 Run $editbin @('/nologo', '/SUBSYSTEM:WINDOWS', $engine)
+# rime-ice's data, whole: the schemas, the dictionaries' sources and the dictionaries prebuilt from them (build\), which
+# librime uses as they are once it has checked them against the sources.
+if (-not (Test-Path (Join-Path $rimeData 'build\rime_ice.table.bin'))) { Fail "no prebuilt rime-data in $rimeData" }
+Copy-Item $rimeData (Join-Path $stage 'rime-data') -Recurse
+$dataFiles = Get-ChildItem (Join-Path $stage 'rime-data') -Recurse -File
+Write-Host ("  rime-data: {0} files, {1:N1} MB; rime.dll {2:N1} MB" -f $dataFiles.Count,
+    (($dataFiles | Measure-Object Length -Sum).Sum / 1MB), ((Get-Item $rimeDll).Length / 1MB))
 
 # The DLLs a module imports, by name.
 function Imports($module) {
@@ -112,10 +138,11 @@ function Imports($module) {
     }
 }
 
-# The engine's imports, transitively, that come from the VC++ redistributable or the Swift runtime (the rest is
-# Windows': KERNEL32, the UCRT's api-ms-win-crt-*).
+# The engine's and the command line's imports, transitively, that come from the VC++ redistributable or the Swift
+# runtime (the rest is Windows': KERNEL32, the UCRT's api-ms-win-crt-*; rime.dll has its C++ runtime built in).
 $queue = New-Object System.Collections.Queue
 $queue.Enqueue($engine)
+$queue.Enqueue((Join-Path $stage 'allinoneime-cli.exe'))
 $seen = @{}
 while ($queue.Count -gt 0) {
     foreach ($name in Imports $queue.Dequeue()) {
