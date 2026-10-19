@@ -149,10 +149,45 @@ struct InputSessionTests {
             #expect(host.session.fieldWants(for: a, given: FieldContext(read: .secure)) == [.secure], "then nothing else at idle")
             #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)) == [.secure, .selection, .selectedRange],
                     "\"@\" may start a command on the selection")
-            #expect(host.session.fieldWants(for: a, given: FieldContext(read: .secure, secure: true)) == [.secure],
-                    "nothing is read in a password field")
             host.type("ni")
             #expect(host.session.fieldWants(for: a, given: FieldContext(read: .secure)).contains(.markedText), "composing: the marked text")
+        }
+    }
+
+    @Test func atReadsTheFieldOnlyWhereItMayStartACommand() {
+        inEnglish {
+            func at(_ host: FakeHost) -> FieldContext.Parts {
+                host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure))
+            }
+            // Pinyin being typed: "@" goes to the engine.
+            let pinyin = host()
+            pinyin.type("ni")
+            #expect(!at(pinyin).contains(.selection), "\(at(pinyin))")
+            // A command written on the selection: "@" goes into its text.
+            let selected = host()
+            selected.document = "hello world"
+            selected.selection = 6..<11
+            pick("i", in: selected)
+            #expect(selected.composer.draftInPanel && !at(selected).contains(.selection), "\(at(selected))")
+            // No engine yet (librime deploying): the key goes to the app.
+            let starting = host { $0.levelOne = { .starting } }
+            #expect(starting.composer.engine == nil && at(starting) == [.secure], "\(at(starting))")
+        }
+    }
+
+    @Test func nothingIsReadInAPasswordField() {
+        inEnglish {
+            let host = host()
+            // "@" would have the selection read; secure input on for the key's app: nothing but that.
+            #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure, secure: true)) == [.secure])
+            // `@reply` written, and a key that runs it: its text would be read…
+            pick("rep", in: host)
+            #expect(host.composer.draftCommand == .reply, "\(host.composer.draft)")
+            #expect(host.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure)).contains(.text))
+            // …but not in a field the shell says is a password field (Windows').
+            host.send(.focus(FieldInfo(app: host.app, secure: true)))
+            #expect(host.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure)) == [.secure])
+            #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)) == [.secure])
         }
     }
 
@@ -235,6 +270,68 @@ struct InputSessionTests {
         }
     }
 
+    @Test func anAnswerOfWorkStoppedSinceIsDroppedEvenForTheSameText() {
+        inEnglish {
+            // The first search answers at once; the later ones once the test lets them.
+            let (later, go) = (Locked(initialState: false), Locked(initialState: false))
+            let host = host {
+                $0.loadContacts = {
+                    guard later.withLock({ $0 }) else { return [Contact(name: "Ann Old", handles: ["+1 555 0100"])] }
+                    while !go.withLock({ $0 }), !Task.isCancelled { try? await Task.sleep(for: .milliseconds(10)) }
+                    return [Contact(name: "Ann New", handles: ["+1 555 0101"])]
+                }
+            }
+            host.composer.setInputMode(.english)
+            pick("ime", in: host)
+            host.type("a")
+            // "a"'s answer is in, not handed over yet; meanwhile "an", then "a" again: another search for the same text,
+            // which the composer can't tell from the first.
+            #expect(host.waitForAnswer { if case .task(_, .recipients(_, _, "a")) = $0 { true } else { false } })
+            later.withLock { $0 = true }
+            host.type("n")
+            host.press(KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}"))
+            #expect(host.composer.recipientQuery == "a", "\(host.composer.recipientQuery ?? "-")")
+            host.settle(timeout: 0.3) { false }
+            #expect(host.composer.currentRecipients.isEmpty, "the stopped search's answer counts no more (\(host.composer.currentRecipients))")
+            go.withLock { $0 = true }
+            #expect(host.settle { host.composer.currentRecipients.first?.name == "Ann New" }, "the search now does")
+        }
+    }
+
+    @Test func nothingCountsOnceTheSessionIsClosed() {
+        inEnglish {
+            // A request on its way.
+            let host = host { $0.runProgram = Self.printing("42", after: .milliseconds(100)) }
+            pick("js", in: host)
+            host.composer.setInputMode(.english)
+            host.type("6*7")
+            host.press(FakeHost.enter)
+            host.send(.close)
+            #expect(!host.settle(timeout: 0.4) { host.composer.phase == .choosing }, "its answer counts no more")
+            // Recipients being looked up.
+            let typing = self.host { $0.loadContacts = { [Contact(name: "Ann Lee", handles: ["+1 555 0100"])] } }
+            typing.composer.setInputMode(.english)
+            pick("ime", in: typing)
+            typing.type("ann")
+            typing.send(.close)
+            #expect(!typing.settle(timeout: 0.4) { !typing.composer.currentRecipients.isEmpty }, "nor theirs")
+        }
+    }
+
+    @Test func aFieldFocusedAgainAfterItsSessionClosedWorksAsBefore() {
+        inEnglish {
+            let host = host { $0.runProgram = Self.printing("42") }
+            host.send(.close)
+            host.focus()
+            pick("js", in: host)
+            host.composer.setInputMode(.english)
+            host.type("6*7")
+            host.press(FakeHost.enter)
+            #expect(host.settle(timeout: 5) { host.composer.phase == .choosing }, "its request answers (\(host.composer.phase))")
+            #expect(host.composer.choices.contains { $0.text == "42" }, "\(host.composer.choices.map(\.text))")
+        }
+    }
+
     // MARK: - The selection
 
     @Test func aCommandOnTheSelectionReplacesIt() {
@@ -288,6 +385,30 @@ struct InputSessionTests {
         }
     }
 
+    @Test func theClipboardIsntTakenDuringSecureInput() {
+        inEnglish {
+            /// ⌃V in an `@improve` draft, the clipboard answered after `meanwhile`: the draft then.
+            func paste(_ adjust: (inout SessionServices) -> Void = { _ in }, meanwhile: (FakeHost) -> Void) -> String {
+                let host = host(Settings(), adjust)
+                pick("i", in: host)
+                let asked = host.session.handle(.key(FakeHost.controlV, host.context)).outputs
+                guard let id = asked.lazy.compactMap({ if case let .readClipboard(id) = $0 { id } else { nil } }).first else {
+                    Issue.record("the clipboard isn't asked for: \(asked)")
+                    return ""
+                }
+                meanwhile(host)
+                host.send(.clipboard(.text("hunter2"), id: id))
+                return host.composer.draft
+            }
+            #expect(paste(meanwhile: { _ in }).hasSuffix("hunter2"), "taken in otherwise")
+            let secure = Locked(initialState: false)
+            #expect(!paste({ $0.secureInputActive = { secure.withLock { $0 } } }, meanwhile: { _ in secure.withLock { $0 = true } })
+                .contains("hunter2"), "secure input came on (a password prompt)")
+            #expect(!paste(meanwhile: { $0.send(.focus(FieldInfo(app: $0.app, secure: true))) }).contains("hunter2"),
+                    "a password field")
+        }
+    }
+
     // MARK: - Notes and reminders
 
     /// Saves what it's given, or fails with `failure` (`SessionServices.noteDestination`).
@@ -335,7 +456,8 @@ struct InputSessionTests {
         }
     }
 
-    @Test func aSaveOutcomeAfterTheFieldWasLeftGoesElsewhere() {
+    /// Left, and maybe focused again: the field the save came from is gone either way.
+    @Test(arguments: [false, true]) func aSaveOutcomeAfterTheFieldWasLeftGoesElsewhere(focusedAgain: Bool) {
         inEnglish {
             let saved = Locked<[String]>(initialState: [])
             let host = host {
@@ -346,7 +468,7 @@ struct InputSessionTests {
             host.type("milk")
             host.press(FakeHost.enter)
             host.send(.blur)
-            host.focus()
+            if focusedAgain { host.focus() }
             #expect(host.settle { !host.noticesElsewhere.isEmpty })
             #expect(host.copied == ["milk"] && host.noticesElsewhere.first?.hasPrefix("Not saved; the text is on the clipboard. ") == true,
                     "\(host.noticesElsewhere)")
@@ -487,6 +609,32 @@ struct InputSessionTests {
         }
     }
 
+    @Test func aScriptWhoseEnvironmentCantBeMadeIsLetGo() {
+        inEnglish {
+            let folder = URL(fileURLWithPath: "/tmp/stand-in-scripts", isDirectory: true)
+            let script = ScriptCommand(source: .bundle("greeter"), file: folder.appendingPathComponent("greet.sh"), name: "greet",
+                                       title: "Greet", output: .show)
+            let bundle = ExtensionBundle(folder: folder, name: "greeter", title: "Greeter",
+                                         preferences: [.init(name: "token", title: "Token", required: true)])
+            let ran = Locked(initialState: 0)
+            let host = host {
+                $0.loadExtensions = { _, _ in ExtensionIndex(commands: [script], bundles: [bundle]) }
+                $0.startScript = { _, _, _, _ in
+                    ran.withLock { $0 += 1 }
+                    return 1
+                }
+            }
+            host.send(.focus(FieldInfo(app: host.app)))  // the extensions read again
+            host.composer.setInputMode(.english)  // letters, not pinyin
+            pick("gre", in: host)
+            host.type("you")
+            host.press(FakeHost.enter)
+            #expect(host.settle { host.composer.phase == .failed("Set “Token” for Greeter in the settings first") },
+                    "\(host.composer.phase)")
+            #expect(ran.withLock { $0 } == 0 && host.session.preparingScripts.isEmpty, "nothing waits to start")
+        }
+    }
+
     // MARK: - More of the self-test's
 
     @Test func aSnippetsCaretGoesWhereItsCursorIs() {
@@ -533,6 +681,13 @@ struct InputSessionTests {
             host.session.notice = nil
             host.focus()
             #expect(first?.contains("@myreply") == true && host.session.notice == nil, "\(first ?? "-")")
+            // Told when the shell says, after its own notices of the focus: none of those covers it.
+            told.withLock { $0 = false }
+            host.send(.focus(FieldInfo(app: host.app)))
+            #expect(host.session.notice == nil, "not with the focus itself")
+            _ = host.session.showNotice("Translate as You Type on")
+            _ = host.session.tellBuiltinRenames()
+            #expect(host.session.notice?.contains("@myreply") == true, "\(host.session.notice ?? "-")")
         }
     }
 

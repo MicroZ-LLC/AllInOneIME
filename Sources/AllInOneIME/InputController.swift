@@ -228,6 +228,8 @@ final class AllInOneIMEInputController: IMKInputController {
             apply(session.handle(.focus(field)).outputs, client: sender as? IMKTextInput)
             translateModeFollow(services.loadSettings())  // Translate as You Type's target removed: the first output language
             translateModeActivated(app: app)  // another app leaves Translate as You Type, unless it translates always
+            // A custom command renamed because a built-in has its name now: said once, last (no notice above covers it)
+            apply(session.tellBuiltinRenames(), client: sender as? IMKTextInput)
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
         }

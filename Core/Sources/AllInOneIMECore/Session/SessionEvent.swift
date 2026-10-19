@@ -27,7 +27,7 @@ public enum SessionEvent: Sendable {
     case voice(VoiceUpdate)
     /// The settings changed: applied now (a shell that doesn't read them again on every key).
     case configChanged
-    /// The field's session ends: nothing more comes.
+    /// The field's session ends: nothing more comes, unless the field takes the focus again (it starts over then).
     case close
 }
 

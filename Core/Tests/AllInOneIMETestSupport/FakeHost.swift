@@ -76,9 +76,10 @@ public final class FakeHost: @unchecked Sendable {
 
     // MARK: Events
 
-    /// The field takes the focus.
+    /// The field takes the focus; a rename to tell is said then (`InputSession.tellBuiltinRenames`).
     public func focus() {
         apply(session.handle(.focus(FieldInfo(app: app, terminal: terminal))).outputs)
+        apply(session.tellBuiltinRenames())
     }
 
     /// A key goes down: whether the session took it.
@@ -125,6 +126,18 @@ public final class FakeHost: @unchecked Sendable {
             if Date() >= deadline { return false }
             _ = arrived.wait(timeout: .now() + 0.01)
         }
+    }
+
+    /// Waits until an answer of the session's work that `matches` has come in, handing nothing to the session (true), or
+    /// `timeout` seconds have gone by (false): the session hears it late, after what the test does meanwhile.
+    @discardableResult
+    public func waitForAnswer(timeout: TimeInterval = 10, where matches: (SessionEvent) -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !inbox.withLock({ $0.contains(where: matches) }) {
+            if Date() >= deadline { return false }
+            _ = arrived.wait(timeout: .now() + 0.01)
+        }
+        return true
     }
 
     /// Fires the timers started so far, in order.

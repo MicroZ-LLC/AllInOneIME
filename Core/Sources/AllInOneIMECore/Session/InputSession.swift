@@ -90,7 +90,7 @@ public final class InputSession {
     /// arguments of a request while its environment is made.
     private var scriptRun: (request: Int, run: Int)?
     private var scriptStarted = Date()
-    private var preparingScripts: [Int: (script: ScriptCommand, arguments: [String])] = [:]
+    private(set) var preparingScripts: [Int: (script: ScriptCommand, arguments: [String])] = [:]
     /// The page asked for while `@agent …` is written (`wakePageIfAgent`), and the focus it was asked for in; what waits
     /// for a page being read.
     private var wokenPage: PageSource?
@@ -200,14 +200,22 @@ public final class InputSession {
         fieldText = nil
         fieldSession += 1
         field = info
+        tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
         // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs…
         composer.pastesIntoDraft = !info.terminal
         // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
         composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
-        // A custom command renamed because a built-in has its name now (`Config.freeBuiltinNames`): said once.
-        if let notice = services.takeRenameNotice(composer.messages.reply) { say(notice, long: true) }
+    }
+
+    /// A custom command renamed because a built-in has its name now (`Config.freeBuiltinNames`): said once, in the
+    /// field that takes the focus next. The shell tells it last, after its own notices of the focus (the Mac's
+    /// Translate as You Type, on in an app that translates always): one said after it would take its place for good.
+    public func tellBuiltinRenames() -> [SessionOutput] {
+        collect {
+            if let notice = services.takeRenameNotice(composer.messages.reply) { say(notice, long: true) }
+        }
     }
 
     // MARK: - Level one
@@ -375,15 +383,19 @@ public final class InputSession {
     // MARK: - Keys
 
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
-    /// the key on, asking again until there is nothing more (twice at most). A shell where reading is cheap reads it all.
+    /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
+    /// may need, with the character before an "@"; the selection, unless that "@" comes right after a word). A shell where
+    /// reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
-        // "@" may start a command: on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == "@", !composer.isLevelTwo, composer.draft.isEmpty || composer.draftInPanel {
+        // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
+        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
+        if key.printableText == "@", !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+           !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
@@ -868,6 +880,7 @@ public final class InputSession {
             perform(composer.receive(update.result, isFinal: update.isFinal, id: request))
         case let .failed(error, request):
             if id.slot == .script, scriptRun?.request == request { scriptRun = nil }
+            preparingScripts[request] = nil  // a script waiting for its environment (that couldn't be made) never starts
             let message: String
             if let error = error as? DescribedError {
                 message = error.message
