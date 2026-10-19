@@ -423,7 +423,10 @@ screenshots: selftest
 
 # The menu bar panel on screen, frosted glass over a colorful window (an offscreen render can't blur):
 # docs/panel-glass.png, docs/panel-swipe.png (a row swiped open), docs/candidates-glass.png (the
-# candidate panel) and docs/candidates-horizontal.png (in a row), and docs/en/ in English. Shows
+# candidate panel), docs/candidates-horizontal.png (in a row), docs/language-menu.png (Settings → General's
+# interface language menu, open) and docs/note-save-to-menu.png (@note's Save to menu, open; the release notes show
+# them cropped), and docs/en/ in English. Run it with CFFIXED_USER_HOME set to a sample home, so the Plugins page
+# lists none of your plugins. Shows
 # windows for a few seconds; needs the screen unlocked.
 panel-images: app
 	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs/en

@@ -21,8 +21,8 @@ struct ICloudSyncSection: View {
         Section {
             Toggle(isOn: Binding(get: { model.config.iCloudSync.enabled }, set: setEnabled)) {
                 titled(tr("通过 iCloud 同步", "Sync through iCloud"), syncsKeys
-                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
-                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
+                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样；在下面打开后，API 密钥和密码也经过 iCloud 钥匙串同步。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
+                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs; your API keys and passwords too, through iCloud Keychain, if you turn that on below. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
                        : tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
                             "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
             }
@@ -55,7 +55,7 @@ struct ICloudSyncSection: View {
                               "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them."))
                 }
                 removeRow(.recentQuestions)
-                let keysRow = Self.keysRow(entitled: APIKeys.Keychain.processIsEntitled)
+                let keysRow = Self.keysRow(entitled: Self.entitled)
                 Toggle(isOn: keysRow.enabled ? binding(\.keys) : .constant(false)) {
                     titled(tr("API 密钥和密码", "API keys and passwords"), keysRow.note)
                 }
@@ -112,7 +112,12 @@ struct ICloudSyncSection: View {
     }
 
     /// Keys sync through iCloud Keychain while sync is on: the build is entitled to it, and "API keys and passwords" is on.
-    private var syncsKeys: Bool { APIKeys.Keychain.processIsEntitled && model.config.iCloudSync.keys }
+    private var syncsKeys: Bool { Self.entitled && model.config.iCloudSync.keys }
+
+    /// Whether this build can sync keys as the section shows it: as entitled for the settings' images
+    /// (`--settings-image`, a build without a provisioning profile), else as it is.
+    static var shownEntitled: Bool?
+    static var entitled: Bool { shownEntitled ?? APIKeys.Keychain.processIsEntitled }
 
     /// The "API keys and passwords" row (off by default): it can be turned on only in a build entitled to the data
     /// protection keychain (signed with the provisioning profile); elsewhere off and greyed, saying why.

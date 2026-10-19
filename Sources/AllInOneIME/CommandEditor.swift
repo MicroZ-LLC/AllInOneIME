@@ -114,14 +114,16 @@ struct CommandEditor: View {
                         }
                         .fixedSize()
                     }
-                    Picker(tr("做什么", "What it does"), selection: $type) {
-                        Text(tr("AI 指令", "AI instruction")).tag(CustomCommand.CommandType.prompt)
-                        Text(tr("运行程序", "Run a program")).tag(CustomCommand.CommandType.run)
-                        Text(tr("在终端运行", "Run in Terminal")).tag(CustomCommand.CommandType.terminal)
-                        Text(tr("打开网页", "Open a web page")).tag(CustomCommand.CommandType.link)
-                        Text(tr("插入文字", "Insert text")).tag(CustomCommand.CommandType.snippet)
+                    // Segmented where the five fit (Chinese, in the editor's 560 points), else a menu (English and the
+                    // longer languages): never cut off.
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            Text(tr("做什么", "What it does"))
+                            Spacer()
+                            typePicker.pickerStyle(.segmented).fixedSize()
+                        }
+                        LabeledContent(tr("做什么", "What it does")) { typePicker.pickerStyle(.menu).fixedSize() }
                     }
-                    .pickerStyle(.segmented)
                     .onChange(of: type) { latin = CustomCommand.typesLatinByDefault(type) }
                     TextField(tr("说明", "Description"), text: $summary,
                               prompt: Text(tr("命令列表里显示，可以不填", "Shown in the command list (optional)")))
@@ -210,9 +212,21 @@ struct CommandEditor: View {
             }
             .padding()
         }
-        .frame(width: 520, height: 520)
+        .frame(width: 560, height: 520)
         .task(id: commandLine) { await checkProgram() }
         .task(id: type) { await checkProgram() }
+    }
+
+    /// "What it does": the five kinds of command (its label for accessibility; the row shows it).
+    private var typePicker: some View {
+        Picker(tr("做什么", "What it does"), selection: $type) {
+            Text(tr("AI 指令", "AI instruction")).tag(CustomCommand.CommandType.prompt)
+            Text(tr("运行程序", "Run a program")).tag(CustomCommand.CommandType.run)
+            Text(tr("在终端运行", "Run in Terminal")).tag(CustomCommand.CommandType.terminal)
+            Text(tr("打开网页", "Open a web page")).tag(CustomCommand.CommandType.link)
+            Text(tr("插入文字", "Insert text")).tag(CustomCommand.CommandType.snippet)
+        }
+        .labelsHidden()
     }
 
     private func load(_ example: CustomCommand) {

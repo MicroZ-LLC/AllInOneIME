@@ -574,6 +574,12 @@ enum SelfTest {
             }
             check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("general.png").path),
                   "\(language.name): Settings → General drawn in it (\(folder.path))")
+            // The custom command editor: its "What it does" picker whole, segmented or a menu.
+            let editor = folder.appendingPathComponent("command-editor.png")
+            renderLight(CommandEditor(edit: CommandEdit(index: nil, command: CustomCommand(name: "sig", type: .snippet, text: "{name?}\n{date}")),
+                                      others: []) { _ in true },
+                        size: NSSize(width: 560, height: 520), to: editor)
+            check(FileManager.default.fileExists(atPath: editor.path), "\(language.name): the custom command editor drawn in it")
         }
     }
 
@@ -3133,6 +3139,7 @@ enum SelfTest {
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
         testReply(controller, client)
+        testReleaseImages(controller, client, snapshotDirectory: snapshotDirectory)
         testAIConfig(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)

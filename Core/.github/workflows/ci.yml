@@ -28,7 +28,8 @@ jobs:
       - run: Scripts/check-core-standalone.sh
 
   macos:
-    runs-on: macos-26
+    # The core uses the macOS 27 SDK's FoundationModels API (Xcode 27); macos-26 ships Xcode 26.x.
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
