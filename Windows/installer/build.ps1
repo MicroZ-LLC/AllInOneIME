@@ -1,6 +1,6 @@
 # Builds AllInOneIME for Windows in Release and packages it as an MSI (WiX Toolset 5).
 #
-#   powershell -ExecutionPolicy Bypass -File Windows\installer\build.ps1 [-SkipBuild]
+#   powershell -ExecutionPolicy Bypass -File Windows\installer\build.ps1 [-SkipBuild] [-Output <file.msi>]
 #
 # 1. the TSF DLL (Windows\tip\AllInOneTIP.vcxproj) and the installer's helper (setup\AllInOneIMESetup.vcxproj), with
 #    MSBuild, into Windows\installer\build\ (not the tip's build folder, whose DLL a test may have left loaded in an app);
@@ -13,9 +13,10 @@
 #
 # Needs Visual Studio Build Tools 2022 (MSVC, a Windows SDK), Swift 6.4 for Windows, and WiX 5 as a .NET tool
 # (`dotnet tool install --global wix --version 5.0.2`; the UI and Util extensions are added here if missing).
-# -SkipBuild packages what was built last.
+# -SkipBuild packages what was built last. Each package gets a product code of its own, so a second one of the same
+# version installs over the first as an upgrade (the install test does that, with -Output).
 
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [string]$Output)
 
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -149,7 +150,7 @@ $licenseRtf = Join-Path $out 'License.rtf'
 
 # ---- 4: the MSI ----
 
-$msi = Join-Path $out "AllInOneIME-$version-x64.msi"
+$msi = if ($Output) { [System.IO.Path]::GetFullPath($Output) } else { Join-Path $out "AllInOneIME-$version-x64.msi" }
 Write-Host "== $msi"
 Run $wix @('build', '-nologo', '-arch', 'x64', '-ext', 'WixToolset.UI.wixext', '-ext', 'WixToolset.Util.wixext',
     '-d', "Version=$version", '-d', "StageDir=$stage", '-d', "TipDir=$tip", '-d', "LicenseRtf=$licenseRtf",
