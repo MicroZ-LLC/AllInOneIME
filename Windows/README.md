@@ -22,11 +22,11 @@ The settings window comes next.
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (38)
+swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (59)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
-and rime-ice's data beside itself when installed, else in `ThirdParty`.
+and rime-ice's data in `ThirdParty` when built here, and beside itself when installed (in Program Files), only there.
 
 The core builds and its tests build here too: `swift build --build-tests` in `../Core`, and `swift test --filter
 AllInOneIMEWireTests` runs the protocol's goldens in process.
@@ -46,7 +46,11 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   the screen), on that monitor at its DPI, in the apps' light or dark theme: the candidates with their numbers (in a
   row, or one under the other with `"candidateLayout": "vertical"`), the highlight, the command list after "@", level
   two's results as they stream in, a hint, an error, the footer with the keys and a notice beside it. It never takes the
-  focus; a click on a row picks it. It hides when the field loses the focus or another app takes the foreground.
+  focus; a click on a row picks it. It hides when the field loses the focus or another app takes the foreground. It is
+  drawn, and its notices shown, only for the app in front (the app whose process owns the foreground window; for a UWP
+  app, the frame around its window), and only inside that app's window: a caret the DLL reports in a window of another
+  process is ignored, one outside the app's window is cut to it (§8: a background or sandboxed app can't put it, with
+  its own text, over another app). Another field's notice never replaces the panel of the field being typed in.
 - **AI (M7).** `@improve`, `@translate`, `@question`, a custom prompt command, a refine (type, then Shift+Enter) go to
   the provider `config.json` names, through the core's `Converter` and providers, the key from the Credential Manager.
   A new install is on AllInOneIME Cloud, the Mac's default for a new user (`Config.fresh`), which needs a sign-in that
@@ -55,10 +59,20 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   against a stand-in for its API), or Bedrock with an AWS profile (`%USERPROFILE%\.aws`; not tried on Windows yet).
 - **The other commands.** Ctrl+C copies a result, Ctrl+V pastes the clipboard into a draft; `@open` opens a web address,
   a path, or what it finds by name in the Start menu and on the Desktop, in Documents and Downloads; a link command opens
-  its page; `@agent` and a `terminal` command start a console window; a custom `run` command runs its program through
-  the core's Windows process launcher (a job object); `@js` runs in QuickJS in a child process of the engine, as script
-  plugins do; `@py` runs Python if `python3` is on the PATH; `@note` saves to a folder of Markdown files or Notion when
-  `config.json` says so. `@settings` opens the folder of `config.json`.
+  its page; `@agent` and a `terminal` command start a console window (below); a custom `run` command runs its program
+  through the core's Windows process launcher (a job object); `@js` runs in QuickJS in a child process of the engine, as
+  script plugins do; `@py` runs Python if `python3` is on the PATH; `@note` saves to a folder of Markdown files or Notion
+  when `config.json` says so. `@settings` opens the folder of `config.json`.
+- **A console window (`@agent`, `@question`'s hand-off, a `terminal` command)** starts the program itself, in the home
+  folder, with no shell in between, so nothing in a prompt is ever run: the program as cmd.exe finds it (on the PATH,
+  PATHEXT's extensions added, never the current folder), a .exe with its arguments quoted for the C runtime, a .bat or
+  .cmd (npm's `claude.cmd`) through cmd.exe with its arguments escaped (BatBadBut), and the agent's prompt its last
+  argument (after `--`). A prompt the command line can't carry (over 32,766 characters, over cmd.exe's 8,191, or with a
+  line break for a batch file) goes in a file in `%TEMP%\AllInOneIME` (`agent-prompt-*.txt`, gone after a day), and the
+  agent is told to read it. The window closes when the program ends.
+- **Off the keys' way.** Opening, the console windows and the clipboard run on a thread of the engine's own (a COM
+  apartment with a message loop, whose message-only window owns what the engine copies), never on a field's queue:
+  a key is answered before they happen (§5.4), and a path on a share that is offline doesn't stop the engine.
 
 ## Settings: a provider and its key
 
@@ -166,6 +180,10 @@ the user to try. The steps that need the desktop run in the user's session as on
 
 Run on 2026-10-18 on this PC (Windows 11 Pro 26200, the user's language list Chinese (Simplified) with Microsoft
 Pinyin, and English (US) with no keyboard), the M5–M7 package: **57 passed, 0 failed, 1 warning** (M4's: 47, 0, 1).
+Run again on 2026-10-19 after the review's fixes (the console window without PowerShell, the system thread, the panel
+for the app in front only, librime from beside the installed engine only): **57 passed, 0 failed, 1 warning**, the
+same warning. The e2e driver's own window put the session's input method on AllInOneIME as it closed, in that run and
+in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Microsoft Pinyin back.
 
 - **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
   20 runtime DLLs, the COM server at the installed path, both profiles and the
@@ -208,8 +226,11 @@ Pinyin, and English (US) with no keyboard), the M5–M7 package: **57 passed, 0 
 
 - **Settings:** `--config FILE` instead of `%APPDATA%\AllInOneIME\config.json`; `--no-keychain`, API keys from the
   environment only (the tests: the user's Credential Manager is neither read nor tied to a stub's address); librime's
-  data (`--rime-data`) and user folder (`--rime-user`: the tests' own, so nothing typed there is learned in the user's);
-  `--no-rime`, Latin letters only; `--no-panel`, no candidate window.
+  data (`--rime-data`, ignored by an installed engine, which takes librime and its data from beside itself only) and
+  user folder (`--rime-user`: the tests' own, so nothing typed there is learned in the user's); `--no-rime`, Latin
+  letters only; `--no-panel`, no candidate window.
+- **The plugins** (`%APPDATA%\AllInOneIME\plugins`) are read again only when their folder changed, and in the
+  background every 30 s (`PluginCatalog`), not at every focus.
 - **Its child processes:** it is also what `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in.
 - **librime and threads:** each client connection has its own queue, and librime is one per process: every call into
   it goes through one lock (a key is a fraction of a millisecond in it).
@@ -220,6 +241,10 @@ Pinyin, and English (US) with no keyboard), the M5–M7 package: **57 passed, 0 
 - **Client check:** a client from another session or another user is refused. Low-integrity and AppContainer
   clients are `untrusted` (§8). Tested with a low-integrity copy of the CLI: it connects, comes out
   `low, untrusted`, and the goldens pass.
+- **The foreground (§8):** what runs, opens, reads the clipboard or sends, from a key, and the candidate window and its
+  notices need the client's process to own the foreground window (its own, or the ApplicationFrameHost frame around one
+  of its windows). The right to take the foreground the client gives the engine (`allowForeground`) goes on to the
+  process the engine starts (started suspended until then) or that opens what `@open` opens, never to any process.
 - **A client that stops reading:** its writes time out after 500 ms and the connection is dropped (tested: about
   0.6 s), so the engine isn't stalled for every app.
 - **Watchdog:** the engine exits when a connection's queue is busy for more than 2 s.

@@ -536,6 +536,11 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
 - **The engine's `app` and `process`** (§4) are the executable's file name in lower case (`win:notepad.exe`; Windows names aren't case-sensitive), or `win:<AUMID>` for packaged apps.
 - **Untrusted clients** (§8, Open question 5): until `Command` has a classification, the engine refuses for untrusted clients, and for a key from a process that doesn't own the foreground, every effect that runs, opens, searches, reads the clipboard, records, keeps or sends. That includes `@question` and `@agent` (`startCommand`). Typing and AI rewriting and translating (`startConversion`, `startRefine`, `startTranslateMode`) are allowed.
 - **Type-out** (§6): `typeOut` is committed in one `commit` for now. The step-by-step `apply` series isn't built.
+- **The panel and the foreground** (§6, §8, the Windows engine): the engine draws its panel and notices only while the
+  client's process owns the foreground window. A caret report places the panel only inside the window its `hwnd` names,
+  if that window is the client's process's (with no `hwnd`, the foreground window, if the client owns it), the
+  rectangle cut to that window; a report naming another process's window is ignored, and the panel goes where the
+  system caret is. A notice for one session never replaces another session's panel.
 
 ### Windows transport (§2)
 
