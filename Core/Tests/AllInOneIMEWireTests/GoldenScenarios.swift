@@ -289,15 +289,13 @@ enum GoldenScenarios {
     static func settings(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: nil, directory: directory, header: [
             "A settings window (§12), Windows' Settings app: the settings as a document, one change at a time, a key and a",
-            "custom command. The test's own config (fixtures/settings.json) and keys in memory. The document and the",
-            "messages are in the interface language: \"$any\" here (the core's tests check them).",
+            "custom command. The test's own config (fixtures/settings.json: in English) and keys in memory. The documents",
+            "and messages are as the engine sends them, but for what is the engine's own (\"$any\"): where its config file",
+            "is, where the jargon list goes by default, the interface languages it ships.",
         ])
         w.shown = { answer in
-            guard answer["type"] == "settings" else { return answer }
-            var shown = answer
-            if answer["document"] != nil { shown = shown.setting("document", to: .any) }
-            if let problem = answer["problem"] { shown = shown.setting("problem", to: problem.setting("message", to: .any)) }
-            return shown
+            guard answer["type"] == "settings", let document = answer["document"] else { return answer }
+            return answer.setting("document", to: enginesOwn(document))
         }
         w.directive("settings fixtures/settings.json")
         w.hello(capabilities: ["settings"])
@@ -334,6 +332,20 @@ enum GoldenScenarios {
         w.hello()
         w.send(["type": "settingsGet"])
         return w.text
+    }
+
+    /// A settings document with what is the engine's own left out ("$any"): the config file's path, the jargon list's
+    /// default path, the interface languages it ships.
+    static func enginesOwn(_ document: JSONValue) -> JSONValue {
+        let own = ["configFile": "value", "jargonFile": "placeholder", "uiLanguage": "choices"]
+        guard case let .array(sections)? = document["sections"] else { return document }
+        return document.setting("sections", to: .array(sections.map { section in
+            guard case let .array(fields)? = section["fields"] else { return section }
+            return section.setting("fields", to: .array(fields.map { field in
+                guard let key = field["id"]?.stringValue.flatMap({ own[$0] }), field[key] != nil else { return field }
+                return field.setting(key, to: .any)
+            }))
+        }))
     }
 
     static func limits(_ directory: URL) throws -> String {

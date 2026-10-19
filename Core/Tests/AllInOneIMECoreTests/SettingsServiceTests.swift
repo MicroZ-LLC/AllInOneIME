@@ -91,6 +91,26 @@ struct SettingsServiceTests {
         #expect(!text.contains("gemini-env-key") && !text.contains("gemini-saved-key"))
     }
 
+    /// Keys, tokens and what a window sends (words to hide, a command's prompt) go to the secret store and the file,
+    /// never into a log line: every message the core logs meanwhile is heard (`CoreLog.listen`).
+    @Test func noKeyInTheLogs() async throws {
+        let heard = Locked<[String]>(initialState: [])
+        let stop = CoreLog.listen { message in heard.withLock { $0.append(message) } }
+        defer { stop() }
+        let (service, _) = try service(#"{"provider": "openai", "notes": {"destination": "notion"}, "redaction": {"enabled": true}}"#)
+        let sent = ["sk-test-log-openai-0000-q1w2", "ntn_test_log_token_0000_t5y6", "Log-Secret-Word", "Log secret prompt"]
+        for (field, key) in [("openai.key", sent[0]), ("notes.notionToken", sent[1])] {
+            #expect((try? await service.perform(SettingsAction(field: field, name: "setKey", key: key)).get()) != nil)
+            #expect((try? await service.perform(SettingsAction(field: field, name: "removeKey")).get()) != nil)
+        }
+        #expect((try? service.set("redaction.customWords", to: .array([.string(sent[2])])).get()) != nil)
+        let command: [String: AIConfig.JSONValue] = ["name": .string("secretive"), "type": .string("prompt"), "prompt": .string(sent[3])]
+        #expect((try? await service.perform(SettingsAction(field: "commands.custom", name: "save", value: .object(command))).get()) != nil)
+        let log = heard.withLock { $0 }
+        #expect(log.contains { $0.contains("key saved: openai") })  // heard, and named
+        for text in sent { #expect(!log.contains { $0.contains(text) }, "\(text) logged") }
+    }
+
     // MARK: Changes
 
     /// One change, checked against its field, saved key by key; the revision moves and `changed` hears it.

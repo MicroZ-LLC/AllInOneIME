@@ -726,8 +726,10 @@ given and sends back what the user did. It opens no sessions.
   queue (§12.7), `checkSettings` (the file checked on that queue), and `useTestSettings` (`#! settings`, test mode).
 - **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
   checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it).
-- **Golden:** `settings.jsonl` (its documents and messages `"$any"`: they are in the interface language; the core's
-  `SettingsServiceTests` check them).
+- **Golden:** `settings.jsonl`, its documents and messages as the engine sends them (its config says English), but for
+  what is the engine's own (`"$any"`): the config file's path, the jargon list's default path, the interface languages
+  it ships. The document is in the language the settings say (`uiLanguage`, else the system's), whatever the
+  engine's process speaks.
 
 ---
 

@@ -115,6 +115,56 @@ struct WireSettingsTests {
         #expect(settings.document?.field("anthropic.key")?.status?.hasSuffix("z9y8") == true)
     }
 
+    /// The engine's log has the field and the action, never a key, a value or a link sent (§12.8).
+    @Test func noKeyInTheWiresLog() throws {
+        let lines = Locked<[String]>(initialState: [])
+        let engine = TestEngine(log: { line in lines.withLock { $0.append(line) } })
+        #expect(engine.server.useTestSettings(config: #"{"provider": "anthropic", "notes": {"destination": "notion"}, "redaction": {"enabled": true}}"#))
+        let id = try #require(engine.server.connect(.trustedClient))
+        _ = engine.send(ClientFrame(id: 1, .hello(Hello(client: "settings/test", capabilities: [Hello.settings]))), on: id)
+        let sent = ["sk-test-wire-log-0000-u7i8", "Wire-Log-Secret-Word", "wire-log-secret-page"]
+        _ = engine.send(ClientFrame(id: 2, .settingsAction(SettingsAction(field: "anthropic.key", name: "setKey", key: sent[0]))), on: id)
+        _ = engine.send(ClientFrame(id: 3, .settingsSet(field: "redaction.customWords", value: .array([.string(sent[1])]))), on: id)
+        let link = AIConfig.JSONValue.string("https://www.notion.so/\(sent[2])-0123456789abcdef0123456789abcdef")
+        _ = engine.send(ClientFrame(id: 4, .settingsAction(SettingsAction(field: "notes.notion", name: "test", value: link))), on: id)
+        let log = lines.withLock { $0 }
+        #expect(log.contains { $0.hasSuffix("settingsAction setKey on anthropic.key") } && log.contains { $0.hasSuffix("settingsSet redaction.customWords") })
+        for text in sent { #expect(!log.contains { $0.contains(text) }, "\(text) logged") }
+    }
+
+    /// The settings as the engine makes them (no secret store of their own, keys looked up as `APIKeys.source` does,
+    /// in the platform's store: in memory here, with no login environment), over the wire: a key saved shows its last 4,
+    /// removed it is gone, and it never comes back.
+    @Test func theEnginesConfiguration() throws {
+        var platform = Platform.current
+        platform.secrets = .inMemory()
+        platform.processes = NoProcessLauncher()
+        try Platform.$override.withValue(platform) {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("wire-engine-settings-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let url = folder.appendingPathComponent("config.json")
+            try Data(#"{"provider": "anthropic", "uiLanguage": "en"}"#.utf8).write(to: url)
+            let engine = TestEngine()
+            engine.server.settings = SettingsService(store: SettingsStore(configURL: url), platform: .windows,
+                                                     library: PluginLibrary(directory: folder.appendingPathComponent("plugins")))
+            let id = try #require(engine.server.connect(.trustedClient))
+            _ = engine.send(ClientFrame(id: 1, .hello(Hello(client: "settings/test", capabilities: [Hello.settings]))), on: id)
+            func key(after frame: ClientFrame) throws -> SettingsDocument.Field? {
+                let answers = engine.send(try WireJSON.encode(frame), on: id)
+                #expect(!answers.contains { String(decoding: $0, as: UTF8.self).contains("engine-config") })
+                guard case let .settings(_, answer)? = try answers.first.map({ try WireJSON.decode(EngineFrame.self, from: $0).message }) else { return nil }
+                return answer.document?.field("anthropic.key")
+            }
+            let saved = try key(after: ClientFrame(id: 2, .settingsAction(SettingsAction(field: "anthropic.key", name: "setKey",
+                                                                                         key: "sk-test-engine-config-a1b2"))))
+            #expect(saved?.isSet == true && saved?.status == "✓ Saved · ends in a1b2" && saved?.actions == ["setKey", "removeKey"])
+            #expect(APIKeys.keyEnding(account: "anthropic") == "a1b2")
+            let removed = try key(after: ClientFrame(id: 3, .settingsAction(SettingsAction(field: "anthropic.key", name: "removeKey"))))
+            #expect(removed?.isSet == false && !APIKeys.hasKeychainKey(account: "anthropic"))
+        }
+    }
+
     /// Every client that has the settings hears of a change, the one that made it too (after its answer).
     @Test func everySettingsClientIsTold() throws {
         let (engine, first, _) = engine()

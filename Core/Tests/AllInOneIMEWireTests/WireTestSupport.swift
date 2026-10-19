@@ -114,7 +114,7 @@ final class TestEngine: @unchecked Sendable {
     static let enginePid: UInt32 = 3100
 
     init(fixture: ScriptedProvider.Fixture? = nil, inputLanguage: Language = .english,
-         configure: (inout WireServer.Configuration) -> Void = { _ in }) {
+         configure: (inout WireServer.Configuration) -> Void = { _ in }, log: @escaping @Sendable (String) -> Void = { _ in }) {
         var configuration = WireServer.Configuration()
         configuration.enginePid = Self.enginePid
         configuration.engineVersion = "test"
@@ -127,7 +127,8 @@ final class TestEngine: @unchecked Sendable {
                 let composer = Composer(engine: LatinEngine())
                 composer.setInputMode(inputLanguage)
                 return composer
-            })
+            },
+            log: log)
         server = WireServer(configuration: configuration, environment: environment)
         queuesBox.owner = self
         if let fixture { host.provider = ScriptedProvider(fixture: fixture, clock: clock) }
