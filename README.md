@@ -451,7 +451,7 @@ so, with a button that opens that pane.
 | Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync; your own Rime files, such as custom phrases, stay on the Mac) | on |
 | Hidden words | the words you hide from the AI ("iCloud Drive is end-to-end encrypted only with Advanced Data Protection") | off |
 | Recent questions | `@question`'s recent questions and answers (while "Remember recent questions" is on) | off |
-| API keys and passwords | your API keys and extensions' passwords, through iCloud Keychain, which is always end-to-end encrypted (needs Passwords & Keychain on in System Settings → Apple Account → iCloud) | on |
+| API keys and passwords | your API keys and extensions' passwords, through iCloud Keychain, which is always end-to-end encrypted (needs Passwords & Keychain on in System Settings → Apple Account → iCloud) | off |
 
 `iCloud Drive/AllInOneIME/settings.json` holds each setting with when it changed and on which Mac (a random id), and per
 setting the newest change wins: a list (your custom commands, the rewrite styles) is one value, per-app settings go app
@@ -477,7 +477,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
   aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
 - API keys and passwords go through iCloud Keychain, not iCloud Drive: with "API keys and passwords" on (while sync is
-  on), a key saved or replaced on one Mac is there on the others. Turning it on moves this Mac's keys from the login
+  on), a key saved or replaced on one Mac is there on the others. It's off by default: turning on sync alone moves no
+  key, and nothing moves until you turn the row on. Turning it on moves this Mac's keys from the login
   keychain into iCloud Keychain (macOS then no longer asks for your login password for them after an update); turning
   it off copies them back into the login keychain and leaves them in iCloud Keychain for your other Macs. Keys that don't
   sync stay in the login keychain, as before, and so does the AllInOneIME Cloud sign-in, which never syncs: each Mac
@@ -486,8 +487,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   API key", its name ending in "(replaced)"), which is never used. A key that moves into iCloud Keychain keeps one too,
   in case another Mac's different key arrives over it. There is one replaced copy per key on each Mac: a later one
   replaces it. Removing a key while it syncs removes it on every Mac that syncs keys (the question says "all your Macs"),
-  and this Mac's replaced copy; a Mac with "API keys and passwords" off keeps its own copy, and puts it back if it's
-  turned on there again. On a Mac with it off, Remove… removes the key and its replaced copy from that Mac only (the
+  and this Mac's replaced copy; a Mac with "API keys and passwords" off, or one still on 0.6.4, keeps its own copy, and
+  puts it back if key sync is turned on there later (the question says so too). On a Mac with it off, Remove… removes the key and its replaced copy from that Mac only (the
   question says "this Mac"), and the copy in iCloud Keychain stays for your other Macs. A key that macOS wouldn't let
   AllInOneIME read without your login password when it was to move stays in the login keychain until it's next used:
   if macOS then asks and you allow it, it's used again, even if it was removed on another Mac. Each key still goes only
