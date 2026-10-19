@@ -24,6 +24,12 @@ a list, a search as typed, recipients, the script's run) is one at a time: a new
 the older one still sends is dropped. Timers are outputs too (`startTimer`): the shell calls back with
 `SessionEvent.timer` when they're due; a newer one of a kind makes the older one's firing do nothing.
 
+Still the process's, not a session's: the interface language the session sets from the settings (`UIText.choice`),
+which it hands its panel (`UIText.language`) and its messages; a change of it is told on the main thread
+(`.allInOneIMEInterfaceLanguageChanged`, posted on the main queue when another thread made it), where a panel on screen
+all along draws. Where `@note` saves and the agent `@agent` hands to, by name (`UIText.noteDestinationName`,
+`UIText.agentName`), too.
+
 ## What the field says
 
 The core never asks the field in the middle of a key: each key carries a `FieldContext` the shell read before handing
@@ -44,12 +50,47 @@ it is given and pastes on ⌘V itself), whether it's a password field.
 | `commit`, `commitAfterKey`, `replace` | `insertText` (a terminal gets text with line breaks as a paste); after the key; by range |
 | `marked` | `setMarkedText`, and its watch for apps that take it on their own |
 | `typeOut`, `moveCaret` | typed out like a person (`TypeOut.Typist`), the caret back into a snippet |
-| `panel`, `notice`, `noticeElsewhere` | the candidate panel at the caret; a notice on its own; in the field typed in now, else at the pointer |
+| `panel`, `notice`, `noticeElsewhere` | the candidate panel at the caret (`PanelModel`, below); a notice on its own; in the field typed in now, else at the pointer |
 | `open`, `openAgent`, `openSettings`, `copy` | NSWorkspace, Terminal, the settings window, the pasteboard |
 | `readClipboard` | read once the key is answered, never during secure input: `SessionEvent.clipboard` |
 | `keyboardLayout` | the input language's layout told to the field |
 | `startTimer` | `DispatchQueue.main.asyncAfter`, then `SessionEvent.timer` |
 | `platform(.startVoice …)` | dictation (macOS 26's speech recognition), `SessionEvent.voice` as it hears |
+
+## The candidate panel
+
+The `panel` output (and `InputSession.panelModel()`) is a `PanelModel` (`Session/PanelModel.swift`), which
+`PanelPresenter` makes of the composer in the interface language and with the key names it is given:
+`PanelPresenter(config:language:terms:…)`, the session handing it `UIText.language` (set from the settings) and
+`Platform.current.terms`. Neither it nor `SessionText` reads the process's language: two sessions can show theirs in
+two. What is structure is data, for each shell to lay out and draw its own way:
+
+| Field | What it is | The Mac draws it |
+|---|---|---|
+| `chip` | Translate as You Type's chip: the language typed and the one it goes into, each a part to click | a pill on top |
+| `handoff` | where an `@question` conversation can go on: a `title`, and `choices`, each a `shortcut` ("⌘1", "Ctrl+1") and a `name` | lines of text, four choices a line (three when there are more) |
+| `input` | the line of input: a `prompt` ("refine › "), the `text`, the `caret` in characters into it (nil: none, the command sent) | one line, "▏" at the caret |
+| `header` | lines above the rows, each its own: the selection, what the draft has attached (two for a screenshot), the refinements | one under the other, small |
+| `rows` | `label`, `text`, `comment`, `kind` (candidate, original, translation), `isComplete`, `icon`, `pickable`, `choice` | a column, or side by side (`horizontal`) |
+| `highlighted`, `transcript` | the row picked; the rows are a conversation (no taller than half the screen, scrolled to the last) | |
+| `status` | `none`, `loading`, `hint`, `list` (a hint and its items), `error` | under the rows; a list's items after "· " |
+| `footer`, `detail` | what the keys do; on its right the page, the time a result took, a notice | |
+
+A click on a row: the shell sends `.pick` with the row's index, and the session picks its `choice` (what
+`Composer.choose(index:)` takes: the row's own index, a conversation's answer by its round, none for its question).
+
+An icon (`IconToken`) is a `color` and one `glyph`: `.builtin`, one of the core's own icons named for what it stands
+for (`IconToken.Builtin`: its names are the list a shell maps to its icon set; `appleSymbol` is each one's SF Symbol),
+or a symbol in SF Symbols' vocabulary (a custom command's, a plugin's, a script extension's own), an emoji or an image
+file (a script extension's), each with the built-in it falls back to (`fallback`) where the platform has no such symbol
+or can't read the image.
+
+The keys and places the text names are the platform's (`Platform.terms`, `PlatformTerms`): `.mac` writes ⌘C, ⌃V, ⌘R,
+⌘1–⌘3, right ⌥, "Tap ⌥", ⌥Space, "this Mac", Terminal and calls `.app` bundles apps; `.windows` Ctrl+C, Ctrl+V, Ctrl+R,
+Ctrl+1–3, right Ctrl, "Tap Ctrl", Ctrl+Space, "this PC", a terminal and the Start menu's `.lnk` and `.exe` files.
+Return, ⇧Return, ⌫, Esc, Tab and the arrows are written the same everywhere. The keys follow `ModifierRoles`, which the
+shell sets on the composer too. Text outside the panel and the composer's messages still names the Mac: the settings',
+`@doctor`'s and some errors' ("no key for it on this Mac", "Run `aws sso login` in Terminal").
 
 ## Services
 
@@ -71,7 +112,10 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
 1. **Merge the branch** and settle the names it shares with this one: the core now has `PanelModel` and
    `PanelPresenter` (step 6: the engine's `AllInOneIMEEngineKit/PanelModel.swift` and its `PanelBuilder` give way to
    them, its drawing protocol is renamed, say `PanelWindow`), and `FieldInfo` and `FieldContext` (the wire's, in
-   `AllInOneIMEWire/WireMessages.swift`, become `WireField` and `WireContext`, or are converted at the edge).
+   `AllInOneIMEWire/WireMessages.swift`, become `WireField` and `WireContext`, or are converted at the edge). The
+   engine's builder took `chinese: Bool`; the presenter takes the interface language's code (`EngineSettings`'
+   `uiLanguage`, as `InterfaceLanguage` picks it) and `PlatformTerms.windows` (the default there,
+   `Platform.systemTerms`), and the composer's `modifierRoles` are `.windows`.
 2. **`ComposerSession` wraps an `InputSession`** and loses its own policy (the secure check, `MarkedTextWatch`, the
    selection-moved check, `applyIdentity`):
    - `keyDown` → `.key(event, context)`, the context from the frame's `ctx` with `read: .all`: `secure` = the field's,
@@ -102,6 +146,19 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
    `pastesInTerminal` false, `keyTranslator` nil (the DLL sends the dead key's text). Its `startConversion`, `consume`,
    `startScript`, `scriptEnvironment`, `oneLine` and `errorKind` go: they are `SessionTasks`'. Test mode's
    `ScriptedProvider` answers through a `converter` and `runProgram` of its own.
-4. **Its tests**: the wire goldens (`AllInOneIMEWireTests`) and the engine's (`AllInOneIMEEngineTests`) run on Windows
+4. **The candidate window** (`CandidateWindow.swift`, `CAllInOneIMEPanel`) draws the core's `PanelModel`. Its flat copy,
+   `AioPanelModel`, has strings for `input` and `header` and no icons; for the core's model it needs:
+   - `input` as its prompt, text and caret (`inputPrompt`, `inputText`, `inputCaret` in UTF-16, from the caret in
+     characters), the caret drawn where DirectWrite puts that position (`HitTestTextPosition`), not a "▏" in the text;
+   - `header` as its lines (joined with line breaks, or an array);
+   - `handoff`: its title and each choice's shortcut and name, drawn as chips that wrap;
+   - `Status.list`: a kind of its own (`AIO_STATUS_LIST`) and its items, drawn as a list;
+   - a row's `icon`: the glyph's kind, the built-in's name (mapped to Segoe Fluent Icons), a symbol's name (the ones
+     it knows mapped, the others drawn as `fallback`), an emoji (Segoe UI Emoji), an image's path (read with WIC, else
+     `fallback`), and the color; a row's `choice` needs nothing there, the click's row index goes to `.pick` as it is;
+   - `transcript`: no taller than half the monitor, the rows scrolled to the last one (or the highlighted one above);
+   - the footers' symbols (⏎ ⇧ ⌫ ↑↓ › – ✓ ⚠︎) come from DirectWrite's font fallback (Segoe UI Symbol). `chip` stays
+     empty: Translate as You Type is the Mac shell's.
+5. **Its tests**: the wire goldens (`AllInOneIMEWireTests`) and the engine's (`AllInOneIMEEngineTests`) run on Windows
    against the session; where an output's order changes (a panel shown, then hidden, in one answer), the golden is the
    spec, not the code.
