@@ -60,11 +60,19 @@ caught "a C library after its guard closed" '#if canImport(Glibc)\n#endif\nimpor
 caught "WinSDK unguarded" 'import WinSDK\n'
 caught "WinSDK under Linux's guard" '#if os(Linux)\nimport WinSDK\n#endif\n'
 caught "ucrt under Darwin's guard" '#if canImport(Darwin)\nimport ucrt\n#endif\n'
+# A guard that the branch can be taken without.
+caught "a C library under a negated guard in parentheses" '#if !(canImport(Glibc))\nimport Glibc\n#endif\n'
+caught "a C library under its os(...) negated in parentheses" '#if !(os(Linux))\nimport Glibc\n#endif\n'
+caught "a C library under its guard || another system's" '#if canImport(Glibc) || os(Windows)\nimport Glibc\n#endif\n'
+caught "a C library under its guard || true" '#if canImport(WinSDK) || true\nimport WinSDK\n#endif\n'
+caught "a C library under a negated group with its guard" '#if !(os(macOS) || canImport(Glibc))\nimport Glibc\n#endif\n'
 
 # The package's own modules that are the core's on some systems only: under their guard too.
 caught "AllInOneIMEQuickJS unguarded" 'import AllInOneIMEQuickJS\n'
 caught "AllInOneIMEQuickJS under a negated guard" '#if !canImport(AllInOneIMEQuickJS)\nimport AllInOneIMEQuickJS\n#endif\n'
 caught "AllInOneIMEQuickJS under Darwin's guard" '#if canImport(Darwin)\nimport AllInOneIMEQuickJS\n#endif\n'
+caught "AllInOneIMEQuickJS under a negated guard in parentheses" '#if !(canImport(AllInOneIMEQuickJS))\nimport AllInOneIMEQuickJS\n#endif\n'
+caught "AllInOneIMEQuickJS under its guard || another" '#if canImport(AllInOneIMEQuickJS) || canImport(Darwin)\nimport AllInOneIMEQuickJS\n#endif\n'
 
 # MARK: - Programs
 
@@ -99,6 +107,30 @@ fresh
 printf '#if os(Windows)\nimport WinSDK\nfunc f() { _ = CreateProcessW(nil, nil, nil, nil, false, 0, nil, nil, nil, nil) }\n#endif\n' \
     | put Platform/Windows/WindowsPrograms.swift
 expect fail "CreateProcessW( in Platform/Windows/ (not the launcher)"
+# Each launcher its own way only: Foundation's Process, Windows' CreateProcessW.
+fresh
+printf 'import Foundation\nlet p = Process()\nposix_spawn(&pid, path, nil, nil, argv, envp)\n' | put Platform/FoundationProcessLauncher.swift
+expect fail "posix_spawn( in the Foundation launcher (Process only)"
+fresh
+printf 'import Foundation\nlet p = Process()\nlet f = popen("ls", "r")\n' | put Platform/FoundationProcessLauncher.swift
+expect fail "popen( in the Foundation launcher (Process only)"
+fresh
+printf 'let p = Process()\n_ = CreateProcessW(nil, line, nil, nil, false, 0, nil, nil, &startup, &info)\n' \
+    | put Platform/FoundationProcessLauncher.swift
+expect fail "CreateProcessW( in the Foundation launcher"
+fresh
+printf '#if os(Windows)\nfunc f() { _ = CreateProcessW(nil, nil, nil, nil, false, 0, nil, nil, nil, nil); _ = CreateProcessAsUserW(t, nil, l, nil, nil, false, 0, nil, nil, &s, &i) }\n#endif\n' \
+    | put Platform/Windows/WindowsProcessLauncher.swift
+expect fail "CreateProcessAsUserW( in the Windows launcher (CreateProcessW only)"
+fresh
+printf '#if os(Windows)\nfunc f() { _ = ShellExecuteW(nil, verb, file, nil, nil, 1) }\n#endif\n' | put Platform/Windows/WindowsProcessLauncher.swift
+expect fail "ShellExecuteW( in the Windows launcher"
+fresh
+printf '#if os(Windows)\nimport Foundation\nlet p = Process()\n#endif\n' | put Platform/Windows/WindowsProcessLauncher.swift
+expect fail "Process() in the Windows launcher"
+fresh
+printf '#if os(Windows)\nfunc f() { _ = _wspawnv(0, path, argv) }\n#endif\n' | put Platform/Windows/WindowsProcessLauncher.swift
+expect fail "_wspawnv( in the Windows launcher"
 
 # MARK: - Platform/Apple/ wholly guarded
 
@@ -121,6 +153,18 @@ expect fail "Platform/Apple/: under a negated canImport"
 fresh
 printf '#if canImport(os)\nimport Foundation\n#endif\nlet s = """\n  text\n  """\n' | put Platform/Apple/String.swift
 expect fail "Platform/Apple/: a multi-line string after the block"
+fresh
+printf '#if !(canImport(Security))\nfunc leaked() {}\n#endif\n' | put Platform/Apple/NegatedInParentheses.swift
+expect fail "Platform/Apple/: under a negated canImport in parentheses"
+fresh
+printf '#if !(os(Linux) || canImport(Security))\nfunc leaked() {}\n#endif\n' | put Platform/Apple/NegatedGroup.swift
+expect fail "Platform/Apple/: canImport in a negated group"
+fresh
+printf '#if canImport(Security) || os(Linux)\nfunc leaked() {}\n#endif\n' | put Platform/Apple/Or.swift
+expect fail "Platform/Apple/: under canImport(...) || os(...)"
+fresh
+printf '#if canImport(AppKit) || true\nimport AppKit\n#endif\n' | put Platform/Apple/OrTrue.swift
+expect fail "Platform/Apple/: an import under canImport(...) || true"
 
 # MARK: - Platform/Windows/ wholly guarded
 
@@ -136,6 +180,18 @@ expect fail "Platform/Windows/: code in the #else"
 fresh
 printf '#if !os(Windows)\nfunc leaked() {}\n#endif\n' | put Platform/Windows/Negated.swift
 expect fail "Platform/Windows/: under a negated os(Windows)"
+fresh
+printf '#if !(os(Windows))\nfunc leaked() {}\n#endif\n' | put Platform/Windows/NegatedInParentheses.swift
+expect fail "Platform/Windows/: under a negated os(Windows) in parentheses"
+fresh
+printf '#if !(os(Linux) || os(Windows))\nfunc leaked() {}\n#endif\n' | put Platform/Windows/NegatedGroup.swift
+expect fail "Platform/Windows/: os(Windows) in a negated group"
+fresh
+printf '#if os(Windows) || os(Linux)\nfunc leaked() {}\n#endif\n' | put Platform/Windows/Or.swift
+expect fail "Platform/Windows/: under os(Windows) || os(Linux)"
+fresh
+printf '#if (os(Windows) && DEBUG) || true\nfunc leaked() {}\n#endif\n' | put Platform/Windows/OrTrue.swift
+expect fail "Platform/Windows/: an && form || true"
 
 # MARK: - What passes
 
@@ -196,6 +252,20 @@ import AllInOneIMEQuickJS
 import AllInOneIMEQuickJS
 #endif
 EOF
+allowed "guards in parentheses, in a && or in each alternative" <<'EOF'
+#if (canImport(Glibc))
+import Glibc
+#endif
+#if canImport(WinSDK) && !os(Linux)
+import WinSDK
+#endif
+#if (os(macOS) || os(iOS)) && DEBUG
+import Darwin
+#endif
+#if os(Linux) || os(Windows) || os(Android)
+import AllInOneIMEQuickJS
+#endif
+EOF
 fresh
 put Prompt.swift <<'EOF'
 enum Prompt {
@@ -209,8 +279,13 @@ extension Prompt {
 EOF
 expect pass "the core's own system(...)"
 fresh
-printf 'import Foundation\nlet p = Process()\nposix_spawn(nil, nil, nil, nil, nil, nil)\n' | put Platform/FoundationProcessLauncher.swift
-expect pass "programs started in the ProcessLauncher"
+put Platform/FoundationProcessLauncher.swift <<'EOF'
+import Foundation
+let p = Process()
+let q: Process = .init()
+try Process.run(url, arguments: []) { _ in }
+EOF
+expect pass "programs started in the Foundation ProcessLauncher, with Process"
 fresh
 put Platform/Windows/WindowsProcessLauncher.swift <<'EOF'
 // What this file is.
@@ -222,6 +297,29 @@ func start() { _ = CreateProcessW(nil, nil, nil, nil, false, 0, nil, nil, nil, n
 #endif
 EOF
 expect pass "programs started in the Windows ProcessLauncher, wholly under os(Windows)"
+fresh
+put Platform/Windows/Conjunction.swift <<'EOF'
+#if os(Windows) && arch(x86_64)
+func kept() {}
+#endif
+#if (os(Windows))
+func alsoKept() {}
+#endif
+#if os(Windows) && (DEBUG || TESTING)
+func keptToo() {}
+#endif
+EOF
+expect pass "Platform/Windows/: os(Windows) in parentheses or in a &&"
+fresh
+put Platform/Apple/Forms.swift <<'EOF'
+#if canImport(Security) && os(macOS)
+import Security
+#endif
+#if canImport(AppKit) || canImport(UIKit)
+func kept() {}
+#endif
+EOF
+expect pass "Platform/Apple/: canImport in a &&, or in each alternative"
 fresh
 put Platform/Apple/Wrapped.swift <<'EOF'
 // What this file is.
