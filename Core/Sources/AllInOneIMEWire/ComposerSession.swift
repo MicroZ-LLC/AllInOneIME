@@ -16,12 +16,16 @@ public protocol WireHost: AnyObject, Sendable {
     func ownsForeground(_ peer: WirePeer) -> Bool
     /// The session is gone (closed, or its connection): stop what runs for it.
     func sessionClosed(_ session: ComposerSession)
+    /// The session took the focus (not a `focus` re-sent while it has it): the Mac's `activateServer`, where the shell
+    /// applies its settings to the Composer (and gives it its level-one engine once that is ready).
+    func sessionFocused(_ session: ComposerSession)
 }
 
 extension WireHost {
     public func caretMoved(in session: ComposerSession) {}
     public func ownsForeground(_ peer: WirePeer) -> Bool { true }
     public func sessionClosed(_ session: ComposerSession) {}
+    public func sessionFocused(_ session: ComposerSession) {}
 }
 
 /// Who is at the other end of a connection (§2.1, §8), as the transport found out on connect.
@@ -129,14 +133,15 @@ public final class ComposerSession: @unchecked Sendable {
             // A field that turned into a password field: what is pending goes in as typed, as the Mac does.
             if newField.secure, !wasSecure, isFocused, composer.isComposing { outputs = map(composer.commitAsTyped(), from: .async) }
         }
+        focusSerial = serial
         if !isFocused {
             isFocused = true
             documentComposition = Self.noComposition
             markedWatch.reset()
             secureNoticeShown = false
             context = nil
+            host.sessionFocused(self)
         }
-        focusSerial = serial
         return outputs
     }
 
