@@ -126,17 +126,12 @@ final class CandidatePanel: NSPanel {
     }
 }
 
-/// Draws the candidate list. Layout is computed when the model changes; drawing is appearance-aware.
+/// Draws the candidate list. Layout is computed when the model changes; drawing is appearance-aware. Its model is the
+/// core's `PanelModel` (`Model.init(_:)`), with the icons as the Mac draws them.
 final class CandidateView: NSView {
     struct Row: Equatable {
-        enum Style: Equatable {
-            /// Level-one pinyin candidate.
-            case candidate
-            /// The sentence as typed (level two, row 0).
-            case original
-            /// A version or rewrite from the model (level two).
-            case translation
-        }
+        /// Level-one pinyin candidate, the sentence as typed (level two, row 0), or a version or rewrite from the model.
+        typealias Style = PanelModel.Row.Kind
 
         var label: String
         var text: String
@@ -159,22 +154,11 @@ final class CandidateView: NSView {
         var image: String? = nil
     }
 
-    enum Status: Equatable {
-        case none
-        case loading(String)
-        case hint(String)
-        case error(String)
-    }
+    typealias Status = PanelModel.Status
 
     /// Translate as You Type's chip (「中 → 英」): the language typed and the one it translates into, each a part to click.
-    struct Chip: Equatable {
-        var source: String
-        var target: String
-    }
-
-    enum ChipPart: Equatable {
-        case source, target
-    }
+    typealias Chip = PanelModel.Chip
+    typealias ChipPart = PanelModel.ChipPart
 
     struct Model: Equatable {
         var rows: [Row] = []
@@ -752,6 +736,22 @@ final class CandidateView: NSView {
     }
 }
 
+
+extension CandidateView.Model {
+    /// The core's panel, as this view draws it.
+    init(_ panel: PanelModel) {
+        self.init(rows: panel.rows.map(CandidateView.Row.init), highlighted: panel.highlighted, status: panel.status,
+                  input: panel.input, header: panel.header, footer: panel.footer, detail: panel.detail,
+                  horizontal: panel.horizontal, transcript: panel.transcript, chip: panel.chip)
+    }
+}
+
+extension CandidateView.Row {
+    init(_ row: PanelModel.Row) {
+        self.init(label: row.label, text: row.text, comment: row.comment, style: row.kind, isComplete: row.isComplete,
+                  icon: row.icon.map(CandidateView.Icon.init), pickable: row.pickable)
+    }
+}
 
 private extension NSImage {
     func with(_ change: (NSImage) -> Void) -> NSImage {

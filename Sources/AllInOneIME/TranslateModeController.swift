@@ -66,15 +66,6 @@ enum TranslateModeShared {
     }
 }
 
-extension TranslateMode.Chip {
-    /// As the panel draws it: 「中 → 英」 in the Chinese interface (「中 → 韓」 in Traditional Chinese), the language codes
-    /// ("ZH → EN") in the others.
-    var panel: CandidateView.Chip {
-        UIText.chinese ? CandidateView.Chip(source: UIText.chineseOnly(sourceText), target: UIText.chineseOnly(targetText))
-            : CandidateView.Chip(source: sourceTag, target: targetTag)
-    }
-}
-
 extension AllInOneIMEInputController {
     /// The app of the field being typed in.
     private var modeApp: String? { (clientOverride ?? client())?.bundleIdentifier() }
@@ -301,12 +292,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func showTranslateChip(_ client: IMKTextInput?) -> Bool {
         guard let client, let chip = translateChip() else { return false }
-        var model = CandidateView.Model()
-        model.chip = chip.panel
-        model.rows = (chip.choices ?? []).map {
-            CandidateView.Row(label: chip.checks($0) ? "✓" : "", text: UIText.name($0), style: .candidate)
-        }
-        if let notice { model.status = .hint(notice) }
+        let model = CandidateView.Model(PanelPresenter.chipModel(chip, notice: notice))
         let panel = CandidatePanel.shared
         panel.owner = self
         panel.onSelect = { [weak self] index in self?.pickTranslateTarget(row: index) }

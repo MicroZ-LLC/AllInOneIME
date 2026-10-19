@@ -75,26 +75,16 @@ struct PrivacySection: View {
     }
 }
 
-/// What the candidate panel says when values were hidden from the AI: one quiet line beside the time, and a row
-/// whose placeholder the model changed past telling (`Redaction.isAltered`) marked, its text as the model wrote it.
+/// What the candidate panel says when values were hidden from the AI (`PanelRedaction`, the core's), for a panel model of
+/// this shell's own.
 enum RedactionPanel {
-    static func hiddenLine(_ count: Int) -> String {
-        count == 1 ? tr("已对 AI 隐藏 1 项", "1 item hidden from the AI") : tr("已对 AI 隐藏 \(count) 项", "\(count) items hidden from the AI")
-    }
+    static func hiddenLine(_ count: Int) -> String { PanelRedaction.hiddenLine(count) }
 
-    static let changed = tr("⚠ 占位符被改动", "⚠ placeholder changed")
+    static var changed: String { PanelRedaction.changed }
 
     static func annotate(_ model: inout CandidateView.Model, choices: [Composer.Choice], hidden: Int, phase: Composer.Phase) {
-        guard hidden > 0 else { return }
-        switch phase {
-        case .translating, .choosing: break
-        default: return
-        }
-        let original = choices.first { $0.kind == .original }?.text ?? ""
-        for (index, choice) in choices.enumerated() where model.rows.indices.contains(index) && choice.kind != .original
-            && choice.isComplete && Redaction.isAltered(choice.text, original: original) {
-            model.rows[index].comment = model.rows[index].comment.isEmpty ? changed : model.rows[index].comment + " · " + changed
-        }
-        model.detail = [hiddenLine(hidden), model.detail].compactMap { $0 }.joined(separator: " · ")
+        var comments = model.rows.map(\.comment)
+        PanelRedaction.annotate(comments: &comments, detail: &model.detail, choices: choices, hidden: hidden, phase: phase)
+        for index in model.rows.indices { model.rows[index].comment = comments[index] }
     }
 }
