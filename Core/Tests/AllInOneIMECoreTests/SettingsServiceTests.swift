@@ -4,8 +4,10 @@ import Testing
 
 /// The settings as a settings window in another process sees them (`SettingsService`, Windows' Settings app over the
 /// wire): a document of sections and fields made for one platform, one change at a time checked against its field, and
-/// the actions. A config file of its own for each test, keys only in an in-memory store.
-@Suite(.serialized)
+/// the actions. A config file of its own for each test; keys only in an in-memory store and no login environment
+/// (`MemorySecrets`), so that the service is as an engine makes it (no secret store of its own, keys looked up as
+/// `APIKeys.source` does) and still never reads the user's keychain or shell.
+@Suite(.serialized, MemorySecrets())
 struct SettingsServiceTests {
     func service(_ text: String = "{}", platform: SettingsPlatform = .windows) throws -> (SettingsService, URL) {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("settings-service-\(UUID().uuidString)", isDirectory: true)
@@ -14,15 +16,7 @@ struct SettingsServiceTests {
         try Data(text.utf8).write(to: url)
         // The plugins in the test's own folder: the user's are never read.
         let library = PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true))
-        let service = SettingsService(store: SettingsStore(configURL: url), platform: platform, library: library)
-        service.keySource = { APIKeys.hasKeychainKey(account: $0.rawValue) ? .keychain : .none }
-        return (service, url)
-    }
-
-    func withMemorySecrets<T>(_ body: () async throws -> T) async rethrows -> T {
-        var platform = Platform.current
-        platform.secrets = .inMemory()
-        return try await Platform.$override.withValue(platform) { try await body() }
+        return (SettingsService(store: SettingsStore(configURL: url), platform: platform, library: library), url)
     }
 
     func ids(_ document: SettingsDocument) -> Set<String> { Set(document.sections.flatMap { $0.fields.map(\.id) }) }
@@ -49,7 +43,7 @@ struct SettingsServiceTests {
 
     /// A provider's own fields only while it is the one in use; the key as a secret: never its value.
     @Test func theProviderInUse() async throws {
-        try await withMemorySecrets {
+        do {
             let (service, _) = try service(#"{"provider": "openai", "openai": {"model": "deepseek-chat"}}"#)
             var document = service.document()
             #expect(document.field("openai.model")?.value == .string("deepseek-chat"))
@@ -73,6 +67,22 @@ struct SettingsServiceTests {
                 Issue.record("an empty key was taken")
             }
         }
+    }
+
+    /// As an engine makes it (no secret store of its own, keys looked up with `APIKeys.source`): a key set in the user's
+    /// environment says where it is from, never itself, and isn't removed here; one saved goes to the platform's store
+    /// (in memory here) and shows its last 4.
+    @Test(MemorySecrets(environment: ["GEMINI_API_KEY": "gemini-env-key-0000-wxyz"]))
+    func theEnginesConfiguration() async throws {
+        let (service, _) = try service(#"{"provider": "gemini"}"#)
+        var key = try #require(service.document().field("gemini.key"))
+        #expect(key.isSet == true && key.status == KeyState.shell("GEMINI_API_KEY").text(missing: "") && key.actions == ["setKey"])
+        let saved = await service.perform(SettingsAction(field: "gemini.key", name: "setKey", key: "gemini-saved-key-0000-a1b2"))
+        #expect((try? saved.get()) != nil && APIKeys.keyEnding(account: "gemini") == "a1b2")
+        key = try #require(service.document().field("gemini.key"))
+        #expect(key.status?.hasSuffix("a1b2") == true && key.actions == ["setKey", "removeKey"])
+        let text = String(decoding: try JSONEncoder().encode(service.document()), as: UTF8.self)
+        #expect(!text.contains("gemini-env-key") && !text.contains("gemini-saved-key"))
     }
 
     // MARK: Changes
@@ -206,4 +216,34 @@ struct SettingsServiceTests {
         let text = String(decoding: try encoder.encode(document.field("typeOut")), as: UTF8.self)
         #expect(text.hasPrefix(#"{"help":"#) && text.contains(#""id":"typeOut","kind":"toggle","#) && !text.contains("null"))
     }
+}
+
+/// A test with a secret store in memory and the login environment given (none by default), through `Platform.override`:
+/// the user's keychain is never read (no password prompt, no key of the developer's in a document), nor their shell's
+/// variables. Each test case its own store.
+struct MemorySecrets: SuiteTrait, TestTrait, TestScoping {
+    var environment: [String: String] = [:]
+
+    var isRecursive: Bool { true }
+
+    func scopeProvider(for test: Test, testCase: Test.Case?) -> MemorySecrets? {
+        testCase == nil ? nil : self
+    }
+
+    func provideScope(for test: Test, testCase: Test.Case?, performing function: @Sendable () async throws -> Void) async throws {
+        var platform = Platform.current
+        platform.secrets = .inMemory()
+        platform.processes = LoginEnvironment(variables: environment)
+        try await Platform.$override.withValue(platform) { try await function() }
+    }
+}
+
+/// No programs, and `variables` as the user's login environment (where `APIKeys.source` finds a key set in the shell).
+struct LoginEnvironment: ProcessLauncher {
+    var variables: [String: String]
+    var canLaunch: Bool { false }
+    var environment: [String: String] { variables }
+    var loginEnvironment: [String: String] { variables }
+    func isRunnable(_ program: URL) -> Bool { false }
+    func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess { throw ProcessLaunchError.unsupported }
 }
