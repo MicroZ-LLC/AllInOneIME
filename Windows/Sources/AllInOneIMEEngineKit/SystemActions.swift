@@ -66,17 +66,33 @@ public struct WindowsSystem: SystemActions {
     }
 
     public func open(_ target: String) throws {
-        // The client gave the engine the right to take the foreground (`allowForeground`): it goes on to what opens.
-        AllowSetForegroundWindow(DWORD(bitPattern: -1))  // ASFW_ANY
-        let result = target.withCString(encodedAs: UTF16.self) { file in
+        try Self.shellOpen(target)
+    }
+
+    /// `ShellExecuteExW`'s "open", as Explorer opens what is double-clicked. The client gave the engine the right to
+    /// take the foreground (`allowForeground`); it goes to the process that opens `target` when one is started (a
+    /// browser, an editor), and to no other: there is no starting it suspended through the shell, so it is given right
+    /// after (programs take longer than that to show a window). The process's id, if one was started.
+    @discardableResult
+    static func shellOpen(_ target: String) throws -> DWORD? {
+        var info = SHELLEXECUTEINFOW()
+        info.cbSize = DWORD(MemoryLayout<SHELLEXECUTEINFOW>.size)
+        // No dialog of the shell's ("Windows can't find…"): it would wait for a click, and a failure is a notice.
+        info.fMask = ULONG(SEE_MASK_NOCLOSEPROCESS) | ULONG(SEE_MASK_NOASYNC) | ULONG(SEE_MASK_FLAG_NO_UI)
+        info.nShow = SW_SHOWNORMAL
+        let ok = target.withCString(encodedAs: UTF16.self) { file in
             "open".withCString(encodedAs: UTF16.self) { verb in
-                ShellExecuteW(nil, verb, file, nil, nil, SW_SHOWNORMAL)
+                info.lpVerb = verb
+                info.lpFile = file
+                return ShellExecuteExW(&info)
             }
         }
-        // ShellExecuteW's result is a number above 32 when it worked.
-        guard Int(bitPattern: UnsafeRawPointer(result)) > 32 else {
-            throw SystemActionError("Couldn't open \(target) (error \(Int(bitPattern: UnsafeRawPointer(result))))")
-        }
+        guard ok else { throw SystemActionError("Couldn't open \(target) (error \(GetLastError()))") }
+        guard let process = info.hProcess else { return nil }  // opened by a program already running (DDE, COM)
+        defer { CloseHandle(process) }
+        let pid = GetProcessId(process)
+        AllowSetForegroundWindow(pid)
+        return pid
     }
 
     /// In a console window of its own, started directly, with no shell in between (`ConsoleCommand`: the program found
