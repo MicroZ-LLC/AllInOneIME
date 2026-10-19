@@ -9,7 +9,8 @@
 #   build: implementer → independent acceptance-test author → checks → verifier
 #   fix:   reproducer (a failing test) → fixer → checks → verifier
 # The checks (`swift build`, `make test`) run here, not on the agents' word: no test that passed on the release branch
-# may fail. The test author's files are put back if anyone else touches them, and nothing under .github/ changes.
+# may fail. The test author's files and the acceptance tests are put back if anyone else touches them, and nothing
+# under .github/ changes.
 # A failed check or a "fail" from the verifier goes back to the implementer, twice at most. When the verifier passes
 # the branch, it is merged into the release branch through a PR (or without one, where the organization doesn't let
 # Actions create PRs) and the issue is closed. Otherwise the work is left in a draft PR (or on its branch) and the
@@ -50,6 +51,13 @@ WORKING, QUEUED, STUCK, DONE = "agent:working", "agent:queued", "agent:stuck", "
 TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}
 ROUNDS = 3  # the first try, then two more after a failed check or verdict
 MINUTES = {"implement": 120, "fix": 90, "acceptance": 60, "reproduce": 60, "verify": 60}
+# Where the test author and the reproducer write: the macOS app's tests, and the core's (Core/, its own package, since
+# 0.6.5; Tests/AllInOneIMECoreTests on a branch from before).
+TESTS = ("Tests/", "Core/Tests/")
+# The acceptance tests, the test authors' alone: whatever an implementer or fixer changes there is put back.
+ACCEPTANCE = ("Core/Tests/AllInOneIMECoreTests/Acceptance/", "Core/Tests/AllInOneIMETestSupport/Acceptance/",
+              "Tests/AllInOneIMEMacTests/Acceptance/",
+              "Tests/AllInOneIMECoreTests/Acceptance/", "Tests/AllInOneIMERimeTests/Acceptance/")
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
 
@@ -244,16 +252,19 @@ def put_back(paths: list[str], at: str) -> list[str]:
     return differed
 
 
-def guard(protected: list[str], protected_at: str | None, base_sha: str) -> list[str]:
-    """Puts back what an implementer may not change: the test author's files and anything under .github/."""
+def guard(protected: list[str], protected_at: str | None, base_sha: str, start: str) -> list[str]:
+    """Puts back what an implementer may not change: the test author's files, the acceptance tests already there when
+    it started (`start`), and anything under .github/."""
     notes = [f"{p} (written by the test author)" for p in put_back(protected, protected_at)] if protected_at else []
+    accepted = [p for p in changed_since(start) if p.startswith(ACCEPTANCE) and p not in protected]
+    notes += [f"{p} (an acceptance test)" for p in put_back(accepted, start)]
     workflow = [p for p in changed_since(base_sha) if p.startswith(".github/")]
     return notes + [f"{p} (.github/ is off limits)" for p in put_back(workflow, base_sha)]
 
 
 def tests_only(start: str) -> list[str]:
-    """For the test author and the reproducer: drops their changes outside Tests/, returns the test files."""
-    put_back([p for p in changed_since(start) if not p.startswith("Tests/")], start)
+    """For the test author and the reproducer: drops their changes outside the tests (TESTS), returns the test files."""
+    put_back([p for p in changed_since(start) if not p.startswith(TESTS)], start)
     return changed_since(start)
 
 
@@ -296,8 +307,9 @@ class Checks:
         self.built, self.passed, self.failures, self.log = built, passed, failures, log
 
     def summary(self) -> str:
+        # make test runs several packages (Core/, then the macOS shell): each prints its own total.
         m = re.findall(r"Test run with (\d+) tests? in \d+ suites? (?:passed|failed)", self.log)
-        return f"{m[-1]} tests" if m else "the tests"
+        return f"{sum(map(int, m))} tests" if m else "the tests"
 
 
 FAILURE = [re.compile(r"^✘ Test (?!run with )(.+?)(?: with \d+ test cases?)? failed after", re.M),
@@ -422,7 +434,7 @@ def main(number: int) -> int:
                          feedback=f"\n## What the last round got wrong\n\n{feedback}\n" if feedback else "", **values)
             if work["status"] == "blocked":
                 raise Stuck("The agent needs an answer before it can go on.", work.get("question") or work["summary"])
-            notes = guard(protected, protected_at, base_sha)
+            notes = guard(protected, protected_at, base_sha, start)
             commit(work["commit_message"], start)
 
             if not tests_written:
