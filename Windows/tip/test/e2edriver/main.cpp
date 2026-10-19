@@ -1,14 +1,26 @@
-// e2edriver: the end-to-end driver for M3. It runs in the logged-on user's session (a scheduled task from SSH; TSF
-// and SendInput need an interactive desktop, see README), starts the real engine and real, registered DLL, and types
-// English into real Notepad through AllInOneIME, reading the result back through UI Automation.
+// e2edriver: the end-to-end driver (M3, M5-M7). It runs in the logged-on user's session (a scheduled task from SSH;
+// TSF and SendInput need an interactive desktop, see README), starts the real engine and real, registered DLL, and
+// types into real Notepad through AllInOneIME, reading the result back through UI Automation.
 //
-//   e2edriver --engine <AllInOneIMEEngine.exe> (--fixture <provider.json> | --plain <text>)
-//             [--engine-log <file>] [--langid 0x0409] [--timeout-ms 60000] [--expect-tip <dll>] [--probe] [--host]
+//   e2edriver --engine <AllInOneIMEEngine.exe> [--scenario improve|plain|pinyin|ai] [--fixture <provider.json>]
+//             [--plain <text>] [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0x0409]
+//             [--timeout-ms 60000] [--expect-tip <dll>] [--probe] [--host]
+//
+// The scenarios (what is typed, and what the document must then hold):
+//   improve  "hi @improve helo", Return, "1" with the engine in test mode and the scripted provider (--fixture):
+//            "hi Hello." (the default);
+//   plain    the --plain text, as typed;
+//   pinyin   a tap of Shift (typing starts in English, as for a new user), "nihao", Space, "nihao", "1": "你好你好";
+//   ai       "@improve hello", Return, the versions streamed from the provider the engine's settings name (the run's
+//            stub on localhost), "1": "Hello there.".
+// For all but plain it checks the engine's candidate window: up while the candidates or the results are, a no-activate
+// topmost tool window that never took the foreground from the target, and captured as a PNG into --shots.
 //
 // What it does:
-//   1. starts the engine in this session (so it and the DLL pass §2.1's same-session client check), in test mode with
-//      the scripted provider on the system clock, so the @improve stream plays out in real time; with --plain, as it
-//      runs for a user (no test mode, no provider);
+//   1. starts the engine in this session (so it and the DLL pass §2.1's same-session client check): for improve in test
+//      mode with the scripted provider on the system clock, so the @improve stream plays out in real time; otherwise as
+//      it runs for a user (no test mode), with the --engine-arg arguments (the run's settings file, librime's user
+//      folder, keys from the environment);
 //   2. enables per-thread input settings for the session (in memory), so switching an input method changes only the
 //      window it is done on, never every app (see the README's warning about the session-wide input method);
 //   3. starts Notepad and finds its editable document through UIA;
@@ -26,6 +38,8 @@
 #include <msctf.h>
 #include <tlhelp32.h>
 #include <uiautomation.h>
+
+#include <wincodec.h>
 
 #include <cstdio>
 #include <cstdarg>
@@ -292,6 +306,19 @@ bool TapKey(WORD vk, DWORD pid) {
     return true;
 }
 
+// A tap of the left Shift key on its own (down, up, nothing between): AllInOneIME's switch between English and 中文.
+bool TapShift(DWORD pid) {
+    if (!ForegroundIsNotepad(pid)) {
+        Check(false, "Notepad has the foreground before the key");
+        return false;
+    }
+    SendKey(VK_LSHIFT, true);
+    Pump(60);
+    SendKey(VK_LSHIFT, false);
+    Pump(250);
+    return true;
+}
+
 // Ctrl+`vk` (a shortcut the app, not the IME, handles: select-all, save, close-tab).
 bool Chord(WORD mod, WORD vk, DWORD pid) {
     if (!ForegroundIsNotepad(pid)) {
@@ -328,6 +355,181 @@ std::string TipModulesText(DWORD pid) {
     std::string text;
     for (const auto& path : TipModules(pid)) text += (text.empty() ? "" : ", ") + Narrow(path);
     return text.empty() ? "none" : text;
+}
+
+// ---- the engine's candidate window ---------------------------------------------------------------------------
+
+struct PanelHunt {
+    DWORD pid = 0;
+    HWND found = nullptr;
+};
+
+BOOL CALLBACK FindPanelWindow(HWND hwnd, LPARAM lp) {
+    auto* hunt = reinterpret_cast<PanelHunt*>(lp);
+    wchar_t name[64] = {};
+    GetClassNameW(hwnd, name, 64);
+    if (wcscmp(name, L"AllInOneIME.CandidateWindow") != 0) return TRUE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != hunt->pid) return TRUE;
+    hunt->found = hwnd;
+    return FALSE;
+}
+
+// The engine's candidate window (its class, in the engine's process).
+HWND FindPanel(DWORD enginePid) {
+    PanelHunt hunt;
+    hunt.pid = enginePid;
+    EnumWindows(FindPanelWindow, reinterpret_cast<LPARAM>(&hunt));
+    return hunt.found;
+}
+
+// What the screen shows where `window` is, as a PNG (WIC): the layered window over what is behind its corners.
+bool CaptureWindowPng(HWND window, const std::wstring& path) {
+    RECT r;
+    if (!GetWindowRect(window, &r)) return false;
+    int w = r.right - r.left, h = r.bottom - r.top;
+    if (w <= 0 || h <= 0) return false;
+    HDC screen = GetDC(nullptr);
+    HDC memory = CreateCompatibleDC(screen);
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof info.bmiHeader;
+    info.bmiHeader.biWidth = w;
+    info.bmiHeader.biHeight = -h;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP bitmap = CreateDIBSection(screen, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    bool ok = false;
+    if (bitmap) {
+        HGDIOBJ old = SelectObject(memory, bitmap);
+        ok = BitBlt(memory, 0, 0, w, h, screen, r.left, r.top, SRCCOPY | CAPTUREBLT) != 0;
+        SelectObject(memory, old);
+        // Opaque: the screen's pixels have no alpha of their own.
+        for (int i = 0; ok && i < w * h; ++i) static_cast<BYTE*>(bits)[i * 4 + 3] = 255;
+    }
+    if (ok) {
+        ok = false;
+        IWICImagingFactory* wic = nullptr;
+        IWICBitmap* source = nullptr;
+        IWICStream* stream = nullptr;
+        IWICBitmapEncoder* encoder = nullptr;
+        IWICBitmapFrameEncode* frame = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic))) &&
+            SUCCEEDED(wic->CreateBitmapFromMemory(w, h, GUID_WICPixelFormat32bppBGRA, w * 4, w * h * 4,
+                                                  static_cast<BYTE*>(bits), &source)) &&
+            SUCCEEDED(wic->CreateStream(&stream)) && SUCCEEDED(stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE)) &&
+            SUCCEEDED(wic->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder)) &&
+            SUCCEEDED(encoder->Initialize(stream, WICBitmapEncoderNoCache)) &&
+            SUCCEEDED(encoder->CreateNewFrame(&frame, nullptr)) && SUCCEEDED(frame->Initialize(nullptr)) &&
+            SUCCEEDED(frame->SetSize(w, h))) {
+            WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+            ok = SUCCEEDED(frame->SetPixelFormat(&format)) && SUCCEEDED(frame->WriteSource(source, nullptr)) &&
+                 SUCCEEDED(frame->Commit()) && SUCCEEDED(encoder->Commit());
+        }
+        Release(frame);
+        Release(encoder);
+        Release(stream);
+        Release(source);
+        Release(wic);
+    }
+    if (bitmap) DeleteObject(bitmap);
+    DeleteDC(memory);
+    ReleaseDC(nullptr, screen);
+    return ok;
+}
+
+// The engine's candidate window must be up: a no-activate, topmost tool window that left the foreground to the target
+// (`targetPid`'s window), captured into `shot`.
+bool CheckPanel(DWORD enginePid, DWORD targetPid, const std::wstring& shot, const char* what) {
+    HWND panel = nullptr;
+    for (int i = 0; i < 60 && !(panel && IsWindowVisible(panel)); ++i) {
+        panel = FindPanel(enginePid);
+        if (!(panel && IsWindowVisible(panel))) Pump(50);
+    }
+    bool up = panel && IsWindowVisible(panel);
+    Log("  candidate window (%s): %s", what, up ? "up" : "not up");
+    Check(up, "the engine's candidate window is up");
+    if (!up) return false;
+    RECT r;
+    GetWindowRect(panel, &r);
+    Log("  candidate window %p at (%ld, %ld), %ld x %ld", (void*)panel, r.left, r.top, r.right - r.left, r.bottom - r.top);
+    LONG_PTR ex = GetWindowLongPtrW(panel, GWL_EXSTYLE);
+    Check((ex & WS_EX_NOACTIVATE) && (ex & WS_EX_TOPMOST) && (ex & WS_EX_TOOLWINDOW) && (ex & WS_EX_LAYERED),
+          "it is a layered, no-activate, topmost tool window");
+    HWND fg = GetForegroundWindow();
+    DWORD fgPid = 0;
+    if (fg) GetWindowThreadProcessId(fg, &fgPid);
+    Check(fg != panel && fgPid == targetPid, "it never took the foreground from the window typed in");
+    if (!shot.empty()) {
+        bool saved = CaptureWindowPng(panel, shot);
+        Check(saved, "captured it as a PNG");
+        if (saved) Log("  captured: %s", Narrow(shot).c_str());
+    }
+    return true;
+}
+
+// ---- the scenarios ---------------------------------------------------------------------------------------------
+
+bool EngineLogHas(const std::wstring& engineLog, const char* text);
+
+struct Scenario {
+    std::string name = "improve";
+    std::wstring plain;
+    std::wstring shots;  // where the candidate window's PNGs go (empty: none)
+    std::wstring engineLog;
+    DWORD enginePid = 0;
+
+    std::wstring Expected() const {
+        if (name == "plain") return plain;
+        if (name == "pinyin") return L"你好你好";  // 你好你好
+        if (name == "ai") return L"Hello there.";
+        return L"hi Hello.";
+    }
+
+    std::wstring Shot(const wchar_t* file) const { return shots.empty() ? std::wstring() : shots + L"\\" + file; }
+};
+
+bool TapShift(DWORD pid);
+
+// Types the scenario's keys into the foreground (`pid`'s window), checking the candidate window on the way.
+bool TypeScenario(const Scenario& s, DWORD pid) {
+    if (s.name == "plain") return TypeText(s.plain, pid);
+    if (s.name == "pinyin") {
+        // librime deploys as the engine starts (a second or so, longer in a new user folder): until then the field types
+        // Latin letters only.
+        bool ready = false;
+        for (int i = 0; i < 600 && !(ready = EngineLogHas(s.engineLog, "rime: ready")); ++i) Pump(100);
+        Check(ready, "librime is ready in the engine");
+        // A new user's typing starts in English; a tap of Shift switches to 中文 (the run's settings: English, Chinese).
+        if (!TapShift(pid)) return false;
+        if (!TypeText(L"nihao", pid)) return false;
+        Pump(300);
+        CheckPanel(s.enginePid, pid, s.Shot(L"pinyin-candidates.png"), "nihao");
+        if (!TapKey(VK_SPACE, pid)) return false;
+        Pump(400);
+        HWND panel = FindPanel(s.enginePid);
+        Check(!panel || !IsWindowVisible(panel), "the candidate window went with the commit");
+        if (!TypeText(L"nihao", pid)) return false;
+        Pump(300);
+        return TapKey('1', pid);
+    }
+    if (s.name == "ai") {
+        if (!TypeText(L"@improve hello", pid) || !TapKey(VK_RETURN, pid)) return false;
+        Log("  Return: waiting for the provider's stream (the stub on localhost)");
+        Pump(2500);
+        CheckPanel(s.enginePid, pid, s.Shot(L"ai-results.png"), "@improve's versions");
+        return TapKey('1', pid);
+    }
+    bool typed = TypeText(L"hi ", pid) && TypeText(L"@improve helo", pid) && TapKey(VK_RETURN, pid);
+    if (typed) {
+        Log("  Return: waiting for the scripted stream");
+        Pump(1500);  // the provider streams the versions in real time (the system clock)
+        CheckPanel(s.enginePid, pid, s.Shot(L"improve-results.png"), "@improve's versions");
+        typed = TapKey('1', pid);
+    }
+    return typed;
 }
 
 // Write a one-line marker file (UTF-8, no BOM, no newline), so we can tell our own document from the user's.
@@ -442,6 +644,20 @@ bool EngineSawPid(const std::wstring& engineLog, DWORD pid) {
     return data.find(": pid " + std::to_string(pid) + ",") != std::string::npos;
 }
 
+// The engine's log holds `text`.
+bool EngineLogHas(const std::wstring& engineLog, const char* text) {
+    if (engineLog.empty()) return false;
+    HANDLE f = CreateFileW(engineLog.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return false;
+    std::string data;
+    char buf[4096];
+    DWORD n = 0;
+    while (ReadFile(f, buf, sizeof buf, &n, nullptr) && n) data.append(buf, n);
+    CloseHandle(f);
+    return data.find(text) != std::string::npos;
+}
+
 // Wait up to `ms` for AllInOneIME in process `pid` to reach the engine.
 bool WaitForEngineConnection(const std::wstring& engineLog, DWORD pid, DWORD ms) {
     ULONGLONG end = GetTickCount64() + ms;
@@ -480,7 +696,7 @@ void RestoreSession(SessionState& s, ITfInputProcessorProfileMgr* mgr) {
 // EDIT control in the driver's own window. It is the end-to-end the DLL supports on this machine; the Notepad path
 // above is kept for a host that can load the TIP (classic Notepad, or once AllInOneIME ships as an installed IM).
 int HostEditRun(IUIAutomation* uia, ITfInputProcessorProfileMgr* profileMgr, const std::wstring& engineLog,
-                LANGID lang, const std::wstring& expectTip) {
+                LANGID lang, const std::wstring& expectTip, const Scenario& scenario) {
     Log("host-edit: a classic EDIT control in our own window");
     WNDCLASSEXW wc = {sizeof wc};
     wc.lpfnWndProc = DefWindowProcW;
@@ -523,13 +739,8 @@ int HostEditRun(IUIAutomation* uia, ITfInputProcessorProfileMgr* profileMgr, con
     if (switched) {
         SetFocus(edit);
         Pump(150);
-        Log("typing");
-        bool typed = TypeText(L"hi ", mine) && TypeText(L"@improve helo", mine) && TapKey(VK_RETURN, mine);
-        if (typed) {
-            Log("  Return: waiting for the scripted stream");
-            Pump(1500);
-            typed = TapKey('1', mine);
-        }
+        Log("typing (%s)", scenario.name.c_str());
+        bool typed = TypeScenario(scenario, mine);
         Check(typed, "typed the keys");
         Pump(400);
         std::wstring doc = el ? ReadDocument(el) : L"";
@@ -540,7 +751,7 @@ int HostEditRun(IUIAutomation* uia, ITfInputProcessorProfileMgr* profileMgr, con
             while (!doc.empty() && (doc.back() == L'\r' || doc.back() == L'\n')) doc.pop_back();
         }
         Log("  document: \"%s\"", Narrow(doc).c_str());
-        Check(doc == L"hi Hello.", "the control shows \"hi Hello.\"");
+        Check(doc == scenario.Expected(), ("the control shows \"" + Narrow(scenario.Expected()) + "\"").c_str());
     }
 
     // Restore this thread's input method (TSF deactivates the TIP), then tear the window down.
@@ -567,6 +778,9 @@ int main(int argc, char** argv) {
     LANGID lang = 0x0409;
     DWORD timeoutMs = 60000;
     std::wstring plain, expectTip;
+    std::vector<std::wstring> engineArgs;
+    Scenario scenario;
+    bool scenarioGiven = false;
     bool probe = false;
     bool host = false;
     for (int i = 1; i < argc; ++i) {
@@ -584,18 +798,28 @@ int main(int argc, char** argv) {
         else if (a == "--timeout-ms" && i + 1 < argc) timeoutMs = strtoul(argv[++i], nullptr, 10);
         else if (a == "--plain" && i + 1 < argc) plain = wide(argv[++i]);
         else if (a == "--expect-tip" && i + 1 < argc) expectTip = wide(argv[++i]);
+        else if (a == "--engine-arg" && i + 1 < argc) engineArgs.push_back(wide(argv[++i]));
+        else if (a == "--shots" && i + 1 < argc) scenario.shots = wide(argv[++i]);
+        else if (a == "--scenario" && i + 1 < argc) { scenario.name = argv[++i]; scenarioGiven = true; }
         else if (a == "--probe") probe = true;
         else if (a == "--host") host = true;
     }
-    if (enginePath.empty() || (fixturePath.empty() && plain.empty())) {
-        printf("usage: e2edriver --engine <exe> (--fixture <json> | --plain <text>) [--engine-log <file>] "
-               "[--langid 0xNNNN] [--timeout-ms N] [--expect-tip <dll>] [--probe] [--host]\n");
+    if (!scenarioGiven && !plain.empty()) scenario.name = "plain";
+    scenario.plain = plain;
+    scenario.engineLog = engineLog;
+    const bool known = scenario.name == "improve" || scenario.name == "plain" || scenario.name == "pinyin" ||
+                       scenario.name == "ai";
+    if (enginePath.empty() || !known || (scenario.name == "improve" && fixturePath.empty()) ||
+        (scenario.name == "plain" && plain.empty())) {
+        printf("usage: e2edriver --engine <exe> [--scenario improve|plain|pinyin|ai] [--fixture <json>] [--plain <text>]\n"
+               "       [--engine-arg <arg>]... [--shots <dir>] [--engine-log <file>] [--langid 0xNNNN] [--timeout-ms N]\n"
+               "       [--expect-tip <dll>] [--probe] [--host]\n");
         return 2;
     }
 
     DWORD session = 0;
     ProcessIdToSessionId(GetCurrentProcessId(), &session);
-    Log("e2edriver: session %lu, langid 0x%04x%s", session, lang, probe ? ", probe" : "");
+    Log("e2edriver: session %lu, langid 0x%04x, scenario %s%s", session, lang, scenario.name.c_str(), probe ? ", probe" : "");
 
     // A hard watchdog, so the driver can never hang its scheduled task. It can't tidy up the session from here (no
     // handles), but main's own teardown runs on every path that isn't a true hang.
@@ -622,11 +846,16 @@ int main(int argc, char** argv) {
     std::wstring hookDll = selfPath;
     hookDll = hookDll.substr(0, hookDll.find_last_of(L"\\/") + 1) + L"e2ehook.dll";
 
-    // 1. The engine, in this session: test mode, scripted provider, system clock (the stream plays in real time); or,
-    // for --plain, as a user's runs.
-    Log("starting the engine: %ls%s", enginePath.c_str(), plain.empty() ? " (test mode)" : "");
+    // 1. The engine, in this session: for improve test mode, the scripted provider, the system clock (the stream plays
+    // in real time); else as a user's runs, with the run's own arguments.
+    const bool testMode = scenario.name == "improve";
+    Log("starting the engine: %ls%s", enginePath.c_str(), testMode ? " (test mode)" : "");
     std::wstring cmd = L"\"" + enginePath + L"\"";
-    if (plain.empty()) cmd += L" --test --provider \"" + fixturePath + L"\" --clock system";
+    if (testMode) cmd += L" --test --provider \"" + fixturePath + L"\" --clock system";
+    for (const auto& arg : engineArgs) {
+        cmd += arg.find_first_of(L" \t") == std::wstring::npos ? L" " + arg : L" \"" + arg + L"\"";
+        Log("  engine argument: %ls", arg.c_str());
+    }
     STARTUPINFOW si = {sizeof si};
     HANDLE engineErr = INVALID_HANDLE_VALUE;
     if (!engineLog.empty()) {
@@ -646,7 +875,9 @@ int main(int argc, char** argv) {
                                         nullptr, &si, &engine) != 0;
     Check(engineStarted, "the engine started");
     if (!engineStarted) { Log("  CreateProcess failed: %lu", GetLastError()); return 1; }
-    Pump(600); // let the pipe come up
+    scenario.enginePid = engine.dwProcessId;
+    // Let the pipe come up (and, as a user's engine, librime deploy: a second or so in a new user folder).
+    Pump(testMode ? 600 : 2500);
 
     ITfInputProcessorProfileMgr* profileMgr = nullptr;
     CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
@@ -679,7 +910,7 @@ int main(int argc, char** argv) {
 
     if (host) {
         // The hosted-edit end-to-end: the full real stack through an EDIT control in our own process.
-        HostEditRun(uia, profileMgr, engineLog, lang, expectTip);
+        HostEditRun(uia, profileMgr, engineLog, lang, expectTip, scenario);
         Release(uia);
         RestoreSession(state, profileMgr);
         if (threadMgr) { threadMgr->Deactivate(); threadMgr->Release(); }
@@ -788,26 +1019,16 @@ int main(int argc, char** argv) {
         bool empty = ReadDocument(np.edit).empty();
         Check(empty, "cleared our document before typing");
         if (empty) {
-            Log("typing");
-            bool typed = false;
-            if (!plain.empty()) {
-                typed = TypeText(plain, np.pid);
-            } else {
-                typed = TypeText(L"hi ", np.pid) && TypeText(L"@improve helo", np.pid) && TapKey(VK_RETURN, np.pid);
-                if (typed) {
-                    Log("  Return: waiting for the scripted stream");
-                    Pump(1500); // the provider streams the versions in real time (the system clock)
-                    typed = TapKey('1', np.pid);
-                }
-            }
+            Log("typing (%s)", scenario.name.c_str());
+            bool typed = TypeScenario(scenario, np.pid);
             Check(typed, "typed the keys into Notepad");
             Pump(500);
 
             // 6. The result.
-            const std::wstring expected = plain.empty() ? L"hi Hello." : plain;
+            const std::wstring expected = scenario.Expected();
             std::wstring doc = ReadDocument(np.edit);
             Log("  document: \"%s\"", Narrow(doc).c_str());
-            Check(doc == expected, plain.empty() ? "Notepad shows \"hi Hello.\"" : "Notepad shows the text as typed");
+            Check(doc == expected, ("Notepad shows \"" + Narrow(expected) + "\"").c_str());
         }
     } else if (probe) {
         Log("probe: engine=%d notepad=%p edit=%p mine=%d tipLoaded=%d switched=%d", engineStarted, (void*)np.window,
@@ -820,9 +1041,11 @@ int main(int argc, char** argv) {
     Uninject(injection, np.window, np.pid);
     if (np.window && np.edit) {
         std::wstring now = ReadDocument(np.edit);
-        bool oursActive = ForegroundIsNotepad(np.pid) && (now == want || now == L"hi Hello." || now.empty() ||
+        bool oursActive = ForegroundIsNotepad(np.pid) && (now == want || now == scenario.Expected() || now.empty() ||
                                                           (!plain.empty() && now.find(plain) == 0) ||
-                                                          now.find(L"improve") != std::wstring::npos);
+                                                          now.find(L"improve") != std::wstring::npos ||
+                                                          now.find(L"nihao") != std::wstring::npos ||
+                                                          now.find(L"你好") == 0);
         if (oursActive) {
             Chord(VK_CONTROL, 'S', np.pid);
             Pump(300);

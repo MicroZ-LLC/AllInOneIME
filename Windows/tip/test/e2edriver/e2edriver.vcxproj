@@ -38,7 +38,7 @@
       <SDLCheck>false</SDLCheck>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ole32.lib;oleaut32.lib;uuid.lib;user32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;oleaut32.lib;uuid.lib;user32.lib;gdi32.lib;advapi32.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 

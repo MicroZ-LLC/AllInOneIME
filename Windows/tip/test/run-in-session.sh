@@ -9,7 +9,8 @@
 #
 # <exe> and args are Windows paths. The output goes to build/test-logs/<name>.log (the DLL's diagnostic log to
 # <name>.diag.log), the exit code to <name>.code; the log is printed and the exit status mirrored.
-# AIO_TEST_USER overrides the user (default: $USERNAME), who must be logged on (see README).
+# AIO_TEST_USER overrides the user (default: $USERNAME), who must be logged on (see README). AIO_SESSION_ENV, lines of
+# NAME=VALUE, is set for the exe (a scheduled task has the user's environment, not this shell's).
 set -u
 export MSYS_NO_PATHCONV=1
 NAME="$1"; shift
@@ -31,6 +32,9 @@ rm -f "$LOGDIR_UNIX/$NAME.log" "$LOGDIR_UNIX/$NAME.code" "$LOGDIR_UNIX/$NAME.dia
   printf '@echo off\r\n'
   printf 'cd /d "%s"\r\n' "$TIP_WIN"
   printf 'set AIO_TIP_LOG=%s\\%s.diag.log\r\n' "$LOGDIR_WIN" "$NAME"
+  while IFS= read -r pair; do
+    [ -n "$pair" ] && printf 'set "%s"\r\n' "$pair"
+  done <<<"${AIO_SESSION_ENV:-}"
   printf '"%s" %s > "%s\\%s.log" 2>&1\r\n' "$EXE_WIN" "$ARGS" "$LOGDIR_WIN" "$NAME"
   printf 'echo %%ERRORLEVEL%% > "%s\\%s.code"\r\n' "$LOGDIR_WIN" "$NAME"
 } > "$BAT"

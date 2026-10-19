@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The installer's test, without a human: a silent install, the checks, an upgrade over it, the e2e harness against real
-# Notepad through the installed copy, a silent uninstall and its checks; then, if everything passed, the package
-# installed again for the user to try.
+# Notepad through the installed copy (English, @improve with the test provider, pinyin through librime and the candidate
+# window, a real AI request to a stub provider on localhost), a silent uninstall and its checks; then, if everything
+# passed, the package installed again for the user to try.
 #
 #   bash Windows/installer/test/run-install-test.sh [--keep-uninstalled]
 #
@@ -95,6 +96,13 @@ verify_installed() { # $1: the snapshot's name
   echo "  -- files"
   check "the DLL, the engine and the helper in $INSTALL_DIR_WIN" \
     test -f "$INSTALL_DIR/AllInOneTIP.dll" -a -f "$INSTALL_DIR/AllInOneIMEEngine.exe" -a -f "$SETUP"
+  check "the command line (allinoneime-cli.exe)" test -f "$INSTALL_DIR/allinoneime-cli.exe"
+  check "librime (rime.dll) beside the engine" test -f "$INSTALL_DIR/rime.dll"
+  local data; data="$(find "$INSTALL_DIR/rime-data" -type f 2>/dev/null | wc -l)"
+  check "rime-ice's data in rime-data ($data files, the prebuilt dictionaries among them)" \
+    test -f "$INSTALL_DIR/rime-data/build/rime_ice.table.bin" -a -f "$INSTALL_DIR/rime-data/rime_ice.schema.yaml"
+  check "the command line runs on the runtime installed beside it" \
+    grep -q '^usage: allinoneime-cli set-provider' <("$INSTALL_DIR/allinoneime-cli.exe" set-provider --help 2>&1 | tr -d '\r')
   local runtime; runtime="$(ls "$INSTALL_DIR" | grep -ciE '^(swift|Foundation|_Foundation|dispatch|BlocksRuntime|vcruntime|msvcp).*\.dll$')"
   check "the Swift and VC++ runtime next to the engine ($runtime DLLs)" test "$runtime" -ge 15
   echo "  -- the machine's registration"
@@ -136,8 +144,10 @@ verify_installed installed
 echo "  -- the engine, as the Run entry starts it at logon"
 in_session install-start-engine "$INSTALL_DIR_WIN\\AllInOneIMESetup.exe" start-engine | sed 's/^/    /'
 sleep 1
-engine="$(powershell -NoProfile -Command '
-  $p = Get-Process AllInOneIMEEngine -ErrorAction SilentlyContinue | Select-Object -First 1
+# The installed copy's (another engine, a build's, may be running in another session).
+engine="$(INSTALLED_ENGINE="$INSTALL_DIR_WIN\AllInOneIMEEngine.exe" powershell -NoProfile -Command '
+  $p = Get-Process AllInOneIMEEngine -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq $env:INSTALLED_ENGINE } | Select-Object -First 1
   if ($p) {
     $core = ($p.Modules | Where-Object { $_.ModuleName -eq "swiftCore.dll" }).FileName
     "session=" + $p.SessionId + " window=" + $p.MainWindowHandle + " path=" + $p.Path + " swiftCore=" + $core
@@ -165,14 +175,23 @@ e2e() { # $1: name; the rest: run-e2e.sh's arguments
   local rc=$?
   cp "$TIP/build/test-logs/e2e-driver.log" "$LOGS/e2e-$name.driver.log" 2>/dev/null
   cp "$TIP/build/test-logs/e2e-engine.log" "$LOGS/e2e-$name.engine.log" 2>/dev/null
-  grep -E '\[(ok|FAIL)\]|document:|AllInOneTIP.dll in Notepad|TIP loaded here' "$TIP/build/test-logs/e2e-driver.log" | tr -d '\r' |
-    sed -E 's/^[0-9:.]+ +/    /'
+  for shots in "$TIP"/build/test-logs/e2e-run-*/shots; do
+    ls "$shots"/*.png >/dev/null 2>&1 || continue
+    mkdir -p "$LOGS/e2e-$name-shots" && cp "$shots"/*.png "$LOGS/e2e-$name-shots/"
+    rm -f "$shots"/*.png
+  done
+  grep -E '\[(ok|FAIL)\]|document:|AllInOneTIP.dll in Notepad|TIP loaded here|captured:' "$TIP/build/test-logs/e2e-driver.log" |
+    tr -d '\r' | sed -E 's/^[0-9:.]+ +/    /'
   return $rc
 }
 check "the installed DLL and engine in a new process (an EDIT control, the driver's)" e2e host --host
 check "real Notepad, English through the engine as it runs for a user: \"Hello world. 123\"" \
   e2e notepad-plain --notepad --plain "Hello world. 123"
 check "real Notepad, @improve with the test provider: \"hi Hello.\"" e2e notepad-improve --notepad
+check "real Notepad, pinyin through librime: Shift, \"nihao\", Space, \"nihao\", 1 give \"你好你好\", the candidate window up" \
+  e2e notepad-pinyin --notepad --pinyin
+check "real Notepad, a real AI request (the Claude API's format, a stub on localhost): \"@improve hello\", 1 give \"Hello there.\"" \
+  e2e notepad-ai --notepad --ai
 if grep -qF "AllInOneTIP.dll in Notepad: $INSTALL_DIR_WIN\\AllInOneTIP.dll" "$LOGS/e2e-notepad-improve.driver.log"; then
   pass "Notepad used the installed DLL"
 else
