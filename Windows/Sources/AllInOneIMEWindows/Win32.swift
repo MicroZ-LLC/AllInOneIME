@@ -167,14 +167,6 @@ public enum Win32 {
         QueryPerformanceFrequency(&frequency)
         return Double(counter.QuadPart) / Double(frequency.QuadPart)
     }
-
-    /// The process that owns the foreground window, if any.
-    public static func foregroundProcess() -> DWORD? {
-        guard let window = GetForegroundWindow() else { return nil }
-        var pid: DWORD = 0
-        _ = GetWindowThreadProcessId(window, &pid)
-        return pid == 0 ? nil : pid
-    }
 }
 
 /// The names both ends derive from the user's SID (§2.1, §2.5).

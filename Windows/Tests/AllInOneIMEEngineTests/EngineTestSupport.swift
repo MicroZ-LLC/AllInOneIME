@@ -58,12 +58,14 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     private var _notices: [String] = []
     private var _caret: CaretRect?
     private var _shows = 0
+    private var _moves = 0
 
     var model: PanelModel? { lock.lock(); defer { lock.unlock() }; return _model }
     var owner: PanelOwner? { lock.lock(); defer { lock.unlock() }; return _owner }
     var notices: [String] { lock.lock(); defer { lock.unlock() }; return _notices }
     var caret: CaretRect? { lock.lock(); defer { lock.unlock() }; return _caret }
     var shows: Int { lock.lock(); defer { lock.unlock() }; return _shows }
+    var moves: Int { lock.lock(); defer { lock.unlock() }; return _moves }
 
     func show(_ model: PanelModel, owner: PanelOwner, caret: CaretRect?) {
         lock.lock()
@@ -83,6 +85,7 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     func move(owner: PanelOwner, caret: CaretRect) {
         lock.lock()
         _caret = caret
+        _moves += 1
         lock.unlock()
     }
 
@@ -202,8 +205,10 @@ final class EngineClient: @unchecked Sendable {
     /// The composition as the outputs left it.
     private(set) var composition = ""
 
+    /// `peer`: who the client is (the pipe's client check, §2.1, §8); `configure`: the host's options besides.
     init(settings: EngineSettings, rime: EngineRime?, converter: Converter? = nil, executable: String? = nil,
-         field: FieldInfo = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409")) {
+         field: FieldInfo = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409"),
+         peer: WirePeer = WirePeer(pid: GetCurrentProcessId()), configure: (inout EngineHost.Options) -> Void = { _ in }) {
         panel = RecordingPanel()
         system = RecordingSystem()
         var options = EngineHost.Options(system: system, systemQueue: testSystemThread)
@@ -212,12 +217,13 @@ final class EngineClient: @unchecked Sendable {
         options.panel = panel
         options.converter = converter
         if let executable { options.executable = executable }
+        configure(&options)
         let host = EngineHost(options: options, log: { _ in })
         self.host = host
         let box = queues
         let environment = WireEnvironment(host: host, makeQueue: { _ in box.make() }, makeComposer: { host.makeComposer($0, $1) })
         server = WireServer(environment: environment)
-        connection = server.connect(WirePeer(pid: GetCurrentProcessId()))!
+        connection = server.connect(peer)!
         server.push = { [weak self] _, data in
             guard let self else { return }
             self.lock.lock()
@@ -369,6 +375,17 @@ final class QueueBox: @unchecked Sendable {
         queues.append(queue)
         lock.unlock()
         return queue
+    }
+}
+
+/// A flag the tests flip while the engine reads it from other threads.
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: Bool
+    init(_ value: Bool) { _value = value }
+    var value: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _value }
+        set { lock.lock(); _value = newValue; lock.unlock() }
     }
 }
 

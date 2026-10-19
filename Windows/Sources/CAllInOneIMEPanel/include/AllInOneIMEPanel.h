@@ -81,14 +81,16 @@ typedef struct AioPanelState {
 /// Starts the window's thread and creates the window there (hidden). Nil if it couldn't (no desktop, no Direct2D).
 AioPanel *aio_panel_create(AioPanelCallbacks callbacks);
 /// Shows `model` for `owner` (drawn again if it is up), at `caret` if given, else where the last caret was. `ownerPid`
-/// is the owner's process: when another one takes the foreground, the panel hides.
+/// is the owner's process: the panel is drawn only while it owns the foreground (`aio_owns_foreground`), and hides when
+/// another process takes it. 0: no process (tests).
 void aio_panel_show(AioPanel *panel, const AioPanelModel *model, const AioCaret *caret, uint64_t owner, uint32_t ownerPid);
 /// Hides the panel if `owner`'s is up (0: whosever it is).
 void aio_panel_hide(AioPanel *panel, uint64_t owner);
 /// The caret moved: the panel follows if it is `owner`'s.
 void aio_panel_move(AioPanel *panel, uint64_t owner, const AioCaret *caret);
 /// A notice for `durationMs`: beside the footer if `owner`'s panel is up, else on its own at `caret` (nil: the last
-/// caret, else where the foreground window's caret is).
+/// caret, else where the foreground window's caret is). Only while `ownerPid` owns the foreground, and never over
+/// another owner's panel.
 void aio_panel_notice(AioPanel *panel, const uint16_t *text, uint64_t owner, uint32_t ownerPid, const AioCaret *caret,
                       int32_t durationMs);
 /// Waits until the window's thread has done what was asked before, then reads its state.
@@ -101,6 +103,14 @@ int32_t aio_panel_row_rect(AioPanel *panel, int32_t row, int32_t *x, int32_t *y,
 int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path);
 /// Closes the window and ends its thread.
 void aio_panel_destroy(AioPanel *panel);
+
+/// Whether the process `pid` owns the foreground window: the window is its own, or, for a UWP app, it is
+/// ApplicationFrameHost's frame around a window of the app's.
+int32_t aio_owns_foreground(uint32_t pid);
+/// Where a caret that the process `pid` reports in `hwnd` may be (§6 `caret`): that window's rectangle, in physical
+/// screen pixels, if the window is the process's; with no window (0), the foreground window's, if the process owns it
+/// (`aio_owns_foreground`). 0 if neither: the report isn't the process's to make.
+int32_t aio_caret_bounds(uint64_t hwnd, uint32_t pid, AioCaret *bounds);
 
 #ifdef __cplusplus
 }

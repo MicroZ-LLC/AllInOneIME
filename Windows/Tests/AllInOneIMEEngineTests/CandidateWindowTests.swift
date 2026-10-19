@@ -37,7 +37,8 @@ extension OnTheDesktop {
         @Test func itShowsTheRowsUnderTheCaretWithoutTakingTheFocus() throws {
             let window = try window()
             let clicks = Clicks()
-            let owner = PanelOwner(pid: GetCurrentProcessId(), choose: { clicks.add($0) })
+            // No process: drawn wherever the foreground is (the owner's process must own it otherwise, below).
+            let owner = PanelOwner(pid: nil, choose: { clicks.add($0) })
             let foregroundBefore = GetForegroundWindow()
             window.show(Self.model, owner: owner, caret: Self.caret)
             let state = window.state
@@ -153,6 +154,69 @@ extension OnTheDesktop {
             #expect(state.visible == 1)
             #expect(state.notice == 0)
             window.hide(owner: owner)
+        }
+
+        /// §8: a session whose process doesn't own the foreground draws nothing, panel or notice (a background or
+        /// sandboxed client can't put the engine's topmost window over another app), and takes nobody's panel down.
+        @Test func aProcessWithoutTheForegroundDrawsNothing() throws {
+            let window = try window()
+            let background = GetCurrentProcessId()
+            try #require(!Foreground.isOwned(by: background), "this test process has the foreground")
+            let owner = PanelOwner(pid: background, choose: { _ in })
+            window.show(Self.model, owner: owner, caret: Self.caret)
+            var state = window.state
+            #expect(state.visible == 0 && state.draws == 0)
+            window.notice("中", owner: owner, caret: Self.caret)
+            state = window.state
+            #expect(state.visible == 0 && state.notice == 0 && state.draws == 0)
+            // A panel up for a session in front stays up.
+            let front = PanelOwner(pid: nil, choose: { _ in })
+            window.show(Self.model, owner: front, caret: Self.caret)
+            #expect(window.state.visible == 1)
+            window.show(Self.model, owner: owner, caret: Self.caret)
+            window.notice("中", owner: owner, caret: Self.caret)
+            state = window.state
+            #expect(state.visible == 1 && state.rows == 3 && state.notice == 0)
+            window.hide(owner: front)
+        }
+
+        /// Another session's notice doesn't take over the panel up for the session being typed in.
+        @Test func anotherSessionsNoticeLeavesThePanelAlone() throws {
+            let window = try window()
+            let owner = PanelOwner(pid: nil, choose: { _ in })
+            let other = PanelOwner(pid: nil, choose: { _ in })
+            window.show(Self.model, owner: owner, caret: Self.caret)
+            let before = window.state
+            window.notice("Saved to Notes", owner: other, caret: CaretRect(x: 0, y: 0, width: 1, height: 1))
+            let after = window.state
+            #expect(after.visible == 1 && after.owner == before.owner && after.rows == 3 && after.notice == 0)
+            #expect(after.x == before.x && after.y == before.y)
+            window.hide(owner: owner)
+        }
+
+        /// Where a caret report may put the panel (`Foreground.caretBounds`): inside the window it names, if that is the
+        /// client's process's; never another process's window, nor a window that isn't there.
+        @Test func aCaretsBoundsAreTheClientsOwnWindow() throws {
+            let window = try #require("STATIC".withCString(encodedAs: UTF16.self) {
+                CreateWindowExW(0, $0, nil, DWORD(WS_POPUP), 120, 130, 300, 200, nil, nil, GetModuleHandleW(nil), nil)
+            })
+            defer { DestroyWindow(window) }
+            let hwnd = UInt64(UInt(bitPattern: window))
+            let pid = GetCurrentProcessId()
+            var rect = RECT()
+            GetWindowRect(window, &rect)
+            let bounds = try #require(Foreground.caretBounds(hwnd: hwnd, pid: pid))
+            #expect(bounds == CaretRect(x: Int(rect.left), y: Int(rect.top), width: Int(rect.right - rect.left),
+                                        height: Int(rect.bottom - rect.top)))
+            #expect(bounds.width == 300 && bounds.height == 200)
+            // Another process's window, a window that isn't there, another process for this window.
+            let desktop = UInt64(UInt(bitPattern: GetDesktopWindow()))
+            #expect(Foreground.caretBounds(hwnd: desktop, pid: pid) == nil)
+            #expect(Foreground.caretBounds(hwnd: 0x7FFF_FFF0, pid: pid) == nil)
+            #expect(Foreground.caretBounds(hwnd: hwnd, pid: pid + 4) == nil)
+            #expect(Foreground.caretBounds(hwnd: hwnd, pid: nil) == nil)
+            // No window: the foreground window's, if the client owns it (this test process doesn't).
+            if !Foreground.isOwned(by: pid) { #expect(Foreground.caretBounds(hwnd: nil, pid: pid) == nil) }
         }
     }
 }

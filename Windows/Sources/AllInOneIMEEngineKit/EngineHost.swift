@@ -22,8 +22,12 @@ import Foundation
 public final class EngineHost: WireHost, @unchecked Sendable {
     public struct Options {
         public var testMode = false
-        /// Whether the client's process owns the foreground window (§8).
+        /// Whether the client's process owns the foreground window (§8): what a privileged effect from a key, and the
+        /// panel and its notices, need.
         public var foreground: @Sendable (WirePeer) -> Bool = { _ in true }
+        /// The rectangle a client's caret report (§6) must be in: the window it names, if that is the client's process's
+        /// (`Foreground.caretBounds`); nil, a report to ignore. Nil: no check (the tests).
+        public var caretBounds: (@Sendable (_ hwnd: UInt64?, _ pid: UInt32?) -> CaretRect?)?
         public var settings = EngineSettings()
         /// Level one's pinyin; nil: Latin letters only.
         public var rime: EngineRime?
@@ -46,6 +50,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public let clock: WireClock
     let log: @Sendable (String) -> Void
     let foreground: @Sendable (WirePeer) -> Bool
+    let caretBounds: (@Sendable (UInt64?, UInt32?) -> CaretRect?)?
     public let settings: EngineSettings
     public let rime: EngineRime?
     public let panelPresenter: PanelPresenter
@@ -64,6 +69,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         self.clock = clock
         self.log = log
         foreground = options.foreground
+        caretBounds = options.caretBounds
         settings = options.settings
         rime = options.rime
         panelPresenter = options.panel
@@ -215,17 +221,27 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     // MARK: - The panel
 
+    /// The panel, for a client whose process owns the foreground only (§8): a background or sandboxed process can't
+    /// put the engine's topmost window, with its own text, over another app. (The window checks again as it draws.)
     public func panel(shown: Bool, in session: ComposerSession) {
         let state = state(session)
-        guard shown else {
+        guard shown, session.composer.wantsPanel, ownsForeground(session.peer) else {
             panelPresenter.hide(owner: state.owner)
             return
         }
-        guard session.composer.wantsPanel else {
-            panelPresenter.hide(owner: state.owner)
-            return
+        panelPresenter.show(model(for: session), owner: state.owner, caret: reportedCaret(session))
+    }
+
+    /// The caret `session` reported, if it is in a window of the client's process, cut to that window (§6, §8): a
+    /// client can't place the panel over another app. Nil when there is none, or the window isn't the client's.
+    func reportedCaret(_ session: ComposerSession) -> CaretRect? {
+        guard let reported = session.caret, let rect = CaretRect(reported.rect, exact: reported.exact) else { return nil }
+        guard let caretBounds else { return rect }
+        guard let bounds = caretBounds(reported.hwnd, session.peer.pid) else {
+            log("session \(session.sid): a caret report outside the client's windows: ignored")
+            return nil
         }
-        panelPresenter.show(model(for: session), owner: state.owner, caret: session.caret.flatMap { CaretRect($0.rect, exact: $0.exact) })
+        return rect.clamped(to: bounds)
     }
 
     /// What the panel shows for `session` now.
@@ -238,7 +254,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     }
 
     public func caretMoved(in session: ComposerSession) {
-        guard let reported = session.caret, let caret = CaretRect(reported.rect, exact: reported.exact) else { return }
+        guard let caret = reportedCaret(session) else { return }
         let state = state(session)
         state.caret = caret
         panelPresenter.move(owner: state.owner, caret: caret)
@@ -248,8 +264,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     // MARK: - Effects
 
-    /// A notice, in the interface language.
+    /// A notice, in the interface language: for a client whose process owns the foreground only, as the panel.
     func notice(_ text: String, in session: ComposerSession) {
+        guard ownsForeground(session.peer) else {
+            log("session \(session.sid): a notice for a client not in the foreground: not shown")
+            return
+        }
         let state = state(session)
         panelPresenter.notice(text, owner: state.owner, caret: state.caret)
     }

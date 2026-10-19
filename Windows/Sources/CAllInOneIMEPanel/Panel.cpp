@@ -9,7 +9,8 @@
 // - Per monitor DPI: the process is per-monitor aware (the engine sets it), the caret comes in physical pixels, and the
 //   panel is laid out at the DPI of the monitor the caret is on, inside that monitor's work area: below the caret, or
 //   above it when there is no room.
-// - It hides when another process than the panel's owner takes the foreground (EVENT_SYSTEM_FOREGROUND).
+// - It is drawn only while its owner's process owns the foreground, and hides when another process takes it
+//   (EVENT_SYSTEM_FOREGROUND): a background or sandboxed client can't put it, with its text, over another app.
 // - Everything happens on the window's own thread: the API posts it messages with a copy of what to show.
 #ifdef _WIN32
 
@@ -273,6 +274,56 @@ UINT DpiAt(POINT point, RECT *work) {
     return x ? x : 96;
 }
 
+// The full path of process `pid`'s executable ("" if it can't be read).
+std::wstring ProcessImage(DWORD pid) {
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return std::wstring();
+    wchar_t path[MAX_PATH * 2];
+    DWORD size = (DWORD)(sizeof path / sizeof path[0]);
+    std::wstring image = QueryFullProcessImageNameW(process, 0, path, &size) ? std::wstring(path, size) : std::wstring();
+    CloseHandle(process);
+    return image;
+}
+
+// Whether process `pid` is System32's ApplicationFrameHost.exe, which draws the frame of every UWP app's window.
+bool IsFrameHost(DWORD pid) {
+    wchar_t system[MAX_PATH];
+    UINT count = GetSystemDirectoryW(system, MAX_PATH);
+    if (!count || count >= MAX_PATH) return false;
+    std::wstring expected = std::wstring(system, count) + L"\\ApplicationFrameHost.exe";
+    return CompareStringOrdinal(ProcessImage(pid).c_str(), -1, expected.c_str(), -1, TRUE) == CSTR_EQUAL;
+}
+
+// Whether `window` is process `pid`'s: its own, or ApplicationFrameHost's frame with a window of `pid`'s inside (a UWP
+// app: its CoreWindow is a child of the frame).
+bool BelongsTo(HWND window, DWORD pid) {
+    if (!window || !pid) return false;
+    DWORD owner = 0;
+    GetWindowThreadProcessId(window, &owner);
+    if (owner == pid) return true;
+    if (!owner || !IsFrameHost(owner)) return false;
+    struct Search {
+        DWORD pid;
+        bool found;
+    } search = {pid, false};
+    EnumChildWindows(
+        window,
+        [](HWND child, LPARAM lParam) -> BOOL {
+            Search *s = reinterpret_cast<Search *>(lParam);
+            DWORD childPid = 0;
+            GetWindowThreadProcessId(child, &childPid);
+            if (childPid == s->pid) {
+                s->found = true;
+                return FALSE;
+            }
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&search));
+    return search.found;
+}
+
+bool OwnsForeground(DWORD pid) { return BelongsTo(GetForegroundWindow(), pid); }
+
 // Where the caret is when the DLL hasn't said: the foreground thread's system caret (classic Win32 controls have one),
 // else the bottom left of the foreground window, else the pointer.
 AioCaret FallbackCaret() {
@@ -345,8 +396,15 @@ void HideWindow(AioPanel *p) {
     PublishState(p);
 }
 
-// Lays the panel out at the caret's monitor's DPI, draws it and puts it on screen.
+// Lays the panel out at the caret's monitor's DPI, draws it and puts it on screen: only while its owner owns the
+// foreground (which may have changed since it was asked, while the panel waited for the caret).
 void Render(AioPanel *p) {
+    if (p->ownerPid && !OwnsForeground(p->ownerPid)) {
+        p->model = Model();
+        p->notice.clear();
+        HideWindow(p);
+        return;
+    }
     Model model = p->noticeAlone ? Model() : p->model;
     if (p->noticeAlone) {
         model.statusKind = AIO_STATUS_HINT;
@@ -540,6 +598,14 @@ void Render(AioPanel *p) {
 void Handle(AioPanel *p, Command *c) {
     switch (c->op) {
     case OpShow: {
+        // A session in a process without the foreground draws nothing (and takes nothing down but its own).
+        if (c->ownerPid && !OwnsForeground(c->ownerPid)) {
+            if (c->owner == p->owner) {
+                p->model = Model();
+                HideWindow(p);
+            }
+            break;
+        }
         bool newOwner = c->owner != p->owner;
         p->owner = c->owner;
         p->ownerPid = c->ownerPid;
@@ -591,6 +657,9 @@ void Handle(AioPanel *p, Command *c) {
         }
         break;
     case OpNotice:
+        // Not from a process without the foreground, and never over another session's panel.
+        if (c->ownerPid && !OwnsForeground(c->ownerPid)) break;
+        if (p->modelShown && p->visible && c->owner != p->owner) break;
         p->notice = c->text;
         SetTimer(p->hwnd, kNoticeTimer, (UINT)std::max(c->durationMs, 300), nullptr);
         if (p->modelShown && p->visible && c->owner == p->owner) {
@@ -619,7 +688,7 @@ void CALLBACK ForegroundChanged(HWINEVENTHOOK, DWORD, HWND hwnd, LONG, LONG, DWO
     if (!p || !p->visible || !hwnd) return;
     DWORD pid = 0;
     GetWindowThreadProcessId(hwnd, &pid);
-    if (pid == GetCurrentProcessId() || (p->ownerPid && pid == p->ownerPid)) return;
+    if (pid == GetCurrentProcessId() || (p->ownerPid && BelongsTo(hwnd, p->ownerPid))) return;
     // Another app took the foreground: the panel isn't for it.
     p->model = Model();
     p->notice.clear();
@@ -907,6 +976,27 @@ int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path) {
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     bool ok = SavePng(panel, reinterpret_cast<const wchar_t *>(path));
     return ok ? 1 : 0;
+}
+
+int32_t aio_owns_foreground(uint32_t pid) { return OwnsForeground(pid) ? 1 : 0; }
+
+int32_t aio_caret_bounds(uint64_t hwnd, uint32_t pid, AioCaret *bounds) {
+    HWND window = reinterpret_cast<HWND>(static_cast<uintptr_t>(hwnd));
+    if (window) {
+        DWORD owner = 0;
+        if (!IsWindow(window) || !GetWindowThreadProcessId(window, &owner) || owner != pid) return 0;
+    } else {
+        window = GetForegroundWindow();
+        if (!BelongsTo(window, pid)) return 0;
+    }
+    // Physical pixels: the engine is per-monitor aware (and this thread too, whatever the process says).
+    DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    RECT r;
+    BOOL ok = GetWindowRect(window, &r);
+    if (previous) SetThreadDpiAwarenessContext(previous);
+    if (!ok) return 0;
+    if (bounds) *bounds = {r.left, r.top, r.right - r.left, r.bottom - r.top, 1};
+    return 1;
 }
 
 void aio_panel_destroy(AioPanel *panel) {

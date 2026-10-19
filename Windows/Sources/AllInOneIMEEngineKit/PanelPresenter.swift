@@ -15,6 +15,16 @@ public struct CaretRect: Equatable, Sendable {
         guard rect.count == 4 else { return nil }
         self.init(x: rect[0], y: rect[1], width: rect[2], height: rect[3], exact: exact)
     }
+
+    /// This rectangle inside `bounds` (a negative width or height taken as none): what is outside is cut off, and one
+    /// wholly outside becomes a line on the nearest edge.
+    public func clamped(to bounds: CaretRect) -> CaretRect {
+        func clamp(_ value: Int, _ low: Int, _ high: Int) -> Int { min(max(value, low), max(high, low)) }
+        let (right, bottom) = (bounds.x + max(bounds.width, 0), bounds.y + max(bounds.height, 0))
+        let left = clamp(x, bounds.x, right), top = clamp(y, bounds.y, bottom)
+        return CaretRect(x: left, y: top, width: clamp(x + max(width, 0), bounds.x, right) - left,
+                         height: clamp(y + max(height, 0), bounds.y, bottom) - top, exact: exact)
+    }
 }
 
 /// Whose panel it is: a text field's session. One panel is up at a time, the last one shown; a session hides only its
