@@ -253,9 +253,9 @@ final class EngineClient: @unchecked Sendable {
 
     /// A key-down; its result's outputs.
     @discardableResult
-    func press(vk: UInt16, scan: UInt16, text: String, modifiers: Modifiers = []) -> [Output] {
+    func press(vk: UInt16, scan: UInt16, text: String, ignoringModifiers: String? = nil, modifiers: Modifiers = []) -> [Output] {
         t += 120
-        let key = WireKey(vk: vk, scan: scan, text: text, textIgnoringModifiers: text, modifiers: modifiers)
+        let key = WireKey(vk: vk, scan: scan, text: text, textIgnoringModifiers: ignoringModifiers ?? text, modifiers: modifiers)
         guard case let .result(_, _, outputs) = send(.keyDown(KeyFrame(sid: 1, t: t, key: key, ctx: context))).first else { return [] }
         return outputs
     }
@@ -324,6 +324,7 @@ final class EngineClient: @unchecked Sendable {
         case "(": return (0x39, 0x0A, true)
         case ")": return (0x30, 0x0B, true)
         case "+": return (0xBB, 0x0D, true)
+        case "*": return (0x38, 0x09, true)
         default: return nil
         }
     }
