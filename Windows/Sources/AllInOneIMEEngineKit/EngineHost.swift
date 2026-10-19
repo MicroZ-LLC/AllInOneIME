@@ -29,6 +29,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         /// (`Foreground.caretBounds`); nil, a report to ignore. Nil: no check (the tests).
         public var caretBounds: (@Sendable (_ hwnd: UInt64?, _ pid: UInt32?) -> CaretRect?)?
         public var settings = EngineSettings()
+        /// The installed plugins, read again only when their folder changed (`PluginCatalog`).
+        public var plugins = PluginCatalog()
         /// Level one's pinyin; nil: Latin letters only.
         public var rime: EngineRime?
         public var panel: PanelPresenter = NoPanel()
@@ -52,6 +54,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     let foreground: @Sendable (WirePeer) -> Bool
     let caretBounds: (@Sendable (UInt64?, UInt32?) -> CaretRect?)?
     public let settings: EngineSettings
+    let plugins: PluginCatalog
     public let rime: EngineRime?
     public let panelPresenter: PanelPresenter
     let system: SystemActions
@@ -71,6 +74,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         foreground = options.foreground
         caretBounds = options.caretBounds
         settings = options.settings
+        plugins = options.plugins
         rime = options.rime
         panelPresenter = options.panel
         system = options.system
@@ -183,8 +187,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.horizontalCandidates = config.candidateLayout == .horizontal
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider
-        let plugins = PluginStore.load().plugins
-        composer.commands = Command.catalog(config.customCommands, plugins: plugins)
+        composer.commands = Command.catalog(config.customCommands, plugins: plugins.current)
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language)
         messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)
