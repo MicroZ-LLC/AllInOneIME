@@ -119,7 +119,7 @@ extension AllInOneIMEInputController {
 enum BuiltinRenames {
     static let key = "builtinRenamesToTell"
 
-    /// Renames them in the config at `url` (if any are to be), writes it, and keeps their new names to tell. The new
+    /// Renames them in the config at `url` (if any are to be), writes only their names, and keeps their new names to tell. The new
     /// names are free of the plugins' and script extensions' too (`taken`; nil: the installed ones, looked for only when
     /// a custom command has a built-in's name).
     @discardableResult
@@ -129,14 +129,17 @@ enum BuiltinRenames {
         let builtins = Set(Command.builtins.map(\.name))
         guard config.customCommands.contains(where: { builtins.contains($0.name.lowercased()) }) else { return [] }
         let others = taken ?? PluginStore.load().0.map(\.name) + LiveExtensions.load(config).commands.flatMap(\.names)
-        let renamed = config.freeBuiltinNames(taken: others)
-        guard !renamed.isEmpty else { return [] }
+        let found = config.freeBuiltinNames(taken: others)
+        guard !found.isEmpty else { return [] }
+        // Only the names change in the file (`Config.writeRenames`): every other key stays as it was.
+        let renamed: [(old: String, new: String)]
         do {
-            try config.write(to: url)
+            renamed = try Config.writeRenames(found, at: url)
         } catch {
             log.error("could not rename custom commands for the built-in ones: \(String(describing: error), privacy: .public)")
             return []
         }
+        guard !renamed.isEmpty else { return [] }
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         log.notice("custom commands renamed for the built-in ones: \(renamed.count)")
         defaults.set((defaults.stringArray(forKey: key) ?? []) + renamed.map { $0.old + "\t" + $0.new }, forKey: key)
