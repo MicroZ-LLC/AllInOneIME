@@ -23,6 +23,8 @@ public final class PipeListener: @unchecked Sendable {
         /// happen on the connection's queue: well under the watchdog's 2 s, so that a client that stops reading loses
         /// its connection instead of stalling the engine.
         public var writeTimeout: DWORD = 500
+        /// A pipe of another name than the user's (`PipeNames.pipe`), with the same security: for tests.
+        public var pipeName: String?
 
         public init() {}
     }
@@ -47,7 +49,7 @@ public final class PipeListener: @unchecked Sendable {
         self.sid = sid
         self.options = options
         self.log = log
-        pipeName = PipeNames.pipe(sid: sid)
+        pipeName = options.pipeName ?? PipeNames.pipe(sid: sid)
         session = Win32.currentSession()
         var descriptor: PSECURITY_DESCRIPTOR?
         let made = PipeNames.sddl(sid: sid).withWide {

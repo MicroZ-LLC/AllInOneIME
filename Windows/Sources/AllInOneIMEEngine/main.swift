@@ -10,17 +10,23 @@ import WinSDK
 // single-instance through `Local\AllInOneIME-Engine-<SID>`, serving the TSF DLLs of every app over
 // `\\.\pipe\AllInOneIME-<SID>-v1`. Each client connection gets a serial queue and its fields a Composer each.
 //
-//   AllInOneIMEEngine [--test] [--instances N] [--quiet]
+//   AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--instances N] [--quiet]
 //
 //   --test        test mode: a manual clock, level two from a golden's scripted provider, `x-test` directives
 //                 accepted (`allinoneime-cli wire-replay` drives it), clients taken to own the foreground
+//   --provider    test mode: level two from this scripted provider (a golden's fixture) from the start, as
+//                 `#! provider` sets it
+//   --clock       test mode: `manual` (the default: time moves only with `x-test advance` and `run tasks`) or
+//                 `system`, so a scripted stream plays out in real time for a real app (the end-to-end test)
 //   --instances   pipe instances kept waiting for a client (at least 4)
 //   --quiet       log only the engine's start, its errors and its end
 
-let usage = "usage: AllInOneIMEEngine [--test] [--instances N] [--quiet]"
+let usage = "usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--instances N] [--quiet]"
 
 struct EngineOptions {
     var test = false
+    var provider: String?
+    var systemClock = false
     var instances = 4
     var quiet = false
 }
@@ -32,6 +38,15 @@ func parseOptions() -> EngineOptions {
         switch arg {
         case "--test": options.test = true
         case "--quiet": options.quiet = true
+        case "--provider":
+            guard let file = args.popFirst() else { fail("--provider needs a fixture file") }
+            options.provider = file
+        case "--clock":
+            switch args.popFirst() {
+            case "manual": options.systemClock = false
+            case "system": options.systemClock = true
+            default: fail("--clock is manual or system")
+            }
         case "--instances":
             guard let n = args.popFirst().flatMap(Int.init), n >= 4 else { fail("--instances needs a number, 4 or more") }
             options.instances = n
@@ -41,6 +56,9 @@ func parseOptions() -> EngineOptions {
         default:
             fail("unknown argument \(arg)\n\(usage)")
         }
+    }
+    if !options.test, options.provider != nil || options.systemClock {
+        fail("--provider and --clock are for test mode (--test)")
     }
     return options
 }
@@ -98,10 +116,18 @@ func runEngine(_ options: EngineOptions) -> Never {
         exit(1)
     }
 
-    let clock: WireClock = options.test ? ManualClock() : SystemClock()
+    let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
     let host = EngineHost(testMode: options.test, clock: clock,
                           foreground: { peer in peer.pid != nil && Win32.foregroundProcess() == peer.pid },
                           log: { log($0) })
+    if let file = options.provider {
+        do {
+            host.provider = try ScriptedProvider(contentsOf: URL(fileURLWithPath: file), clock: clock)
+        } catch {
+            log("can't read the provider \(file): \(error)", always: true)
+            exit(2)
+        }
+    }
     var configuration = WireServer.Configuration()
     configuration.enginePid = GetCurrentProcessId()
     configuration.testControl = options.test
@@ -143,7 +169,9 @@ func runEngine(_ options: EngineOptions) -> Never {
     }
     let ready = msSinceProcessStart().map { String(format: "%.1f", $0) } ?? "?"
     log("ready in \(ready) ms since the process started: \(listener.pipeName), \(options.instances) instances waiting, "
-        + "pid \(GetCurrentProcessId())\(options.test ? ", test mode" : "")", always: true)
+        + "pid \(GetCurrentProcessId())"
+        + (options.test ? ", test mode (\(options.systemClock ? "system" : "manual") clock"
+            + (options.provider != nil ? ", scripted provider)" : ")") : ""), always: true)
 
     // Ctrl+C, Ctrl+Break, the console closed, logoff, shutdown: tell every client first (§2.5).
     SetConsoleCtrlHandler({ _ in

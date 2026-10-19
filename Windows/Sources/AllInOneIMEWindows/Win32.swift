@@ -185,10 +185,12 @@ public enum PipeNames {
     /// The engine's single-instance mutex, `Local\AllInOneIME-Engine-<SID>`.
     public static func mutex(sid: String) -> String { #"Local\AllInOneIME-Engine-"# + sid }
 
-    /// The pipe's security descriptor: the user and SYSTEM full access, AppContainers (all and restricted) read/write,
-    /// and a low mandatory label so that low-integrity processes can write.
+    /// The pipe's security descriptor: the user as its owner, the user and SYSTEM full access, AppContainers (all and
+    /// restricted) read/write, and a low mandatory label so that low-integrity processes can write. The owner is named
+    /// because the DLL's server check (§2.1) requires it to be the user, and without it the owner is the token's
+    /// default, which is Administrators for an elevated engine.
     public static func sddl(sid: String) -> String {
-        "D:P(A;;GA;;;\(sid))(A;;GA;;;SY)(A;;GRGW;;;AC)(A;;GRGW;;;S-1-15-2-2)S:(ML;;NW;;;LW)"
+        "O:\(sid)D:P(A;;GA;;;\(sid))(A;;GA;;;SY)(A;;GRGW;;;AC)(A;;GRGW;;;S-1-15-2-2)S:(ML;;NW;;;LW)"
     }
 }
 #endif

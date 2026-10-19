@@ -28,5 +28,8 @@ let package = Package(
                           dependencies: ["AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore")]),
         .executableTarget(name: "allinoneime-cli",
                           dependencies: [core("AllInOneIMECLI"), core("AllInOneIMEWire"), "AllInOneIMEWindows"]),
+        // The pipe's security, as the DLL's server check sees it. Windows only (empty elsewhere).
+        .testTarget(name: "AllInOneIMEWindowsTests",
+                    dependencies: ["AllInOneIMEWindows", core("AllInOneIMEWire"), core("AllInOneIMECore")]),
     ]
 )
