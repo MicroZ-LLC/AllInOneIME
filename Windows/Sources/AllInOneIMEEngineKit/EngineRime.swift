@@ -6,9 +6,10 @@ import WinSDK
 #endif
 
 /// Level one's pinyin in the engine: librime (`AllInOneIMERime`) with rime-ice's data. The data and `rime.dll` are
-/// beside the program in an installed copy (Program Files\AllInOneIME\<version>\rime-data, rime.dll); a build finds
-/// them in ThirdParty (`$ALLINONEIME_THIRDPARTY`, else a `ThirdParty` above the program, as Windows/.build/release is).
-/// Its user folder (the learned words, the deployed schemas) is `%APPDATA%\AllInOneIME\rime`.
+/// beside the program in an installed copy (Program Files\AllInOneIME\<version>\rime-data, rime.dll), and only there
+/// (`isInstalled`); a build finds them in ThirdParty (`$ALLINONEIME_THIRDPARTY`, else a `ThirdParty` above the program,
+/// as Windows/.build/release is). Its user folder (the learned words, the deployed schemas) is
+/// `%APPDATA%\AllInOneIME\rime`.
 ///
 /// librime is one per process and the engine has a queue per client connection: every call into it goes through one
 /// lock (`EngineRime.lock`), so two apps' keys never reach it at once (its sessions' table isn't guarded). A key is a
@@ -40,10 +41,21 @@ public final class EngineRime: @unchecked Sendable {
 
     /// Where the data and the library are: `sharedData` if given (with `rime.dll` beside the program, or in ThirdParty),
     /// else beside the program, else in ThirdParty. Nil when either is missing.
+    ///
+    /// An installed copy (`installed`, nil: `isInstalled(executable)`) takes both from beside itself only, whatever the
+    /// environment or the arguments say: a `ThirdParty` above Program Files\AllInOneIME\<version> is C:\ThirdParty,
+    /// which any user of the PC can make, and rime.dll is code, as rime-ice's Lua scripts in its data are.
     public static func locate(executable: URL, sharedData: URL? = nil,
-                              environment: [String: String] = ProcessInfo.processInfo.environment) -> Location? {
+                              environment: [String: String] = ProcessInfo.processInfo.environment,
+                              installed: Bool? = nil) -> Location? {
         let fm = FileManager.default
         let folder = executable.deletingLastPathComponent()
+        let beside = Location(sharedData: folder.appendingPathComponent("rime-data", isDirectory: true),
+                              library: folder.appendingPathComponent("rime.dll"))
+        func usable(_ data: URL) -> Bool { fm.fileExists(atPath: data.appendingPathComponent("default.yaml").path) }
+        if installed ?? isInstalled(executable) {
+            return fm.fileExists(atPath: beside.library.path) && usable(beside.sharedData) ? beside : nil
+        }
         var thirdParties: [URL] = []
         if let given = environment["ALLINONEIME_THIRDPARTY"], !given.isEmpty {
             thirdParties.append(URL(fileURLWithPath: given, isDirectory: true))
@@ -53,14 +65,44 @@ public final class EngineRime: @unchecked Sendable {
             thirdParties.append(up.appendingPathComponent("ThirdParty", isDirectory: true))
             up = up.deletingLastPathComponent()
         }
-        let libraries = [folder.appendingPathComponent("rime.dll")]
-            + thirdParties.map { $0.appendingPathComponent("librime/dist/lib/rime.dll") }
-        let datas = (sharedData.map { [$0] } ?? [folder.appendingPathComponent("rime-data", isDirectory: true)]
-            + thirdParties.map { $0.appendingPathComponent("rime-data", isDirectory: true) })
-        guard let library = libraries.first(where: { fm.fileExists(atPath: $0.path) }),
-              let data = datas.first(where: { fm.fileExists(atPath: $0.appendingPathComponent("default.yaml").path) })
+        let libraries = [beside.library] + thirdParties.map { $0.appendingPathComponent("librime/dist/lib/rime.dll") }
+        let datas = sharedData.map { [$0] } ?? [beside.sharedData] + thirdParties.map { $0.appendingPathComponent("rime-data", isDirectory: true) }
+        guard let library = libraries.first(where: { fm.fileExists(atPath: $0.path) }), let data = datas.first(where: usable)
         else { return nil }
         return Location(sharedData: data, library: library)
+    }
+
+    /// Whether `executable` is an installed copy: in a Program Files folder (the installer's
+    /// Program Files\AllInOneIME\<version>), which only administrators can write to.
+    public static func isInstalled(_ executable: URL, programFiles: [URL] = programFilesFolders) -> Bool {
+        let path = windowsPath(executable).lowercased()
+        return programFiles.contains { folder in
+            let prefix = windowsPath(folder).lowercased()
+            return !prefix.isEmpty && path.hasPrefix(prefix.hasSuffix("\\") ? prefix : prefix + "\\")
+        }
+    }
+
+    /// The Program Files folders (64-bit and x86), as Windows knows them (`SHGetKnownFolderPath`), not from the
+    /// environment.
+    public static var programFilesFolders: [URL] {
+        #if os(Windows)
+        var ids = [FOLDERID_ProgramFiles, FOLDERID_ProgramFilesX64, FOLDERID_ProgramFilesX86]
+        return (0..<ids.count).compactMap { index -> URL? in
+            var path: PWSTR?
+            defer { CoTaskMemFree(path) }
+            guard SHGetKnownFolderPath(&ids[index], 0, nil, &path) == S_OK, let path else { return nil }
+            return URL(fileURLWithPath: String(decodingCString: path, as: UTF16.self), isDirectory: true)
+        }
+        #else
+        return []
+        #endif
+    }
+
+    /// `url`'s path as Windows writes it ("C:\Program Files\…"), with no "\" at the end.
+    static func windowsPath(_ url: URL) -> String {
+        var path = url.standardizedFileURL.withUnsafeFileSystemRepresentation { String(cString: $0!) }.replacingOccurrences(of: "/", with: "\\")
+        while path.count > 3, path.hasSuffix("\\") { path.removeLast() }
+        return path
     }
 
     /// Loads rime.dll by its full path and starts librime's deployment, in the background (quick with the prebuilt
@@ -70,8 +112,11 @@ public final class EngineRime: @unchecked Sendable {
         defer { Self.lock.unlock() }
         guard !started else { return }
         #if os(Windows)
-        let path = location.library.path.replacingOccurrences(of: "/", with: "\\")
-        let module = path.withCString(encodedAs: UTF16.self) { LoadLibraryExW($0, nil, DWORD(LOAD_WITH_ALTERED_SEARCH_PATH)) }
+        // By its full path; what it imports (KERNEL32, USER32, dbghelp) from its own folder or System32 only.
+        let path = Self.windowsPath(location.library)
+        let module = path.withCString(encodedAs: UTF16.self) {
+            LoadLibraryExW($0, nil, DWORD(LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR) | DWORD(LOAD_LIBRARY_SEARCH_SYSTEM32))
+        }
         guard module != nil else {
             throw CocoaError(.fileReadUnknown, userInfo: [NSLocalizedDescriptionKey: "LoadLibraryExW(\(path)): error \(GetLastError())"])
         }
