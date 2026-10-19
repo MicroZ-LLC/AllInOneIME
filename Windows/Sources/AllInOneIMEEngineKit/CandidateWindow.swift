@@ -1,11 +1,19 @@
 #if os(Windows)
 import CAllInOneIMEPanel
 import Foundation
+import WinSDK
 
 /// Who owns the foreground, and where a client's caret may be (§8): the candidate window's own checks, for the engine.
 public enum Foreground {
-    /// Whether process `pid` owns the foreground window (a UWP app: the frame around its window).
+    /// Whether process `pid` is the app in front: the foreground window is its own (a classic console's, its
+    /// conhost's), or the focus is in a window of its own, or a window inside the foreground window is (a WebView2's, a
+    /// UWP app's in the frame around it).
     public static func isOwned(by pid: UInt32) -> Bool { aio_owns_foreground(pid) != 0 }
+
+    /// `isOwned(by:)` with `foreground` as the foreground window and `focus` its thread's focus window.
+    static func isInFront(_ pid: UInt32, foreground: HWND?, focus: HWND? = nil) -> Bool {
+        aio_in_front(UnsafeMutableRawPointer(foreground), UnsafeMutableRawPointer(focus), pid) != 0
+    }
 
     /// The rectangle a caret that process `pid` reports in window `hwnd` must be in: that window's, if it is the
     /// process's; with no window, the foreground window's, if the process owns it. Nil if neither.

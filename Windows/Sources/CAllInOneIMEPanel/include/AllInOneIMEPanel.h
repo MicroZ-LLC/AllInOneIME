@@ -104,12 +104,17 @@ int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path);
 /// Closes the window and ends its thread.
 void aio_panel_destroy(AioPanel *panel);
 
-/// Whether the process `pid` owns the foreground window: the window is its own, or, for a UWP app, it is
-/// ApplicationFrameHost's frame around a window of the app's.
+/// Whether the process `pid` is the app in front (`aio_in_front` with the foreground window and its thread's focus).
 int32_t aio_owns_foreground(uint32_t pid);
+/// Whether the process `pid` is the app in front when `foreground` is the foreground window and `focus` (nullable) the
+/// focus window of its thread: the foreground window is the process's (a classic console's window is its conhost's,
+/// though the window says it is its client's), or the focus is in a window of the process's (a WebView2's, in its
+/// host's window), or a window inside the foreground window is (a UWP app's in ApplicationFrameHost's frame).
+int32_t aio_in_front(void *foreground, void *focus, uint32_t pid);
 /// Where a caret that the process `pid` reports in `hwnd` may be (§6 `caret`): that window's rectangle, in physical
-/// screen pixels, if the window is the process's; with no window (0), the foreground window's, if the process owns it
-/// (`aio_owns_foreground`). 0 if neither: the report isn't the process's to make.
+/// screen pixels, if the window is the process's (a classic console's, its conhost's); with no window (0), the
+/// foreground window's, if the process is the app in front (`aio_owns_foreground`). 0 if neither: the report isn't the
+/// process's to make.
 int32_t aio_caret_bounds(uint64_t hwnd, uint32_t pid, AioCaret *bounds);
 /// A rectangle in `window`'s client coordinates (its own pixels: logical ones for an app that isn't per-monitor aware)
 /// in physical screen pixels: how the panel places itself at a system caret when the DLL hasn't reported one. 0 if it
