@@ -176,8 +176,15 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         var messages = Composer.Messages.make(language: language)
         messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)
         composer.messages = messages
-        // Chinese only with librime; Latin languages always.
-        let usable = config.inputLanguages.filter { $0 != .chinese || composer.primaryEngine is LockedRimeEngine }
+        // Chinese only with librime; Korean and Hindi need their packs, which Windows doesn't download yet; Latin
+        // languages always.
+        let usable = config.inputLanguages.filter { language in
+            switch language {
+            case .chinese: return composer.primaryEngine is LockedRimeEngine
+            case .korean, .hindi: return false
+            default: return true
+            }
+        }
         let languages = usable.isEmpty ? [.english] : usable
         composer.inputLanguages = languages
         let defaultInput = config.startingInput(in: app, among: languages)

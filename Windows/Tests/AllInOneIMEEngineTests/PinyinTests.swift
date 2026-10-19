@@ -118,6 +118,12 @@ struct PinyinTests {
         #expect(!client.composition.isEmpty)
     }
 
+    @Test func languagesWithoutTheirPackAreNoInputMode() throws {
+        let (client, folder) = try client(#"{"inputLanguages": ["zh", "ko", "en", "hi"], "defaultInput": "zh"}"#)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(client.composer.inputLanguages == [.chinese, .english])
+    }
+
     @Test func theSettingsFileIsReadAgainWhenItChanges() throws {
         let folder = try temporaryFolder("reload")
         defer { try? FileManager.default.removeItem(at: folder) }
