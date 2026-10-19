@@ -214,7 +214,7 @@ tiptest focus-resent          PASS  10/10 frames, "Hi."
 the session's input method    as it was
 ```
 
-## End to end (M3, M4): the real engine and DLL, into a real edit control and real Notepad
+## End to end (M3–M7): the real engine and DLL, into a real edit control and real Notepad
 
 `bash test/run-e2e.sh` runs the whole real stack in the logged-on session (a scheduled task, as the other tests): it
 registers the DLL, and the driver (`e2edriver`) starts the real engine in that session (test mode, the scripted
@@ -240,6 +240,16 @@ window. The engine runs in the session (not over SSH), so it and the DLL pass §
   the DLL it had loaded (COM doesn't load a class's DLL again in a process) and is only reported.
 - **`--plain TEXT`:** the engine as it runs for a user (no test mode, no provider), and TEXT typed and expected back as
   typed.
+- **`--pinyin` (M5, M6):** the engine as it runs for a user, on settings of the run's own (English, then Chinese, as a
+  new user's): the driver waits for librime to deploy, taps Shift, types "nihao", Space, "nihao", `1`, and expects
+  "你好你好". **`--ai` (M7):** "@improve hello", Return, `1`, expecting "Hello there.", the engine's settings naming the
+  Claude API at `Windows/Scripts/stub-provider.py`, which the script starts on localhost (never a paid API), with its key
+  from the environment (`--no-keychain`: the user's Credential Manager isn't read). Except with the scripted provider,
+  the engine gets a librime user folder of the run's own, so what a test types isn't learned in the user's.
+- **The candidate window (M6):** for all but `--plain`, the driver finds the engine's window by its class
+  (`AllInOneIME.CandidateWindow`) in the engine's process and checks it is up while the candidates or the results are, a
+  layered, no-activate, topmost tool window, that the target kept the foreground, and (pinyin) that it went with the
+  commit. It captures it as a PNG (the screen under it) into `build/test-logs/e2e-run-<scenario>/shots/`.
 
 **Activating one app only.** A TSF text service has no HKL (activating it leaves the thread on the base US layout, and
 it never appears in `GetKeyboardLayoutList`), so it can't be selected from outside with `WM_INPUTLANGCHANGEREQUEST` the

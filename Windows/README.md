@@ -6,10 +6,11 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
   of wire protocol v1 (`../Core/docs/wire-protocol-v1.md`).
 - `AllInOneIMEEngine`, the per-user engine that the text service talks to over a named pipe, in wire protocol v1. It
   serves the core's `AllInOneIMEWire` server: a Composer for each text field, one serial queue for each client
-  connection. What the wire doesn't carry isn't done yet and is only logged: the candidate panel isn't drawn,
-  nothing is opened, no model is asked.
+  connection; and does what the wire doesn't carry (`AllInOneIMEEngineKit`): pinyin through librime, the candidate
+  window, the AI requests through the core's providers, the clipboard, opening, terminals (see "What works now").
 - `allinoneime-cli`, the command line. It runs level two (translate / polish, the rewrites) with the core's code and
-  settings (`config.json` where the core keeps it on Windows, under `%APPDATA%`). `wire-replay` replays the
+  settings (`config.json` where the core keeps it on Windows, under `%APPDATA%`), and sets them while there is no
+  settings window (`set-provider`, `set-key`, see "Settings: a provider and its key"). `wire-replay` replays the
   protocol's goldens over the real pipe.
 - The tests of level one's engine, the core's librime binding (`AllInOneIMERime`), on librime's Windows build with
   rime-ice's data (see "Level one: librime and rime-ice").
@@ -18,12 +19,85 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 The settings window comes next.
 
 ```
+Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
+swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (38)
 ```
+
+The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
+and rime-ice's data beside itself when installed, else in `ThirdParty`.
 
 The core builds and its tests build here too: `swift build --build-tests` in `../Core`, and `swift test --filter
 AllInOneIMEWireTests` runs the protocol's goldens in process.
+
+## What works now (M5–M7)
+
+In every app that loads TSF text services (the classic Win32 ones, and WinUI ones like the Store Notepad), with
+**AllInOneIME** picked with Win+Space:
+
+- **English and pinyin (M5).** Typing starts in English, as for a new user on the Mac, and a tap of Shift switches
+  between English and 中文 (the "中" / "英" notice shows it). Pinyin is librime with rime-ice's data, as on the Mac: the
+  pinyin is the app's composition, the candidates are in the engine's window; Space or a digit picks, `-` / `=` and Page
+  Up / Page Down turn the page. The data comes with the installer (`rime-data`); what librime learns is the user's, in
+  `%APPDATA%\AllInOneIME\rime`. librime deploys as the engine starts (under a second usually, several the first time in
+  a user folder): until then a field types Latin letters, and gets pinyin once it is ready.
+- **The candidate window (M6).** The engine's own window, under the caret the DLL reports (above it near the bottom of
+  the screen), on that monitor at its DPI, in the apps' light or dark theme: the candidates with their numbers (in a
+  row, or one under the other with `"candidateLayout": "vertical"`), the highlight, the command list after "@", level
+  two's results as they stream in, a hint, an error, the footer with the keys and a notice beside it. It never takes the
+  focus; a click on a row picks it. It hides when the field loses the focus or another app takes the foreground.
+- **AI (M7).** `@improve`, `@translate`, `@question`, a custom prompt command, a refine (type, then Shift+Enter) go to
+  the provider `config.json` names, through the core's `Converter` and providers, the key from the Credential Manager.
+  A new install is on AllInOneIME Cloud, the Mac's default for a new user (`Config.fresh`), which needs a sign-in that
+  Windows doesn't have yet: a request then says to sign in or add a key. Set a provider of your own and its key (below)
+  and it works: the Claude API, OpenAI or any OpenAI-compatible service (DeepSeek, Ollama...), Gemini (each tested
+  against a stand-in for its API), or Bedrock with an AWS profile (`%USERPROFILE%\.aws`; not tried on Windows yet).
+- **The other commands.** Ctrl+C copies a result, Ctrl+V pastes the clipboard into a draft; `@open` opens a web address,
+  a path, or what it finds by name in the Start menu and on the Desktop, in Documents and Downloads; a link command opens
+  its page; `@agent` and a `terminal` command start a console window; a custom `run` command runs its program through
+  the core's Windows process launcher (a job object); `@js` runs in QuickJS in a child process of the engine, as script
+  plugins do; `@py` runs Python if `python3` is on the PATH; `@note` saves to a folder of Markdown files or Notion when
+  `config.json` says so. `@settings` opens the folder of `config.json`.
+
+## Settings: a provider and its key
+
+There is no settings window on Windows yet. The settings are the core's `config.json`, in
+`%APPDATA%\AllInOneIME\config.json` (the same format as the Mac's `~/.config/allinoneime/config.json`; edit it by hand
+for the rest), and the command line, installed beside the engine, sets the ones that matter first:
+
+```
+cd "C:\Program Files\AllInOneIME\0.6.4"
+allinoneime-cli set-provider anthropic                 # or openai, gemini, bedrock; [--model ID] [--base-url URL]
+allinoneime-cli set-key anthropic                      # asks for the key, and doesn't show it as it is pasted
+allinoneime-cli show-config                            # the provider, the model, which keys are saved (their ending)
+allinoneime-cli set-input zh,en                        # optional: start in Chinese (the first is the default)
+```
+
+- **The key** is read from standard input, never from the command line (where it would stay in the shell's history):
+  typed at a console with the echo off, or piped in (`Get-Content key.txt | allinoneime-cli set-key openai`). It is
+  kept in the Credential Manager (Windows Credentials, `AllInOneIME/AllInOneIME API key/<provider>`), tied to the host
+  of the provider's base URL, as on the Mac: a key is never sent to another host. `remove-key <provider>` takes it out.
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `GEMINI_API_KEY` in the user's environment are used when there is none.
+- **Another service:** `set-provider openai --base-url https://api.deepseek.com/v1 --model deepseek-chat`, then
+  `set-key openai`. Plain `http://` only to this PC or the local network (Ollama: `--base-url
+  http://127.0.0.1:11434/v1`).
+- **Nothing restarts:** the engine reads `config.json` again when it changes, and a key when it was saved again.
+- **A file that doesn't parse** is never overwritten by the commands; the engine uses the defaults meanwhile (and logs
+  why).
+
+## What's still missing
+
+- **The settings window**, and with it the sign-in to AllInOneIME Cloud, the language packs (Korean, Hindi: their
+  input isn't offered), the plugin library and the extensions' settings, app profiles edited other than by hand.
+- **What only macOS has:** Apple Notes (`@note`'s default destination: the text goes on the clipboard instead, and a
+  notice says so; a folder or Notion works), Reminders (`@reminder`), Messages (`@imessage`), dictation (the right
+  Alt key), reading a screenshot's text (`@reply` with an image), Claude Code background tasks (`@tasks`, `@agent` in
+  the background). Each says "Windows 版还不支持" / "Not available on Windows yet" in the panel or a notice.
+- **Not done yet on Windows:** results typed out step by step (they go in at once), the keyboard layout of an input
+  language (French's AZERTY), Translate as You Type's chip, the command usage order and the recent questions kept
+  between runs, `@open`'s search (a plain walk of a few folders, not an index), UI-less mode (`ITfUIElement`) for
+  full-screen games.
 
 ## Installing (M4)
 
@@ -31,9 +105,11 @@ AllInOneIMEWireTests` runs the protocol's goldens in process.
 powershell -ExecutionPolicy Bypass -File installer\build.ps1     :: -> installer\build\AllInOneIME-<version>-x64.msi
 ```
 
-`build.ps1` builds the DLL, the engine and the installer's helper in Release and packages them with WiX Toolset 5
-(`dotnet tool install --global wix --version 5.0.2`, which needs the .NET SDK; the script adds the UI and Util
-extensions itself). The version is the app's, from `Resources/Info.plist`. The package isn't signed yet.
+`build.ps1` builds the DLL, the engine, the command line and the installer's helper in Release (librime and rime-ice's
+data with `Scripts/build-rime-data.sh` first, in Git Bash, if `ThirdParty` hasn't them) and packages them with WiX
+Toolset 5 (`dotnet tool install --global wix --version 5.0.2`, which needs the .NET SDK; the script adds the UI and Util
+extensions itself): 77 MB, most of it rime-ice's dictionaries. The version is the app's, from `Resources/Info.plist`.
+The package isn't signed yet.
 
 - **Install:** double-click the MSI (one license page, then the UAC prompt), or `msiexec /i AllInOneIME-0.6.4-x64.msi
   /qn` from an elevated shell. Then pick **AllInOneIME** with Win+Space, as any keyboard.
@@ -43,9 +119,11 @@ extensions itself). The version is the app's, from `Resources/Info.plist`. The p
 What the MSI does:
 
 - **Files:** `Program Files\AllInOneIME\<version>\`: `AllInOneTIP.dll`, `AllInOneIMEEngine.exe` (made a GUI program,
-  so it opens no console at logon), `AllInOneIMESetup.exe` (the helper), and the 20 DLLs the engine imports from the
-  Swift runtime and the VC++ redistributable, next to it. A version has its own folder, so an app that loaded an older
-  DLL keeps it until it restarts while new apps load the new one.
+  so it opens no console at logon), `rime.dll` (librime) and `rime-data\` (rime-ice's schemas and dictionaries, 85
+  files, 120 MB) beside it, `allinoneime-cli.exe` (the command line), `AllInOneIMESetup.exe` (the helper), and the 20
+  DLLs the engine and the command line import from the Swift runtime and the VC++ redistributable, next to them. A
+  version has its own folder, so an app that loaded an older DLL keeps it until it restarts while new apps load the new
+  one.
 - **Registration:** the DLL's own `DllRegisterServer`, run as SelfReg: the COM server in HKLM, the en-US and zh-CN
   profiles, the categories (`tip/README.md`, "Registration").
 - **The user's keyboard list:** `AllInOneIMESetup add-keyboard`, for the user who installs, through `InstallLayoutOrTip`
@@ -60,7 +138,8 @@ What the MSI does:
   the installer is elevated); not from an SSH session (session 0), where it would only hold the pipe's name.
 - **Uninstall:** AllInOneIME out of the user's language list (and TSF's state for it in their HKCU), every engine from
   `Program Files\AllInOneIME` stopped, `DllUnregisterServer`, the files, the folder and the registry values gone. An
-  upgrade keeps the keyboard in the list. `%APPDATA%\AllInOneIME`, the user's data, is never touched.
+  upgrade keeps the keyboard in the list. `%APPDATA%\AllInOneIME`, the user's data (`config.json`, librime's learned
+  words in `rime\`), is never touched, nor the keys in the Credential Manager.
 - **A DLL in use:** an installed input method's DLL is loaded, as a module or for its icon, by Explorer and every app
   that showed it (in the test: Explorer, Discord, Notepad...). Restart Manager is off (`MSIRESTARTMANAGERCONTROL`), so
   the installer never closes the user's apps: Windows Installer moves the file to `Config.Msi` and deletes it at the
@@ -70,11 +149,7 @@ What the MSI does:
 in a desktop session for TSF's own view; session 0 has no TSF). `remove-keyboard`, `start-engine` and `stop-engines`
 are the installer's other steps.
 
-**What works now:** English typing passes straight through to the app, in every app that loads TSF text services (the
-classic Win32 ones, and WinUI ones like the Store Notepad). `@improve` and the other rewrites work only with the test
-provider (`AllInOneIMEEngine --test --provider <fixture>`, as the e2e harness runs it): the installed engine asks no
-model yet and answers them with a failure ("Not available in the Windows engine yet") that nothing shows, since the
-candidate panel isn't drawn. Real AI and pinyin come next.
+What the installed copy does: "What works now" above.
 
 ### Testing the installer
 
@@ -84,15 +159,16 @@ bash installer/test/run-install-test.sh     # from an elevated shell (an adminis
 
 It records the user's language list, the default input method, the session's input method, `HKCU\Keyboard Layout` and
 everything of AllInOneIME's (`installer/test/snapshot.ps1`), then: a silent install and its checks; an upgrade over it
-(a second package of the same version); `tip/test/run-e2e.sh --installed` three times; a silent uninstall and its
-checks; anything of the record that changed, put back; and, if everything passed, the package installed again for the
-user to try. The steps that need the desktop run in the user's session as one-shot scheduled tasks
+(a second package of the same version); `tip/test/run-e2e.sh --installed` five times (below); a silent uninstall and
+its checks; anything of the record that changed, put back; and, if everything passed, the package installed again for
+the user to try. The steps that need the desktop run in the user's session as one-shot scheduled tasks
 (`tip/test/run-in-session.sh`).
 
 Run on 2026-10-18 on this PC (Windows 11 Pro 26200, the user's language list Chinese (Simplified) with Microsoft
-Pinyin, and English (US) with no keyboard): **47 passed, 0 failed, 1 warning**.
+Pinyin, and English (US) with no keyboard), the M5–M7 package: **57 passed, 0 failed, 1 warning** (M4's: 47, 0, 1).
 
-- **Install and upgrade:** the files, the 20 runtime DLLs, the COM server at the installed path, both profiles and the
+- **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
+  20 runtime DLLs, the COM server at the installed path, both profiles and the
   5 categories, TSF enumerating both profiles as enabled in the user's session, AllInOneIME in the list under
   zh-Hans-CN after Microsoft Pinyin, the rest of the list, the default input method, `Keyboard Layout` and the session's
   input method all as recorded. The engine, started as at logon: in the user's session, no window, the runtime from its
@@ -102,7 +178,16 @@ Pinyin, and English (US) with no keyboard): **47 passed, 0 failed, 1 warning**.
     installed engine: "hi @improve helo", Return, "1" gives "hi Hello.";
   - in the user's real Notepad, through the installed engine as it runs for a user (no test mode): "Hello world. 123"
     comes out as typed;
-  - in real Notepad with the test provider: "hi Hello.".
+  - in real Notepad with the test provider: "hi Hello.";
+  - in real Notepad, pinyin through librime (`--pinyin`): a tap of Shift, "nihao", Space, "nihao", "1" give
+    "你好你好"; the candidate window up under the caret while the candidates are, a no-activate, topmost tool window,
+    Notepad keeping the foreground, gone with the commit;
+  - in real Notepad, a real AI request (`--ai`): "@improve hello", Return, the versions streamed over HTTP from the
+    stub provider on localhost in the Claude API's format, "1" gives "Hello there." (the stub saw one request, with the
+    right key);
+  - the candidate window captured as PNGs each time (`installer/build/test-logs/e2e-*-shots/`), and looked at: the
+    candidates in a row with the first highlighted, the footer in Chinese and the "中" notice, the results with their
+    numbers, "原文" beside row 0 and the request's time.
 - **The warning:** the user's Notepad (their tabs, unsaved work: not to be closed) had been running since before the
   install, with the DLL of an earlier development run loaded. COM doesn't load a class's DLL again in a process, so
   that Notepad keeps using that one (the same sources) until it restarts; a Notepad started after the install loads
@@ -117,8 +202,17 @@ Pinyin, and English (US) with no keyboard): **47 passed, 0 failed, 1 warning**.
 ## The engine
 
 ```
-.build\debug\AllInOneIMEEngine.exe [--test] [--instances N] [--quiet]
+.build\debug\AllInOneIMEEngine.exe [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
+                                    [--rime-data DIR] [--rime-user DIR] [--no-rime] [--no-panel] [--instances N] [--quiet]
 ```
+
+- **Settings:** `--config FILE` instead of `%APPDATA%\AllInOneIME\config.json`; `--no-keychain`, API keys from the
+  environment only (the tests: the user's Credential Manager is neither read nor tied to a stub's address); librime's
+  data (`--rime-data`) and user folder (`--rime-user`: the tests' own, so nothing typed there is learned in the user's);
+  `--no-rime`, Latin letters only; `--no-panel`, no candidate window.
+- **Its child processes:** it is also what `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in.
+- **librime and threads:** each client connection has its own queue, and librime is one per process: every call into
+  it goes through one lock (a key is a fraction of a millisecond in it).
 
 - **Pipe:** `\\.\pipe\AllInOneIME-<UserSID>-v1`, with the protocol's SDDL and `FILE_FLAG_FIRST_PIPE_INSTANCE` (§2.1).
   It is in message mode, refuses remote clients, uses overlapped I/O, and keeps at least 4 instances waiting.
