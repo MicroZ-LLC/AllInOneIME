@@ -323,6 +323,48 @@ struct ReplyTests {
         #expect(Config.renameCandidates(for: "reply").last == "myreplyz")
     }
 
+    /// The rename as the input method writes it at launch (`BuiltinRenames.apply`): a file with a custom `reply` and
+    /// nothing else differs afterwards only in that command's name. No key it didn't have is added (`agent`,
+    /// `agentCommand`, `agentPageContext` … with their defaults, as writing the whole config would).
+    @Test func theRenameWritesOnlyTheCommandsName() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rename-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.json")
+        let original = """
+        {
+          "customCommands" : [
+            {
+              "name" : "reply",
+              "prompt" : "Reply politely.",
+              "type" : "prompt"
+            }
+          ]
+        }
+        """
+        try Data(original.utf8).write(to: url)
+
+        var config = try Config.load(from: url)
+        let found = config.freeBuiltinNames(taken: [])
+        #expect(found.map(\.old) == ["reply"] && found.map(\.new) == ["myreply"])
+        let written = try Config.writeRenames(found, at: url)
+        #expect(written.map(\.old) == ["reply"] && written.map(\.new) == ["myreply"])
+
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(text == original.replacingOccurrences(of: #""name" : "reply""#, with: #""name" : "myreply""#), "\(text)")
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        #expect(Array(object.keys) == ["customCommands"])
+        let commands = try #require(object["customCommands"] as? [[String: String]])
+        #expect(commands == [["name": "myreply", "prompt": "Reply politely.", "type": "prompt"]])
+        #expect(try Config.load(from: url).customCommands.map(\.name) == ["myreply"])
+
+        // Run again: nothing left to rename, the file as it is.
+        var again = try Config.load(from: url)
+        #expect(again.freeBuiltinNames(taken: []).isEmpty)
+        #expect(try Config.writeRenames([], at: url).isEmpty)
+        #expect(try String(contentsOf: url, encoding: .utf8) == text)
+    }
+
     @Test func theRenameNoticeSaysWhatWasRenamedAndWhyOnlyForABuiltInOffered() {
         #expect(Composer.ReplyMessages.english.renamed(old: "reply", new: "myreply") == "Your own @reply is now @myreply: @reply is built in")
         #expect(Composer.ReplyMessages.chinese.renamed(old: "Note", new: "mynote") == "你自己的 @note 改名为 @mynote：@note 现在是内置命令")

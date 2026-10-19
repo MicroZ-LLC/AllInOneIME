@@ -360,6 +360,33 @@ public struct Config: Codable, Equatable, Sendable {
         return renamed
     }
 
+    /// `renamed` (what `freeBuiltinNames` did) written into the config file at `url`, and nothing else: in its
+    /// `customCommands`, the first command named `old` that isn't renamed yet takes `new` as its name. Its other fields,
+    /// the other commands (a later version's too) and every other key of the file stay as they were
+    /// (`AIConfig.patchingFile`); writing the whole config would add the keys this version always writes, with their
+    /// defaults. What was written: a rename whose command the file no longer has (changed meanwhile) isn't.
+    @discardableResult
+    public static func writeRenames(_ renamed: [(old: String, new: String)], at url: URL) throws -> [(old: String, new: String)] {
+        var written: [(old: String, new: String)] = []
+        try AIConfig.patchingFile(at: url) { file in
+            guard case var .array(commands)? = file["customCommands"] else { return }
+            var done = Set<Int>()
+            for pair in renamed {
+                let found = commands.indices.first { index in
+                    guard !done.contains(index), case let .object(fields) = commands[index] else { return false }
+                    return fields["name"] == .string(pair.old)
+                }
+                guard let index = found, case var .object(fields) = commands[index] else { continue }
+                fields["name"] = .string(pair.new)
+                commands[index] = .object(fields)
+                done.insert(index)
+                written.append(pair)
+            }
+            file["customCommands"] = .array(commands)
+        }
+        return written
+    }
+
     /// The names `freeBuiltinNames` tries for a custom command named `name`, in order: "my" before it, then "myown", then
     /// "my" before it and a letter after ("b" … "z"); only those a command can have (`CustomCommand.isValid`: letters,
     /// at most 24).
