@@ -929,9 +929,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Error category without any server-provided text (safe for the public log): this Mac's own, else the core's.
     static func errorKind(_ error: Error) -> String { SessionServices.macErrorKind(error) ?? InputSession.errorKind(error) }
 
-    /// An error in Simplified Chinese (`UIText.chineseDescription`).
-    static func describe(_ error: Error) -> String { UIText.chineseDescription(error) }
-
     /// Owns the candidate panel while it shows a notice no text field is there for.
     private static let looseNoticeOwner = NSObject()
 

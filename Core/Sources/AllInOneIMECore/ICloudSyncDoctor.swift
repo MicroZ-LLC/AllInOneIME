@@ -32,8 +32,9 @@ extension Doctor {
                             detail: ICloudSync.turnOnDrive(language: t.language))]
         }
         var out: [Finding] = []
+        let now = sync.checked ?? Platform.current.clock.now
         let last = sync.lastSync.map {
-            let ago = ICloudSync.ago($0, now: sync.checked ?? Platform.current.clock.now, language: t.language)
+            let ago = RelativeTime.ago($0, now: now, language: t.language, style: .shortThenDate)
             return t.tr("上次同步：\(ago)", "last synced \(ago)")
         }
         if let error = sync.lastError {
@@ -44,7 +45,7 @@ extension Doctor {
                                detail: [t.tr("别的 Mac 同步的文件还在下载", "files another Mac synced are still downloading"), last]
                                    .compactMap { $0 }.joined(separator: t.tr("；", "; "))))
         } else if let lastSync = sync.lastSync {
-            let ago = ICloudSync.ago(lastSync, now: sync.checked ?? Platform.current.clock.now, language: t.language)
+            let ago = RelativeTime.ago(lastSync, now: now, language: t.language, style: .shortThenDate)
             out.append(Finding(area: .iCloudSync, status: .ok, title: t.tr("已通过 iCloud 同步（\(ago)）", "Synced through iCloud \(ago)")))
         } else {
             out.append(Finding(area: .iCloudSync, status: .warning, title: t.tr("还没有通过 iCloud 同步过", "Not synced through iCloud yet"),
@@ -68,23 +69,6 @@ extension ICloudSync {
                                               "Turn on iCloud Drive in System Settings → Apple Account → iCloud")
     }
 
-    /// "just now", "2 min ago", "3 h ago", or the day.
-    public static func ago(_ date: Date, now: Date, language: String) -> String {
-        let t = InterfaceWords(language: language)
-        let seconds = max(0, now.timeIntervalSince(date))
-        let (minutes, hours) = (Int(seconds / 60), Int(seconds / 3600))
-        switch seconds {
-        case ..<60: return t.tr("刚刚", "just now")
-        case ..<3600: return t.tr("\(minutes) 分钟前", "\(minutes) min ago")
-        case ..<86400: return t.tr("\(hours) 小时前", "\(hours) h ago")
-        default:
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: language == "en" ? "en_US" : language)
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .short
-            return formatter.string(from: date)
-        }
-    }
 }
 
 extension AIConfig {

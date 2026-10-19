@@ -186,20 +186,9 @@ extension InterfaceWords {
         return command == .agent ? UIText.agentName : tr("回答", "answer")
     }
 
-    /// How long ago `date` was: "刚刚" / "just now", "3 小时前" / "3 hours ago" …
+    /// How long ago `date` was, in words (`RelativeTime.Style.words`): "刚刚" / "just now", "3 小时前" / "3 hours ago" …
     public func ago(_ date: Date, now: Date = Platform.current.clock.now) -> String {
-        guard now.timeIntervalSince(date) >= 60 else { return tr("刚刚", "just now") }
-        #if canImport(Darwin)
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: language)
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: now)
-        #else
-        // swift-corelibs-foundation's RelativeDateTimeFormatter has no unitsStyle: swift-foundation's format style, the
-        // same ICU words, which counts from the present (so `date` moved as far before it as it is before `now`).
-        let style = Date.RelativeFormatStyle(presentation: .numeric, unitsStyle: .wide, locale: Locale(identifier: language))
-        return Date().addingTimeInterval(-now.timeIntervalSince(date)).formatted(style)
-        #endif
+        RelativeTime.ago(date, now: now, language: language, style: .words)
     }
 }
 

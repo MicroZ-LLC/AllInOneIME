@@ -204,7 +204,7 @@ struct ICloudSyncSection: View {
         case let .synced(date): return lastSynced(date, now: now)
         case .waiting: return tr("正在等 iCloud…", "Waiting for iCloud…")
             + (sync.lastSync.map {
-                let ago = ICloudSync.ago($0, now: now, language: UIText.language)
+                let ago = RelativeTime.ago($0, now: now, language: UIText.language, style: .shortThenDate)
                 return tr("（上次同步：\(ago)）", " (last synced \(ago))")
             } ?? "")
         case let .failed(message): return message
@@ -213,7 +213,7 @@ struct ICloudSyncSection: View {
 
     /// "Last synced 2 min ago".
     private func lastSynced(_ date: Date, now: Date) -> String {
-        let ago = ICloudSync.ago(date, now: now, language: UIText.language)
+        let ago = RelativeTime.ago(date, now: now, language: UIText.language, style: .shortThenDate)
         return tr("上次同步：\(ago)", "Last synced \(ago)")
     }
 

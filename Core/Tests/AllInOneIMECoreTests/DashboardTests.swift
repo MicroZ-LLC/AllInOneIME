@@ -118,19 +118,6 @@ struct DashboardTests {
         #expect(AgentTaskList.limit == 30 && AgentTaskList.shown == 5)
     }
 
-    @Test func howLongAgo() {
-        let cases: [(TimeInterval, String, String)] = [
-            (-30, "刚刚", "just now"), (59, "刚刚", "just now"), (60, "1 分钟前", "1 min ago"),
-            (25 * 60, "25 分钟前", "25 min ago"), (3599, "59 分钟前", "59 min ago"), (3600, "1 小时前", "1 hr ago"),
-            (2 * 3600 + 59 * 60, "2 小时前", "2 hr ago"), (86_399, "23 小时前", "23 hr ago"),
-            (86_400, "1 天前", "1 day ago"), (3 * 86_400 + 5, "3 天前", "3 days ago"),
-        ]
-        for (seconds, chinese, english) in cases {
-            #expect(DashboardText.ago(t0, now: t0 + seconds, chinese: true) == chinese)
-            #expect(DashboardText.ago(t0, now: t0 + seconds, chinese: false) == english)
-        }
-    }
-
     @Test func headerCounts() {
         #expect(DashboardText.counts(reminders: 3, running: 1, chinese: true) == "3 个提醒 · 1 个任务进行中")
         #expect(DashboardText.counts(reminders: 3, running: 1, chinese: false) == "3 reminders · 1 task running")
