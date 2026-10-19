@@ -295,3 +295,94 @@ struct KeySyncClockTests {
         #expect(!KeySync.newer(ahead, than: Self.item(now.addingTimeInterval(500 * 86_400)), now: now))  // both the oldest
     }
 }
+
+/// Round 4: a key never kept aside over its own replaced copy, the copy-back retried for the accounts it left, and a move
+/// into an empty slot that only adds.
+struct KeySyncRound4Tests {
+    typealias T = KeySyncSetAsideTests
+
+    /// The loser of two Macs moving unseen turns key sync off and on: its own key, kept only as a replaced copy, stays.
+    @Test func theLosersReplacedCopyStays() throws {
+        let a = KeySyncTests.stores()
+        T.write(a.login, "sk-test-mac-a-0001", saved: T.old)
+        try a.turn(syncing: true)
+        T.write(a.synced, "sk-test-mac-b-0002", saved: T.new)  // iCloud Keychain kept the other Mac's
+        #expect(try a.turn(syncing: false).isComplete && a.login.read("openai") == "sk-test-mac-b-0002")
+        let on = try a.turn(syncing: true)
+        #expect(on.isComplete && on.setAside.isEmpty && a.login.attributes("openai") == nil)
+        #expect(a.replaced.read("openai") == "sk-test-mac-a-0001")
+    }
+
+    /// A move whose delete in the login keychain failed, tried again: the key written over stays the replaced copy.
+    @Test func aRetryAfterAFailedDeleteKeepsTheReplacedCopy() throws {
+        var login = KeySyncTests.store(.legacy)
+        let items = login, deletes = Locked<Bool>(initialState: false)
+        login.delete = { deletes.withLock { $0 } ? items.delete($0) : .failed(-25293) }
+        let stores = KeySync.Stores(login: login, synced: KeySyncTests.store(.synced), replaced: KeySyncTests.store(.legacy))
+        T.write(stores.login, "sk-test-newer-0001", saved: T.new)
+        T.write(stores.synced, "sk-test-older-0002", saved: T.old)
+        #expect(try stores.turn(syncing: true).moved == ["openai"] && stores.login.read("openai") == "sk-test-newer-0001")
+        deletes.withLock { $0 = true }
+        let again = try stores.turn(syncing: true)
+        #expect(again.isComplete && again.setAside.isEmpty && stores.login.attributes("openai") == nil)
+        #expect(stores.replaced.read("openai") == "sk-test-older-0002")
+    }
+
+    /// A copy-back retried for the accounts it left: the others aren't copied again.
+    @Test func aCopyBackRetriesTheAccountsItLeft() throws {
+        let stores = KeySyncTests.stores(syncing: true)
+        T.write(stores.synced, "sk-test-openai-0001", saved: T.new)
+        T.write(stores.synced, "sk-test-gemini-0002", saved: T.new, account: "gemini")
+        let moves = try stores.turn(syncing: false, only: ["gemini"])
+        #expect(moves.moved == ["gemini"] && stores.login.attributes("openai") == nil && !stores.syncing)
+        var left = KeySync.Moves()
+        left.waiting = ["openai"]
+        left.mismatched = ["gemini", "openai"]
+        #expect(left.remaining == ["gemini", "openai"])
+    }
+
+    /// Remove… while key sync is off tells `whenRemovedHere`; while it's on, not.
+    @Test func removeWhileOffIsTold() throws {
+        let stores = KeySyncTests.stores()
+        let told = Locked<[String]>(initialState: [])
+        stores.whenRemovedHere { account in told.withLock { $0.append(account) } }
+        T.write(stores.login, "sk-test-openai-0001", saved: T.new)
+        try APIKeys.remove(account: "openai", in: stores.store)
+        stores.start(syncing: true)
+        T.write(stores.synced, "sk-test-gemini-0002", saved: T.new, account: "gemini")
+        try APIKeys.remove(account: "gemini", in: stores.store)
+        #expect(told.withLock { $0 } == ["openai"])
+    }
+
+    /// A move into an empty slot only adds: an item that is there is never written over.
+    @Test func anAddNeverWritesOver() {
+        let store = KeySyncTests.store(.synced)
+        T.write(store, "sk-test-there-0001", saved: T.new)
+        #expect(store.adding("openai", "sk-test-other-0002", "AllInOneIME: test", "", nil, T.old) == .failed(APIKeys.Keychain.duplicateItem))
+        #expect(store.read("openai") == "sk-test-there-0001")
+        #expect(store.adding("gemini", "sk-test-new-0003", "AllInOneIME: test", "", nil, T.old) == .ok)
+    }
+
+    /// The first-use move: a synced item that arrived while the login keychain's read waited isn't written over.
+    @Test func anItemThatArrivedDuringTheReadIsKept() throws {
+        var login = KeySyncTests.store(.legacy)
+        let items = login, synced = KeySyncTests.store(.synced)
+        login.read = { account in
+            T.write(synced, "sk-test-other-mac-0002", saved: T.new, account: account)  // arrives while the password is asked
+            return items.read(account)
+        }
+        let stores = KeySync.Stores(login: login, synced: synced, replaced: KeySyncTests.store(.legacy), syncing: true)
+        T.write(items, "sk-test-this-mac-0001", saved: T.old)
+        #expect(stores.store.read("openai") == "sk-test-this-mac-0001")
+        #expect(synced.read("openai") == "sk-test-other-mac-0002" && items.read("openai") == "sk-test-this-mac-0001")
+    }
+
+    /// The keys-synced marker's text, both ways; an earlier build's is done.
+    @Test func theMarkerRoundTrips() {
+        for marker in [KeySync.Marker.moving, .done, .copyingBack(["gemini", "openai"])] {
+            #expect(KeySync.Marker(text: marker.text) == marker)
+        }
+        #expect(KeySync.Marker(text: "") == .done && KeySync.Marker(text: "copying back\nopenai\n\ngemini") == .copyingBack(["gemini", "openai"]))
+        #expect(KeySync.Marker.done.syncing && !KeySync.Marker.copyingBack(["openai"]).syncing)
+    }
+}
