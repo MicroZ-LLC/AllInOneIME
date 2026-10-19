@@ -43,7 +43,12 @@ SESSION="$(powershell -NoProfile -Command '(Get-Process -Id $PID).SessionId' 2>/
 if [ "${SESSION:-0}" != "0" ]; then
   cmd.exe /c "$BAT_WIN" >/dev/null 2>&1
 else
-  schtasks /Create /F /TN "$TASK" /TR "$BAT_WIN" /SC ONCE /ST 23:59 /IT /RL LIMITED /RU "$USER_NAME" >/tmp/aio-sch.out 2>&1 \
+  # In a classic console (conhost.exe started itself), whose window is there as the task starts: with Windows Terminal
+  # as the default terminal, the batch's console went to it, whose window could come up seconds later and take the
+  # foreground from the window a test types in (twice in three install tests on 2026-10-19).
+  CONHOST_WIN="$(cygpath -w -W)\\System32\\conhost.exe"
+  schtasks /Create /F /TN "$TASK" /TR "\"$CONHOST_WIN\" cmd.exe /c \"$BAT_WIN\"" /SC ONCE /ST 23:59 /IT /RL LIMITED \
+    /RU "$USER_NAME" >/tmp/aio-sch.out 2>&1 \
     || { echo "schtasks /Create failed:"; iconv -f GBK -t UTF-8 /tmp/aio-sch.out 2>/dev/null || cat /tmp/aio-sch.out; exit 3; }
   schtasks /Run /TN "$TASK" >/tmp/aio-sch.out 2>&1 \
     || { echo "schtasks /Run failed:"; iconv -f GBK -t UTF-8 /tmp/aio-sch.out 2>/dev/null || cat /tmp/aio-sch.out; schtasks /Delete /F /TN "$TASK" >/dev/null 2>&1; exit 3; }
