@@ -22,7 +22,7 @@ The settings window comes next.
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (71)
+swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (72)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
@@ -204,7 +204,13 @@ same warning. The e2e driver's own window put the session's input method on AllI
 in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Microsoft Pinyin back. Run again on
 2026-10-19 after the second review's fixes, with pinyin in a classic console and in a WebView2 and a terminal
 command's console window added: **60 passed, 0 failed, 1 warning**, the same warning, the same input method put back
-after the two runs in the driver's own window. The 0.6.4 package from before those fixes, run with `--console
+after the two runs in the driver's own window. With the package after the last fix (the console's program started
+before its window comes to the front), two runs failed one real-Notepad check each: about 5 s after the driver started,
+the session task's own console, handed to Windows Terminal, opened its window and took the foreground, and the driver
+stopped typing (its guard). With the task in a classic console (`run-in-session.sh`), the run after: **60 passed, 0
+failed, 1 warning**, and the package is installed. The two interrupted runs left their documents open in the user's
+Notepad (aio-e2e-22408.txt and aio-e2e-2280.txt, whose files the driver deleted): the driver never closes a tab it can't
+prove is its own and in front. The 0.6.4 package from before those fixes, run with `--console
 --pinyin` and `--webview2 --pinyin`, typed "你好你好" in both but never showed the candidate window there, and with
 `--terminal` the console was gone before it could be read.
 
