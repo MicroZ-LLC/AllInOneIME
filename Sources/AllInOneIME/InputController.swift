@@ -2063,17 +2063,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    static func describe(_ error: Error) -> String {
-        if let urlError = error as? URLError {
-            switch urlError.code {
-            case .timedOut: return "请求超时"
-            case .notConnectedToInternet, .networkConnectionLost: return "网络连接失败"
-            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed: return "无法连接 AI 服务"
-            default: return urlError.localizedDescription
-            }
-        }
-        return (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-    }
+    /// An error in Simplified Chinese (`UIText.chineseDescription`).
+    static func describe(_ error: Error) -> String { UIText.chineseDescription(error) }
 
     // MARK: - Candidate panel
 

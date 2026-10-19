@@ -122,6 +122,20 @@ enum VoiceError: Error, LocalizedError {
     }
 }
 
+extension VoiceError: InterfaceDescribedError {
+    /// In English; the Chinese interface has `errorDescription` (`UIText.describe`).
+    var interfaceDescription: String? {
+        guard !UIText.chinese else { return nil }
+        switch self {
+        case .unsupportedSystem: return "Voice input needs macOS 26 or later"
+        case .unsupportedLanguage: return "This Mac can't recognize speech in this language"
+        case let .modelMissing(language): return "The \(UIText.name(language)) speech model isn't installed"
+        case .noMicrophone: return "No microphone available"
+        case .noAudioFormat: return "Speech recognition can't use this audio format"
+        }
+    }
+}
+
 /// One recording: audio from the microphone (or a file) is converted to the analyzer's format and
 /// recognized while it is being recorded; `stop()` finalizes, `cancel()` discards. Audio captured
 /// while the model is still loading is queued, so the first words aren't lost.

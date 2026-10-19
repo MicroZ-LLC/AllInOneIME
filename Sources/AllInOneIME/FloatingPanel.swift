@@ -5,11 +5,6 @@ import Carbon
 import EventKit
 import SwiftUI
 
-extension Notification.Name {
-    /// The interface language changed (`UIText.choice`): the menu bar panel redraws in it. Main thread.
-    static let allInOneIMEInterfaceLanguageChanged = Notification.Name("AllInOneIMEInterfaceLanguageChanged")
-}
-
 /// What the panel remembers between launches (its frame, whether it's collapsed, the notes @note
 /// saved): UserDefaults; memory in the self-test, which leaves the user's alone.
 protocol PanelDefaults: AnyObject {
