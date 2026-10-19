@@ -60,6 +60,8 @@ public final class SettingsStore {
     /// The config as the file has it (read or last written here): a save writes only what differs from it, and a save
     /// that fails goes back to it.
     private var written: Config?
+    /// A new user's settings, when there is no file (`init`'s `fresh`): also when it is deleted later, and read again.
+    private let fresh: (() -> Config)?
     /// When the config file was last read or written here: changed since (an input method's menu, an editor, sync), it
     /// is read again (`reloadIfChanged`).
     private var fileDate: Date?
@@ -67,17 +69,15 @@ public final class SettingsStore {
     private var lastObserver = 0
 
     /// The settings in the file at `configURL`. A file that can't be read is kept as it is: `loadError` says why, and
-    /// nothing is saved over it. `fresh`: a new user's settings, when there is no file yet (`Config.fresh` on the Mac).
+    /// nothing is saved over it. `fresh`: a new user's settings, when there is no file (`Config.fresh` on the Mac): yet,
+    /// or any more (deleted while the store is in use, it is read again as these).
     public init(configURL: URL = Config.defaultURL, persists: Bool = true, fresh: (() -> Config)? = nil) {
         self.configURL = configURL
         self.persists = persists
+        self.fresh = fresh
         fileDate = Self.modificationDate(configURL)
         do {
-            if let fresh, !FileManager.default.fileExists(atPath: configURL.path) {
-                config = fresh()
-            } else {
-                config = try Config.load(from: configURL)
-            }
+            config = try Self.read(configURL, fresh: fresh)
             written = config
         } catch {
             // Keep the broken file untouched: the window shows the error instead of overwriting it.
@@ -139,7 +139,7 @@ public final class SettingsStore {
             } else {
                 try config.write(to: configURL)
             }
-            let now = (try? Config.load(from: configURL)) ?? config
+            let now = (try? Self.read(configURL, fresh: fresh)) ?? config
             written = now
             if now != config { config = now }  // what was written elsewhere meanwhile, now shown
             fileDate = Self.modificationDate(configURL)
@@ -163,7 +163,7 @@ public final class SettingsStore {
         guard persists, case let date = Self.modificationDate(configURL), date != fileDate else { return }
         fileDate = date
         do {
-            config = try Config.load(from: configURL)
+            config = try Self.read(configURL, fresh: fresh)
             written = config
             loadError = nil
         } catch {
@@ -177,6 +177,12 @@ public final class SettingsStore {
     public func refresh() {
         save()
         reloadIfChanged()
+    }
+
+    /// The settings in the file at `url`; `fresh`'s when there is none (else `Config.load`'s: `Config.fresh`).
+    private static func read(_ url: URL, fresh: (() -> Config)?) throws -> Config {
+        if let fresh, !FileManager.default.fileExists(atPath: url.path) { return fresh() }
+        return try Config.load(from: url)
     }
 
     private static func modificationDate(_ url: URL) -> Date? {

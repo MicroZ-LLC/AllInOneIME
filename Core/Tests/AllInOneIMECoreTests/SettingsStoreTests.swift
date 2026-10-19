@@ -204,6 +204,23 @@ struct SettingsStoreTests {
         }
     }
 
+    /// The file deleted while the store is in use (Windows' engine runs all along): read again as the store's new
+    /// user's settings (`fresh`, Windows' with Chinese), not `Config.fresh`, and the next change is saved over those.
+    @Test func aFileDeletedLater() throws {
+        let url = try file(#"{"maxTokens": 1500}"#)
+        var fresh = Config.default
+        fresh.inputLanguages = [.english, .chinese]
+        let store = SettingsStore(configURL: url, fresh: { fresh })
+        #expect(store.config.maxTokens == 1500)
+        try FileManager.default.removeItem(at: url)
+        store.reloadIfChanged()
+        #expect(store.config == fresh && store.loadError == nil)
+        store.config.typeOut = true
+        store.save()
+        let written = try Config.load(from: url)
+        #expect(written.inputLanguages == [.english, .chinese] && written.typeOut && written.maxTokens == fresh.maxTokens)
+    }
+
     // MARK: Lists
 
     /// Commands are saved and deleted by name in the list as the file has it now (sync may have changed it); a name
