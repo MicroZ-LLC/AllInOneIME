@@ -22,7 +22,7 @@ public struct AWSCredentialContext: Sendable {
 
     public init(environment: @escaping @Sendable () -> [String: String], files: AWSFileLocations? = nil,
                 processEnvironment: @escaping @Sendable () -> [String: String], runProcess: @escaping RunProcess = AWSProcessRunner.run,
-                send: @escaping Send = AWSCredentialContext.offline, now: @escaping @Sendable () -> Date = { Date() },
+                send: @escaping Send = AWSCredentialContext.offline, now: @escaping @Sendable () -> Date = { Platform.current.clock.now },
                 processTimeout: TimeInterval = 60) {
         self.environment = environment
         self.files = files
@@ -37,7 +37,7 @@ public struct AWSCredentialContext: Sendable {
     /// files' home) unless `processEnvironment` says otherwise.
     public init(environment: [String: String] = [:], files: AWSFileLocations? = nil, processEnvironment: [String: String]? = nil,
                 runProcess: @escaping RunProcess = AWSProcessRunner.run, send: @escaping Send = AWSCredentialContext.offline,
-                now: @escaping @Sendable () -> Date = { Date() }, processTimeout: TimeInterval = 60) {
+                now: @escaping @Sendable () -> Date = { Platform.current.clock.now }, processTimeout: TimeInterval = 60) {
         let home = (files ?? AWSFileLocations(environment: environment)).home.path
         let process = processEnvironment ?? ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": home]
         self.init(environment: { environment }, files: files, processEnvironment: { process }, runProcess: runProcess, send: send,
@@ -112,7 +112,7 @@ public struct AWSProfileStatus: Equatable, Sendable {
 
     /// "Static keys: found the keys for this profile", "Role via base: credentials expire at 15:30", "SSO (signed in until
     /// 18:00): …", "credential_process: runs when a request needs credentials", or the problem.
-    public func line(language: String, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+    public func line(language: String, now: Date = Platform.current.clock.now, timeZone: TimeZone = .current) -> String {
         let t = InterfaceWords(language: language)
         let separator = t.tr("：", ": ")
         guard let kind, kind != .noCredentials else {
@@ -139,13 +139,13 @@ public struct AWSProfileStatus: Equatable, Sendable {
     }
 
     /// `line` in Simplified Chinese or English.
-    public func line(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+    public func line(chinese: Bool, now: Date = Platform.current.clock.now, timeZone: TimeZone = .current) -> String {
         line(language: InterfaceLanguage.code(chinese: chinese), now: now, timeZone: timeZone)
     }
 
     /// The credentials held, as the status line and the checks say it: "credentials expire at 15:30", "found the keys for
     /// this profile", or, nothing fetched yet, when they will be ("assumed when a request needs it").
-    public func credentials(language: String, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+    public func credentials(language: String, now: Date = Platform.current.clock.now, timeZone: TimeZone = .current) -> String {
         let t = InterfaceWords(language: language)
         if let expiration, hasCredentials, expiration > now {
             return t.tr("凭证 \(Self.time(expiration, now: now, language: "zh-Hans", timeZone: timeZone)) 到期",
@@ -164,13 +164,13 @@ public struct AWSProfileStatus: Equatable, Sendable {
     }
 
     /// `credentials` in Simplified Chinese or English.
-    public func credentials(chinese: Bool, now: Date = Date(), timeZone: TimeZone = .current) -> String {
+    public func credentials(chinese: Bool, now: Date = Platform.current.clock.now, timeZone: TimeZone = .current) -> String {
         credentials(language: InterfaceLanguage.code(chinese: chinese), now: now, timeZone: timeZone)
     }
 
     /// Seconds until the line may read otherwise: the credentials' expiry, the end of the sign-in, or a minute, whichever
     /// comes first (at least a second); the settings read the status again then.
-    public func secondsUntilChange(now: Date = Date()) -> TimeInterval {
+    public func secondsUntilChange(now: Date = Platform.current.clock.now) -> TimeInterval {
         let next = [hasCredentials ? expiration : nil, signedInUntil].compactMap { $0 }.filter { $0 > now }
             .map { $0.timeIntervalSince(now) + 0.5 }.min() ?? 60
         return max(1, min(60, next))

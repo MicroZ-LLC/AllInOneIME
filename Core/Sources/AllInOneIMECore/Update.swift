@@ -369,7 +369,7 @@ public struct UpdateResult: Codable, Equatable, Sendable {
     public var error: String?
     public var date: Date
 
-    public init(from: String, to: String, ok: Bool, error: String? = nil, date: Date = Date()) {
+    public init(from: String, to: String, ok: Bool, error: String? = nil, date: Date = Platform.current.clock.now) {
         self.from = from
         self.to = to
         self.ok = ok

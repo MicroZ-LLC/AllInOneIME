@@ -499,7 +499,7 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
     /// takes the deletion for a Clear.
     public func forgetQuestionsSeen() {
         guard FileManager.default.fileExists(atPath: stateURL.path) else { return }
-        try? Data(ICloudSync.dateText(Date()).utf8).write(to: forgottenURL, options: .atomic)
+        try? Data(ICloudSync.dateText(Platform.current.clock.now).utf8).write(to: forgottenURL, options: .atomic)
     }
 
     /// The mark `forgetQuestionsSeen` leaves.

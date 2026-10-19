@@ -43,7 +43,7 @@ public final class VaultRoots: Sendable {
     public let timeout: TimeInterval
     public let retryAfter: TimeInterval
 
-    public init(timeout: TimeInterval = 1, retryAfter: TimeInterval = 60, now: @escaping @Sendable () -> Date = { Date() },
+    public init(timeout: TimeInterval = 1, retryAfter: TimeInterval = 60, now: @escaping @Sendable () -> Date = { Platform.current.clock.now },
                 find: @escaping @Sendable (URL) -> URL? = { MarkdownFolderDestination.vaultRoot(of: $0) }) {
         self.timeout = timeout
         self.retryAfter = retryAfter

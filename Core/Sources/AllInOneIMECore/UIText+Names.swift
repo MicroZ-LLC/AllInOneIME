@@ -239,7 +239,7 @@ extension UIText {
     /// When a reminder is due, as its row and the notice say it: 「明天 15:00」 (or 「明天 下午3:00」, following the
     /// Mac's 12/24-hour setting, or `clock24`), 「10月15日 周四」, 「未设时间」 ("tomorrow 3:00 PM", "Thu, Oct 15", "no
     /// date"), with 「已过」 / "overdue" once that time is over.
-    public static func when(_ reminder: ReminderDraft, now: Date = Date()) -> String {
+    public static func when(_ reminder: ReminderDraft, now: Date = Platform.current.clock.now) -> String {
         reminder.when(now: now, language: language, clock24: clock24 ?? ReminderDraft.systemUses24HourClock)
     }
 
@@ -297,7 +297,7 @@ extension UIText {
     }
 
     /// How long ago `date` was, in the interface language: "刚刚" / "just now", "3 小时前" / "3 hours ago" …
-    public static func ago(_ date: Date, now: Date = Date()) -> String {
+    public static func ago(_ date: Date, now: Date = Platform.current.clock.now) -> String {
         guard now.timeIntervalSince(date) >= 60 else { return tr("刚刚", "just now") }
         #if canImport(Darwin)
         let formatter = RelativeDateTimeFormatter()

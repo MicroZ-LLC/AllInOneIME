@@ -29,7 +29,7 @@ public struct NoteDraft: Equatable, Sendable {
     public var created: Date
     public var timeZone: TimeZone
 
-    public init(text: String, created: Date = Date(), timeZone: TimeZone = .current) {
+    public init(text: String, created: Date = Platform.current.clock.now, timeZone: TimeZone = .current) {
         self.text = text
         self.created = created
         self.timeZone = timeZone

@@ -61,7 +61,7 @@ public enum KeySync {
     /// The newest wins: `a` over `b` only when its key was set later, by when it was saved (`ItemAttributes.saved`, which
     /// copies carry), else by when its item was last changed; an item that says neither loses. A time later than a day
     /// from `now` counts as the oldest: a Mac whose clock was set far ahead doesn't win every merge after.
-    static func newer(_ a: APIKeys.ItemAttributes, than b: APIKeys.ItemAttributes, now: Date = Date()) -> Bool {
+    static func newer(_ a: APIKeys.ItemAttributes, than b: APIKeys.ItemAttributes, now: Date = Platform.current.clock.now) -> Bool {
         let latest = now.addingTimeInterval(clockSkew)
         func when(_ item: APIKeys.ItemAttributes) -> Date {
             let changed = item.changed ?? .distantPast

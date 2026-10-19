@@ -222,7 +222,7 @@ public enum WebSearch {
     /// stream's own task; without one nothing is sent.
     public static func stream(_ query: String, output: Output, backend: any SearchBackend = WebSearch.backend,
                               loadKey: (@Sendable () -> String?)? = nil, session: URLSession = WebSearch.session,
-                              now: @escaping @Sendable () -> Date = { Date() }) -> AsyncThrowingStream<ConversionUpdate, Error> {
+                              now: @escaping @Sendable () -> Date = { Platform.current.clock.now }) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 let started = Date()
@@ -260,7 +260,7 @@ public enum WebSearch {
     ///
     /// The context says when the search was made (`date`): the model doesn't know what "latest" is. And
     /// that the snippets are someone else's text: a page that says "ignore the above" is just quoted.
-    public static func format(_ results: [WebSearchResult], output: Output, query: String, date: Date = Date()) -> String {
+    public static func format(_ results: [WebSearchResult], output: Output, query: String, date: Date = Platform.current.clock.now) -> String {
         switch output {
         case .list, .line:
             let lines = results.map { $0.title.isEmpty ? $0.url : "\($0.title) — \($0.url)" }

@@ -152,7 +152,7 @@ public struct ExtensionSourceStatus: Codable, Equatable, Sendable {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyyMMdd-HHmmss"
             let aside = file.deletingLastPathComponent()
-                .appendingPathComponent(file.lastPathComponent + ".bad-" + formatter.string(from: Date()))
+                .appendingPathComponent(file.lastPathComponent + ".bad-" + formatter.string(from: Platform.current.clock.now))
             try? FileManager.default.moveItem(at: file, to: aside)
             return [:]
         }
@@ -771,7 +771,7 @@ public struct ExtensionSourceManager: Sendable {
     /// Moves a removed source's clone away: to the Trash where there is one (`FileOps.trash`; tests delete it instead).
     public var trashItem: @Sendable (URL) throws -> Void
 
-    public init(root: URL = ExtensionSources.directory, git: any GitRunning, now: @escaping @Sendable () -> Date = { Date() },
+    public init(root: URL = ExtensionSources.directory, git: any GitRunning, now: @escaping @Sendable () -> Date = { Platform.current.clock.now },
                 trashItem: @escaping @Sendable (URL) throws -> Void = { try Platform.current.files.trash($0) }) {
         self.root = root
         self.git = git

@@ -20,7 +20,7 @@ public struct OpenHistory: Codable, Equatable, Sendable {
     }
 
     /// `path` was opened at `date`: it moves to the front, and the oldest beyond `limit` are forgotten.
-    public mutating func record(_ path: String, at date: Date = Date()) {
+    public mutating func record(_ path: String, at date: Date = Platform.current.clock.now) {
         entries.removeAll { $0.path == path }
         entries.insert(Entry(path: path, date: date), at: 0)
         if entries.count > Self.limit { entries.removeLast(entries.count - Self.limit) }

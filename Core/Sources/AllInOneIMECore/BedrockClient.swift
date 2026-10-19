@@ -96,7 +96,7 @@ public struct BedrockClient: Sendable {
     /// Builds the signed HTTP request. Exposed so tools can capture raw responses.
     public static func makeRequest(
         _ body: ConverseRequest, modelId: String, region: String,
-        credentials: AWSCredentials, timeout: TimeInterval, date: Date = Date()
+        credentials: AWSCredentials, timeout: TimeInterval, date: Date = Platform.current.clock.now
     ) throws -> URLRequest {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.withoutEscapingSlashes]

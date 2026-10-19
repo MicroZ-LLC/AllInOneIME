@@ -85,7 +85,7 @@ public struct ICloudSyncFolder: Sendable {
 
     /// Moves `name` aside, never overwriting it or anything: "settings.json" → "settings (unreadable 2026-10-16 180501).json".
     /// The new name.
-    public func setAside(_ name: String, now: Date = Date()) throws -> String {
+    public func setAside(_ name: String, now: Date = Platform.current.clock.now) throws -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HHmmss"

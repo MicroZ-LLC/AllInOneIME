@@ -18,7 +18,7 @@ public struct SigV4Signer: Sendable {
 
     /// Adds `X-Amz-Date`, `X-Amz-Security-Token` (when present) and `Authorization`.
     /// Every header already set on the request, plus `host`, is signed, so set all headers first.
-    public func sign(_ request: inout URLRequest, body: Data, date: Date = Date()) {
+    public func sign(_ request: inout URLRequest, body: Data, date: Date = Platform.current.clock.now) {
         guard let url = request.url, let host = url.host else { return }
         let amzDate = Self.amzDate(date)
         request.setValue(amzDate, forHTTPHeaderField: "X-Amz-Date")

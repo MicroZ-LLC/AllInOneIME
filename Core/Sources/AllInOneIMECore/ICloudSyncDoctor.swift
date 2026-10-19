@@ -33,7 +33,7 @@ extension Doctor {
         }
         var out: [Finding] = []
         let last = sync.lastSync.map {
-            let ago = ICloudSync.ago($0, now: sync.checked ?? Date(), language: t.language)
+            let ago = ICloudSync.ago($0, now: sync.checked ?? Platform.current.clock.now, language: t.language)
             return t.tr("上次同步：\(ago)", "last synced \(ago)")
         }
         if let error = sync.lastError {
@@ -44,7 +44,7 @@ extension Doctor {
                                detail: [t.tr("别的 Mac 同步的文件还在下载", "files another Mac synced are still downloading"), last]
                                    .compactMap { $0 }.joined(separator: t.tr("；", "; "))))
         } else if let lastSync = sync.lastSync {
-            let ago = ICloudSync.ago(lastSync, now: sync.checked ?? Date(), language: t.language)
+            let ago = ICloudSync.ago(lastSync, now: sync.checked ?? Platform.current.clock.now, language: t.language)
             out.append(Finding(area: .iCloudSync, status: .ok, title: t.tr("已通过 iCloud 同步（\(ago)）", "Synced through iCloud \(ago)")))
         } else {
             out.append(Finding(area: .iCloudSync, status: .warning, title: t.tr("还没有通过 iCloud 同步过", "Not synced through iCloud yet"),

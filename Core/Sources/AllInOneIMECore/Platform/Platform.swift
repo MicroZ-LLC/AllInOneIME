@@ -9,8 +9,8 @@ import AllInOneIMEQuickJS
 /// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), Windows'
 /// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin),
 /// QuickJS-ng for JavaScript off Apple platforms (AllInOneIMEQuickJS), and elsewhere neutral stand-ins: a heuristic
-/// language guess, the date rules alone, and no on-device model, PDF text, text recognition or secret store ("not
-/// supported on this platform").
+/// language guess, the date rules alone, values kept in memory only, and no on-device model, PDF text, text recognition
+/// or secret store ("not supported on this platform").
 public struct Platform: Sendable {
     /// API keys and the like (`APIKeys`).
     public var secrets: SecretStore
@@ -30,12 +30,17 @@ public struct Platform: Sendable {
     public var processes: any ProcessLauncher
     /// Atomic swaps, private writes, modification dates, the Trash.
     public var files: any FileOps
+    /// Small values kept between launches (UserDefaults-like).
+    public var defaults: any KeyValueStore
+    /// The time of day (`Date()`, unless a shell or a test gives another).
+    public var clock: any WallClock
 
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
                 languages: any LanguageIdentifier = Platform.systemLanguages, dates: any DateDetector = Platform.systemDates,
                 pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
-                processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps()) {
+                processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps(),
+                defaults: any KeyValueStore = Platform.systemDefaults, clock: any WallClock = SystemWallClock()) {
         self.secrets = secrets
         self.scripts = scripts
         self.onDeviceModel = onDeviceModel
@@ -45,6 +50,8 @@ public struct Platform: Sendable {
         self.text = text
         self.processes = processes
         self.files = files
+        self.defaults = defaults
+        self.clock = clock
     }
 
     /// The platform in use: the task's `override` if it has one, else the installed one. Set (installed) at launch,
@@ -136,6 +143,15 @@ extension Platform {
         return VisionTextRecognizer()
         #else
         return UnsupportedTextRecognizer()
+        #endif
+    }
+
+    /// UserDefaults' standard one on Apple platforms; elsewhere memory only, until the shell installs its own.
+    public static var systemDefaults: any KeyValueStore {
+        #if canImport(Darwin)
+        return UserDefaultsStore()
+        #else
+        return MemoryKeyValueStore()
         #endif
     }
 
