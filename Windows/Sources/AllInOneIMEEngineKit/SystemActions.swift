@@ -131,12 +131,30 @@ public struct WindowsSystem: SystemActions {
         _ = try shell.syncThrowing { try Self.shellOpen(target) }
     }
 
+    /// What `shellOpen` did: the process the shell started to open what it was given (nil when a program already
+    /// running took it, by DDE or COM: a browser, Explorer), and the processes given the right to take the foreground,
+    /// in that order.
+    struct Opened: Equatable {
+        var started: DWORD?
+        var allowed: [DWORD]
+    }
+
     /// `ShellExecuteExW`'s "open", as Explorer opens what is double-clicked. The client gave the engine the right to
-    /// take the foreground (`allowForeground`); it goes to the process that opens `target` when one is started (a
-    /// browser, an editor), and to no other: there is no starting it suspended through the shell, so it is given right
-    /// after (programs take longer than that to show a window). The process's id, if one was started.
+    /// take the foreground (`allowForeground`); it goes on to what shows `target`, and to no other process (never
+    /// `ASFW_ANY`):
+    /// - first to the program already running that the shell may hand it to (`runningHandler`: the browser for an
+    ///   address, Explorer for a folder, as `@settings` opens one), before the shell asks it, as it takes the foreground
+    ///   then;
+    /// - then to the process the shell started, if it started one (there is no starting it suspended through the
+    ///   shell, so it is given right after: programs take longer than that to show a window).
     @discardableResult
-    static func shellOpen(_ target: String) throws -> DWORD? {
+    static func shellOpen(_ target: String, handler: (String) -> DWORD? = runningHandler,
+                          allowForeground: (DWORD) -> Void = { _ = AllowSetForegroundWindow($0) }) throws -> Opened {
+        var opened = Opened(started: nil, allowed: [])
+        if let running = handler(target) {
+            allowForeground(running)
+            opened.allowed.append(running)
+        }
         var info = SHELLEXECUTEINFOW()
         info.cbSize = DWORD(MemoryLayout<SHELLEXECUTEINFOW>.size)
         // No dialog of the shell's ("Windows can't find…"): it would wait for a click, and a failure is a notice.
@@ -150,11 +168,81 @@ public struct WindowsSystem: SystemActions {
             }
         }
         guard ok else { throw SystemActionError("Couldn't open \(target) (error \(GetLastError()))") }
-        guard let process = info.hProcess else { return nil }  // opened by a program already running (DDE, COM)
+        guard let process = info.hProcess else { return opened }  // opened by a program already running (DDE, COM)
         defer { CloseHandle(process) }
         let pid = GetProcessId(process)
-        AllowSetForegroundWindow(pid)
-        return pid
+        allowForeground(pid)
+        opened.started = pid
+        opened.allowed.append(pid)
+        return opened
+    }
+
+    /// The program already running that the shell would hand `target` to (`handlerExecutable`), if a process of it
+    /// in this session has a window on the screen: the one nearest the top.
+    static func runningHandler(for target: String) -> DWORD? {
+        handlerExecutable(for: target).flatMap(windowProcess(image:))
+    }
+
+    /// The program that opens `target`: Explorer for a folder; for an address, its scheme's program (the default
+    /// browser's for https); for a file, its type's (`AssocQueryStringW`). Nil when there is none to tell.
+    static func handlerExecutable(for target: String) -> String? {
+        var isFolder: ObjCBool = false
+        if CorePaths.isAbsolute(target), FileManager.default.fileExists(atPath: target, isDirectory: &isFolder), isFolder.boolValue {
+            var windows = [WCHAR](repeating: 0, count: Int(MAX_PATH))
+            let count = Int(GetWindowsDirectoryW(&windows, UINT(MAX_PATH)))
+            return count > 0 ? String(decoding: windows.prefix(count), as: UTF16.self) + #"\explorer.exe"# : nil
+        }
+        let association: String, flags: ASSOCF
+        if let scheme = URL(string: target)?.scheme, scheme.count > 1, !CorePaths.isAbsolute(target) {
+            (association, flags) = (scheme, ASSOCF(ASSOCF_IS_PROTOCOL))
+        } else {
+            let type = (target as NSString).pathExtension
+            guard !type.isEmpty else { return nil }
+            (association, flags) = ("." + type, ASSOCF(0))
+        }
+        var size: DWORD = DWORD(MAX_PATH) * 2
+        var buffer = [WCHAR](repeating: 0, count: Int(size))
+        let found = association.withCString(encodedAs: UTF16.self) { association in
+            "open".withCString(encodedAs: UTF16.self) { verb in
+                AssocQueryStringW(flags, ASSOCSTR_EXECUTABLE, association, verb, &buffer, &size)
+            }
+        }
+        guard found == S_OK else { return nil }
+        let executable = String(decodingCString: buffer, as: UTF16.self)
+        return executable.lowercased().hasSuffix(".exe") ? executable : nil
+    }
+
+    /// The process of this session whose image is `image` (a full path, in any case) with a visible window of its own
+    /// on top level, the one nearest the top (`EnumWindows` goes in z-order).
+    static func windowProcess(image: String) -> DWORD? {
+        final class Hunt {
+            var image = ""
+            var session: DWORD = 0
+            var seen: Set<DWORD> = []
+            var found: DWORD?
+        }
+        let hunt = Hunt()
+        hunt.image = image
+        ProcessIdToSessionId(GetCurrentProcessId(), &hunt.session)
+        EnumWindows({ window, context in
+            let hunt = Unmanaged<Hunt>.fromOpaque(UnsafeRawPointer(bitPattern: Int(context))!).takeUnretainedValue()
+            // WS_VISIBLE: IsWindowVisible asks too whether the desktop is shown, which a service session's isn't.
+            guard let window, GetWindowLongPtrW(window, GWL_STYLE) & LONG_PTR(WS_VISIBLE) != 0,
+                  GetWindow(window, UINT(GW_OWNER)) == nil else { return true }
+            var pid: DWORD = 0, session: DWORD = 0
+            GetWindowThreadProcessId(window, &pid)
+            guard pid != 0, hunt.seen.insert(pid).inserted, ProcessIdToSessionId(pid, &session), session == hunt.session,
+                  let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, pid) else { return true }
+            defer { CloseHandle(process) }
+            var path = [WCHAR](repeating: 0, count: 1024)
+            var size = DWORD(path.count)
+            guard QueryFullProcessImageNameW(process, 0, &path, &size) else { return true }
+            let found = String(decoding: path.prefix(Int(size)), as: UTF16.self)
+            guard found.compare(hunt.image, options: .caseInsensitive) == .orderedSame else { return true }
+            hunt.found = pid
+            return false
+        }, LPARAM(Int(bitPattern: Unmanaged.passUnretained(hunt).toOpaque())))
+        return hunt.found
     }
 
     /// In a console window of its own that stays open after the program ends (`ConsoleHold`), started directly, with
