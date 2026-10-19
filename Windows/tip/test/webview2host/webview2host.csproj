@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The end-to-end driver's WebView2 app (run-e2e.sh's webview2 target): a window of its own with a WebView2 in
+       it, as the new Outlook and Teams are, whose text field the driver types into through AllInOneIME. The input
+       method's client there is msedgewebview2.exe, whose window is inside this app's. Needs the .NET SDK to build
+       (dotnet build) and the WebView2 runtime to run. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>webview2host</AssemblyName>
+    <RootNamespace>WebView2Host</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+  </ItemGroup>
+</Project>

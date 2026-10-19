@@ -3,16 +3,20 @@
 # AllInOneIME, read back with UI Automation.
 #
 #   bash test/run-e2e.sh            # into a classic EDIT control in the driver's own window (the default)
+#   bash test/run-e2e.sh --console  # into a classic console of its own (conhost.exe cmd.exe), at cmd's prompt
+#   bash test/run-e2e.sh --webview2 # into the text field of a WebView2 in a window of its own (test/webview2host)
 #   bash test/run-e2e.sh --notepad  # into real Notepad: a document of its own there, never the user's
 #   bash test/run-e2e.sh --probe    # the Notepad path, stopping after the switch, reporting what it found
 #
-#   ... [--installed [DIR]] [--plain TEXT | --pinyin | --ai] [--langid 0xNNNN]
+#   ... [--installed [DIR] [--engine EXE]] [--plain TEXT | --pinyin | --ai | --terminal] [--langid 0xNNNN]
 #
 #   --installed  the installed copy (Program Files\AllInOneIME\<version>, as HKLM\Software\AllInOneIME names it, or
 #                DIR): its DLL as the MSI registered it, so no regsvr32 here, before or after; and its engine. The
 #                driver checks which DLL loaded: in its own window it must be that copy; a Notepad that was already
 #                running keeps the DLL it loaded before (COM doesn't load a class's DLL again in a process) and is only
 #                reported. The language is the one the user's list has AllInOneIME under.
+#   --engine     with --installed, this engine instead of the installed one (a build's, .build/release's) with the
+#                installed DLL as it is registered: an engine tried before it is packaged
 #   --plain      types TEXT through the engine as it runs for a user (no test mode, no provider) and expects it as
 #                typed; otherwise "hi @improve helo", Return and "1" with the scripted provider, expecting "hi Hello."
 #   --pinyin     pinyin through librime (M5): a tap of Shift, "nihao", Space, "nihao", "1", expecting "你好你好", with the
@@ -20,6 +24,10 @@
 #   --ai         a real AI request (M7): "@improve hello", Return, "1", expecting "Hello there.", the engine as a user's
 #                runs, its settings naming the Claude API at Scripts/stub-provider.py on localhost, started here (never a
 #                paid API), its key from the environment (--no-keychain: the user's Credential Manager isn't read)
+#   --terminal   a console window (`@aioterm hello`, Return: a `terminal` command of the run's settings, a batch file
+#                that prints what it gets and ends with exit code 3): it must come to the front, show the output and
+#                the exit code, stay open after the program, and close on a key written into that console (never typed
+#                anywhere else); the console is a tab or window of the default terminal (Windows Terminal, or conhost)
 #   --langid     the profile's language (default 0x0409)
 #
 # Except with the scripted provider, the engine gets a librime user folder of the run's own (--rime-user), so nothing
@@ -35,6 +43,11 @@
 # Notepad: the Store (WinUI 3) Notepad runs TSF on threads of its own, so the driver's hook activates the profile for
 # Notepad's process, from inside it, and puts the session's input method back after. The driver seeds its own temp file
 # and only ever types into the document it can prove is its own, never the user's tabs, and closes only that tab.
+#
+# --console starts `conhost.exe cmd.exe` itself (a classic console, whatever the default terminal is), --webview2 its own
+# WebView2 app (built here with `dotnet build` if it isn't, which needs the .NET SDK; it runs on the WebView2 runtime),
+# with its data in the run's folder; both get AllInOneIME through the hook as Notepad does (conhost.exe, msedgewebview2.exe
+# are where TSF runs there), and are closed at the end.
 #
 # Without --installed this needs the Release build (build.cmd) and an elevated shell to register the DLL (an
 # administrator's SSH session): it registers the DLL, runs the driver, then unregisters it again unless everything
@@ -58,6 +71,7 @@ cd "$TIP_UNIX" || exit 1
 # switch.
 MODE="--host"
 INSTALLED=""
+ENGINE_GIVEN=""
 PLAIN=""
 SCENARIO="improve"
 LANGID="0x0409"
@@ -67,12 +81,16 @@ while [ $# -gt 0 ]; do
     --probe) MODE="--probe" ;;
     --notepad) MODE="" ;;
     --host) MODE="--host" ;;
+    --console) MODE="--console" ;;
+    --webview2) MODE="--webview2" ;;
     --installed)
       INSTALLED="auto"
       if [ $# -gt 1 ] && [ "${2#--}" = "$2" ]; then INSTALLED="$2"; shift; fi ;;
+    --engine) ENGINE_GIVEN="$2"; shift ;;
     --plain) PLAIN="$2"; SCENARIO="plain"; shift ;;
     --pinyin) SCENARIO="pinyin" ;;
     --ai) SCENARIO="ai" ;;
+    --terminal) SCENARIO="terminal" ;;
     --langid) LANGID="$2"; LANGID_GIVEN=1; shift ;;
     *) echo "unknown argument $1"; exit 2 ;;
   esac
@@ -88,6 +106,7 @@ if [ -n "$INSTALLED" ]; then
   fi
   DLL="$INSTALLED\\AllInOneTIP.dll"
   ENGINE_WIN="$INSTALLED\\AllInOneIMEEngine.exe"
+  [ -n "$ENGINE_GIVEN" ] && ENGINE_WIN="$(cygpath -w "$ENGINE_GIVEN")"
   SETUP="$(cygpath -u "$INSTALLED\\AllInOneIMESetup.exe")"
   [ -f "$(cygpath -u "$ENGINE_WIN")" ] || { echo "no engine at $ENGINE_WIN"; exit 1; }
   if [ -z "$LANGID_GIVEN" ]; then
@@ -126,6 +145,13 @@ if [ "$SCENARIO" != "improve" ]; then
   ENGINE_ARGS+=(--engine-arg --rime-user --engine-arg "\"$RUN_WIN\\rime\"")
 fi
 case "$SCENARIO" in
+  terminal)
+    # The batch file the `terminal` command runs (CRLF, for cmd), and the command, with the file's path in JSON.
+    printf '@echo AllInOneIME e2e terminal %%*\r\n@exit /b 3\r\n' > "$RUN_UNIX/terminal.cmd"
+    TERMINAL_JSON="$(printf '%s' "$RUN_WIN\\terminal.cmd" | sed 's/\\/\\\\/g')"
+    printf '{"inputLanguages": ["en"], "customCommands": [{"name": "aioterm", "type": "terminal", "argv": ["%s", "{input}"]}]}\n' \
+      "$TERMINAL_JSON" > "$RUN_UNIX/config.json"
+    ENGINE_ARGS+=(--engine-arg --config --engine-arg "\"$RUN_WIN\\config.json\"" --engine-arg --no-keychain) ;;
   pinyin)
     printf '{"inputLanguages": ["en", "zh"], "defaultInput": "en"}\n' > "$RUN_UNIX/config.json"
     ENGINE_ARGS+=(--engine-arg --config --engine-arg "\"$RUN_WIN\\config.json\"" --engine-arg --no-keychain) ;;
@@ -153,11 +179,24 @@ ENGINE_LOG_WIN="$LOGDIR_WIN\\e2e-engine.log"
 WHAT=(--scenario "$SCENARIO" --fixture "\"$FIXTURE_WIN\"")
 [ -n "$PLAIN" ] && WHAT=(--scenario plain --plain "\"$PLAIN\"")
 EXPECT=()
-[ -n "$INSTALLED" ] && [ "$MODE" = "--host" ] && EXPECT=(--expect-tip "\"$DLL\"")
+case "$MODE" in
+  --host|--console|--webview2) [ -n "$INSTALLED" ] && EXPECT=(--expect-tip "\"$DLL\"") ;;
+esac
 SHOTS=()
-[ "$SCENARIO" != "plain" ] && SHOTS=(--shots "\"$RUN_WIN\\shots\"")
+[ "$SCENARIO" != "plain" ] && [ "$SCENARIO" != "terminal" ] && SHOTS=(--shots "\"$RUN_WIN\\shots\"")
+TARGET=($MODE)
+if [ "$MODE" = "--webview2" ]; then
+  HOST_EXE="$TIP_UNIX/build/x64/Release/webview2host/webview2host.exe"
+  if [ ! -f "$HOST_EXE" ]; then
+    echo "== the WebView2 host (dotnet build) =="
+    dotnet build "$(cygpath -w "$TIP_UNIX/test/webview2host/webview2host.csproj")" -c Release \
+      -o "$(cygpath -w "$TIP_UNIX/build/x64/Release/webview2host")" --nologo -v:q || { echo "no WebView2 host"; exit 1; }
+  fi
+  mkdir -p "$RUN_UNIX/webview2"
+  TARGET=(--webview2 "\"$(cygpath -w "$HOST_EXE")\"" "\"$RUN_WIN\\webview2\"")
+fi
 AIO_SESSION_ENV="$SESSION_ENV" bash test/run-in-session.sh e2e-driver "$DRIVER" --engine "\"$ENGINE_WIN\"" "${WHAT[@]}" \
-    "${ENGINE_ARGS[@]}" "${SHOTS[@]}" --engine-log "\"$ENGINE_LOG_WIN\"" --langid "$LANGID" "${EXPECT[@]}" $MODE
+    "${ENGINE_ARGS[@]}" "${SHOTS[@]}" --engine-log "\"$ENGINE_LOG_WIN\"" --langid "$LANGID" "${EXPECT[@]}" "${TARGET[@]}"
 RC=$?
 stop_stub
 if [ "$SCENARIO" = "ai" ]; then

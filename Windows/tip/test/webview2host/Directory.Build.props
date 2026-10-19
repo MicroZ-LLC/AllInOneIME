@@ -1,0 +1,6 @@
+<Project>
+  <!-- Its intermediate files in tip\build, with the rest of what is built (git ignores it), not beside the sources. -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\build\obj\webview2host\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
