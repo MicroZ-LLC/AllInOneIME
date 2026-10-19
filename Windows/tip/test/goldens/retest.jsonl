@@ -1,0 +1,24 @@
+# TSF may test a key more than once before it is handled (an app that peeks at its messages): the DLL asks the
+# engine once and answers the re-tests from its cache (§5.4). A key-up ends the key, so the same key again is a new
+# one. Then the focus moves away mid-composition: TSF itself terminates the composition first (OnCompositionTerminated,
+# §5.5: the engine commits the draft), and only then calls OnSetFocus, which sends the blur (§4).
+#! double-test
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"v":1,"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"v":1,"id":3,"type":"focus","sid":1,"focus":1}
+> {"v":1,"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[0,0]}}
+< {"v":1,"id":2,"re":4,"type":"result"}
+#! type up vk=76 scan=38
+> {"v":1,"id":5,"type":"keyDown","sid":1,"t":1100,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[1,1],"before":"l"}}
+< {"v":1,"id":3,"re":5,"type":"result"}
+#! type up vk=76 scan=38
+# an eaten key, tested twice: one frame, and its outputs go in once
+> {"v":1,"id":6,"type":"keyDown","sid":1,"t":1200,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[2,2],"before":"ll"}}
+< {"v":1,"id":4,"re":6,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]}]}
+> {"v":1,"id":7,"type":"endComposition","sid":1,"reason":"terminated"}
+< {"v":1,"id":5,"re":7,"type":"result","outputs":[{"op":"commit","text":"@"}]}
+> {"v":1,"id":8,"type":"blur","sid":1}
+< {"v":1,"id":6,"re":8,"type":"result"}
+> {"v":1,"id":9,"type":"close","sid":1}
+#! expect-document "ll@"

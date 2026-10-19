@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The configuration properties every project here shares. Imported right after Microsoft.Cpp.Default.props.
+
+  Nothing in here or in Common.props names a platform: to build ARM64 or x86, add the `Debug|ARM64` and
+  `Release|ARM64` (or `|Win32`) ProjectConfiguration items to each .vcxproj and the solution, and build with
+  `-p:Platform=ARM64`. The outputs go to build\<Platform>\<Configuration>\.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)' == 'Debug'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)' == 'Release'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+</Project>

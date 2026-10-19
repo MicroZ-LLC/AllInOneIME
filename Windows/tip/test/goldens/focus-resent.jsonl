@@ -1,0 +1,20 @@
+# focus re-sent while focused (§4): the field's input scope changes mid-draft (here to IS_URL), and the DLL notices at
+# the next key. It sends focus again with the new field and the same serial (no blur, the draft goes on), then the
+# key; a push the engine makes for that serial still applies.
+> {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
+< {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
+> {"v":1,"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
+> {"v":1,"id":3,"type":"focus","sid":1,"focus":1}
+> {"v":1,"id":4,"type":"keyDown","sid":1,"t":1000,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[0,0]}}
+< {"v":1,"id":2,"re":4,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+> {"v":1,"id":5,"type":"caret","sid":1,"rect":[812,440,9,20],"hwnd":"$any"}
+#! scope 1
+> {"v":1,"id":6,"type":"focus","sid":1,"focus":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[1],"layout":"00000409"}}
+> {"v":1,"id":7,"type":"keyDown","sid":1,"t":1200,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
+< {"v":1,"id":3,"re":7,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
+< {"v":1,"id":4,"type":"apply","sid":1,"focus":1,"outputs":[{"op":"panel","shown":false},{"op":"commit","text":"Hi."}]}
+> {"v":1,"id":8,"re":4,"type":"applied","ok":true,"ctx":{"sel":[3,3],"before":"Hi."}}
+> {"v":1,"id":9,"type":"blur","sid":1}
+< {"v":1,"id":5,"re":9,"type":"result"}
+> {"v":1,"id":10,"type":"close","sid":1}
+#! expect-document "Hi."
