@@ -85,7 +85,58 @@ struct WindowsPlatformTests {
         #expect(WindowsPrograms.find("planted", path: nil) == nil)
         #expect(WindowsPrograms.find(WindowsPrograms.windowsPath(batch), path: nil) != nil)
         #expect(WindowsPrograms.find(#".\planted.bat"#, path: nil, directory: folder.url) != nil)
-        #expect(WindowsPrograms.folders(inPath: #"C:\a;;"C:\b c";C:/d:/e"#) == [#"C:\a"#, #"C:\b c"#, "C:/d", "/e"])
+        #expect(WindowsPrograms.folders(inPath: #"C:\a;;"C:\b c";C:/d:C:/e"#) == [#"C:\a"#, #"C:\b c"#, "C:/d", "C:/e"])
+    }
+
+    /// Only PATH's folders written in full are looked in: not ".", "bin", "C:bin", "\bin" or "/usr/bin", which are
+    /// wherever the input method runs, on whichever drive.
+    @Test func onlyFullyQualifiedPathFolders() throws {
+        #expect(WindowsPrograms.folders(inPath: #".;bin;..\bin;C:bin;C:;\bin;/usr/bin;C:\a;C:/b;\\server\share\c;\\?\C:\d;"C:\e f";C:/g:/h"#)
+                == [#"C:\a"#, "C:/b", #"\\server\share\c"#, #"\\?\C:\d"#, #"C:\e f"#, "C:/g"])
+        let folder = try Folder()
+        let bin = folder.url.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        try Data("@echo planted\r\n".utf8).write(to: bin.appendingPathComponent("planted.bat"))
+        let full = WindowsPrograms.windowsPath(bin)
+        #expect(WindowsPrograms.find("planted", path: full) != nil)
+        // The same folder from the current drive's root ("\Users\…"): not taken.
+        let rooted = String(full.dropFirst(2))
+        #expect(WindowsPrograms.find("planted", path: rooted) == nil)
+        #expect(WindowsPrograms.find("planted", path: rooted.replacingOccurrences(of: "\\", with: "/")) == nil)
+    }
+
+    /// A device's name is no program in any folder ("NUL", "con.bat"); a batch file whose path has a "%" isn't run
+    /// (cmd.exe would expand it there).
+    @Test func devicesAndPercentPathsAreRefused() throws {
+        let folder = try Folder()
+        for name in ["NUL", "nul.exe", "CON.bat", "com1.cmd", "Aux.ps1", "conin$"] {
+            #expect(WindowsPrograms.kind(of: folder.url.appendingPathComponent(name)) == nil, "\(name)")
+        }
+        #expect(WindowsPrograms.find("con", path: WindowsPrograms.windowsPath(folder.url)) == nil)
+        let sub = folder.url.appendingPathComponent("100%PATH%", isDirectory: true)
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        let script = sub.appendingPathComponent("x.bat")
+        try Data("@echo x\r\n".utf8).write(to: script)
+        #expect(throws: WindowsLaunchError.self) { try run(script) }
+        #expect(throws: WindowsLaunchError.self) { try WindowsCommandLine.batch(script: #"C:\Users\me\%TEMP%\x.bat"#, arguments: []) }
+    }
+
+    /// Git Bash is found one or two folders above git.exe on the PATH (Git's cmd, bin, mingw64\bin), no higher.
+    @Test func gitBashIsLookedForNearGitOnly() throws {
+        let folder = try Folder()
+        for name in ["Git/bin/bash.exe", "Git/mingw64/bin/git.exe", "Git/cmd/git.exe", "Git/a/b/c/git.exe"] {
+            let file = folder.url.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("MZ".utf8).write(to: file)
+        }
+        let bash = folder.url.appendingPathComponent("Git/bin/bash.exe").standardizedFileURL.path
+        func found(_ git: String) -> String? {
+            let path = WindowsPrograms.windowsPath(folder.url.appendingPathComponent(git, isDirectory: true))
+            return WindowsPrograms.gitBash(["PATH": path])?.standardizedFileURL.path
+        }
+        #expect(found("Git/cmd") == bash)
+        #expect(found("Git/mingw64/bin") == bash)
+        #expect(found("Git/a/b/c") != bash, "three folders up")
     }
 
     /// .ps1 runs with PowerShell, .py with Python, .sh and "#!/bin/sh" with Git Bash: each gets its arguments as given.
@@ -105,6 +156,60 @@ struct WindowsPlatformTests {
             #expect(try run(shebang, arguments).0 == #"a b|say "hi"||"#)
         }
         #expect(throws: WindowsLaunchError.self) { try run(folder.file("notes.txt", "text")) }
+    }
+
+    /// Every argument in quotes: Git Bash's bash (MSYS2's runtime, like Cygwin's) expands none of `*`, `~`, `@file`
+    /// and `'` in a word that isn't, as a shell would.
+    @Test(.enabled(if: WindowsPrograms.gitBash(nil) != nil, "no Git Bash"))
+    func msysProgramsGetTheirArgumentsAsGiven() throws {
+        let folder = try Folder()
+        try folder.file("x", "read from the file\n")  // what `@x` would be replaced with
+        try folder.file("other.txt", "")  // what `*` would match
+        let sh = try folder.file("args.sh", "printf '%s|' \"$@\"\n")
+        let arguments = ["*", "~", "it's", "@x", "*.txt", "~/x", "o?her.txt", "[o]ther.txt", "{a,b}", "'quoted'", #"a\b"#]
+        let (output, status) = try run(sh, arguments, directory: folder.url)
+        #expect(status == 0)
+        #expect(output == arguments.map { $0 + "|" }.joined())
+        let line = try WindowsCommandLine.make(["tool.exe", "plain", "*"])
+        #expect(line == #""tool.exe" "plain" "*""#)
+    }
+
+    /// A Windows Script Host script gets its arguments, but none starting with "//": cscript would take it for its own
+    /// option, in quotes and after the script too ("//E:jscript" runs it as JScript).
+    @Test func windowsScriptsGetNoHostOptions() throws {
+        let folder = try Folder()
+        let vbs = try folder.file("args.vbs", "For Each a In WScript.Arguments\r\nWScript.Echo \"[\" & a & \"]\"\r\nNext\r\n")
+        let (output, status) = try run(vbs, ["a b", "x//y", "/c", "*"])
+        #expect(status == 0)
+        #expect(output == "[a b]\n[x//y]\n[/c]\n[*]\n")
+        #expect(throws: WindowsLaunchError.self) { try run(vbs, ["//E:jscript"]) }
+        #expect(throws: WindowsLaunchError.self) { try run(vbs, ["a", "//T:1"]) }
+    }
+
+    // MARK: Extensions
+
+    /// A batch file (.bat, .cmd) is an extension's script like a .sh or a .ps1: its bundle loads it, and it runs with its
+    /// arguments through cmd.exe's escaping (`WindowsCommandLine.batch`).
+    @Test func batchFileExtensionsLoadAndRun() async throws {
+        let folder = ScriptFolder()
+        folder.add("t/extension.json", #"""
+            {"schemaVersion": 1, "name": "t",
+             "commands": [{"script": "hello.bat", "name": "hello"}, {"script": "other.CMD", "name": "other"}]}
+            """#)
+        folder.add("t/hello.bat", "@echo off\r\necho(%1\r\n")
+        folder.add("t/other.CMD", "@echo other\r\n")
+        let index = folder.load()
+        #expect(index.skipped.isEmpty, "\(index.skipped)")
+        #expect(index.commands.map(\.name) == ["hello", "other"])
+        let hello = try #require(index.commands.first { $0.name == "hello" })
+        var text = ""
+        for try await update in CommandRunner.run(hello, arguments: ["it's & 100%"]) where update.isFinal { text = update.text }
+        #expect(text.trimmingCharacters(in: .whitespacesAndNewlines) == #""it's & 100%""#)
+        // By its extension, whatever Foundation's isExecutableFile says of it.
+        for name in ["hello.bat", "other.CMD"] {
+            let file = folder.url.appendingPathComponent("t/\(name)")
+            #expect(ScriptCommand.launch(for: file, firstLine: "@echo off", executable: false) == [file.path])
+        }
     }
 
     // MARK: Stopping
@@ -163,8 +268,9 @@ struct WindowsPlatformTests {
     /// Whether this logon has a Credential Manager to write to: an SSH login with a key has none (error 1312,
     /// ERROR_NO_SUCH_LOGON_SESSION), a desktop one does.
     static let hasCredentialManager: Bool = {
+        // A folder of its own (never made: the key is short), as a store removes the files no credential names in its.
         let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests probe \(UUID().uuidString)",
-                                                       folder: FileManager.default.temporaryDirectory)
+                                                       folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         guard store.write("probe", "probe", "", "", nil) == .ok else { return false }
         _ = store.delete("probe")
         return true
@@ -211,6 +317,53 @@ struct WindowsPlatformTests {
         #expect(store.message(Int32(ERROR_NOT_FOUND))?.isEmpty == false)
     }
 
+    /// A long key's file that no credential names any more is removed after the next change once it is a minute old
+    /// (a younger one may be another process's write); the one a credential names, and other files, stay.
+    @Test(.enabled(if: hasCredentialManager, "no Credential Manager in this logon session (an SSH login with a key)"))
+    func secretFilesNoCredentialNamesAreRemoved() throws {
+        let folder = try Folder()
+        let secrets = folder.url.appendingPathComponent("Secrets", isDirectory: true)
+        let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests \(UUID().uuidString)", folder: secrets)
+        defer { _ = store.delete("long"); _ = store.delete("short") }
+        let long = "sk-" + String(repeating: "0123456789", count: 300)
+        #expect(store.write("long", long, "AllInOneIME: Test", "", nil) == .ok)
+        let named = try #require(try FileManager.default.contentsOfDirectory(atPath: secrets.path).first)
+        let hourAgo = Date().addingTimeInterval(-3600)
+        let orphan = "\(UUID().uuidString).secret", young = "\(UUID().uuidString).secret"
+        for (name, old) in [(orphan, true), (young, false), ("notes.txt", true), (named, true)] {
+            let url = secrets.appendingPathComponent(name)
+            if name != named { try Data("x".utf8).write(to: url) }
+            if old { try FileManager.default.setAttributes([.modificationDate: hourAgo], ofItemAtPath: url.path) }
+        }
+        #expect(store.write("short", "sk-short-key", "AllInOneIME: Test", "", nil) == .ok)
+        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: secrets.path)) == [named, young, "notes.txt"])
+        #expect(store.read("long") == long)
+    }
+
+    /// Error 1312 (ERROR_NO_SUCH_LOGON_SESSION), which a sign-in without a Credential Manager gets (over SSH with a key),
+    /// is said in words that say so; here, without one, a write fails with it.
+    @Test func noCredentialManagerIsSaidPlainly() {
+        let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests \(UUID().uuidString)",
+                                                       folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let message = store.message(Int32(ERROR_NO_SUCH_LOGON_SESSION)) ?? ""
+        #expect(message.contains("Credential Manager") && message.contains("SSH"), "\(message)")
+        if !Self.hasCredentialManager {
+            #expect(store.write("probe", "probe", "", "", nil) == .failed(Int32(ERROR_NO_SUCH_LOGON_SESSION)))
+        }
+    }
+
+    /// A credential's label and comment are cut to fit between two characters, never inside one.
+    @Test func credentialTextsAreCutBetweenCharacters() {
+        let a = String(repeating: "a", count: 255)
+        #expect(CredentialText.prefix(a + "中", utf8: 256) == a)
+        #expect(CredentialText.prefix(a + "e\u{301}", utf8: 256) == a)
+        #expect(CredentialText.prefix("中文标签", utf8: 7) == "中文")
+        let b = String(repeating: "b", count: 254)
+        #expect(CredentialText.prefix(b + "👍🏽", utf16: 255) == b)
+        #expect(CredentialText.prefix(b + "x", utf16: 255) == b + "x")
+        #expect(CredentialText.prefix("short", utf8: 256) == "short")
+    }
+
     // MARK: Recycle Bin
 
     /// What the core trashes leaves its folder for the Recycle Bin; nothing there is an error.
@@ -224,6 +377,20 @@ struct WindowsPlatformTests {
         try SystemFileOps().trash(sub)
         #expect(!FileManager.default.fileExists(atPath: file.path) && !FileManager.default.fileExists(atPath: sub.path))
         #expect(throws: (any Error).self) { try SystemFileOps().trash(file) }
+    }
+
+    /// What is on a drive the Recycle Bin doesn't keep (a share, a removable drive) is refused and left there: the
+    /// Recycle Bin would delete it for good. Here the test's own file through the drive's administrative share
+    /// (\\localhost\C$), when that can be reached.
+    @Test func trashRefusesWhatTheRecycleBinWouldDelete() throws {
+        let folder = try Folder()
+        let file = try folder.file("AllInOneIME-trash-test-\(UUID().uuidString).txt", "x")
+        let local = WindowsPrograms.windowsPath(file)
+        guard local.dropFirst().hasPrefix(#":\"#) else { return }
+        let shared = URL(fileURLWithPath: #"\\localhost\"# + local.prefix(1) + "$" + local.dropFirst(2))
+        guard FileManager.default.fileExists(atPath: shared.path) else { return }  // no administrative share for this user
+        #expect { try SystemFileOps().trash(shared) } throws: { ($0 as? CocoaError)?.code == .featureUnsupported }
+        #expect(FileManager.default.fileExists(atPath: file.path), "deleted, not trashed")
     }
 }
 #endif

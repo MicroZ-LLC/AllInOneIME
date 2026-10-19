@@ -6,8 +6,9 @@ import WinSDK
 /// `ScriptCommand.launch`, `WindowsProcessLauncher`). Windows has no executable bit and no "#!": a file runs by its
 /// extension. Here, as in cmd.exe:
 ///
-/// - a bare name is looked for in PATH's folders (split on ";"), with PATHEXT's extensions (".COM;.EXE;.BAT;.CMD;…"),
-///   never in the current folder (cmd.exe looks there first: a program planted where a command runs isn't taken);
+/// - a bare name is looked for in PATH's folders (split on ";", those written in full only), with PATHEXT's extensions
+///   (".COM;.EXE;.BAT;.CMD;…"), never in the current folder (cmd.exe looks there first: a program planted where a
+///   command runs isn't taken);
 /// - a .exe or .com starts itself; a .bat or .cmd through cmd.exe, its arguments escaped (`WindowsCommandLine.batch`);
 /// - a script through its interpreter: .ps1 with PowerShell, .py with the Python launcher (py, else python), .vbs and
 ///   the other Windows Script Host files with cscript, .sh and a file whose first line is "#!" with Git Bash's bash when
@@ -65,9 +66,11 @@ enum WindowsPrograms {
         return nil
     }
 
-    /// PATH's folders in order: split on ";", quotes dropped, empty ones left out. A ":" that isn't a drive's ("C:")
-    /// splits too, so that a list written the POSIX way ("C:/Users/me/bin:/usr/bin") still reads (no Windows path has
-    /// one anywhere else).
+    /// PATH's folders in order: split on ";", quotes dropped, and only those written in full (`isFullyQualified`: "C:\…",
+    /// "\\server\share\…"). One that isn't (".", "bin", "C:bin", "\bin", "/usr/bin") is a folder of wherever the input
+    /// method or the program runs, on whichever drive: a program planted there isn't taken, as cmd.exe's current folder
+    /// isn't. A ":" that isn't a drive's ("C:") splits too, so that a list written the POSIX way ("C:/Users/me/bin:C:/tools")
+    /// still reads (no Windows path has one anywhere else).
     static func folders(inPath path: String?) -> [String] {
         var folders: [String] = []
         for entry in (path ?? "").split(separator: ";") {
@@ -82,7 +85,16 @@ enum WindowsPrograms {
             }
             folders.append(part)
         }
-        return folders.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return folders.filter(isFullyQualified)
+    }
+
+    /// Whether `folder` is written in full, the same wherever it is read from: a drive and its root ("C:\…", "C:/…"),
+    /// or a share or a device's namespace ("\\server\share\…", "\\?\C:\…").
+    static func isFullyQualified(_ folder: String) -> Bool {
+        let start = Array(folder.prefix(3))
+        guard start.count == 3 else { return false }
+        if start[0].isASCII, start[0].isLetter, start[1] == ":", CorePaths.isSeparator(start[2]) { return true }
+        return CorePaths.isSeparator(start[0]) && CorePaths.isSeparator(start[1]) && !CorePaths.isSeparator(start[2])
     }
 
     /// PATHEXT's extensions, lowercased, in its order (".com", ".exe", ".bat", ".cmd" when it isn't set).
@@ -129,8 +141,10 @@ enum WindowsPrograms {
     // MARK: What starts a file
 
     /// What `url` is when it is a file (not a folder) that can be started: by its extension, else by its first bytes
-    /// ("#!", "MZ"). Nil for any other file, or none.
+    /// ("#!", "MZ"). Nil for any other file, or none, and for a device's name (`CorePaths.isDeviceName`: "NUL",
+    /// "con.bat"), which Windows opens as the device in any folder.
     static func kind(of url: URL) -> Kind? {
+        guard !CorePaths.isDeviceName(Substring(url.lastPathComponent)) else { return nil }
         var isFolder: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), !isFolder.boolValue else { return nil }
         let suffix = url.pathExtension.lowercased()
@@ -182,6 +196,11 @@ enum WindowsPrograms {
         case .python:
             return try standard(try python(file, words: [], environment: environment) + arguments)
         case .windowsScript:
+            // cscript takes a "//" word anywhere on its line for its own option, in quotes and after the script too
+            // ("//E:jscript" runs it as another language, "//T:1" stops it, "//X" debugs it): none is the script's.
+            guard !arguments.contains(where: { $0.hasPrefix("//") }) else {
+                throw WindowsLaunchError.invalidArgument("an argument starting with // to a Windows Script Host script (cscript's own options)")
+            }
             return try standard([systemProgram("cscript.exe"), "//NoLogo", path] + arguments)
         case .shell:
             return try standard(try bash(file, words: [], environment: environment) + arguments)
@@ -275,7 +294,9 @@ enum WindowsPrograms {
         return nil
     }
 
-    /// Git for Windows' folder: the one with bin\bash.exe, above git.exe on the PATH or where the installer puts it.
+    /// Git for Windows' folder: the one with bin\bash.exe, one or two folders above git.exe on the PATH (its <Git>\cmd,
+    /// <Git>\bin or <Git>\mingw64\bin), or where the installer puts it. No higher: a git.exe elsewhere (a package
+    /// manager's shim, a tool's own copy) doesn't make a bin\bash.exe further up Git Bash.
     static func gitRoot(_ environment: [String: String]?) -> URL? {
         var roots: [URL] = []
         for path in searchPaths(environment) {
@@ -283,7 +304,7 @@ enum WindowsPrograms {
                 .map({ URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("git.exe") })
                 .first(where: { kind(of: $0) == .program }) else { continue }
             var folder = git.deletingLastPathComponent()
-            for _ in 0..<3 {
+            for _ in 0..<2 {
                 folder = folder.deletingLastPathComponent()
                 roots.append(folder)
             }
@@ -349,8 +370,9 @@ public enum WindowsLaunchError: Error, LocalizedError, Equatable {
     case notRunnable(String)
     /// The interpreter the script needs isn't installed ("Git Bash", "Python", or what its "#!" line names).
     case interpreterNotFound(script: String, interpreter: String)
-    /// An argument or a variable that can't be passed: one with a NUL character, or a line break in one for a batch
-    /// file (cmd.exe would cut the command there: `WindowsCommandLine.batch`).
+    /// An argument or a variable that can't be passed: one with a NUL character, a line break in one for a batch
+    /// file (cmd.exe would cut the command there: `WindowsCommandLine.batch`), or one starting with "//" for a Windows
+    /// Script Host script (cscript's options).
     case invalidArgument(String)
     /// A Windows call failed: its name and the error it gave.
     case system(String, UInt32)

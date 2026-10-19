@@ -7,9 +7,10 @@ extension APIKeys.Keychain {
     /// credential "AllInOneIME/<service>/<account>" for each account, kept on this computer for this user
     /// (`CRED_PERSIST_LOCAL_MACHINE`). The key is its secret; the host it is for its comment; its label, when it was made
     /// and the key's ending (`APIKeys.ending(of:)`) its attributes. A key longer than a credential holds (2,560 bytes)
-    /// goes to a file in %APPDATA%\AllInOneIME\Secrets that only this user on this computer can decrypt (DPAPI,
-    /// `CryptProtectData`), which the credential names.
-    public static let credentialManager = credentialManager(service: APIKeys.service, folder: CorePaths.configDir.appendingPathComponent("Secrets", isDirectory: true))
+    /// goes to a file in %LOCALAPPDATA%\AllInOneIME\Secrets (`CorePaths.dataDir`: this computer's, as the credential
+    /// is, never a roaming profile's) that only this user on this computer can decrypt (DPAPI, `CryptProtectData`),
+    /// which the credential names. A file no credential names any more is removed (`removeOrphans`).
+    public static let credentialManager = credentialManager(service: APIKeys.service, folder: CorePaths.dataDir.appendingPathComponent("Secrets", isDirectory: true))
 
     /// The Credential Manager's items of `service`, the long keys' files in `folder` (tests use their own of both).
     static func credentialManager(service: String, folder: URL) -> APIKeys.Keychain {
@@ -62,7 +63,10 @@ private final class CredentialStore: @unchecked Sendable {
     /// CRED_MAX_VALUE_SIZE: an attribute's value.
     private static let maxValue = 256
 
-    func target(_ account: String) -> String { "AllInOneIME/\(service)/\(account)" }
+    /// Every credential's target starts so, whatever its service.
+    private static let targetPrefix = "AllInOneIME/"
+
+    func target(_ account: String) -> String { "\(Self.targetPrefix)\(service)/\(account)" }
 
     // MARK: Reading
 
@@ -77,25 +81,50 @@ private final class CredentialStore: @unchecked Sendable {
         let ok = target(account).withCString(encodedAs: UTF16.self) { CredReadW($0, DWORD(CRED_TYPE_GENERIC), 0, &found) }
         guard ok, let found else { return (nil, GetLastError()) }
         defer { CredFree(found) }
-        let credential = found.pointee
+        return (Self.item(found.pointee), 0)
+    }
+
+    /// What `credential` holds.
+    private static func item(_ credential: CREDENTIALW) -> Item {
         var item = Item(secret: Data(), comment: credential.Comment.map { String(decodingCString: $0, as: UTF16.self) } ?? "")
         if let blob = credential.CredentialBlob, credential.CredentialBlobSize > 0 {
             item.secret = Data(bytes: blob, count: Int(credential.CredentialBlobSize))
         }
-        item.modified = Self.date(credential.LastWritten)
+        item.modified = date(credential.LastWritten)
+        let values = attributes(credential)
+        item.label = values[labelKeyword]
+        item.created = values[createdKeyword].flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
+        item.ending = APIKeys.ending(fromAttribute: values[endingKeyword].map { Data($0.utf8) })
+        item.file = values[fileKeyword]
+        return item
+    }
+
+    /// `credential`'s attributes that have a value, by keyword, their values read as UTF-8.
+    private static func attributes(_ credential: CREDENTIALW) -> [String: String] {
+        var values: [String: String] = [:]
         for index in 0..<Int(credential.AttributeCount) {
             guard let attribute = credential.Attributes?[index] else { break }
-            guard let keyword = attribute.Keyword.map({ String(decodingCString: $0, as: UTF16.self) }) else { continue }
-            let value = attribute.Value.map { String(decoding: UnsafeBufferPointer(start: $0, count: Int(attribute.ValueSize)), as: UTF8.self) }
-            switch keyword {
-            case Self.labelKeyword: item.label = value
-            case Self.createdKeyword: item.created = value.flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
-            case Self.endingKeyword: item.ending = APIKeys.ending(fromAttribute: value.map { Data($0.utf8) })
-            case Self.fileKeyword: item.file = value
-            default: break
-            }
+            guard let keyword = attribute.Keyword.map({ String(decodingCString: $0, as: UTF16.self) }),
+                  let value = attribute.Value else { continue }
+            values[keyword] = String(decoding: UnsafeBufferPointer(start: value, count: Int(attribute.ValueSize)), as: UTF8.self)
         }
-        return (item, 0)
+        return values
+    }
+
+    /// The files AllInOneIME's credentials name (`CredEnumerateW`: of every service, which may share a folder); nil
+    /// when they can't be listed (no Credential Manager in this logon session).
+    private static func namedFiles() -> Set<String>? {
+        var count: DWORD = 0
+        var found: UnsafeMutablePointer<PCREDENTIALW?>?
+        let ok = (targetPrefix + "*").withCString(encodedAs: UTF16.self) { CredEnumerateW($0, 0, &count, &found) }
+        guard ok, let found else { return GetLastError() == DWORD(ERROR_NOT_FOUND) ? [] : nil }
+        defer { CredFree(found) }
+        var names = Set<String>()
+        for index in 0..<Int(count) {
+            guard let credential = found[index]?.pointee, credential.`Type` == DWORD(CRED_TYPE_GENERIC) else { continue }
+            if let file = attributes(credential)[fileKeyword] { names.insert(file) }
+        }
+        return names
     }
 
     /// The key `item` holds: its secret, or its file's, decrypted.
@@ -130,6 +159,7 @@ private final class CredentialStore: @unchecked Sendable {
             let status = store(account, item)
             if status == .ok {
                 if let file = old?.file, file != item.file { removeFile(file) }
+                removeOrphans()
             } else if let written {
                 try? FileManager.default.removeItem(at: written)
             }
@@ -155,22 +185,24 @@ private final class CredentialStore: @unchecked Sendable {
                 return code == DWORD(ERROR_NOT_FOUND) ? .notFound : .failed(Int32(bitPattern: code))
             }
             if let file { removeFile(file) }
+            removeOrphans()
             return .ok
         }
     }
 
     /// Writes `item` as the credential for `account` (`CredWriteW`: made, or replaced whole).
     private func store(_ account: String, _ item: Item) -> APIKeys.KeychainStatus {
-        var values: [(String, Data)] = [(Self.labelKeyword, Data((item.label ?? "").utf8)),
-                                        (Self.createdKeyword, Data(String(item.created?.timeIntervalSince1970 ?? 0).utf8))]
-        if let ending = item.ending { values.append((Self.endingKeyword, APIKeys.endingAttribute(ending))) }
-        if let file = item.file { values.append((Self.fileKeyword, Data(file.utf8))) }
-        // What the calls read must last through `CredWriteW`: kept in these buffers until it returns.
+        var values: [(String, String)] = [(Self.labelKeyword, item.label ?? ""),
+                                          (Self.createdKeyword, String(item.created?.timeIntervalSince1970 ?? 0))]
+        if let ending = item.ending { values.append((Self.endingKeyword, String(decoding: APIKeys.endingAttribute(ending), as: UTF8.self))) }
+        if let file = item.file { values.append((Self.fileKeyword, file)) }
+        // What the calls read must last through `CredWriteW`: kept in these buffers until it returns. What is too long
+        // (a label) is cut between two characters.
         let keywords = values.map { Array($0.0.utf16) + [0] }
-        let bytes = values.map { [UInt8]($0.1.prefix(Self.maxValue)) }
+        let bytes = values.map { [UInt8](CredentialText.prefix($0.1, utf8: Self.maxValue).utf8) }
         let target = Array(target(account).utf16) + [0]
         let user = Array(account.utf16) + [0]
-        let comment = Array(item.comment.utf16.prefix(255)) + [0]  // CRED_MAX_STRING_LENGTH: 256 with the NUL
+        let comment = Array(CredentialText.prefix(item.comment, utf16: 255).utf16) + [0]  // CRED_MAX_STRING_LENGTH: 256 with the NUL
         var secret = [UInt8](item.secret)
         let ok = withWideBuffers(keywords) { keywords in
             withByteBuffers(bytes) { values in
@@ -211,6 +243,25 @@ private final class CredentialStore: @unchecked Sendable {
         try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
     }
 
+    /// How old a file no credential names must be to be removed: one younger may be another process's write, between
+    /// its file and its credential.
+    static let orphanAge: TimeInterval = 60
+
+    /// Removes the long keys' files (`isFileName`) that no credential names any more: one whose credential was deleted
+    /// elsewhere (Control Panel's Credential Manager), or whose write stopped between the file and the credential.
+    /// Nothing when the credentials can't be listed. After each change (`write`, `delete`).
+    private func removeOrphans() {
+        let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter(Self.isFileName)
+        guard !files.isEmpty, let named = Self.namedFiles() else { return }
+        let before = Date().addingTimeInterval(-Self.orphanAge)
+        for name in files where !named.contains(name) {
+            let url = folder.appendingPathComponent(name)
+            guard let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
+                  modified < before else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     /// A long key's file is named "<UUID>.secret" (`write`): no other name in an attribute is taken for one.
     private static func isFileName(_ name: String) -> Bool {
         name.hasSuffix(".secret") && UUID(uuidString: String(name.dropLast(".secret".count))) != nil
@@ -249,8 +300,13 @@ private final class CredentialStore: @unchecked Sendable {
 
     // MARK: Messages and times
 
-    /// What Windows says error `code` means (`FormatMessageW`), on one line.
+    /// What error `code` means: what Windows says (`FormatMessageW`), on one line; for 1312 (`ERROR_NO_SUCH_LOGON_SESSION`,
+    /// "A specified logon session does not exist"), what that means here.
     static func message(_ code: Int32) -> String? {
+        if code == Int32(ERROR_NO_SUCH_LOGON_SESSION) {
+            return "The Credential Manager isn't available in this Windows sign-in (one over SSH with a key, or a service's): "
+                + "keys can be saved and read only when signed in to Windows with a password, PIN or Windows Hello"
+        }
         var buffer = [WCHAR](repeating: 0, count: 512)
         let count = FormatMessageW(DWORD(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS), nil, DWORD(bitPattern: code), 0,
                                    &buffer, DWORD(buffer.count), nil)
@@ -265,6 +321,28 @@ private final class CredentialStore: @unchecked Sendable {
         guard ticks > 0 else { return nil }
         let unix = ticks - 116_444_736_000_000_000
         return Date(timeIntervalSince1970: TimeInterval(unix / 10_000_000) + TimeInterval(unix % 10_000_000) / 1e7)
+    }
+}
+
+/// A credential's texts cut to what it holds, between two characters: a cut inside one would leave a broken one at the
+/// end (half a UTF-8 sequence, half a surrogate pair, an accent without its letter).
+enum CredentialText {
+    /// The most of `text`'s characters that are at most `bytes` long in UTF-8 (an attribute's value).
+    static func prefix(_ text: String, utf8 bytes: Int) -> String { prefix(text, bytes) { $0.utf8.count } }
+
+    /// The most of `text`'s characters that are at most `units` UTF-16 code units long (a comment).
+    static func prefix(_ text: String, utf16 units: Int) -> String { prefix(text, units) { $0.utf16.count } }
+
+    private static func prefix(_ text: String, _ limit: Int, _ size: (String) -> Int) -> String {
+        guard size(text) > limit else { return text }
+        var kept = "", used = 0
+        for character in text {
+            let length = size(String(character))
+            guard used + length <= limit else { break }
+            kept.append(character)
+            used += length
+        }
+        return kept
     }
 }
 

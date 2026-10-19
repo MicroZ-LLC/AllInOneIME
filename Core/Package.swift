@@ -134,11 +134,10 @@ if let tests = package.targets.first(where: { $0.name == "AllInOneIMECoreTests" 
     tests.exclude += ["Acceptance/PluginLanguageAcceptanceTests.swift"]
     #if os(Windows)
     // Windows has no POSIX calls for the tests to check processes and files with (pid_t, kill, process groups, realpath,
-    // lstat, opendir): those that use them are left out, and with them the ones that write their scripts with ScriptFolder
-    // (bash scripts anyway) or ExtensionComposerTests' helpers.
+    // lstat, opendir): those that use them are left out, and with them the ones that run bash scripts or use
+    // ExtensionComposerTests' helpers. (ScriptFolder itself builds there: the tests that only load what it writes run.)
     tests.exclude += ["ExtensionTests.swift", "ExtensionRobustnessTests.swift", "ExtensionComposerTests.swift",
                       "ClickPickTests.swift", "ExtensionExamplesTests.swift", "Acceptance/QuestionHistoryAcceptanceTests.swift"]
-    package.targets.first { $0.name == "AllInOneIMETestSupport" }?.exclude += ["ScriptFolder.swift"]
     #endif
 }
 #endif

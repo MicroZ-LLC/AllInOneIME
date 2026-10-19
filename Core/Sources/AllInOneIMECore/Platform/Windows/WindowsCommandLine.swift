@@ -6,8 +6,10 @@ import Foundation
 /// exactly the arguments given, as Rust's standard library does (`std::process::Command` on Windows).
 enum WindowsCommandLine {
     /// `argv` (the program first) as one command line the C runtime splits back into `argv`: the program in quotes, as
-    /// written (a file name has no `"`); an argument in quotes when it has a space or a tab or is empty, its `"` escaped
-    /// with a backslash and the backslashes before a `"` (its own or the closing one) doubled.
+    /// written (a file name has no `"`); every argument in quotes too, its `"` escaped with a backslash and the
+    /// backslashes before a `"` (its own or the closing one) doubled. In quotes even without a space (Rust's
+    /// `force_quotes`): a program built on MSYS2's or Cygwin's runtime (Git Bash's bash and tools) reads its line as a
+    /// shell would, and expands `*`, `?`, `[…]`, `{a,b}`, `~`, `@file` and `'…'` in a word that isn't in quotes.
     static func make(_ argv: [String]) throws -> String {
         guard let program = argv.first else { return "" }
         guard !program.contains("\""), !program.contains("\0") else { throw WindowsLaunchError.invalidArgument("a `\"` in the program's name") }
@@ -19,11 +21,10 @@ enum WindowsCommandLine {
         return line
     }
 
-    /// One argument as the C runtime reads it back.
+    /// One argument, in quotes, as the C runtime reads it back.
     static func quoted(_ argument: String) throws -> String {
         guard !argument.contains("\0") else { throw WindowsLaunchError.invalidArgument("a NUL character in an argument") }
-        let quote = argument.isEmpty || argument.contains(" ") || argument.contains("\t")
-        var out = quote ? "\"" : ""
+        var out = "\""
         var backslashes = 0
         for scalar in argument.unicodeScalars {
             if scalar == "\\" {
@@ -36,8 +37,7 @@ enum WindowsCommandLine {
             out.unicodeScalars.append(scalar)
         }
         // n backslashes before the closing `"` become 2n.
-        if quote { out += String(repeating: "\\", count: backslashes) + "\"" }
-        return out
+        return out + String(repeating: "\\", count: backslashes) + "\""
     }
 
     /// The command line that runs the batch file `script` (.bat, .cmd) with `arguments` through cmd.exe, which a batch
@@ -47,10 +47,12 @@ enum WindowsCommandLine {
     /// (`!VAR!`), each argument with anything but letters, digits and `#$*+-./:?@\_` in quotes, its `"` doubled, the
     /// backslashes before a `"` doubled, and each `%` written `%%cd:~,%` (an empty piece of %cd%: nothing a variable's
     /// name can be read from). An argument with a line break (or a NUL) is refused: cmd.exe would end the command there.
+    /// So is a script whose path has a `%`, which cmd.exe would expand in it too (C:\Users\me\%TEMP%\x.bat).
     static func batch(script: String, arguments: [String]) throws -> String {
         guard !script.contains("\""), !script.hasSuffix("\\"), !script.contains("\0") else {
             throw WindowsLaunchError.invalidArgument("a batch file's name with a `\"` or ending in `\\`")
         }
+        guard !script.contains("%") else { throw WindowsLaunchError.invalidArgument("a batch file's path with a `%`") }
         var line = "cmd.exe /e:ON /v:OFF /d /c \"\"" + script + "\""
         for argument in arguments {
             guard !argument.contains(where: { $0 == "\r" || $0 == "\n" || $0 == "\r\n" || $0 == "\0" }) else {

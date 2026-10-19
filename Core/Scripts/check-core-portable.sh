@@ -6,10 +6,12 @@
 #     Platform/Apple/; a C library (Darwin, Glibc, Musl, Android, WinSDK, ucrt), or AllInOneIMEQuickJS (the core's on
 #     Windows, Linux and Android only), only under its own `#if canImport(...)` or `#if os(...)`;
 #   - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code in such a branch; a file
-#     in Platform/Windows/ isn't wholly inside `#if os(Windows)`;
+#     in Platform/Windows/ isn't wholly inside `#if os(Windows)` (that alone, or in a `&&`);
 #   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
-#     `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift and
-#     Platform/Windows/WindowsProcessLauncher.swift do).
+#     `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does,
+#     with `Process`, and Platform/Windows/WindowsProcessLauncher.swift, with `CreateProcessW`).
+# A guard counts only when its branch can't be taken without it: `#if !(canImport(X))` or `#if canImport(X) || true`
+# guards nothing.
 # Scripts/check-core-portable-test.sh checks the check.
 #
 #   Scripts/check-core-portable.sh            check (run by `make test`)
