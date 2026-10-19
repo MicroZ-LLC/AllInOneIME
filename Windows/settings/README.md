@@ -121,13 +121,14 @@ AllInOneIMESettings.exe [--pipe NAME] [--engine EXE [--engine-args "ARGS"]] [--t
   pipe of its own with a build's engine to start there in test mode (a config in a temporary folder, keys in memory):
   the app starts it. Then, through UI Automation's patterns only (no key is pressed, no other window is touched): every
   section has a name on each control and each control is reached from the keyboard; a switch, a choice, an ordered list
-  (a language added and moved), a check box and a text are changed and checked in `config.json`; a fake key is saved (the
+  (a language added and moved), a check box and a text are changed and checked in `config.json`; a custom command is
+  saved through its form and deleted (two dialogs); a second start brings the window forward; a fake key is saved (the
   box cleared; the engine's store has it, its last 4 through the wire; `config.json` doesn't); Test Connection goes to
   the stand-in (one request, with that key) and its outcome shows; a hand edit of `config.json`, another window's change
   and the interface language (French, and back) show; the window closes; the app draws every section, light and dark.
   `APP=` and `ENGINE=` test other builds (the installer's: `../installer/build/stage/`).
 
-  Run on 2026-10-19 on this PC: **55 of 55 passed**, with the debug builds, and with the installer's published app and
+  Run on 2026-10-19 on this PC: **57 of 57 passed**, with the debug builds, and with the installer's published app and
   release engine. The report and the screenshots are in `build/e2e/` (`e2e-shots/`: the window as it was on the screen,
   when it was in front; `app-shots/`: each section drawn by the app, light and dark). Looked at: nothing clipped, the
   cards and lists laid out at 1040×760 and 125 %, dark mode, the French window. (In the app's own drawings a check box

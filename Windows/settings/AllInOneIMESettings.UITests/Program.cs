@@ -23,7 +23,8 @@ namespace AllInOneIME.Settings.UITests;
 /// 4. a switch, a choice, an ordered list, a check box and a text changed, a key saved (and the box cleared), Test
 ///    Connection run against the stand-in;
 ///    config.json, the engine's key store (through the wire: saved, its last 4) and the stand-in's log checked;
-/// 5. changes from elsewhere shown: config.json edited by hand, another window's change, the interface language;
+/// 5. changes from elsewhere shown: config.json edited by hand, another window's change, the interface language; a
+///    custom command saved through its form and deleted (two dialogs); a second start of the app;
 /// 6. the window closed; the app's own screenshots of every section, light and dark.
 ///
 ///     AllInOneIMESettings.UITests --app EXE --engine EXE --stub stub-provider.py --python PYTHON --out DIR
@@ -180,6 +181,30 @@ static class Program
             Capture(window, Path.Combine(shots, "french.png"));
             client.SetAsync("uiLanguage", JsonValue.Create("en"), cancellation.Token).GetAwaiter().GetResult();
             Check("and back in English", Eventually(() => window.FindFirstDescendant(c => c.ByAutomationId("section:general"))?.Name == "General", 20));
+
+            // A custom command through the form (a dialog), then deleted (confirmed in another).
+            Select(window, "commands");
+            WaitFor("New…", () => window.FindFirstDescendant(c => c.ByAutomationId("commands.custom/save"))).AsButton().Invoke();
+            var name = WaitFor("the form's name", () => window.FindFirstDescendant(c => c.ByAutomationId("form/name")));
+            name.Patterns.Value.Pattern.SetValue("polite");
+            WaitFor("the form's instruction", () => window.FindFirstDescendant(c => c.ByAutomationId("form/prompt")))
+                .Patterns.Value.Pattern.SetValue("Make it polite");
+            window.FindFirstDescendant(c => c.ByAutomationId("PrimaryButton")).AsButton().Invoke();
+            var saved = Eventually(() =>
+                Config(config)["customCommands"]?.AsArray().Any(c => (string?)c?["name"] == "polite" && (string?)c?["prompt"] == "Make it polite") == true);
+            Check("a custom command saved from its form", saved, saved ? null : "the window says: " + string.Join(" | ",
+                window.FindAllDescendants(c => c.ByControlType(ControlType.Text)).Select(t => t.Properties.Name.ValueOrDefault ?? "").Where(n => n.Length > 0).TakeLast(12)));
+            if (!saved) Capture(window, Path.Combine(shots, "form-failed.png"));
+            WaitFor("Delete…", () => window.FindFirstDescendant(c => c.ByAutomationId("commands.custom/delete/polite"))).AsButton().Invoke();
+            WaitFor("the confirmation", () => window.FindFirstDescendant(c => c.ByAutomationId("PrimaryButton"))).AsButton().Invoke();
+            Check("and deleted, once confirmed", Eventually(() => Config(config)["customCommands"]?.AsArray().Count is null or 0));
+
+            // A second start: it brings this window forward and quits.
+            var second = Process.Start(new ProcessStartInfo(options.App)
+            {
+                ArgumentList = { "--pipe", pipe }, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+            })!;
+            Check("a second start quits, leaving the one window", second.WaitForExit(15000) && !app.HasExited);
 
             // 6. Closed.
             client.DisposeAsync().AsTask().GetAwaiter().GetResult();

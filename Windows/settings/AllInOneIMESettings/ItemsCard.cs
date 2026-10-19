@@ -278,6 +278,9 @@ sealed class FormView
     readonly IReadOnlyList<Field> fields;
     readonly Dictionary<string, JsonNode?> values;
     readonly Dictionary<string, FrameworkElement> rows = [];
+    /// <summary>A text's value as its box has it now: read when the form is saved (TextChanged comes later than the
+    /// text, so a text pasted and saved at once would be missed).</summary>
+    readonly Dictionary<string, TextBox> texts = [];
 
     public FormView(IReadOnlyList<Field> fields, Dictionary<string, JsonNode?> values, bool enabled)
     {
@@ -314,7 +317,7 @@ sealed class FormView
                         AcceptsReturn = field.Multiline, TextWrapping = field.Multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
                         MinHeight = field.Multiline ? 96 : 0, MinWidth = 420, IsEnabled = enabled,
                     };
-                    box.TextChanged += (_, _) => values[field.Id] = JsonValue.Create(box.Text);
+                    texts[field.Id] = box;
                     control = box;
                     break;
             }
@@ -333,7 +336,15 @@ sealed class FormView
     }
 
     public StackPanel Panel { get; } = new() { Spacing = 12, MinWidth = 440 };
-    public IReadOnlyDictionary<string, JsonNode?> Values => values;
+    /// <summary>The form's values as its controls have them now.</summary>
+    public IReadOnlyDictionary<string, JsonNode?> Values
+    {
+        get
+        {
+            foreach (var (id, box) in texts) values[id] = JsonValue.Create(box.Text);
+            return values;
+        }
+    }
 
     void ShowRows()
     {
