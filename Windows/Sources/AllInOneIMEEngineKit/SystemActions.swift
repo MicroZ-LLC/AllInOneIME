@@ -59,9 +59,13 @@ public struct WindowsSystem: SystemActions {
     /// ("ExcludeClipboardContentFromMonitorProcessing"): for the tests, which put the user's clipboard back after.
     var excludedFromHistory = false
 
-    public init(clipboard: SystemThread, shell: SystemThread) {
+    /// This program, which a console window's process is (`ConsoleHold`).
+    public let holder: String
+
+    public init(clipboard: SystemThread, shell: SystemThread, holder: String) {
         self.clipboard = clipboard
         self.shell = shell
+        self.holder = holder
     }
 
     /// The clipboard's owner is the clipboard thread's window: `SetClipboardData` fails on a clipboard opened without
@@ -153,50 +157,27 @@ public struct WindowsSystem: SystemActions {
         return pid
     }
 
-    /// In a console window of its own, started directly, with no shell in between (`ConsoleCommand`: the program found
-    /// on the PATH, its arguments quoted for it, a batch file's escaped for cmd.exe, a prompt too long for the command
-    /// line in a file), in the user's home folder. Started suspended: the right to take the foreground the client gave
-    /// the engine (`allowForeground`) goes to that one process, then it runs.
+    /// In a console window of its own that stays open after the program ends (`ConsoleHold`), started directly, with
+    /// no shell in between (`ConsoleCommand`: the program found on the PATH, its arguments quoted for it, a batch file's
+    /// escaped for cmd.exe, a prompt too long for the command line in a file), in the user's home folder. The console's
+    /// process is started suspended: the right to take the foreground the client gave the engine (`allowForeground`)
+    /// goes to that one process, then it runs.
     public func launchInTerminal(_ argv: [String], prompt: String?) throws {
-        try shell.syncThrowing {
-            let path = WindowsPrograms.variable("PATH", in: ProcessInfo.processInfo.environment)
-            let command = try ConsoleCommand.make(argv, prompt: prompt, path: path, promptFolder: ConsoleCommand.defaultPromptFolder)
-            do {
-                try Self.start(command, flags: DWORD(CREATE_NEW_CONSOLE))
-            } catch {
-                if let file = command.promptFile { try? FileManager.default.removeItem(at: file) }
-                throw error
-            }
-        }
+        _ = try shell.syncThrowing { try startInConsole(argv, prompt: prompt) }
     }
 
-    /// Starts `command` suspended (with `flags`: a console of its own), lets it take the foreground, then lets it run.
-    /// Its process id.
-    @discardableResult
-    static func start(_ command: ConsoleCommand, flags: DWORD) throws -> DWORD {
-        var commandLine = Array(command.commandLine.utf16) + [0]
-        var startup = STARTUPINFOW()
-        startup.cb = DWORD(MemoryLayout<STARTUPINFOW>.size)
-        var info = PROCESS_INFORMATION()
-        let home = CorePaths.home.withUnsafeFileSystemRepresentation { String(cString: $0!) }
-        let ok = command.application.withCString(encodedAs: UTF16.self) { application in
-            home.withCString(encodedAs: UTF16.self) { home in
-                CreateProcessW(application, &commandLine, nil, nil, false, flags | DWORD(CREATE_SUSPENDED) | DWORD(CREATE_UNICODE_ENVIRONMENT),
-                               nil, home, &startup, &info)
-            }
+    /// `launchInTerminal`, on the calling thread (`path`, `promptFolder`: the PATH's, `%TEMP%\AllInOneIME`, unless
+    /// given): the console's process's id.
+    func startInConsole(_ argv: [String], prompt: String?, path: String? = nil, promptFolder: URL? = nil) throws -> DWORD {
+        let path = path ?? WindowsPrograms.variable("PATH", in: ProcessInfo.processInfo.environment)
+        let command = try ConsoleCommand.make(argv, prompt: prompt, path: path, directory: CorePaths.home,
+                                              promptFolder: promptFolder ?? ConsoleCommand.defaultPromptFolder)
+        do {
+            return try ConsoleHold.start(command, title: argv.first ?? "", holder: holder, directory: CorePaths.home)
+        } catch {
+            if let file = command.promptFile { try? FileManager.default.removeItem(at: file) }
+            throw error
         }
-        guard ok else { throw SystemActionError("Couldn't start \(command.application) (error \(GetLastError()))") }
-        defer {
-            CloseHandle(info.hThread)
-            CloseHandle(info.hProcess)
-        }
-        AllowSetForegroundWindow(info.dwProcessId)
-        guard ResumeThread(info.hThread) != DWORD(bitPattern: -1) else {
-            let error = GetLastError()
-            TerminateProcess(info.hProcess, 1)
-            throw SystemActionError("Couldn't start \(command.application) (error \(error))")
-        }
-        return info.dwProcessId
     }
 
     public func search(_ query: String) -> [SearchResult] { FileSearch.search(query) }

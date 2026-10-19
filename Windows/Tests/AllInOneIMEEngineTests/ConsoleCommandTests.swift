@@ -129,10 +129,10 @@ extension OnTheDesktop {
             }
         }
 
-        /// A batch file, as npm's claude.cmd is (`node cli.js %*`), started for real in a console of its own through
-        /// `WindowsSystem.launchInTerminal`: what reaches the program it hands its arguments to is the prompt as
-        /// written, and nothing in it ran (cmd.exe's `&`, `|`, `>`, `%VAR%`, `^`). A prompt with a line break, which
-        /// cmd.exe can't take, arrives through its file.
+        /// A batch file, as npm's claude.cmd is (`node cli.js %*`), started for real in a console of its own as
+        /// `WindowsSystem.launchInTerminal` starts it: what reaches the program it hands its arguments to is the prompt
+        /// as written, and nothing in it ran (cmd.exe's `&`, `|`, `>`, `%VAR%`, `^`). A prompt with a line break, which
+        /// cmd.exe can't take, arrives through its file, which the program reads as it runs.
         @Test func aBatchFileHandsThePromptOnUntouched() throws {
             let python = try StubProvider.python()
             let folder = try temporaryFolder("console-batch")
@@ -140,8 +140,15 @@ extension OnTheDesktop {
             let dump = folder.appendingPathComponent("dump.py")
             try Data("""
                 import json, os, sys
+                # The prompt's file, read as an agent reads it, if that is what it is pointed to.
+                before, after = "The request is in the file ", ": read it, and do what it asks."
+                last = sys.argv[-1]
+                content = None
+                if last.startswith(before) and last.endswith(after):
+                    with open(last[len(before):-len(after)], encoding="utf-8", newline="") as f:
+                        content = f.read()
                 with open(os.environ["AIO_DUMP"] + ".tmp", "w", encoding="utf-8") as f:
-                    json.dump(sys.argv[1:], f)
+                    json.dump({"argv": sys.argv[1:], "file": content}, f)
                 os.replace(os.environ["AIO_DUMP"] + ".tmp", os.environ["AIO_DUMP"])
 
                 """.utf8).write(to: dump)
@@ -156,21 +163,29 @@ extension OnTheDesktop {
                 _ = "AIO_DUMP".withCString(encodedAs: UTF16.self) { name in
                     Self.path(out).withCString(encodedAs: UTF16.self) { SetEnvironmentVariableW(name, $0) }
                 }
-                try testWindowsSystem().launchInTerminal([Self.path(agent), "--"], prompt: prompt)
+                let console = try testShellThread.syncThrowing {
+                    try testWindowsSystem().startInConsole([Self.path(agent), "--"], prompt: prompt, promptFolder: folder)
+                }
+                // The console stays open after the program (`ConsoleHold`): closed here once it has said what it got.
+                defer {
+                    if let process = OpenProcess(DWORD(PROCESS_TERMINATE) | DWORD(SYNCHRONIZE), false, console) {
+                        TerminateProcess(process, 0)
+                        WaitForSingleObject(process, 5000)
+                        CloseHandle(process)
+                    }
+                }
                 let deadline = Date().addingTimeInterval(20)
                 while !FileManager.default.fileExists(atPath: out.path), Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
                 let data = try Data(contentsOf: out)
-                let received = try #require(try JSONSerialization.jsonObject(with: data) as? [String])
+                let dumped = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+                let received = try #require(dumped["argv"] as? [String])
                 #expect(received.first == "--")
                 if prompt.contains(where: \.isNewline) {
                     // cmd.exe would end the command at the line break: the prompt is in the file the agent is pointed
-                    // to.
+                    // to, and read from it as written.
                     let reference = try #require(received.last)
-                    let (before, after) = ("The request is in the file ", ": read it, and do what it asks.")
-                    #expect(received.count == 2 && reference.hasPrefix(before) && reference.hasSuffix(after), "\(received)")
-                    let file = URL(fileURLWithPath: String(reference.dropFirst(before.count).dropLast(after.count)))
-                    #expect(try String(contentsOf: file, encoding: .utf8) == prompt)
-                    try? FileManager.default.removeItem(at: file)
+                    #expect(received.count == 2 && reference.hasPrefix("The request is in the file "), "\(received)")
+                    #expect(dumped["file"] as? String == prompt)
                 } else {
                     #expect(received == ["--", prompt], "\(prompt)")
                 }

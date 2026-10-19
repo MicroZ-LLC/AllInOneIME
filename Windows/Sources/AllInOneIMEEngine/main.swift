@@ -33,7 +33,8 @@ import WinSDK
 //   --instances   pipe instances kept waiting for a client (at least 4)
 //   --quiet       log only the engine's start, its errors and its end
 //
-// It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in.
+// It is also the child process `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in, and the process
+// of each console window it opens (`--run-in-console`, `ConsoleHold`).
 
 let usage = """
     usage: AllInOneIMEEngine [--test [--provider FILE] [--clock manual|system]] [--config FILE] [--no-keychain]
@@ -177,8 +178,8 @@ func runEngine(_ options: EngineOptions) -> Never {
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
     let shellThread = SystemThread(name: "AllInOneIME shell")
     let clipboardThread = SystemThread(name: "AllInOneIME clipboard")
-    var hostOptions = EngineHost.Options(system: WindowsSystem(clipboard: clipboardThread, shell: shellThread),
-                                         systemQueue: shellThread, clipboardQueue: clipboardThread)
+    let system = WindowsSystem(clipboard: clipboardThread, shell: shellThread, holder: executablePath())
+    var hostOptions = EngineHost.Options(system: system, systemQueue: shellThread, clipboardQueue: clipboardThread)
     hostOptions.testMode = options.test
     hostOptions.foreground = { peer in peer.pid.map(Foreground.isOwned(by:)) ?? false }
     hostOptions.caretBounds = { Foreground.caretBounds(hwnd: $0, pid: $1) }
@@ -305,6 +306,10 @@ if arguments.first == InlineCode.javaScriptHostOption {
 if arguments.first == "--run-plugin" {
     guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
     exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
+}
+// And the process of each console window it opens, which stays open after the program in it ends.
+if arguments.first == ConsoleHold.option {
+    exit(ConsoleHold.run())
 }
 runEngine(parseOptions())
 

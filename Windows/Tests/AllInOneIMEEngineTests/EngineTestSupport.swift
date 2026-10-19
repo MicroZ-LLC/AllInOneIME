@@ -101,8 +101,14 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
 let testShellThread = SystemThread(name: "AllInOneIME shell (tests)")
 let testClipboardThread = SystemThread(name: "AllInOneIME clipboard (tests)")
 
-/// The engine's `WindowsSystem`, on those.
-func testWindowsSystem() -> WindowsSystem { WindowsSystem(clipboard: testClipboardThread, shell: testShellThread) }
+/// The debug build of the engine (`swift build`), which the tests start as `@js`'s host and as a console's process.
+let debugEngine = packageRoot.appendingPathComponent(".build/debug/AllInOneIMEEngine.exe")
+
+/// The engine's `WindowsSystem`, on those, its consoles' process the debug engine.
+func testWindowsSystem() -> WindowsSystem {
+    WindowsSystem(clipboard: testClipboardThread, shell: testShellThread,
+                  holder: debugEngine.withUnsafeFileSystemRepresentation { String(cString: $0!) })
+}
 
 /// The system as the host used it: nothing is opened or started, the clipboard is a string here. Each call notes the
 /// thread it came on; with `gate` set, each waits for it to be signalled first (a share that is offline, a clipboard
