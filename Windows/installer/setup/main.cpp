@@ -24,6 +24,7 @@
 #include <tlhelp32.h>
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cwchar>
 #include <string>
@@ -129,8 +130,8 @@ private:
     Values Read() {
         Values values;
         HKEY key = nullptr;
-        existed_ = existed_ || RegOpenKeyExW(HKEY_CURRENT_USER, kPreload, 0, KEY_READ, &key) == ERROR_SUCCESS;
-        if (!key) return values;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, kPreload, 0, KEY_READ, &key) != ERROR_SUCCESS) return values;
+        existed_ = true;
         for (DWORD i = 0;; ++i) {
             wchar_t name[64], data[64] = {};
             DWORD nameLength = static_cast<DWORD>(std::size(name)), dataSize = sizeof data - sizeof(wchar_t), type = 0;
@@ -500,8 +501,12 @@ int Status() {
 
     // The profiles as RegisterProfile wrote them, and as TSF enumerates them (only where TSF runs: not in session 0).
     ITfInputProcessorProfileMgr* mgr = nullptr;
-    CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfileMgr,
-                     reinterpret_cast<void**>(&mgr));
+    if (CurrentSession() != 0) {
+        CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
+                         IID_ITfInputProcessorProfileMgr, reinterpret_cast<void**>(&mgr));
+    } else {
+        printf("tsf: not in session 0 (a service's or SSH's): run status in a desktop session to see TSF's view\n");
+    }
     for (LANGID lang : kLanguages) {
         wchar_t key[160] = {};
         swprintf_s(key, L"Software\\Microsoft\\CTF\\TIP\\%ls\\LanguageProfile\\0x%08X\\%ls",
