@@ -16006,7 +16006,7 @@
       }
     },
     "Folder (Obsidian or any)" : {
-      "comment" : "文件夹（Obsidian 等） — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "文件夹（Obsidian 等） — Sources/AllInOneIME/PanelShowcase.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -16053,7 +16053,7 @@
       }
     },
     "Follow the system" : {
-      "comment" : "跟随系统 — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "跟随系统 — Sources/AllInOneIME/PanelShowcase.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -44830,6 +44830,7 @@
     },
     "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to." : {
       "comment" : "设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -44871,6 +44872,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的設定、行話詞庫、自訂指令和拼音學到的詞，在你所有的 Mac 上都一樣，API 金鑰和密碼也透過 iCloud 鑰匙圈同步。只透過你自己的 iCloud：不會傳送到我們的伺服器，也不需要另外登入。"
+          }
+        }
+      }
+    },
+    "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs; your API keys and passwords too, through iCloud Keychain, if you turn that on below. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to." : {
+      "comment" : "设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样；在下面打开后，API 密钥和密码也经过 iCloud 钥匙串同步。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Einstellungen, Jargonliste, eigenen Befehle und die von Pinyin gelernten Wörter, gleich auf all deinen Macs; auch deine API-Schlüssel und Passwörter, über den iCloud-Schlüsselbund, wenn du das unten einschaltest. Nur über deinen eigenen iCloud-Account: Nichts geht an unsere Server, und es ist keine weitere Anmeldung nötig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus ajustes, lista de jerga, comandos personalizados y las palabras que ha aprendido el pinyin, iguales en todos tus Mac; también tus claves de API y contraseñas, a través del Llavero de iCloud, si lo activas abajo. Solo a través de tu propio iCloud: nada pasa por nuestros servidores y no hay que iniciar sesión en ningún otro sitio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos réglages, votre liste de jargon, vos commandes personnalisées et les mots appris par le pinyin, identiques sur tous vos Mac ; vos clés API et mots de passe aussi, via le trousseau iCloud, si vous l’activez ci-dessous. Uniquement via votre propre iCloud : rien ne passe par nos serveurs, et aucune autre connexion n’est nécessaire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定、業界用語リスト、カスタムコマンド、ピンインが学習した単語を、すべてのMacでそろえます。下でオンにすると、APIキーとパスワードもiCloudキーチェーン経由でそろえます。自分のiCloudのみを経由するため、当社のサーバには何も送られず、ほかにサインインする必要もありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정, 용어 목록, 사용자 지정 명령, 병음이 학습한 단어를 모든 Mac에서 동일하게 유지하고, 아래에서 켜면 API 키와 암호도 iCloud 키체인을 통해 동기화합니다. 자신의 iCloud만 거치며, 당사 서버로는 아무것도 전송되지 않고 따로 로그인할 필요도 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seus ajustes, a lista de jargões, os comandos personalizados e as palavras que o pinyin aprendeu, iguais em todos os seus Macs; suas chaves de API e senhas também, pelas Chaves do iCloud, se você ativar isso abaixo. Somente pelo seu próprio iCloud: nada vai para os nossos servidores, e não há mais nada em que iniciar sessão."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的設定、行話詞庫、自訂指令和拼音學到的詞，在你所有的 Mac 上都一樣；在下方開啟後，API 金鑰和密碼也會透過 iCloud 鑰匙圈同步。只透過你自己的 iCloud：不會傳送到我們的伺服器，也不需要另外登入。"
           }
         }
       }

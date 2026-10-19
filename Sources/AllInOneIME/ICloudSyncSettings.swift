@@ -21,8 +21,8 @@ struct ICloudSyncSection: View {
         Section {
             Toggle(isOn: Binding(get: { model.config.iCloudSync.enabled }, set: setEnabled)) {
                 titled(tr("通过 iCloud 同步", "Sync through iCloud"), syncsKeys
-                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
-                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
+                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样；在下面打开后，API 密钥和密码也经过 iCloud 钥匙串同步。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
+                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs; your API keys and passwords too, through iCloud Keychain, if you turn that on below. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
                        : tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
                             "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
             }
