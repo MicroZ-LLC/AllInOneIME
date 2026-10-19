@@ -19,11 +19,11 @@
 > {"id":9,"type":"keyUp","sid":2,"t":1950,"key":{"vk":16,"scan":42},"ctx":{"sel":[1,1],"comp":1}}
 < {"id":5,"re":9,"type":"result"}
 > {"id":10,"type":"keyDown","sid":2,"t":1950,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[1,1],"comp":1}}
-< {"id":6,"re":10,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]}]}
+< {"id":6,"re":10,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
 > {"id":11,"type":"keyDown","sid":2,"t":2050,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[1,1],"comp":1}}
-< {"id":7,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}]}]}
+< {"id":7,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}],"typed":"@im"}]}
 > {"id":12,"type":"keyDown","sid":2,"t":2150,"key":{"vk":80,"scan":25,"text":"p","textIgnoringModifiers":"p"},"ctx":{"sel":[2,2],"comp":2}}
-< {"id":8,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}]}]}
+< {"id":8,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}],"typed":"@imp"}]}
 # The field turns secure: the draft goes in as typed, and no more keys are sent
 > {"id":13,"type":"focus","sid":2,"focus":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","secure":true,"scopes":[31],"layout":"00000409"}}
 < {"id":9,"type":"apply","sid":2,"focus":1,"outputs":[{"op":"panel","shown":false},{"op":"commit","text":"@imp"}]}

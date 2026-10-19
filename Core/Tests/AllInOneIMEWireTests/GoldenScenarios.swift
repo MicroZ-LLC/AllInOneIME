@@ -14,6 +14,8 @@ enum GoldenScenarios {
         ("esc-mid-stream", escMidStream),
         ("blur-mid-stream", blurMidStream),
         ("terminated", terminated),
+        ("focus-moves", focusMoves),
+        ("focus-resent", focusResent),
         ("timeout-resync", timeoutResync),
         ("reconnect", reconnect),
         ("unknown-type", unknownType),
@@ -51,6 +53,7 @@ enum GoldenScenarios {
         w.type(1, "1")
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 
@@ -65,6 +68,7 @@ enum GoldenScenarios {
         w.directive("click row 1")
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 
@@ -109,6 +113,7 @@ enum GoldenScenarios {
         w.escape(1)
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 
@@ -126,6 +131,7 @@ enum GoldenScenarios {
         w.type(1, "x")
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 
@@ -146,13 +152,60 @@ enum GoldenScenarios {
         w.type(1, "x")
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
+        return w.text
+    }
+
+    static func focusMoves(_ directory: URL) throws -> String {
+        let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
+            "The focus moves to another field mid-draft (§4, §5.5). TSF ends the composition before it moves the focus,",
+            "so the client sends endComposition terminated first (the draft goes in as typed), then blur, which finds",
+            "nothing left to commit.",
+        ])
+        w.hello()
+        w.open(1)
+        w.focus(1, serial: 1)
+        w.shiftDown(1)
+        w.keyDown(1, vk: 0x32, scan: 0x03, text: "@", modifiers: GoldenWriter.shift)
+        w.shiftUp(1)
+        w.type(1, "improve hel")
+        w.endComposition(1, reason: "terminated")
+        w.blur(1)
+        w.comment("The other field: plain typing")
+        w.open(2)
+        w.focus(2, serial: 1)
+        w.type(2, "x")
+        w.blur(2)
+        w.close(1)
+        w.close(2)
+        w.expectDocument(1)
+        return w.text
+    }
+
+    static func focusResent(_ directory: URL) throws -> String {
+        let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
+            "focus re-sent while focused (§4): the layout changed mid-stream, so the client sends focus again with the new",
+            "field and the same serial. Nothing is blurred or committed, the versions keep streaming, and the click's push",
+            "carries that serial, so the client applies it.",
+        ])
+        improveHello(w)
+        w.directive("advance 150")
+        w.comment("A new keyboard layout under the same field: the same serial, the new field")
+        let chineseLayout = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000804")
+        w.focus(1, serial: 1, field: chineseLayout)
+        w.directive("run tasks")
+        w.directive("click row 1")
+        w.blur(1)
+        w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 
     static func timeoutResync(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
-            "A key the client gave up on (§5.4): it passed the key to the app and dropped the late result, then sends",
-            "endComposition timeout. The engine starts over and empties the composition.",
+            "A key the client gave up on (§5.4): it ended its composition, leaving the draft as typed (composition.typed),",
+            "passed the key to the app and dropped the late result, then sends endComposition timeout. The engine starts",
+            "over and hides its panel, and sends no composition: an empty one would remove what the document kept.",
         ])
         w.hello()
         w.open(1)
@@ -169,14 +222,16 @@ enum GoldenScenarios {
         w.type(1, " x")
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 
     static func reconnect(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
             "The pipe breaks mid-draft (§2.5, §4): the engine closes the connection's sessions, with no outputs. The",
-            "client ends its composition keeping its text, reconnects, says hello again (ids start over at 1 on both",
-            "sides), re-opens its live context and focuses it; session ids survive.",
+            "client ends its composition keeping the draft as typed (\"@imp\", not the \"imp\" shown), reconnects, says",
+            "hello again (ids start over at 1 on both sides), re-opens its live context and focuses it with a new serial;",
+            "session ids survive.",
         ])
         w.hello()
         w.open(1)
@@ -191,7 +246,7 @@ enum GoldenScenarios {
         w.hello()
         w.open(1)
         w.focus(1, serial: 2)
-        w.comment("The composition's text stayed as text: typing goes on plainly, and a new draft starts after a space")
+        w.comment("The draft stayed as typed text: typing goes on plainly, and a new draft starts after a space")
         w.type(1, " ")
         w.shiftDown(1)
         w.keyDown(1, vk: 0x32, scan: 0x03, text: "@", modifiers: GoldenWriter.shift)
@@ -200,6 +255,7 @@ enum GoldenScenarios {
         w.ping()
         w.blur(1)
         w.close(1)
+        w.expectDocument(1)
         return w.text
     }
 

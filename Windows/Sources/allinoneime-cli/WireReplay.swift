@@ -332,8 +332,8 @@ extension WireReplay {
                 case let .directive(text, line):
                     let words = text.split(separator: " ").map(String.init)
                     switch words.first {
-                    case "keys":
-                        continue  // typed in a field the client sends nothing from
+                    case "keys", "expect-document":
+                        continue  // typed in a field the client sends nothing from; the client's document
                     case "connect":
                         try unexpected(line)
                         client?.close()

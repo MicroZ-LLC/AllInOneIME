@@ -219,8 +219,10 @@ public enum Output: Equatable, Sendable {
     /// Replace our composition (else the selection), extended by `deleteBefore` / `deleteAfter` units, with `text`;
     /// the composition ends. `afterKey`: once the app has had the key (the Composer's `commitAfterKey`).
     case commit(text: String, deleteBefore: Int = 0, deleteAfter: Int = 0, afterKey: Bool = false)
-    /// Our composition's text, caret (UTF-16) and styled stretches; empty text ends it.
-    case composition(text: String, caret: Int = 0, segments: [Segment] = [])
+    /// Our composition's text, caret (UTF-16) and styled stretches; empty text ends it. `typed`: the draft as the user
+    /// typed it, when that isn't what is shown ("@improve helo", shown `improve › helo`): what the client leaves in the
+    /// document if it ends the composition on its own (a key it gave up on, a lost engine, §2.5, §5.4).
+    case composition(text: String, caret: Int = 0, segments: [Segment] = [], typed: String? = nil)
     /// The engine is (or no longer is) showing UI anchored at the caret: report `caret` while it is.
     case panel(shown: Bool)
     /// `AllowSetForegroundWindow(enginePid)`, for clients that announced `allowForeground`.
@@ -240,7 +242,7 @@ public enum Output: Equatable, Sendable {
 }
 
 extension Output: Codable {
-    enum CodingKeys: String, CodingKey { case op, text, deleteBefore, deleteAfter, afterKey, caret, segments, shown }
+    enum CodingKeys: String, CodingKey { case op, text, deleteBefore, deleteAfter, afterKey, caret, segments, typed, shown }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -254,7 +256,8 @@ extension Output: Codable {
         case "composition":
             self = .composition(text: try c.decodeIfPresent(String.self, forKey: .text) ?? "",
                                 caret: try c.decodeIfPresent(Int.self, forKey: .caret) ?? 0,
-                                segments: try c.decodeIfPresent([Segment].self, forKey: .segments) ?? [])
+                                segments: try c.decodeIfPresent([Segment].self, forKey: .segments) ?? [],
+                                typed: try c.decodeIfPresent(String.self, forKey: .typed))
         case "panel":
             self = .panel(shown: try c.decodeIfPresent(Bool.self, forKey: .shown) ?? false)
         case "allowForeground":
@@ -273,11 +276,12 @@ extension Output: Codable {
             try c.encodeUnlessDefault(deleteBefore, forKey: .deleteBefore)
             try c.encodeUnlessDefault(deleteAfter, forKey: .deleteAfter)
             try c.encodeUnlessDefault(afterKey, forKey: .afterKey)
-        case let .composition(text, caret, segments):
+        case let .composition(text, caret, segments, typed):
             // Its text is the composition itself: written even when empty (that ends it).
             try c.encode(text, forKey: .text)
             try c.encodeUnlessDefault(caret, forKey: .caret)
             try c.encodeUnlessDefault(segments, forKey: .segments)
+            try c.encodeIfPresent(typed, forKey: .typed)
         case let .panel(shown):
             // Its one field: written either way, as `applied`'s `ok`.
             try c.encode(shown, forKey: .shown)

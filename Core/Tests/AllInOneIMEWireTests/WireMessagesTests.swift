@@ -24,6 +24,10 @@ struct WireMessagesTests {
         #expect(try json(Output.commit(text: "x", deleteBefore: 2, afterKey: true))
             == #"{"afterKey":true,"deleteBefore":2,"op":"commit","text":"x"}"#)
         #expect(try json(Output.allowForeground) == #"{"op":"allowForeground"}"#)
+        // The draft as typed, only where a composition has it.
+        #expect(try json(Output.composition(text: "i", caret: 1, typed: "@i")) == #"{"caret":1,"op":"composition","text":"i","typed":"@i"}"#)
+        #expect(try WireJSON.decode(Output.self, from: Data(#"{"op":"composition","text":"i","typed":"@i"}"#.utf8))
+            == .composition(text: "i", typed: "@i"))
     }
 
     @Test func outputsReadEitherForm() throws {

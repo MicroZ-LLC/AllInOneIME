@@ -39,6 +39,20 @@ final class TestHost: WireHost, @unchecked Sendable {
     var foreground = true
     private let lock = NSLock()
     private var log: [String] = []
+    private var known: [UInt32: ComposerSession] = [:]
+
+    /// The sessions the host has seen (a panel shown or hidden, a caret report), by sid.
+    var sessions: [UInt32: ComposerSession] {
+        lock.lock()
+        defer { lock.unlock() }
+        return known
+    }
+
+    private func remember(_ session: ComposerSession) {
+        lock.lock()
+        known[session.sid] = session
+        lock.unlock()
+    }
 
     /// What the engine did, in order: "sid 1: notice", "sid 1: panel shown" …
     var performed: [String] {
@@ -66,7 +80,9 @@ final class TestHost: WireHost, @unchecked Sendable {
         record("sid \(session.sid): \(ComposerSession.kind(of: effect))")
     }
 
-    func panel(shown: Bool, in session: ComposerSession) {}
+    func panel(shown: Bool, in session: ComposerSession) { remember(session) }
+
+    func caretMoved(in session: ComposerSession) { remember(session) }
 
     func ownsForeground(_ peer: WirePeer) -> Bool { foreground }
 

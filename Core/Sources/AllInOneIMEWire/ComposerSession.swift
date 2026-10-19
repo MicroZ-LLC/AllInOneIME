@@ -164,13 +164,14 @@ public final class ComposerSession: @unchecked Sendable {
     }
 
     /// `endComposition` (§5.5): the app ended our composition ("terminated": what is pending goes in, as `commitAll`
-    /// has it), or the client gave up on a key ("timeout": start over, the composition emptied).
+    /// has it), or the client gave up on a key ("timeout"). After a timeout the client has ended the composition itself,
+    /// leaving the draft as typed in the document (`composition.typed`), and the app has had the key since: the draft
+    /// starts over and the panel goes, with no composition sent, since an empty one would remove that text.
     func endComposition(reason: String) -> [Output] {
         guard reason == "timeout" else { return map(composer.commitAll(), from: .async) + hidePanel() }
-        let outputs = map(composer.appTookMarkedText(), from: .async)
         documentComposition = Self.noComposition
         markedWatch.reset()
-        return [Self.noComposition] + outputs + hidePanel()
+        return map(composer.appTookMarkedText(), from: .async) + hidePanel()
     }
 
     /// `applied`'s document.
@@ -178,6 +179,8 @@ public final class ComposerSession: @unchecked Sendable {
         if let context { self.context = context }
     }
 
+    /// A caret report. The client reports only while the panel is shown (§6), so the caret is forgotten when it hides:
+    /// a panel shown later waits for the report that follows, rather than going where the last one was.
     func caretReported(rect: [Int], hwnd: UInt64?, exact: Bool) {
         caret = (rect, hwnd, exact)
         host.caretMoved(in: self)
@@ -305,6 +308,7 @@ public final class ComposerSession: @unchecked Sendable {
                 host.panel(shown: false, in: self)
                 if panelShown {
                     panelShown = false
+                    caret = nil
                     outputs.append(.panel(shown: false))
                 }
             default:
@@ -325,22 +329,25 @@ public final class ComposerSession: @unchecked Sendable {
     private func hidePanel() -> [Output] {
         guard panelShown else { return [] }
         panelShown = false
+        caret = nil
         host.panel(shown: false, in: self)
         return [.panel(shown: false)]
     }
 
-    /// The composition for the Composer's marked text now.
+    /// The composition for the Composer's marked text now, with the draft as typed when that isn't what is shown.
     private var currentComposition: Output {
         guard !composer.draftInPanel else { return Self.noComposition }
         let text = composer.markedText
         guard !text.isEmpty else { return Self.noComposition }
         let caret = String(text.prefix(max(composer.markedCursor, 0))).utf16.count
         let style = composer.isLevelTwo ? Segment.Style.converted : Segment.Style.draft
-        return .composition(text: text, caret: caret, segments: [Segment(from: 0, to: text.utf16.count, style: style)])
+        let typed = composer.textAsTyped
+        return .composition(text: text, caret: caret, segments: [Segment(from: 0, to: text.utf16.count, style: style)],
+                            typed: typed.isEmpty || typed == text ? nil : typed)
     }
 
     private var compositionText: String {
-        if case let .composition(text, _, _) = documentComposition { return text }
+        if case let .composition(text, _, _, _) = documentComposition { return text }
         return ""
     }
 

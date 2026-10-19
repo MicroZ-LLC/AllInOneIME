@@ -1,6 +1,7 @@
 # The pipe breaks mid-draft (§2.5, §4): the engine closes the connection's sessions, with no outputs. The
-# client ends its composition keeping its text, reconnects, says hello again (ids start over at 1 on both
-# sides), re-opens its live context and focuses it; session ids survive.
+# client ends its composition keeping the draft as typed ("@imp", not the "imp" shown), reconnects, says
+# hello again (ids start over at 1 on both sides), re-opens its live context and focuses it with a new serial;
+# session ids survive.
 #! provider fixtures/improve-hello.json
 #! inputLanguage english
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
@@ -20,30 +21,31 @@
 > {"id":9,"type":"keyUp","sid":1,"t":1450,"key":{"vk":16,"scan":42},"ctx":{"sel":[4,4],"before":"hi ","comp":1}}
 < {"id":7,"re":9,"type":"result"}
 > {"id":10,"type":"keyDown","sid":1,"t":1450,"key":{"vk":73,"scan":23,"text":"i","textIgnoringModifiers":"i"},"ctx":{"sel":[4,4],"before":"hi ","comp":1}}
-< {"id":8,"re":10,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]}]}
+< {"id":8,"re":10,"type":"result","handled":true,"outputs":[{"op":"composition","text":"i","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}],"typed":"@i"}]}
 > {"id":11,"type":"keyDown","sid":1,"t":1550,"key":{"vk":77,"scan":50,"text":"m","textIgnoringModifiers":"m"},"ctx":{"sel":[4,4],"before":"hi ","comp":1}}
-< {"id":9,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}]}]}
+< {"id":9,"re":11,"type":"result","handled":true,"outputs":[{"op":"composition","text":"im","caret":2,"segments":[{"from":0,"to":2,"style":"draft"}],"typed":"@im"}]}
 > {"id":12,"type":"keyDown","sid":1,"t":1650,"key":{"vk":80,"scan":25,"text":"p","textIgnoringModifiers":"p"},"ctx":{"sel":[5,5],"before":"hi ","comp":2}}
-< {"id":10,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}]}]}
+< {"id":10,"re":12,"type":"result","handled":true,"outputs":[{"op":"composition","text":"imp","caret":3,"segments":[{"from":0,"to":3,"style":"draft"}],"typed":"@imp"}]}
 #! disconnect
 #! connect
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
 < {"v":1,"id":1,"re":1,"type":"welcome","version":1,"engine":"$any","enginePid":"$any","capabilities":[],"limits":{"contextBefore":32,"selection":10002}}
 > {"id":2,"type":"open","sid":1,"field":{"app":"win:notepad.exe","process":"notepad.exe","scopes":[0],"layout":"00000409"}}
 > {"id":3,"type":"focus","sid":1,"focus":2}
-# The composition's text stayed as text: typing goes on plainly, and a new draft starts after a space
-> {"id":4,"type":"keyDown","sid":1,"t":1750,"key":{"vk":32,"scan":57,"text":" ","textIgnoringModifiers":" "},"ctx":{"sel":[6,6],"before":"hi imp"}}
+# The draft stayed as typed text: typing goes on plainly, and a new draft starts after a space
+> {"id":4,"type":"keyDown","sid":1,"t":1750,"key":{"vk":32,"scan":57,"text":" ","textIgnoringModifiers":" "},"ctx":{"sel":[7,7],"before":"hi @imp"}}
 < {"id":2,"re":4,"type":"result"}
-> {"id":5,"type":"keyDown","sid":1,"t":1850,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[7,7],"before":"hi imp "}}
+> {"id":5,"type":"keyDown","sid":1,"t":1850,"key":{"vk":16,"scan":42,"modifiers":["shift","leftShift"]},"ctx":{"sel":[8,8],"before":"hi @imp "}}
 < {"id":3,"re":5,"type":"result"}
-> {"id":6,"type":"keyDown","sid":1,"t":1930,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[7,7],"before":"hi imp "}}
+> {"id":6,"type":"keyDown","sid":1,"t":1930,"key":{"vk":50,"scan":3,"text":"@","textIgnoringModifiers":"@","modifiers":["shift","leftShift"]},"ctx":{"sel":[8,8],"before":"hi @imp "}}
 < {"id":4,"re":6,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
-> {"id":7,"type":"keyUp","sid":1,"t":2000,"key":{"vk":16,"scan":42},"ctx":{"sel":[8,8],"before":"hi imp ","comp":1}}
+> {"id":7,"type":"keyUp","sid":1,"t":2000,"key":{"vk":16,"scan":42},"ctx":{"sel":[9,9],"before":"hi @imp ","comp":1}}
 < {"id":5,"re":7,"type":"result"}
-> {"id":8,"type":"keyDown","sid":1,"t":2000,"key":{"vk":27,"scan":1,"text":"\u001b","textIgnoringModifiers":"\u001b"},"ctx":{"sel":[8,8],"before":"hi imp ","comp":1}}
+> {"id":8,"type":"keyDown","sid":1,"t":2000,"key":{"vk":27,"scan":1,"text":"\u001b","textIgnoringModifiers":"\u001b"},"ctx":{"sel":[9,9],"before":"hi @imp ","comp":1}}
 < {"id":6,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":""},{"op":"panel","shown":false}]}
 > {"id":9,"type":"ping"}
 < {"id":7,"re":9,"type":"pong"}
 > {"id":10,"type":"blur","sid":1}
 < {"id":8,"re":10,"type":"result"}
 > {"id":11,"type":"close","sid":1}
+#! expect-document "hi @imp "

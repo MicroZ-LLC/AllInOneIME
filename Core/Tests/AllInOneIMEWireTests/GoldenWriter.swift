@@ -8,6 +8,8 @@ struct Document {
     var text: [UInt16] = []
     var selection = 0..<0
     var composition: Range<Int>?
+    /// The composition's text as typed (`composition.typed`), when that isn't what it shows.
+    var typed: String?
     var contextBefore = 32
 
     var string: String { String(decoding: text, as: UTF16.self) }
@@ -26,11 +28,13 @@ struct Document {
             let units = Array(text.utf16)
             replace(range, with: units)
             composition = nil
+            typed = nil
             caret(range.lowerBound + units.count)
-        case let .composition(text, caret, _):
+        case let .composition(text, caret, _, typed):
             let range = composition ?? selection
             let units = Array(text.utf16)
             replace(range, with: units)
+            self.typed = typed
             if units.isEmpty {
                 composition = nil
                 // The caret stays where it was in the text around (after the composition: moved back with it).
@@ -43,6 +47,17 @@ struct Document {
         case .panel, .allowForeground, .unknown:
             break
         }
+    }
+
+    /// The client ends the composition on its own (a key it gave up on, a lost engine: §2.5, §5.4): the text as typed
+    /// stays, the caret after it.
+    mutating func endKeepingTyped() {
+        guard let range = composition else { return }
+        let units = typed.map { Array($0.utf16) } ?? Array(text[range])
+        replace(range, with: units)
+        composition = nil
+        typed = nil
+        caret(range.lowerBound + units.count)
     }
 
     /// What the app does with a key it has: types the key's text over the selection.
@@ -131,7 +146,11 @@ final class GoldenWriter {
                 break
             }
         }
-        if timedOut, let sid, let typed { documents[sid]?.type(typed) }
+        if timedOut, let sid {
+            // The client gave up on the key: it ends the composition keeping the text as typed, and the app types the key.
+            documents[sid]?.endKeepingTyped()
+            if let typed { documents[sid]?.type(typed) }
+        }
         answerApplies()
         return answers
     }
@@ -159,8 +178,8 @@ final class GoldenWriter {
             engine.server.disconnect(connection!)
             engine.runUntilIdle()
             connection = nil
-            // The client ends its compositions, keeping their text (§2.5).
-            for sid in documents.keys { documents[sid]?.composition = nil }
+            // The client ends its compositions, keeping their text as typed (§2.5).
+            for sid in documents.keys { documents[sid]?.endKeepingTyped() }
         case "closed":
             precondition(!engine.server.isOpen(connection!), "the engine didn't close the connection")
             engine.server.disconnect(connection!)
@@ -212,6 +231,12 @@ final class GoldenWriter {
     }
 
     func ping() { send(["type": "ping"]) }
+
+    /// `#! expect-document`: the client's document now, as the outputs left it (a Windows host checks its own against
+    /// it; the engine's replayers skip it).
+    func expectDocument(_ sid: UInt32) {
+        lines.append("#! expect-document " + JSONValue.string(documents[sid]?.string ?? "").compact)
+    }
 
     // MARK: Keys
 

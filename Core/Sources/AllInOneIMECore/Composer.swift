@@ -1737,6 +1737,18 @@ public final class Composer {
         return effects + finishAsTyped(text)
     }
 
+    /// The text `commitAsTyped` would insert, without ending anything: the draft as typed (with its "@"), a Hangul
+    /// syllable or an accent still waiting at the cursor, and the raw letters being typed. What a field should keep if
+    /// its composition ends without the Composer (the Windows client gives up on a key, or loses the engine).
+    public var textAsTyped: String {
+        let after = tail
+        var text = String(draft.dropLast(after.count)) + hangul.preedit + (pendingAccent ?? "") + after
+        if !isLevelTwo, let engine, engine.snapshot().isComposing {
+            text += engine.rawInput
+        }
+        return text
+    }
+
     /// A dead key's accent with nothing after it goes in as is (the field lost, everything committed), as macOS does.
     private func typePendingAccent() {
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }

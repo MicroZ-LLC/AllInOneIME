@@ -76,7 +76,7 @@ struct GoldenReplayer {
             case let .directive(text, line):
                 let words = text.split(separator: " ").map(String.init)
                 switch words.first {
-                case "provider", "inputLanguage", "keys":
+                case "provider", "inputLanguage", "keys", "expect-document":
                     continue
                 case "connect":
                     try unexpected(line)
