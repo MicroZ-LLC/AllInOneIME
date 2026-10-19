@@ -2,10 +2,14 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-// Acceptance tests for API key sync through iCloud Keychain (spec-key-sync.md, "Spec D", scenarios S1-S29, with its
-// "Spec changes (2026-10-18, after review)", "Spec changes, round 2", "Spec changes, round 3" and "Spec changes, round
-// 4"), written from the spec
-// by an independent reviewer; the implementer may not edit them. Each test is named after its scenario.
+// Acceptance tests for API key sync through iCloud Keychain (spec-key-sync.md, "Spec D", scenarios S1-S32, with its
+// "Spec changes (2026-10-18, after review)", "Spec changes, round 2", "Spec changes, round 3", "Spec changes, round 4"
+// and "Spec changes, round 5"), written from the spec by an independent reviewer; the implementer may not edit them.
+// Each test is named after its scenario.
+//
+// Round 5: the "API keys and passwords" row is off by default; keys move into iCloud Keychain only when the user turns
+// it on (S32). A copy-back starts by listing every synced account (S30), and a save on this Mac with key sync off takes
+// its account off that list, as Remove… does (S31).
 //
 // Round 3's model: with key sync off, keys stay in the login keychain, as in 0.6.4; only turning key sync on moves them,
 // from the login keychain into the synced store (the data protection keychain is used for synced items alone); turning
@@ -60,7 +64,9 @@ import Testing
 //      merges need the item's label from its attributes (`ItemAttributes.label`, which `inMemory()` and `.login` fill).
 //      A copy into the replaced store has " (replaced)" added to its label (round 3, 2). `KSStore` keeps every field
 //      `inMemory()` returns and replaces only `modified` and `saved` (A10).
-//  A7. `ICloudSyncSettings.keys` is a `var` defaulting to true, encoded only when false; `syncsKeys` is `enabled && keys`.
+//  A7. `ICloudSyncSettings.keys` is a `var` (and an `init` parameter, `keys:`) defaulting to false (round 5, 1), encoded
+//      only when true; a config without it decodes as false. `syncsKeys` is `enabled && keys`. `Config.iCloudSync` holds
+//      it.
 //  A8. "the mismatch logged" (S6) is not checked: the core's log has no test seam.
 //  A9. S13 is checked through `APIKeys.save` (the closures' reads return no status): a write that fails with -25308 or
 //      -34018 throws `APIKeys.KeychainError` with that status, and nothing is written to the other store.
@@ -107,6 +113,16 @@ import Testing
 //      nothing into the synced store and deletes nothing from the login keychain, leaving both to the next merge. What
 //      that read gives (the login keychain's key, or the one that arrived) isn't checked (S29).
 //  A20. Round 4, 4 (config.json can't be read: key sync does nothing) is the controller's, a self-test case at S28.
+//  A21. Round 5, 2: the copy-back's start list is `KeySync.Stores.copyBackList()`, a collection of account names (Array
+//      or Set): every account the synced store lists (`synced.accounts()`), except `APIKeys.neverSynced`. It reads no
+//      key (attributes and account listing only). The controller writes it into the marker as `.copyingBack(list)`
+//      before a copy-back that starts from `moving` or `done`; a copy-back that throws midway leaves the marker so.
+//      The tests stand in for the controller: they keep the list themselves, take an account off it when the store
+//      tells them, and retry with `turn(syncing: false, only:)` (A18). The marker file is the controller's, a self-test
+//      case at S30.
+//  A22. Round 5, 3: `KeySync.Stores.whenRemovedHere`'s handler (the routed store's `removedHere`) is told, besides
+//      Remove…, of each account a save on this Mac wrote while key sync was off (a write through `store` that worked),
+//      so the controller takes it off the copy-back list (S31). The name is kept.
 
 // MARK: - The rig
 
@@ -210,6 +226,7 @@ final class KSStore: @unchecked Sendable {
     private var garbledWritten: Set<String> = []
     private var failingStatus: Int32?
     private var failingDeleteStatus: Int32?
+    private var writesBeforeFailing: (count: Int, status: Int32)?
     private var askingActions: [String: () -> Void] = [:]
 
     init(_ role: Role, _ name: String? = nil, log: KSLog = KSLog()) {
@@ -255,6 +272,11 @@ final class KSStore: @unchecked Sendable {
     /// Deletes alone fail with `status` (nil: none fails): a removal the login keychain refused, or one cancelled at its
     /// password prompt. Writes and comment changes work.
     func failDeletes(with status: Int32?) { lock.withLock { failingDeleteStatus = status } }
+    /// The next `count` writes work, and every write after them fails with `status` (nil: none fails): a store that
+    /// starts refusing midway (locked, or a disk error). Comment changes and deletes work.
+    func failWrites(after count: Int, with status: Int32?) {
+        lock.withLock { writesBeforeFailing = status.map { (count, $0) } }
+    }
     /// While a read of `account` waits for the password (it needs it, and asking is allowed), `action` runs, once,
     /// before the read gives the key: another Mac's change arriving while the prompt is up.
     func whileAsking(_ account: String, _ action: @escaping () -> Void) { lock.withLock { askingActions[account] = action } }
@@ -308,6 +330,13 @@ final class KSStore: @unchecked Sendable {
         store.write = { [self] account, key, label, comment, ending, saved in
             log.add("\(name).write:\(account)")
             if let status = lock.withLock({ failingStatus }) { return .failed(status) }
+            let refused: Int32? = lock.withLock {
+                guard let budget = writesBeforeFailing else { return nil }
+                if budget.count <= 0 { return budget.status }
+                writesBeforeFailing = (budget.count - 1, budget.status)
+                return nil
+            }
+            if let refused { return .failed(refused) }
             lock.withLock {
                 recordedWrites.append(Write(account: account, key: key, label: label, comment: comment, ending: ending))
                 if let saved { savedTimes[account] = saved }  // nil: left as it is (A10)
@@ -355,15 +384,16 @@ struct KeySyncAcceptanceTests {
         #endif
     }
 
-    /// S2: key sync off (the main switch off, or the keys row off): saves and reads use the login keychain, as in 0.6.4
-    /// (round 3, 1); a key left in iCloud Keychain isn't seen.
+    /// S2: key sync off (the main switch off, or the keys row off, its default since round 5): saves and reads use the
+    /// login keychain, as in 0.6.4 (round 3, 1); a key left in iCloud Keychain isn't seen.
     @Test func s2_syncOffSavesAndReadsUseTheLoginKeychain() throws {
         #expect(ICloudSyncSettings().syncsKeys == false)  // sync is off by default
-        var rowOff = ICloudSyncSettings(enabled: true)
+        #expect(ICloudSyncSettings(enabled: true).syncsKeys == false)  // and so is its keys row (round 5, 1)
+        var rowOff = ICloudSyncSettings(enabled: true, keys: true)
         rowOff.keys = false
         #expect(rowOff.syncsKeys == false)
 
-        for settings in [ICloudSyncSettings(), rowOff] {
+        for settings in [ICloudSyncSettings(), ICloudSyncSettings(enabled: true), rowOff] {
             let log = KSLog()
             let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log)
             // Left behind in iCloud Keychain when sync was turned off (and changed since on another Mac).
@@ -391,17 +421,19 @@ struct KeySyncAcceptanceTests {
 
     /// S3: key sync on: `openai` goes to the synced store; `hosted` (never synced) stays in the login keychain.
     @Test func s3_syncOnOpenAIGoesToSyncedHostedToTheLoginKeychain() throws {
-        // The settings: `keys` defaults to true, is encoded only when it differs, and counts only with the main switch.
-        #expect(ICloudSyncSettings().keys == true)
-        let on = ICloudSyncSettings(enabled: true)
+        // The settings: `keys` defaults to false (round 5, 1), is encoded only when it differs (true), and counts only
+        // with the main switch.
+        #expect(ICloudSyncSettings().keys == false)
+        let on = ICloudSyncSettings(enabled: true, keys: true)
         #expect(on.syncsKeys == true)
-        let encodedOn = String(decoding: try JSONEncoder().encode(on), as: UTF8.self)
-        #expect(!encodedOn.contains("\"keys\""), "\(encodedOn)")
+        #expect(ICloudSyncSettings(keys: true).syncsKeys == false)  // the main switch off
+        let encodedOn = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(on)) as? [String: Any]
+        #expect(encodedOn?["keys"] as? Bool == true, "\(String(describing: encodedOn))")
         var rowOff = on
         rowOff.keys = false
-        let encodedOff = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(rowOff)) as? [String: Any]
-        #expect(encodedOff?["keys"] as? Bool == false)
-        let decoded = try JSONDecoder().decode(ICloudSyncSettings.self, from: Data(#"{"enabled": true}"#.utf8))
+        let encodedOff = String(decoding: try JSONEncoder().encode(rowOff), as: UTF8.self)
+        #expect(!encodedOff.contains("\"keys\""), "\(encodedOff)")
+        let decoded = try JSONDecoder().decode(ICloudSyncSettings.self, from: Data(#"{"enabled": true, "keys": true}"#.utf8))
         #expect(decoded.keys == true && decoded.syncsKeys == true)
         let decodedOff = try JSONDecoder().decode(ICloudSyncSettings.self, from: Data(#"{"enabled": true, "keys": false}"#.utf8))
         #expect(decodedOff.keys == false && decodedOff.syncsKeys == false)
@@ -791,9 +823,9 @@ struct KeySyncAcceptanceTests {
     /// S15: Remove Key… while this Mac doesn't sync keys deletes this Mac's login keychain and replaced copies, and leaves
     /// the synced copy (the one other Macs use) alone.
     @Test func s15_removeWithKeySyncOffLeavesTheSyncedCopy() throws {
-        var rowOff = ICloudSyncSettings(enabled: true)
+        var rowOff = ICloudSyncSettings(enabled: true, keys: true)
         rowOff.keys = false
-        for settings in [ICloudSyncSettings(), rowOff] {
+        for settings in [ICloudSyncSettings(), ICloudSyncSettings(enabled: true), rowOff] {
             let login = KSStore(.login), synced = KSStore(.synced), replaced = KSStore(.replaced)
             synced.seed("openai", "sk-test-synced-openai-0001", modified: KS.t(300), saved: KS.t(300))
             login.seed("openai", "sk-test-login-openai-0001", modified: KS.t(200), saved: KS.t(200))
@@ -1039,8 +1071,9 @@ struct KeySyncAcceptanceTests {
     ///      the first key moves (watch for it from the synced store's write closure) with the content `moving`; after
     ///      the incomplete turn it is still `moving`, never `done`.
     ///   2. Turn key sync off in the config and apply. Because the marker exists (`moving` or `done`), the copy-back
-    ///      (`turn(syncing: false)`) runs even though the last turn on never completed. Every key that moved is in the
-    ///      login keychain; the marker is removed once the copy-back completes, and kept (to retry) when it doesn't.
+    ///      (`turn(syncing: false)`) runs even though the last turn on never completed, once the marker says `copying
+    ///      back` with every synced account (round 5, 2; S30). Every key that moved is in the login keychain; the marker
+    ///      is removed once the copy-back completes, and lists the accounts left (to retry) when it doesn't.
     ///   3. Turn it on again with nothing garbled: the marker goes `moving`, then `done` when the turn completes.
     ///   4. With the marker `moving` at launch and key sync on in the config, the turn on is retried.
     ///   5. (S23, S24) The same as 1 and 4 with the replaced store failing its writes, or with an unreadable synced item
@@ -1208,9 +1241,9 @@ struct KeySyncAcceptanceTests {
     /// S25: with key sync off, saving, reading, binding a host and removing a key touch only the login keychain (its
     /// API key service and its replaced copies), never the synced store, not even its attributes (round 3, 1).
     @Test func s25_withKeySyncOffKeysTouchOnlyTheLoginKeychain() throws {
-        var rowOff = ICloudSyncSettings(enabled: true)
+        var rowOff = ICloudSyncSettings(enabled: true, keys: true)
         rowOff.keys = false
-        for settings in [ICloudSyncSettings(), rowOff] {
+        for settings in [ICloudSyncSettings(), ICloudSyncSettings(enabled: true), rowOff] {
             let which = settings.enabled ? "keys row off" : "sync off"
             let log = KSLog()
             let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log), replaced = KSStore(.replaced, log: log)
@@ -1332,9 +1365,9 @@ struct KeySyncAcceptanceTests {
     /// lives in the app; it is a self-test case for the implementer, on in-memory stores and the self-test's own state
     /// directory:
     ///   1. Key sync on, the marker `done`. The synced store has openai, gemini and anthropic; the login keychain has older
-    ///      gemini and anthropic that can't be read silently. Turn key sync off and apply: the copy-back is incomplete;
-    ///      the marker stays and lists exactly the accounts left ("gemini", "anthropic"), by name only: no key, no ending,
-    ///      no label.
+    ///      gemini and anthropic that can't be read silently. Turn key sync off and apply: the copy-back starts with the
+    ///      marker listing all three (S30), and is incomplete; the marker then lists exactly the accounts left
+    ///      ("gemini", "anthropic"), by name only: no key, no ending, no label.
     ///   2. Remove… anthropic and openai on this Mac (key sync off): anthropic is taken off the marker's list (openai
     ///      wasn't on it). Another Mac changes openai and adds a key in the synced store.
     ///   3. Apply again (a config save, a relaunch) with gemini still unreadable: the copy-back runs for the listed
@@ -1443,5 +1476,193 @@ struct KeySyncAcceptanceTests {
             #expect(replaced.value("openai") == loser, "\(which): the losing key is nowhere: \(log.all)")
             #expect(!login.has("openai"), "\(which): \(log.all)")
         }
+    }
+
+    /// S30 (review 5, SF1): turning key sync off, the copy-back throws midway (the login keychain refuses a write, locked),
+    /// then Remove… on this Mac, key sync off, removes a key that had already been copied back. It doesn't come back on
+    /// the next run: the copy-back started by listing every synced account (A21), so Remove… takes it off that list.
+    ///
+    /// The core half: the start list (`KeySync.Stores.copyBackList()`), the removal told (`whenRemovedHere`), and the
+    /// retry of the listed accounts alone (`turn(syncing: false, only:)`). The controller half (the `keys-synced` marker)
+    /// lives in the app; it is a self-test case for the implementer, on in-memory stores and the self-test's own state
+    /// directory:
+    ///   1. Key sync on, the marker `done` (and again with it `moving`). The synced store has openai, gemini, anthropic
+    ///      and a `hosted` item. Turn key sync off and apply, the login keychain's writes failing after the first: before
+    ///      the first key is copied back (watch the marker from the login keychain's write closure) it says `copying back`
+    ///      with exactly anthropic, gemini and openai, by name only (never hosted, no key, no ending, no label). The
+    ///      copy-back throws; the marker still lists all three, never `done`, never gone.
+    ///   2. Remove… the account that was copied back: the marker lists the other two.
+    ///   3. Apply again with the writes working: those two alone are copied back and the marker goes; the removed key isn't
+    ///      in the login keychain, and the routed store doesn't read it.
+    ///   4. The start list's write fails (the marker's folder can't be written): nothing is copied back, the login
+    ///      keychain as it was, and the marker as it was.
+    ///   5. A retry that starts from `copying back` keeps its list: it isn't widened to every synced account again.
+    @Test func s30_aCopyBackThatThrowsMidwayThenRemoveOfACopiedKeyDoesntBringItBack() throws {
+        let log = KSLog()
+        let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log), replaced = KSStore(.replaced, log: log)
+        let keys = ["openai": "sk-test-synced-openai-0001", "gemini": "sk-test-synced-gemini-0001",
+                    "anthropic": "sk-test-synced-claude-0001"]
+        for (account, key) in keys { synced.seed(account, key, modified: KS.t(300), saved: KS.t(300)) }
+        // A never-synced account's item in the synced store (a development build's): never on the list, never copied.
+        synced.seed("hosted", "token-test-hosted-0001", modified: KS.t(300), saved: KS.t(300))
+        let stores = KeySync.Stores(login: login.keychain, synced: synced.keychain, replaced: replaced.keychain,
+                                    syncing: true)
+        let told = Locked<[String]>(initialState: [])
+        stores.whenRemovedHere { account in told.withLock { $0.append(account) } }
+
+        // The start list, before anything is copied back: every synced account but the never-synced, read by name alone.
+        let mark = log.all.count
+        var list = Set(stores.copyBackList())
+        #expect(list == Set(keys.keys), "the copy-back's start list: \(list)")
+        let touched = log.all.dropFirst(mark).filter { $0.contains(".read:") || $0.contains(".write:") || $0.contains(".delete:") }
+        #expect(touched.isEmpty, "listing the accounts read or changed a key: \(touched)")
+
+        // Turning key sync off: the first key is copied back, then the login keychain refuses every write. The copy-back
+        // throws midway (or, if it doesn't throw, stops incomplete and its accounts left are the list).
+        login.failWrites(after: 1, with: -25308)
+        let off = try? stores.turn(syncing: false)
+        #expect(off?.isComplete != true, "a copy-back the login keychain refused counted as complete: \(log.all)")
+        #expect(!stores.syncing)
+        if let off { list = Set(off.remaining) }
+        let copied = login.writes.map(\.account)
+        #expect(copied.count == 1, "the fake didn't stop the copy-back after one key: \(log.all)")
+        guard let first = copied.first else { return }
+        #expect(login.value(first) == keys[first], "\(log.all)")
+        if off == nil { #expect(list.contains(first), "a copy-back that threw left the start list: \(list)") }
+
+        // Remove… of the key already copied back, on this Mac with key sync off: from this Mac alone, and off the list.
+        try APIKeys.remove(account: first, in: stores.store)
+        #expect(!login.has(first) && !replaced.has(first), "\(log.all)")
+        #expect(synced.value(first) == keys[first], "Remove… with key sync off touched iCloud Keychain")
+        #expect(Set(told.withLock { $0 }) == [first], "the removal wasn't told: \(told.withLock { $0 })")
+        list.subtract(told.withLock { $0 })
+
+        // The next run (the 5-minute poll, a config save, a relaunch), the login keychain working again: the listed
+        // accounts alone are copied back, and the removed key doesn't come back.
+        login.failWrites(after: 0, with: nil)
+        let retry = try stores.turn(syncing: false, only: list)
+        #expect(retry.isComplete, "the retry didn't complete: \(log.all)")
+        #expect(!login.has(first), "\(first), removed on this Mac with key sync off, came back: \(log.all)")
+        #expect(stores.store.read(first) == nil && !APIKeys.hasKeychainKey(account: first, in: stores.store),
+                "\(first) readable on this Mac after it was removed here")
+        for (account, key) in keys where account != first {
+            #expect(login.value(account) == key, "\(account) wasn't copied back: \(log.all)")
+            #expect(stores.store.read(account) == key, "\(account)")
+        }
+        #expect(!login.has("hosted"), "a never-synced item was copied back: \(log.all)")
+        // iCloud Keychain, for the other Macs, as it was.
+        #expect(synced.writes.isEmpty && synced.deletes.isEmpty, "\(log.all)")
+        for (account, key) in keys { #expect(synced.value(account) == key, "\(account)") }
+    }
+
+    /// S31 (review 5, N2): an account on the copy-back list (its login keychain item couldn't be read) gets a new key,
+    /// saved on this Mac with key sync off. The save takes the account off the list (A22), so the retry, once the login
+    /// keychain reads, never writes another Mac's later change over the key saved here.
+    ///
+    /// The core half, as in S30. The controller half, a self-test case: after a copy-back that left openai and gemini
+    /// (the marker `copying back`, both listed), save a key for openai through the routed store with key sync off: the
+    /// marker lists gemini alone. Save gemini too: the marker goes (nothing left to copy back). A save while key sync is
+    /// on, or with no marker, changes no marker.
+    @Test func s31_aKeySavedHereWithKeySyncOffIsntOverwrittenByTheRetry() throws {
+        let log = KSLog()
+        let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log), replaced = KSStore(.replaced, log: log)
+        synced.seed("openai", "sk-test-synced-openai-0002", label: KS.openAILabel, modified: KS.t(300), saved: KS.t(300))
+        synced.seed("gemini", "sk-test-synced-gemini-0002", modified: KS.t(300), saved: KS.t(300))
+        // 0.6.4 items that ask for the password: the copy-back, asking nothing, can't read them, so it leaves both.
+        login.seed("openai", "sk-test-login-openai-0001", label: KS.openAILabel, modified: KS.t(100))
+        login.seed("gemini", "sk-test-login-gemini-0001", modified: KS.t(100))
+        login.needPassword(["openai", "gemini"])
+        login.interactionAllowed = false
+        let stores = KeySync.Stores(login: login.keychain, synced: synced.keychain, replaced: replaced.keychain,
+                                    syncing: true)
+        let told = Locked<[String]>(initialState: [])
+        stores.whenRemovedHere { account in told.withLock { $0.append(account) } }
+
+        var list = Set(stores.copyBackList())
+        #expect(list == ["openai", "gemini"], "the copy-back's start list: \(list)")
+        let off = try stores.turn(syncing: false)
+        #expect(!off.isComplete && !stores.syncing, "\(log.all)")
+        list = Set(off.remaining)
+        #expect(list == ["openai", "gemini"], "the accounts left: \(off)")
+
+        // The user saves a new openai key on this Mac, key sync off (asking allowed: the user is at the Mac): into the
+        // login keychain, and off the list.
+        login.interactionAllowed = true
+        let mine = "sk-test-saved-here-0003"
+        try APIKeys.save(mine, account: "openai", label: KS.openAILabel, in: stores.store)
+        #expect(login.value("openai") == mine && synced.writes.isEmpty, "\(log.all)")
+        #expect(Set(told.withLock { $0 }) == ["openai"], "the save wasn't told: \(told.withLock { $0 })")
+        list.subtract(told.withLock { $0 })
+        #expect(list == ["gemini"])
+
+        // Another Mac, still syncing, changes openai afterwards: later than the key saved here (within the day ahead
+        // that counts as itself, A15), so a copy-back of openai would take it.
+        let later = Date().addingTimeInterval(60)
+        synced.seed("openai", "sk-test-macB-changed-0004", label: KS.openAILabel, modified: later, saved: later)
+
+        // The retry, the login keychain's items readable now: gemini alone; the key saved here stays.
+        login.needPassword([])
+        login.interactionAllowed = false
+        let mark = log.all.count
+        let retry = try stores.turn(syncing: false, only: list)
+        #expect(retry.isComplete, "the retry didn't complete: \(log.all)")
+        #expect(login.value("openai") == mine, "the key saved here was overwritten by the retry: \(log.all)")
+        #expect(stores.store.read("openai") == mine)
+        #expect(login.value("gemini") == "sk-test-synced-gemini-0002", "\(log.all)")
+        let since = log.all.dropFirst(mark)
+        #expect(!since.contains("login.write:openai") && !since.contains("synced.read:openai"),
+                "the retry looked at openai: \(Array(since))")
+        #expect(synced.value("openai") == "sk-test-macB-changed-0004" && synced.writes.isEmpty && synced.deletes.isEmpty)
+    }
+
+    /// S32 (round 5, 1): a new config leaves "API keys and passwords" off (the default), so turning iCloud sync on, alone,
+    /// moves no key: they stay in the login keychain, and the synced store isn't looked at. Only turning the row on
+    /// moves them.
+    ///
+    /// The controller half, a self-test case: with a config that has no `keys` and `iCloudSync.enabled` turned on,
+    /// applying writes no `keys-synced` marker, moves nothing and keeps the routed store on the login keychain; the
+    /// Settings row shows off. Turning the row on then writes `moving`, then `done`.
+    @Test func s32_aNewConfigLeavesKeysUnsyncedAndTurningICloudSyncOnMovesNoKey() throws {
+        // A new config, and one with iCloud sync turned on and nothing else.
+        let fresh = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
+        #expect(fresh.iCloudSync.keys == false && fresh.iCloudSync.syncsKeys == false)
+        var settings = fresh.iCloudSync
+        settings.enabled = true
+        #expect(settings.keys == false && settings.syncsKeys == false, "turning iCloud sync on turned key sync on")
+        let encoded = String(decoding: try JSONEncoder().encode(settings), as: UTF8.self)
+        #expect(!encoded.contains("\"keys\""), "the default was written: \(encoded)")
+        let written = try JSONDecoder().decode(Config.self, from: Data(#"{"iCloudSync": {"enabled": true}}"#.utf8))
+        #expect(written.iCloudSync.enabled && !written.iCloudSync.keys && !written.iCloudSync.syncsKeys)
+
+        let log = KSLog()
+        let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log), replaced = KSStore(.replaced, log: log)
+        login.seed("openai", "sk-test-login-openai-0001", label: KS.openAILabel, modified: KS.t(100), saved: KS.t(100))
+        login.seed("gemini", "sk-test-login-gemini-0001", modified: KS.t(100), saved: KS.t(100))
+        // Another Mac's key in iCloud Keychain (it syncs keys).
+        synced.seed("anthropic", "sk-test-macB-claude-0001", modified: KS.t(200), saved: KS.t(200))
+        let applied = written.iCloudSync
+        let stores = KeySync.Stores(login: login.keychain, synced: synced.keychain, replaced: replaced.keychain,
+                                    syncing: applied.syncsKeys)
+        #expect(!stores.syncing)
+
+        // Using the keys with iCloud sync on: the login keychain's, as in 0.6.4.
+        #expect(stores.store.read("openai") == "sk-test-login-openai-0001")
+        #expect(stores.store.read("anthropic") == nil, "another Mac's synced key was seen with the keys row off")
+        try APIKeys.save("sk-test-login-gemini-0002", account: "gemini", label: "AllInOneIME: Gemini API", in: stores.store)
+        #expect(login.value("gemini") == "sk-test-login-gemini-0002")
+        let looked = log.all.filter { $0.hasPrefix("synced.") }
+        #expect(looked.isEmpty, "with only iCloud sync on, the synced store was touched: \(looked)")
+        #expect(login.value("openai") == "sk-test-login-openai-0001" && login.deletes.isEmpty, "a key moved: \(log.all)")
+        #expect(!synced.has("openai") && !synced.has("gemini") && synced.writes.isEmpty)
+
+        // Turning the row on is what moves them.
+        var row = applied
+        row.keys = true
+        #expect(row.syncsKeys)
+        let on = try stores.turn(syncing: row.syncsKeys)
+        #expect(on.isComplete, "\(log.all)")
+        #expect(synced.value("openai") == "sk-test-login-openai-0001" && synced.value("gemini") == "sk-test-login-gemini-0002")
+        #expect(!login.has("openai") && !login.has("gemini"), "\(log.all)")
+        #expect(stores.store.read("anthropic") == "sk-test-macB-claude-0001")
     }
 }
