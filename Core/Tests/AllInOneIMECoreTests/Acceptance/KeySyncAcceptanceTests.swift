@@ -2,8 +2,9 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-// Acceptance tests for API key sync through iCloud Keychain (spec-key-sync.md, "Spec D", scenarios S1-S25, with its
-// "Spec changes (2026-10-18, after review)", "Spec changes, round 2" and "Spec changes, round 3"), written from the spec
+// Acceptance tests for API key sync through iCloud Keychain (spec-key-sync.md, "Spec D", scenarios S1-S29, with its
+// "Spec changes (2026-10-18, after review)", "Spec changes, round 2", "Spec changes, round 3" and "Spec changes, round
+// 4"), written from the spec
 // by an independent reviewer; the implementer may not edit them. Each test is named after its scenario.
 //
 // Round 3's model: with key sync off, keys stay in the login keychain, as in 0.6.4; only turning key sync on moves them,
@@ -14,7 +15,8 @@ import Testing
 // Nothing here touches the user's keychain: every store is an in-memory one (`APIKeys.Keychain.inMemory()`), wrapped by
 // `KSStore` so that a test can see what was looked at, read, written and deleted, set an item's modification date and
 // save time, change its modification date later (`touch`, as a 0.6.4 `setComment` does), make an item "need the
-// password" or unreadable, garble a read-back, or make a store fail with a given status. The global key cache is reached
+// password" or unreadable, garble a read-back, make a store fail with a given status (every change, or its deletes alone),
+// or deliver another Mac's change while a read waits for the password (`whileAsking`). The global key cache is reached
 // only through `Platform.$override`, with no processes (so no login shell is asked for variables).
 //
 // ASSUMPTIONS (where the spec names an API but not its exact shape; the implementer should match these):
@@ -88,7 +90,23 @@ import Testing
 //  A15. Clock skew (round 3, 5): when comparing, a save time later than now + 1 day counts as the oldest possible;
 //      one within a day ahead counts as itself.
 //  A16. Where the items live on the Mac (the login keychain, the data protection keychain's synced items, their
-//      accessibility) is the Apple layer's and not checked here.
+//      accessibility) is the Apple layer's and not checked here; so is round 4, 3's "a move into an empty slot only adds,
+//      never updates" (SecItemAdd alone: the in-memory stores' `write` always updates).
+//  A17. Round 4, 1: a key is never set aside over its own replaced copy. When `from`'s key is the same as `into`'s and
+//      `aside` already holds a copy for the account, merge sets nothing aside (it deletes `from`'s copy, unless synced);
+//      a move into an empty synced slot still keeps one (S22). "Copying back into the login keychain sets nothing aside"
+//      is read as: the key copied back is never set aside (the login keychain had none, or the same key). A different
+//      login key about to be overwritten by the copy-back is still kept aside first, as S16 and S24 have it. A login
+//      keychain delete that fails after a copy doesn't lose the replaced copy at the next pass (S27).
+//  A18. Round 4, 2: `KeySync.Stores.turn(syncing:only:)`, `only: Set<String>?` defaulting to nil (every account): the
+//      merge handles only the accounts named, and looks at no other account's key. The accounts left after an
+//      incomplete move are its result's `waiting` and `mismatched`; the controller writes them into the marker (names
+//      only), takes an account off when Remove… runs on this Mac with key sync off, and retries with `only:` (S28).
+//  A19. Round 4, 3: the routed store's first-use move checks the synced store's attributes again after reading the login
+//      keychain (which may have asked for the password, for seconds or minutes); when an item arrived meanwhile it writes
+//      nothing into the synced store and deletes nothing from the login keychain, leaving both to the next merge. What
+//      that read gives (the login keychain's key, or the one that arrived) isn't checked (S29).
+//  A20. Round 4, 4 (config.json can't be read: key sync does nothing) is the controller's, a self-test case at S28.
 
 // MARK: - The rig
 
@@ -191,6 +209,8 @@ final class KSStore: @unchecked Sendable {
     private var garbledAccounts: Set<String> = []
     private var garbledWritten: Set<String> = []
     private var failingStatus: Int32?
+    private var failingDeleteStatus: Int32?
+    private var askingActions: [String: () -> Void] = [:]
 
     init(_ role: Role, _ name: String? = nil, log: KSLog = KSLog()) {
         self.role = role
@@ -232,6 +252,12 @@ final class KSStore: @unchecked Sendable {
     func garble(_ accounts: Set<String>) { lock.withLock { garbledAccounts = accounts } }
     /// Every write, comment change and delete fails with `status` (nil: none fails).
     func fail(with status: Int32?) { lock.withLock { failingStatus = status } }
+    /// Deletes alone fail with `status` (nil: none fails): a removal the login keychain refused, or one cancelled at its
+    /// password prompt. Writes and comment changes work.
+    func failDeletes(with status: Int32?) { lock.withLock { failingDeleteStatus = status } }
+    /// While a read of `account` waits for the password (it needs it, and asking is allowed), `action` runs, once,
+    /// before the read gives the key: another Mac's change arriving while the prompt is up.
+    func whileAsking(_ account: String, _ action: @escaping () -> Void) { lock.withLock { askingActions[account] = action } }
 
     // What is there, and what was done (bypassing the counters).
 
@@ -275,6 +301,7 @@ final class KSStore: @unchecked Sendable {
                  garbledWritten.contains(account))
             }
             if unreadable || (needs && !allowed) { return nil }
+            if needs, let action = lock.withLock({ askingActions.removeValue(forKey: account) }) { action() }
             lock.withLock { promptingReads[account, default: 0] += 1 }
             return garbled ? "garbled-read-back" : inner.read(account)
         }
@@ -297,7 +324,7 @@ final class KSStore: @unchecked Sendable {
         }
         store.delete = { [self] account in
             log.add("\(name).delete:\(account)")
-            if let status = lock.withLock({ failingStatus }) { return .failed(status) }
+            if let status = lock.withLock({ failingStatus ?? failingDeleteStatus }) { return .failed(status) }
             lock.withLock {
                 recordedDeletes.append(account)
                 savedTimes[account] = nil
@@ -1213,6 +1240,208 @@ struct KeySyncAcceptanceTests {
             let touched = log.all.filter { !$0.hasPrefix("login.") && !$0.hasPrefix("replaced.") }
             #expect(touched.isEmpty, "\(which): with key sync off, the synced store was touched: \(touched)")
             #expect(synced.value("openai") == "sk-test-synced-left-0001" && synced.value("gemini") == "sk-test-synced-left-0002")
+        }
+    }
+
+    /// S26 (review 4, M1a): after S22, each Mac turns key sync off and on again. The Mac whose key lost in iCloud Keychain
+    /// had it only as a replaced copy: copying the winner back (round 4, 1: nothing set aside) and moving it into the
+    /// synced store again (the same key, its replaced copy already there) must not write over that copy. Its key still
+    /// exists, synced or replaced, and so does the other Mac's.
+    @Test func s26_theLoserOfS22TurnsKeySyncOffAndOnAndItsKeyStillExists() throws {
+        let keyA = "sk-test-macA-key-a111", keyB = "sk-test-macB-key-b222"
+        for bWins in [true, false] {
+            let which = bWins ? "iCloud kept B's" : "iCloud kept A's"
+            let log = KSLog()
+            let syncedA = KSStore(.synced, "syncedA", log: log), syncedB = KSStore(.synced, "syncedB", log: log)
+            let loginA = KSStore(.login, "loginA", log: log), replacedA = KSStore(.replaced, "replacedA", log: log)
+            let loginB = KSStore(.login, "loginB", log: log), replacedB = KSStore(.replaced, "replacedB", log: log)
+            loginA.seed("openai", keyA, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(100), saved: KS.t(100))
+            loginB.seed("openai", keyB, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(200), saved: KS.t(200))
+            _ = try KS.turnOn(loginA, synced: syncedA, replaced: replacedA)
+            _ = try KS.turnOn(loginB, synced: syncedB, replaced: replacedB)
+            let (winner, winnerSaved) = bWins ? (keyB, KS.t(200)) : (keyA, KS.t(100))
+            for view in [syncedA, syncedB] {
+                view.seed("openai", winner, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(300), saved: winnerSaved)
+            }
+            #expect(replacedA.value("openai") == keyA && replacedB.value("openai") == keyB, "\(which): S22 didn't hold: \(log.all)")
+
+            for (mac, own, login, synced, replaced) in [("A", keyA, loginA, syncedA, replacedA), ("B", keyB, loginB, syncedB, replacedB)] {
+                // Off: the synced key copied back into the login keychain, which has none: nothing is set aside.
+                let beforeOff = log.all.count
+                let off = try KS.turnOff(synced, into: login, replaced: replaced)
+                #expect(off.complete, "\(which), Mac \(mac): \(log.all)")
+                #expect(login.value("openai") == winner, "\(which), Mac \(mac): \(log.all)")
+                let offAside = log.all.dropFirst(beforeOff).filter { $0.hasPrefix("\(replaced.name).write:") }
+                #expect(offAside.isEmpty, "\(which), Mac \(mac): copying back set a key aside: \(offAside)")
+                #expect(replaced.value("openai") == own, "\(which), Mac \(mac): turning off wrote over its own key's copy")
+
+                // On again: the same key as the synced one, and its replaced copy is there: the login copy just goes.
+                let on = try KS.turnOn(login, synced: synced, replaced: replaced)
+                #expect(on.complete, "\(which), Mac \(mac): \(log.all)")
+                #expect(!login.has("openai"), "\(which), Mac \(mac): \(log.all)")
+                #expect(synced.value("openai") == winner, "\(which), Mac \(mac): \(log.all)")
+                #expect(replaced.value("openai") == own,
+                        "\(which), Mac \(mac): its own key's replaced copy was written over by the winner: \(log.all)")
+                #expect([synced, replaced].compactMap { $0.value("openai") }.contains(own),
+                        "\(which), Mac \(mac): its key is nowhere on it: \(log.all)")
+            }
+            let everywhere = [syncedA, syncedB, loginA, loginB, replacedA, replacedB].compactMap { $0.value("openai") }
+            #expect(everywhere.contains(keyA) && everywhere.contains(keyB), "\(which): \(everywhere)")
+            // Turning off and on again never changed iCloud Keychain.
+            #expect(syncedA.value("openai") == winner && syncedB.value("openai") == winner)
+        }
+    }
+
+    /// S27 (review 4, M1b): turning key sync on writes this Mac's newer key over an older synced one, which is kept aside
+    /// first; then deleting the login keychain's copy fails (the same as stopping between the copy and the delete). At
+    /// the next launch's pass the login keychain still holds the key now in the synced store: the same key, its loser's
+    /// replaced copy already there. That copy must survive, whether the delete still fails or now works.
+    @Test func s27_aFailedLoginDeleteAfterAMoveDoesntLoseTheOldReplacedCopy() throws {
+        let older = "sk-test-synced-older-0001", newer = "sk-test-login-newer-0002"
+        let log = KSLog()
+        let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log), replaced = KSStore(.replaced, log: log)
+        synced.seed("openai", older, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(100), saved: KS.t(100))
+        login.seed("openai", newer, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(300), saved: KS.t(300))
+        login.failDeletes(with: -25293)
+
+        // Turning on: the newer key is written over the older one, kept aside first; the login copy can't be deleted.
+        _ = try? KS.turnOn(login, synced: synced, replaced: replaced)
+        #expect(synced.value("openai") == newer, "\(log.all)")
+        #expect(replaced.value("openai") == older, "the overwritten synced key isn't kept aside: \(log.all)")
+        #expect(login.value("openai") == newer, "the fake's delete didn't fail: \(log.all)")
+
+        // Relaunched, the delete still failing, then working: the old replaced copy stays.
+        for deleteWorks in [false, true] {
+            if deleteWorks { login.failDeletes(with: nil) }
+            _ = try? KS.silentPass(login, synced: synced, replaced: replaced)
+            #expect(replaced.value("openai") == older,
+                    "delete works \(deleteWorks): the old key's only copy was written over by the same key again: \(log.all)")
+            #expect(synced.value("openai") == newer, "delete works \(deleteWorks): \(log.all)")
+            let kept = [synced, login, replaced].compactMap { $0.value("openai") }
+            #expect(kept.contains(older) && kept.contains(newer), "delete works \(deleteWorks): \(kept)")
+        }
+        #expect(!login.has("openai"), "the login copy of a moved key stayed once its delete worked: \(log.all)")
+        let store = KS.routed(login: login, synced: synced, replaced: replaced, syncs: { true })
+        #expect(store.read("openai") == newer)
+    }
+
+    /// S28 (review 4, SF1): an incomplete copy-back retries only the accounts left, and a key removed on this Mac with key
+    /// sync off doesn't come back, nor does another Mac's change flow into this Mac while it doesn't sync keys.
+    ///
+    /// The core half, through `KeySync.Stores.turn(syncing:only:)` (A18). The controller half (the `keys-synced` marker)
+    /// lives in the app; it is a self-test case for the implementer, on in-memory stores and the self-test's own state
+    /// directory:
+    ///   1. Key sync on, the marker `done`. The synced store has openai, gemini and anthropic; the login keychain has older
+    ///      gemini and anthropic that can't be read silently. Turn key sync off and apply: the copy-back is incomplete;
+    ///      the marker stays and lists exactly the accounts left ("gemini", "anthropic"), by name only: no key, no ending,
+    ///      no label.
+    ///   2. Remove… anthropic and openai on this Mac (key sync off): anthropic is taken off the marker's list (openai
+    ///      wasn't on it). Another Mac changes openai and adds a key in the synced store.
+    ///   3. Apply again (a config save, a relaunch) with gemini still unreadable: the copy-back runs for the listed
+    ///      accounts alone (`only: ["gemini"]`): openai, anthropic and the new key don't appear in the login keychain,
+    ///      and the routed store reads none of them. The list stays "gemini".
+    ///   4. Once gemini reads, apply: the retry completes and the marker is removed. Remove… of the last listed account
+    ///      instead empties the list, and the marker goes too (nothing left to copy back).
+    ///   5. Turning key sync on while the marker lists accounts: it becomes `moving`, and the turn on runs over every
+    ///      account, as in S21.
+    ///   6. Round 4, 4: with config.json unreadable (a JSON syntax error), applying does nothing: no copy-back, no move,
+    ///      the routed store's switch and the marker as they were, both with key sync on and with a marker listing
+    ///      accounts. Once the file reads again, it applies as the config says.
+    @Test func s28_anIncompleteCopyBackRetriesOnlyTheAccountsLeft() throws {
+        let log = KSLog()
+        let login = KSStore(.login, log: log), synced = KSStore(.synced, log: log), replaced = KSStore(.replaced, log: log)
+        synced.seed("openai", "sk-test-synced-openai-0002", label: KS.openAILabel, modified: KS.t(300), saved: KS.t(300))
+        synced.seed("gemini", "sk-test-synced-gemini-0002", modified: KS.t(300), saved: KS.t(300))
+        synced.seed("anthropic", "sk-test-synced-claude-0002", modified: KS.t(300), saved: KS.t(300))
+        // 0.6.4 items that asked for the password and lost to another Mac's newer keys when key sync was turned on.
+        login.seed("gemini", "sk-test-login-gemini-0001", modified: KS.t(100))
+        login.seed("anthropic", "sk-test-login-claude-0001", modified: KS.t(100))
+        login.needPassword(["gemini", "anthropic"])
+        login.interactionAllowed = false  // the moves ask nothing (`quietLogin` is this same store)
+        let stores = KeySync.Stores(login: login.keychain, synced: synced.keychain, replaced: replaced.keychain,
+                                    syncing: true)
+
+        // Turning key sync off: openai is copied back; gemini and anthropic can't be read, so they are left.
+        let off = try stores.turn(syncing: false)
+        #expect(!off.isComplete && !stores.syncing, "\(log.all)")
+        #expect(login.value("openai") == "sk-test-synced-openai-0002", "\(log.all)")
+        let left = Set(off.waiting).union(off.mismatched)
+        #expect(left == ["gemini", "anthropic"], "the accounts left aren't the marker's list: \(off)")
+
+        // Remove… on this Mac, key sync off: from this Mac alone (S15); the controller takes anthropic off the list.
+        try APIKeys.remove(account: "openai", in: stores.store)
+        try APIKeys.remove(account: "anthropic", in: stores.store)
+        #expect(!login.has("openai") && !login.has("anthropic"))
+        #expect(synced.has("openai") && synced.has("anthropic"), "Remove… with key sync off touched iCloud Keychain")
+        let list = left.subtracting(["anthropic"])
+        // Another Mac, still syncing, changes openai and adds a key.
+        synced.seed("openai", "sk-test-macB-changed-0003", label: KS.openAILabel, modified: KS.t(500), saved: KS.t(500))
+        let toolAccount = "extension.com.example.tool.token"
+        synced.seed(toolAccount, "tok-test-macB-new-0001", modified: KS.t(500), saved: KS.t(500))
+
+        // The retry, gemini still unreadable: only gemini is tried, and it's still left.
+        let mark = log.all.count
+        let still = try stores.turn(syncing: false, only: list)
+        #expect(!still.isComplete && Set(still.waiting).union(still.mismatched) == ["gemini"], "\(still)")
+        // The retry, gemini readable now: it completes, and only gemini was copied.
+        login.needPassword(["anthropic"])
+        let retry = try stores.turn(syncing: false, only: list)
+        #expect(retry.isComplete, "the retry didn't complete: \(log.all)")
+        #expect(login.value("gemini") == "sk-test-synced-gemini-0002", "\(log.all)")
+        #expect([login, replaced].compactMap { $0.value("gemini") }.contains("sk-test-login-gemini-0001"),
+                "the login keychain's older gemini key is nowhere: \(log.all)")
+
+        let since = log.all.dropFirst(mark)
+        let loginWrites = since.filter { $0.hasPrefix("login.write:") }
+        #expect(loginWrites.allSatisfy { $0 == "login.write:gemini" }, "the retry copied other accounts: \(loginWrites)")
+        let looked = since.filter { $0.hasPrefix("synced.read:") && $0 != "synced.read:gemini" }
+        #expect(looked.isEmpty, "the retry read other accounts' synced keys: \(looked)")
+        for account in ["openai", "anthropic", toolAccount] {
+            #expect(!login.has(account), "\(account) came back into this Mac's login keychain: \(log.all)")
+            #expect(stores.store.read(account) == nil && !APIKeys.hasKeychainKey(account: account, in: stores.store),
+                    "\(account) readable on this Mac with key sync off")
+        }
+        // iCloud Keychain, for the other Macs, as they left it.
+        #expect(synced.value("openai") == "sk-test-macB-changed-0003" && synced.value("anthropic") == "sk-test-synced-claude-0002")
+        #expect(synced.writes.isEmpty && synced.deletes.isEmpty, "\(log.all)")
+    }
+
+    /// S29 (review 4, SF2): a key found only in the login keychain moves into the synced store at its first use (A3),
+    /// after a read that may wait at the password prompt. Another Mac's key that arrives in the synced store meanwhile is
+    /// never written over, and the login keychain's key isn't lost: both are left to the next merge, where the newest
+    /// wins and the other is kept aside (A19).
+    @Test func s29_aSyncedItemArrivingDuringTheFirstUseReadIsntOverwritten() throws {
+        let keyA = "sk-test-macA-login-a111", keyB = "sk-test-macB-synced-b222"
+        for aNewer in [false, true] {
+            let which = aNewer ? "A's key newer" : "B's key newer"
+            let log = KSLog()
+            let login = KSStore(.login, "loginA", log: log), synced = KSStore(.synced, log: log)
+            let replaced = KSStore(.replaced, "replacedA", log: log)
+            // Left behind when key sync was turned on on Mac A: it asks for the password.
+            login.seed("openai", keyA, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(aNewer ? 400 : 100),
+                       saved: KS.t(aNewer ? 400 : 100))
+            login.needPassword(["openai"])
+            // While the prompt is up, Mac B's key, saved there with key sync on (B keeps no copy of it), arrives.
+            login.whileAsking("openai") {
+                synced.seed("openai", keyB, label: KS.openAILabel, host: "api.openai.com", modified: KS.t(300), saved: KS.t(300))
+            }
+            let macA = KS.routed(login: login, synced: synced, replaced: replaced, syncs: { true })
+
+            let key = macA.read("openai")
+            #expect(login.reads("openai") == 1, "\(which): the fake's prompt didn't run: \(log.all)")
+            #expect(key == keyA || key == keyB, "\(which): \(String(describing: key))")
+            #expect(synced.value("openai") == keyB, "\(which): the key that arrived during the prompt was written over: \(log.all)")
+            #expect(synced.writes.isEmpty, "\(which): the first-use move wrote into a slot no longer empty: \(log.all)")
+            #expect(login.value("openai") == keyA && login.deletes.isEmpty, "\(which): the login keychain's key is gone: \(log.all)")
+            #expect(macA.read("openai") == keyB, "\(which): reads don't find the synced key first")
+
+            // The next merge (the login item reads silently now): the newest stays synced, the other is kept aside.
+            login.needPassword([])
+            _ = try KS.silentPass(login, synced: synced, replaced: replaced)
+            let (winner, loser) = aNewer ? (keyA, keyB) : (keyB, keyA)
+            #expect(synced.value("openai") == winner, "\(which): \(log.all)")
+            #expect(replaced.value("openai") == loser, "\(which): the losing key is nowhere: \(log.all)")
+            #expect(!login.has("openai"), "\(which): \(log.all)")
         }
     }
 }
