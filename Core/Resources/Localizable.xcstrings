@@ -4936,6 +4936,147 @@
         }
       }
     },
+    "Added to Reminders" : {
+      "comment" : "已加到提醒事项 — Sources/AllInOneIMECore/Session/SessionTasks.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu Erinnerungen hinzugefügt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadido a Recordatorios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouté aux Rappels"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーに追加しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미리 알림에 추가됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionado aos Lembretes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入「提醒事項」"
+          }
+        }
+      }
+    },
+    "Adding to Reminders…" : {
+      "comment" : "正在加到提醒事项… — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird zu Erinnerungen hinzugefügt …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadiendo a Recordatorios…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajout aux Rappels…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーに追加中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미리 알림에 추가하는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionando aos Lembretes…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加入「提醒事項」⋯"
+          }
+        }
+      }
+    },
+    "AI is off in this app: nothing was sent (Settings → Apps)" : {
+      "comment" : "这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置） — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI ist in dieser App aus: nichts wurde gesendet (Einstellungen → Apps)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La IA está desactivada en esta app: no se envió nada (Ajustes → Apps)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’IA est désactivée dans cette app : rien n’a été envoyé (Réglages → Apps)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このAppではAIがオフです：何も送信しませんでした（設定 → App別設定）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 앱에서는 AI가 꺼져 있음: 아무것도 보내지 않았습니다 (설정 → 앱별 설정)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A IA está desativada neste app: nada foi enviado (Ajustes → Apps)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 App 中已關閉 AI：未傳送任何內容（設定 → 各 App 設定）"
+          }
+        }
+      }
+    },
     "AI provider" : {
       "comment" : "AI 服务 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -13402,6 +13543,53 @@
         }
       }
     },
+    "No language to translate into yet: add one under Translate & Rewrite in the settings" : {
+      "comment" : "还没有要翻译成的语言：在设置的「翻译与改写」里加一种 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Zielsprache: Füge unter „Übersetzen & Stile“ in den Einstellungen eine hinzu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay ningún idioma al que traducir: añade uno en “Traducir y reescribir” en los ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune langue cible pour l’instant : ajoutez-en une sous Traduction et réécriture dans les réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳先の言語がまだありません：設定の「翻訳と書き換え」で追加してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 번역할 언어가 없음: 설정의 번역 및 다시 쓰기에서 추가하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não há idioma para tradução: adicione um em Tradução e Reescrita nos Ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有要翻譯成的語言：請在設定的「翻譯與改寫」中加入一種"
+          }
+        }
+      }
+    },
     "No letter in the file name to name the command" : {
       "comment" : "文件名里没有英文字母，做不了命令名 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -14573,6 +14761,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台 Mac 上沒有提供"
+          }
+        }
+      }
+    },
+    "Not saved; the text is on the clipboard. " : {
+      "comment" : "没有存上，原文已复制到剪贴板。 — Sources/AllInOneIMECore/Session/SessionTasks.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht gesichert; der Text ist in der Zwischenablage. "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se guardó; el texto está en el portapapeles. "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non enregistré ; le texte est dans le presse-papiers. "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存されませんでした。テキストはクリップボードにあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장되지 않음. 텍스트는 클립보드에 있습니다. "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não salvo; o texto está na área de transferência. "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未儲存；文字已在剪貼簿中。"
           }
         }
       }
@@ -19988,6 +20223,100 @@
         }
       }
     },
+    "Saved to %@" : {
+      "comment" : "已存到%@ — Sources/AllInOneIMECore/Session/SessionTasks.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In %@ gesichert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardado en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistré dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に保存しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 저장됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvo em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存到%@"
+          }
+        }
+      }
+    },
+    "Saving to %@…" : {
+      "comment" : "正在存到%@… — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird in %@ gesichert …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardando en %@…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement dans %@…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に保存中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 저장하는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvando em %@…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在儲存到%@⋯"
+          }
+        }
+      }
+    },
     "Screenshot · %@ lines (read on this Mac)" : {
       "comment" : "截图 · %@ 行（本机识别） — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -20458,6 +20787,100 @@
         }
       }
     },
+    "Secure input is on (a password field or the lock screen): nothing was sent" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），没有发送 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichere Eingabe ist aktiv (Passwortfeld oder Sperrbildschirm): Nichts wurde gesendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada segura está activada (un campo de contraseña o la pantalla bloqueada): no se envió nada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La saisie sécurisée est activée (champ de mot de passe ou écran verrouillé) : rien n’a été envoyé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セキュア入力がオンです（パスワード欄またはロック画面）：何も送信しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보안 입력이 켜져 있음 (암호 입력란 또는 잠금 화면): 아무것도 보내지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada segura ativada (um campo de senha ou a tela de bloqueio): nada foi enviado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全輸入已開啟（密碼欄位或鎖定畫面）：未傳送任何內容"
+          }
+        }
+      }
+    },
+    "Secure input is on (a password field or the lock screen): nothing was sent to the AI" : {
+      "comment" : "系统安全输入已开启（密码框或锁屏），未发送给 AI — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichere Eingabe ist aktiv (Passwortfeld oder Sperrbildschirm): Nichts wurde an die KI gesendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada segura está activada (un campo de contraseña o la pantalla bloqueada): no se envió nada a la IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La saisie sécurisée est activée (champ de mot de passe ou écran verrouillé) : rien n’a été envoyé à l’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セキュア入力がオンです（パスワード欄またはロック画面）：AIには何も送信しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보안 입력이 켜져 있음 (암호 입력란 또는 잠금 화면): AI로 아무것도 보내지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada segura ativada (um campo de senha ou a tela de bloqueio): nada foi enviado à IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全輸入已開啟（密碼欄位或鎖定畫面）：未傳送任何內容給 AI"
+          }
+        }
+      }
+    },
     "Secure input is on (a password field or the lock screen): the command was not run" : {
       "comment" : "系统安全输入已开启（密码框或锁屏），没有运行命令 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
@@ -20595,6 +21018,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安全輸入已開啟：未儲存到 Notion"
+          }
+        }
+      }
+    },
+    "Secure input: the input method is paused, keys go straight in" : {
+      "comment" : "安全输入中：输入法暂停，按键直接输入 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichere Eingabe: Die Eingabemethode pausiert, Tastenanschläge gehen direkt an die App"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada segura: el método de entrada está en pausa, las teclas se escriben directamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie sécurisée : la méthode de saisie est en pause, les touches passent directement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セキュア入力中：入力メソッドは一時停止中で、キーはそのまま入力されます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보안 입력: 입력기가 일시 정지되고 키가 바로 입력됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada segura: o método de entrada está pausado, as teclas entram diretamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全輸入中：輸入法已暫停，按鍵會直接輸入"
           }
         }
       }
@@ -20830,6 +21300,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "辨識完成後傳送 · Esc 取消"
+          }
+        }
+      }
+    },
+    "Sent to " : {
+      "comment" : "已发送给  — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesendet an "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviado a "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyé à "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送信しました："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보냄: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviado para "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已傳送給 "
           }
         }
       }
@@ -24767,6 +25284,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選取的文字太長（%@ 個字元，最多 %@ 個）：未使用"
+          }
+        }
+      }
+    },
+    "The text is on the clipboard too. " : {
+      "comment" : "原文也复制到了剪贴板。 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Text ist auch in der Zwischenablage. "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El texto también está en el portapapeles. "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le texte est aussi dans le presse-papiers. "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストはクリップボードにもあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트는 클립보드에도 있습니다. "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O texto também está na área de transferência. "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字也已在剪貼簿中。"
           }
         }
       }

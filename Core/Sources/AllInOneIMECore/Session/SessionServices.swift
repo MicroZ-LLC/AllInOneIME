@@ -13,6 +13,23 @@ public struct SessionServices {
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 
+    // MARK: Level one
+
+    /// Level one's engine for a field: librime's once it has deployed (`.engine`), none while it deploys (`.starting`: keys
+    /// go to the application), none at all (`.none`: no Chinese pack, Latin letters: `LatinEngine`).
+    public var levelOne: () -> LevelOne
+    /// Whether an engine `levelOne` gave is still good (librime deployed again: its sessions are gone).
+    public var engineIsValid: (PinyinEngine) -> Bool
+    /// The keyboard layout the keys come from, for dead keys (`DeadKeyComposer`; nil: the platform composes them).
+    public var keyTranslator: () -> (any KeyTranslator)?
+    /// The Korean and Hindi packs' tables (nil: not installed), and which of the input languages can be typed (a pack
+    /// still downloading can't).
+    public var hangulTables: () -> HangulTables?
+    public var hindiTables: () -> HindiTables?
+    public var usableLanguages: ([Language]) -> [Language]
+    /// Whether voice input can work here (the system's speech recognition).
+    public var voiceSupported: () -> Bool
+
     // MARK: What is kept
 
     /// The command usage as kept (the order of the command list), and keeping it.
@@ -39,6 +56,18 @@ public struct SessionServices {
     public var isVoiceKeyHeld: () -> Bool
     /// What reads a screenshot's text on the device (`Platform.current.text` by default).
     public var recognizeText: any TextRecognizer
+    /// Whether line breaks can go into a terminal as a paste (the Mac's `TerminalPaste`: it may ask for a permission, so
+    /// it's asked only for an answer that has them): an answer then keeps them there.
+    public var pastesInTerminal: () -> Bool
+    /// The web page the field is in, for `@agent` and `@reply` (`PageSource`; nil: none, or not to be read: the setting,
+    /// no permission).
+    public var page: (_ app: String?) -> PageSource?
+    /// Errors only the user can fix (a permission, an account): their notice stays up longer, the text on the clipboard
+    /// too. Called off the session's thread.
+    public var needsTheUser: @Sendable (Error) -> Bool
+    /// An error's kind for the log, without any server-provided text (a shell's own errors; nil: the core's
+    /// `InputSession.errorKind`). Called off the session's thread.
+    public var errorKind: @Sendable (Error) -> String?
 
     // MARK: Commands
 
@@ -77,6 +106,19 @@ public struct SessionServices {
     public var startScriptInBackground: (ScriptCommand, _ arguments: [String],
                                          _ prepare: @escaping @Sendable () async -> Result<[String: String], DescribedError>,
                                          _ say: @escaping (String) -> Void) -> Void
+    /// The installed plugins (`rescan`: a text field became active: looked for again).
+    public var plugins: (_ rescan: Bool) -> [InstalledPlugin]
+    /// The status line of a script extension the command list shows (`ScriptCommand.status`), and running those that are
+    /// due: `environment` gives each its environment, `ended` (from any thread) says one ended.
+    public var scriptStatus: (ScriptCommand) -> String?
+    public var refreshStatuses: (_ shown: [ScriptCommand], _ environment: @escaping @Sendable (ScriptCommand) async -> [String: String]?,
+                                 _ ended: @escaping @Sendable () -> Void) -> Void
+    /// The user's jargon list, for a jargon (黑话) result's explanations.
+    public var jargon: (Config) -> [JargonEntry]
+    /// What `@reportissue` says about this system and the settings, with how many plugins and extensions there are.
+    public var issueDiagnostics: (Config, _ plugins: Int, _ extensions: Int) -> IssueReport.Diagnostics
+    /// Translate as You Type's chip in this field, when the shell shows one (`TranslateMode.Chip`).
+    public var translateChip: () -> TranslateMode.Chip?
     /// `@search`'s key.
     public var loadSearchKey: @Sendable () -> String?
     /// The notice of the custom commands renamed for the built-in ones, once (`Config.freeBuiltinNames`).
@@ -84,8 +126,10 @@ public struct SessionServices {
 
     // MARK: Notes, reminders, messages
 
-    /// `@note`: where the text is saved (`Config.notes`), made for each save.
+    /// `@note`: where the text is saved (`Config.notes`), made for each save; a saved note with an id told (from any
+    /// thread: the Mac's menu bar panel lists them).
     public var noteDestination: (NoteSettings) -> any NoteDestination
+    public var noteSaved: @Sendable (SavedNoteRef) -> Void
     /// `@reminder`: the reminder in a text, by the clock now; adding a confirmed one.
     public var parseReminder: (String) -> ReminderDraft
     public var addReminder: @Sendable (ReminderDraft) async throws -> Void
@@ -96,6 +140,27 @@ public struct SessionServices {
     public init(converter: Converter = Converter(), loadSettings: @escaping () -> Config = { .default }) {
         self.converter = converter
         self.loadSettings = loadSettings
+        levelOne = { .none }
+        engineIsValid = { _ in true }
+        keyTranslator = { nil }
+        hangulTables = { nil }
+        hindiTables = { nil }
+        usableLanguages = { $0.filter { $0 != .korean && $0 != .hindi } }
+        voiceSupported = { false }
+        page = { _ in nil }
+        pastesInTerminal = { false }
+        needsTheUser = { ($0 as? NoteError)?.needsTheUser ?? false }
+        errorKind = { _ in nil }
+        plugins = { _ in [] }
+        scriptStatus = { _ in nil }
+        refreshStatuses = { _, _, _ in }
+        jargon = { _ in [] }
+        issueDiagnostics = { config, plugins, extensions in
+            IssueReport.Diagnostics(config: config, macOS: "-", architecture: "-", interfaceLanguage: config.uiLanguage ?? UIText.language,
+                                    languagePacks: [], plugins: plugins, extensions: extensions)
+        }
+        translateChip = { nil }
+        noteSaved = { _ in }
         loadCommandUsage = { CommandUsage() }
         saveCommandUsage = { _ in }
         loadQuestionHistory = { QuestionHistory() }
@@ -143,6 +208,30 @@ public struct SessionServices {
 
     struct NoMessageSender: MessageSender {
         func send(_ text: String, to recipient: Recipient) async throws { throw SessionServicesError.unsupported }
+    }
+}
+
+/// Level one's engine for a field, as `SessionServices.levelOne` gives it.
+public enum LevelOne {
+    case engine(PinyinEngine)
+    case starting
+    case none
+}
+
+/// The web page a text field is in (the Mac's: Chrome's, read with Accessibility), as `@agent` and `@reply` take it along.
+public struct PageSource {
+    /// Asked for ahead of time (`@agent …` being written): the browser makes what is read, ready by ⏎.
+    public var wake: () -> Void
+    /// What `wake` asked for, given back (the draft given up, the field left).
+    public var release: () -> Void
+    /// What reads the page, made now (where the pointer is now, say), run off the session's thread (it blocks, up to
+    /// seconds); it gives back what `wake` asked for once it has read.
+    public var reader: () -> @Sendable () -> PageContext?
+
+    public init(wake: @escaping () -> Void, release: @escaping () -> Void, reader: @escaping () -> @Sendable () -> PageContext?) {
+        self.wake = wake
+        self.release = release
+        self.reader = reader
     }
 }
 

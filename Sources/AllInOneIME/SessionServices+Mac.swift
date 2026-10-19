@@ -1,5 +1,6 @@
 import AllInOneIMECore
 import AllInOneIMEMac
+import AllInOneIMERime
 import AppKit
 
 extension SessionServices {
@@ -8,6 +9,45 @@ extension SessionServices {
     @MainActor
     static var mac: SessionServices {
         var services = SessionServices(converter: sharedConverter, loadSettings: { LiveConfig.current })
+        // librime's session once it has deployed; without the Chinese pack it never starts (Latin letters).
+        services.levelOne = {
+            if let session = RimeService.shared.makeSession() { return .engine(session) }
+            return RimeService.shared.isStarted ? .starting : .none
+        }
+        services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
+        services.hangulTables = { LanguagePackManager.shared.hangulTables() }
+        services.hindiTables = { LanguagePackManager.shared.hindiTables() }
+        services.usableLanguages = { LanguagePackManager.shared.usable($0) }
+        services.voiceSupported = { VoiceInput.isSupported }
+        services.plugins = { LivePlugins.current(rescan: $0) }
+        services.scriptStatus = { command in MainActor.assumeIsolated { ScriptStatus.shared.text(for: command) } }
+        services.refreshStatuses = { shown, environment, ended in
+            MainActor.assumeIsolated { ScriptStatus.shared.refresh(shown, environment: environment, ended: ended) }
+        }
+        services.jargon = { LiveJargon.entries(for: $0) }
+        services.issueDiagnostics = { config, plugins, extensions in
+            MainActor.assumeIsolated { IssueReporting.diagnostics(config: config, plugins: plugins, extensions: extensions) }
+        }
+        services.needsTheUser = { error in
+            switch error {
+            case NotesBridge.NotesError.notPermitted, RemindersBridge.RemindersError.notPermitted,
+                 RemindersBridge.RemindersError.noAccount:
+                return true
+            case let error as NoteError:
+                return error.needsTheUser
+            default:
+                return false
+            }
+        }
+        services.errorKind = { macErrorKind($0) }
+        // The menu bar panel lists the saved notes it can open.
+        services.noteSaved = { saved in
+            guard let id = saved.id else { return }
+            let title = saved.title
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .allInOneIMENoteSaved, object: nil, userInfo: ["id": id, "title": title])
+            }
+        }
         services.loadCommandUsage = { CommandUsageStore.usage }
         services.saveCommandUsage = { CommandUsageStore.save($0) }
         services.loadQuestionHistory = { QuestionHistoryStore.history }
@@ -73,5 +113,18 @@ extension SessionServices {
         }
         services.messageSender = AppleScriptMessageSender()
         return services
+    }
+
+    /// The kind of this Mac's own errors (Notes, Reminders) for the public log, without their text; nil: another's.
+    static func macErrorKind(_ error: Error) -> String? {
+        switch error {
+        case NotesBridge.NotesError.notPermitted: return "notes not permitted"
+        case let NotesBridge.NotesError.failed(number): return "notes error \(number)"
+        case RemindersBridge.RemindersError.notPermitted: return "reminders not permitted"
+        case RemindersBridge.RemindersError.noAccount: return "reminders no account"
+        case RemindersBridge.RemindersError.notFound: return "reminder not found"
+        case let RemindersBridge.RemindersError.failed(code): return "reminders error \(code)"
+        default: return nil
+        }
     }
 }

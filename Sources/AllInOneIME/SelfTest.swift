@@ -1518,7 +1518,7 @@ enum SelfTest {
         check(confirmRow(noDate)?.comment == "未设时间", "no date: 「未设时间」, also while secure input is on")
         controller.services.secureInputActive = saved.3
         _ = press(controller, client, "1", code: 0x12)
-        check(pump(timeout: 2) { reminders.count == 2 } && reminders.last == noDate && notice() == "已加到提醒事项",
+        check(pump(timeout: 2) { reminders.count == 2 && notice() == "已加到提醒事项" } && reminders.last == noDate,
               "1 adds it: \(notice() ?? "no notice")")
         let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
         let yesterday9 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: yesterday)!
@@ -1527,7 +1527,7 @@ enum SelfTest {
         let overText = "昨天 \(clock(9)) · 已过"
         check(confirmRow(over)?.comment == overText, "a time that is over: 「已过」 (\(controller.panelModel().rows.first?.comment ?? "-"))")
         _ = space(controller, client)
-        check(pump(timeout: 2) { reminders.count == 3 } && notice() == "已加到提醒事项：" + overText, "Space adds it: \(notice() ?? "-")")
+        check(pump(timeout: 2) { reminders.count == 3 && notice() == "已加到提醒事项：" + overText }, "Space adds it: \(notice() ?? "-")")
         let later = calendar.date(byAdding: .day, value: 5, to: calendar.startOfDay(for: Date()))!
         let day = ReminderDraft(title: "交房租", due: calendar.dateComponents([.year, .month, .day], from: later))
         let dayComment = confirmRow(day)?.comment ?? ""

@@ -78,10 +78,8 @@ enum AppProfileText {
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
-    /// The notice of an AI command refused in an app with no AI.
-    static var refusal: String {
-        tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
-    }
+    /// The notice of an AI command refused in an app with no AI (`InputSession.aiRefusal`).
+    static var refusal: String { InputSession.aiRefusal }
 }
 
 extension SettingsModel {

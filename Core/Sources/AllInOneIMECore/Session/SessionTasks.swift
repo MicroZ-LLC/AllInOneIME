@@ -39,12 +39,54 @@ public enum TaskUpdate: Sendable {
     case live([SearchResult], query: String)
     /// The recipients found for the text typed after a send command, and what the panel says about them.
     case recipients([Recipient], note: String?, query: String)
+    /// The web page read for `@agent` or `@reply` (`PageSource`); nil: none.
+    case page(PageContext?)
+    /// A notice from work that ended (a background command that couldn't start, an agent that couldn't).
+    case notice(String)
+    /// `@agent` started in the background, with the page it took along (`withPage`).
+    case agentStarted(page: String)
+    /// A message went to `recipient`.
+    case sent(Recipient)
+    /// A note saved, or a reminder added, or not (`SaveOutcome`).
+    case saved(SaveOutcome)
+    /// A screenshot's text read for request `request`, or why not.
+    case recognized(ScreenText, request: Int)
+    case recognitionFailed(any Error, request: Int)
+    /// The commands whose program isn't installed, by check `check` (`InputSession.setCommands`).
+    case programs(missing: Set<String>, check: Int)
+    /// The name of a folder `@note` saves to, looked up (`MarkdownFolderDestination.name`), for `settings`.
+    case noteFolderNamed(String, settings: NoteSettings)
+    /// A command's status line ended (`SessionServices.refreshStatuses`): the list shows it.
+    case statusEnded
 }
 
-/// What a session hears from outside a key: its work's answers (`task`), for now. The shell gets these on any thread
-/// (`SessionTasks.deliver`) and hands each to the session on the session's own.
-public enum SessionEvent: Sendable {
-    case task(TaskID, TaskUpdate)
+/// How a save to notes or Reminders went (`TaskUpdate.saved`): told where the user is when it comes back, even if the
+/// field it came from (and its session) is gone by then. A failed save loses nothing: its text goes back into the draft,
+/// or onto the clipboard.
+public struct SaveOutcome: Sendable {
+    public enum Result: Sendable {
+        /// The notice: 「已存到 Notion」, 「已加到提醒事项：明天 15:00」.
+        case saved(String)
+        /// Why not (in the interface language), and the text to give back; `needsTheUser`: only the user can fix it (a
+        /// permission, an account): the text goes to the clipboard as well, the notice stays up longer.
+        case failed(reason: String, command: Command, text: String, needsTheUser: Bool)
+    }
+
+    public var result: Result
+    /// The notice up while it saved (「正在存到备忘录…」): the outcome takes its place.
+    public var progress: String
+    /// The field's focus count when it started: another now, the field is no longer the one it came from.
+    public var fieldSession: Int
+
+    /// What it says where the field it came from is gone: the notice, whether it stays up longer, the text to put on the
+    /// clipboard.
+    public var elsewhere: (notice: String, long: Bool, copy: String?) {
+        switch result {
+        case let .saved(notice): return (notice, false, nil)
+        case let .failed(reason, _, text, _):
+            return (tr("没有存上，原文已复制到剪贴板。", "Not saved; the text is on the clipboard. ") + reason, true, text)
+        }
+    }
 }
 
 /// An error already said in the interface language (`UIText.describe`), passed on as its message.
@@ -103,6 +145,14 @@ public final class SessionTasks {
         let id = TaskID(slot: slot, serial: serial)
         running[slot] = (id, nil)
         return id
+    }
+
+    /// Hands updates on from work the shell runs (a background command that couldn't start, a status line that ended),
+    /// from any thread.
+    public func poster() -> @Sendable (TaskUpdate) -> Void {
+        serial += 1
+        let (id, deliver) = (TaskID(slot: nil, serial: serial), deliver)
+        return { deliver(.task(id, $0)) }
     }
 
     /// Starts `work` (in `slot`, stopping what ran there); `post` hands an update on unless the work was stopped.
@@ -458,6 +508,125 @@ public final class SessionTasks {
                 post(.list(output, query: query))
                 guard case let .list(list) = output, let rerun = list.rerun else { return }
                 delay = rerun
+            }
+        }
+    }
+
+    // MARK: - Work that ends on its own
+
+    /// The web page (`PageSource.reader`): a blocking read of up to seconds, on a queue of its own rather than the pool.
+    /// Its id: what `TaskUpdate.page` answers.
+    public func readPage(_ read: @escaping @Sendable () -> PageContext?) -> TaskID {
+        serial += 1
+        let (id, deliver) = (TaskID(slot: nil, serial: serial), deliver)
+        DispatchQueue.global(qos: .userInitiated).async { deliver(.task(id, .page(read()))) }
+        return id
+    }
+
+    /// Whether each command's program is installed (`needed`: a command's name and its program), off the session's
+    /// thread: the first check asks the user's shell for its PATH, which takes a moment.
+    public func checkPrograms(_ needed: [(name: String, program: String)], check: Int, installed: @escaping @Sendable (String) -> Bool) {
+        let post = poster()
+        DispatchQueue.global().async {
+            post(.programs(missing: Set(needed.filter { !installed($0.program) }.map(\.name)), check: check))
+        }
+    }
+
+    /// A folder `@note` saves to: its name looked up off the session's thread (a second at most, `VaultRoots`).
+    public func nameFolder(_ folder: MarkdownFolderDestination, settings: NoteSettings) {
+        start(nil) { post in
+            let name = await Task.detached(priority: .utility) { folder.name }.value
+            post(.noteFolderNamed(name, settings: settings))
+        }
+    }
+
+    /// `@agent` in the background (`SessionServices.startAgent`); `page`: the page it took along, said once it started.
+    public func startAgent(_ prompt: String, page: String?, with start: @escaping @Sendable (String) async throws -> String) {
+        self.start(nil) { post in
+            do {
+                _ = try await start(prompt)
+                if let page { post(.agentStarted(page: page)) }
+            } catch {
+                Self.log.error("@agent in the background failed: \(String(describing: error))")
+                post(.notice(UIText.describe(error)))
+            }
+        }
+    }
+
+    /// Sends a confirmed message; what went wrong comes back as a notice. The log keeps no names, handles or text.
+    public func send(_ text: String, to recipient: Recipient, command: Command, with sender: any MessageSender) {
+        start(nil) { post in
+            do {
+                try await sender.send(text, to: recipient)
+                Self.log.notice("@\(command.name): sent")
+                post(.sent(recipient))
+            } catch {
+                let code: String
+                switch error {
+                case MessageSendError.notPermitted: code = "-1743"
+                case let MessageSendError.failed(number): code = String(number)
+                default: code = String(describing: type(of: error))
+                }
+                Self.log.error("@\(command.name): sending failed (\(code))")
+                post(.notice(UIText.describe(error)))
+            }
+        }
+    }
+
+    /// `@note`: `draft` saved to `destination`; a note with an id is told to `saved` (a shell's list of saved notes).
+    public func saveNote(_ draft: NoteDraft, to destination: any NoteDestination, progress: String, fieldSession: Int,
+                         saved noteSaved: @escaping @Sendable (SavedNoteRef) -> Void,
+                         needsTheUser: @escaping @Sendable (Error) -> Bool, errorKind: @escaping @Sendable (Error) -> String) {
+        let name = destination.name
+        start(nil) { post in
+            let result: SaveOutcome.Result
+            do {
+                let saved = try await destination.save(draft)
+                Self.log.notice("@note: saved")
+                if saved.id != nil { noteSaved(saved) }
+                // Where it went as the save found out (a folder in a vault is Obsidian).
+                let went = saved.destinationName ?? name
+                let zhWent = UIText.afterChineseWord(went)
+                result = .saved(tr("已存到\(zhWent)", "Saved to \(went)"))
+            } catch {
+                Self.log.error("@note: not saved: \(errorKind(error))")
+                result = .failed(reason: UIText.describe(error), command: .note, text: draft.text, needsTheUser: needsTheUser(error))
+            }
+            post(.saved(SaveOutcome(result: result, progress: progress, fieldSession: fieldSession)))
+        }
+    }
+
+    /// A confirmed `@reminder` added (`SessionServices.addReminder`); `input`, the text it was read from, comes back if not.
+    public func addReminder(_ reminder: ReminderDraft, input: String, progress: String, fieldSession: Int,
+                            with add: @escaping @Sendable (ReminderDraft) async throws -> Void,
+                            needsTheUser: @escaping @Sendable (Error) -> Bool, errorKind: @escaping @Sendable (Error) -> String) {
+        start(nil) { post in
+            let result: SaveOutcome.Result
+            do {
+                try await add(reminder)
+                Self.log.notice("@reminder: added")
+                let when = reminder.due == nil ? "" : tr("：", ": ") + UIText.when(reminder)
+                result = .saved(tr("已加到提醒事项", "Added to Reminders") + when)
+            } catch {
+                Self.log.error("@reminder: not added: \(errorKind(error))")
+                result = .failed(reason: UIText.describe(error), command: .reminder, text: input, needsTheUser: needsTheUser(error))
+            }
+            post(.saved(SaveOutcome(result: result, progress: progress, fieldSession: fieldSession)))
+        }
+    }
+
+    /// A screenshot pasted into the draft, read on the device (`ScreenText.recognize`) in `languages`, for request `id`.
+    /// The image goes nowhere and isn't kept; the log has only how many lines were read.
+    public func recognize(_ image: Data, id: Int, languages: [String], with recognizer: any TextRecognizer) {
+        let started = Date()
+        start(nil) { post in
+            do {
+                let text = try await ScreenText.recognize(image, with: recognizer, languages: languages)
+                Self.log.notice("screenshot \(id): \(text.lineCount) lines read in \(String(format: "%.2f", Date().timeIntervalSince(started)))s")
+                post(.recognized(text, request: id))
+            } catch {
+                Self.log.notice("screenshot \(id): not read (\(String(describing: type(of: error))))")
+                post(.recognitionFailed(error, request: id))
             }
         }
     }

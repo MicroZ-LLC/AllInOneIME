@@ -3150,7 +3150,7 @@ public final class Composer {
     /// ⌥Space, when that is the action key (an Option tap arrives as modifier changes instead).
     /// The action key as a key press: Return, or ⌥Space (an Option tap arrives as modifier changes).
     /// While right ⌥ is held for dictation, Return arrives as ⌥Return.
-    private func isActionKey(_ event: KeyEvent) -> Bool {
+    func isActionKey(_ event: KeyEvent) -> Bool {
         let modifiers = event.modifiers.subtracting(.capsLock)
         switch actionKey {
         case .enter:
