@@ -38,7 +38,7 @@ extension APIKeys.Keychain {
         }
         return APIKeys.Keychain(
             kind: .synced,
-            accounts: { accounts(query(nil)) },
+            accounts: { (try? accounts(query(nil))) ?? [] },
             attributes: { account in attributes(query(account)) },
             read: { account in read(query(account)) },
             write: { account, key, label, comment, ending, saved in
@@ -53,7 +53,8 @@ extension APIKeys.Keychain {
             add: { account, key, label, comment, ending, saved in
                 add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
                     adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
-            })
+            },
+            listing: { try accounts(query(nil)) })
     }
 
     /// Whether this process may use the shared access group (`KeySync.accessGroup`): its `keychain-access-groups`
@@ -111,7 +112,7 @@ extension APIKeys.Keychain {
         }
         return APIKeys.Keychain(
             kind: .legacy,
-            accounts: { accounts(query(nil)) },
+            accounts: { (try? accounts(query(nil))) ?? [] },
             attributes: { account in attributes(query(account)) },
             read: { account in
                 guard !asking else { return read(query(account)) }
@@ -134,7 +135,8 @@ extension APIKeys.Keychain {
             add: { account, key, label, comment, ending, saved in
                 let set = { add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:]) }
                 return asking ? set() : withoutAsking(set)
-            })
+            },
+            listing: { try accounts(query(nil)) })
     }
 
     /// `body` with the file-based keychain's prompts turned off for the process (on again after).
@@ -146,12 +148,18 @@ extension APIKeys.Keychain {
         return body()
     }
 
-    private static func accounts(_ query: [String: Any]) -> [String] {
+    /// The accounts of the items `query` matches (none found: none); throws when they can't be listed (the keychain
+    /// locked, the entitlement missing), which `accounts` takes for none and `listing` passes on.
+    private static func accounts(_ query: [String: Any]) throws -> [String] {
         var query = query
         query[kSecReturnAttributes as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitAll
         var items: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &items) == errSecSuccess, let found = items as? [[String: Any]] else { return [] }
+        let status = SecItemCopyMatching(query as CFDictionary, &items)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess, let found = items as? [[String: Any]] else {
+            throw APIKeys.KeychainError(status: status, message: SecCopyErrorMessageString(status, nil) as String?)
+        }
         return Array(Set(found.compactMap { $0[kSecAttrAccount as String] as? String })).sorted()
     }
 

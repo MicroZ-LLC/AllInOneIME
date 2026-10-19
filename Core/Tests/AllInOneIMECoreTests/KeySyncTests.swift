@@ -386,3 +386,41 @@ struct KeySyncRound4Tests {
         #expect(KeySync.Marker.done.syncing && !KeySync.Marker.copyingBack(["openai"]).syncing)
     }
 }
+
+/// Round 5: a copy-back's start list, saves while key sync is off, and a store that can't be listed.
+struct KeySyncRound5Tests {
+    typealias T = KeySyncSetAsideTests
+
+    /// The start list: every synced account but the never-synced, read by name alone.
+    @Test func theCopyBackListLeavesOutTheNeverSynced() throws {
+        let stores = KeySyncTests.stores(syncing: true)
+        T.write(stores.synced, "sk-test-openai-0001", saved: T.new)
+        T.write(stores.synced, "token-test-hosted-0002", saved: T.new, account: "hosted")
+        #expect(try stores.copyBackList() == ["openai"] && stores.listCopyBack() == ["openai"])
+    }
+
+    /// A save while key sync is off tells `whenRemovedHere`, once it is written; while it's on, not.
+    @Test func aSaveWhileOffIsTold() throws {
+        let stores = KeySyncTests.stores()
+        let told = Locked<[String]>(initialState: [])
+        stores.whenRemovedHere { account in told.withLock { $0.append(account) } }
+        try APIKeys.save("sk-test-openai-0001", account: "openai", label: "AllInOneIME: test", in: stores.store)
+        stores.start(syncing: true)
+        try APIKeys.save("sk-test-gemini-0002", account: "gemini", label: "AllInOneIME: test", in: stores.store)
+        #expect(told.withLock { $0 } == ["openai"])
+        #expect(stores.login.read("openai") == "sk-test-openai-0001" && stores.synced.read("gemini") == "sk-test-gemini-0002")
+    }
+
+    /// A store whose items can't be listed: a merge out of it throws (never complete with nothing moved), and the
+    /// copy-back's list can't be made.
+    @Test func anUnlistableStoreIsNeverTakenForAnEmptyOne() throws {
+        var synced = KeySyncTests.store(.synced)
+        T.write(synced, "sk-test-openai-0001", saved: T.new)
+        synced.listing = { throw APIKeys.KeychainError(status: -25308) }
+        let stores = KeySync.Stores(login: KeySyncTests.store(.legacy), synced: synced, replaced: KeySyncTests.store(.legacy),
+                                    syncing: true)
+        #expect(throws: APIKeys.KeychainError.self) { try stores.turn(syncing: false) }
+        #expect(throws: APIKeys.KeychainError.self) { try stores.listCopyBack() }
+        #expect(stores.copyBackList().isEmpty && stores.login.attributes("openai") == nil)
+    }
+}

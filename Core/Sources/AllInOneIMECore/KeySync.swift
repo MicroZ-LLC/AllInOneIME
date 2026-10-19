@@ -84,7 +84,8 @@ public enum KeySync {
     /// where it was. An account is left as it is and tried again (`mismatched`) when such a copy can't be kept,
     /// or when `into` has an item for it whose key can't be read: it is never written over unseen. One of `from`'s that
     /// can't be read without asking waits (`waiting`; it loses quietly when `into`'s is newer). A write that fails
-    /// throws (`APIKeys.KeychainError`), what was moved before it staying moved.
+    /// throws (`APIKeys.KeychainError`), what was moved before it staying moved; so does a `from` whose items can't be
+    /// listed (`Keychain.listedAccounts`), which is never taken for an empty one.
     ///
     /// A key is never kept aside over its own replaced copy (the only one left of a key that lost, say): the same key
     /// isn't kept again when `aside` already has a copy for the account, except when it moves into a synced store that
@@ -97,7 +98,7 @@ public enum KeySync {
                              only: Set<String>? = nil) throws -> Moves {
         var moves = Moves()
         let keepsFrom = from.kind == .synced
-        for account in from.accounts() where !APIKeys.neverSynced.contains(account) && only?.contains(account) != false {
+        for account in try from.listedAccounts() where !APIKeys.neverSynced.contains(account) && only?.contains(account) != false {
             guard let theirs = from.attributes(account) else { continue }
             let ours = into.attributes(account)
             let wins = ours.map { newer(theirs, than: $0) } ?? true
@@ -222,8 +223,9 @@ public enum KeySync {
         case moving
         /// Every key moved: they may be in iCloud Keychain alone.
         case done
-        /// Turning key sync off copied the synced keys back but these were left: a retry copies these alone, and
-        /// Remove… on this Mac (key sync off) takes one off.
+        /// Turning key sync off is copying the synced keys back, and these are still to copy: written with every synced
+        /// account before the copy-back starts (`Stores.copyBackList`), then with the ones it left. A retry copies these
+        /// alone, and Remove… or a save on this Mac (key sync off) takes one off.
         case copyingBack([String])
 
         static let copyingBackLine = "copying back"
@@ -307,10 +309,25 @@ public enum KeySync {
                            removedHere: { account in removedHere.withLock { $0 }?(account) })
         }
 
-        /// Told of each account Remove… removed while key sync was off (`routed`'s `removedHere`): the sync controller
-        /// takes it off the accounts an incomplete copy-back left, so that it isn't copied back again.
+        /// Told of each account Remove… removed, or a save wrote, on this Mac while key sync was off (`routed`'s
+        /// `removedHere`): the sync controller takes it off the accounts a copy-back still has to copy, so that the key
+        /// removed isn't copied back again, nor the one saved here written over by iCloud Keychain's.
         public func whenRemovedHere(_ handler: (@Sendable (String) -> Void)?) {
             removedHere.withLock { $0 = handler }
+        }
+
+        /// What a copy-back starting from `moving` or `done` has to copy, written into the marker before it starts
+        /// (`Marker.copyingBack`): every account the synced store lists, `APIKeys.neverSynced` left out. Account names
+        /// only, no key read. None when the synced store can't be listed: the controller uses `listCopyBack`, which
+        /// says so.
+        public func copyBackList() -> [String] {
+            (try? listCopyBack()) ?? []
+        }
+
+        /// `copyBackList`, throwing (`APIKeys.KeychainError`) when the synced store can't be listed: the copy-back
+        /// doesn't start then, rather than count an empty list as copied.
+        public func listCopyBack() throws -> [String] {
+            try synced.listedAccounts().filter { !APIKeys.neverSynced.contains($0) }
         }
 
         /// The switch as the config has it, nothing moved: at launch, before anything reads a key.
@@ -369,7 +386,7 @@ extension APIKeys.Keychain {
     /// - `delete` removes the login keychain's copy first (stopping there when that fails), then the replaced copy
     ///   (`replaced`, `replacedService`), and the synced one only while `syncs()`: Remove… on a Mac that doesn't sync
     ///   keys removes them from this Mac alone, never from the others (and tells `removedHere`, once the copies here are
-    ///   gone).
+    ///   gone); a save while `syncs()` is false tells `removedHere` too, once it is written.
     ///
     /// `replaced` is never read: a replaced copy is a safety copy, never the key in use. `syncs` is asked on every call:
     /// the switch can change while the store, chosen at launch, stays.
@@ -401,7 +418,13 @@ extension APIKeys.Keychain {
                 return key
             },
             write: { account, key, label, comment, ending, saved in
-                (syncing(account) ? synced : login).write(account, key, label, comment, ending, saved)
+                guard syncs() else {
+                    // Saved on this Mac while key sync is off: a copy-back still to make doesn't write over it.
+                    let status = login.write(account, key, label, comment, ending, saved)
+                    if status == .ok { removedHere(account) }
+                    return status
+                }
+                return (syncing(account) ? synced : login).write(account, key, label, comment, ending, saved)
             },
             setComment: { account, comment in holder(account)?.store.setComment(account, comment) ?? .notFound },
             delete: { account in
