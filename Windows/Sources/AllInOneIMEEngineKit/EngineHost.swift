@@ -31,6 +31,10 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         public var executable: String = CommandLine.arguments.first ?? ""
         /// The requests' converter; nil: one on `settings` and the platform's API keys.
         public var converter: Converter?
+        /// The Settings app `@settings` opens (AllInOneIMESettings.exe), and what it is given (a test engine's pipe);
+        /// nil: the folder of `config.json`.
+        public var settingsApp: String?
+        public var settingsAppArguments: [String] = []
 
         public init(system: SystemActions) {
             self.system = system
@@ -47,11 +51,15 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     let system: SystemActions
     let executable: String
     public let converter: Converter
+    /// The Settings app `@settings` opens, and its arguments (`Options`); set before the engine serves.
+    public var settingsApp: String?
+    public var settingsAppArguments: [String]
 
     private let lock = NSLock()
     private var scripted: ScriptedProvider?
     private var language: Language?
     private var states: [ObjectIdentifier: SessionState] = [:]
+    private var recent: [String] = []
 
     public init(clock: WireClock = SystemClock(), options: Options, log: @escaping @Sendable (String) -> Void) {
         testMode = options.testMode
@@ -63,6 +71,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         panelPresenter = options.panel
         system = options.system
         executable = options.executable
+        settingsApp = options.settingsApp
+        settingsAppArguments = options.settingsAppArguments
         let settings = options.settings
         converter = options.converter ?? Converter(loadConfig: { settings.current })
     }
@@ -108,6 +118,23 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         return state
     }
 
+    /// The apps typed in lately, latest first (at most 12): the Settings app offers them when an app is added to the
+    /// per-app settings.
+    public var recentApps: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recent
+    }
+
+    func noteApp(_ app: String) {
+        guard !app.isEmpty else { return }
+        lock.lock()
+        recent.removeAll { $0 == app }
+        recent.insert(app, at: 0)
+        if recent.count > 12 { recent.removeLast(recent.count - 12) }
+        lock.unlock()
+    }
+
     /// The sessions alive now.
     var liveSessions: [ComposerSession] {
         lock.lock()
@@ -128,6 +155,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     public func sessionFocused(_ session: ComposerSession) {
         let state = state(session)
+        noteApp(session.field.app)
         guard !testMode else { return }
         attachRime(to: session, state: state)
         apply(settings.current, to: session, state: state)
@@ -349,7 +377,17 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .saveNote(text):
             saveNote(text, in: session)
         case .openSettings:
-            // No settings window yet: the folder with config.json, and a notice that says so.
+            // The Settings app; without one (a build of the engine alone), the folder with config.json, and a notice
+            // that says so.
+            if let app = settingsApp {
+                do {
+                    try system.start(app, arguments: settingsAppArguments)
+                    log("session \(session.sid): started the Settings app")
+                } catch {
+                    notice(Self.describe(error), in: session)
+                }
+                break
+            }
             let folder = settings.url.deletingLastPathComponent()
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             open(folder.path, in: session)

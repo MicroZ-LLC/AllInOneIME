@@ -6,9 +6,8 @@ import WinSDK
 
 /// The engine's settings: the core's `config.json` (`Config`, in `%APPDATA%\AllInOneIME` on Windows, or the file
 /// `--config` names), read again only when the file changed (by its modification date), as the Mac's `LiveConfig`. A
-/// file that doesn't parse reads as the defaults, and says why (`problem`). There is no Settings window on Windows yet:
-/// the file is edited by hand, with `allinoneime-cli set-provider` and friends, or by a settings window over the pipe
-/// (the core's `SettingsService`, wire protocol §12).
+/// file that doesn't parse reads as the defaults, and says why (`problem`). The Settings app changes it over the pipe
+/// (the core's `SettingsService`, wire protocol §12); `allinoneime-cli set-provider` and friends, or a hand edit, too.
 public final class EngineSettings: @unchecked Sendable {
     public let url: URL
     private let lock = NSLock()
@@ -63,10 +62,12 @@ public final class EngineSettings: @unchecked Sendable {
         return config
     }
 
-    /// The interface language's code ("zh-Hans", "en"): the config's `uiLanguage`, else the system's.
+    /// The interface language's code ("zh-Hans", "en", "fr"): the config's `uiLanguage`, else the system's, among the
+    /// languages the String Catalog has (`EngineLanguage`; Simplified Chinese and English without it).
     public func interfaceLanguage(_ config: Config) -> String {
-        InterfaceLanguage.code(forSetting: config.uiLanguage, shipped: InterfaceLanguage.builtIn)
-            ?? InterfaceLanguage.pick(preferred: Self.preferredLanguages, shipped: InterfaceLanguage.builtIn)
+        let shipped = UIText.shipped
+        return InterfaceLanguage.code(forSetting: config.uiLanguage, shipped: shipped)
+            ?? InterfaceLanguage.pick(preferred: Self.preferredLanguages, shipped: shipped)
     }
 
     /// The user's languages, in their order: Windows' own list (`GetUserPreferredUILanguages`: "zh-CN", "en-US"), which

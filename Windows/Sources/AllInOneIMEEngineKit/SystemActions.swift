@@ -18,6 +18,13 @@ public protocol SystemActions: Sendable {
     func launchInTerminal(_ argv: [String]) throws
     /// Files and apps named like `query` (`@open`).
     func search(_ query: String) -> [SearchResult]
+    /// Starts the program at `program` with `arguments`, in the foreground (the Settings app).
+    func start(_ program: String, arguments: [String]) throws
+}
+
+extension SystemActions {
+    /// Opened as a file is, without arguments.
+    public func start(_ program: String, arguments: [String]) throws { try open(program) }
 }
 
 public struct SystemActionError: Error, LocalizedError, Equatable {
@@ -75,6 +82,25 @@ public struct WindowsSystem: SystemActions {
         // ShellExecuteW's result is a number above 32 when it worked.
         guard Int(bitPattern: UnsafeRawPointer(result)) > 32 else {
             throw SystemActionError("Couldn't open \(target) (error \(Int(bitPattern: UnsafeRawPointer(result))))")
+        }
+    }
+
+    /// ShellExecuteW, as `open`, with the arguments quoted for the program's command line.
+    public func start(_ program: String, arguments: [String]) throws {
+        AllowSetForegroundWindow(DWORD(bitPattern: -1))  // ASFW_ANY
+        let parameters = arguments.map { argument in
+            argument.isEmpty || argument.contains(" ") || argument.contains("\"")
+                ? "\"" + argument.replacingOccurrences(of: "\"", with: "\\\"") + "\"" : argument
+        }.joined(separator: " ")
+        let result = program.withCString(encodedAs: UTF16.self) { file in
+            parameters.withCString(encodedAs: UTF16.self) { parameters in
+                "open".withCString(encodedAs: UTF16.self) { verb in
+                    ShellExecuteW(nil, verb, file, arguments.isEmpty ? nil : parameters, nil, SW_SHOWNORMAL)
+                }
+            }
+        }
+        guard Int(bitPattern: UnsafeRawPointer(result)) > 32 else {
+            throw SystemActionError("Couldn't start \(program) (error \(Int(bitPattern: UnsafeRawPointer(result))))")
         }
     }
 

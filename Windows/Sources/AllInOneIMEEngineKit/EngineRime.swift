@@ -96,6 +96,45 @@ public final class EngineRime: @unchecked Sendable {
         return isReady
     }
 
+    /// Fuzzy pinyin's pairs (`Config.fuzzyPinyin`) as librime's patch of rime-ice's schema in the user folder, as the
+    /// Mac's `RimeFuzzy` writes it: before the deployment at the start, and when the settings change them, then
+    /// deployed again (a second or so, with the sessions dropped), once a deployment under way is done; `deployed`
+    /// after that, so that the Composers get new sessions. What it did; nil when it couldn't (logged).
+    @discardableResult
+    public func applyFuzzyPinyin(_ ids: [String], deployed: (@Sendable () -> Void)? = nil) -> FuzzyPinyin.Outcome? {
+        Self.lock.lock()
+        defer { Self.lock.unlock() }
+        let outcome: FuzzyPinyin.Outcome
+        do {
+            outcome = try FuzzyPinyin.apply(ids, schema: location.sharedData.appendingPathComponent("rime_ice.schema.yaml"),
+                                            userDir: userData)
+        } catch {
+            log("rime: couldn't write the fuzzy pinyin patch: \(error)")
+            return nil
+        }
+        switch outcome {
+        case .userFile:
+            log("rime: fuzzy pinyin not applied: the user folder has the user's own \(FuzzyPinyin.fileName)")
+        case .written, .removed:
+            guard started else { break }
+            log("rime: fuzzy pinyin changed (\(ids.count) pairs): deploying again")
+            // librime refuses a deployment while one is under way (the one at the start, a second or more): after it.
+            Thread.detachNewThread { [self] in
+                waitUntilReady(timeout: 300)
+                Self.lock.lock()
+                RimeService.shared.redeploy()
+                Self.lock.unlock()
+                if waitUntilReady(timeout: 300) {
+                    log("rime: deployed again, fuzzy pinyin as the settings say")
+                    deployed?()
+                }
+            }
+        case .unchanged:
+            break
+        }
+        return outcome
+    }
+
     /// A session for one Composer, through the lock; nil while librime deploys.
     public func makeEngine() -> PinyinEngine? {
         Self.lock.lock()
