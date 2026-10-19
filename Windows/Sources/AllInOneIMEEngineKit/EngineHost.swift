@@ -60,6 +60,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     private var language: Language?
     private var states: [ObjectIdentifier: SessionState] = [:]
     private var recent: [String] = []
+    /// The script extensions' files as last read: read again only when they changed.
+    private let extensionCache = ExtensionCache()
 
     public init(clock: WireClock = SystemClock(), options: Options, log: @escaping @Sendable (String) -> Void) {
         testMode = options.testMode
@@ -187,8 +189,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     }
 
     /// The settings on the Composer, as the Mac's `applySettings`: the action key, the candidates' layout, the
-    /// languages, the commands, the interface language; the default input mode for a new session (and again when it
-    /// changed in the settings).
+    /// languages, the commands (custom ones, plugins, script extensions), the interface language; the default input
+    /// mode for a new session (and again when it changed in the settings).
     func apply(_ config: Config, to session: ComposerSession, state: SessionState) {
         let composer = session.composer
         let app = session.field.app
@@ -199,7 +201,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         composer.outputLanguages = config.outputLanguages
         composer.provider = config.provider
         let plugins = PluginStore.load().plugins
-        composer.commands = Command.catalog(config.customCommands, plugins: plugins)
+        // Script extensions from the folders the settings name, each on or off as they say (the Settings app's
+        // switches); their programs run through the core's runner (`startScript`).
+        let extensions = ExtensionStore.load(ExtensionStore.folders(config, found: []), cache: extensionCache)
+        composer.commands = Command.catalog(config.customCommands, plugins: plugins,
+                                            scripts: extensions.enabled(config.disabledExtensions),
+                                            snippets: extensions.enabledSnippets(config.disabledExtensions))
         let language = settings.interfaceLanguage(config)
         var messages = Composer.Messages.make(language: language)
         messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)

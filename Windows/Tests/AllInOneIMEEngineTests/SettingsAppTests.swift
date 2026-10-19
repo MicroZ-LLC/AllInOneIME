@@ -26,6 +26,24 @@ struct SettingsAppTests {
         #expect(client.panel.notices.isEmpty)
     }
 
+    /// A script extension in a folder the settings name is an @ command; switched off in the settings, it isn't.
+    @Test func scriptExtensionsAreCommands() throws {
+        let extensions = FileManager.default.temporaryDirectory.appendingPathComponent("engine-extensions-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: extensions, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: extensions) }
+        let script = extensions.appendingPathComponent("hello.sh")
+        try Data("#!/bin/sh\n# @allinoneime.schemaVersion 1\n# @allinoneime.title Say hi\necho hi\n".utf8).write(to: script)
+        let folder = extensions.path.replacingOccurrences(of: "\\", with: "/")
+        let (on, onFolder) = try self.client(#"{"inputLanguages": ["en"], "extensionFolders": ["\#(folder)"]}"#)
+        defer { try? FileManager.default.removeItem(at: onFolder) }
+        let hello = try #require(on.composer.commands.first { $0.name == "hello" }?.script)
+
+        let id = hello.id
+        let (off, offFolder) = try self.client(#"{"inputLanguages": ["en"], "extensionFolders": ["\#(folder)"], "disabledExtensions": ["\#(id)"]}"#)
+        defer { try? FileManager.default.removeItem(at: offFolder) }
+        #expect(!off.composer.commands.contains { $0.name == "hello" })
+    }
+
     @Test func theAppsTypedInAreOffered() throws {
         let (client, folder) = try client()
         defer { try? FileManager.default.removeItem(at: folder) }
