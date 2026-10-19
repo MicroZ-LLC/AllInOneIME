@@ -18,10 +18,13 @@ extension Platform {
     }
 
     /// The routed store of `KeySync.system`, its switch set as the config has it at launch: once, however often `mac` is
-    /// asked for.
+    /// asked for. A config that can't be read (a typo while editing it by hand) changes nothing: the switch is as the
+    /// keys-synced marker last left it (`KeySync.Marker.syncing`; no marker: off).
     private static let macKeys: SecretStore? = {
         guard let keys = KeySync.system else { return nil }
-        keys.start(syncing: ((try? Config.load()) ?? .default).iCloudSync.syncsKeys)
+        let syncing = (try? Config.load()).map { $0.iCloudSync.syncsKeys }
+            ?? KeySync.Marker.read(at: KeySync.Marker.url(besides: ICloudSync.State.defaultURL))?.syncing ?? false
+        keys.start(syncing: syncing)
         return keys.store
     }()
 }

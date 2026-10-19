@@ -246,32 +246,46 @@ final class ICloudSyncController: ObservableObject {
 
     /// Marks that this Mac's keys may be in iCloud Keychain (absent: they were last all in the login keychain), beside
     /// the sync record, so the self-test's is its own: written "moving" before turning key sync on moves anything, "done"
-    /// once every key moved (`KeysSynced`).
-    var keysSyncedURL: URL { engine.stateURL.deletingLastPathComponent().appendingPathComponent("keys-synced") }
+    /// once every key moved, and the accounts left when turning it off didn't copy every key back (`KeySync.Marker`).
+    var keysSyncedURL: URL { KeySync.Marker.url(besides: engine.stateURL) }
 
     /// What the keys-synced marker says: nil when there is none. A marker of an earlier build (empty) is `done`.
-    enum KeysSynced: String { case moving, done }
+    typealias KeysSynced = KeySync.Marker
 
-    var keysSynced: KeysSynced? {
-        guard let data = FileManager.default.contents(atPath: keysSyncedURL.path) else { return nil }
-        return KeysSynced(rawValue: String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) ?? .done
-    }
+    var keysSynced: KeysSynced? { KeySync.Marker.read(at: keysSyncedURL) }
+
+    /// The marker's file changed only under this lock: Remove… (`dropFromCopyBack`) may come from any thread.
+    private nonisolated static let markerLock = NSLock()
 
     /// The marker set (nil: removed); false when it couldn't be written.
     @discardableResult
     private func markKeysSynced(_ state: KeysSynced?) -> Bool {
+        Self.markerLock.withLock { Self.writeMarker(state, at: keysSyncedURL) }
+    }
+
+    private nonisolated static func writeMarker(_ state: KeysSynced?, at url: URL) -> Bool {
         let fm = FileManager.default
         guard let state else {
-            try? fm.removeItem(at: keysSyncedURL)
+            try? fm.removeItem(at: url)
             return true
         }
         do {
-            try fm.createDirectory(at: keysSyncedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(state.rawValue.utf8).write(to: keysSyncedURL, options: .atomic)
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(state.text.utf8).write(to: url, options: .atomic)
             return true
         } catch {
             log.error("keys-synced marker not written: \(String(describing: error), privacy: .public)")
             return false
+        }
+    }
+
+    /// Remove… took `account` off this Mac while key sync was off: off the accounts an incomplete copy-back left, so
+    /// that the retry doesn't bring it back (the marker goes with the last one).
+    nonisolated static func dropFromCopyBack(_ account: String, at url: URL) {
+        markerLock.withLock {
+            guard case let .copyingBack(accounts)? = KeySync.Marker.read(at: url), accounts.contains(account) else { return }
+            let left = accounts.filter { $0 != account }
+            _ = writeMarker(left.isEmpty ? nil : .copyingBack(left), at: url)
         }
     }
 
@@ -283,21 +297,32 @@ final class ICloudSyncController: ObservableObject {
     /// synced keys back whenever there is a marker, even one left "moving" (keys moved before a move stopped are in iCloud
     /// Keychain alone), and removes it only once every key is copied. A move that failed, or left a key behind (one that
     /// couldn't be read, whose copy didn't read back as written, whose replaced copy couldn't be kept, or that would have
-    /// gone over a key that couldn't be read), is tried again on the next run. At launch (`atLaunch`) with key sync on,
-    /// the move is made even when the marker says "done": a key left behind for its first use, or one an earlier version
-    /// saved in the login keychain since, moves then.
+    /// gone over a key that couldn't be read), is tried again on the next run; a copy-back that left keys behind lists
+    /// their accounts in the marker, and is tried again for those alone (Remove… on this Mac takes one off the list). At
+    /// launch (`atLaunch`) with key sync on, the move is made even when the marker says "done": a key left behind for its
+    /// first use, or one an earlier version saved in the login keychain since, moves then. When the config can't be read
+    /// (a typo while editing it by hand), nothing changes: no move, no copy-back, the routing as it was.
     func applyKeySync(atLaunch: Bool = false) {
         guard let keys else { return }
-        let wanted = settings.syncsKeys
+        let url = keysSyncedURL
+        keys.whenRemovedHere { account in Self.dropFromCopyBack(account, at: url) }
+        guard let config = try? Config.load(from: engine.configURL) else {
+            log.error("keys left as they are: the config can't be read")
+            return
+        }
+        let wanted = config.iCloudSync.syncsKeys
         let marker = keysSynced
         guard wanted ? marker != .done || atLaunch : marker != nil else {
             if keys.syncing != wanted { keys.start(syncing: wanted) }
             return
         }
         if wanted, !markKeysSynced(.moving) { return }
+        var only: Set<String>?
+        if !wanted, case let .copyingBack(accounts)? = marker { only = Set(accounts) }
         do {
-            let moves = try keys.turn(syncing: wanted)
+            let moves = try keys.turn(syncing: wanted, only: only)
             guard moves.isComplete else {
+                if !wanted { markKeysSynced(.copyingBack(moves.remaining)) }
                 log.error("keys not all moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain, tried again later: \(moves.waiting.count) unreadable, \(moves.mismatched.count) left as they were")
                 return
             }

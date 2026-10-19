@@ -63,8 +63,9 @@ extension SelfTest {
     }
 
     /// The controller's moves, with stores in memory: key sync off (nothing moves), turned on and off, the keys-synced
-    /// marker through a turn on that stops halfway (acceptance S21's controller half), and a replaced copy that can't be
-    /// kept (S23's).
+    /// marker through a turn on that stops halfway (acceptance S21's controller half), a replaced copy that can't be
+    /// kept (S23's), a config that can't be read (nothing changes), and a copy-back that left keys: the marker lists
+    /// their accounts, Remove… takes one off, and the retry copies the rest alone (S28's).
     private static func testKeySyncMoves() {
         let sync = ICloudSyncController.shared
         let fm = FileManager.default
@@ -163,7 +164,7 @@ extension SelfTest {
         sync.applyKeySync()
         let firstWrite = markerAtWrites.withLock { $0.first ?? nil }
         check(firstWrite == "moving" && sync.keysSynced == .moving && stores.syncing,
-              "turned on: the marker says moving before the first key moves (\(firstWrite ?? "none")), and after a copy that didn't read back (\(sync.keysSynced.map(\.rawValue) ?? "none"))")
+              "turned on: the marker says moving before the first key moves (\(firstWrite ?? "none")), and after a copy that didn't read back (\(sync.keysSynced.map(\.text) ?? "none"))")
         check(syncedItems.read("openai") == openAI && login.attributes("openai") == nil && login.read("gemini") == gemini,
               "the keys that moved are in iCloud Keychain alone; the one whose copy was garbled stays in the login keychain")
 
@@ -206,6 +207,32 @@ extension SelfTest {
         sync.applyKeySync()
         check(sync.keysSynced == .done && syncedItems.read("perplexity") == late && login.attributes("perplexity") == nil,
               "a marker left moving with key sync on: the turn on is tried again, then done")
+        // A config that can't be read (a typo while editing it by hand) changes nothing: no copy-back, the routing as
+        // it was.
+        let goodConfig = try? Data(contentsOf: configURL)
+        try? Data("{ \"iCloudSync\": ".utf8).write(to: configURL)
+        sync.applyKeySync()
+        check(stores.syncing && sync.keysSynced == .done && login.attributes("openai") == nil && syncedItems.read("openai") == openAI,
+              "a config that can't be read: key sync left as it was, nothing copied back")
+        if let goodConfig { try? goodConfig.write(to: configURL) }
+
+        // Turned off with two synced keys unreadable: the marker lists those two alone; Remove… on this Mac takes one
+        // off the list, and the retry copies back the other alone (a key changed in iCloud Keychain since isn't).
+        unreadable.withLock { $0 = ["mistral", "perplexity"] }
+        edit { $0.keys = false }
+        sync.applyKeySync()
+        check(!stores.syncing && sync.keysSynced == .copyingBack(["mistral", "perplexity"]) && login.read("openai") == openAI,
+              "a copy-back that left two keys: the marker lists them (\(sync.keysSynced.map(\.text) ?? "none"))")
+        _ = stores.store.delete("mistral")
+        check(sync.keysSynced == .copyingBack(["perplexity"]), "Remove… with key sync off takes the account off the list")
+        let changed = "sk-selftest-changed-0007"
+        _ = syncedItems.write("openai", changed, "AllInOneIME: OpenAI-compatible API", "", APIKeys.ending(of: changed), Date())
+        unreadable.withLock { $0 = [] }
+        sync.applyKeySync()
+        check(sync.keysSynced == nil && login.read("perplexity") == late && login.attributes("mistral") == nil
+              && login.read("openai") == openAI,
+              "the retry copies back the account left alone: the removed key doesn't come back, nor another Mac's change")
+
         // A marker from an earlier build (empty) is done.
         try? Data().write(to: markerURL)
         check(sync.keysSynced == .done, "an empty marker (an earlier build's) counts as done")
