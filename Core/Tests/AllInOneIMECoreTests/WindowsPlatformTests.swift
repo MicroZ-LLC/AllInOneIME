@@ -268,8 +268,9 @@ struct WindowsPlatformTests {
     /// Whether this logon has a Credential Manager to write to: an SSH login with a key has none (error 1312,
     /// ERROR_NO_SUCH_LOGON_SESSION), a desktop one does.
     static let hasCredentialManager: Bool = {
+        // A folder of its own (never made: the key is short), as a store removes the files no credential names in its.
         let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests probe \(UUID().uuidString)",
-                                                       folder: FileManager.default.temporaryDirectory)
+                                                       folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         guard store.write("probe", "probe", "", "", nil) == .ok else { return false }
         _ = store.delete("probe")
         return true
@@ -314,6 +315,53 @@ struct WindowsPlatformTests {
         #expect(store.delete(account) == .notFound && store.setComment(account, "x") == .notFound)
         #expect(store.attributes(account) == nil && store.read(account) == nil)
         #expect(store.message(Int32(ERROR_NOT_FOUND))?.isEmpty == false)
+    }
+
+    /// A long key's file that no credential names any more is removed after the next change once it is a minute old
+    /// (a younger one may be another process's write); the one a credential names, and other files, stay.
+    @Test(.enabled(if: hasCredentialManager, "no Credential Manager in this logon session (an SSH login with a key)"))
+    func secretFilesNoCredentialNamesAreRemoved() throws {
+        let folder = try Folder()
+        let secrets = folder.url.appendingPathComponent("Secrets", isDirectory: true)
+        let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests \(UUID().uuidString)", folder: secrets)
+        defer { _ = store.delete("long"); _ = store.delete("short") }
+        let long = "sk-" + String(repeating: "0123456789", count: 300)
+        #expect(store.write("long", long, "AllInOneIME: Test", "", nil) == .ok)
+        let named = try #require(try FileManager.default.contentsOfDirectory(atPath: secrets.path).first)
+        let hourAgo = Date().addingTimeInterval(-3600)
+        let orphan = "\(UUID().uuidString).secret", young = "\(UUID().uuidString).secret"
+        for (name, old) in [(orphan, true), (young, false), ("notes.txt", true), (named, true)] {
+            let url = secrets.appendingPathComponent(name)
+            if name != named { try Data("x".utf8).write(to: url) }
+            if old { try FileManager.default.setAttributes([.modificationDate: hourAgo], ofItemAtPath: url.path) }
+        }
+        #expect(store.write("short", "sk-short-key", "AllInOneIME: Test", "", nil) == .ok)
+        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: secrets.path)) == [named, young, "notes.txt"])
+        #expect(store.read("long") == long)
+    }
+
+    /// Error 1312 (ERROR_NO_SUCH_LOGON_SESSION), which a sign-in without a Credential Manager gets (over SSH with a key),
+    /// is said in words that say so; here, without one, a write fails with it.
+    @Test func noCredentialManagerIsSaidPlainly() {
+        let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests \(UUID().uuidString)",
+                                                       folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let message = store.message(Int32(ERROR_NO_SUCH_LOGON_SESSION)) ?? ""
+        #expect(message.contains("Credential Manager") && message.contains("SSH"), "\(message)")
+        if !Self.hasCredentialManager {
+            #expect(store.write("probe", "probe", "", "", nil) == .failed(Int32(ERROR_NO_SUCH_LOGON_SESSION)))
+        }
+    }
+
+    /// A credential's label and comment are cut to fit between two characters, never inside one.
+    @Test func credentialTextsAreCutBetweenCharacters() {
+        let a = String(repeating: "a", count: 255)
+        #expect(CredentialText.prefix(a + "中", utf8: 256) == a)
+        #expect(CredentialText.prefix(a + "e\u{301}", utf8: 256) == a)
+        #expect(CredentialText.prefix("中文标签", utf8: 7) == "中文")
+        let b = String(repeating: "b", count: 254)
+        #expect(CredentialText.prefix(b + "👍🏽", utf16: 255) == b)
+        #expect(CredentialText.prefix(b + "x", utf16: 255) == b + "x")
+        #expect(CredentialText.prefix("short", utf8: 256) == "short")
     }
 
     // MARK: Recycle Bin
