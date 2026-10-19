@@ -2,6 +2,11 @@ import AllInOneIMECore
 @testable import AllInOneIMEWire
 import Foundation
 
+extension WirePeer {
+    /// A desktop app's client as the pipe finds it: medium integrity, not in an AppContainer (§8).
+    static let trustedClient = WirePeer(integrity: .medium)
+}
+
 /// A queue that runs its work only when told (`drain`, or `sync`, which runs what is queued first): the goldens'
 /// task runner, run until idle after each step.
 final class ManualQueue: WireQueue, @unchecked Sendable {

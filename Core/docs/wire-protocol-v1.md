@@ -680,6 +680,9 @@ given and sends back what the user did. It opens no sessions.
   characters (`status`: "✓ Saved · ends in a1b2", "✓ From $OPENAI_API_KEY"), as the Mac's window shows it. It is kept
   in the Credential Manager (Windows), tied to the host of the provider's base URL as it is when saved.
 - **Only trusted clients** (§12.1). A low-integrity or AppContainer process can't read or change the settings.
+- **Trust is the transport's to state.** A connection is `untrusted` unless its transport found otherwise: the pipe
+  reads the client's token (§2.1) and says its integrity and AppContainer flag; a transport added later that checks
+  nothing (`WirePeer`'s default) gives no client the settings, nor what runs and sends (§8).
 - **Logs:** the field and the action's name, never a value.
 - **Limits:** `field` and `action` ≤ 256 units (over: `badMessage`); the frame limit (64 KiB, §2.2) bounds the rest.
 

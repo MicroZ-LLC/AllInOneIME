@@ -10,7 +10,7 @@ struct WireSettingsTests {
     func json<T: Encodable>(_ value: T) throws -> String { String(decoding: try WireJSON.encode(value), as: UTF8.self) }
 
     /// An engine with the test's settings, and a client connected as `peer` that said hello with `capabilities`.
-    func engine(_ config: String = #"{"provider": "anthropic"}"#, peer: WirePeer = WirePeer(),
+    func engine(_ config: String = #"{"provider": "anthropic"}"#, peer: WirePeer = WirePeer.trustedClient,
                 capabilities: [String] = [Hello.settings]) -> (TestEngine, ConnectionID, Welcome?) {
         let engine = TestEngine()
         #expect(engine.server.useTestSettings(config: config))
@@ -26,15 +26,20 @@ struct WireSettingsTests {
         let (_, _, welcome) = engine()
         #expect(welcome?.capabilities == [Hello.settings])
         // Low integrity, or an AppContainer: not the settings (§8), though it asked.
-        for peer in [WirePeer(integrity: .low), WirePeer(appContainer: true)] {
+        for peer in [WirePeer(integrity: .low), WirePeer(integrity: .medium, appContainer: true)] {
             let (engine, id, welcome) = self.engine(peer: peer)
             #expect(welcome?.capabilities == [])
             let answer = engine.send(ClientFrame(id: 2, .settingsGet), on: id)
             #expect(answer.map(\.message) == [.error(re: 2, code: .notAllowed, message: "the settings are for a trusted client only")])
         }
+        // A peer the transport said nothing about: untrusted.
+        let (unchecked, uncheckedID, uncheckedWelcome) = engine(peer: WirePeer())
+        #expect(!WirePeer().trusted && uncheckedWelcome?.capabilities == [])
+        #expect(unchecked.send(ClientFrame(id: 2, .settingsGet), on: uncheckedID).map(\.message)
+                == [.error(re: 2, code: .notAllowed, message: "the settings are for a trusted client only")])
         // An engine without settings: none; asked for anyway, not allowed.
         let bare = TestEngine()
-        let id = bare.server.connect(WirePeer())!
+        let id = bare.server.connect(WirePeer.trustedClient)!
         let welcomed = bare.send(ClientFrame(id: 1, .hello(Hello(client: "settings/test", capabilities: [Hello.settings]))), on: id)
         guard case let .welcome(_, welcome)? = welcomed.first?.message else { Issue.record("no welcome"); return }
         #expect(welcome.capabilities == [])
@@ -113,9 +118,9 @@ struct WireSettingsTests {
     /// Every client that has the settings hears of a change, the one that made it too (after its answer).
     @Test func everySettingsClientIsTold() throws {
         let (engine, first, _) = engine()
-        let second = engine.server.connect(WirePeer())!
+        let second = engine.server.connect(WirePeer.trustedClient)!
         _ = engine.send(ClientFrame(id: 1, .hello(Hello(client: "settings/other", capabilities: [Hello.settings]))), on: second)
-        let typing = engine.server.connect(WirePeer())!
+        let typing = engine.server.connect(WirePeer.trustedClient)!
         _ = engine.send(ClientFrame(id: 1, .hello(Hello(client: "tip/test"))), on: typing)
         let answers = engine.send(ClientFrame(id: 2, .settingsSet(field: "typeOut", value: .bool(true))), on: first)
         guard case let .settings(re, answer) = answers.first?.message else { Issue.record("no answer"); return }
@@ -124,6 +129,53 @@ struct WireSettingsTests {
         let told = engine.takePushes(for: second).map { try! WireJSON.decode(EngineFrame.self, from: $0).message }
         #expect(told == [.settingsChanged(revision: answer.revision)])
         #expect(engine.takePushes(for: typing).isEmpty)
+    }
+
+    /// Settings windows and the engine's own check of the file at once, on real queues as the engine runs them: every
+    /// change is answered, the revision counts each once, and each window is told of the changes in order (never an
+    /// older revision after a newer one), the last one too.
+    @Test func manyWindowsAtOnce() throws {
+        let server = WireServer(environment: WireEnvironment(host: TestHost()))
+        #expect(server.useTestSettings(config: #"{"provider": "anthropic"}"#))
+        let service = try #require(server.settings)
+        let pushes = Locked<[ConnectionID: [EngineMessage]]>(initialState: [:])
+        server.push = { id, data in
+            let message = try! WireJSON.decode(EngineFrame.self, from: data).message
+            pushes.withLock { $0[id, default: []].append(message) }
+        }
+        let windows = 8, changes = 4
+        let ids = Locked<[ConnectionID]>(initialState: [])
+        let answers = Locked<[EngineMessage]>(initialState: [])
+        DispatchQueue.concurrentPerform(iterations: windows) { window in
+            guard let id = server.connect(.trustedClient) else { return }
+            ids.withLock { $0.append(id) }
+            func send(_ frame: ClientFrame) -> [EngineMessage] {
+                server.receive(try! WireJSON.encode(frame), on: id).map { try! WireJSON.decode(EngineFrame.self, from: $0).message }
+            }
+            _ = send(ClientFrame(id: 1, .hello(Hello(client: "settings/\(window)", capabilities: [Hello.settings]))))
+            for change in 0..<changes {
+                // A value of its own each: 200, 300 … 3300.
+                let tokens = 200 + 100 * Double(window * changes + change)
+                let answer = send(ClientFrame(id: UInt32(2 + 2 * change), .settingsSet(field: "maxTokens", value: .number(tokens))))
+                answers.withLock { $0 += answer }
+                _ = send(ClientFrame(id: UInt32(3 + 2 * change), .settingsGet))
+                service.checkForChanges()
+            }
+        }
+        let connected = ids.withLock { $0 }
+        #expect(connected.count == windows)
+        if let any = connected.first { server.perform("idle", on: any) }
+        let settings = answers.withLock { $0 }.compactMap { message -> SettingsAnswer? in
+            if case let .settings(_, answer) = message { return answer } else { return nil }
+        }
+        #expect(settings.count == windows * changes && settings.allSatisfy { $0.problem == nil })
+        #expect(service.revision == 1 + UInt64(windows * changes))
+        for id in connected {
+            let told = pushes.withLock { $0[id] ?? [] }.compactMap { message -> UInt64? in
+                if case let .settingsChanged(revision) = message { return revision } else { return nil }
+            }
+            #expect(told == told.sorted() && Set(told).count == told.count && told.last == service.revision, "\(told)")
+        }
     }
 
     /// The file changed by something else (allinoneime-cli, an editor): the engine's check finds it, and the clients

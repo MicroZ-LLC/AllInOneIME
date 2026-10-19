@@ -41,10 +41,12 @@ public struct WirePeer: Equatable, Sendable {
     public var process: String?
     /// "win:<exe>" or "win:<AUMID>", worked out by the engine: overrides the client's `field.app`.
     public var app: String?
+    /// What the transport found (the pipe: the client's token). Untrusted unless it says otherwise: a transport that
+    /// doesn't check gives no client the settings (§12) or what runs and sends (§8).
     public var integrity: Integrity
     public var appContainer: Bool
 
-    public init(pid: UInt32? = nil, process: String? = nil, app: String? = nil, integrity: Integrity = .medium,
+    public init(pid: UInt32? = nil, process: String? = nil, app: String? = nil, integrity: Integrity = .untrusted,
                 appContainer: Bool = false) {
         self.pid = pid
         self.process = process

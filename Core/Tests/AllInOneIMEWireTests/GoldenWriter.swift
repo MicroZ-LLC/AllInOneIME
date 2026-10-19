@@ -107,7 +107,7 @@ final class GoldenWriter {
         lines += header.map { "# " + $0 }
         if let fixture { lines.append("#! provider \(fixture)") }
         lines.append("#! inputLanguage \(inputLanguage)")
-        connection = engine.server.connect(WirePeer())
+        connection = engine.server.connect(WirePeer.trustedClient)
     }
 
     var text: String { lines.joined(separator: "\n") + "\n" }
@@ -176,7 +176,7 @@ final class GoldenWriter {
         lines.append("#! " + text)
         switch text {
         case "connect":
-            connection = engine.server.connect(WirePeer())
+            connection = engine.server.connect(WirePeer.trustedClient)
             nextID = 1
         case "disconnect":
             engine.server.disconnect(connection!)

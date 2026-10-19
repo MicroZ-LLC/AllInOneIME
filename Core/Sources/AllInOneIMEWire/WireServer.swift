@@ -91,8 +91,8 @@ public final class WireServer: @unchecked Sendable {
     public var settings: SettingsService? {
         get { lock.guarded { settingsService } }
         set {
-            lock.guarded { settingsService = newValue }
             newValue?.changed = { [weak self] revision in self?.settingsChanged(revision) }
+            lock.guarded { settingsService = newValue }
         }
     }
 
@@ -677,7 +677,8 @@ final class SessionRecord {
     init(field: FieldInfo) { self.field = field }
 }
 
-/// One client connection. Its state is only touched on its queue (`isOpen` also from the transport's thread).
+/// One client connection. Its state is only touched on its queue (`isOpen` also from the transport's thread, `settings`
+/// from any).
 final class Connection: @unchecked Sendable {
     let id: ConnectionID
     let peer: WirePeer
@@ -685,8 +686,12 @@ final class Connection: @unchecked Sendable {
     /// The version agreed in `hello`; nil before it.
     var version: Int?
     var capabilities: Set<String> = []
-    /// It has the settings (§12): it asked for them, may have them, and the engine has some.
-    var settings = false
+    /// It has the settings (§12): it asked for them, may have them, and the engine has some. Set on its queue (`hello`),
+    /// read on any thread (a change's notice, from the thread that made it).
+    var settings: Bool {
+        get { lock.guarded { hasSettings } }
+        set { lock.guarded { hasSettings = newValue } }
+    }
     var sessions: [UInt32: SessionRecord] = [:]
     var focused: UInt32?
     /// When the keys of the last second came.
@@ -699,6 +704,7 @@ final class Connection: @unchecked Sendable {
     private var lastID: UInt32 = 0
     private let lock = NSLock()
     private var open = true
+    private var hasSettings = false
 
     init(id: ConnectionID, peer: WirePeer, queue: WireQueue) {
         self.id = id

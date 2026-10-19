@@ -49,7 +49,7 @@ struct GoldenReplayer {
     func run() throws {
         let (fixture, language) = try Self.setup(transcript, directory: directory)
         let engine = TestEngine(fixture: fixture, inputLanguage: language, configure: configure)
-        var connection = engine.server.connect(WirePeer())
+        var connection = engine.server.connect(WirePeer.trustedClient)
         var pending: [(data: Data, after: Int)] = []
         var lastLine = 0
 
@@ -87,7 +87,7 @@ struct GoldenReplayer {
                     }
                 case "connect":
                     try unexpected(line)
-                    connection = engine.server.connect(WirePeer())
+                    connection = engine.server.connect(WirePeer.trustedClient)
                 case "disconnect":
                     try unexpected(line)
                     if let id = connection { engine.server.disconnect(id) }

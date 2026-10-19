@@ -8,7 +8,8 @@ import FoundationNetworking
 /// plugin installed or removed, a command saved or deleted), and a revision that moves with each change, here or in the
 /// file (`changed`). Everything goes through a `SettingsStore`: the same rules as the Mac's window.
 ///
-/// Safe from any thread: the store is only touched under a lock. A test, a download or an install runs outside it.
+/// Safe from any thread: the store is only touched under a lock, and so are the hooks (`changed`, …), which may be set
+/// while it is in use. A test, a download or an install runs outside it.
 public final class SettingsService: @unchecked Sendable {
     public let platform: SettingsPlatform
     private let store: SettingsStore
@@ -25,16 +26,45 @@ public final class SettingsService: @unchecked Sendable {
     private let secrets: APIKeys.Keychain?
 
     /// Called after each change (here, or found in the file by `checkForChanges`), with the new revision, on the thread
-    /// that made it, outside the lock. Set before the service is used.
-    public var changed: @Sendable (UInt64) -> Void = { _ in }
+    /// that made it, outside the lock; one at a time, the revisions in order (one passed by a later one is left out).
+    public var changed: @Sendable (UInt64) -> Void {
+        get { hooks.withLock { $0.changed } }
+        set { hooks.withLock { $0.changed = newValue } }
+    }
     /// Where a provider's key comes from (`APIKeys.source`: the secret store, else the environment).
-    public var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
+    public var keySource: @Sendable (Provider) -> APIKeys.Source {
+        get { hooks.withLock { $0.keySource } }
+        set { hooks.withLock { $0.keySource = newValue } }
+    }
     /// After a plugin is installed or removed: the shell's command lists pick it up.
-    public var pluginsChanged: @Sendable () -> Void = {}
+    public var pluginsChanged: @Sendable () -> Void {
+        get { hooks.withLock { $0.pluginsChanged } }
+        set { hooks.withLock { $0.pluginsChanged = newValue } }
+    }
     /// Bedrock's credentials for Test Connection, fetched again through the profile's whole chain.
-    public var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
+    public var loadCredentials: Converter.CredentialLoader {
+        get { hooks.withLock { $0.loadCredentials } }
+        set { hooks.withLock { $0.loadCredentials = newValue } }
+    }
     /// The Notion link's Test.
-    public var notionSession: URLSession = NotionAPI.session
+    public var notionSession: URLSession {
+        get { hooks.withLock { $0.notionSession } }
+        set { hooks.withLock { $0.notionSession = newValue } }
+    }
+
+    /// What the owner hooks in, and the last revision `changed` was called with.
+    private struct Hooks {
+        var changed: @Sendable (UInt64) -> Void = { _ in }
+        var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
+        var pluginsChanged: @Sendable () -> Void = {}
+        var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
+        var notionSession: URLSession = NotionAPI.session
+        var notified: UInt64 = 1
+    }
+
+    private let hooks = Locked(initialState: Hooks())
+    /// Held while `changed` is called: one call at a time, in the order of the revisions.
+    private let notifying = NSLock()
 
     public init(store: SettingsStore, platform: SettingsPlatform, library: PluginLibrary = PluginLibrary(),
                 secrets: APIKeys.Keychain? = nil) {
@@ -198,8 +228,20 @@ public final class SettingsService: @unchecked Sendable {
             let result = body()
             return (result, before, revisionValue)
         }
-        if after != before { changed(after) }
+        if after != before { notify(after) }
         return result
+    }
+
+    /// `changed(revision)`, unless a later revision was told already (two threads' changes: the later one's covers both).
+    private func notify(_ revision: UInt64) {
+        notifying.lock()
+        defer { notifying.unlock() }
+        let changed = hooks.withLock { hooks -> (@Sendable (UInt64) -> Void)? in
+            guard revision > hooks.notified else { return nil }
+            hooks.notified = revision
+            return hooks.changed
+        }
+        changed?(revision)
     }
 
     // MARK: Actions

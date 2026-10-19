@@ -15,7 +15,7 @@ struct ComposerSessionTests {
         var t: UInt64 = 1000
 
         init() {
-            connection = engine.server.connect(WirePeer())!
+            connection = engine.server.connect(WirePeer.trustedClient)!
             send(.hello(Hello(client: "test", capabilities: ["allowForeground"])))
             send(.open(sid: 1, field: GoldenWriter.notepad))
             send(.focus(sid: 1, focus: 1, field: nil))

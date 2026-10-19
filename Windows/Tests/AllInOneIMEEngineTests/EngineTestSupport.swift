@@ -191,7 +191,7 @@ final class EngineClient: @unchecked Sendable {
         let box = queues
         let environment = WireEnvironment(host: host, makeQueue: { _ in box.make() }, makeComposer: { host.makeComposer($0, $1) })
         server = WireServer(environment: environment)
-        connection = server.connect(WirePeer(pid: GetCurrentProcessId()))!
+        connection = server.connect(WirePeer(pid: GetCurrentProcessId(), integrity: .medium))!
         server.push = { [weak self] _, data in
             guard let self else { return }
             self.lock.lock()
