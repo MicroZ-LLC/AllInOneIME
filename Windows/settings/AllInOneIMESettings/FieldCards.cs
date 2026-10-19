@@ -42,6 +42,8 @@ public abstract class FieldCard
     public Field Field { get; private set; }
     protected CardContext Context { get; private set; }
     public FrameworkElement Root { get; private set; } = null!;
+    /// <summary>The grid the card's texts and control are in.</summary>
+    protected Grid Layout { get; } = new() { ColumnSpacing = 16, RowSpacing = 8 };
     protected bool Enabled => FieldPresenter.IsEnabled(Field, Context.Document);
 
     public static FieldCard Create(Field field, CardContext context) => FieldPresenter.ControlFor(field) switch
@@ -129,7 +131,7 @@ public abstract class FieldCard
         texts.Children.Add(help);
         texts.Children.Add(status);
         texts.Children.Add(problem);
-        var grid = new Grid { ColumnSpacing = 16, RowSpacing = 8 };
+        var grid = Layout;
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -154,7 +156,7 @@ public abstract class FieldCard
         ShowProblem(null);
     }
 
-    void ShowTexts()
+    protected void ShowTexts()
     {
         label.Text = Field.Label;
         help.Text = Field.Help ?? "";
@@ -199,14 +201,11 @@ sealed class ToggleCard : FieldCard
     readonly ToggleSwitch toggle = new() { OnContent = "", OffContent = "", MinWidth = 0 };
     bool updating;
 
-    /// <summary>The switch alone, for a list's entry that is nothing else (its card isn't shown).</summary>
-    public ToggleSwitch Switch
+    /// <summary>The switch alone, out of its card, for a list's entry that is nothing else (the card isn't shown).</summary>
+    public ToggleSwitch TakeSwitch()
     {
-        get
-        {
-            ((Panel)toggle.Parent).Children.Remove(toggle);
-            return toggle;
-        }
+        Layout.Children.Remove(toggle);
+        return toggle;
     }
 
     public ToggleCard(Field field, CardContext context) : base(field, context)
@@ -691,6 +690,7 @@ sealed class ButtonCard : FieldCard
     {
         busy = on;
         Update(Field);
+        ShowTexts();
     }
 
     protected override string? StatusText() => busy ? Context.Text["working"] : base.StatusText();

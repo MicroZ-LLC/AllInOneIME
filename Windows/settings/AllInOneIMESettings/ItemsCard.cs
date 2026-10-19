@@ -80,7 +80,7 @@ sealed class ItemsCard : FieldCard
         {
             var card = (ToggleCard)Create(only, Context);
             nested[only.Id] = card;
-            actions.Children.Insert(0, card.Switch);
+            actions.Children.Insert(0, card.TakeSwitch());
         }
         if (item.Fields.Count == 0 || item.Fields is [{ Kind: "toggle" }])
         {

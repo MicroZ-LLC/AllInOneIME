@@ -15,6 +15,20 @@ static class Screenshots
 {
     public static async Task TakeAsync(MainWindow window, string folder, string theme)
     {
+        try
+        {
+            await DrawAsync(window, folder, theme);
+        }
+        catch (Exception error)
+        {
+            // Said in a file, so that the test fails with why rather than waiting.
+            File.WriteAllText(Path.Combine(folder, $"failed-{theme}.txt"), error.ToString());
+        }
+        Application.Current.Exit();
+    }
+
+    static async Task DrawAsync(MainWindow window, string folder, string theme)
+    {
         Directory.CreateDirectory(folder);
         await Task.Delay(500);
         var sections = window.Sections.ToList();
@@ -27,7 +41,6 @@ static class Screenshots
             await SaveAsync(window.PageElement, Path.Combine(folder, name + "-full.png"));
         }
         File.WriteAllText(Path.Combine(folder, $"done-{theme}.txt"), string.Join("\n", sections.Select(s => s.Id)));
-        Application.Current.Exit();
     }
 
     static async Task SaveAsync(UIElement element, string path)
