@@ -100,18 +100,22 @@ public struct WindowsProcessLauncher: ProcessLauncher {
         if !jobAtCreation { flags |= DWORD(CREATE_SUSPENDED) }
         var information = PROCESS_INFORMATION()
         var commandLine = Array(invocation.commandLine.utf16) + [0]
-        let created = invocation.application.withCString(encodedAs: UTF16.self) { application in
-            withOptionalWide(directory) { directory in
-                withUnsafeMutablePointer(to: &startup) { startup in
-                    startup.withMemoryRebound(to: STARTUPINFOW.self, capacity: 1) { startupInfo in
-                        if var environment {
-                            return environment.withUnsafeMutableBufferPointer {
-                                CreateProcessW(application, &commandLine, nil, nil, !inherited.isEmpty, flags, $0.baseAddress,
-                                               directory, startupInfo, &information)
+        // The list is only pointed to from `startup`: kept until CreateProcessW has read it (Swift may otherwise free it
+        // after its last use above, deleting the list on the way).
+        let created = withExtendedLifetime(attributes) {
+            invocation.application.withCString(encodedAs: UTF16.self) { application in
+                withOptionalWide(directory) { directory in
+                    withUnsafeMutablePointer(to: &startup) { startup in
+                        startup.withMemoryRebound(to: STARTUPINFOW.self, capacity: 1) { startupInfo in
+                            if var environment {
+                                return environment.withUnsafeMutableBufferPointer {
+                                    CreateProcessW(application, &commandLine, nil, nil, !inherited.isEmpty, flags, $0.baseAddress,
+                                                   directory, startupInfo, &information)
+                                }
                             }
+                            return CreateProcessW(application, &commandLine, nil, nil, !inherited.isEmpty, flags, nil, directory,
+                                                  startupInfo, &information)
                         }
-                        return CreateProcessW(application, &commandLine, nil, nil, !inherited.isEmpty, flags, nil, directory,
-                                              startupInfo, &information)
                     }
                 }
             }
