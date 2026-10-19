@@ -123,6 +123,18 @@ struct WindowsPlatformTests {
         #expect(line == #""tool.exe" "plain" "*""#)
     }
 
+    /// A Windows Script Host script gets its arguments, but none starting with "//": cscript would take it for its own
+    /// option, in quotes and after the script too ("//E:jscript" runs it as JScript).
+    @Test func windowsScriptsGetNoHostOptions() throws {
+        let folder = try Folder()
+        let vbs = try folder.file("args.vbs", "For Each a In WScript.Arguments\r\nWScript.Echo \"[\" & a & \"]\"\r\nNext\r\n")
+        let (output, status) = try run(vbs, ["a b", "x//y", "/c", "*"])
+        #expect(status == 0)
+        #expect(output == "[a b]\n[x//y]\n[/c]\n[*]\n")
+        #expect(throws: WindowsLaunchError.self) { try run(vbs, ["//E:jscript"]) }
+        #expect(throws: WindowsLaunchError.self) { try run(vbs, ["a", "//T:1"]) }
+    }
+
     // MARK: Stopping
 
     /// `terminate` ends what the program started too: a batch file's child, which would write a file 2 s later, doesn't.

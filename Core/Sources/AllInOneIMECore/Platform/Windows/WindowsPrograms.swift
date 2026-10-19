@@ -182,6 +182,11 @@ enum WindowsPrograms {
         case .python:
             return try standard(try python(file, words: [], environment: environment) + arguments)
         case .windowsScript:
+            // cscript takes a "//" word anywhere on its line for its own option, in quotes and after the script too
+            // ("//E:jscript" runs it as another language, "//T:1" stops it, "//X" debugs it): none is the script's.
+            guard !arguments.contains(where: { $0.hasPrefix("//") }) else {
+                throw WindowsLaunchError.invalidArgument("an argument starting with // to a Windows Script Host script (cscript's own options)")
+            }
             return try standard([systemProgram("cscript.exe"), "//NoLogo", path] + arguments)
         case .shell:
             return try standard(try bash(file, words: [], environment: environment) + arguments)
@@ -349,8 +354,9 @@ public enum WindowsLaunchError: Error, LocalizedError, Equatable {
     case notRunnable(String)
     /// The interpreter the script needs isn't installed ("Git Bash", "Python", or what its "#!" line names).
     case interpreterNotFound(script: String, interpreter: String)
-    /// An argument or a variable that can't be passed: one with a NUL character, or a line break in one for a batch
-    /// file (cmd.exe would cut the command there: `WindowsCommandLine.batch`).
+    /// An argument or a variable that can't be passed: one with a NUL character, a line break in one for a batch
+    /// file (cmd.exe would cut the command there: `WindowsCommandLine.batch`), or one starting with "//" for a Windows
+    /// Script Host script (cscript's options).
     case invalidArgument(String)
     /// A Windows call failed: its name and the error it gave.
     case system(String, UInt32)
