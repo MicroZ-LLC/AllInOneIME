@@ -15,7 +15,9 @@ public protocol KeyValueStore: Sendable {
     func removeValue(forKey key: String)
 }
 
-/// Values kept in memory only, for as long as the process runs: the neutral stand-in, and the tests'.
+/// Values kept in memory only, for as long as the process runs: the neutral stand-in, and the tests'. A value read as
+/// another type reads as `UserDefaults` reads it: a Boolean as the string "1" or "0", a string as true when it is
+/// "true" or "yes" (in any case) or "1", data as no string and no Boolean, and no string as data.
 public final class MemoryKeyValueStore: KeyValueStore {
     private enum Value {
         case data(Data), string(String), bool(Bool)
@@ -31,13 +33,19 @@ public final class MemoryKeyValueStore: KeyValueStore {
     }
 
     public func string(forKey key: String) -> String? {
-        if case let .string(string)? = values.withLock({ $0[key] }) { return string }
-        return nil
+        switch values.withLock({ $0[key] }) {
+        case let .string(string)?: return string
+        case let .bool(bool)?: return bool ? "1" : "0"
+        case .data?, nil: return nil
+        }
     }
 
     public func bool(forKey key: String) -> Bool {
-        if case let .bool(bool)? = values.withLock({ $0[key] }) { return bool }
-        return false
+        switch values.withLock({ $0[key] }) {
+        case let .bool(bool)?: return bool
+        case let .string(string)?: return ["true", "yes"].contains(string.lowercased()) || string == "1"
+        case .data?, nil: return false
+        }
     }
 
     public func set(_ data: Data, forKey key: String) { values.withLock { $0[key] = .data(data) } }

@@ -219,10 +219,12 @@ public enum WebSearch {
 
     /// `search` as a stream, like the other commands' results: one final update with the text for
     /// `output`. The key comes from `loadKey` (default: `loadKey(_:)` for `backend`), asked in the
-    /// stream's own task; without one nothing is sent.
+    /// stream's own task; without one nothing is sent. `now` by default is the clock of the platform in use where the
+    /// stream is made (`Platform.current`, read then: the stream's task doesn't see a test's `Platform.$override`).
     public static func stream(_ query: String, output: Output, backend: any SearchBackend = WebSearch.backend,
                               loadKey: (@Sendable () -> String?)? = nil, session: URLSession = WebSearch.session,
-                              now: @escaping @Sendable () -> Date = { Platform.current.clock.now }) -> AsyncThrowingStream<ConversionUpdate, Error> {
+                              now: @escaping @Sendable () -> Date = { [clock = Platform.current.clock] in clock.now })
+        -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 let started = Date()

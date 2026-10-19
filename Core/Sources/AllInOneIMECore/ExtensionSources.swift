@@ -771,8 +771,11 @@ public struct ExtensionSourceManager: Sendable {
     /// Moves a removed source's clone away: to the Trash where there is one (`FileOps.trash`; tests delete it instead).
     public var trashItem: @Sendable (URL) throws -> Void
 
-    public init(root: URL = ExtensionSources.directory, git: any GitRunning, now: @escaping @Sendable () -> Date = { Platform.current.clock.now },
-                trashItem: @escaping @Sendable (URL) throws -> Void = { try Platform.current.files.trash($0) }) {
+    /// `now` and `trashItem` by default are the clock and the files of the platform in use where it's made
+    /// (`Platform.current`, read then: work on another queue doesn't see a test's `Platform.$override`).
+    public init(root: URL = ExtensionSources.directory, git: any GitRunning,
+                now: @escaping @Sendable () -> Date = { [clock = Platform.current.clock] in clock.now },
+                trashItem: @escaping @Sendable (URL) throws -> Void = { [files = Platform.current.files] in try files.trash($0) }) {
         self.root = root
         self.git = git
         self.now = now
