@@ -214,7 +214,7 @@ tiptest focus-resent          PASS  10/10 frames, "Hi."
 the session's input method    as it was
 ```
 
-## End to end (M3–M7): the real engine and DLL, into a real edit control and real Notepad
+## End to end (M3–M7): the real engine and DLL, into a real edit control, real Notepad, a console and a WebView2
 
 `bash test/run-e2e.sh` runs the whole real stack in the logged-on session (a scheduled task, as the other tests): it
 registers the DLL, and the driver (`e2edriver`) starts the real engine in that session (test mode, the scripted
@@ -246,6 +246,23 @@ window. The engine runs in the session (not over SSH), so it and the DLL pass §
   Claude API at `Windows/Scripts/stub-provider.py`, which the script starts on localhost (never a paid API), with its key
   from the environment (`--no-keychain`: the user's Credential Manager isn't read). Except with the scripted provider,
   the engine gets a librime user folder of the run's own, so what a test types isn't learned in the user's.
+- **A classic console (`--console`):** `conhost.exe cmd.exe /d /k prompt AIO$G`, started by the driver (a classic
+  console whatever the default terminal is). TSF runs in the conhost that draws the window, while the window says it is
+  cmd's: the driver finds conhost's thread that made it (`EnumThreadWindows`), injects the hook there, types the scenario
+  at cmd's prompt only while that window is in front, and reads what the console shows through `AttachConsole` (the
+  prompt line, "AIO>你好你好" for `--pinyin`; nothing is ever run, there is no Return). Then it closes the console.
+- **A WebView2 (`--webview2`):** `test/webview2host`, a WinForms window with a WebView2 in it, as the new Outlook and
+  Teams are (`run-e2e.sh` builds it with `dotnet build`, which needs the .NET SDK, from the NuGet cache; it runs on the
+  WebView2 runtime), its data in the run's folder. TSF runs in msedgewebview2.exe, whose window
+  (`Chrome_RenderWidgetHostHWND`) is inside the host's: the hook goes into that process, the keys go only while the
+  host's window is in front, and the field's text comes back through a file the page writes. Then it closes the host.
+- **`--terminal`:** "@aioterm hello", Return in the driver's `EDIT` control, `aioterm` being a `terminal` command of the
+  run's settings (a batch file that prints what it gets and ends with exit code 3). The engine's console window (its
+  own process, `--run-in-console`, found as a child of the engine) must come to the front (Windows Terminal's window
+  here, the default terminal), show the output and "exited with code 3", stay open after the program, and close on a
+  key the driver writes into that console's input (`WriteConsoleInputW`: never a key anywhere else).
+- **`--engine EXE`** (with `--installed`): a build's engine instead of the installed one, with the installed DLL as it
+  is registered, to try an engine before it is packaged.
 - **The candidate window (M6):** for all but `--plain`, the driver finds the engine's window by its class
   (`AllInOneIME.CandidateWindow`) in the engine's process and checks it is up while the candidates or the results are, a
   layered, no-activate, topmost tool window, that the target kept the foreground, and (pinyin) that it went with the

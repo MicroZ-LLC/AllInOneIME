@@ -22,11 +22,18 @@ The settings window comes next.
 Scripts/build-rime-data.sh                    # in Git Bash: librime and rime-ice's data, in ThirdParty (once)
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
 swift run allinoneime-cli --help
-swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (59)
+swift test                                    # the pipe's security (2), the Rime tests (24), the engine's (71)
 ```
 
 The engine and the command line link librime (`rime.lib`, `Scripts/fetch-librime.sh`); the engine finds `rime.dll`
-and rime-ice's data in `ThirdParty` when built here, and beside itself when installed (in Program Files), only there.
+and rime-ice's data in `ThirdParty` when built here (in `.build`), and any other copy beside itself only: the installed
+one (in the folder the MSI wrote down, `HKLM\Software\AllInOneIME` `InstallDir`, wherever it was installed), or one
+copied anywhere.
+
+One of the engine's tests, the system caret's mapping in an app that isn't DPI aware, runs only on a monitor that isn't
+at 100% (skipped over SSH, whose desktop is): `tip/test/run-in-session.sh` runs `swift test` in the desktop session.
+(Run that way, `swift test` makes `.build\debug` again as the user, a link an elevated shell then won't follow:
+`rmdir .build\debug` and build again there.)
 
 The core builds and its tests build here too: `swift build --build-tests` in `../Core`, and `swift test --filter
 AllInOneIMEWireTests` runs the protocol's goldens in process.
@@ -47,10 +54,13 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   row, or one under the other with `"candidateLayout": "vertical"`), the highlight, the command list after "@", level
   two's results as they stream in, a hint, an error, the footer with the keys and a notice beside it. It never takes the
   focus; a click on a row picks it. It hides when the field loses the focus or another app takes the foreground. It is
-  drawn, and its notices shown, only for the app in front (the app whose process owns the foreground window; for a UWP
-  app, the frame around its window), and only inside that app's window: a caret the DLL reports in a window of another
-  process is ignored, one outside the app's window is cut to it (§8: a background or sandboxed app can't put it, with
-  its own text, over another app). Another field's notice never replaces the panel of the field being typed in.
+  drawn, and its notices shown, only for the app in front, and only inside that app's window: a caret the DLL reports in
+  a window of another process is ignored, one outside the app's window is cut to it (§8: a background or sandboxed app
+  can't put it, with its own text, over another app). Another field's notice never replaces the panel of the field
+  being typed in. The app in front is the process whose window is the foreground window, or whose window has the focus
+  in it or is inside it: a classic console's conhost.exe (TSF runs there, while the console's window says it is
+  cmd.exe's or powershell.exe's: a thread of that conhost made it), a WebView2's msedgewebview2.exe (the new Outlook,
+  Teams), a UWP app in ApplicationFrameHost's frame.
 - **AI (M7).** `@improve`, `@translate`, `@question`, a custom prompt command, a refine (type, then Shift+Enter) go to
   the provider `config.json` names, through the core's `Converter` and providers, the key from the Credential Manager.
   A new install is on AllInOneIME Cloud, the Mac's default for a new user (`Config.fresh`), which needs a sign-in that
@@ -65,14 +75,22 @@ In every app that loads TSF text services (the classic Win32 ones, and WinUI one
   when `config.json` says so. `@settings` opens the folder of `config.json`.
 - **A console window (`@agent`, `@question`'s hand-off, a `terminal` command)** starts the program itself, in the home
   folder, with no shell in between, so nothing in a prompt is ever run: the program as cmd.exe finds it (on the PATH,
-  PATHEXT's extensions added, never the current folder), a .exe with its arguments quoted for the C runtime, a .bat or
-  .cmd (npm's `claude.cmd`) through cmd.exe with its arguments escaped (BatBadBut), and the agent's prompt its last
-  argument (after `--`). A prompt the command line can't carry (over 32,766 characters, over cmd.exe's 8,191, or with a
-  line break for a batch file) goes in a file in `%TEMP%\AllInOneIME` (`agent-prompt-*.txt`, gone after a day), and the
-  agent is told to read it. The window closes when the program ends.
-- **Off the keys' way.** Opening, the console windows and the clipboard run on a thread of the engine's own (a COM
-  apartment with a message loop, whose message-only window owns what the engine copies), never on a field's queue:
-  a key is answered before they happen (§5.4), and a path on a share that is offline doesn't stop the engine.
+  PATHEXT's extensions added, never the current folder; a relative path is the home folder's), a .exe with its
+  arguments quoted for the C runtime, a .bat or .cmd (npm's `claude.cmd`) through cmd.exe with its arguments escaped
+  (BatBadBut), and the agent's prompt its last argument (after `--`). A prompt the command line can't carry (over
+  32,766 characters, over cmd.exe's 8,191, or with a line break for a batch file) goes in a file in
+  `%TEMP%\AllInOneIME` (`agent-prompt-*.txt`), and the agent is told to read it; the file goes once the program has
+  ended (held open until then, so nothing deletes it), or, if its console didn't get to delete it, as the engine next
+  starts. **The window stays open after the program,** as the Mac's Terminal keeps it: the console is the engine's
+  own process (`--run-in-console`), which starts the program in it with the same command line, then says how it
+  ended ("[git exited with code 1] Press any key to close this window.", in Chinese when Windows is) and waits for a
+  key. It is a window or tab of the default terminal (Windows Terminal, or the classic console), and comes to the
+  front: the right to take the foreground the app gave the engine goes on to the console's process, which passes it
+  to the window that shows it (conhost's, or Windows Terminal's).
+- **Off the keys' way.** Opening and the console windows run on a thread of the engine's own, the clipboard on another
+  (each a COM apartment with a message loop), never on a field's queue: a key is answered before they happen (§5.4), a
+  path on a share that is offline doesn't stop the engine, and the clipboard never waits on the shell: its thread's
+  message-only window owns what the engine copies, and another app's Ctrl+C waits for it to answer.
 
 ## Settings: a provider and its key
 
@@ -183,7 +201,12 @@ Pinyin, and English (US) with no keyboard), the M5–M7 package: **57 passed, 0 
 Run again on 2026-10-19 after the review's fixes (the console window without PowerShell, the system thread, the panel
 for the app in front only, librime from beside the installed engine only): **57 passed, 0 failed, 1 warning**, the
 same warning. The e2e driver's own window put the session's input method on AllInOneIME as it closed, in that run and
-in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Microsoft Pinyin back.
+in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Microsoft Pinyin back. Run again on
+2026-10-19 after the second review's fixes, with pinyin in a classic console and in a WebView2 and a terminal
+command's console window added: **60 passed, 0 failed, 1 warning**, the same warning, the same input method put back
+after the two runs in the driver's own window. The 0.6.4 package from before those fixes, run with `--console
+--pinyin` and `--webview2 --pinyin`, typed "你好你好" in both but never showed the candidate window there, and with
+`--terminal` the console was gone before it could be read.
 
 - **Install and upgrade:** the files (librime, rime-data, the command line, which runs on the runtime beside it), the
   20 runtime DLLs, the COM server at the installed path, both profiles and the
@@ -203,6 +226,12 @@ in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Mi
   - in real Notepad, a real AI request (`--ai`): "@improve hello", Return, the versions streamed over HTTP from the
     stub provider on localhost in the Claude API's format, "1" gives "Hello there." (the stub saw one request, with the
     right key);
+  - in a classic console of the driver's own (`--console`, `conhost.exe cmd.exe`), pinyin at cmd's prompt through
+    the DLL in conhost: "AIO>你好你好", the candidate window up while the candidates are;
+  - in a WebView2 in a window of the driver's own (`--webview2`), pinyin in the page's field through the DLL in
+    msedgewebview2.exe: "你好你好", the candidate window up;
+  - a `terminal` command (`--terminal`): its console window (Windows Terminal's) came to the front, showed the
+    program's output and "exited with code 3", stayed open after it, and closed on a key written into it;
   - the candidate window captured as PNGs each time (`installer/build/test-logs/e2e-*-shots/`), and looked at: the
     candidates in a row with the first highlighted, the footer in Chinese and the "中" notice, the results with their
     numbers, "原文" beside row 0 and the request's time.
@@ -216,6 +245,17 @@ in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Mi
   back.
 - **Not covered without a human:** the dialogs of an interactive install (the license page; the Files in Use list an
   uninstall from Settings may show, where Ignore is the answer).
+- **To check by hand (the tests can't; not done yet):** whether a window the engine opens comes up in front when a
+  person types. Windows takes the right to set the foreground back at the user's next input, and a person's key comes
+  up some 100 ms after it went down, while the e2e driver's keys go down and up together; the tests also never open the
+  user's browser or Explorer. In Notepad, with AllInOneIME:
+  - `@agent hi`, Return, and a `terminal` command: the console window in front, not flashing in the taskbar, with
+    Windows Terminal as the default terminal and with the classic console (Settings → System → For developers →
+    Terminal: Windows Console Host); with Windows Terminal opening new tabs in a window already open, that window in
+    front on the new tab;
+  - with the browser already running, `@open example.com`, Return: the page in front, not behind Notepad; `@settings`:
+    the folder of config.json in front (the shell hands both to the program already running and starts nothing; that
+    program gets the right first).
 
 ## The engine
 
@@ -226,12 +266,14 @@ in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Mi
 
 - **Settings:** `--config FILE` instead of `%APPDATA%\AllInOneIME\config.json`; `--no-keychain`, API keys from the
   environment only (the tests: the user's Credential Manager is neither read nor tied to a stub's address); librime's
-  data (`--rime-data`, ignored by an installed engine, which takes librime and its data from beside itself only) and
+  data (`--rime-data`, ignored by any engine but a build, which takes librime and its data from beside itself only) and
   user folder (`--rime-user`: the tests' own, so nothing typed there is learned in the user's); `--no-rime`, Latin
   letters only; `--no-panel`, no candidate window.
 - **The plugins** (`%APPDATA%\AllInOneIME\plugins`) are read again only when their folder changed, and in the
   background every 30 s (`PluginCatalog`), not at every focus.
-- **Its child processes:** it is also what `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in.
+- **Its child processes:** it is also what `@js` code (`--run-js`) and script plugins (`--run-plugin DIR`) run in,
+  and the process of each console window it opens (`--run-in-console`). As it starts, it deletes the long prompts'
+  files in `%TEMP%\AllInOneIME` that no console holds any more.
 - **librime and threads:** each client connection has its own queue, and librime is one per process: every call into
   it goes through one lock (a key is a fraction of a millisecond in it).
 
@@ -242,9 +284,16 @@ in a `run-e2e.sh --installed` after it; `run-e2e.sh` saw it each time and put Mi
   clients are `untrusted` (§8). Tested with a low-integrity copy of the CLI: it connects, comes out
   `low, untrusted`, and the goldens pass.
 - **The foreground (§8):** what runs, opens, reads the clipboard or sends, from a key, and the candidate window and its
-  notices need the client's process to own the foreground window (its own, or the ApplicationFrameHost frame around one
-  of its windows). The right to take the foreground the client gives the engine (`allowForeground`) goes on to the
-  process the engine starts (started suspended until then) or that opens what `@open` opens, never to any process.
+  notices need the client's process to be the app in front: the foreground window is its own, or the focus window of
+  that window's thread is (`GetGUIThreadInfo`), or a window inside the foreground window is (a WebView2's, a UWP app's
+  in ApplicationFrameHost's frame). A classic console's window (`ConsoleWindowClass`) says it is its client's (cmd.exe):
+  it is System32's conhost.exe's when a thread of that conhost made it (`EnumThreadWindows`), and caret reports in it
+  are that conhost's to make, no other's. The right to take the foreground the client gives the engine
+  (`allowForeground`) goes on to what shows the window, never to any process (`ASFW_ANY`): to a console's process
+  (started suspended until then), which passes it to conhost's or Windows Terminal's window and brings that to the
+  front; for `@open`, first to the program already running that the shell may hand the target to (the default
+  browser for an address, Explorer for a folder, the file type's program: `AssocQueryStringW`, a process of it with a
+  window on the screen), then to the process the shell starts, if it starts one.
 - **A client that stops reading:** its writes time out after 500 ms and the connection is dropped (tested: about
   0.6 s), so the engine isn't stalled for every app.
 - **Watchdog:** the engine exits when a connection's queue is busy for more than 2 s.
