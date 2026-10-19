@@ -130,6 +130,7 @@ struct SettingsServiceTests {
     /// A file that can't be read: shown read-only, saying why, and left as it is.
     @Test func aBrokenFile() throws {
         let (service, url) = try service("{ nope")
+        let before = service.revision
         let document = service.document()
         #expect(document.loadError != nil && document.field("typeOut")?.readOnly == true)
         if case let .failure(problem) = service.set("typeOut", to: .bool(true)) {
@@ -138,6 +139,11 @@ struct SettingsServiceTests {
             Issue.record("a change was taken over a broken file")
         }
         #expect(String(decoding: try Data(contentsOf: url), as: UTF8.self) == "{ nope")
+        // Fixed elsewhere: read again, and the clients told (the document's error is gone).
+        try Data("{}".utf8).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: url.path)
+        service.checkForChanges()
+        #expect(service.revision > before && service.document().loadError == nil)
     }
 
     /// The file changed by something else (the command line, an editor): read again, and the revision moves.

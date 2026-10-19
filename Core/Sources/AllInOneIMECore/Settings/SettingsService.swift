@@ -39,10 +39,8 @@ public final class SettingsService: @unchecked Sendable {
         self.platform = platform
         self.library = library
         self.secrets = secrets
-        observation = store.observe { [unowned self] change in
-            guard !change.intersection([.config, .keys]).isEmpty else { return }
-            revisionValue += 1
-        }
+        // Any change: the config, a key, the file turned unreadable or a save that failed (the document says so).
+        observation = store.observe { [unowned self] _ in revisionValue += 1 }
     }
 
     /// Moves with each change of the settings or the keys.
