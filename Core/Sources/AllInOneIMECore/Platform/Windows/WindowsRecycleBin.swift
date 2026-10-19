@@ -4,15 +4,22 @@ import WinSDK
 
 /// Windows' Recycle Bin, where `SystemFileOps.trash` puts what the core moves to the Trash (`ExtensionSources.trash`,
 /// `ICloudSyncFolder.remove`): `SHFileOperationW` with undo (`FOF_ALLOWUNDO`: the user can restore it from the Recycle
-/// Bin), without asking or showing progress, errors thrown instead of shown. A file or folder on a drive without a
-/// Recycle Bin (a network share, a removable drive), or too big for it, is deleted, as Explorer does after asking:
-/// the core only trashes what the user chose to remove.
+/// Bin), without asking or showing progress, errors thrown instead of shown. Only from a fixed drive (`GetDriveTypeW`:
+/// `DRIVE_FIXED`): on another (a network share, a removable drive) the Recycle Bin doesn't keep what it is given but
+/// deletes it for good, so that is refused (`CocoaError.featureUnsupported`, as the Mac's `trashItem` where a volume
+/// has no Trash), the item left there; a caller that means to delete it removes it (`FileManager.removeItem`).
 enum WindowsRecycleBin {
     static func trash(_ url: URL) throws {
         // Like the Mac's `trashItem`: nothing there is an error.
         let path = url.withUnsafeFileSystemRepresentation { String(cString: $0!) }
         guard FileManager.default.fileExists(atPath: path) || (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil else {
             throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        guard driveType(of: path) == UINT(DRIVE_FIXED) else {
+            throw CocoaError(.featureUnsupported, userInfo: [
+                NSFilePathErrorKey: url.path,
+                NSLocalizedDescriptionKey: "\(url.lastPathComponent) is on a drive without a Recycle Bin (a network share or a removable drive)",
+            ])
         }
         // A list of paths, each ended by a NUL, a NUL after the last; a full path (the shell's relative ones are the
         // current folder's, and a relative one loses the undo).
@@ -29,6 +36,15 @@ enum WindowsRecycleBin {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path,
                                                            NSUnderlyingErrorKey: NSError(domain: "SHFileOperation", code: Int(result))])
         }
+    }
+
+    /// The kind of drive `path` is on (`GetDriveTypeW` of its volume's root, "C:\" or "\\server\share\"):
+    /// `DRIVE_UNKNOWN` when that can't be told.
+    private static func driveType(of path: String) -> UINT {
+        var root = [WCHAR](repeating: 0, count: max(path.utf16.count, Int(MAX_PATH)) + 1)
+        let found = path.withCString(encodedAs: UTF16.self) { GetVolumePathNameW($0, &root, DWORD(root.count)) }
+        guard found else { return UINT(DRIVE_UNKNOWN) }
+        return GetDriveTypeW(root)
     }
 }
 #endif

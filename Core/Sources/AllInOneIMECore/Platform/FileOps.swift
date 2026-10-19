@@ -34,8 +34,8 @@ public protocol FileOps: Sendable {
     func writePrivate(_ data: Data, to url: URL) throws
     /// When the file at `path` (a link followed) last changed, to the precision the system keeps; nil when there's none.
     func modificationDate(atPath path: String) -> Date?
-    /// Moves `url` to the Trash where there is one (the user can put it back; on Windows the Recycle Bin); elsewhere
-    /// removes it.
+    /// Moves `url` to the Trash where there is one (the user can put it back; on Windows the Recycle Bin, from a fixed
+    /// drive only: on another it throws, as the Mac's does on a volume without a Trash); elsewhere removes it.
     func trash(_ url: URL) throws
 }
 

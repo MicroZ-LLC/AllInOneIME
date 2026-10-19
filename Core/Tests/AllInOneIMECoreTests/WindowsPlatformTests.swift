@@ -314,5 +314,19 @@ struct WindowsPlatformTests {
         #expect(!FileManager.default.fileExists(atPath: file.path) && !FileManager.default.fileExists(atPath: sub.path))
         #expect(throws: (any Error).self) { try SystemFileOps().trash(file) }
     }
+
+    /// What is on a drive the Recycle Bin doesn't keep (a share, a removable drive) is refused and left there: the
+    /// Recycle Bin would delete it for good. Here the test's own file through the drive's administrative share
+    /// (\\localhost\C$), when that can be reached.
+    @Test func trashRefusesWhatTheRecycleBinWouldDelete() throws {
+        let folder = try Folder()
+        let file = try folder.file("AllInOneIME-trash-test-\(UUID().uuidString).txt", "x")
+        let local = WindowsPrograms.windowsPath(file)
+        guard local.dropFirst().hasPrefix(#":\"#) else { return }
+        let shared = URL(fileURLWithPath: #"\\localhost\"# + local.prefix(1) + "$" + local.dropFirst(2))
+        guard FileManager.default.fileExists(atPath: shared.path) else { return }  // no administrative share for this user
+        #expect { try SystemFileOps().trash(shared) } throws: { ($0 as? CocoaError)?.code == .featureUnsupported }
+        #expect(FileManager.default.fileExists(atPath: file.path), "deleted, not trashed")
+    }
 }
 #endif
