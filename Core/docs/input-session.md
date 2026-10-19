@@ -37,7 +37,8 @@ so: the selection with Accessibility, where the field doesn't tell it, only when
 `FieldInfo` comes with the focus: the app (its own settings: `AppProfile`), whether it's a terminal (it runs every line
 it is given and pastes on ⌘V itself), whether it's a password field. Once the shell has said what it says of the focus
 itself (the Mac: Translate as You Type on, in an app that translates always), it calls `tellBuiltinRenames()`: a custom
-command renamed because a built-in has its name now is said once, last, so no notice of the focus takes its place.
+command renamed because a built-in has its name now is said once, last, so no notice of the focus takes its place. A
+field that takes the focus again after `.close` starts over: its engine is made again, its work starts again.
 
 ## Outputs
 

@@ -202,6 +202,7 @@ public final class InputSession {
         fieldText = nil
         fieldSession += 1
         field = info
+        tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
         // Terminals paste on ⌘V whatever the input method does: there ⌘V stays theirs…

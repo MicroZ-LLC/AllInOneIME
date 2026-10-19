@@ -318,6 +318,20 @@ struct InputSessionTests {
         }
     }
 
+    @Test func aFieldFocusedAgainAfterItsSessionClosedWorksAsBefore() {
+        inEnglish {
+            let host = host { $0.runProgram = Self.printing("42") }
+            host.send(.close)
+            host.focus()
+            pick("js", in: host)
+            host.composer.setInputMode(.english)
+            host.type("6*7")
+            host.press(FakeHost.enter)
+            #expect(host.settle(timeout: 5) { host.composer.phase == .choosing }, "its request answers (\(host.composer.phase))")
+            #expect(host.composer.choices.contains { $0.text == "42" }, "\(host.composer.choices.map(\.text))")
+        }
+    }
+
     // MARK: - The selection
 
     @Test func aCommandOnTheSelectionReplacesIt() {

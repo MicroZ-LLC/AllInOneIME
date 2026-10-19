@@ -125,6 +125,22 @@ struct SessionTasksTests {
         #expect(inbox.all.count == 1, "work that ends on its own still answers")
     }
 
+    @Test func reopenedTheWorkInSlotsRunsAgain() async {
+        let inbox = Inbox()
+        let tasks = SessionTasks(deliver: inbox.deliver)
+        let searched = Locked<[String]>(initialState: [])
+        let search: @Sendable (String, OpenHistory) async -> [SearchResult] = { query, _ in
+            searched.withLock { $0.append(query) }
+            return []
+        }
+        tasks.searchAsTyped("notes", history: { OpenHistory() }, with: search)
+        tasks.close()
+        tasks.reopen()
+        tasks.searchAsTyped("notes", history: { OpenHistory() }, with: search)  // the same text: searched now
+        #expect(await Timing.eventually { searched.withLock { $0 } == ["notes"] }, "\(searched.withLock { $0 })")
+        #expect(await Timing.eventually { inbox.updates(counting: tasks).count == 1 })
+    }
+
     @Test func recipientsWithoutTheAddressBookSaySo() async {
         let inbox = Inbox()
         let tasks = SessionTasks(deliver: inbox.deliver)

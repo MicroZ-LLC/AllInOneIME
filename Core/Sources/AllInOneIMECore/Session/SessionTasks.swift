@@ -119,7 +119,7 @@ public final class SessionTasks {
     private var listKey: String?
     private var liveQuery: String?
     private var recipientQuery: String?
-    /// The field's session is over: nothing more starts in a slot.
+    /// The field's session is over: nothing more starts in a slot (until it takes the focus again, `reopen`).
     private var closed = false
 
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
@@ -133,11 +133,19 @@ public final class SessionTasks {
         for (_, entry) in running { entry.task?.cancel() }
     }
 
-    /// The field's session is over: the work in slots stops, and none starts any more (the work that ends on its own, a
-    /// save, a message, an agent, goes on).
+    /// The field's session is over: the work in slots stops, and none starts any more unless it's reopened (the work
+    /// that ends on its own, a save, a message, an agent, goes on).
     public func close() {
         closed = true
         for slot in Array(running.keys) { cancel(slot) }
+    }
+
+    /// The field took the focus again after its session was closed: work starts in slots again, and the texts they last
+    /// ran for are forgotten (nothing runs for them now: the same text runs again).
+    public func reopen() {
+        guard closed else { return }
+        closed = false
+        (listKey, liveQuery, recipientQuery) = (nil, nil, nil)
     }
 
     /// Whether `id`'s updates still count: work in a slot until it's stopped or another takes its place.
