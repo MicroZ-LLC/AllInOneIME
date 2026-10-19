@@ -110,6 +110,27 @@ extension SelfTest {
         return gone
     }
 
+    /// One self-test at a time on this Mac: two at once (from two checkouts, say) share the output folder's files (its
+    /// Rime user folder, its config files) and this session's windows, focus and pasteboard, and fail each other's checks
+    /// at random. Held until the process exits; a second run waits for the first, saying so.
+    static let lockURL = URL(fileURLWithPath: "/tmp/allinoneime-selftest.lock")
+
+    static func waitForOtherSelfTests() {
+        let fd = open(lockURL.path, O_RDWR | O_CREAT | O_CLOEXEC, 0o666)
+        guard fd >= 0 else { return }
+        if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            var buffer = [UInt8](repeating: 0, count: 32)
+            let count = pread(fd, &buffer, buffer.count, 0)
+            let pid = count > 0 ? String(decoding: buffer[..<count], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) : "?"
+            print("  another self-test is running on this Mac (pid \(pid)): waiting for it to finish")
+            fflush(stdout)
+            flock(fd, LOCK_EX)
+        }
+        ftruncate(fd, 0)
+        let pid = "\(getpid())\n"
+        _ = pid.withCString { pwrite(fd, $0, strlen($0), 0) }
+    }
+
     /// The last lines: passed, failed and skipped checks. Only failures fail the run; skipped checks never make it
     /// pass, and a run that checked nothing that composes or asks the AI says so.
     static func summary() -> Int32 {

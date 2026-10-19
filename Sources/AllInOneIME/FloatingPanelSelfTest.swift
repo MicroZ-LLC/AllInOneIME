@@ -28,6 +28,10 @@ final class PanelStandIns {
     /// `transcriptReads`: the transcripts read (not those the panel already read as they are).
     private(set) var noteLists = 0, reminderReads = 0, agentLooks = 0, transcriptReads = 0
     private(set) var shownNotes: [String] = [], completed: [String] = [], openedAgents: [String] = []
+    /// The files and Notion pages the panel would have opened (nothing is).
+    private(set) var openedURLs: [URL] = []
+    /// The folder notes are saved to, as the config would say it: only files in it are opened.
+    var notesFolder: URL?
     private(set) var openedReminders = 0, openedSettings = 0
 
     var sources: DashboardSources {
@@ -43,6 +47,9 @@ final class PanelStandIns {
                 if let error = self.showError { throw error }
                 self.shownNotes.append(id)
             },
+            openURL: { self.openedURLs.append($0) },
+            fileIsGone: { FloatingPanel.isGone($0) },
+            notesFolder: { self.notesFolder },
             reminderAccess: { self.access },
             reminders: { _ in
                 self.reminderReads += 1
@@ -208,19 +215,19 @@ extension SelfTest {
             }
         }
         render("14-dashboard")
-        UIText.choice = .english
+        UIText.choice = "en"
         stand.sample(chinese: false)
         panel.refresh()
         check(pump(timeout: 3) { loaded() && taskRows().first?.title == "Refactor the login module" && panel.notes.first?.title == "Weekly meeting notes" }
-              && !panel.chinese, "the English interface, at once")
+              && panel.language == "en", "the English interface, at once")
         check(panel.counts == "2 reminders · 1 task running" && FloatingPanel.completeLabel("Pay the rent") == "Complete \u{201C}Pay the rent\u{201D}",
               "English header and VoiceOver labels: \(panel.counts)")
         render("14-dashboard-en")
-        UIText.choice = .chinese
+        UIText.choice = "zh"
         stand.sample(chinese: true)
         panel.refresh()
         _ = pump(timeout: 3) { loaded() && taskRows().first?.title == "重构登录模块" && panel.notes.first?.title == "周会要点" }
-        check(panel.chinese && FloatingPanel.completeLabel("交房租") == "完成「交房租」", "back to Chinese; the checkbox says 「完成「交房租」」")
+        check(panel.language == "zh-Hans" && FloatingPanel.completeLabel("交房租") == "完成「交房租」", "back to Chinese; the checkbox says 「完成「交房租」」")
 
         // Clicks: a checkbox completes the reminder (the stand-in), a row opens what it shows.
         if case let .list(items) = panel.reminders, let rent = items.first {

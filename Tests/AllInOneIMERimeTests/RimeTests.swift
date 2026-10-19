@@ -3,11 +3,22 @@ import Foundation
 import Testing
 @testable import AllInOneIMERime
 
-/// Uses the real librime and the rime-ice data prepared by `make deps` (ThirdParty/rime-data).
+/// Uses the real librime and the rime-ice data prepared by `make deps` (rime-data in ThirdParty).
 enum RimeFixture {
     static let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    static let sharedData = root.appendingPathComponent("ThirdParty/rime-data")
+    /// Where `make deps` puts librime and rime-ice: $ALLINONEIME_THIRDPARTY if it is set, else the repository's
+    /// ThirdParty. The one rule, as Package.swift, the Makefile and Scripts/make-dmg.sh have it.
+    static let thirdParty: URL = {
+        if let given = ProcessInfo.processInfo.environment["ALLINONEIME_THIRDPARTY"], !given.isEmpty {
+            return URL(fileURLWithPath: given, isDirectory: true)
+        }
+        return root.appendingPathComponent("ThirdParty", isDirectory: true)
+    }()
+    static let sharedData = thirdParty.appendingPathComponent("rime-data")
+    /// `make test` (which runs `make deps` first) sets ALLINONEIME_REQUIRE_RIME_DATA: there, missing data is a failure,
+    /// not a skip.
+    static var dataRequired: Bool { ProcessInfo.processInfo.environment["ALLINONEIME_REQUIRE_RIME_DATA"] == "1" }
     /// librime's user folder: one per test process, so that runs in two checkouts at once don't use (and
     /// delete) the same one. Removed when the process exits.
     static let userData = FileManager.default.temporaryDirectory
@@ -195,7 +206,7 @@ struct RimeEngineTests {
         _ = composer.handleKeyDown(space)
         _ = composer.handleKeyDown(at)
         #expect(composer.draft == "@question 你好@")
-        #expect(composer.paletteMatches.map(\.name) == ["calculate", "py", "js", "stock"])
+        #expect(composer.paletteMatches.map(\.name) == ["py", "js", "stock"])
         for ch in "st" { _ = composer.handleKeyDown(key(ch)) }
         _ = composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
         #expect(composer.draft == "@question 你好@stock " && composer.engineState.isAsciiMode)

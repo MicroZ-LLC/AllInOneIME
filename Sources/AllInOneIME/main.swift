@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AllInOneIMECore
 import AllInOneIMERime
 import AppKit
@@ -137,10 +138,15 @@ func runServer(showSettings: Bool = false) -> Never {
     terminationSignal.resume()
     // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
     DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
+    // A custom command a built-in now has the name of (a custom @reply): renamed in the config, said once in the next
+    // text field (`BuiltinRenames`).
+    BuiltinRenames.apply()
     // Older versions kept their sentence mode switch here (first as aiEnabled); nothing reads it now.
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @agent tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
+    // Chrome's page tree turned on by an earlier run that didn't turn it off (a crash, a reinstall): off again.
+    PageContextReader.releaseLeftOver()
     // The menu bar icon (on by default) and its panel, once the server and Rime are up. The notes @note
     // saves are recorded whether the panel is shown or not, so that it lists them when it drops down.
     DispatchQueue.main.async {
@@ -158,6 +164,10 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { UpdateController.shared.start() }
     // Extension sources: checked about 30 s from now, then once a day, if they check by themselves (only ever noted).
     MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
+    // Translate as You Type goes off when another app becomes active, a text field in it or not.
+    MainActor.assumeIsolated { TranslateModeShared.watchApps() }
+    // Sync through iCloud, if it is on: a first run in a moment, then as files change.
+    MainActor.assumeIsolated { ICloudSyncController.shared.start() }
     withExtendedLifetime(server) { app.run() }
     exit(0)
 }
@@ -399,11 +409,16 @@ func adoptPack(_ arguments: [String]) -> Int32 {
 // pipe: writing to it must fail, not end the input method (and the text being typed) with SIGPIPE.
 signal(SIGPIPE, SIG_IGN)
 
+// What the core needs of the Mac (programs with the login shell's environment, the keychain, JavaScriptCore …),
+// before anything uses it: the plugin and `@js` processes below too.
+Platform.current = .mac
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 // A script plugin's own process (started by the input method): nothing else runs, nothing else is printed.
 if arguments.first == "--run-plugin" {
-    exit(arguments.count > 1 ? PluginHost.run(directory: arguments[1]) : 2)
+    guard let invocation = PluginHost.invocation(Array(arguments.dropFirst())) else { exit(2) }
+    exit(PluginHost.run(directory: invocation.directory, language: invocation.language))
 }
 // The same for `@js` code (`InlineCode`): the code on standard input, what it prints on standard output.
 if arguments.first == InlineCode.javaScriptHostOption {
@@ -414,6 +429,11 @@ if arguments.first == InlineCode.javaScriptHostOption {
 if arguments.first == "--version" {
     print(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? AppVersion.string)
     exit(0)
+}
+
+// Hidden: the two-Mac check of key sync, on the self-test's own synced items only (`KeychainProbe`).
+if arguments.first == "--keychain-probe" {
+    exit(KeychainProbe.run(Array(arguments.dropFirst())))
 }
 
 // Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.
@@ -463,6 +483,29 @@ case "--settings-image":
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
                                extensions: extensions, update: update, agent: agent)
     }
+case "--page-context":
+    // `--page-context [request]`: what `@agent` would take along from the Chrome page in front, printed (nothing is
+    // sent). Needs Accessibility for the process that runs it.
+    guard let chrome = NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").first else {
+        print("Google Chrome isn't running"); exit(1)
+    }
+    guard AXIsProcessTrusted() else { print("Accessibility isn't allowed for this process"); exit(1) }
+    // As when `@agent` starts being written: the page tree is asked for (and given back after).
+    PageContextReader.wake(pid: chrome.processIdentifier)
+    let mouse = NSEvent.mouseLocation, height = NSScreen.screens.first?.frame.height ?? 0
+    let started = Date()
+    guard let context = PageContextReader.read(pid: chrome.processIdentifier, pointer: CGPoint(x: mouse.x, y: height - mouse.y)) else {
+        print("no page (or a password field)")
+        PageContextReader.release(pid: chrome.processIdentifier)
+        Thread.sleep(forTimeInterval: 0.3)
+        exit(1)
+    }
+    let prompt = context.prompt(request: arguments.count > 1 ? arguments[1] : "(what you typed)")
+    print(prompt)
+    FileHandle.standardError.write(Data(String(format: "\n— %d chars, %.0f ms\n", prompt.count, Date().timeIntervalSince(started) * 1000).utf8))
+    PageContextReader.release(pid: chrome.processIdentifier)
+    Thread.sleep(forTimeInterval: 0.3)  // the release runs in the background
+    exit(0)
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
 case "--adopt-pack":

@@ -1,7 +1,7 @@
 # Plugins: plan
 
 @ commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
-`@reminder`, `@calculate`, `@py`, `@js`, `@tasks`, `@settings`, `@config`, `@doctor`, `@imessage`, `@reportissue`;
+`@reminder`, `@py`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`;
 `@read` and `@search` are built but not offered yet, their names still taken), **plugins** installed from the plugin
 library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Custom @ Commands).
 When names clash: built-in > plugin > custom, so a plugin named like a built-in command never shows up.
@@ -23,7 +23,8 @@ A folder in `~/.config/allinoneime/plugins/<name>/`:
   `type` is `script` (JavaScript, below), `prompt` (an AI instruction in `prompt`, like a custom command) or
   `link` (a web address opened in the browser, below).
   `icon` (an SF Symbol name) and `color` (`blue`, `green`, … or `#RRGGBB`) draw it in the command list.
-- `main.js` for a script plugin: `function run(input) { return "one line" }`. A `throw` is the error shown.
+- `main.js` for a script plugin: `function run(input, context) { return "one line" }`. A `throw` is the error
+  shown. `context` is below; `function run(input)` works too.
 - `install.json`, written when installed from the library: `{version, files: {name: sha256}, source: "registry"}`.
   A folder without it is a **local** plugin (an author's, not reviewed).
 
@@ -54,15 +55,34 @@ browser. Nothing is inserted; the draft is cleared, as when `@open` opens someth
 - Custom commands have the same type (`{"name": "google", "type": "link", "url": "https://www.google.com/search?q={input}"}`,
   or "Open a web page" in Settings → Custom @ Commands).
 
-[Plugins/](../Plugins/) in the repository has `@x`, `@threads`, `@bsky` and `@weibo`, and a script plugin, `@xe`
+[Core/Plugins/](../Core/Plugins/) in the repository has `@x`, `@threads`, `@bsky` and `@weibo`, and a script plugin, `@xe`
 (currency conversion, `@xe 100 USD CNY`); the library publishes them.
 
 ## How a script runs
 
-In JavaScriptCore (part of macOS: nothing to install), in a **child process**: `AllInOneIME --run-plugin <dir>`
-with the text on standard input, the result on standard output. JavaScriptCore can't stop a running script, so
-a stuck plugin must not run inside the input method; a child process is killed by the existing runner (timeout,
-output limit, Esc), the same path as custom `run` commands.
+In a **child process**: `AllInOneIME --run-plugin <dir> --language zh|en` with the text on standard input, the
+result on standard output. The engine is JavaScriptCore on the Mac (part of macOS: nothing to install), and
+QuickJS-ng (built into the app) on Windows, Linux and Android. JavaScriptCore can't stop a running script, and
+QuickJS-ng only where it checks (some of its built-in functions run to their end), so a stuck plugin must not run
+inside the input method; a child process is killed by the existing runner (timeout, output limit, Esc), the same
+path as custom `run` commands.
+
+### Two engines: write for both
+
+Both are modern JavaScript, and a plugin runs the same on either as long as it keeps to what they share. Where they
+differ, measured (QuickJS-ng 0.17.0, macOS 27's JavaScriptCore):
+
+| | QuickJS-ng | JavaScriptCore |
+|---|---|---|
+| `Intl` (`Intl.NumberFormat`, `Intl.DateTimeFormat`, …) | none | there |
+| `(1234.5).toLocaleString()` | `1234.5` | `1,234.5` |
+| `localeCompare`, so sorting by it | by code point: `Z,a,b,ä,é` | by language: `a,ä,b,é,Z` |
+| `String(new Date(0))` (`Date#toString`), in California | `… GMT-0800` | `… GMT-0800 (Pacific Standard Time)` |
+| Globals only one has | `atob`, `btoa`, `performance`, `queueMicrotask`, `DOMException`, `InternalError`, `SharedArrayBuffer`, `DisposableStack`, `AsyncDisposableStack`, `SuppressedError` | `Intl`, `WebAssembly`, `console` |
+
+So: format numbers and dates yourself (`toFixed`, `getFullYear()` and the like, or the ISO form,
+`toISOString()`), compare text with `<` or your own order rather than `localeCompare`, and don't use the globals
+only one engine has (on the Mac, `btoa` is a ReferenceError).
 
 The script sees nothing but `fetch`:
 
@@ -73,11 +93,19 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 
 - HTTPS only, and only to the manifest's `hosts` (redirects too); no cookies, no cache.
 - At most 8 requests a run, 1 MB a response, 5 s a request; the run itself ends after `timeoutSeconds` (≤ 20).
-- No file system, processes, environment, timers or clipboard: a bare `JSContext` has none of them.
+- No file system, processes, environment, timers or clipboard: neither engine has them, as the app makes it.
 - Secure input (password fields) refuses plugins like any command.
 - The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings → AI Provider →
   Privacy) covers requests to the AI, so a `prompt` plugin, but not what a script or link plugin sends. Likewise an
   app set to "No AI in this app" (Settings → Apps) refuses `prompt` plugins and still runs script and link plugins.
+
+`run(input, context)` gets the text (trimmed) and a plain object, `context`:
+
+- `context.language` (from 0.6.5): `"zh"` or `"en"`, the language the input method's own interface is showing
+  (config `uiLanguage`, the settings window's "Interface language", else the system's), so a plugin can answer
+  in it. Older apps call `run(input)` alone (and an unknown language leaves `{}`), so don't rely on it: read
+  it as `(context && context.language) || "en"`.
+- Nothing else: not the app being typed in, the field, or anything about the user.
 
 ## The library (milestone 2, done)
 

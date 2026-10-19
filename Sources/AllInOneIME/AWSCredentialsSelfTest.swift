@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import os
 
@@ -39,7 +40,7 @@ extension SelfTest {
     /// Bedrock's AWS credentials with made-up profiles in a temporary HOME (named by AWS_CONFIG_FILE and
     /// AWS_SHARED_CREDENTIALS_FILE), a fake `credential_process` script run for real, STS and the SSO portal answered by a
     /// stand-in: every kind resolves, is cached and refreshed; MFA and an expired SSO sign-in say what to do; Bedrock
-    /// refused as expired is retried once with fresh credentials; Settings' status line and `@doctor` say the same. The
+    /// refused as expired is retried once with fresh credentials; Settings' status line and its checks say the same. The
     /// user's ~/.aws is never read and their programs never run.
     static func testAWSCredentials(snapshotDirectory: URL) {
         section("AWS credentials: every kind of profile (fake profiles in a temporary HOME)")
@@ -179,7 +180,7 @@ extension SelfTest {
             model.aws.load(profile: profile)
         }
         let english = UIText.choice
-        UIText.choice = .english
+        UIText.choice = "en"
         defer { UIText.choice = english }
         check(model.aws.label("dev") == "dev  —  Role via tools" && model.aws.label("sso-dev") == "sso-dev  —  SSO",
               "the profile picker shows each profile's kind (\(model.aws.label("dev")))")
@@ -191,7 +192,7 @@ extension SelfTest {
               && model.credentialStatus.contains("Run `aws sso login --profile sso-old` in Terminal"),
               "an expired SSO sign-in: \(model.credentialStatus)")
 
-        // @doctor: the kind and expiry, or the expired sign-in with its command to copy.
+        // Settings → Assistant's checks: the kind and expiry, or the expired sign-in with its command to copy.
         var facts = Doctor.Facts()
         var doctorConfig = bedrock
         doctorConfig.awsProfile = "sso-old"
@@ -202,14 +203,14 @@ extension SelfTest {
         let row = Doctor.findings(facts, chinese: false).first { $0.area == .provider }
         check(row?.status == .problem && row?.fix == .copyCommand("aws sso login --profile sso-old")
               && row?.detail?.contains("Your SSO sign-in for profile sso-old has expired") == true,
-              "@doctor: \(row?.text(chinese: false) ?? "no row")")
+              "the checks: \(row?.text(chinese: false) ?? "no row")")
         doctorConfig.awsProfile = "dev"
         facts.config = doctorConfig
         facts.awsStatus = resolver.status(profile: "dev")
         facts.awsProfile = .success("eu-west-1")
         let ok = Doctor.findings(facts, chinese: false).first { $0.area == .provider }
         check(ok?.status == .ok && ok?.detail?.contains("(Role via tools)") == true && ok?.detail?.contains("credentials expire at") == true,
-              "@doctor: \(ok?.text(chinese: false) ?? "no row")")
+              "the checks: \(ok?.text(chinese: false) ?? "no row")")
         check(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".aws/credentials").path),
               "nothing was written to the AWS folder (credentials stay in memory)")
     }

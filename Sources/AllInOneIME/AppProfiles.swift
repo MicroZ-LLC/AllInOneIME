@@ -74,7 +74,8 @@ enum AppProfileText {
         }
         if let typeOut = profile.typeOut { parts.append(typeOut ? tr("逐字上屏", "Typed out") : tr("不逐字上屏", "Not typed out")) }
         if profile.noAI == true { parts.append(tr("不用 AI", "No AI")) }
-        return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere") : parts.joined(separator: " · ")
+        if profile.translateAlways == true { parts.append(tr("总是边打边译", "Always Translate as You Type")) }
+        return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
     /// The notice of an AI command refused in an app with no AI.
@@ -186,8 +187,8 @@ struct AppProfilesSection: View {
             Picker(tr("逐字上屏", "Type results out"), selection: Binding(
                 get: { profile.typeOut },
                 set: { value in model.changeProfile(app) { $0.typeOut = value } })) {
-                Text(tr("跟全局一样（\(model.config.typeOut ? "开" : "关")）",
-                        "Same as everywhere (\(model.config.typeOut ? "on" : "off"))")).tag(Bool?.none)
+                Text(model.config.typeOut ? tr("跟全局一样（开）", "Same as everywhere (on)")
+                     : tr("跟全局一样（关）", "Same as everywhere (off)")).tag(Bool?.none)
                 Text(tr("开", "On")).tag(Bool?.some(true))
                 Text(tr("关", "Off")).tag(Bool?.some(false))
             }
@@ -197,6 +198,15 @@ struct AppProfilesSection: View {
                     Text(tr("这个 App 里不用 AI", "No AI in this app"))
                     Text(tr("@improve、@translate、@question、@agent 等不会发给 AI，打字和别的命令照常。",
                             "@improve, @translate, @question, @agent and the like send nothing to the AI; typing and the other commands work."))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Toggle(isOn: Binding(get: { profile.translateAlways == true },
+                                 set: { on in model.changeProfile(app) { $0.translateAlways = on ? true : nil } })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tr("总是边打边译", "Always Translate as You Type"))
+                    Text(tr("切到这个 App 就打开边打边译（平时长按 Shift 开关）：⏎ 直接翻译成小标签上选的语言（还没选过时是第一种翻译语言）并上屏，⇧⏎ 原文上屏。",
+                            "Translate as You Type comes on when you switch to this app (elsewhere a long press of Shift turns it on and off): ⏎ translates into the language picked on its chip (until you pick one, your first translation language) and inserts it, ⇧⏎ inserts as typed."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }

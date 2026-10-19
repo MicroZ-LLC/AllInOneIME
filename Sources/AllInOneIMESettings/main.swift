@@ -4,28 +4,23 @@
 //
 // It opens the input method with --settings: a running input method gets a reopen event and
 // shows its settings window; one that isn't running yet starts and shows it.
+import AllInOneIMEText
 import AppKit
 
 let inputMethodID = "com.aipinyin.inputmethod.AIPinyin"
 let home = FileManager.default.homeDirectoryForCurrentUser
 let installed = home.appendingPathComponent("Library/Input Methods/AllInOneIME.app")
 
-/// Chinese if picked in the settings (`uiLanguage`), else if the system prefers Chinese to English,
-/// as in the input method.
-let chinese: Bool = {
-    let config = home.appendingPathComponent(".config/allinoneime/config.json")
-    if let data = try? Data(contentsOf: config),
-       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-       let picked = json["uiLanguage"] as? String {
-        return picked == "zh"
-    }
-    let preferred = Locale.preferredLanguages.first { $0.hasPrefix("zh") || $0.hasPrefix("en") }
-    return preferred?.hasPrefix("zh") == true
-}()
+/// The interface language, as in the input method: the one picked in the settings (`uiLanguage`), else the
+/// system's among the languages this app ships (`InterfaceLanguage`).
+let language = InterfaceLanguage.current(setting: ConfigFile.uiLanguage())
+
+/// As the input method's `tr`: the Chinese, the English, or the String Catalog's translation of the English.
+func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language, app: .main) }
 
 func fail(_ message: String) -> Never {
     let alert = NSAlert()
-    alert.messageText = chinese ? "打不开 AllInOneIME 设置" : "Can't open AllInOneIME Settings"
+    alert.messageText = tr("打不开 AllInOneIME 设置", "Can't open AllInOneIME Settings")
     alert.informativeText = message
     alert.runModal()
     exit(1)
@@ -38,8 +33,8 @@ let url = FileManager.default.fileExists(atPath: installed.path)
     ? installed
     : NSWorkspace.shared.urlForApplication(withBundleIdentifier: inputMethodID)
 guard let url else {
-    fail(chinese ? "没有找到 AllInOneIME 输入法（~/Library/Input Methods/AllInOneIME.app），请先安装。"
-                 : "The AllInOneIME input method isn't installed (~/Library/Input Methods/AllInOneIME.app).")
+    fail(tr("没有找到 AllInOneIME 输入法（~/Library/Input Methods/AllInOneIME.app），请先安装。",
+            "The AllInOneIME input method isn't installed (~/Library/Input Methods/AllInOneIME.app)."))
 }
 
 let configuration = NSWorkspace.OpenConfiguration()

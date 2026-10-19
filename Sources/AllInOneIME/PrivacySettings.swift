@@ -6,7 +6,7 @@ import SwiftUI
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
     /// The words field as typed; saved on Return and when the page goes (`RedactionSettings.words`), only if it was edited
-    /// here, and then on top of the list as it is by then: a word added meanwhile elsewhere (`@config`, a hand edit) stays.
+    /// here, and then on top of the list as it is by then: a word added meanwhile elsewhere (Settings → Assistant, a hand edit) stays.
     /// Not being edited, it follows the list.
     @State private var words = ""
     @State private var edited = false
@@ -48,7 +48,7 @@ struct PrivacySection: View {
         .disabled(!model.canSave)
         .onAppear { show(model.config.redaction.customWords) }
         .onDisappear(perform: saveWords)
-        // The list read again (written by @config, by hand): shown, unless the field is being edited.
+        // The list read again (written by the Assistant, by hand): shown, unless the field is being edited.
         .onChange(of: model.config.redaction.customWords) { if !edited { show(model.config.redaction.customWords) } }
         .onChange(of: model.config.redaction) { model.save() }
     }
@@ -59,18 +59,12 @@ struct PrivacySection: View {
         edited = false
     }
 
-    /// The field's edit, if there was one, applied to the list as it is now: the words taken out of the field go, the
-    /// words put in are added; the others, a word added elsewhere since included, stay.
+    /// The field's edit, if there was one, applied to the list as the file has it now (`SettingsModel.saveWords`, which
+    /// saves it here: leaving the page, this section's onChange is gone with it): the words taken out of the field go,
+    /// the words put in are added; the others, a word added elsewhere since included, stay.
     private func saveWords() {
         guard edited else { return }
-        let typed = RedactionSettings.words(from: words)
-        let removed = Set(shown).subtracting(typed)
-        var list = model.config.redaction.customWords.filter { !removed.contains($0) }
-        for word in typed where !list.contains(word) { list.append(word) }
-        show(list)
-        guard list != model.config.redaction.customWords else { return }
-        model.config.redaction.customWords = list
-        model.save()  // here: leaving the page, this section's onChange is gone with it
+        show(model.saveWords(field: words, shown: shown))
     }
 
     private func titled(_ title: String, _ note: String) -> some View {
@@ -85,7 +79,7 @@ struct PrivacySection: View {
 /// whose placeholder the model changed past telling (`Redaction.isAltered`) marked, its text as the model wrote it.
 enum RedactionPanel {
     static func hiddenLine(_ count: Int) -> String {
-        tr("已对 AI 隐藏 \(count) 项", count == 1 ? "1 item hidden from the AI" : "\(count) items hidden from the AI")
+        count == 1 ? tr("已对 AI 隐藏 1 项", "1 item hidden from the AI") : tr("已对 AI 隐藏 \(count) 项", "\(count) items hidden from the AI")
     }
 
     static let changed = tr("⚠ 占位符被改动", "⚠ placeholder changed")

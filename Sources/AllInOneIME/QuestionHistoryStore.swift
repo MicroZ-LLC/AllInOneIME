@@ -50,7 +50,7 @@ extension UIText {
     static func ago(_ date: Date, now: Date = Date()) -> String {
         guard now.timeIntervalSince(date) >= 60 else { return tr("刚刚", "just now") }
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: chinese ? "zh-Hans" : "en")
+        formatter.locale = Locale(identifier: language)
         formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: now)
     }

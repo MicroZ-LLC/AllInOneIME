@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import Carbon
 import Foundation
 import Security
@@ -54,6 +55,8 @@ enum Installer {
         case unpack(String)
         case signature(String, OSStatus)
         case register(Int32, String)
+        /// The new input method doesn't start (`AllInOneIME --version`); the previous apps were put back.
+        case launch(String)
         /// Installing failed and an old app couldn't be moved back either; it was kept in `folder`.
         case notRestored(String, folder: String)
 
@@ -70,6 +73,10 @@ enum Installer {
             case let .register(status, output):
                 return tr("注册输入法失败（退出码 \(status)）：", "Registering the input method failed (exit status \(status)):")
                     + "\n\n" + output
+            case let .launch(output):
+                return tr("新的输入法启动不了，所以没有装上（原来的保持不变）。请从 Releases 重新下载。",
+                          "The new input method doesn't start, so it wasn't installed (what was there before is as it was). Please download it again from Releases.")
+                    + (output.isEmpty ? "" : "\n\n" + output)
             case let .notRestored(reason, folder):
                 return tr("安装失败（\(reason)），原来的 App 也没能放回原处，现在在：\(folder)",
                           "Installing failed (\(reason)), and the previous apps couldn't be put back; they're in: \(folder)")
@@ -123,6 +130,19 @@ enum Installer {
             throw Failure.notRestored(reason, folder: folder)
         }
         adoptChinesePack(from: swap.movedAside.map(\.to))
+        // The new input method has to start before the old one goes: one macOS won't run (a provisioning profile that
+        // doesn't match its signature or entitlements) would leave no input method at all.
+        let started = try? run(executable.path, ["--version"], timeout: 30)  // as the updater's launch check
+        guard let started, started.status == 0, started.output == installedVersion() else {
+            let output = started.map { "\($0.status): \($0.output.prefix(200))" } ?? ""
+            do {
+                try swap.rollBack(reason: "the new input method doesn't start (\(output))")
+            } catch let BundleSwap.Failure.notRestored(reason, folder) {
+                keepStaging = true
+                throw Failure.notRestored(reason, folder: folder)
+            }
+            throw Failure.launch(output)
+        }
         // No second copy (same bundle ID) for macOS to find while the new one registers.
         swap.commit()
         // In case macOS started the old copy again in between: from now on it starts the new one.
@@ -277,7 +297,9 @@ enum Installer {
     }
 
     /// Runs a tool to the end; stdout and stderr together.
-    static func run(_ path: String, _ arguments: [String]) throws -> ProcessResult {
+    /// With a `timeout`, a program still running after it is stopped (SIGTERM, then SIGKILL a second later), and the
+    /// result is status -1, "timed out after … s".
+    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval? = nil) throws -> ProcessResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
@@ -286,8 +308,32 @@ enum Installer {
         process.standardError = pipe
         process.standardInput = FileHandle.nullDevice
         try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let timeout else {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            let output = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return ProcessResult(status: process.terminationStatus, output: output)
+        }
+        // Its output read meanwhile, so that a full pipe never holds it up.
+        let read = DispatchGroup()
+        var data = Data()
+        read.enter()
+        DispatchQueue.global().async {
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
+            read.leave()
+        }
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        if process.isRunning {
+            process.terminate()
+            Thread.sleep(forTimeInterval: 1)
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            process.waitUntilExit()
+            _ = read.wait(timeout: .now() + 1)  // a program it started may hold the pipe: not waited for
+            return ProcessResult(status: -1, output: "timed out after \(Int(timeout)) s")
+        }
         process.waitUntilExit()
+        read.wait()
         let output = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         return ProcessResult(status: process.terminationStatus, output: output)
     }

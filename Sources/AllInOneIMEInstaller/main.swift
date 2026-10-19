@@ -2,17 +2,18 @@
 // Opened from Finder it asks first, then installs, updates or uninstalls AllInOneIME for this user
 // (see Installer). --install and --uninstall do the same from a terminal without asking.
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 
-/// Chinese if picked in the settings (`uiLanguage`), else if the system prefers Chinese to English,
-/// as in the input method.
-let chinese: Bool = {
-    if let picked = (try? Config.load())?.uiLanguage { return picked == .chinese }
-    let preferred = Locale.preferredLanguages.first { $0.hasPrefix("zh") || $0.hasPrefix("en") }
-    return preferred?.hasPrefix("zh") == true
-}()
+// What the core needs of the Mac, before anything uses it.
+Platform.current = .mac
 
-func tr(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+/// The interface language, as in the input method: the one picked in the settings (`uiLanguage`), else the
+/// system's among the languages this app ships (`InterfaceLanguage`).
+let language = InterfaceLanguage.current(setting: ConfigFile.uiLanguage())
+
+/// As the input method's `tr`: the Chinese, the English, or the String Catalog's translation of the English.
+func tr(_ zh: UIString, _ en: UIString) -> String { InterfaceText.text(zh, en, language: language, app: .main) }
 
 /// The version this installer carries.
 let newVersion = Installer.version

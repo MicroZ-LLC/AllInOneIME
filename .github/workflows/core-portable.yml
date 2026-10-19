@@ -1,0 +1,108 @@
+# Keeps the core (Core/, a package of its own) standalone and building off the Mac. Every job works on an export of
+# Core/ alone (`git archive HEAD:Core`, beside the checkout, so that nothing above it is there), as the core's own
+# repository will be: the lint guards (Scripts/check-core-portable.sh, its self-test, Scripts/check-core-standalone.sh)
+# must pass, and on macOS, Linux and Windows the core and its tests must build (on macOS and Linux in release
+# too). On Windows the suites of what differs
+# there (paths, the folder swap, the word list, the JavaScript engine: QuickJS-ng) run too, and the Windows shell
+# (Windows/) builds; the rest of the tests
+# aren't run there yet: some still fail for known reasons (the tools in the image, POSIX programs, Apple-only
+# assumptions). The tests run in full on the Mac with `make test`.
+name: Core on other platforms
+
+on:
+  pull_request:
+  push:
+    branches: [mainline, "release-*"]
+
+concurrency:
+  group: core-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the core alone
+        run: mkdir ../core && git archive HEAD:Core | tar -x -C ../core
+      - run: ../core/Scripts/check-core-portable-test.sh
+      - run: ../core/Scripts/check-core-portable.sh
+      - run: ../core/Scripts/check-core-standalone.sh
+
+  macos:
+    # The core uses the macOS 27 SDK's FoundationModels API (Xcode 27); macos-26 ships Xcode 26.x.
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the core alone
+        run: mkdir ../core && git archive HEAD:Core | tar -x -C ../core
+      - uses: actions/cache@v4
+        with:
+          path: ../core/.build
+          key: macos-${{ hashFiles('Core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: macos-${{ hashFiles('Core/Package.resolved') }}-
+      - name: Build the core and its tests
+        run: swift build --build-tests
+        working-directory: ../core
+      - name: Build the core in release
+        run: Scripts/check-core-standalone.sh --release
+        working-directory: ../core
+
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the core alone
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir ../core && git archive HEAD:Core | tar -x -C ../core
+      - uses: actions/cache@v4
+        with:
+          path: ../core/.build
+          key: linux-swift-6.4-${{ hashFiles('Core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: linux-swift-6.4-${{ hashFiles('Core/Package.resolved') }}-
+      - name: Build the core
+        run: swift build --target AllInOneIMECore
+        working-directory: ../core
+      - name: Build the tests
+        run: swift build --build-tests
+        working-directory: ../core
+      - name: Build the core in release
+        run: Scripts/check-core-standalone.sh --release
+        working-directory: ../core
+
+  # windows-latest, Swift 6.4.1 from swift.org; the toolchain finds Visual Studio's MSVC and the Windows SDK by itself,
+  # no developer prompt needed. The test files that call POSIX directly are left out there (Core/Package.swift).
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the core alone
+        shell: bash
+        run: mkdir ../core && git archive HEAD:Core | tar -x -C ../core
+      - uses: compnerd/gha-setup-swift@bbae8ce86bac5a3449f3992b3d88bc4ca25f2057  # v0.5.0
+        with:
+          swift-version: swift-6.4.1-release
+          swift-build: 6.4.1-RELEASE
+          cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ../core/.build
+          key: windows-swift-6.4.1-${{ hashFiles('Core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: windows-swift-6.4.1-${{ hashFiles('Core/Package.resolved') }}-
+      - name: Build the core
+        run: swift build --target AllInOneIMECore
+        working-directory: ../core
+      - name: Build the tests
+        run: swift build --build-tests
+        working-directory: ../core
+      - name: Run the tests of what differs on Windows
+        run: swift test --skip-build --filter 'PathCheckTests|SwapRecoveryTests|RedactionWordListTests|ScriptEngineTests|QuickJSEngineTests|OnQuickJSTests'
+        working-directory: ../core
+      - name: Build the Windows shell
+        run: swift build
+        working-directory: Windows

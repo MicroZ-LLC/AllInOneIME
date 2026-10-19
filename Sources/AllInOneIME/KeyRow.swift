@@ -61,13 +61,14 @@ struct KeyRowContent: View {
     let missing: String
     /// The paste field's placeholder.
     let prompt: String
-    /// Remove…'s question, and what removing means (nil: nothing to add).
-    let removeTitle: String
+    /// Remove…'s question, naming the key and where it goes from (`everywhere`: every Mac, while keys sync through iCloud
+    /// Keychain; else this Mac), and what removing means (nil: nothing to add).
+    let removeTitle: (_ everywhere: Bool) -> String
     var removeMessage: String? = nil
     let save: (String) -> Void
     /// Nil: no Remove… (a key in the shell isn't ours to remove).
     let remove: (() -> Void)?
-    /// The paste field shown and focused (Replace…, or asked from outside: `@config` opening Settings at the key).
+    /// The paste field shown and focused (Replace…, or asked from outside: Settings → Assistant opening the key).
     @Binding var editing: Bool
     @State private var text = ""
     @State private var removing = false
@@ -97,13 +98,13 @@ struct KeyRowContent: View {
                     if state.isSet {
                         Button(tr("替换…", "Replace…")) { editing = true }
                         if let remove {
-                            Button(tr("删除…", "Remove…")) { removing = true }
-                                .alert(removeTitle, isPresented: $removing) {
+                            Button(tr("删除…", "Remove…", key: "keyRow.delete")) { removing = true }
+                                .alert(removeQuestion, isPresented: $removing) {
                                     // ⏎ is Cancel: removing is a choice of its own.
                                     Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
-                                    Button(tr("删除", "Remove"), role: .destructive, action: remove)
+                                    Button(tr("删除", "Remove", key: "remove.delete"), role: .destructive, action: remove)
                                 } message: {
-                                    if let removeMessage { Text(removeMessage) }
+                                    if let message = removeDetail { Text(message) }
                                 }
                         }
                     }
@@ -112,6 +113,25 @@ struct KeyRowContent: View {
         }
         .onAppear { if editing { focused = true } }
         .onChange(of: editing) { if editing { focused = true } else { text = "" } }
+    }
+
+    /// Remove…'s question: while keys sync through iCloud Keychain, removing one removes it from every Mac; otherwise
+    /// from this Mac alone (the copy in iCloud Keychain, if any, stays for the other Macs). It says which.
+    private var removeQuestion: String { removeTitle(removesEverywhere) }
+
+    private var removesEverywhere: Bool { ICloudSyncController.shared.keys?.syncing == true }
+
+    /// What removing means (`removeMessage`), and, while it removes the key from every Mac, the Macs it can't reach.
+    private var removeDetail: String? {
+        let parts = [removeMessage, removesEverywhere ? Self.unreachedMacs : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    /// Remove… while keys sync can't reach a Mac with "API keys and passwords" off, or one still on 0.6.4: it keeps its
+    /// copy, and puts it back if it turns key sync on later.
+    static var unreachedMacs: String {
+        tr("关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，会留着自己的那份；那台 Mac 以后打开密钥同步时，会把它放回来。",
+           "A Mac with “API keys and passwords” off, or one still on 0.6.4, keeps its own copy, and puts it back if it turns key sync on later.")
     }
 
     private func commit() {
@@ -127,7 +147,7 @@ struct KeyRowContent: View {
     }
 }
 
-/// Settings' sheet for the key of a provider other than the one in use (`@config`, `@doctor` asked for it): nothing
+/// Settings' sheet for the key of a provider other than the one in use (Settings → Assistant asked for it): nothing
 /// about that provider is drawn on the current one's page. Save keeps the key; Save and Use also switches to the
 /// provider and runs Test Connection; Cancel and Esc change nothing.
 struct KeySheet: View {

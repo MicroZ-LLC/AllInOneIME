@@ -4,8 +4,8 @@
 #   python3 Scripts/translate-wiki.py WIKI_DIR [--page Commands] [--force] [--dry-run]
 #
 # WIKI_DIR is a clone of https://github.com/MicroZ-LLC/AllInOneIME.wiki.git. Run from this repository: the app's own
-# Chinese UI wording (`tr("中文", "English")` in Sources) and the Chinese screenshots (docs/ beside docs/en/) come
-# from it. Needs ANTHROPIC_API_KEY.
+# Chinese UI wording (`tr("中文", "English")` in Sources and Core/Sources) and the Chinese screenshots (docs/ beside
+# docs/en/) come from it. Needs ANTHROPIC_API_KEY.
 #
 # Each Chinese page ends with a comment naming the SHA-256 of the English page it was translated from; a page whose
 # English is unchanged is skipped. The previous translation goes along with the English, so wording that still fits
@@ -61,7 +61,7 @@ def ui_glossary(repo: Path, text: str) -> str:
     """The app's `tr("中文", "English")` pairs whose English appears on the page."""
     pairs = {}
     pattern = re.compile(r'tr\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)')
-    for source in (repo / "Sources").rglob("*.swift"):
+    for source in [*(repo / "Sources").rglob("*.swift"), *(repo / "Core" / "Sources").rglob("*.swift")]:
         for chinese, english in pattern.findall(source.read_text()):
             if "\\(" in english or len(english) < 3:
                 continue

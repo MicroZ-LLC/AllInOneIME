@@ -3,7 +3,7 @@ import AppKit
 
 extension SelfTest {
     /// Per-app settings (`AppProfile`) through the fake text field pretending to be two apps: a chat app that starts in
-    /// English and has no AI (an AI command is refused with a notice, @calculate still runs), and a mail app that starts
+    /// English and has no AI (an AI command is refused with a notice, @js still runs), and a mail app that starts
     /// in pinyin, types results out and rewrites formally only (live Bedrock); back in the chat app, English again.
     /// Then the input menu's "This App" item, and Settings → Apps rendered in Chinese and English.
     static func testAppProfiles(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
@@ -49,12 +49,14 @@ extension SelfTest {
         _ = escape(controller, client)
         _ = escape(controller, client)
         press(controller, client, "@", code: 0x13, flags: .shift)
-        type("calc", controller, client)
+        type("js", controller, client)
         press(controller, client, "\t", code: VirtualKey.tab)
-        type("pi", controller, client)
+        type("6", controller, client)
+        press(controller, client, "*", code: 0x1C, flags: .shift)
+        type("7", controller, client)
         act(controller, client)
-        if finishConversion(controller, "@calculate pi in the chat app") {
-            check(controller.composer.choices.contains { $0.text.hasPrefix("3.14") }, "@calculate still runs there")
+        if finishConversion(controller, "@js 6*7 in the chat app") {
+            check(controller.composer.choices.contains { $0.text == "42" }, "@js still runs there")
         }
         _ = escape(controller, client)
         _ = escape(controller, client)
@@ -102,14 +104,14 @@ extension SelfTest {
         needing([])
         let chosen = UIText.choice
         defer { UIText.choice = chosen }
-        for (name, language) in [("settings-apps", Language.chinese), ("settings-apps-en", .english)] {
+        for (name, language) in [("settings-apps", "zh"), ("settings-apps-en", "en")] {
             UIText.choice = language
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.config.setOrder([Language.chinese, .english])
             preview.config.appProfiles = AppProfileSamples.profiles
             let url = snapshotDirectory.appendingPathComponent("\(name).png")
             SettingsImage.render(preview, page: .apps, to: url) { seconds in _ = pump(timeout: seconds) { false } }
-            check(FileManager.default.fileExists(atPath: url.path), "Settings → Apps rendered (\(language.rawValue))")
+            check(FileManager.default.fileExists(atPath: url.path), "Settings → Apps rendered (\(language))")
         }
         check(SettingsPage.apps.matches("slack") && SettingsPage.apps.matches("不用 AI") && SettingsPage.apps.matches("按 App"),
               "the search finds Settings → Apps")

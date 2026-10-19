@@ -6,7 +6,8 @@ import SwiftUI
 /// notes and the wiki. The real panel with the self-test's sample data (English; `zh`: Chinese) drops down over a
 /// colorful window, so its frosted glass has something to blur, and is captured with `screencapture`:
 /// `panel.png` as it opens, `panel-swipe.png` with a task swiped open to its Remove button, and the candidate
-/// panel under a line being typed: `candidates.png` in a column, `candidates-horizontal.png` in a row. An
+/// panel under a line being typed: `candidates.png` in a column, `candidates-horizontal.png` in a row; then two
+/// settings menus open (`captureLanguageMenu`): `language-menu.png` and `note-save-to-menu.png`. An
 /// offscreen render can't show the glass (nothing is behind it). Needs the screen unlocked; the windows
 /// are up for about four seconds. Nothing real is read: Notes, Reminders and Claude Code are stand-ins.
 @MainActor
@@ -17,7 +18,7 @@ enum PanelShowcase {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        UIText.choice = chinese ? .chinese : .english
+        UIText.choice = chinese ? "zh" : "en"
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
 
         let back = NSWindow(contentRect: backdrop, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -86,13 +87,95 @@ enum PanelShowcase {
                     MainActor.assumeIsolated {
                         capture("panel-swipe.png")
                         panel.closeDropDown()
-                        exit(0)
+                        captureLanguageMenu(output: output, appearance: appearance)
                     }
                 }
             }
         }
         app.run()
         exit(0)
+    }
+
+    /// A settings menu clicked open on screen and captured: Settings → General's interface language menu, each language
+    /// in its own (`language-menu.png`), then Settings → Plugins → Notes (@note)'s "Save to" (`note-save-to-menu.png`).
+    /// The settings window from a config of its own (the defaults; nothing saved, no key looked up); run it with a
+    /// sample home (CFFIXED_USER_HOME) so the Plugins page lists no plugins of the user's. Exits when done.
+    static func captureLanguageMenu(output: URL, appearance: NSAppearance?) {
+        let config = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-showcase-\(UUID().uuidString).json")
+        try? Config.default.write(to: config)
+        SettingsModel.looksUpKeys = false
+        // Each found by the item it shows (its menu is filled as it opens).
+        let menus: [(page: SettingsPage, item: String, file: String, setUp: (SettingsModel) -> Void)] = [
+            (.general, tr("跟随系统", "Follow the system"), "language-menu.png", { _ in }),
+            (.plugins, tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)"), "note-save-to-menu.png",
+             { $0.config.notes = NoteSettings(destination: .folder, folder: "~/Vault/Inbox") }),
+        ]
+        func capture(_ index: Int) {
+            guard index < menus.count else {
+                try? FileManager.default.removeItem(at: config)
+                exit(0)
+            }
+            let menu = menus[index]
+            let model = SettingsModel(configURL: config, persists: false)
+            menu.setUp(model)
+            let frame = NSRect(x: backdrop.minX, y: backdrop.minY + 10, width: 880, height: 640)
+            // A plain backdrop under the window and the margin captured around it, wider below and on the right where
+            // the menu may reach past the window: nothing else on the screen shows.
+            let shot = NSRect(x: frame.minX - 24, y: frame.minY - 150, width: frame.width + 24 + 60, height: frame.height + 150 + 24)
+            let plain = NSWindow(contentRect: shot, styleMask: [.borderless], backing: .buffered, defer: false)
+            plain.backgroundColor = NSColor(calibratedWhite: appearance?.name == .darkAqua ? 0.16 : 0.93, alpha: 1)
+            plain.isReleasedWhenClosed = false
+            plain.orderFrontRegardless()
+            let window = NSWindow(contentRect: frame, styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.appearance = appearance
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: SettingsView(model: model, page: menu.page))
+            window.orderFrontRegardless()
+            NSApp.activate()
+            window.makeKey()
+            func popUps(in view: NSView) -> [NSPopUpButton] {
+                (view as? NSPopUpButton).map { [$0] } ?? view.subviews.flatMap(popUps)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                MainActor.assumeIsolated {
+                    guard let view = window.contentView,
+                          let button = popUps(in: view).first(where: { $0.title == menu.item }) else {
+                        print("  no menu with \(menu.item) found")
+                        window.close()
+                        plain.close()
+                        return capture(index + 1)
+                    }
+                    // Room under it for the menu, which drops from the item checked.
+                    button.scrollToVisible(button.bounds.insetBy(dx: 0, dy: -60).offsetBy(dx: 0, dy: button.isFlipped ? 340 : -340)
+                        .union(button.bounds))
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        MainActor.assumeIsolated {
+                            // The window and the plain margin around it; screencapture counts from the top.
+                            let height = NSScreen.screens[0].frame.height
+                            let path = output.appendingPathComponent(menu.file).path
+                            let open = button.menu
+                            Thread.detachNewThread {
+                                Thread.sleep(forTimeInterval: 1.0)
+                                let task = Process()
+                                task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                                task.arguments = ["-x", "-R", "\(Int(shot.minX)),\(Int(height - shot.maxY)),\(Int(shot.width)),\(Int(shot.height))", path]
+                                try? task.run()
+                                task.waitUntilExit()
+                                print("  \(path)")
+                                RunLoop.main.perform(inModes: [.eventTracking, .common, .default]) { open?.cancelTracking() }
+                            }
+                            button.performClick(nil)  // tracks the menu until it's cancelled above
+                            window.close()
+                            plain.close()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { MainActor.assumeIsolated { capture(index + 1) } }
+                        }
+                    }
+                }
+            }
+        }
+        capture(0)
     }
 
     /// A busy, colorful screen: the glass blurs it.
@@ -129,7 +212,7 @@ enum SettingsPageImages {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        UIText.choice = chinese ? .chinese : .english
+        UIText.choice = chinese ? "zh" : "en"
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.profileShownAs = "default"  // not the user's own profile name
         // AWS profiles: samples of every kind in a folder of their own, never the user's ~/.aws (`AWSProfileSamples`).
@@ -162,6 +245,12 @@ enum SettingsPageImages {
             model.config.agent = AgentKind(rawValue: kind) ?? .claude
             model.config.agentCommand = CustomCommand.arguments(fromCommandLine: command) ?? []
         }
+        // Sync through iCloud shown on, synced a while ago (nothing is read or synced).
+        model.config.iCloudSync = ICloudSyncSettings(enabled: true)
+        // …with its "API keys and passwords" row as a build with the provisioning profile shows it, turned on.
+        ICloudSyncSection.shownEntitled = true
+        model.config.iCloudSync.keys = true
+        ICloudSyncController.shared.show(status: .synced(Date().addingTimeInterval(-120)), lastSync: Date().addingTimeInterval(-120))
         // The Updates card in a state of its own (nothing is checked or downloaded).
         if let update {
             let updates = UpdateController.shared
@@ -177,10 +266,19 @@ enum SettingsPageImages {
             default: updates.state = .upToDate
             }
         }
+        // Assistant: a sample request and made-up findings, from stand-ins and a config file of its own (no probe of
+        // this Mac, no AI, nothing of the user's).
+        let samples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-assistant-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: samples, withIntermediateDirectories: true)
+        let rig = SelfTest.AssistantRig(samples, name: "config.json", config: SelfTest.assistantSampleConfig)
+        let assistant = SelfTest.sampleAssistant(rig)
         for page in SettingsPage.allCases {
-            SettingsImage.render(model, page: page, to: output.appendingPathComponent("settings-\(page.rawValue).png"),
+            SettingsImage.render(model, page: page, assistant: page == .assistant ? assistant : nil,
+                                 to: output.appendingPathComponent("settings-\(page.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        rig.restore()
+        try? FileManager.default.removeItem(at: samples)
         // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
         // provider: sample states, no keychain asked.
         let provider = model.config.provider

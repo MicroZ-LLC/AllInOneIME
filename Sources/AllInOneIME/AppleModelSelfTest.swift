@@ -11,9 +11,9 @@ extension SelfTest {
         check(Provider.offered.contains(.apple) == availability.isOffered,
               "the provider list has it on macOS 26 and later (\(Provider.offered.map(\.rawValue)))")
         let pickedBefore = UIText.choice
-        UIText.choice = .english
+        UIText.choice = "en"
         let refusedEnglish = UIText.describe(ProviderError.refused(.apple))
-        UIText.choice = .chinese
+        UIText.choice = "zh"
         let refusedChinese = UIText.describe(ProviderError.refused(.apple))
         UIText.choice = pickedBefore
         check(refusedEnglish == "Apple Intelligence declined this request" && refusedChinese == "Apple Intelligence 拒绝了这个请求",
@@ -73,11 +73,11 @@ extension SelfTest {
         needing([])
         defer { UIText.choice = pickedBefore }
         for chinese in [true, false] {
-            UIText.choice = chinese ? .chinese : .english
+            UIText.choice = chinese ? "zh" : "en"
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.config.provider = .apple
             preview.config.setOrder([OutputLanguage.english])
-            preview.config.uiLanguage = chinese ? .chinese : .english
+            preview.config.uiLanguage = chinese ? "zh" : "en"
             preview.runTest()
             _ = pump(timeout: 30) { preview.testStatus != .running }
             if case let .passed(text) = preview.testStatus {

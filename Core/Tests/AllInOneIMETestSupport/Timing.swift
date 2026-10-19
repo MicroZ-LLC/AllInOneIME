@@ -1,0 +1,56 @@
+import Foundation
+#if canImport(WinSDK)
+import WinSDK
+#endif
+
+/// Time in tests that run alongside more than a thousand others, many starting git and other programs in parallel:
+/// there, starting a process or getting a turn on a core can take seconds. So a bound on how long something took is
+/// set against what it would take if the code were wrong (a program that sleeps a minute), not against how fast this
+/// Mac is; what is timed for speed is the CPU time of the thread doing the work, which waiting for a turn doesn't add
+/// to; and what should happen soon is waited for, up to a generous limit.
+public enum Timing {
+    /// How long a program in a test sleeps when the test checks that it is stopped before it ends by itself.
+    public static let longSleep = 60
+    /// Stopped "well before" `longSleep` seconds: whatever the load, far more than stopping takes.
+    public static let wellBeforeLongSleep: TimeInterval = 30
+
+    /// The CPU time this thread spends in `body` (as `ContinuousClock.measure`, without the time spent waiting).
+    public static func cpuTime(_ body: () throws -> Void) rethrows -> Duration {
+        let start = threadCPUNanoseconds()
+        try body()
+        return .nanoseconds(Int64(threadCPUNanoseconds() - start))
+    }
+
+    /// This thread's CPU time so far, in nanoseconds.
+    public static func threadCPUNanoseconds() -> UInt64 {
+        #if canImport(Darwin)
+        return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
+        #elseif os(Windows)
+        // Its kernel and user time, in 100 ns steps (counted at the scheduler's tick).
+        var (created, exited, kernel, user) = (FILETIME(), FILETIME(), FILETIME(), FILETIME())
+        _ = GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)
+        return [kernel, user].reduce(0) { $0 + (UInt64($1.dwHighDateTime) << 32 | UInt64($1.dwLowDateTime)) * 100 }
+        #else
+        var time = timespec()
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time)
+        return UInt64(time.tv_sec) * 1_000_000_000 + UInt64(time.tv_nsec)
+        #endif
+    }
+
+    /// What `body` returns, and the CPU time this thread spent in it in seconds.
+    public static func cpuSeconds<T>(_ body: () throws -> T) rethrows -> (value: T, seconds: Double) {
+        var value: T?
+        let time = try cpuTime { value = try body() }
+        return (value!, Double(time.components.seconds) + Double(time.components.attoseconds) / 1e18)
+    }
+
+    /// Whether `condition` holds within `timeout` seconds, asked every 20 ms.
+    public static func eventually(within timeout: TimeInterval = 20, _ condition: () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            if Date() >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return true
+    }
+}

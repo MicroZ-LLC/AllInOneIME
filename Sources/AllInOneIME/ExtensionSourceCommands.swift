@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import Foundation
 
 /// `--add-source`, `--update-sources`, `--list-extensions`: extension sources from a terminal or a script, as Settings
@@ -87,7 +88,7 @@ enum ExtensionSourceCommands {
         var source = ExtensionSource(url: url, path: options.values["--path"], branch: options.values["--branch"], pin: options.values["--pin"])
         do {
             source.url = try ExtensionSources.validate(url)
-            var config = try Config.load(from: options.configURL)
+            let config = try Config.load(from: options.configURL)
             // An entry the config has for it already (handed out with its hint, say): its settings unless given here.
             if let had = config.extensionSources.first(where: { $0.url == source.url }) {
                 source.path = source.path ?? had.path
@@ -120,18 +121,17 @@ enum ExtensionSourceCommands {
                                                     path: path, url: source.url, commit: staged.status.commit,
                                                     commitDate: staged.status.commitDate, config: others, plugins: PluginStore.load().0,
                                                     found: LiveExtensions.found, repository: staged.folder)
-            UIText.choice = .english
+            UIText.choice = "en"
             review.summary(describe: { UIText.describe($0, file: $1) }).forEach { print($0) }
             guard review.bundle != nil else {
                 manager.discard(staged)
                 printError("✗ the bundle can't be loaded: not enabled")
                 return 1
             }
-            // Read again: the input method or Settings may have written it meanwhile. An unreviewed folder of the
-            // sources folder in its load list goes first, then the reviewed clone takes its place.
-            config = try Config.load(from: options.configURL)
+            // The statuses from before this clone is trusted: an unreviewed folder of the sources folder in the load
+            // list goes by them, before the reviewed clone takes its place (`enableInConfigFile`).
             var all = ExtensionSourceStatus.load(from: manager.statusFile)
-            ExtensionSources.quarantine(&config, statuses: all, root: options.root)
+            let unreviewed = all
             let installed: ExtensionSourceManager.Clone
             do {
                 installed = try manager.install(staged)
@@ -145,8 +145,8 @@ enum ExtensionSourceCommands {
             all = ExtensionSourceStatus.load(from: manager.statusFile)
             all[source.url] = trusted
             try manager.save(all)
-            ExtensionSources.enable(source, in: &config, root: options.root)
-            try config.write(to: options.configURL)
+            // Read again (the input method or Settings may have written it meanwhile), and only what changed written.
+            try ExtensionSources.enableInConfigFile(source, at: options.configURL, quarantining: unreviewed, root: options.root)
             ExtensionSourceController.postChanged()
             print("enabled:     \(ExtensionSources.loadPath(for: source, root: options.root))")
             return 0
@@ -225,21 +225,30 @@ enum ExtensionSourceCommands {
         } catch {
             return fail(error)
         }
-        UIText.choice = .english
+        UIText.choice = "en"
         let plugins = PluginStore.load().0
         // As the input method loads them: an extension source's folder only once it's reviewed, and only as its bundle.
         let statuses = ExtensionSourceStatus.load(from: options.root.appendingPathComponent(ExtensionSources.statusFileName))
         let unreviewed = Set(ExtensionSources.untrustedFolders(in: config, statuses: statuses, root: options.root).map(ExtensionSources.comparable))
         let index = ExtensionStore.load(ExtensionSources.loadFolders(config, found: LiveExtensions.found, statuses: statuses, root: options.root))
         let enabled = index.enabled(config.disabledExtensions)
-        let names = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
-            .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
-        let hidden = Dictionary(Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
+        let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
+        let catalog = Command.catalog(config.customCommands, plugins: plugins, scripts: enabled, snippets: enabledSnippets)
+        let names = Dictionary(catalog.compactMap { command in command.script.map { ($0.id, command.name) } },
+                               uniquingKeysWith: { first, _ in first })
+        let hidden = Dictionary(Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins, snippets: enabledSnippets)
             .map { ($0.script.id, ScriptCommand.Problem.nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
+        // A bundle's snippets: the name each got ("<bundle>/<name>" → it), and the ones left out.
+        let snippetNames = Dictionary(catalog.compactMap { command -> (String, String)? in
+            guard command.kind == .snippet, let bundle = command.bundle, let custom = command.custom else { return nil }
+            return (bundle + "/" + custom.name, command.name)
+        }, uniquingKeysWith: { first, _ in first })
+        let hiddenSnippets = Dictionary(Command.hiddenSnippets(enabledSnippets, scripts: enabled, custom: config.customCommands, plugins: plugins)
+            .map { ($0.snippet.id, ScriptCommand.Problem.nameTaken($0.snippet.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         let sources = config.extensionSources.map { ($0.url, ExtensionSources.comparable(ExtensionSources.bundleFolder(for: $0, root: options.root).path)) }
-        func origin(_ command: ScriptCommand) -> String {
-            let folder = ExtensionSources.comparable(command.extensionDirectory.path)
-            return sources.first { $0.1 == folder }?.0 ?? ExtensionStore.abbreviated(command.extensionDirectory.path)
+        func origin(_ directory: URL) -> String {
+            let folder = ExtensionSources.comparable(directory.path)
+            return sources.first { $0.1 == folder }?.0 ?? ExtensionStore.abbreviated(directory.path)
         }
         for command in index.commands {
             let shown = names[command.id].map { "@" + $0 } ?? "@" + command.name
@@ -247,7 +256,17 @@ enum ExtensionSourceCommands {
             if !enabled.contains(command) { note = "  [off]" } else if let problem = hidden[command.id] {
                 note = "  [left out: " + UIText.describe(problem, file: command.file) + "]"
             }
-            print("\(shown)\t\(command.output.rawValue)\t\(origin(command))\(note)")
+            print("\(shown)\t\(command.output.rawValue)\t\(origin(command.extensionDirectory))\(note)")
+        }
+        for snippet in index.snippets {
+            let shown = "@" + (snippetNames[snippet.id] ?? snippet.name)
+            let folder = index.bundles.first { $0.name == snippet.bundle }?.folder
+            let manifest = (folder ?? URL(fileURLWithPath: "/")).appendingPathComponent(ExtensionBundle.manifestName)
+            var note = ""
+            if !enabledSnippets.contains(snippet) { note = "  [off]" } else if let problem = hiddenSnippets[snippet.id] {
+                note = "  [left out: " + UIText.describe(problem, file: manifest) + "]"
+            }
+            print("\(shown)\tsnippet\t\(folder.map(origin) ?? snippet.bundle)\(note)")
         }
         for folder in unreviewed.sorted() {
             print("skipped\t\(ExtensionStore.abbreviated(folder))\tan extension source's folder that isn't reviewed here (--add-source to review it)")

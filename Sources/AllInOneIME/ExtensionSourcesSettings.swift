@@ -87,7 +87,7 @@ struct ExtensionSourcesSection: View {
                 Spacer()
                 if busy { ProgressView().controlSize(.small) }
                 if !trusted {
-                    Button(tr("检查并启用…", "Review…")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }
+                    Button(tr("检查并启用…", "Review…", key: "extensionSource.reviewAndEnable")) { adding = ExtensionSourceSheet.Start(source: source, cloneNow: true) }
                         .disabled(busy)
                 } else if !enabled {
                     // Taken out of the load list (Script Extensions → Remove): back in, without another review.
@@ -135,8 +135,24 @@ struct ExtensionSourcesSection: View {
     private func loaded(_ source: ExtensionSource, trusted: Bool, enabled: Bool) -> String {
         if let shown = Self.shownLoaded?[source.url] { return tr("已加载：", "Loaded: ") + shown.joined(separator: " ") }
         let folder = ExtensionSources.comparable(ExtensionSources.bundleFolder(for: source, root: sources.root).path)
-        let names = model.extensionIndex.commands.filter { ExtensionSources.comparable($0.extensionDirectory.path) == folder }
-            .map { "@" + (model.extensionNames[$0.id] ?? $0.name) }
+        let bundle = model.extensionIndex.bundles.first { ExtensionSources.comparable($0.folder.path) == folder }?.name
+        // Each as it is offered: under its alias where its name is taken, or said to be off or left out.
+        func listed(_ name: String, offeredAs: String?, hidden: Bool, on: Bool) -> String {
+            if !on { return "@" + name + tr("（已关闭）", " (off)") }
+            if hidden { return "@" + name + tr("（名字被占用，没有加载）", " (name taken, not loaded)") }
+            return "@" + (offeredAs ?? name)
+        }
+        let off = Set(model.config.disabledExtensions)
+        let commands: [String] = model.extensionIndex.commands.filter { ExtensionSources.comparable($0.extensionDirectory.path) == folder }
+            .map { command in
+                listed(command.name, offeredAs: model.extensionNames[command.id], hidden: model.hiddenExtensions[command.id] != nil,
+                       on: !off.contains(command.id) && !(command.source.bundleName.map(off.contains) ?? false))
+            }
+        let snippets: [String] = model.extensionIndex.snippets.filter { $0.bundle == bundle }.map { snippet in
+            listed(snippet.name, offeredAs: model.snippetNames[snippet.id], hidden: model.hiddenSnippets[snippet.id] != nil,
+                   on: !off.contains(snippet.id) && !off.contains(snippet.bundle))
+        }
+        let names = commands + snippets
         if !names.isEmpty { return tr("已加载：", "Loaded: ") + names.joined(separator: " ") }
         if !trusted { return tr("没有加载：还没检查过", "Nothing loaded: not reviewed yet") }
         if !enabled { return tr("没有加载：不在加载列表里", "Nothing loaded: not in the load list") }
@@ -164,7 +180,10 @@ struct ExtensionSourcesSection: View {
             parts.append(branch)
         }
         if source.pin == nil {
-            parts.append(status.checked.map { tr("检查于 ", "checked ") + DashboardText.ago($0, now: Date(), chinese: UIText.chinese) }
+            parts.append(status.checked.map {
+                let ago = DashboardText.ago($0, now: Date(), language: UIText.language)
+                return tr("检查于 \(ago)", "checked \(ago)")
+            }
                          ?? tr("还没检查过", "not checked yet"))
             if !source.autoCheck { parts.append(tr("不自动检查", "not checked automatically")) }
         }
@@ -179,7 +198,7 @@ struct ExtensionSourcesSection: View {
                 HStack(spacing: 6) {
                     Text(commit.shortSHA).font(.caption.monospaced()).foregroundStyle(.secondary)
                     Text(commit.subject).font(.caption).lineLimit(1)
-                    Text("— " + commit.author + (commit.date.map { ", " + DashboardText.ago($0, now: Date(), chinese: UIText.chinese) } ?? ""))
+                    Text("— " + commit.author + (commit.date.map { ", " + DashboardText.ago($0, now: Date(), language: UIText.language) } ?? ""))
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
@@ -497,7 +516,8 @@ final class CancelFlag {
     var value = false
 }
 
-/// The review itself: the warning, the bundle, its commands and what they run, its preferences, where it's from.
+/// The review itself: the warning, the bundle, its commands and what they run, its snippets (they run nothing), its
+/// preferences, where it's from.
 struct ExtensionSourceReviewView: View {
     let review: ExtensionSourceReview
 
@@ -542,6 +562,10 @@ struct ExtensionSourceReviewView: View {
                         }
                         if let description = command.description { Text(description).font(.caption).foregroundStyle(.secondary) }
                         Text(tr("运行：", "Runs: ") + command.program).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                        if let status = command.status {
+                            Text(tr("状态行运行：", "Status line runs: ") + status).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
                         if let hidden = command.hidden {
                             Label(UIText.describe(hidden, file: URL(fileURLWithPath: command.program)), systemImage: "eye.slash")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -553,6 +577,20 @@ struct ExtensionSourceReviewView: View {
                         }
                     }
                     .opacity(command.hidden == nil ? 1 : 0.6)
+                }
+                ForEach(review.snippets, id: \.name) { snippet in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text("@" + snippet.name).font(.body.monospaced())
+                            Text(snippet.text).lineLimit(1)
+                            Text(tr("插入文字", "Insert text")).font(.caption).foregroundStyle(.secondary)
+                        }
+                        if let hidden = snippet.hidden {
+                            Label(UIText.describe(hidden, file: URL(fileURLWithPath: ExtensionBundle.manifestName)), systemImage: "eye.slash")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .opacity(snippet.hidden == nil ? 1 : 0.6)
                 }
                 ForEach(review.skipped, id: \.self) { skipped in
                     Label(tr("没有加载 \(skipped.file.lastPathComponent)：", "Not loaded, \(skipped.file.lastPathComponent): ")

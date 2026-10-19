@@ -13,9 +13,22 @@ SIGN_CERT = $(eval SIGN_CERT := $(shell Scripts/sign-identity.sh '$(SIGN_IDENTIT
 SIGN_HASH = $(firstword $(SIGN_CERT))
 # Developer ID signatures get a secure timestamp (from Apple, over the network): notarization needs it.
 TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
+# A provisioning profile to build the input method with (empty: none, as before): it grants the keychain entitlements
+# (Scripts/profile-entitlements.sh), so keys go to the data protection keychain and can sync through iCloud Keychain
+# (Core/Sources/AllInOneIMECore/KeySync.swift); without one they stay in the login keychain. A development build opts in
+# with `make app PROFILE=<the Development profile, kept outside the repository> SIGN_IDENTITY=<a certificate it lists>`;
+# `make dmg` uses the Developer ID one, committed (every shipped copy carries it). A profile that doesn't fit the
+# signature makes macOS kill the input method at launch, so it is checked first and the built app is run once after.
+PROFILE ?=
+DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
+# The keychain access group the entitlements give, KeySync.accessGroup in the core.
+KEYCHAIN_GROUP := 9SR8N3UD5Y.com.aipinyin.shared
+ENTITLEMENTS := $(BUILD_DIR)/AllInOneIME.entitlements
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=
 SWIFT_BUILD = swift build -c $(CONFIG) $(foreach arch,$(ARCHS),--arch $(arch))
+# The core, the package every platform's shell shares (this one is macOS's).
+CORE := Core
 
 # Level one: official librime release build (BSD-3) and the rime-ice dictionaries (GPL-3.0).
 LIBRIME_VERSION := 1.16.1
@@ -25,13 +38,17 @@ RIME_ICE_TAG    := 2026.06.30
 RIME_ICE_ZIP    := rime-ice-$(RIME_ICE_TAG)-full.zip
 RIME_ICE_SHA256 := 675d23b070be00e1b800f9a6db033ef98f4493cd5b568ed8aa3b3541769c46ac
 
-DEPS       := ThirdParty
+# Where they go, ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an absolute path, a folder several checkouts share,
+# say), else ThirdParty here. The one setting: Package.swift (librime's folder), the Rime tests (rime-ice's data) and
+# Scripts/make-dmg.sh read the same variable, in the environment or on make's command line (make passes it on). DEPS is
+# only its value here, not a setting of its own.
+override DEPS := $(or $(ALLINONEIME_THIRDPARTY),ThirdParty)
 RIME_DIST  := $(DEPS)/librime/dist
 RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
 RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
 
-# The Chinese language pack (Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
+# The Chinese language pack (Core/Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
 # its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
 # Its archive is a release asset of the language library repository (MicroZ-LLC/AllInOneIME-languages), listed in
 # its signed packs.json.
@@ -40,12 +57,12 @@ PACK_VERSION := 1.0.0
 PACK_NAME    := $(PACK_ID)-$(PACK_VERSION)
 PACK         := $(BUILD_DIR)/packs/$(PACK_NAME).tar.xz
 PACK_URL     := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download/$(PACK_NAME)/$(PACK_NAME).tar.xz
-# Korean and Hindi: their tables, kept in this repository (LanguagePacks/<id>/), the same way.
+# Korean and Hindi: their tables, kept in this repository (Core/LanguagePacks/<id>/), the same way.
 KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs install-pack build app settings-app installer-app dmg update-zip update-manifest update-test test icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -68,7 +85,7 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 	rm -rf $(RIME_DATA) && mkdir -p $(RIME_DATA)
 	unzip -q $(DEPS)/$(RIME_ICE_ZIP) -d $(RIME_DATA)
 	cp Resources/rime/default.custom.yaml $(RIME_DATA)/
-	DYLD_LIBRARY_PATH="$(CURDIR)/$(RIME_DIST)/lib" $(RIME_DIST)/bin/rime_deployer --build \
+	DYLD_LIBRARY_PATH="$(abspath $(RIME_DIST))/lib" $(RIME_DIST)/bin/rime_deployer --build \
 		$(RIME_DATA) $(RIME_DATA) $(RIME_DATA)/build > $(DEPS)/rime-prebuild.log 2>&1
 	rm -f $(RIME_DATA)/user.yaml $(RIME_DATA)/installation.yaml
 	rm -rf $(RIME_DATA)/*.userdb
@@ -77,10 +94,44 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
 
-app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
+# The interface text in languages other than Simplified Chinese and English (those two are in the code): two String
+# Catalogs, the core's (Core/Resources/Localizable.xcstrings) and the app's own text's (Resources/), merged into one (a
+# key in both fails) and compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict),
+# which go into the input method, AllInOneIME Settings and the installer. The English text is the key (`tr` in
+# AllInOneIMEText). `make strings` adds the code's new texts to the catalogs, the core's first (the core's Strings
+# plugin, Core/Scripts/strings/main.swift), and moves a text whose code moved from the app to the core to the core's
+# catalog, with its translations (Core/Scripts/strings-test.sh, part of `make test`, checks that); `make strings-check`,
+# part of `make test`, fails when one is missing or a language in them lacks a translation.
+STRINGS        := Resources/Localizable.xcstrings
+CORE_STRINGS   := $(CORE)/Resources/Localizable.xcstrings
+STRINGS_MERGED := $(BUILD_DIR)/Localizable.xcstrings
+STRINGS_BUILD  := $(BUILD_DIR)/strings
+STRINGS_TOOL   := swift package --allow-writing-to-package-directory strings
+
+$(STRINGS_BUILD): $(STRINGS) $(CORE_STRINGS)
+	rm -rf $@ && mkdir -p $@
+	$(STRINGS_TOOL) --merge $(STRINGS_MERGED)
+	xcrun xcstringstool compile $(STRINGS_MERGED) --output-directory $@
+	touch $@
+
+strings:
+	swift package --package-path $(CORE) --allow-writing-to-package-directory strings
+	$(STRINGS_TOOL)
+
+strings-check:
+	swift package --package-path $(CORE) --allow-writing-to-package-directory strings --check
+	$(STRINGS_TOOL) --check
+
+# Core/Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy
+# of /usr/share/dict/web2 (Webster's Second International, public domain).
+redaction-words:
+	cd $(CORE) && swift Scripts/make-redaction-words.swift
+
+app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
+	Scripts/check-weak-links.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/strip-rpaths.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
 	# The licenses travel with the binaries (librime's BSD license asks for its notice).
@@ -89,6 +140,7 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 		mkdir -p "$(APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/$$lang.lproj/InfoPlist.strings" "$(APP)/Contents/Resources/$$lang.lproj/"; \
 	done
+	ditto "$(STRINGS_BUILD)" "$(APP)/Contents/Resources"
 	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	cp $(RIME_LIB) "$(APP)/Contents/Frameworks/"
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
@@ -99,18 +151,45 @@ app: build Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
 	# @agent, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
-	# (@imessage); the installer and `make dmg` ship this same build.
+	# (@imessage); the installer and `make dmg` ship this same build. They are signed as plain XML
+	# (the file's comments dropped), as notarization wants them.
+	plutil -convert xml1 -o "$(ENTITLEMENTS)" Resources/AllInOneIME.entitlements
+	# With a profile: its three entitlements added (once it's checked against the signature), and the profile
+	# embedded before signing, so that the signature seals it.
+	@if [ -n "$(PROFILE)" ]; then \
+		Scripts/profile-entitlements.sh "$(PROFILE)" "$(SIGN_HASH)" "$(APP)/Contents/Info.plist" "$(KEYCHAIN_GROUP)" \
+			"$(ENTITLEMENTS)" $(if $(PROFILE_ALL_DEVICES),--all-devices) && \
+		cp "$(PROFILE)" "$(APP)/Contents/embedded.provisionprofile"; \
+	fi
 	if [ -n "$(SIGN_HASH)" ]; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \
 			"$(APP)/Contents/Frameworks/librime.1.dylib" && \
-		codesign --force --options runtime $(TIMESTAMP) --entitlements Resources/AllInOneIME.entitlements \
-			--sign $(SIGN_HASH) "$(APP)"; \
+		codesign --force --options runtime $(TIMESTAMP) --entitlements "$(ENTITLEMENTS)" \
+			$(if $(PROFILE),--generate-entitlement-der) --sign $(SIGN_HASH) "$(APP)"; \
 	else \
 		echo "warning: no '$(SIGN_IDENTITY)' signing identity; ad-hoc signing without hardened runtime"; \
 		codesign --force --sign - "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib "$(APP)/Contents/Frameworks/librime.1.dylib" && \
 		codesign --force --sign - "$(APP)"; \
 	fi
 	codesign --verify --strict --deep "$(APP)"
+	# With a profile: the signature carries the keychain entitlements (without them the keys of every user who had them
+	# synced or moved would seem gone), and macOS has to let it run (a profile that doesn't fit gets it killed at launch):
+	# this Mac's slice, and on Apple silicon the x86_64 one too (`make dmg`'s universal build) when Rosetta is there.
+	@if [ -n "$(PROFILE)" ]; then \
+		codesign -d --entitlements - --xml "$(APP)" 2>/dev/null | grep -q '<key>keychain-access-groups</key>' \
+			|| { echo "error: $(APP) is signed without the keychain-access-groups entitlement" >&2; exit 1; }; \
+		version=$$("$(APP)/Contents/MacOS/$(APP_NAME)" --version) && echo "launch check: $(APP_NAME) $$version runs" \
+			|| { echo "error: $(APP) doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
+		if [ "$$(uname -m)" = arm64 ] && lipo -archs "$(APP)/Contents/MacOS/$(APP_NAME)" | grep -qw x86_64; then \
+			if arch -x86_64 /usr/bin/true 2>/dev/null; then \
+				version=$$(arch -x86_64 "$(APP)/Contents/MacOS/$(APP_NAME)" --version) \
+					&& echo "launch check: $(APP_NAME) $$version runs as x86_64 (Rosetta)" \
+					|| { echo "error: $(APP)'s x86_64 slice doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
+			else \
+				echo "launch check: the x86_64 slice not run (no Rosetta on this Mac)"; \
+			fi; \
+		fi; \
+	fi
 	@echo "Built $(APP)"
 
 # Both icons come from the 1024 px artwork Resources/AppIcon.png: the app icon (input method and
@@ -142,7 +221,7 @@ LEGACY_INSTALLED_APP := $(INSTALL_DIR)/$(LEGACY_APP_NAME).app
 LEGACY_SETTINGS_APP  := $(USER_APPS)/AI 拼音设置.app
 LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
-settings-app: Resources/AppIcon.icns
+settings-app: $(STRINGS_BUILD) Resources/AppIcon.icns
 	$(SWIFT_BUILD) --product AllInOneIMESettings
 	rm -rf "$(SETTINGS_APP)"
 	mkdir -p "$(SETTINGS_APP)/Contents/MacOS" "$(SETTINGS_APP)/Contents/Resources"
@@ -154,6 +233,7 @@ settings-app: Resources/AppIcon.icns
 		mkdir -p "$(SETTINGS_APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/Settings-$$lang.lproj/InfoPlist.strings" "$(SETTINGS_APP)/Contents/Resources/$$lang.lproj/"; \
 	done
+	ditto "$(STRINGS_BUILD)" "$(SETTINGS_APP)/Contents/Resources"
 	printf 'APPL????' > "$(SETTINGS_APP)/Contents/PkgInfo"
 	if [ -n "$(SIGN_HASH)" ]; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(SETTINGS_APP)"; \
@@ -171,11 +251,12 @@ INSTALLER_NAME := Install AllInOneIME
 INSTALLER_APP  := $(BUILD_DIR)/$(INSTALLER_NAME).app
 PAYLOAD_DIR    := $(BUILD_DIR)/payload
 
-installer-app: app settings-app
+installer-app: app settings-app $(STRINGS_BUILD)
 	$(SWIFT_BUILD) --product AllInOneIMEInstaller
 	rm -rf "$(INSTALLER_APP)" "$(PAYLOAD_DIR)"
 	mkdir -p "$(INSTALLER_APP)/Contents/MacOS" "$(INSTALLER_APP)/Contents/Resources" "$(PAYLOAD_DIR)"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/AllInOneIMEInstaller" "$(INSTALLER_APP)/Contents/MacOS/AllInOneIMEInstaller"
+	Scripts/check-weak-links.sh "$(INSTALLER_APP)/Contents/MacOS/AllInOneIMEInstaller"
 	Scripts/strip-rpaths.sh "$(INSTALLER_APP)/Contents/MacOS/AllInOneIMEInstaller"
 	cp Resources/Installer-Info.plist "$(INSTALLER_APP)/Contents/Info.plist"
 	cp Resources/AppIcon.icns "$(INSTALLER_APP)/Contents/Resources/AppIcon.icns"
@@ -183,6 +264,7 @@ installer-app: app settings-app
 		mkdir -p "$(INSTALLER_APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/Installer-$$lang.lproj/InfoPlist.strings" "$(INSTALLER_APP)/Contents/Resources/$$lang.lproj/"; \
 	done
+	ditto "$(STRINGS_BUILD)" "$(INSTALLER_APP)/Contents/Resources"
 	printf 'APPL????' > "$(INSTALLER_APP)/Contents/PkgInfo"
 	mv "$(APP)" "$(SETTINGS_APP)" "$(PAYLOAD_DIR)/"
 	ditto -c -k --norsrc --noextattr --noacl --zlibCompressionLevel 0 "$(PAYLOAD_DIR)" "$(INSTALLER_APP)/Contents/Resources/Payload.zip"
@@ -207,7 +289,10 @@ DIST_ARCHS     ?= arm64 x86_64
 NOTARY_PROFILE ?=
 
 dmg:
-	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)"
+	@# A release without the profile would have no keychain entitlements: every key moved to (or synced through) the
+	@# data protection keychain by an earlier one would seem gone.
+	@[ -n "$(DIST_PROFILE)" ] || { echo "error: make dmg needs DIST_PROFILE (the Developer ID provisioning profile)" >&2; exit 1; }
+	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)" PROFILE="$(DIST_PROFILE)" PROFILE_ALL_DEVICES=1
 	Scripts/make-dmg.sh "$(INSTALLER_APP)" "$(DMG)" "$(APP_NAME) $(VERSION)" "$(DIST_IDENTITY)" "$(NOTARY_PROFILE)"
 	$(MAKE) update-zip
 
@@ -245,8 +330,27 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-test: deps
-	swift test
+# The core's lint guards (platform-neutral, standalone), its products' release build and the String Catalog tool's
+# check, Core/.split-paths' paths free in the root; then the core's tests (Core/, a package of its own) with the input
+# method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
+# after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
+test: deps strings-check check-ios
+	$(CORE)/Scripts/check-core-portable-test.sh
+	$(CORE)/Scripts/check-core-portable.sh
+	$(CORE)/Scripts/check-core-standalone.sh
+	$(CORE)/Scripts/check-core-standalone.sh --release
+	$(CORE)/Scripts/strings-test.sh
+	Scripts/check-split-paths.sh
+	swift build --product $(APP_NAME)
+	@status=0; \
+	ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	exit $$status
+
+# The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
+# (Core/Scripts/check-core-portable.sh checks its imports). Needs Xcode's iOS SDK; built in Core/.build/ios.
+check-ios:
+	cd $(CORE) && xcodebuild -scheme AllInOneIMECore -destination generic/platform=iOS -derivedDataPath .build/ios -quiet build
 
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for
 # Scripts/build-packs-index.swift. The minimum app version is this one.
@@ -256,16 +360,16 @@ pack: $(RIME_BUILT)
 # Every pack: Chinese, Korean, Hindi.
 packs: pack $(KO_PACK) $(HI_PACK)
 
-$(KO_PACK): LanguagePacks/ko-hangul/hangul.json
-	Scripts/make-language-pack.sh LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@
+$(KO_PACK): $(CORE)/LanguagePacks/ko-hangul/hangul.json
+	Scripts/make-language-pack.sh $(CORE)/LanguagePacks/ko-hangul ko-hangul 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/ko-hangul-1.0.0/ko-hangul-1.0.0.tar.xz" $@
 
-$(HI_PACK): LanguagePacks/hi-phonetic/hindi.json
-	Scripts/make-language-pack.sh LanguagePacks/hi-phonetic hi-phonetic 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/hi-phonetic-1.0.0/hi-phonetic-1.0.0.tar.xz" $@
+$(HI_PACK): $(CORE)/LanguagePacks/hi-phonetic/hindi.json
+	Scripts/make-language-pack.sh $(CORE)/LanguagePacks/hi-phonetic hi-phonetic 1.0.0 $(VERSION) "AllInOneIME" "$(PACK_RELEASES)/hi-phonetic-1.0.0/hi-phonetic-1.0.0.tar.xz" $@
 
 # The Chinese pack from this checkout's data, into the installed input method's packs folder, without a
 # download (a developer's Mac before the pack is published).
 install-pack: $(RIME_BUILT)
-	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(CURDIR)/$(RIME_DATA)" $(PACK_VERSION)
+	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(abspath $(RIME_DATA))" $(PACK_VERSION)
 
 # Stops the running IME (macOS relaunches it on next use), replaces the bundle, registers it
 # (--register also keeps it in the user's input sources, so Ctrl+Space reaches it).
@@ -309,7 +413,7 @@ status:
 # Drives the input controller (real Rime engine on this checkout's data, live Bedrock call) with a fake text field.
 OUT ?= /tmp/allinoneime-selftest
 selftest: app
-	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(CURDIR)/$(RIME_DATA)"
+	"$(APP)/Contents/MacOS/$(APP_NAME)" --selftest "$(OUT)" --rime-data "$(abspath $(RIME_DATA))"
 
 # README images, rendered by the self-test (needs a working Bedrock setup): docs/ with the Chinese
 # interface and captions, docs/en/ with the English ones (the same states, rendered in English).
@@ -319,7 +423,10 @@ screenshots: selftest
 
 # The menu bar panel on screen, frosted glass over a colorful window (an offscreen render can't blur):
 # docs/panel-glass.png, docs/panel-swipe.png (a row swiped open), docs/candidates-glass.png (the
-# candidate panel) and docs/candidates-horizontal.png (in a row), and docs/en/ in English. Shows
+# candidate panel), docs/candidates-horizontal.png (in a row), docs/language-menu.png (Settings → General's
+# interface language menu, open) and docs/note-save-to-menu.png (@note's Save to menu, open; the release notes show
+# them cropped), and docs/en/ in English. Run it with CFFIXED_USER_HOME set to a sample home, so the Plugins page
+# lists none of your plugins. Shows
 # windows for a few seconds; needs the screen unlocked.
 panel-images: app
 	"$(APP)/Contents/MacOS/$(APP_NAME)" --showcase docs/en
@@ -377,10 +484,18 @@ realtest-cancel:
 
 cli:
 	swift build -c $(CONFIG) --product allinoneime-cli
+	Scripts/check-weak-links.sh "$$(swift build -c $(CONFIG) --show-bin-path)/allinoneime-cli"
 	@echo "Run: $$(swift build -c $(CONFIG) --show-bin-path)/allinoneime-cli <sentence>"
 
 clean:
-	rm -rf .build "$(BUILD_DIR)"
+	rm -rf .build "$(BUILD_DIR)" $(CORE)/.build
 
+# ThirdParty only when it is this checkout's own folder: never a shared one, a link to one or the one
+# ALLINONEIME_THIRDPARTY names.
 distclean: clean
-	rm -rf $(DEPS)
+	@if [ -d ThirdParty ] && [ ! -L ThirdParty ] && \
+	   { [ -z "$(ALLINONEIME_THIRDPARTY)" ] || [ "$$(cd ThirdParty && pwd -P)" != "$$(cd "$(ALLINONEIME_THIRDPARTY)" 2>/dev/null && pwd -P)" ]; }; then \
+		echo "rm -rf ThirdParty"; rm -rf ThirdParty; \
+	elif [ -e ThirdParty ] || [ -n "$(ALLINONEIME_THIRDPARTY)" ]; then \
+		echo "distclean: the shared ThirdParty is kept ($(or $(ALLINONEIME_THIRDPARTY),ThirdParty is a link))"; \
+	fi

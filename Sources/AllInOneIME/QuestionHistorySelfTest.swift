@@ -106,7 +106,7 @@ extension SelfTest {
                 QuestionHistoryStore.record(QuestionHistory.Entry(question: entry.question, answer: entry.answer,
                                                                   date: Date().addingTimeInterval(-entry.ago)))
             }
-            settings.uiLanguage = english ? .english : .chinese
+            settings.uiLanguage = english ? "en" : "zh"
             controller.applySettings()
             question()
             check(controller.panelModel().rows.count == entries.count, "\(name): \(entries.count) recent questions listed")

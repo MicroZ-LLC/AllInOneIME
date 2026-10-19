@@ -15,7 +15,7 @@ extension AllInOneIMEInputController {
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
-        composer.chatMessages = UIText.chinese ? .chinese : .english
+        composer.chatMessages = .make(language: UIText.language)
     }
 
     /// The answer a click on row `row` of a conversation picks (rows alternate: a question, then its answer).
@@ -125,7 +125,7 @@ extension AllInOneIMEInputController {
         if lastShortened, !composer.showsSavedAnswer { details.append(tr("前面几轮已缩短", "earlier rounds shortened")) }
         if !answering {
             if let date = composer.savedAnswerDate {
-                details.append(tr("保存于", "saved ") + UIText.ago(date))
+                details.append(tr("保存于\(UIText.ago(date))", "saved \(UIText.ago(date))"))
             } else if let time = lastFromCache ? tr("缓存", "cached") : lastElapsed.map({ String(format: "%.1fs", $0) }) {
                 details.append(time)
             }

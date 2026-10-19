@@ -1,8 +1,25 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-/// Official librime release build, unpacked by `make deps` (see Makefile).
-let rimeLib = Context.packageDirectory + "/ThirdParty/librime/dist/lib"
+// The macOS shell: the input method, its command line, AllInOneIME Settings and the installer. What every platform
+// shares is the core, Core/ (a package of its own).
+
+/// The core's package: every product of it goes through `core`, so that when the core comes from its own repository
+/// (`.package(url:)`, whose identity is "allinoneime-core") only this changes.
+let corePackage = "core"
+func core(_ product: String) -> Target.Dependency { .product(name: product, package: corePackage) }
+
+/// Official librime release build, unpacked by `make deps` into ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an
+/// absolute path), else ThirdParty here. The one rule, as the Makefile (which documents it), the Rime tests and
+/// Scripts/make-dmg.sh have it.
+let thirdParty = Context.environment["ALLINONEIME_THIRDPARTY"].flatMap { $0.isEmpty ? nil : $0 }
+    ?? Context.packageDirectory + "/ThirdParty"
+let rimeLib = thirdParty + "/librime/dist/lib"
+
+/// FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14. On everything
+/// here that links the core (Scripts/check-weak-links.sh checks the built binaries).
+let weakFoundationModels = LinkerSetting.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"],
+                                                     .when(platforms: [.macOS]))
 
 let package = Package(
     name: "AllInOneIME",
@@ -11,31 +28,19 @@ let package = Package(
         .executable(name: "AllInOneIME", targets: ["AllInOneIME"]),
         .executable(name: "allinoneime-cli", targets: ["allinoneime-cli"]),
     ],
+    dependencies: [.package(path: "Core")],
     targets: [
-        // Pure logic: AWS auth, Bedrock streaming client, prompt/parser, two-level composer, key maps.
-        // FoundationModels (Apple's on-device model, macOS 26) is weak-linked: the app still runs on macOS 14.
-        .target(
-            name: "AllInOneIMECore",
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"])]
-        ),
-
-        // librime's C API; header and dylib come from ThirdParty/librime.
-        .systemLibrary(name: "CRime", path: "Sources/CRime"),
-
-        // Swift wrapper around librime: level one (local pinyin).
-        .target(
-            name: "AllInOneIMERime",
-            dependencies: ["CRime", "AllInOneIMECore"],
-            swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [.unsafeFlags(["-L\(rimeLib)"])]
-        ),
+        // The macOS shell's library: what only the Mac has (Carbon key layouts, code signing, Spotlight, AppleScript,
+        // the login shell, git through posix_spawn, the updater's install) and `Platform.mac`, which the input method, its
+        // command line and the installer install at launch.
+        .target(name: "AllInOneIMEMac", dependencies: [core("AllInOneIMECore")]),
 
         // The input method process (bundled into AllInOneIME.app by the Makefile).
         // AppKit/InputMethodKit glue is written in Swift 5 mode: IMK predates Swift concurrency
         // annotations and every callback arrives on the main thread anyway.
         .executableTarget(
             name: "AllInOneIME",
-            dependencies: ["AllInOneIMECore", "AllInOneIMERime"],
+            dependencies: [core("AllInOneIMECore"), "AllInOneIMEMac", core("AllInOneIMERime")],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [
                 .linkedFramework("AppKit"),
@@ -46,35 +51,50 @@ let package = Package(
                 .linkedFramework("Speech"),
                 // @reminder: Apple Reminders.
                 .linkedFramework("EventKit"),
+                weakFoundationModels,
                 // librime.1.dylib is copied into Contents/Frameworks by the Makefile.
-                .unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
+                .unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"], .when(platforms: [.macOS])),
+                // The debug build (the tests run it as a child process: the core's PluginLanguageAcceptanceTests, this
+                // package's ExtensionSourcesAcceptanceTests) finds librime through this rpath, to the folder the build
+                // linked (ALLINONEIME_THIRDPARTY or ./ThirdParty); the tests set no DYLD_LIBRARY_PATH.
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", rimeLib], .when(platforms: [.macOS], configuration: .debug)),
             ]
         ),
 
-        // Developer tool: run level two (translate/polish) from the terminal.
-        .executableTarget(name: "allinoneime-cli", dependencies: ["AllInOneIMECore"]),
+        // Developer tool: run level two (translate/polish) from the terminal (the core's AllInOneIMECLI, on the Mac's platform).
+        .executableTarget(
+            name: "allinoneime-cli",
+            dependencies: [core("AllInOneIMECLI"), core("AllInOneIMECore"), "AllInOneIMEMac"],
+            linkerSettings: [weakFoundationModels]
+        ),
 
         // AllInOneIME Settings (「AllInOneIME 设置」): a launcher in ~/Applications that opens the settings window.
-        .executableTarget(name: "AllInOneIMESettings", swiftSettings: [.swiftLanguageMode(.v5)]),
+        .executableTarget(name: "AllInOneIMESettings", dependencies: [core("AllInOneIMEText")], swiftSettings: [.swiftLanguageMode(.v5)]),
 
         // 「安装 AllInOneIME」: the installer on the release disk image (`make dmg`). It carries both
         // apps and installs them like `make install`; it uninstalls them too.
         .executableTarget(
             name: "AllInOneIMEInstaller",
-            dependencies: ["AllInOneIMECore"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            dependencies: [core("AllInOneIMECore"), "AllInOneIMEMac"],
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [weakFoundationModels]
         ),
 
+        // The macOS shell's tests: its library's, and those that read the app's own files (the Info.plists, the input
+        // method's sources). The core's tests are Core's.
         .testTarget(
-            name: "AllInOneIMECoreTests",
-            dependencies: ["AllInOneIMECore"],
-            resources: [.copy("Fixtures")]
+            name: "AllInOneIMEMacTests",
+            dependencies: ["AllInOneIMEMac", core("AllInOneIMECore"), core("AllInOneIMETestSupport")],
+            linkerSettings: [weakFoundationModels]
         ),
         .testTarget(
             name: "AllInOneIMERimeTests",
-            dependencies: ["AllInOneIMERime"],
+            dependencies: [core("AllInOneIMERime"), core("AllInOneIMECore")],
             swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [.unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", rimeLib])]
+            linkerSettings: [
+                weakFoundationModels,
+                .unsafeFlags(["-L\(rimeLib)", "-Xlinker", "-rpath", "-Xlinker", rimeLib], .when(platforms: [.macOS])),
+            ]
         ),
     ]
 )

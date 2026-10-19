@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import Contacts
 import Foundation
 

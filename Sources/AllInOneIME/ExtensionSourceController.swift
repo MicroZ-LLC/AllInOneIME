@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 
 // Extension sources in the input method (`ExtensionSources` in the core has the rules): what Settings shows of each
@@ -216,10 +217,9 @@ final class ExtensionSourceController: ObservableObject {
 
     /// The config file without the unreviewed folders of the sources folder in its load list (written only if it had any).
     func quarantineConfigFile(_ url: URL = Config.defaultURL) {
-        guard var config = try? Config.load(from: url) else { return }
-        let removed = ExtensionSources.quarantine(&config, statuses: statuses, root: root)
-        guard !removed.isEmpty else { return }
-        try? config.write(to: url)
+        // Only the keys that changed are written (`ExtensionSources.quarantineConfigFile`).
+        guard let removed = try? ExtensionSources.quarantineConfigFile(at: url, statuses: statuses, root: root),
+              !removed.isEmpty else { return }
         log.notice("extension sources: \(removed.count) unreviewed folder(s) taken out of the load list")
     }
 }
@@ -275,12 +275,12 @@ enum ExtensionSourceText {
     }
 
     static func updates(_ count: Int) -> String {
-        tr("有 \(count) 个更新", count == 1 ? "1 update" : "\(count) updates")
+        count == 1 ? tr("有 1 个更新", "1 update") : tr("有 \(count) 个更新", "\(count) updates")
     }
 
     /// "a1b2c3d · 2 hr ago".
     static func commit(_ sha: String?, _ date: Date?, now: Date = Date()) -> String {
-        [sha.map { String($0.prefix(7)) }, date.map { DashboardText.ago($0, now: now, chinese: UIText.chinese) }]
+        [sha.map { String($0.prefix(7)) }, date.map { DashboardText.ago($0, now: now, language: UIText.language) }]
             .compactMap { $0 }.joined(separator: " · ")
     }
 

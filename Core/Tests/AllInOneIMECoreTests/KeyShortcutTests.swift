@@ -1,0 +1,185 @@
+import Foundation
+import Testing
+@testable import AllInOneIMECore
+
+/// A recorded action key in config.json: read from the Mac's `keyCode` or the key's `usage`, written with both.
+struct KeyShortcutTests {
+    /// `KeyShortcut` as 0.6.4 and before read it: the Mac's code and the modifiers as a byte, both required.
+    struct OldKeyShortcut: Decodable {
+        var keyCode: UInt16
+        var modifiers: UInt8
+        var name: String
+    }
+
+    /// The config as 0.6.4 read the action key: a name, or the old shortcut.
+    struct OldConfig: Decodable {
+        enum OldActionKey: Decodable {
+            case named(String)
+            case shortcut(OldKeyShortcut)
+            init(from decoder: Decoder) throws {
+                let c = try decoder.singleValueContainer()
+                if let name = try? c.decode(String.self) { self = .named(name) } else { self = .shortcut(try c.decode(OldKeyShortcut.self)) }
+            }
+        }
+        var actionKey: OldActionKey
+    }
+
+    let controlReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .control)
+
+    @Test func anOldConfigStillLoads() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"actionKey": {"keyCode": 36, "modifiers": 2, "name": "⌃⏎"}}"#.utf8))
+        let shortcut = KeyShortcut(keyCode: VirtualKey.returnKey, modifiers: .control, name: "⌃⏎")
+        #expect(config.actionKey == .shortcut(shortcut))
+        #expect(shortcut.usage == 0x28)
+        #expect(shortcut.matches(controlReturn))
+        #expect(!shortcut.matches(KeyEvent(keyCode: VirtualKey.keypadEnter, characters: "\u{3}", modifiers: .control)))
+        #expect(!shortcut.matches(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)))
+    }
+
+    @Test func anUnreadableActionKeyIsTheDefaultAndTheRestLoads() throws {
+        // A name a later version added, a recorded key with neither code nor usage, a value of the wrong type.
+        for actionKey in [#""doubleTap""#, #"{"modifiers": 2, "name": "?"}"#, "42"] {
+            let json = #"{"actionKey": \#(actionKey), "voiceInput": false, "rewriteStyles": ["casual"]}"#
+            let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+            #expect(config.actionKey == Config.default.actionKey, "\(actionKey)")
+            #expect(config.voiceInput == false && config.rewriteStyles == ["casual"], "\(actionKey)")
+        }
+    }
+
+    @Test func aWrittenConfigIsReadByTheOldReader() throws {
+        var config = Config.default
+        config.actionKey = .shortcut(KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J"))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("keyshortcut-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try config.write(to: url)
+        let data = try Data(contentsOf: url)
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(text.contains("\"keyCode\" : 38") && text.contains("\"usage\" : 13"))  // J: kVK_ANSI_J, HID 0x0D
+        let old = try JSONDecoder().decode(OldConfig.self, from: data)
+        guard case let .shortcut(shortcut) = old.actionKey else {
+            Issue.record("not a shortcut: \(old.actionKey)")
+            return
+        }
+        #expect(shortcut.keyCode == 0x26)
+        #expect(shortcut.modifiers == 8)
+        #expect(shortcut.name == "⌘J")
+        #expect(try Config.load(from: url).actionKey == config.actionKey)
+    }
+
+    @Test func onlyTheKindsAreWritten() throws {
+        // Sides, Caps Lock and fn set by hand never reach the config: 0.6.4's byte still reads it.
+        let held: Modifiers = [.command, .rightCommand, .shift, .leftShift, .capsLock, .function, .rightOption]
+        let shortcut = KeyShortcut(keyCode: 0x26, modifiers: held, name: "⌘⇧J")
+        let data = try JSONEncoder().encode(shortcut)
+        #expect(try JSONDecoder().decode(OldKeyShortcut.self, from: data).modifiers == 9)
+        #expect(try JSONDecoder().decode(KeyShortcut.self, from: data).modifiers == [.command, .shift])
+        // Written with sides by another hand: read without them.
+        let sided = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"keyCode": 38, "modifiers": 4104, "name": "⌘J"}"#.utf8))
+        #expect(sided.modifiers == .command)
+        #expect(shortcut.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.command, .shift])))
+    }
+
+    @Test func readFromTheUsageAlone() throws {
+        // Written where there is no Mac key code (another system's config): the Mac's code comes from the usage.
+        let shortcut = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"usage": 40, "modifiers": 2, "name": "Ctrl+Enter"}"#.utf8))
+        #expect(shortcut.keyCode == VirtualKey.returnKey)
+        #expect(shortcut.matches(controlReturn))
+        // A key the Mac doesn't have: it keeps its usage, and the Mac's code says so.
+        let printScreen = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"usage": 70, "modifiers": 8, "name": "PrtSc"}"#.utf8))
+        #expect(printScreen.keyCode == KeyEvent.noKeyCode)
+        #expect(printScreen.usage == 0x46)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"modifiers": 2, "name": "?"}"#.utf8))
+        }
+    }
+
+    @Test func matchesByWhereTheKeyIs() {
+        // The same physical key, as another system's event: its usage is what counts.
+        let j = KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J")
+        #expect(j.matches(KeyEvent(keyCode: 0x26, characters: "j", modifiers: .command)))
+        #expect(j.matches(KeyEvent(key: .character, usage: 0x0D, characters: "j", modifiers: .command)))
+        #expect(!j.matches(KeyEvent(key: .character, usage: 0x0E, characters: "j", modifiers: .command)))  // K's key, typing j
+        // A key code the tables don't have (usage 0) still matches by its code.
+        let unknown = KeyShortcut(keyCode: 0x34, modifiers: .control, name: "?")
+        #expect(unknown.usage == 0)
+        #expect(unknown.matches(KeyEvent(keyCode: 0x34, characters: "", modifiers: .control)))
+        #expect(!unknown.matches(KeyEvent(keyCode: 0x6C, characters: "", modifiers: .control)))
+    }
+
+    @Test func commandMeansThePrimaryRole() {
+        let pc = ModifierRoles.windows
+        let j = KeyShortcut(keyCode: 0x26, modifiers: [.command, .shift], name: "⌘⇧J")
+        #expect(j.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.command, .shift])))
+        #expect(!j.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.control, .shift])))
+        #expect(j.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.control, .shift]), roles: pc))
+        #expect(!j.matches(KeyEvent(keyCode: 0x26, characters: "J", modifiers: [.command, .shift]), roles: pc))
+        // Recorded there with Ctrl, it is kept as ⌘: the same shortcut on the Mac.
+        let recorded = ActionKey.recorded(key: .character, usage: 0x0D, modifiers: [.control, .shift], name: "Ctrl+Shift+J", roles: pc)
+        #expect(recorded == .shortcut(KeyShortcut(usage: 0x0D, modifiers: [.command, .shift], name: "Ctrl+Shift+J")))
+        #expect(recorded == .shortcut(KeyShortcut(keyCode: 0x26, modifiers: [.command, .shift], name: "Ctrl+Shift+J")))
+    }
+
+    /// Ctrl and the Windows key change places with ⌘ and Ctrl: every combination stays a shortcut of its own.
+    @Test func thePrimaryRoleSwapsWithCommand() {
+        let pc = ModifierRoles.windows
+        func j(_ modifiers: Modifiers) -> KeyEvent { KeyEvent(key: .character, usage: 0x0D, characters: "j", modifiers: modifiers) }
+        // Win+J recorded on Windows: the Mac's ⌃J, and pressed there again it is the shortcut.
+        guard case let .shortcut(winJ)? = ActionKey.recorded(key: .character, usage: 0x0D, modifiers: .command, name: "Win+J", roles: pc)
+        else {
+            Issue.record("Win+J not recorded")
+            return
+        }
+        #expect(winJ.modifiers == .control)
+        #expect(winJ.matches(j(.command), roles: pc))
+        #expect(!winJ.matches(j(.control), roles: pc) && !winJ.matches(j([.control, .command]), roles: pc))
+        #expect(winJ.matches(KeyEvent(keyCode: 0x26, characters: "j", modifiers: .control)))  // ⌃J on the Mac
+        // Ctrl+Win+J: another one, kept as ⌃⌘J.
+        guard case let .shortcut(both)? = ActionKey.recorded(key: .character, usage: 0x0D, modifiers: [.control, .command],
+                                                             name: "Ctrl+Win+J", roles: pc)
+        else {
+            Issue.record("Ctrl+Win+J not recorded")
+            return
+        }
+        #expect(both.modifiers == [.control, .command])
+        #expect(both.matches(j([.control, .command]), roles: pc))
+        #expect(!both.matches(j(.control), roles: pc) && !both.matches(j(.command), roles: pc))
+        // The Mac's ⌃⌘J and ⌘J stay two on Windows: Ctrl+Win+J and Ctrl+J.
+        let macBoth = KeyShortcut(keyCode: 0x26, modifiers: [.control, .command], name: "⌃⌘J")
+        let macJ = KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J")
+        #expect(macJ.matches(j(.control), roles: pc) && !macJ.matches(j([.control, .command]), roles: pc))
+        #expect(macBoth.matches(j([.control, .command]), roles: pc) && !macBoth.matches(j(.control), roles: pc))
+        #expect(!macBoth.matches(j(.command), roles: pc))
+        // Its own inverse; nothing changes on the Mac.
+        for raw in UInt16(0)..<16 {
+            let modifiers = Modifiers(rawValue: raw)
+            #expect(pc.swappingPrimary(pc.swappingPrimary(modifiers)) == modifiers)
+            #expect(ModifierRoles.mac.swappingPrimary(modifiers) == modifiers)
+        }
+    }
+
+    @Test func aKeyWithNoUsageIsNoShortcut() throws {
+        #expect(ActionKey.recorded(key: .other, usage: 0, modifiers: .control, name: "?") == nil)
+        #expect(ActionKey.recorded(key: .f(5), usage: 0, modifiers: [], name: "?") == nil)
+        #expect(ActionKey.recorded(keyCode: 0x34, modifiers: .control, name: "?") == nil)  // no such Mac key
+        // Read with neither (another system's unknown key): no key matches it, not every key the Mac lacks.
+        let none = try JSONDecoder().decode(KeyShortcut.self, from: Data(#"{"usage": 0, "modifiers": 2, "name": "?"}"#.utf8))
+        #expect(none.keyCode == KeyEvent.noKeyCode && none.usage == 0)
+        #expect(!none.matches(KeyEvent(key: .other, usage: 0x46, characters: "", modifiers: .control)))  // Print Screen
+        #expect(!none.matches(KeyEvent(key: .f(24), usage: 0x73, characters: "", modifiers: .control)))
+        #expect(!none.matches(KeyEvent(key: .other, usage: 0, characters: "", modifiers: .control)))
+    }
+
+    @Test func recordedFromAKey() {
+        #expect(ActionKey.recorded(key: .enter, usage: 0x28, modifiers: [], name: "Enter") == .enter)
+        #expect(ActionKey.recorded(key: .keypadEnter, usage: 0x58, modifiers: [], name: "Enter") == .enter)
+        #expect(ActionKey.recorded(key: .space, usage: 0x2C, modifiers: .option, name: "Alt+Space") == .optionSpace)
+        #expect(ActionKey.recorded(key: .escape, usage: 0x29, modifiers: .control, name: "Ctrl+Esc") == nil)
+        #expect(ActionKey.recorded(key: .character, usage: 0x0D, modifiers: .shift, name: "Shift+J") == nil)
+        #expect(ActionKey.recorded(key: .f(5), usage: 0x3E, modifiers: [], name: "F5")
+            == .shortcut(KeyShortcut(keyCode: 0x60, modifiers: [], name: "F5")))
+        #expect(ActionKey.recorded(key: .f(24), usage: 0x73, modifiers: [], name: "F24") != nil)  // a PC's, no Mac code
+        // ⇧Space types a space: not on its own.
+        #expect(ActionKey.recorded(keyCode: VirtualKey.space, modifiers: .shift, name: "⇧Space") == nil)
+        #expect(ActionKey.recorded(keyCode: 0x72, modifiers: [], name: "Help") == nil)  // as before: only the keys listed type nothing
+    }
+}

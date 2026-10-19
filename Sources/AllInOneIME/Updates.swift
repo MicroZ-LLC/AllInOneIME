@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import SwiftUI
 
@@ -351,7 +352,7 @@ enum UpdateCommands {
     }
 
     static func updater(_ arguments: [String], currentVersion: String) -> Updater? {
-        var updater = Updater(currentVersion: currentVersion, allowsLocalHTTP: true)
+        var updater = Updater(manifestURL: Updater.defaultManifestURL, currentVersion: currentVersion, allowsLocalHTTP: true)
         if let url = option("--manifest-url", in: arguments) {
             guard let parsed = URL(string: url) else { printError("--manifest-url: not a URL"); return nil }
             updater.manifestURL = parsed
@@ -496,7 +497,7 @@ final class UpdateController: ObservableObject {
     /// What the last update did, shown on the About page after the restart.
     @Published var lastResult: UpdateResult?
 
-    var updater = Updater()
+    var updater = Updater(manifestURL: Updater.defaultManifestURL)
     var locations = UpdateLocations.real
     var defaults = UserDefaults.standard
     /// Only the installed copy updates itself; any other (a developer's build) links to the download instead.
@@ -643,7 +644,7 @@ enum UpdateText {
     static func describe(_ error: Error) -> String {
         guard let error = error as? UpdateError else { return error.localizedDescription }
         switch error {
-        case let .unreachable(host): return tr("连不上 \(host)", "Can't reach \(host)")
+        case let .unreachable(host): return tr("连不上 \(host)", "Can't reach \(host)", key: "updates.unreachable")
         case let .http(status, file): return tr("更新服务器对 \(file) 返回了 HTTP \(status)", "The update server answered HTTP \(status) for \(file)")
         case .missingSignature, .badSignature:
             return tr("更新信息的签名不对，可能正在发布中，过几分钟再试。没有做任何改动。",
@@ -669,7 +670,8 @@ enum UpdateText {
 
     static func checked(_ date: Date?, now: Date) -> String {
         guard let date else { return tr("还没检查过", "Not checked yet") }
-        return tr("上次检查：", "Last checked: ") + DashboardText.ago(date, now: now, chinese: UIText.chinese)
+        let ago = DashboardText.ago(date, now: now, language: UIText.language)
+        return tr("上次检查：\(ago)", "Last checked: \(ago)")
     }
 }
 

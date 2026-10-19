@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import Foundation
 
 /// The script extensions the command list offers (`ExtensionStore`, docs/extensions.md; only reviewed extension sources:
