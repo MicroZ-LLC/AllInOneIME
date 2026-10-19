@@ -127,6 +127,18 @@ public final class FakeHost: @unchecked Sendable {
         }
     }
 
+    /// Waits until an answer of the session's work that `matches` has come in, handing nothing to the session (true), or
+    /// `timeout` seconds have gone by (false): the session hears it late, after what the test does meanwhile.
+    @discardableResult
+    public func waitForAnswer(timeout: TimeInterval = 10, where matches: (SessionEvent) -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !inbox.withLock({ $0.contains(where: matches) }) {
+            if Date() >= deadline { return false }
+            _ = arrived.wait(timeout: .now() + 0.01)
+        }
+        return true
+    }
+
     /// Fires the timers started so far, in order.
     public func fireTimers() {
         let fired = timers
