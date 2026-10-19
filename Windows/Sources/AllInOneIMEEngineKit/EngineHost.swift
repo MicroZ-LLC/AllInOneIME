@@ -305,12 +305,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .startBackgroundScript(command, arguments, query):
             startBackgroundScript(command, arguments: arguments, query: query, in: session)
         case let .search(query, id):
+            // A walk of a few folders: on a thread of its own, not the session's queue nor Swift's cooperative pool. The
+            // Composer drops results for a request that isn't the latest.
             let system = self.system
-            let state = state(session)
-            state.task?.cancel()
-            state.task = Task { [weak session] in
+            state(session).task?.cancel()
+            DispatchQueue.global(qos: .userInitiated).async { [weak session] in
                 let results = system.search(query)
-                guard !Task.isCancelled else { return }
                 session?.feed { $0.receiveSearch(results, id: id) }
             }
         case let .open(path):
@@ -320,10 +320,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .copy(text):
             if !system.copy(text) { notice(tr("没能复制到剪贴板", "Couldn't copy to the clipboard"), in: session) }
         case let .readClipboard(id):
-            // After the key has been answered (the feed runs once this key's work is done).
-            let text = system.readClipboard()
-            log("session \(session.sid): clipboard for a command: \(text.map { "\($0.count) characters" } ?? "nothing")")
-            session.feed { $0.pasted(text, id: id) }
+            // After the key has been answered, never on its way (§5.4: no I/O on the key path): the feed runs on the
+            // session's queue once this key's work is done. The clipboard may be another program's for a moment.
+            let (system, log, sid) = (self.system, self.log, session.sid)
+            session.feed { composer in
+                let text = system.readClipboard()
+                log("session \(sid): clipboard for a command: \(text.map { "\($0.count) characters" } ?? "nothing")")
+                return composer.pasted(text, id: id)
+            }
         case let .runInTerminal(prompt):
             let config = settings.current
             guard let argv = config.agent.terminalArguments(custom: config.agentCommand) else {
@@ -489,11 +493,16 @@ public final class EngineHost: WireHost, @unchecked Sendable {
                 for try await update in stream {
                     guard !Task.isCancelled, let session else { return }
                     if update.isFinal {
-                        state?.elapsed = update.elapsed
-                        state?.fromCache = update.fromCache
                         log("session \(sid): request \(id) done in \(String(format: "%.2f", update.elapsed)) s\(update.fromCache ? " (cache)" : "")")
                     }
-                    session.feed { $0.receive(update.result, isFinal: update.isFinal, id: id) }
+                    // The time it took goes with the update, on the session's queue, where the panel reads it.
+                    session.feed { composer in
+                        if update.isFinal {
+                            state?.elapsed = update.elapsed
+                            state?.fromCache = update.fromCache
+                        }
+                        return composer.receive(update.result, isFinal: update.isFinal, id: id)
+                    }
                 }
             } catch {
                 guard !Task.isCancelled, let session else { return }
@@ -517,8 +526,11 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             do {
                 for try await update in CommandRunner.run(script, arguments: arguments, environment: environment) {
                     guard !Task.isCancelled, let session else { return }
-                    if update.isFinal { state?.elapsed = Date().timeIntervalSince(started) }
-                    session.feed { $0.receiveScript(update.output, isFinal: update.isFinal, id: id) }
+                    let elapsed = Date().timeIntervalSince(started)
+                    session.feed { composer in
+                        if update.isFinal { state?.elapsed = elapsed }
+                        return composer.receiveScript(update.output, isFinal: update.isFinal, id: id)
+                    }
                 }
             } catch {
                 guard !Task.isCancelled, let session else { return }
