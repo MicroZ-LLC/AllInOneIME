@@ -6,7 +6,8 @@ import WinSDK
 
 /// What the engine does to the system for a Composer's effects (§6 "What the engine does itself"): the clipboard,
 /// opening an address or a file, a program in a terminal window, finding files and apps for `@open`. Windows' own in
-/// the engine (`WindowsSystem`); the tests record them instead.
+/// the engine (`WindowsSystem`); the tests record them instead. Called on the system queue (`SystemQueue`), except
+/// `search`, which walks folders on a thread of its own.
 public protocol SystemActions: Sendable {
     /// Puts `text` on the clipboard.
     func copy(_ text: String) -> Bool
@@ -19,6 +20,19 @@ public protocol SystemActions: Sendable {
     func launchInTerminal(_ argv: [String], prompt: String?) throws
     /// Files and apps named like `query` (`@open`).
     func search(_ query: String) -> [SearchResult]
+}
+
+/// Where the engine uses `SystemActions`: a thread of its own (`SystemThread` on Windows), never a session's queue nor
+/// a key's way (§5.4). What comes of it goes back to the session through `ComposerSession.feed`.
+public protocol SystemQueue: Sendable {
+    func async(_ work: @escaping @Sendable () -> Void)
+}
+
+/// A serial dispatch queue: the system queue off Windows (for trying the engine out).
+public struct SerialSystemQueue: SystemQueue {
+    private let queue = DispatchQueue(label: "AllInOneIME system")
+    public init() {}
+    public func async(_ work: @escaping @Sendable () -> Void) { queue.async(execute: work) }
 }
 
 public struct SystemActionError: Error, LocalizedError, Equatable {

@@ -9,6 +9,10 @@ import WinSDK
 /// Windows/, the package.
 let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
+/// The suites that show windows or start programs with windows of their own (which may take the foreground, and the
+/// candidate window hides when another process does), one after the other: suites run side by side.
+@Suite(.serialized) enum OnTheDesktop {}
+
 /// A folder of its own for a test, removed by the caller (`defer`).
 func temporaryFolder(_ name: String) throws -> URL {
     let folder = FileManager.default.temporaryDirectory
@@ -89,13 +93,20 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     }
 }
 
-/// The system as the host used it: nothing is opened or started, the clipboard is a string here.
+/// The engine's system thread, one for the whole test process (it lives as long as the process, as the engine's).
+let testSystemThread = SystemThread()
+
+/// The system as the host used it: nothing is opened or started, the clipboard is a string here. Each call notes the
+/// thread it came on; with `gate` set, each waits for it to be signalled first (a share that is offline, a clipboard
+/// whose owner doesn't answer).
 final class RecordingSystem: SystemActions, @unchecked Sendable {
     private let lock = NSLock()
     private var _clipboard: String?
     private var _opened: [String] = []
     private var _launched: [(argv: [String], prompt: String?)] = []
+    private var _threads: Set<DWORD> = []
     var searchResults: [SearchResult] = []
+    var gate: DispatchSemaphore?
 
     var clipboard: String? {
         get { lock.lock(); defer { lock.unlock() }; return _clipboard }
@@ -103,21 +114,36 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
     }
     var opened: [String] { lock.lock(); defer { lock.unlock() }; return _opened }
     var launched: [(argv: [String], prompt: String?)] { lock.lock(); defer { lock.unlock() }; return _launched }
+    /// The threads the clipboard, opening and terminals were used on.
+    var threads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _threads }
+
+    private func called() {
+        gate?.wait()
+        lock.lock()
+        _threads.insert(GetCurrentThreadId())
+        lock.unlock()
+    }
 
     func copy(_ text: String) -> Bool {
+        called()
         clipboard = text
         return true
     }
 
-    func readClipboard() -> String? { clipboard }
+    func readClipboard() -> String? {
+        called()
+        return clipboard
+    }
 
     func open(_ target: String) throws {
+        called()
         lock.lock()
         _opened.append(target)
         lock.unlock()
     }
 
     func launchInTerminal(_ argv: [String], prompt: String?) throws {
+        called()
         lock.lock()
         _launched.append((argv, prompt))
         lock.unlock()
@@ -180,7 +206,7 @@ final class EngineClient: @unchecked Sendable {
          field: FieldInfo = FieldInfo(app: "win:notepad.exe", process: "notepad.exe", scopes: [0], layout: "00000409")) {
         panel = RecordingPanel()
         system = RecordingSystem()
-        var options = EngineHost.Options(system: system)
+        var options = EngineHost.Options(system: system, systemQueue: testSystemThread)
         options.settings = settings
         options.rime = rime
         options.panel = panel

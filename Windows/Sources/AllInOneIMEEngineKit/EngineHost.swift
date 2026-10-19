@@ -12,8 +12,10 @@ import Foundation
 /// - **Level two:** the AI requests through the core's `Converter` and the provider the settings name, the API key from
 ///   the Credential Manager (`APIKeys`); programs, scripts, plugins and `@js` through the core's runners (the Windows
 ///   process launcher, QuickJS in a child process of this program).
-/// - **The rest:** the clipboard, opening addresses and files, terminal windows (`SystemActions`). What only macOS has
-///   (Apple Notes, Reminders, Messages, dictation) says so in a notice.
+/// - **The rest:** the clipboard, opening addresses and files, terminal windows (`SystemActions`), on the system's
+///   thread (`SystemQueue`), never on the session's queue: a key's reply never waits on them (§5.4); what comes of them
+///   goes back through `ComposerSession.feed`. What only macOS has (Apple Notes, Reminders, Messages, dictation) says
+///   so in a notice.
 ///
 /// In test mode (`--test`) the Composer types Latin letters, level two comes from a golden's `ScriptedProvider`, and
 /// the client is taken to own the foreground, as the goldens expect.
@@ -27,13 +29,16 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         public var rime: EngineRime?
         public var panel: PanelPresenter = NoPanel()
         public var system: SystemActions
+        /// Where `system` is used: a thread of its own, never a session's queue nor a key's way (§5.4).
+        public var systemQueue: SystemQueue
         /// This program, for `@js` and script plugins, which run in a child process of it (`--run-js`, `--run-plugin`).
         public var executable: String = CommandLine.arguments.first ?? ""
         /// The requests' converter; nil: one on `settings` and the platform's API keys.
         public var converter: Converter?
 
-        public init(system: SystemActions) {
+        public init(system: SystemActions, systemQueue: SystemQueue) {
             self.system = system
+            self.systemQueue = systemQueue
         }
     }
 
@@ -45,6 +50,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public let rime: EngineRime?
     public let panelPresenter: PanelPresenter
     let system: SystemActions
+    let systemQueue: SystemQueue
     let executable: String
     public let converter: Converter
 
@@ -62,6 +68,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         rime = options.rime
         panelPresenter = options.panel
         system = options.system
+        systemQueue = options.systemQueue
         executable = options.executable
         let settings = options.settings
         converter = options.converter ?? Converter(loadConfig: { settings.current })
@@ -318,15 +325,18 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case let .openLink(url):
             open(url.isFileURL ? url.path : url.absoluteString, in: session)
         case let .copy(text):
-            if !system.copy(text) { notice(tr("没能复制到剪贴板", "Couldn't copy to the clipboard"), in: session) }
+            let failed = tr("没能复制到剪贴板", "Couldn't copy to the clipboard")
+            onSystem(session) { system in
+                guard system.copy(text) else { throw SystemActionError(failed) }
+            }
         case let .readClipboard(id):
-            // After the key has been answered, never on its way (§5.4: no I/O on the key path): the feed runs on the
-            // session's queue once this key's work is done. The clipboard may be another program's for a moment.
+            // On the system's thread, never on the session's queue: the program that put the text there may render it
+            // only when asked (WM_RENDERFORMAT), and that may be the app whose key waits for this queue.
             let (system, log, sid) = (self.system, self.log, session.sid)
-            session.feed { composer in
+            systemQueue.async { [weak session] in
                 let text = system.readClipboard()
                 log("session \(sid): clipboard for a command: \(text.map { "\($0.count) characters" } ?? "nothing")")
-                return composer.pasted(text, id: id)
+                session?.feed { $0.pasted(text, id: id) }
             }
         case let .runInTerminal(prompt):
             launch(settings.current.agent, prompt: prompt, in: session)
@@ -341,8 +351,10 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         case .openSettings:
             // No settings window yet: the folder with config.json, and a notice that says so.
             let folder = settings.url.deletingLastPathComponent()
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            open(folder.path, in: session)
+            onSystem(session) { system in
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try system.open(folder.path)
+            }
             notice(tr("Windows 版还没有设置窗口：设置在 config.json 里", "No settings window on Windows yet: the settings are in config.json"), in: session)
         case let .previewReminder(_, id), let .listAgents(id):
             session.feed { [notOnWindows] in $0.fail(notOnWindows, id: id) }
@@ -360,12 +372,28 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
+    /// `work` on the system's thread (`systemQueue`); its error, if it throws, a notice in `session`'s panel, through
+    /// the session's queue.
+    func onSystem(_ session: ComposerSession, _ work: @escaping @Sendable (SystemActions) throws -> Void) {
+        let system = self.system
+        systemQueue.async { [weak self, weak session] in
+            do {
+                try work(system)
+            } catch {
+                let message = Self.describe(error)
+                session?.feed { [weak self, weak session] _ in
+                    if let self, let session { self.notice(message, in: session) }
+                    return []
+                }
+            }
+        }
+    }
+
     func open(_ target: String, in session: ComposerSession) {
-        do {
+        let (log, sid) = (self.log, session.sid)
+        onSystem(session) { system in
             try system.open(target)
-            log("session \(session.sid): opened \(target.hasPrefix("http") ? "an address" : "a file")")
-        } catch {
-            notice(Self.describe(error), in: session)
+            log("session \(sid): opened \(target.hasPrefix("http") ? "an address" : "a file")")
         }
     }
 
@@ -380,11 +408,10 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     }
 
     func launch(_ argv: [String], prompt: String?, in session: ComposerSession) {
-        do {
+        let (log, sid) = (self.log, session.sid)
+        onSystem(session) { system in
             try system.launchInTerminal(argv, prompt: prompt)
-            log("session \(session.sid): started a terminal window (\(argv.count) arguments\(prompt.map { ", a prompt of \($0.count) characters" } ?? ""))")
-        } catch {
-            notice(Self.describe(error), in: session)
+            log("session \(sid): started a terminal window (\(argv.count) arguments\(prompt.map { ", a prompt of \($0.count) characters" } ?? ""))")
         }
     }
 
@@ -392,7 +419,6 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     /// Mac's default, isn't on Windows: the text goes on the clipboard, so it isn't lost, and a notice says so.
     func saveNote(_ text: String, in session: ComposerSession) {
         let destination = NoteDestinations.make(settings.current.notes, system: UnavailableNotes())
-        let system = self.system
         let saved = tr("已保存到 ", "Saved to ")
         let unsaved = tr("Windows 版还不能存到 Apple 备忘录：文字已复制到剪贴板", "Apple Notes isn't on Windows: the note is on the clipboard")
         Task { [weak self, weak session] in
@@ -400,9 +426,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
                 _ = try await destination.save(NoteDraft(text: text))
                 if let self, let session { self.notice(saved + destination.name, in: session) }
             } catch {
-                _ = system.copy(text)
-                if let self, let session {
-                    self.notice(error is UnavailableNotes.Unavailable ? unsaved : Self.describe(error), in: session)
+                guard let self, let session else { return }
+                let message = error is UnavailableNotes.Unavailable ? unsaved : Self.describe(error)
+                // On the clipboard (on the system's thread), then the notice that says so.
+                self.onSystem(session) { system in
+                    _ = system.copy(text)
+                    throw SystemActionError(message)
                 }
             }
         }
