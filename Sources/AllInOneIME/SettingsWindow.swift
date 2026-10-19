@@ -48,13 +48,22 @@ struct SuggestedModel: Identifiable, Hashable {
     }
 }
 
-/// State of the settings window. Every change is written to the config file right away;
+/// State of the settings window, around the core's `SettingsStore` (the config file, the rules each change follows, the
+/// keys: what Windows' Settings app has too), with what only the Mac has: its open panels, the menu bar icon, iCloud,
+/// Apple Notes, the voice models, the AllInOneIME Cloud sign-in. Every change is written to the config file right away;
 /// the input method re-reads it for each translation, so nothing needs a restart.
 @MainActor
 final class SettingsModel: ObservableObject {
-    @Published var config: Config
-    @Published private(set) var loadError: String?
-    @Published private(set) var saveError: String?
+    /// The settings, and the rules each change follows.
+    let store: SettingsStore
+    private var observation: SettingsStore.Observation?
+
+    var config: Config {
+        get { store.config }
+        set { store.config = newValue }
+    }
+    var loadError: String? { store.loadError }
+    var saveError: String? { store.saveError }
     @Published private(set) var profiles: [String] = []
     @Published private(set) var testStatus: TestStatus = .idle
     /// Where the API key of each provider comes from (refreshed when one is saved), and the last 4 characters kept
@@ -84,8 +93,11 @@ final class SettingsModel: ObservableObject {
     /// other Macs). Only from the switch: a config read again with it off (the Assistant turned it off, and may still
     /// undo that) keeps them.
     func setRememberQuestions(_ on: Bool) {
-        config.rememberQuestions = on
-        guard !on else { return }
+        store.setRememberQuestions(on)
+    }
+
+    /// The questions kept, deleted (the store's `questionsForgotten`, when the switch goes off).
+    private func forgetQuestions() {
         // Marked first, so that a sync running meanwhile never takes the deletion for a Clear.
         if persists { ICloudSyncController.shared.questionsForgotten() }
         QuestionHistoryStore.clear()
@@ -97,16 +109,11 @@ final class SettingsModel: ObservableObject {
         recentQuestions = QuestionHistoryStore.history.entries.count
     }
 
-    enum TestStatus: Equatable {
-        case idle
-        case running
-        case passed(String)
-        case failed(String)
-    }
+    typealias TestStatus = SettingsStore.TestStatus
 
-    let configURL: URL
+    var configURL: URL { store.configURL }
     /// False for previews/screenshots: nothing is ever written.
-    private let persists: Bool
+    private var persists: Bool { store.persists }
     private var testTask: Task<Void, Never>?
     /// Screenshots only: the name shown for the selected AWS profile. README images are public and a
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
@@ -114,130 +121,53 @@ final class SettingsModel: ObservableObject {
     /// The AWS profiles' kinds and the chosen one's status line (`AWSProfileSettings`).
     let aws = AWSProfileModel()
 
-    /// When the config file was last read or written here: changed since (the input method's menu, an
-    /// editor), it is read again before the window shows it (`reloadIfChanged`).
-    private var fileDate: Date?
-
     init(configURL: URL = Config.defaultURL, persists: Bool = true) {
-        self.configURL = configURL
-        self.persists = persists
-        fileDate = Self.modificationDate(configURL)
-        do {
-            config = try Config.load(from: configURL)
-            written = config
-        } catch {
-            // Keep the broken file untouched: the window shows the error instead of overwriting it.
-            config = .default
-            loadError = UIText.describe(error)
-        }
+        store = SettingsStore(configURL: configURL, persists: persists)
         profiles = AWSSharedConfig.profileNames()
         if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
+        observation = store.observe { [weak self] _ in self?.objectWillChange.send() }
+        store.questionsForgotten = { [weak self] in self?.forgetQuestions() }
     }
 
-    var canSave: Bool { loadError == nil }
-
-    /// The config as the file has it (read or last written here): a save writes only what differs from it.
-    private var written: Config?
+    var canSave: Bool { store.canSave }
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
-    /// (`AIConfig.writing`), down to an app's profile and each switch of hiding sensitive information: a value written
-    /// meanwhile by sync through iCloud, Settings → Assistant or by hand that the window hasn't read yet stays as it is, and so do keys this version
-    /// doesn't know. Nothing is written when nothing changed (opening the window, moving through its fields, ⏎ on one
-    /// left as it was, closing it). The window then shows the file as it now is.
-    func save() {
-        guard canSave, persists, config != written else { return }
-        do {
-            if let written {
-                try AIConfig.writing(config, from: written, keys: AIConfig.changedKeys(written, config), at: configURL)
-            } else {
-                try config.write(to: configURL)
-            }
-            let now = (try? Config.load(from: configURL)) ?? config
-            written = now
-            if now != config { config = now }  // what was written elsewhere meanwhile, now shown
-            fileDate = Self.modificationDate(configURL)
-            saveError = nil
-        } catch {
-            saveError = tr("保存失败：", "Couldn't save: ") + error.localizedDescription
-        }
-    }
+    /// (`SettingsStore.save`). Nothing is written when nothing changed. The window then shows the file as it now is.
+    func save() { store.save() }
 
     /// Reads the config file again if something else changed it, so the window shows it and its next save
     /// doesn't put back what was there before.
-    func reloadIfChanged() {
-        guard persists, case let date = Self.modificationDate(configURL), date != fileDate else { return }
-        fileDate = date
-        do {
-            config = try Config.load(from: configURL)
-            written = config
-            loadError = nil
-        } catch {
-            loadError = UIText.describe(error)
-        }
-    }
-
-    private static func modificationDate(_ url: URL) -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-    }
+    func reloadIfChanged() { store.reloadIfChanged() }
 
     // MARK: Lists edited while sync may change them
 
     // The window may not have read the file again yet when one of these saves (its reload waits while a slider is dragged
-    // or a menu is open), and sync through iCloud may have changed the list in it: each reads it again first (`refresh`),
-    // and edits the list by name, never by an index the page showed.
+    // or a menu is open), and sync through iCloud may have changed the list in it: each reads it again first, and edits
+    // the list by name, never by an index the page showed (`SettingsStore`).
 
-    /// The file as it is now: what the window changed and hasn't saved yet saved (a save reads the file back), else the
-    /// file read again if something else changed it.
-    private func refresh() {
-        save()
-        reloadIfChanged()
-    }
-
-    /// The hidden-words field saved (Return, or leaving the page): its edit since it showed `shown` (`RedactionSettings.
-    /// edited`) on the words as the file has them now. The list to show.
+    /// The hidden-words field saved (Return, or leaving the page). The list to show.
     @discardableResult
-    func saveWords(field text: String, shown: [String]) -> [String] {
-        refresh()
-        let list = RedactionSettings.edited(config.redaction.customWords, field: text, shown: shown)
-        guard list != config.redaction.customWords else { return list }
-        config.redaction.customWords = list
-        save()
-        return config.redaction.customWords
-    }
+    func saveWords(field text: String, shown: [String]) -> [String] { store.saveWords(field: text, shown: shown) }
 
     /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
-    func otherCommands(than original: String?) -> [CustomCommand] {
-        CustomCommand.others(than: original, in: config.customCommands)
-    }
+    func otherCommands(than original: String?) -> [CustomCommand] { store.otherCommands(than: original) }
 
-    /// The command editor's Save: `command` in place of the one named `original` wherever it is now (of two of that
-    /// name, the one the editor opened on, `shown`), else added (it was deleted elsewhere meanwhile). Not saved when
-    /// another command has its name by now: false, and the editor stays open saying so.
+    /// The command editor's Save (`SettingsStore.saveCommand`): false when another command has its name by now, and the
+    /// editor stays open saying so.
     @discardableResult
     func saveCommand(_ command: CustomCommand, editing original: String?, shown: CustomCommand? = nil) -> Bool {
-        refresh()
-        guard let list = CustomCommand.saving(command, as: original, in: config.customCommands, shown: shown) else { return false }
-        config.customCommands = list
-        save()
-        return true
+        store.saveCommand(command, editing: original, shown: shown)
     }
 
-    /// The Delete dialog's Delete: the command named `name`, wherever it is now; one only (of two of that name, the one
-    /// the dialog was opened on, `shown`).
+    /// The Delete dialog's Delete (`SettingsStore.deleteCommand`).
     func deleteCommand(named name: String, shown: CustomCommand? = nil) {
-        refresh()
-        let list = CustomCommand.removing(name, from: config.customCommands, shown: shown)
-        guard list != config.customCommands else { return }
-        config.customCommands = list
-        save()
+        store.deleteCommand(named: name, shown: shown)
     }
 
     /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
     /// the choice.
     func setUILanguage(_ language: String?) {
-        UIText.choice = language  // before the change is published, so the window redraws in it
-        config.uiLanguage = language
-        save()
+        store.setUILanguage(language)
         SettingsWindow.shared.updateTitle()
     }
 
@@ -246,8 +176,7 @@ final class SettingsModel: ObservableObject {
 
     /// The menu bar icon's switch: saved, and the icon shown or removed at once (not by a preview).
     func setMenuBarIcon(_ on: Bool) {
-        config.menuBarIcon = on
-        save()
+        store.setMenuBarIcon(on)
         if persists { applyMenuBarIcon(on) }
     }
 
@@ -258,11 +187,10 @@ final class SettingsModel: ObservableObject {
     /// Writes the patch and deploys Rime again (the self-test's preview model doesn't).
     var applyFuzzyPinyin: @MainActor ([String]) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0) }
     /// What turning it on picks: the pairs most often mixed up.
-    static let fuzzyDefaults = ["z-zh", "c-ch", "s-sh", "en-eng", "in-ing"]
+    static let fuzzyDefaults = SettingsStore.fuzzyDefaults
 
     func setFuzzyPinyin(_ ids: [String]) {
-        config.fuzzyPinyin = FuzzyPinyin.known(ids)
-        save()
+        store.setFuzzyPinyin(ids)
         guard persists else { return }
         fuzzyBlocked = applyFuzzyPinyin(config.fuzzyPinyin) == .userFile
     }
@@ -273,21 +201,12 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Styles
 
-    func isStyleOn(_ style: RewriteStyle) -> Bool {
-        RewriteStyle.resolve(config.rewriteStyles).contains(style)
-    }
+    func isStyleOn(_ style: RewriteStyle) -> Bool { store.isStyleOn(style) }
 
-    func setStyle(_ style: RewriteStyle, on: Bool) {
-        guard on != isStyleOn(style) else { return }
-        config.rewriteStyles = SessionText.toggled(style.name, in: config.rewriteStyles)
-        save()
-    }
+    func setStyle(_ style: RewriteStyle, on: Bool) { store.setStyle(style, on: on) }
 
     /// The styles in this order (dragged in the window): the candidates follow it.
-    func setStyleOrder(_ names: [String]) {
-        config.rewriteStyles = names
-        save()
-    }
+    func setStyleOrder(_ names: [String]) { store.setStyleOrder(names) }
 
     // MARK: Provider
 
@@ -309,10 +228,7 @@ final class SettingsModel: ObservableObject {
         let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
-            let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, lookup($0)) })
-            let endings = Dictionary(uniqueKeysWithValues: providers.compactMap { provider in
-                APIKeys.keyEnding(account: provider.rawValue).map { (provider, $0) }
-            })
+            let (sources, endings) = SettingsStore.keyStates(providers, lookup: lookup)
             await MainActor.run { [weak self] in
                 // One that started earlier (the window opening) never overwrites a later one's (a key just saved).
                 guard let self, self.keyLookups == generation else { return }
@@ -352,26 +268,14 @@ final class SettingsModel: ObservableObject {
     /// saved (that's `removeKey`, after the user confirmed).
     func saveKey(_ key: String, for provider: Provider) {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        do {
-            // Tied to the base URL it is saved with: it isn't sent to another one set later.
-            try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
-            keyError = nil
-        } catch {
-            keyError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
-        }
+        keyError = store.saveKey(key, for: provider)
         refreshKeys()
     }
 
     /// Removes the provider's API key from the keychain: Remove Key…, confirmed.
     func removeKey(_ provider: Provider) {
         guard persists else { return }
-        do {
-            try APIKeys.remove(provider)
-            log.notice("Settings: the \(provider.rawValue, privacy: .public) key removed (Remove Key…, confirmed)")
-            keyError = nil
-        } catch {
-            keyError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
-        }
+        keyError = store.removeKey(provider)
         refreshKeys()
     }
 
@@ -381,23 +285,10 @@ final class SettingsModel: ObservableObject {
     }
 
     /// The settings of an API-key provider as stored (unset fields use the defaults).
-    func providerSettings(_ provider: Provider) -> ProviderSettings {
-        switch provider {
-        case .anthropic: return config.anthropic
-        case .gemini: return config.gemini
-        case .openai: return config.openai
-        case .bedrock, .hosted, .apple: return ProviderSettings()
-        }
-    }
+    func providerSettings(_ provider: Provider) -> ProviderSettings { store.providerSettings(provider) }
 
     func setProviderSettings(_ settings: ProviderSettings, for provider: Provider) {
-        switch provider {
-        case .anthropic: config.anthropic = settings
-        case .gemini: config.gemini = settings
-        case .openai: config.openai = settings
-        case .bedrock, .hosted, .apple: return
-        }
-        save()
+        store.setProviderSettings(settings, for: provider)
     }
 
     // MARK: Web search (@search)
@@ -429,12 +320,7 @@ final class SettingsModel: ObservableObject {
     /// Stores the web search key in the keychain, never in the config; an empty one does nothing (`removeSearchKey`).
     func saveSearchKey(_ key: String) {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        do {
-            try WebSearch.saveKey(key)
-            searchKeyError = nil
-        } catch {
-            searchKeyError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
-        }
+        searchKeyError = store.saveSearchKey(key)
         searchTestStatus = .idle
         refreshSearchKey()
     }
@@ -442,12 +328,7 @@ final class SettingsModel: ObservableObject {
     /// Removes the web search key: Remove Key…, confirmed.
     func removeSearchKey() {
         guard persists else { return }
-        do {
-            try WebSearch.removeKey()
-            searchKeyError = nil
-        } catch {
-            searchKeyError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
-        }
+        searchKeyError = store.removeSearchKey()
         searchTestStatus = .idle
         refreshSearchKey()
     }
@@ -460,18 +341,8 @@ final class SettingsModel: ObservableObject {
         searchTestStatus = .running
         let query = tr("输入法", "input method")
         searchTestTask = Task { [weak self] in
-            let started = Date()
-            do {
-                let key = await Task.detached { WebSearch.loadKey() }.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                guard !key.isEmpty else {
-                    throw WebSearch.SearchError.missingKey(variable: WebSearch.backend.keyVariables.first ?? "")
-                }
-                let first = try await WebSearch.search(query, key: key).first
-                let shown = first.map { $0.title.isEmpty ? $0.url : $0.title } ?? ""
-                self?.searchTestStatus = .passed(String(format: tr("%.1f 秒：%@", "%.1f s: %@"), Date().timeIntervalSince(started), shown))
-            } catch {
-                self?.searchTestStatus = .failed(UIText.describe(error))
-            }
+            let status = await SettingsStore.testSearch(query)
+            self?.searchTestStatus = status
         }
     }
 
@@ -505,12 +376,7 @@ final class SettingsModel: ObservableObject {
     /// nothing (`removeNotionToken`).
     func saveNotionToken(_ token: String) {
         guard persists, !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        do {
-            try NotionAPI.saveToken(token)
-            notionTokenError = nil
-        } catch {
-            notionTokenError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
-        }
+        notionTokenError = store.saveNotionToken(token)
         notesTestStatus = .idle
         refreshNotionToken()
     }
@@ -518,34 +384,21 @@ final class SettingsModel: ObservableObject {
     /// Removes the Notion token: Remove…, confirmed.
     func removeNotionToken() {
         guard persists else { return }
-        do {
-            try NotionAPI.removeToken()
-            notionTokenError = nil
-        } catch {
-            notionTokenError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
-        }
+        notionTokenError = store.removeNotionToken()
         notesTestStatus = .idle
         refreshNotionToken()
     }
 
     /// The "Save to" picker. A folder without one chosen yet asks for it first (cancelled: as it was).
     func setNotesDestination(_ destination: NoteSettings.Destination) {
-        guard destination != config.notes.destination else { return }
-        if destination == .folder, config.notes.folderURL == nil {
-            guard let url = pickNotesFolder(nil) else { return }
-            config.notes.folder = Self.notesPath(url)
-        }
-        config.notes.destination = destination
-        notesTestStatus = .idle
-        save()
+        let changed = store.setNotesDestination(destination) { pickNotesFolder(nil).map(Self.notesPath) }
+        if changed { notesTestStatus = .idle }
     }
 
     /// Choose Folder…: kept as "~/…" when it is in the home folder, and saved to from now on.
     func chooseNotesFolder() {
         guard let url = pickNotesFolder(config.notes.folderURL) else { return }
-        config.notes.folder = Self.notesPath(url)
-        config.notes.destination = .folder
-        save()
+        store.setNotesFolder(Self.notesPath(url))
     }
 
     static func notesPath(_ url: URL) -> String { (url.path as NSString).abbreviatingWithTildeInPath }
@@ -592,22 +445,9 @@ final class SettingsModel: ObservableObject {
         let (kept, session) = (config.notes.notion, NoteSaving.notionSession)
         notesTestTask = Task { [weak self] in
             do {
-                let id: String
-                if link.isEmpty {
-                    guard let kept else { throw NoteError.notionNotSetUp }
-                    id = kept.id
-                } else {
-                    guard let found = NotionLink.id(from: link) else { throw NoteError.notNotionLink }
-                    id = found
-                }
-                // The keychain may ask for the login password: not on the main thread.
-                let token = await Task.detached { NotionAPI.loadToken() }.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                guard !token.isEmpty else { throw NoteError.notionNotSetUp }
-                let target = try await NotionAPI.resolve(id, token: token, session: session)
+                let target = try await SettingsStore.resolveNotion(link: link, kept: kept, session: session)
                 guard let self, !Task.isCancelled else { return }
-                self.config.notes.notion = target
-                self.config.notes.destination = .notion
-                self.save()
+                self.store.useNotion(target)
                 self.notionLink = ""
                 self.notesTestStatus = .passed(target.label(language: UIText.language))
             } catch {
@@ -707,12 +547,7 @@ final class SettingsModel: ObservableObject {
 
     func uninstall(_ plugin: InstalledPlugin) {
         guard persists else { return }
-        do {
-            try PluginStore.uninstall(plugin)
-            pluginError = nil
-        } catch {
-            pluginError = tr("无法删除插件：", "Couldn't remove the plugin: ") + error.localizedDescription
-        }
+        pluginError = store.uninstall(plugin)
         refreshPlugins()
         _ = LivePlugins.current(rescan: true)  // the command list drops it right away
     }
@@ -788,25 +623,13 @@ final class SettingsModel: ObservableObject {
         panel.prompt = tr("添加", "Add")
         panel.message = tr("选择放脚本或扩展包的文件夹", "Choose a folder of scripts or extension bundles")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let path = ExtensionStore.abbreviated(url.path)
-        if !config.extensionFolders.contains(path) { config.extensionFolders.append(path) }
-        config.hiddenExtensionFolders.removeAll { $0 == path }
-        save()
+        store.addExtensionFolder(ExtensionStore.abbreviated(url.path))
         refreshExtensions()
     }
 
     /// An added folder is removed from the list; a found one is hidden (or shown again).
     func removeExtensionFolder(_ folder: ExtensionStore.Folder) {
-        if folder.found {
-            if folder.hidden {
-                config.hiddenExtensionFolders.removeAll { $0 == folder.path }
-            } else {
-                config.hiddenExtensionFolders.append(folder.path)
-            }
-        } else {
-            config.extensionFolders.removeAll { $0 == folder.path }
-        }
-        save()
+        store.removeExtensionFolder(folder)
         refreshExtensions()
     }
 
@@ -819,18 +642,16 @@ final class SettingsModel: ObservableObject {
     }
 
     /// Whether a command (its id) or a bundle (its name) is on.
-    func isEnabled(_ id: String) -> Bool { !config.disabledExtensions.contains(id) }
+    func isEnabled(_ id: String) -> Bool { store.isEnabled(id) }
 
     func setEnabled(_ id: String, _ on: Bool) {
-        config.disabledExtensions.removeAll { $0 == id }
-        if !on { config.disabledExtensions.append(id) }
-        save()
+        store.setEnabled(id, on)
         refreshExtensions()
     }
 
     /// A preference's value as saved (not a password's), else its default.
     func preference(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference) -> String {
-        config.extensionPreferences[bundle.name]?[preference.name] ?? preference.defaultValue ?? ""
+        store.preference(bundle, preference)
     }
 
     /// Saves a preference: a password in the keychain (an empty one does nothing: `removePassword` removes it),
@@ -839,16 +660,9 @@ final class SettingsModel: ObservableObject {
         guard persists else { return }
         if preference.kind == .password {
             guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            do {
-                try APIKeys.save(value, account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name),
-                                 label: "AllInOneIME: \(bundle.title) – \(preference.title)")
-                extensionError = nil
-            } catch {
-                extensionError = tr("没有存进钥匙串：", "Couldn't save it in the keychain: ") + error.localizedDescription
-            }
+            extensionError = store.setPreference(bundle, preference, value)
         } else {
-            config.extensionPreferences[bundle.name, default: [:]][preference.name] = value
-            save()
+            _ = store.setPreference(bundle, preference, value)
         }
         refreshExtensions()
     }
@@ -856,12 +670,7 @@ final class SettingsModel: ObservableObject {
     /// Removes a password preference from the keychain: Remove…, confirmed.
     func removePassword(_ bundle: ExtensionBundle, _ preference: ExtensionBundle.Preference) {
         guard persists, preference.kind == .password else { return }
-        do {
-            try APIKeys.remove(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
-            extensionError = nil
-        } catch {
-            extensionError = tr("没能从钥匙串里删除：", "Couldn't remove it from the keychain: ", key: "extensionKey.removeFailed") + error.localizedDescription
-        }
+        extensionError = store.removePassword(bundle, preference)
         refreshExtensions()
     }
 
@@ -885,12 +694,12 @@ final class SettingsModel: ObservableObject {
         libraryError = nil
         let library = self.library
         Task { [weak self] in
-            do {
-                let entries = library.available(try await library.fetchIndex())
+            switch await SettingsStore.libraryEntries(library) {
+            case let .success(entries):
                 self?.libraryEntries = entries
                 self?.updateLibraryStatus()
-            } catch {
-                self?.libraryError = tr("无法打开插件库：", "Couldn't open the plugin library: ") + UIText.describe(error)
+            case let .failure(error):
+                self?.libraryError = error.message
             }
             self?.libraryBusy = false
         }
@@ -916,11 +725,7 @@ final class SettingsModel: ObservableObject {
         libraryError = nil
         let library = self.library
         Task { [weak self] in
-            do {
-                try await library.install(entry)
-            } catch {
-                self?.libraryError = tr("无法安装 @\(entry.name)：", "Couldn't install @\(entry.name): ") + UIText.describe(error)
-            }
+            if let error = await SettingsStore.install(entry, from: library) { self?.libraryError = error }
             self?.installingPlugin = nil
             self?.refreshPlugins()
             _ = LivePlugins.current(rescan: true)
@@ -1021,7 +826,7 @@ final class SettingsModel: ObservableObject {
                 try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data(JargonLibrary.template.utf8).write(to: url, options: .withoutOverwriting)
             } catch {
-                saveError = tr("无法创建黑话库：", "Couldn't create the jargon list: ") + error.localizedDescription
+                store.showSaveError(tr("无法创建黑话库：", "Couldn't create the jargon list: ") + error.localizedDescription)
                 return
             }
         }
@@ -1039,35 +844,8 @@ final class SettingsModel: ObservableObject {
         let resolver = aws.resolver
         testTask = Task { [weak self] in
             defer { self?.aws.refresh(profile: snapshot.awsProfile) }
-            let converter = Converter(loadConfig: { snapshot },
-                                      loadCredentials: { try await resolver.resolve(profile: $0, forceRefresh: true) })
-            // In the first input language: an English-only user sees an English test.
-            let sample = switch snapshot.inputLanguages.first ?? .english {
-            case .chinese: "我今天有点不舒服"
-            case .english: "i dont feel so good today"
-            case .french: "je me sens pas tres bien aujourdhui"
-            case .korean: "오늘 몸이 좀 안 좋아요"
-            case .hindi: "आज मेरी तबीयत ठीक नहीं है"
-            }
-            do {
-                var final = ConversionResult.empty
-                var elapsed: TimeInterval = 0
-                for try await update in converter.convert(sample) where update.isFinal {
-                    final = update.result
-                    elapsed = update.elapsed
-                }
-                // Three versions with one translation language, a line each with several.
-                guard let first = final.versions.first?.text ?? final.translations.first?.line.text else {
-                    throw BedrockError.invalidResponse(tr("没有返回结果", "no result"))
-                }
-                // Like the candidate panel: a rewrite that only changes punctuation or repeats a row isn't shown.
-                let shown = Set(([sample] + final.versions.map(\.text) + final.translations.map(\.line.text)).map(\.wordingKey))
-                let rewrite = final.rewrites.first { !shown.contains($0.line.text.wordingKey) }
-                    .map { "\n" + (RewriteStyle.named($0.style).map(UIText.name) ?? $0.style) + tr("：", ": ") + $0.line.text } ?? ""
-                self?.testStatus = .passed(String(format: tr("%.1f 秒：%@%@", "%.1f s: %@%@"), elapsed, first, rewrite))
-            } catch {
-                self?.testStatus = .failed(UIText.describe(error))
-            }
+            let status = await SettingsStore.testConnection(snapshot) { try await resolver.resolve(profile: $0, forceRefresh: true) }
+            self?.testStatus = status
         }
     }
 }
@@ -2004,7 +1782,7 @@ struct SettingsView: View {
                 if shownInput != languages.first {
                     LabeledContent {
                         Button(tr("设为默认", "Make Default")) {
-                            model.config.setOrder([shownInput] + languages.filter { $0 != shownInput })
+                            model.store.makeDefaultInput(shownInput)
                         }
                     } label: {
                         titled(tr("默认输入语言", "Default input language"), tr("新输入框从这种语言开始", "New text fields start in this one"))
@@ -2299,16 +2077,14 @@ struct SettingsView: View {
     /// (until then it isn't an input mode), and its tab is then shown.
     private func addInputLanguage(_ language: Language) {
         guard let pack = LanguagePack.for(language), !packs.isInstalled(pack) else {
-            model.config.inputLanguages.append(language)
-            model.config.normalizeLanguages()
+            model.store.addInputLanguage(language)
             inputTab = language
             return
         }
         let model = model
         packs.download(pack) {
             guard !model.config.inputLanguages.contains(language) else { return }
-            model.config.inputLanguages.append(language)
-            model.config.normalizeLanguages()
+            model.store.addInputLanguage(language)
             model.save()  // the window may be closed by now
         }
         inputTab = language
@@ -2366,25 +2142,18 @@ struct SettingsView: View {
 
     /// Deletes a pack from its card: its language is removed from the input languages first.
     private func deletePack(_ pack: LanguagePack) {
-        let languages = model.config.inputLanguages
-        if languages.contains(pack.language) {
-            model.config.setOrder(languages == [pack.language] ? [Language.english] : languages.filter { $0 != pack.language })
-        }
+        model.store.removePackLanguage(pack.language)
         packs.remove(pack)
     }
 
     /// Moves an input language one place earlier (-1) or later (1); the first is the default.
     private func moveInput(_ language: Language, by step: Int) {
-        var languages = model.config.inputLanguages
-        guard let index = languages.firstIndex(of: language), languages.indices.contains(index + step) else { return }
-        languages.swapAt(index, index + step)
-        model.config.setOrder(languages)
+        model.store.moveInputLanguage(language, by: step)
     }
 
     /// Removes an input language; the next one becomes the default, or English when it was the only one.
     private func removeInputLanguage(_ language: Language) {
-        let languages = model.config.inputLanguages
-        model.config.setOrder(languages == [language] ? [Language.english] : SessionText.toggled(language, in: languages))
+        model.store.removeInputLanguage(language)
         // Its pack stays unless the user deletes it too (asked, with its size).
         if !model.config.inputLanguages.contains(language), let pack = LanguagePack.for(language), packs.isInstalled(pack) {
             packToRemove = pack
@@ -2392,13 +2161,12 @@ struct SettingsView: View {
     }
 
     private func addOutputLanguage(_ language: OutputLanguage) {
-        model.config.outputLanguages.append(language)
+        model.store.addOutputLanguage(language)
     }
 
     /// Removes an added output language (one always stays); the next one is then in use.
     private func removeOutputLanguage(_ language: OutputLanguage) {
-        guard model.config.outputLanguages.count > 1 else { return }
-        model.config.setOrder(model.config.outputLanguages.filter { $0 != language })
+        model.store.removeOutputLanguage(language)
     }
 
     /// The typing speed as shown: "每秒 16 个字" / "16 a second", or slower than one a second "6 秒一个字" / "6 s each".
@@ -2640,14 +2408,7 @@ struct SettingsView: View {
                 model.providerSettings(provider)[keyPath: key]
                     ?? (showsDefault ? model.config.settings(for: provider)[keyPath: key] : nil) ?? ""
             },
-            set: { value in
-                var settings = model.providerSettings(provider)
-                let trimmed = value.trimmingCharacters(in: .whitespaces)
-                let new = trimmed.isEmpty ? empty : trimmed
-                guard settings[keyPath: key] != new else { return }
-                settings[keyPath: key] = new
-                model.setProviderSettings(settings, for: provider)
-            })
+            set: { model.store.setProviderField(provider, key, to: $0, empty: empty) })
     }
 
     private func providerModelSelection(_ provider: Provider) -> Binding<String> {

@@ -93,13 +93,11 @@ extension SettingsModel {
     /// Changes the profile of `app` (added if it has none, under the key it has in another case if so) and saves. One
     /// that sets nothing stays in the list while the window is open, and isn't saved.
     func changeProfile(_ app: String, _ change: (inout AppProfile) -> Void) {
-        config.changeProfile(for: app, change)
-        save()
+        store.changeProfile(app, change)
     }
 
     func removeProfile(_ app: String) {
-        config.removeProfile(for: app)
-        save()
+        store.removeProfile(app)
     }
 }
 
