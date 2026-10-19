@@ -217,10 +217,23 @@ extension OnTheDesktop {
             window.hide(owner: owner)
         }
 
+        /// The scale of the monitor at (200, 150), where `aSystemCaretIsMappedFromTheAppsPixels` puts its window.
+        static var scaleAtTheTestWindow: Double {
+            var x: UINT = 96, y: UINT = 96
+            // Its real DPI: a thread that isn't per-monitor aware is told 96.
+            let previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+            defer { SetThreadDpiAwarenessContext(previous) }
+            let monitor = MonitorFromPoint(POINT(x: 200, y: 150), DWORD(MONITOR_DEFAULTTONEAREST))
+            guard GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &x, &y) == S_OK else { return 1 }
+            return Double(x) / 96
+        }
+
         /// A system caret, where the panel goes when the DLL reports none: in an app that isn't per-monitor aware its
         /// rectangle is in the app's logical pixels, mapped here to physical ones (on a monitor at 150%, 1.5 times as far
-        /// from the window's corner; at 100% the same).
-        @Test func aSystemCaretIsMappedFromTheAppsPixels() throws {
+        /// from the window's corner). At 100% (an SSH session's desktop) the two are the same, so the old mapping passed
+        /// too: run it in a desktop session on a scaled monitor (`tip/test/run-in-session.sh`).
+        @Test(.enabled(if: scaleAtTheTestWindow != 1, "the monitor is at 100%, where logical and physical pixels are the same"))
+        func aSystemCaretIsMappedFromTheAppsPixels() throws {
             // A window of an app that isn't DPI aware: made by this thread while it isn't.
             let previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE)
             let made = "STATIC".withCString(encodedAs: UTF16.self) {
@@ -236,6 +249,7 @@ extension OnTheDesktop {
             GetWindowRect(window, &physical)
             SetThreadDpiAwarenessContext(aware)
             let scale = Double(physical.right - physical.left) / 400
+            try #require(scale != 1, "the window is on a monitor at 100%: nothing to tell the two mappings apart")
             var caret = AioCaret()
             #expect(aio_client_rect_on_screen(UnsafeMutableRawPointer(window), 10, 20, 12, 44, &caret) != 0)
             #expect(abs(Int(caret.x) - (Int(physical.left) + Int((10 * scale).rounded()))) <= 1)
