@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) | 中文
 
-## Unreleased
+## 0.6.5（2026-10-18）
 
 ### 新增
 
