@@ -45,7 +45,7 @@ public struct ReminderDraft: Equatable, Sendable {
         switch days {
         case 0: text = t.tr("今天", "today")
         case 1: text = t.tr("明天", "tomorrow")
-        case 2 where t.chinese: text = "后天"
+        case 2 where t.chinese: text = InterfaceLanguage.isSimplifiedChinese(language) ? "后天" : "後天"
         case -1: text = t.tr("昨天", "yesterday")
         default:
             // Fixed wording in Chinese and English rather than the locale's formats: it sits next to the panel's text.
@@ -54,7 +54,9 @@ public struct ReminderDraft: Equatable, Sendable {
                                       calendar.component(.day, from: date))
             let otherYear = year != calendar.component(.year, from: now)
             if t.chinese {
-                text = (otherYear ? "\(year)年" : "") + "\(month)月\(day)日 " + ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][weekday]
+                let weekdays = InterfaceLanguage.isSimplifiedChinese(language)
+                    ? ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] : ["週日", "週一", "週二", "週三", "週四", "週五", "週六"]
+                text = (otherYear ? "\(year)年" : "") + "\(month)月\(day)日 " + weekdays[weekday]
             } else if language == "en" {
                 let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
                 text = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday] + ", \(months[month - 1]) \(day)"

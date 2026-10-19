@@ -167,6 +167,8 @@ public struct ScriptCommand: Hashable, Sendable {
         case builtIn, plugin, custom
         /// An extension command found before it (its id).
         case command(String)
+        /// A bundle's snippet found before it (its id, "<bundle>/<name>").
+        case snippet(String)
     }
 
     /// What keeps the text typed after the command from running it (shown as a notice).
@@ -379,7 +381,15 @@ extension ScriptCommand {
     /// byte order mark (the system doesn't read it then), runs through the program on that line ("#!/usr/bin/env
     /// python3" → /usr/bin/env python3 file); an executable text file without one runs with /bin/sh, as a shell
     /// does when the system can't run it (ENOEXEC). Nil when it's neither executable nor has a "#!" line.
+    /// On Windows, which has no executable bit and reads no "#!" line, the file itself, which the launcher starts by its
+    /// kind (`WindowsPrograms`): a program (`executable`), a batch file (.bat, .cmd: through cmd.exe, its arguments
+    /// escaped), or a script through its interpreter (.sh, .ps1, .py, or one with a "#!" line); nil for any other file.
     static func launch(for file: URL, firstLine: String, executable: Bool, binary: Bool = false) -> [String]? {
+        #if os(Windows)
+        let line = firstLine.hasPrefix("\u{FEFF}") ? String(firstLine.dropFirst()) : firstLine
+        let script = ["bat", "cmd", "sh", "ps1", "py", "pyw"].contains(file.pathExtension.lowercased())
+        return executable || script || line.hasPrefix("#!") ? [file.path] : nil
+        #else
         if executable, binary { return [file.path] }
         let bom = firstLine.hasPrefix("\u{FEFF}")
         let line = bom ? String(firstLine.dropFirst()) : firstLine
@@ -387,6 +397,7 @@ extension ScriptCommand {
         if executable, !bom { return [file.path] }
         let words = line.dropFirst(2).split(whereSeparator: \.isWhitespace).map(String.init)
         return words.isEmpty ? nil : words + [file.path]
+        #endif
     }
 
     /// The command for the protocol's `keys` (a script's, a Raycast script's mapped, a bundle entry's), or the
@@ -548,15 +559,7 @@ extension ScriptCommand {
     /// are encoded. Empty required ones fail with their placeholders.
     public func arguments(from text: String) -> Result<[String], ArgumentProblem> {
         guard !arguments.isEmpty else { return .success([]) }
-        var parts: [String] = []
-        var rest = Substring(text)
-        while parts.count < arguments.count - 1, let comma = rest.firstIndex(where: { $0 == "," || $0 == "，" }) {
-            parts.append(String(rest[..<comma]))
-            rest = rest[rest.index(after: comma)...]
-        }
-        parts.append(String(rest))
-        parts = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        while parts.count < arguments.count { parts.append("") }
+        let parts = Self.split(text, into: arguments.count)
 
         let missing = zip(arguments, parts).enumerated().filter { !$0.element.0.optional && $0.element.1.isEmpty }
             .map { $0.element.0.placeholder.isEmpty ? "$\($0.offset + 1)" : $0.element.0.placeholder }
@@ -574,6 +577,22 @@ extension ScriptCommand {
             values.append(value)
         }
         return .success(values)
+    }
+
+    /// `text` as `count` values, the way the arguments are read: split on "," or "，", the last taking the rest, each
+    /// without the blank space at its ends; those not written are empty. (A snippet's blanks too: `SnippetTemplate`.)
+    public static func split(_ text: String, into count: Int) -> [String] {
+        guard count > 0 else { return [] }
+        var parts: [String] = []
+        var rest = Substring(text)
+        while parts.count < count - 1, let comma = rest.firstIndex(where: { $0 == "," || $0 == "，" }) {
+            parts.append(String(rest[..<comma]))
+            rest = rest[rest.index(after: comma)...]
+        }
+        parts.append(String(rest))
+        parts = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        while parts.count < count { parts.append("") }
+        return parts
     }
 
     /// What a web address leaves as it is in a value (RFC 3986), like JavaScript's encodeURIComponent.

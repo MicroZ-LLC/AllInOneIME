@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import AllInOneIMECore
+import AllInOneIMEQuickJS
 
 /// `@py` and `@js` (`InlineCode`): a line of code run in a child process, REPL style.
 struct InlineCodeTests {
@@ -78,12 +79,12 @@ struct InlineCodeTests {
     }
 
     @Test func insideAnotherCommandsText() {
-        let catalog = Command.catalog([CustomCommand(name: "reply", type: .prompt, prompt: "Reply.")])
+        let catalog = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply.")])
         let engine = FakeEngine()
         let c = Composer(engine: engine)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        typeKeys("repl", c)
+        typeKeys("resp", c)
         _ = c.handleKeyDown(tab)
         typeKeys("nihao", c)
         _ = c.handleKeyDown(spaceKey)
@@ -91,16 +92,16 @@ struct InlineCodeTests {
         #expect(c.paletteMatches.map(\.name) == ["py", "js"])  // the commands that run inside a text
         typeKeys("p", c)
         _ = c.handleKeyDown(tab)
-        #expect(c.draft == "@reply 你好@py " && engine.ascii)
+        #expect(c.draft == "@respond 你好@py " && engine.ascii)
         typeKeys("2**100", c)
         let effects = c.handleKeyDown(enterKey).effects
         guard case let .startPlan(outer, plan, _)? = effects.first else {
             Issue.record("expected a plan, got \(effects)")
             return
         }
-        #expect(outer?.name == "reply" && plan.inner.map(\.command) == [.py] && plan.inner.map(\.argument) == ["2**100"])
+        #expect(outer?.name == "respond" && plan.inner.map(\.command) == [.py] && plan.inner.map(\.argument) == ["2**100"])
         #expect(plan.input(outputs: ["1267650600228229401496703205376"]) == "你好1267650600228229401496703205376")
-        #expect(effects.contains(.commandUsed("reply")) && effects.contains(.commandUsed("py")))
+        #expect(effects.contains(.commandUsed("respond")) && effects.contains(.commandUsed("py")))
         // Code with spaces in it is quoted.
         let quoted = CommandPlan.make("答案是 @py「sum(x * x for x in range(4))」吧，还有 @js \"[1, 2].map(x => x * 2)\"", commands: catalog)
         #expect(quoted.inner.map(\.argument) == ["sum(x * x for x in range(4))", "[1, 2].map(x => x * 2)"])
@@ -310,17 +311,35 @@ struct InlineCodeTests {
     }
 
     @Test(.enabled(if: Available.javaScript)) func javaScriptErrorsAreOneLine() {
+        // The engine's own words for its own errors: JavaScriptCore's, or QuickJS-ng's (Windows, Linux, Android, and
+        // OnQuickJSTests).
+        let quickJS = Platform.current.scripts is QuickJSEngine
+        func notFound(_ name: String) -> String { quickJS ? "\(name) is not defined" : "Can't find variable: \(name)" }
         let cases: [(code: String, error: String)] = [
-            ("x.y", "ReferenceError: Can't find variable: x"),
+            ("x.y", "ReferenceError: \(notFound("x"))"),
             ("throw new Error('first line\\nsecond line')", "Error: first line"),
             ("throw 'oops'", "oops"),
             ("throw {code: 1}", "{code: 1}"),
-            ("1 +", "SyntaxError: Unexpected end of script"),
-            ("1\n2\nnope", "ReferenceError: Can't find variable: nope (line 3)"),
+            ("1 +", quickJS ? "SyntaxError: unexpected token in expression: ''" : "SyntaxError: Unexpected end of script"),
+            ("1\n2\nnope", "ReferenceError: \(notFound("nope")) (line 3)"),
             ("({get a() { throw new RangeError('no') }})", "RangeError: no"),  // showing the value failed
         ]
         for (code, error) in cases {
             #expect(throws: InlineCodeError(error), "\(code)") { try InlineCode.evaluateJavaScript(code) }
+        }
+    }
+
+    @Test(.enabled(if: Available.javaScript)) func javaScriptErrorLinesAreTheCodes() {
+        // The line of the call, not one in what JSON.parse or eval parsed (QuickJS-ng numbers those on their own), with
+        // either engine: JavaScriptCore's lines.
+        let cases: [(code: String, line: Int)] = [
+            ("1\n2\nJSON.parse('[1,\\n2,\\n3,\\nx]')", 3),
+            ("1\nJSON.parse('{')", 2),
+            ("1\neval('2\\n3\\n4 +')", 2),
+        ]
+        for (code, line) in cases {
+            let error = #expect(throws: InlineCodeError.self, "\(code)") { try InlineCode.evaluateJavaScript(code) }
+            #expect(error?.message.hasSuffix(" (line \(line))") == true, "\(code): \(error?.message ?? "")")
         }
     }
 }

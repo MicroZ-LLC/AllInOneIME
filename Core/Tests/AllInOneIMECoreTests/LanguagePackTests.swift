@@ -35,11 +35,19 @@ struct TestPackLibrary {
         }
         if let link { try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent(link).path, withDestinationPath: "/etc") }
         let out = root.appendingPathComponent("\(UUID().uuidString).tar.xz")
+        #if os(Windows)
+        // Started as the core starts it: Foundation's `Process` hands the program every inheritable handle the tests
+        // have open (another test's half-written config.json), which then can't be renamed over while tar runs.
+        let tar = try WindowsProcessLauncher().launch(LaunchSpec(executable: LanguagePackLibrary.systemTar,
+                                                                 arguments: ["-C", folder.path, "-cJf", out.path, "."],
+                                                                 standardInput: .null, standardOutput: .null, standardError: .null))
+        #else
         let tar = Process()
         tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
         tar.arguments = ["-C", folder.path, "-cJf", out.path, "."]
         tar.environment = ["COPYFILE_DISABLE": "1"]
         try tar.run()
+        #endif
         tar.waitUntilExit()
         return try Data(contentsOf: out)
     }

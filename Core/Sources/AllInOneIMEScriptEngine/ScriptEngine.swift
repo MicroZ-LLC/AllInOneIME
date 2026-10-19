@@ -1,7 +1,9 @@
 import Foundation
 
 /// A JavaScript engine, for plugins (`PluginScript`) and `@js` (`InlineCode`): JavaScriptCore on Apple platforms
-/// (`JavaScriptCoreEngine`); elsewhere one the shell brings (QuickJS-ng), or none (`UnsupportedScriptEngine`).
+/// (`JavaScriptCoreEngine`), QuickJS-ng on Windows, Linux and Android (`QuickJSEngine`, in AllInOneIMEQuickJS), or none
+/// (`UnsupportedScriptEngine`). Its own module, below the core, so that an engine outside the core can be the core's
+/// default; the core re-exports it.
 public protocol ScriptEngine: Sendable {
     /// A fresh context, with nothing but the language; nil when there is no JavaScript here.
     func makeContext() -> (any ScriptEngineContext)?
@@ -23,7 +25,10 @@ public protocol ScriptEngineContext: AnyObject {
     /// for `setGlobal`; nil: undefined).
     func function(_ body: @escaping ([any ScriptValue]) -> Any?) -> any ScriptValue
     /// Stops whatever runs here once it has run `seconds` (it throws). False when the engine can't: then the script
-    /// has to run where it can be stopped from outside (a child process, as on the Mac).
+    /// has to run where it can be stopped from outside (a child process, as on the Mac). True is best effort, not a
+    /// promise: an engine stops a script where it checks the clock, and some of its built-in functions run long without
+    /// checking (QuickJS-ng's `Array.prototype.reverse.call({length: 2 ** 53 - 1})`, say). Plugins and `@js` run in a
+    /// child process all the same, which the runner kills (`PluginHost`, `--run-js`).
     func limitTime(to seconds: Double) -> Bool
 }
 

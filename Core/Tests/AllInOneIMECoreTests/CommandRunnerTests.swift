@@ -3,7 +3,12 @@ import Testing
 @testable import AllInOneIMECore
 
 struct CommandRunnerTests {
+    #if os(Windows)
+    // Git for Windows' tools (echo, sh, rev, sleep, yes), where the Mac has them in /usr/bin and /bin.
+    let environment = ["PATH": WindowsTestTools.gitTools ?? ""]
+    #else
     let environment = ["PATH": "/usr/bin:/bin"]
+    #endif
 
     func run(_ command: CustomCommand, _ input: String) async -> Result<String, Error> {
         do {
@@ -35,7 +40,12 @@ struct CommandRunnerTests {
     }
 
     @Test func standardInput() async throws {
+        #if os(Windows)
+        // Git for Windows has no rev: its perl reverses the line.
+        let rev = CustomCommand(name: "rev", type: .run, argv: ["perl", "-nle", "print scalar reverse"], stdin: "{input}\n")
+        #else
         let rev = CustomCommand(name: "rev", type: .run, argv: ["rev"], stdin: "{input}\n")
+        #endif
         #expect(try await run(rev, "abc").get() == "cba")
     }
 
@@ -73,9 +83,18 @@ struct CommandRunnerTests {
     }
 
     @Test func resolvesProgramsOnPath() {
+        #if os(Windows)
+        // PATH split on ";", PATHEXT's extensions added ("cmd" → cmd.exe).
+        let system = WindowsTestTools.systemFolder
+        let cmd = URL(fileURLWithPath: system, isDirectory: true).appendingPathComponent("cmd.exe").path
+        #expect(CommandRunner.resolve("cmd", path: #"C:\nowhere;"# + system)?.path == cmd)
+        #expect(CommandRunner.resolve(cmd, path: nil)?.path == cmd)
+        #expect(CommandRunner.resolve("cmd", path: #"C:\nowhere"#) == nil)
+        #else
         #expect(CommandRunner.resolve("sh", path: "/nowhere:/bin")?.path == "/bin/sh")
         #expect(CommandRunner.resolve("/bin/sh", path: nil)?.path == "/bin/sh")
         #expect(CommandRunner.resolve("sh", path: "/nowhere") == nil)
+        #endif
     }
 }
 

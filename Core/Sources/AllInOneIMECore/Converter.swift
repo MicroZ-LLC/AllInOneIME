@@ -138,7 +138,8 @@ public final class Converter: Sendable {
             firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
     }
 
-    /// Runs a `.generate` command: the answer streams in as the single version of the result (`app` as for `convert`).
+    /// Runs a `.generate` command: the answer streams in as the single version of the result (`app` as for `convert`);
+    /// `@reply`'s three replies as three versions (`runReply`, Reply.swift).
     /// `fresh`: asked again even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new
     /// one is kept instead. With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again,
     /// revised as the last instruction asks.
@@ -147,8 +148,12 @@ public final class Converter: Sendable {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
-                                              continuation: continuation)
+                    if command == .reply {
+                        try await self.runReply(input: input, app: app, fresh: fresh, turns: turns, continuation: continuation)
+                    } else {
+                        try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
+                                                  continuation: continuation)
+                    }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)

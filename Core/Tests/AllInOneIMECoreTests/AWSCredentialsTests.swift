@@ -88,7 +88,7 @@ final class AWSCTHTTP: Sendable {
 
 /// A stand-in for `credential_process`: what it was asked to run, and what it answers.
 final class AWSCTRunner: Sendable {
-    private let state = OSAllocatedUnfairLock(initialState: (runs: [AWSProcessRequest](), outputs: [AWSProcessResult]()))
+    private let state = OSAllocatedUnfairLock(initialState: (runs: [AWSProcessRequest](), outputs: [AWSProcessResult](), held: false))
     let delay: TimeInterval
 
     init(_ outputs: [AWSProcessResult], delay: TimeInterval = 0) {
@@ -98,6 +98,10 @@ final class AWSCTRunner: Sendable {
 
     var runs: [AWSProcessRequest] { state.withLock { $0.runs } }
 
+    /// Runs from now on don't answer until `release`.
+    func hold() { state.withLock { $0.held = true } }
+    func release() { state.withLock { $0.held = false } }
+
     var run: AWSCredentialContext.RunProcess {
         { [self] request in
             let output = state.withLock { state -> AWSProcessResult in
@@ -105,6 +109,7 @@ final class AWSCTRunner: Sendable {
                 return state.outputs.count > 1 ? state.outputs.removeFirst() : state.outputs[0]
             }
             if delay > 0 { try await Task.sleep(nanoseconds: UInt64(delay * 1e9)) }
+            while state.withLock({ $0.held }) { try await Task.sleep(for: .milliseconds(10)) }
             return output
         }
     }
@@ -112,6 +117,13 @@ final class AWSCTRunner: Sendable {
 
 enum AWSCT {
     static var iso: ISO8601DateFormatter { ISO8601DateFormatter() }
+
+    #if os(Windows)
+    /// A program every system has, as a credential_process line writes it (its shlex rules keep "/", not "\").
+    static let echo = WindowsTestTools.systemProgram("where.exe").replacingOccurrences(of: "\\", with: "/")
+    #else
+    static let echo = "/bin/echo"
+    #endif
 
     static func processJSON(_ id: String, expiration: Date? = nil, token: String? = "process-token") -> AWSProcessResult {
         var fields = [#""Version": 1"#, #""AccessKeyId": "\#(id)""#, #""SecretAccessKey": "process-secret-\#(id)""#]
@@ -471,21 +483,24 @@ struct AWSCredentialResolverTests {
         #expect(runner.runs.count == 2)
     }
 
-    @Test func underTenMinutesLeftARequestGetsTheCachedOnesAndRefreshesInTheBackground() async throws {
+    // The limit only catches a request that waits for the refresh, which is held until the test lets it go.
+    @Test(.timeLimit(.minutes(1)))
+    func underTenMinutesLeftARequestGetsTheCachedOnesAndRefreshesInTheBackground() async throws {
         let home = try AWSCTHome(config: "[profile dev]\ncredential_process = my-creds\n")
         defer { home.remove() }
         let clock = AWSCTClock()
         let runner = AWSCTRunner([AWSCT.processJSON("ASIAONE", expiration: clock.now.addingTimeInterval(3600)),
-                                  AWSCT.processJSON("ASIATWO", expiration: clock.now.addingTimeInterval(7200))], delay: 0.2)
+                                  AWSCT.processJSON("ASIATWO", expiration: clock.now.addingTimeInterval(7200))])
         let resolver = AWSCT.resolver(home, clock: clock, runner: runner)
         _ = try await resolver.resolve(profile: "dev")
         clock.advance(3600 - 8 * 60)  // 8 minutes left
-        let started = Date()
+        // Answered while the refresh is held up: it didn't wait for it.
+        runner.hold()
         #expect(try await resolver.resolve(profile: "dev").credentials.accessKeyId == "ASIAONE")
-        #expect(Date().timeIntervalSince(started) < 0.15, "didn't wait for the refresh")
         #expect(resolver.fetchCount(profile: "dev") == 2)
         // Another request meanwhile doesn't start a second refresh.
         #expect(try await resolver.resolve(profile: "dev").credentials.accessKeyId == "ASIAONE")
+        runner.release()
         await resolver.waitForRefreshes()
         #expect(runner.runs.count == 2)
         #expect(try await resolver.resolve(profile: "dev").credentials.accessKeyId == "ASIATWO")
@@ -788,7 +803,7 @@ struct AWSCredentialResolverTests {
     }
 
     @Test func doctorSaysWhenCredentialsWillBeFetchedAndALastRefreshThatFailed() async throws {
-        let home = try AWSCTHome(config: "[profile dev]\nrole_arn = arn:aws:iam::1:role/r\nsource_profile = keys\n[profile proc]\ncredential_process = /bin/echo\n",
+        let home = try AWSCTHome(config: "[profile dev]\nrole_arn = arn:aws:iam::1:role/r\nsource_profile = keys\n[profile proc]\ncredential_process = \(AWSCT.echo)\n",
                                  credentials: "[keys]\naws_access_key_id = AKIAKEYS\naws_secret_access_key = k\n")
         defer { home.remove() }
         // The checks tell the time by the real clock.
@@ -1124,7 +1139,7 @@ struct AWSCredentialResolverTests {
     @Test func statusLinesSayTheKindAndWhenTheCredentialsExpire() async throws {
         let home = try AWSCTHome(config: """
             [profile proc]
-            credential_process = /bin/echo
+            credential_process = \(AWSCT.echo)
             [profile role]
             role_arn = arn:aws:iam::1:role/r
             source_profile = sso
@@ -1329,12 +1344,12 @@ struct AWSProcessRunnerTests {
     @Test func stopsAfterTheTimeoutAndSaysWhenMissing() async throws {
         let home = try AWSCTHome()
         defer { home.remove() }
-        let script = try home.script("slow-creds", "sleep 30")
+        let script = try home.script("slow-creds", "sleep \(Timing.longSleep)")
         let started = Date()
         await #expect(throws: AWSProcessError.timedOut(0.5)) {
             try await AWSProcessRunner.run(AWSProcessRequest(arguments: [script], environment: ["PATH": "/usr/bin:/bin"], directory: home.root, timeout: 0.5))
         }
-        #expect(Date().timeIntervalSince(started) < 15, "stopped long before the script's 30 s")
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep, "stopped long before the script's minute")
         await #expect(throws: AWSProcessError.notFound("no-such-creds-program")) {
             try await AWSProcessRunner.run(AWSProcessRequest(arguments: ["no-such-creds-program"], environment: ["PATH": "/usr/bin:/bin"],
                                                              directory: home.root, timeout: 5))

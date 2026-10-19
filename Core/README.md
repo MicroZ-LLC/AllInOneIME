@@ -11,9 +11,11 @@ fills in at launch (`Platform.current = …`). The macOS input method is the fir
 | Product | What it is |
 |---|---|
 | `AllInOneIMEText` | The interface text and its language (`tr`, `UIString`, `InterfaceText`, `StringCatalog`) |
-| `AllInOneIMECore` | Everything else of the core; re-exports `AllInOneIMEText` |
-| `AllInOneIMERime` | librime (local pinyin) behind the `PinyinEngine` protocol; macOS only for now. The headers are in `Sources/CRime/include`; the shell links the library (`-L`) |
+| `AllInOneIMECore` | Everything else of the core; re-exports `AllInOneIMEText` and `AllInOneIMEScriptEngine` (the `ScriptEngine` protocol) |
+| `AllInOneIMEQuickJS` | QuickJS-ng (`Sources/CQuickJS`, vendored) as a `ScriptEngine` (`QuickJSEngine`): plugins and `@js` on Windows, Linux and Android, where the core links it; Apple platforms keep JavaScriptCore |
+| `AllInOneIMERime` | librime (local pinyin) behind the `PinyinEngine` protocol; on macOS and Windows for now. The headers are in `Sources/CRime/include`; the shell links the library (`-L`) |
 | `AllInOneIMECLI` | The command line (`CLI.run`): level two from a terminal, with a shell's own `main` |
+| `AllInOneIMEWire` | The wire protocol's engine side (`docs/wire-protocol-v1.md`): messages, frames, the server and the Composer's adapter, whatever carries them (the Windows shell's pipe, later Android's JNI and a C ABI) |
 | `AllInOneIMETestSupport` | What a shell's tests share with the core's (`FakeEngine`, `ScriptFolder`, `Timing`, …) |
 | `Strings` (plugin) | `swift package --allow-writing-to-package-directory strings [--check]`: the String Catalog in step with the code |
 

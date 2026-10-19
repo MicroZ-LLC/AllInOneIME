@@ -115,18 +115,20 @@ struct KeyCacheTests {
         let cache = APIKeys.KeyCache(), held = Reads(), other = Reads()
         let (started, release, done) = (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0), DispatchSemaphore(value: 0))
         let read = heldRead(held, started: started, release: release)
-        DispatchQueue.global().async {
+        // The requests on threads of their own: a busy test run's synchronous tests can take every thread of the
+        // global queues for longer than the waits below.
+        Thread {
             _ = cache.key("hosted", stamp: saved, read: read)
             done.signal()
-        }
+        }.start()
         // The waits only catch a hang (the first read is held until it's released): long enough for a busy test run.
         #expect(started.wait(timeout: .now() + 20) == .success)
         // Another account's key comes while the first's read (its prompt) is still up.
         let otherDone = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
+        Thread {
             #expect(cache.key("anthropic", stamp: saved, read: other.read) == "sk-one")
             otherDone.signal()
-        }
+        }.start()
         #expect(otherDone.wait(timeout: .now() + 20) == .success)
         release.signal()
         #expect(done.wait(timeout: .now() + 20) == .success)
@@ -138,10 +140,10 @@ struct KeyCacheTests {
         let cache = APIKeys.KeyCache(), reads = Reads()
         let (started, release, done) = (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0), DispatchSemaphore(value: 0))
         let read = heldRead(reads, started: started, release: release)
-        DispatchQueue.global().async {
+        Thread {  // on a thread of its own, as above
             #expect(cache.key("anthropic", stamp: saved, read: read) == "sk-one")  // that request gets what it read
             done.signal()
-        }
+        }.start()
         #expect(started.wait(timeout: .now() + 20) == .success)
         cache.forget("anthropic")  // as `APIKeys.save` does
         release.signal()

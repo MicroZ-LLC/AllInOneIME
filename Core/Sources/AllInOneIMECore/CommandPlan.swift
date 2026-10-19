@@ -8,7 +8,8 @@ import Foundation
 /// followed by a space and its argument (`argument(_:from:)`): `@stock AAPL TSLA 哪个涨得多` → `AAPL TSLA`,
 /// `@stock SNDK is good to buy` → `SNDK`, `@stock「aapl tsla」` → `aapl tsla`. A search takes the rest
 /// of the sentence (`phrase(_:from:commands:)`): `总结 @search 苹果发布会，重点说新品` → `苹果发布会`.
-/// Anything else is plain text.
+/// A snippet that takes no `{input}` takes no argument either: `@zoom` before a space, punctuation or the end of
+/// the text (`链接是 @zoom。`). Anything else is plain text.
 public struct CommandPlan: Equatable, Sendable {
     public enum Part: Equatable, Sendable {
         case text(String)
@@ -28,8 +29,17 @@ public struct CommandPlan: Equatable, Sendable {
     public var isEmpty: Bool { inner.isEmpty }
 
     /// Commands that can run inside a text: the ones that fetch something (not a Raycast script: its
-    /// arguments, confirmation and modes are for running it on its own).
-    public static func canBeInner(_ command: Command) -> Bool { command.kind == .run && command.script == nil }
+    /// arguments, confirmation and modes are for running it on its own), and snippets that need nothing from the
+    /// clipboard or the selection and have no blanks (`SnippetTemplate.canBeInner`; put in at once: `fillingSnippets`).
+    public static func canBeInner(_ command: Command) -> Bool {
+        if command.kind == .snippet { return command.snippet?.canBeInner == true }
+        return command.kind == .run && command.script == nil
+    }
+
+    /// A command inside a text that takes no argument: a snippet without `{input}`.
+    static func takesNoArgument(_ command: Command) -> Bool {
+        command.kind == .snippet && command.snippet?.needs.contains(.input) != true
+    }
 
     /// Commands whose argument inside a text is a phrase (`phrase(_:from:commands:)`), not a symbol:
     /// what to search for is words, often Chinese (`@search 苹果发布会`).
@@ -49,9 +59,20 @@ public struct CommandPlan: Equatable, Sendable {
                 var j = i + 1
                 while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
                 let name = String(chars[(i + 1)..<j]).lowercased()
+                // No argument: right before a space, punctuation or the end of the text.
+                if let command = inners[name], takesNoArgument(command) {
+                    if j == chars.count || chars[j].isWhitespace || chars[j].isPunctuation || chars[j].isSymbol {
+                        if !literal.isEmpty { parts.append(.text(literal)) }
+                        literal = ""
+                        parts.append(.inner(inner.count))
+                        inner.append(Inner(command: command, argument: ""))
+                        i = j
+                        continue
+                    }
+                }
                 // A space before the argument, or a quote right after the name (`@stock「aapl tsla」`).
                 let start = j < chars.count && chars[j] == " " ? j + 1 : j
-                if let command = inners[name], j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]),
+                if let command = inners[name], !takesNoArgument(command), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]),
                    let (argument, end) = takesPhrase(command) ? Self.phrase(chars, from: start, commands: inners)
                        : Self.argument(chars, from: start) {
                     if !argument.isEmpty {

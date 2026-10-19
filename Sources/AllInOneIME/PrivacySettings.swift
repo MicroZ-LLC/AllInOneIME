@@ -59,18 +59,12 @@ struct PrivacySection: View {
         edited = false
     }
 
-    /// The field's edit, if there was one, applied to the list as it is now: the words taken out of the field go, the
-    /// words put in are added; the others, a word added elsewhere since included, stay.
+    /// The field's edit, if there was one, applied to the list as the file has it now (`SettingsModel.saveWords`, which
+    /// saves it here: leaving the page, this section's onChange is gone with it): the words taken out of the field go,
+    /// the words put in are added; the others, a word added elsewhere since included, stay.
     private func saveWords() {
         guard edited else { return }
-        let typed = RedactionSettings.words(from: words)
-        let removed = Set(shown).subtracting(typed)
-        var list = model.config.redaction.customWords.filter { !removed.contains($0) }
-        for word in typed where !list.contains(word) { list.append(word) }
-        show(list)
-        guard list != model.config.redaction.customWords else { return }
-        model.config.redaction.customWords = list
-        model.save()  // here: leaving the page, this section's onChange is gone with it
+        show(model.saveWords(field: words, shown: shown))
     }
 
     private func titled(_ title: String, _ note: String) -> some View {

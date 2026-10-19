@@ -9,7 +9,9 @@ import Foundation
 ///       "commands": [{ "script": "convert.sh", "name": "convert", "output": "list" }] }
 ///
 /// A command's keys are the protocol's (`ScriptCommand.make`), in JSON; they override the `@allinoneime.`
-/// lines in its script, if it has any.
+/// lines in its script, if it has any. A bundle may also ship snippets (texts to insert, `BundleSnippet`), or only them:
+///
+///     "snippets": [{ "name": "addr", "text": "1 Main Street\nSpringfield", "summary": "Office address", "alias": "teamaddr" }]
 public struct ExtensionBundle: Hashable, Sendable {
     /// A setting of the bundle, in Raycast's shape; its value reaches every command as `ALLINONEIME_PREF_<NAME>`.
     public struct Preference: Hashable, Sendable {
@@ -88,8 +90,12 @@ public struct ExtensionBundle: Hashable, Sendable {
         return preferences.filter { $0.required && (values[$0.name] ?? "").isEmpty }
     }
 
-    /// The bundle in `folder` and its commands' entries (the keys of each, as strings), or why it can't be read.
-    static func read(_ data: Data, folder: URL) -> Result<(ExtensionBundle, [[String: String]]), ScriptCommand.Problem> {
+    /// The bundle in `folder`, its commands' entries and its snippets' (the keys of each, as strings), and what's wrong
+    /// in it that doesn't keep the rest from loading (`problems`: a list that isn't one of entries next to one that is, a
+    /// snippet whose `text`, `name` … isn't a string); or why it can't be read. It must have a command or a snippet.
+    static func read(_ data: Data, folder: URL)
+        -> Result<(bundle: ExtensionBundle, commands: [[String: String]], snippets: [[String: String]],
+                   problems: [ScriptCommand.Problem]), ScriptCommand.Problem> {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return .failure(.badBundle(.notJSON))
         }
@@ -99,9 +105,17 @@ public struct ExtensionBundle: Hashable, Sendable {
               name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else {
             return .failure(.badBundle(.badName))
         }
-        guard let commands = json["commands"] as? [[String: Any]], !commands.isEmpty else {
-            return .failure(.badBundle(.noCommands))
+        var problems: [ScriptCommand.Problem] = []
+        // A list of entries; one that isn't (a string, an object, a number among them) is said, not ignored.
+        func entries(_ key: String) -> [[String: Any]] {
+            guard let value = json[key] else { return [] }
+            if let list = value as? [[String: Any]] { return list }
+            problems.append(.badValue(key: key, value: Self.shown(value)))
+            return []
         }
+        let commands = entries("commands")
+        let snippets = entries("snippets")
+        guard !commands.isEmpty || !snippets.isEmpty else { return .failure(.badBundle(.noCommands)) }
         var preferences: [Preference] = []
         for item in json["preferences"] as? [[String: Any]] ?? [] {
             guard let name = item["name"] as? String, !name.isEmpty,
@@ -124,8 +138,8 @@ public struct ExtensionBundle: Hashable, Sendable {
                                      author: json["author"] as? String, description: json["description"] as? String,
                                      preferences: preferences)
         // Each entry's keys as the scripts write them: strings as they are, true/false, numbers, JSON for the rest.
-        let entries = commands.map { entry in
-            var keys: [String: String] = ["schemaVersion": String(version)]
+        func strings(_ entry: [String: Any], _ start: [String: String]) -> [String: String] {
+            var keys = start
             for (key, value) in entry {
                 switch value {
                 case let text as String: keys[key] = text
@@ -137,7 +151,86 @@ public struct ExtensionBundle: Hashable, Sendable {
             }
             return keys
         }
-        return .success((bundle, entries))
+        // A snippet's keys are all text: one that isn't (`"text": ["a", "b"]`, `"text": 42`) leaves the snippet out.
+        let snippetEntries = snippets.compactMap { entry -> [String: String]? in
+            for key in BundleSnippet.keys {
+                if let value = entry[key], !(value is String) {
+                    problems.append(.badValue(key: key, value: Self.shown(value)))
+                    return nil
+                }
+            }
+            return entry.compactMapValues { $0 as? String }
+        }
+        return .success((bundle, commands.map { strings($0, ["schemaVersion": String(version)]) }, snippetEntries, problems))
+    }
+
+    /// A value of `extension.json` as a problem shows it: its JSON, at most 60 characters of it.
+    static func shown(_ value: Any) -> String {
+        let text: String
+        if let string = value as? String {
+            text = string
+        } else if JSONSerialization.isValidJSONObject(value), let data = try? JSONSerialization.data(withJSONObject: value) {
+            text = String(decoding: data, as: UTF8.self)
+        } else {
+            text = "\(value)"
+        }
+        return text.count > 60 ? String(text.prefix(60)) + "…" : text
+    }
+}
+
+/// A text to insert that an extension bundle ships (`extension.json`'s `snippets`): offered as `@name` like a snippet of
+/// the config's (`CustomCommand.CommandType.snippet`), its name taken by the bundle tier's rules (`Command.catalog`: its
+/// `alias` when another command has the name). Turned off by `"<bundle>/<name>"` (or the bundle's name) in
+/// `Config.disabledExtensions`.
+public struct BundleSnippet: Hashable, Sendable {
+    /// The bundle's name.
+    public var bundle: String
+    public var name: String
+    public var alias: String?
+    public var text: String
+    public var summary: String?
+    public var icon: String?
+    public var color: String?
+
+    public init(bundle: String, name: String, alias: String? = nil, text: String, summary: String? = nil,
+                icon: String? = nil, color: String? = nil) {
+        self.bundle = bundle
+        self.name = name
+        self.alias = alias
+        self.text = text
+        self.summary = summary
+        self.icon = icon
+        self.color = color
+    }
+
+    /// "<bundle>/<name>", as `disabledExtensions` turns it off.
+    public var id: String { bundle + "/" + name }
+
+    /// The names it answers to, in order (its alias only when its name is taken).
+    public var names: [String] { [name] + (alias.map { [$0] } ?? []) }
+
+    /// As a snippet of the config's: what the composer inserts.
+    public var definition: CustomCommand {
+        CustomCommand(name: name, type: .snippet, summary: summary, icon: icon, color: color, text: text)
+    }
+
+    /// An entry's keys, every one a string (`ExtensionBundle.read` leaves out an entry where one isn't).
+    static let keys = ["name", "alias", "text", "summary", "icon", "color"]
+
+    /// The snippet of an entry (its keys, strings), or why it can't be used: a name `ScriptCommand.isValidName` takes
+    /// (and alias), a text that isn't blank and has `{cursor}` at most once.
+    static func make(_ keys: [String: String], bundle: String) -> Result<BundleSnippet, ScriptCommand.Problem> {
+        guard let name = keys["name"]?.lowercased(), !name.isEmpty else { return .failure(.noName) }
+        guard ScriptCommand.isValidName(name) else { return .failure(.badValue(key: "name", value: name)) }
+        let alias = keys["alias"]?.lowercased()
+        if let alias, !ScriptCommand.isValidName(alias) { return .failure(.badValue(key: "alias", value: alias)) }
+        guard let text = keys["text"] else { return .failure(.missing("text")) }
+        guard CustomCommand.snippetProblem(text) == nil else {
+            return .failure(.badValue(key: "text", value: ExtensionBundle.shown(text)))
+        }
+        func optional(_ key: String) -> String? { keys[key].flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
+        return .success(BundleSnippet(bundle: bundle, name: name, alias: alias, text: text, summary: optional("summary"),
+                                      icon: optional("icon"), color: optional("color")))
     }
 }
 
@@ -147,6 +240,8 @@ public struct ExtensionBundle: Hashable, Sendable {
 public struct ExtensionIndex: Equatable, Sendable {
     public var commands: [ScriptCommand]
     public var bundles: [ExtensionBundle]
+    /// The bundles' snippets, in bundle order.
+    public var snippets: [BundleSnippet]
     public var skipped: [ExtensionStore.Skipped]
     /// Scripts, and bundles' `extension.json`, identical to one found before them (another checkout or copy
     /// of the same folder): left out quietly.
@@ -156,13 +251,15 @@ public struct ExtensionIndex: Equatable, Sendable {
     public var generation = 0
 
     public static func == (a: ExtensionIndex, b: ExtensionIndex) -> Bool {
-        a.commands == b.commands && a.bundles == b.bundles && a.skipped == b.skipped && a.identical == b.identical
+        a.commands == b.commands && a.bundles == b.bundles && a.snippets == b.snippets && a.skipped == b.skipped
+            && a.identical == b.identical
     }
 
-    public init(commands: [ScriptCommand] = [], bundles: [ExtensionBundle] = [], skipped: [ExtensionStore.Skipped] = [],
-                identical: [URL] = []) {
+    public init(commands: [ScriptCommand] = [], bundles: [ExtensionBundle] = [], snippets: [BundleSnippet] = [],
+                skipped: [ExtensionStore.Skipped] = [], identical: [URL] = []) {
         self.commands = commands
         self.bundles = bundles
+        self.snippets = snippets
         self.skipped = skipped
         self.identical = identical
     }
@@ -177,6 +274,12 @@ public struct ExtensionIndex: Equatable, Sendable {
     public func enabled(_ disabled: [String]) -> [ScriptCommand] {
         let off = Set(disabled)
         return commands.filter { !off.contains($0.id) && !($0.source.bundleName.map(off.contains) ?? false) }
+    }
+
+    /// The snippets not turned off (`Config.disabledExtensions`: "<bundle>/<name>", or the bundle's name).
+    public func enabledSnippets(_ disabled: [String]) -> [BundleSnippet] {
+        let off = Set(disabled)
+        return snippets.filter { !off.contains($0.id) && !off.contains($0.bundle) }
     }
 }
 
@@ -244,7 +347,7 @@ public enum ExtensionStore {
     /// or permissions changed since `cache` last saw them; what it held for files gone is dropped. Templates
     /// (`*.template.*`) and hidden files are left out.
     public static func load(_ folders: [Folder], cache: ExtensionCache = ExtensionCache()) -> ExtensionIndex {
-        var bundles: [(bundle: ExtensionBundle, commands: [ScriptCommand], digest: Data)] = []
+        var bundles: [(bundle: ExtensionBundle, commands: [ScriptCommand], snippets: [BundleSnippet], digest: Data)] = []
         var scripts: [ScriptCommand] = []
         var skipped: [Skipped] = []
         var identical: [URL] = []
@@ -294,13 +397,13 @@ public enum ExtensionStore {
                     }
                     let digest = Data(hasher.finalize())
                     switch loaded {
-                    case let .success((bundle, commands, problems)):
+                    case let .success((bundle, commands, snippets, problems)):
                         guard first("bundle " + bundle.name, digest, manifest) else { continue }
                         if bundles.contains(where: { $0.bundle.name == bundle.name }) {
                             skipped.append(Skipped(file: manifest, problem: .bundleTaken))
                             continue
                         }
-                        bundles.append((bundle, commands, digest))
+                        bundles.append((bundle, commands, snippets, digest))
                         skipped += problems
                     case let .failure(problem):
                         guard first("bundle folder " + item.url.lastPathComponent, digest, manifest) else { continue }
@@ -325,20 +428,22 @@ public enum ExtensionStore {
         cache.keep(only: seen)
         // Bundles first, then single scripts, then Raycast's (stable within each).
         let ordered = bundles.flatMap(\.commands) + scripts.filter { $0.source == .script } + scripts.filter { $0.source == .raycast }
-        return ExtensionIndex(commands: ordered, bundles: bundles.map(\.bundle), skipped: skipped, identical: identical)
+        return ExtensionIndex(commands: ordered, bundles: bundles.map(\.bundle), snippets: bundles.flatMap(\.snippets), skipped: skipped,
+                              identical: identical)
     }
 
-    /// A bundle's commands (each entry's keys over its script's own `@allinoneime.` lines), and the entries
-    /// that can't be used (two with one name: the first is kept).
+    /// A bundle's commands (each entry's keys over its script's own `@allinoneime.` lines) and snippets, and the
+    /// entries that can't be used (two with one name: the first is kept).
     static func loadBundle(_ data: Data, folder: URL, read: (URL) -> ExtensionCache.File?)
-        -> Result<(ExtensionBundle, [ScriptCommand], [Skipped]), ScriptCommand.Problem> {
-        let bundle: ExtensionBundle, entries: [[String: String]]
+        -> Result<(ExtensionBundle, [ScriptCommand], [BundleSnippet], [Skipped]), ScriptCommand.Problem> {
+        let bundle: ExtensionBundle, entries: [[String: String]], snippetEntries: [[String: String]], problems: [ScriptCommand.Problem]
         switch ExtensionBundle.read(data, folder: folder) {
-        case let .success(read): (bundle, entries) = read
+        case let .success(read): (bundle, entries, snippetEntries, problems) = read
         case let .failure(problem): return .failure(problem)
         }
+        let manifest = folder.appendingPathComponent(ExtensionBundle.manifestName)
         var commands: [ScriptCommand] = []
-        var skipped: [Skipped] = []
+        var skipped = problems.map { Skipped(file: manifest, problem: $0) }
         for entry in entries {
             // A file of the bundle's folder as written (on every system's terms: no "..", "/x", "C:x", "..\x").
             guard let script = entry["script"], let file = CorePaths.file(script, in: folder) else {
@@ -368,7 +473,22 @@ public enum ExtensionStore {
             case let .failure(problem): skipped.append(Skipped(file: file, problem: problem))
             }
         }
-        return .success((bundle, commands, skipped))
+        var snippets: [BundleSnippet] = []
+        for entry in snippetEntries {
+            switch BundleSnippet.make(entry, bundle: bundle.name) {
+            case let .success(snippet):
+                // A name twice in the bundle (a command's or a snippet's): the first is kept, and named.
+                if let command = commands.first(where: { $0.name == snippet.name }) {
+                    skipped.append(Skipped(file: manifest, problem: .nameTaken(snippet.name, by: .command(command.id))))
+                } else if let first = snippets.first(where: { $0.name == snippet.name }) {
+                    skipped.append(Skipped(file: manifest, problem: .nameTaken(snippet.name, by: .snippet(first.id))))
+                } else {
+                    snippets.append(snippet)
+                }
+            case let .failure(problem): skipped.append(Skipped(file: manifest, problem: problem))
+            }
+        }
+        return .success((bundle, commands, snippets, skipped))
     }
 
     enum ItemKind { case file, folder, brokenLink }

@@ -3,7 +3,8 @@ import AppKit
 
 /// The icons of the command list, like the colored squares of iOS Settings: one for each built-in
 /// command, one for each kind of custom command, a plugin's own (or a puzzle piece), a script extension's
-/// own (an emoji, an image or a symbol). A custom command or a plugin may name its own SF Symbol and color.
+/// own (an emoji, an image or a symbol). A custom command, a bundle's snippet or a plugin may name its own SF Symbol
+/// and color.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon {
         if let plugin = command.plugin { return icon(for: plugin) }
@@ -13,6 +14,7 @@ enum CommandIcons {
         case .improve: return CandidateView.Icon(symbol: "wand.and.stars", color: .systemPurple)
         case .translate: return CandidateView.Icon(symbol: "translate", color: .systemBlue)
         case .question: return CandidateView.Icon(symbol: "questionmark.bubble.fill", color: .systemBlue)
+        case .reply: return CandidateView.Icon(symbol: "arrowshape.turn.up.left.fill", color: .systemGreen)
         case .agent: return CandidateView.Icon(symbol: "sparkles", color: .systemOrange)
         case .open: return CandidateView.Icon(symbol: "magnifyingglass", color: .systemGray)
         case .read: return CandidateView.Icon(symbol: "doc.richtext.fill", color: .systemTeal)
@@ -79,6 +81,7 @@ enum CommandIcons {
         case .run: (symbol, fallback) = ("chevron.left.forwardslash.chevron.right", .systemBrown)
         case .terminal: (symbol, fallback) = ("apple.terminal.fill", NSColor(white: 0.25, alpha: 1))
         case .link: (symbol, fallback) = ("link", .systemBlue)
+        case .snippet: (symbol, fallback) = ("text.insert", .systemMint)
         }
         return CandidateView.Icon(symbol: custom.icon ?? symbol, color: color(custom.color) ?? fallback)
     }

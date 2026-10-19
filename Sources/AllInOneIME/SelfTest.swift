@@ -10,7 +10,7 @@ import SwiftUI
 /// Records what the input method does to a text field. With `selection` set, it behaves like NSTextView:
 /// marked or inserted text takes the selection's place when nothing is marked (empty marked text too,
 /// which deletes it), and goes where the selection was (`insertionPoint`).
-final class FakeTextClient: NSObject, IMKTextInput {
+class FakeTextClient: NSObject, IMKTextInput {
     var marked = ""
     var markedSelection = NSRange(location: 0, length: 0)
     var inserted: [String] = []
@@ -498,7 +498,7 @@ enum SelfTest {
         check(english?.path(forResource: "Localizable", ofType: "strings") != nil
               && english.flatMap { InterfaceText.translate("None", key: "account.notSubscribed", in: $0) } == "None",
               "the app carries the compiled String Catalog (en.lproj/Localizable.strings; keys of their own have their English)")
-        check(UIText.shipped.map(InterfaceLanguage.name) == ["English", "简体中文"],
+        check(UIText.shipped.map(InterfaceLanguage.name) == ["English", "简体中文"] + interfaceLanguages.map(\.name),
               "the settings offer the shipped languages in their own names (\(UIText.shipped.map(InterfaceLanguage.name)))")
 
         let stand = directory.appendingPathComponent("interface-translations")
@@ -527,6 +527,54 @@ enum SelfTest {
         check(UIText.language == "zh-Hans" && chinese == "运行超过 12 秒，已停止", "Simplified Chinese still comes from the code: \(chinese)")
         UIText.choice = "de"  // not shipped: follows the system
         check(UIText.language == UIText.systemLanguage, "a language that isn't shipped follows the system (\(UIText.language))")
+    }
+
+    /// The interface languages the app ships besides Simplified Chinese and English, each with its name in itself, and
+    /// some of its text (the catalog's, compiled into `<code>.lproj`): "Interface language" and "General".
+    static let interfaceLanguages: [(code: String, name: String, interfaceLanguage: String, general: String)] = [
+        ("de", "Deutsch", "Sprache der Benutzeroberfläche", "Allgemein"),
+        ("es", "Español", "Idioma de la interfaz", "General"),
+        ("fr", "Français", "Langue de l’interface", "Général"),
+        ("ja", "日本語", "表示言語", "一般"),
+        ("ko", "한국어", "인터페이스 언어", "일반"),
+        ("pt-BR", "Português (Brasil)", "Idioma da interface", "Geral"),
+        ("zh-Hant", "繁體中文", "介面語言", "一般"),
+    ]
+
+    /// Each interface language besides Simplified Chinese and English, picked in the settings: its text from its
+    /// `.lproj` (Traditional Chinese's too, never the Simplified Chinese of the code), the core's through the same
+    /// lookup, and Settings → General and Translate & Rewrite drawn in it, to build/l10n-shots/<code>/ (next to the app)
+    /// to look at: labels that don't fit, text left in English.
+    static func testInterfaceLanguages() {
+        let shots = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("l10n-shots")
+        let pickedBefore = UIText.choice
+        defer { UIText.choice = pickedBefore }
+        for language in interfaceLanguages {
+            UIText.choice = InterfaceLanguage.setting(for: language.code)
+            let label = tr("界面语言", "Interface language"), general = SettingsPage.general.title
+            // The core's text through the same lookup ("Vertical" is Spanish and Portuguese too: compared with the .lproj).
+            let core = AIConfig.Text(language: UIText.language).layout(.vertical)
+            let lproj = InterfaceText.bundle(language.code, app: .main).flatMap { InterfaceText.translate("Vertical", in: $0) }
+            check(UIText.language == language.code && label == language.interfaceLanguage && general == language.general
+                  && lproj != nil && core == lproj && core != "竖排",
+                  "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(general), \(core))")
+            if language.code == "zh-Hant" {
+                let key = UIText.name(ActionKey.optionTap), french = UIText.name(Language.french)
+                check(key == "單按 ⌥" && french == "法文" && UIText.chineseOnly("插件库的索引没有签名") == "插件庫的索引沒有簽名",
+                      "Traditional Chinese, not the code's Simplified Chinese, where text only comes in Chinese and English (\(key), \(french))")
+            }
+            let folder = shots.appendingPathComponent(language.code)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for page in [SettingsPage.general, .writing] {
+                let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
+                preview.profileShownAs = "default"  // never the user's own profile name in a picture
+                SettingsImage.render(preview, page: page, to: folder.appendingPathComponent("\(page.rawValue).png")) { seconds in
+                    _ = pump(timeout: seconds) { false }
+                }
+            }
+            check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("general.png").path),
+                  "\(language.name): Settings → General drawn in it (\(folder.path))")
+        }
     }
 
     static func testLanguageDrag() {
@@ -588,7 +636,7 @@ enum SelfTest {
         // custom commands list marks it 「和内置命令重名，不会生效，请改名」.
         func custom(_ name: String) -> CustomCommand { CustomCommand(name: name, type: .prompt, prompt: "Reply.") }
         check(["note", "Reminder", "open", "settings"].map(custom).allSatisfy(SettingsView.hiddenByBuiltIn)
-              && !["notes", "reply", "remind"].map(custom).contains(where: SettingsView.hiddenByBuiltIn),
+              && !["notes", "respond", "remind"].map(custom).contains(where: SettingsView.hiddenByBuiltIn),
               "custom commands a built-in hides are marked in the list, the others aren't")
         check(model.profiles.contains(own.awsProfile), "profile picker lists \(own.awsProfile) (\(model.profiles))")
         needing(.bedrock)
@@ -640,13 +688,14 @@ enum SelfTest {
         model.refreshJargon()
         check(model.jargonExists && model.jargonCount == 3, "the user's jargon list is counted (\(model.jargonCount) terms)")
         // The window follows the system language among those the app ships (its .lproj folders): Chinese only when it
-        // comes before English, Traditional Chinese too while only Simplified Chinese ships.
+        // comes before English, Traditional Chinese in Traditional Chinese, a region in its language.
         let shipped = UIText.shipped
-        check(shipped == InterfaceLanguage.builtIn && InterfaceLanguage.pick(preferred: ["en-US", "zh-Hans-US"], shipped: shipped) == "en"
-              && InterfaceLanguage.pick(preferred: ["zh-Hans-CN", "en-US"], shipped: shipped) == "zh-Hans"
-              && InterfaceLanguage.pick(preferred: ["ja-JP", "zh-Hant-TW", "en"], shipped: shipped) == "zh-Hans"
-              && InterfaceLanguage.pick(preferred: ["ja-JP"], shipped: shipped) == "en",
-              "the settings language follows the preferred languages (\(shipped); this Mac: \(UIText.systemLanguage))")
+        let picks = [(["en-US", "zh-Hans-US"], "en"), (["zh-Hans-CN", "en-US"], "zh-Hans"), (["zh-Hant-TW", "en"], "zh-Hant"),
+                     (["zh-HK"], "zh-Hant"), (["ja-JP", "zh-Hant-TW", "en"], "ja"), (["ko-KR"], "ko"), (["de-AT"], "de"),
+                     (["es-MX"], "es"), (["fr-CA"], "fr"), (["pt-BR"], "pt-BR"), (["pt-PT", "en"], "pt-BR"), (["ru-RU"], "en")]
+        let wrong = picks.filter { InterfaceLanguage.pick(preferred: $0.0, shipped: shipped) != $0.1 }
+        check(shipped == InterfaceLanguage.builtIn + interfaceLanguages.map(\.code).sorted() && wrong.isEmpty,
+              "the settings language follows the preferred languages (\(shipped); wrong: \(wrong); this Mac: \(UIText.systemLanguage))")
         // Unless one is picked in the window: it applies at once and is saved.
         let pickedBefore = UIText.choice
         defer { UIText.choice = pickedBefore }
@@ -683,6 +732,7 @@ enum SelfTest {
         testLanguageDrag()
         testLanguageSwitchRedraws(in: snapshotDirectory)
         testInterfaceTranslations(in: snapshotDirectory)
+        testInterfaceLanguages()
         testCandidateLayoutSaves(in: snapshotDirectory)
         check(SettingsView.version?.isEmpty == false, "the window ends with the version (AllInOneIME \(SettingsView.version ?? "?"))")
 
@@ -1208,7 +1258,7 @@ enum SelfTest {
             at()
             type("o", controller, client)
             _ = press(controller, client, "\t", code: VirtualKey.tab)
-            controller.readClipboard = { query }
+            controller.readClipboard = { .text(query) }
             _ = press(controller, client, "v", code: 0x09, flags: .control)
             _ = pump(timeout: 1) { controller.composer.draft != "@open " }
             let results = live(query)
@@ -1223,7 +1273,7 @@ enum SelfTest {
                   "@open \(query) shows \(shown ?? "nothing") first, \(english ?? "nothing") in English (\(results.count) results)")
             _ = escape(controller, client)
         }
-        controller.readClipboard = { nil }
+        controller.readClipboard = { .none }
         // Typed in letters, Finder (listed with the apps first), and nothing from Python's folders (compiled
         // files, caches, packages) that is named like it.
         at()
@@ -1295,12 +1345,15 @@ enum SelfTest {
         var notes: [String] = [], reminders: [ReminderDraft] = [], copied: [String] = []
         var failure: Error?
         var held = false  // a save waits while this is set (something is typed meanwhile)
-        let saved = (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+        let saved = (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
                      controller.readClipboard, controller.copyText)
-        controller.saveNote = { text in
-            while held { try await Task.sleep(nanoseconds: 10_000_000) }
-            if let failure { throw failure }
-            notes.append(text)
+        // Notes, as the settings have it by default: a stand-in for it.
+        controller.noteDestination = { _ in
+            StandInNotes { text in
+                while held { try await Task.sleep(nanoseconds: 10_000_000) }
+                if let failure { throw failure }
+                notes.append(text)
+            }
         }
         controller.addReminder = { reminder in
             while held { try await Task.sleep(nanoseconds: 10_000_000) }
@@ -1317,7 +1370,7 @@ enum SelfTest {
             }
         }
         defer {
-            (controller.saveNote, controller.addReminder, controller.parseReminder, controller.secureInputActive,
+            (controller.noteDestination, controller.addReminder, controller.parseReminder, controller.secureInputActive,
              controller.readClipboard, controller.copyText) = saved
             observers.forEach { NotificationCenter.default.removeObserver($0) }
         }
@@ -1342,7 +1395,7 @@ enum SelfTest {
         at()
         type("n", controller, client)
         let offered = controller.panelModel().rows.first
-        check(offered?.text == "@note" && offered?.comment == "存到备忘录",
+        check(offered?.text == "@note" && offered?.comment == "存一条笔记到备忘录",
               "@n offers @note first (\(offered?.text ?? "-") \(offered?.comment ?? ""))")
         tab()
         type("nihao", controller, client)
@@ -1362,7 +1415,7 @@ enum SelfTest {
         check(pump(timeout: 2) { notes.count == 2 } && notes.last == "你好", "…also while secure input is on (\(notes))")
         controller.secureInputActive = saved.3
         // ⌃V takes the clipboard's text, its lines too, shown with 「 ↵ 」; ⏎ saves it as it was.
-        controller.readClipboard = { "牛奶\n鸡蛋\n面包" }
+        controller.readClipboard = { .text("牛奶\n鸡蛋\n面包") }
         note("", in: controller, client)
         check(press(controller, client, "v", code: 0x09, flags: .control) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
               "⌃V in an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
@@ -1390,14 +1443,14 @@ enum SelfTest {
         at()
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
-        // @read is off for now (`Command.off`): @reminder comes first.
-        check(both.first == "@reminder" && !both.contains("@read"), "@r offers @reminder first, not @read (\(both))")
+        // @read is off for now (`Command.off`): @reply, then @reminder.
+        check(both.prefix(2) == ["@reply", "@reminder"] && !both.contains("@read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
         check(rows.map(\.text) == ["@reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
               "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
         tab()
-        controller.readClipboard = { "明天下午3点给张三打电话" }
+        controller.readClipboard = { .text("明天下午3点给张三打电话") }
         check(press(controller, client, "v", code: 0x09, flags: .command)
               && pump(timeout: 1) { client.marked == "reminder › 明天下午3点给张三打电话" },
               "⌘V puts the text in (\(client.marked))")
@@ -1559,9 +1612,9 @@ enum SelfTest {
             field.loadCommandUsage = { CommandUsage() }
             field.saveCommandUsage = { _ in }
             field.secureInputActive = { false }
-            field.readClipboard = { "买牛奶" }
+            field.readClipboard = { .text("买牛奶") }
             field.copyText = { copied.append($0) }
-            field.saveNote = controller.saveNote
+            field.noteDestination = controller.noteDestination
             field.ensureEngine()
             field.applySettings()
             note("", in: field, otherClient)
@@ -1588,9 +1641,9 @@ enum SelfTest {
             terminal.loadCommandUsage = { CommandUsage() }
             terminal.saveCommandUsage = { _ in }
             terminal.secureInputActive = { false }
-            terminal.readClipboard = { lines }
+            terminal.readClipboard = { .text(lines) }
             terminal.copyText = { copied.append($0) }
-            terminal.saveNote = controller.saveNote
+            terminal.noteDestination = controller.noteDestination
             terminal.addReminder = controller.addReminder
             terminal.activateServer(terminalClient)
             /// ⌃V in an empty @note: the clipboard's lines in the draft.
@@ -2516,6 +2569,7 @@ enum SelfTest {
         uniquingKeysWith: { first, _ in first })
 
     static func run(snapshotDirectory: URL) -> Int32 {
+        waitForOtherSelfTests()
         _ = NSApplication.shared
         // The recent @questions in a file of the self-test's own: the user's are neither listed nor changed.
         QuestionHistoryStore.url = snapshotDirectory.appendingPathComponent("recent-questions.json")
@@ -2534,8 +2588,10 @@ enum SelfTest {
             folder: ICloudSyncFolder(url: snapshotDirectory.appendingPathComponent("icloud-unused/CloudDocs/AllInOneIME")),
             configURL: Config.defaultURL, stateURL: snapshotDirectory.appendingPathComponent("icloud-unused/state.json"),
             questionsURL: QuestionHistoryStore.url, machineID: MachineIdentity.syncID)
-        // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched.
+        // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched (nor
+        // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
+        ICloudSyncController.shared.keys = nil
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""
@@ -2600,6 +2656,8 @@ enum SelfTest {
         controller.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.saveCommandUsage = { _ in }
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
+        controller.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
+        controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)
         giveUp = { for _ in 0..<4 where controller.composer.isComposing { _ = escape(controller, client) } }
         // @translate: into the output languages but the sentence's own; with @improve, one request. For the
         // README image the live requests translate into English only (three versions).
@@ -2648,7 +2706,7 @@ enum SelfTest {
         var openHistory = OpenHistory()
         controller.loadOpenHistory = { openHistory }
         controller.recordOpen = { openHistory.record($0) }
-        controller.readClipboard = { nil }  // never the real clipboard; the ⌘V section supplies its text
+        controller.readClipboard = { .none }  // never the real clipboard; the ⌘V section supplies its text
         // Never the real Contacts or Messages, nor the user's recent recipients (the @imessage section has its own).
         controller.loadContacts = { [] }
         controller.messageSender = StandInSender()
@@ -2754,7 +2812,7 @@ enum SelfTest {
         // ⌘V in the command: the clipboard's text (a fake one here) goes into it, not the document.
         section("@improve + ⌘V (live Bedrock)", needs: .composing)
         let clipboard = "这个项目的进度太慢了\n我们需要尽快想办法"
-        controller.readClipboard = { clipboard }
+        controller.readClipboard = { .text(clipboard) }
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
         _ = enter(controller, client)
@@ -2771,7 +2829,7 @@ enum SelfTest {
                   "the pasted text is improved (polished, still Chinese)")
             _ = enter(controller, client)
         }
-        controller.readClipboard = { nil }
+        controller.readClipboard = { .none }
         check(!press(controller, client, "v", code: 0x09, flags: .command), "⌘V with nothing pending is the app's")
         controller.commitComposition(client)
         needing(.composing)
@@ -2780,7 +2838,7 @@ enum SelfTest {
         client.bundleIDOverride = "com.mitchellh.ghostty"
         controller.activateServer(client)
         var clipboardReads = 0
-        controller.readClipboard = { clipboardReads += 1; return clipboard }
+        controller.readClipboard = { clipboardReads += 1; return .text(clipboard) }
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
         _ = enter(controller, client)  // picks @improve
@@ -2807,23 +2865,24 @@ enum SelfTest {
         _ = escape(controller, client)
         client.bundleIDOverride = nil
         controller.activateServer(client)
-        controller.readClipboard = { nil }
+        controller.readClipboard = { .none }
         // What is taken from a clipboard, on private pasteboards (the real one is never read here).
-        func reads(_ fill: (NSPasteboard) -> Void) -> String? {
+        func reads(_ fill: (NSPasteboard) -> Void) -> ClipboardContent {
             let board = NSPasteboard.withUniqueName()
             defer { board.releaseGlobally() }
             board.clearContents()
             fill(board)
-            return AllInOneIMEInputController.clipboardText(board)
+            return AllInOneIMEInputController.clipboardContent(board)
         }
-        check(reads { $0.setString("plain text", forType: .string) } == "plain text", "plain text is taken")
+        check(reads { $0.setString("plain text", forType: .string) } == .text("plain text"), "plain text is taken")
         for marker in ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType", "com.agilebits.onepassword"] {
             let item = NSPasteboardItem()
             item.setString("secret", forType: .string)
             item.setString("", forType: NSPasteboard.PasteboardType(rawValue: marker))
-            check(reads { $0.writeObjects([item]) } == nil, "a password marked \(marker) is not taken")
+            check(reads { $0.writeObjects([item]) } == .none, "a password marked \(marker) is not taken")
         }
-        check(reads { $0.setData(Data([0x49, 0x49, 0x2A, 0]), forType: .tiff) } == nil, "an image is not taken")
+        check(reads { $0.setData(Data([0x49, 0x49, 0x2A, 0]), forType: .tiff) } == .image(Data([0x49, 0x49, 0x2A, 0])),
+              "an image is taken as one: its text is read on this Mac (the screenshot section reads it)")
 
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }
 
@@ -3058,12 +3117,14 @@ enum SelfTest {
         controller.applySettings()
         testCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testNotesAndReminders(controller, client, snapshotDirectory: snapshotDirectory)
+        testNoteDestinations(controller, client, snapshotDirectory: snapshotDirectory)
         testToolCommands(controller, client, snapshotDirectory: snapshotDirectory)
         testIMessage(controller, client)
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
         testAtAfterAWord(controller, client)
+        testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
         testRecentQuestions(controller, client, snapshotDirectory: snapshotDirectory)
@@ -3071,10 +3132,12 @@ enum SelfTest {
         testContinueListKeepsAgentsNotInstalled(snapshotDirectory: snapshotDirectory)
         testAppleModel(controller, client, snapshotDirectory: snapshotDirectory)
         testRedaction(controller, client, snapshotDirectory: snapshotDirectory)
+        testReply(controller, client)
         testAIConfig(snapshotDirectory: snapshotDirectory)
         testDoctor(snapshotDirectory: snapshotDirectory)
         testAssistantPage(snapshotDirectory: snapshotDirectory)
         testAWSCredentials(snapshotDirectory: snapshotDirectory)
+        testSnippetEditorAndReview(snapshotDirectory: snapshotDirectory)
 
         section("error display (an invalid Bedrock model)", needs: [.composing, .bedrock])
         controller.converter = Converter(loadConfig: {
@@ -3159,6 +3222,8 @@ enum SelfTest {
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
         testExtensionSources(snapshotDirectory: snapshotDirectory)
         testICloudSync(snapshotDirectory: snapshotDirectory)
+        testSettingsListsAfterSync(snapshotDirectory: snapshotDirectory)
+        testKeychainSync()
         controller.deactivateServer(client)
 
         section("the user's config")

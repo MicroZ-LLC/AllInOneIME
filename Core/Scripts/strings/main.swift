@@ -27,7 +27,10 @@
 //
 // A shell's catalog holds only the shell's own text: the core's is the core's catalog. For a shell the plugin adds the
 // core's sources (`--sources`, any number; Sources by default) and the core's catalog (`--base`): what the core's
-// catalog has counts as there and isn't added to this one, and a key in both fails --check. `--merge OUT` writes the
+// catalog has counts as there and isn't added to this one, and a key in both fails --check. Text that moves from the
+// shell's code to the core's is such a key: the core's run adds it to the core's catalog, then the shell's, given
+// `--move-to-base` (the plugin passes it when the core is a folder of the shell's, not a checkout of its repository),
+// gives the core's catalog the translations it lacks from this one and removes the key here. `--merge OUT` writes the
 // base catalogs and this one as one catalog, for xcstringstool, and fails on a key in both. `--catalog` names another
 // catalog than Resources/Localizable.xcstrings.
 
@@ -40,12 +43,13 @@ struct Arguments {
     var sources: [String] = []
     var catalog = "Resources/Localizable.xcstrings"
     var bases: [String] = []
+    var moveToBase = false
     var merge: String?
 }
 
 func usageError(_ message: String) -> Never {
     print("strings: \(message)")
-    print("usage: strings [--check] [--sources DIR]... [--catalog FILE] [--base FILE]... [--merge OUT]")
+    print("usage: strings [--check] [--sources DIR]... [--catalog FILE] [--base FILE]... [--move-to-base] [--merge OUT]")
     exit(2)
 }
 
@@ -62,6 +66,7 @@ let arguments: Arguments = {
         case "--sources": parsed.sources.append(value(argument))
         case "--catalog": parsed.catalog = value(argument)
         case "--base": parsed.bases.append(value(argument))
+        case "--move-to-base": parsed.moveToBase = true
         case "--merge": parsed.merge = value(argument)
         default: usageError("unknown argument \(argument)")
         }
@@ -475,7 +480,7 @@ let inUse = Set(order)
 /// The keys in use that are this catalog's.
 let ours = order.filter { !inBase($0) }
 /// Keys in use in this catalog and a base catalog both: xcstringstool would get two.
-let twice = order.filter { inBase($0) && !isStale(strings[$0] as? [String: Any] ?? ["extractionState": "stale"]) }
+var twice = order.filter { inBase($0) && !isStale(strings[$0] as? [String: Any] ?? ["extractionState": "stale"]) }
 var missing: [String] = []
 var untranslated: [String: [String]] = [:]
 for key in ours {
@@ -498,8 +503,9 @@ func report() {
         }
     }
     if !twice.isEmpty {
-        print("\n\(twice.count) keys in this catalog and \(arguments.bases.joined(separator: ", ")) both (that one's are used: "
-              + "move what translations only this one has there, and remove them here):")
+        print("\n\(twice.count) keys in this catalog and \(arguments.bases.joined(separator: ", ")) both (that one's are used; "
+              + "make strings moves the translations only this one has there, and removes the keys here, when the core is "
+              + "a folder of this package; else move them by hand):")
         for key in twice { print("  \"\(key)\"  \(firstUse[key]!.location)") }
     }
     if !unreadable.isEmpty {
@@ -526,7 +532,29 @@ if check {
     exit(failed ? 1 : 0)
 }
 
-var added = 0, staled = 0, revived = 0
+var added = 0, staled = 0, revived = 0, moved = 0
+if arguments.moveToBase && !twice.isEmpty {
+    // Text that moved from this package's code to the core's (whose run added its key there): the translations the
+    // base catalog lacks go there, and the key leaves this catalog.
+    var bases = arguments.bases.map { (url: url($0), catalog: readCatalog(url($0))) }
+    for key in twice {
+        guard let i = bases.firstIndex(where: { base in
+            ((base.catalog["strings"] as? [String: Any])?[key] as? [String: Any]).map { !isStale($0) } ?? false
+        }) else { continue }
+        var entries = bases[i].catalog["strings"] as? [String: Any] ?? [:]
+        var entry = entries[key] as? [String: Any] ?? [:]
+        var localizations = entry["localizations"] as? [String: Any] ?? [:]
+        let mine = (strings[key] as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+        for (language, localization) in mine where !hasTranslation(entry, language) { localizations[language] = localization }
+        if !localizations.isEmpty { entry["localizations"] = localizations }
+        entries[key] = entry
+        bases[i].catalog["strings"] = entries
+        strings[key] = nil
+        moved += 1
+    }
+    for base in bases { try write(base.catalog, to: base.url) }
+    twice.removeAll { strings[$0] == nil }
+}
 for key in ours {
     let use = firstUse[key]!
     // New here: with the translations a base catalog kept for it when it left that catalog's code (stale there).
@@ -552,4 +580,5 @@ for key in unused {
 catalog["strings"] = strings
 try write(catalog, to: catalogURL)
 report()
-print("\nmake strings: \(added) added, \(staled) marked stale, \(revived) used again; \(shown(catalogURL))")
+let movedNote = arguments.bases.isEmpty ? "" : ", \(moved) moved to \(arguments.bases.joined(separator: ", "))"
+print("\nmake strings: \(added) added, \(staled) marked stale, \(revived) used again\(movedNote); \(shown(catalogURL))")

@@ -1,5 +1,5 @@
 import Foundation
-@testable import AllInOneIMECore
+import AllInOneIMECore
 
 /// Keys as the input controller hands them to the composer: a typed character, and the keys the tests press.
 public func k(_ s: String, mods: KeyModifiers = []) -> KeyEvent { KeyEvent(keyCode: 0, characters: s, modifiers: mods) }

@@ -33,15 +33,10 @@ enum NotesBridge {
     }
 
     /// Saves `text` as a new note (its first line is the note's title, its lines stay lines); returns the
-    /// note's identifier. Then `.allInOneIMENoteSaved` is posted on the main thread (for the menu bar panel).
+    /// note's identifier (`AppleNotesDestination`; the controller tells the menu bar panel).
     @discardableResult
     static func save(_ text: String) async throws -> String {
-        let id = try await run(saveScript, [folderName, html(text)]) { $0.stringValue ?? "" }
-        let title = NotesFormat.title(of: text)
-        await MainActor.run {
-            NotificationCenter.default.post(name: .allInOneIMENoteSaved, object: nil, userInfo: ["id": id, "title": title])
-        }
-        return id
+        try await run(saveScript, [folderName, html(text)]) { $0.stringValue ?? "" }
     }
 
     /// The `limit` notes in the folder changed last, newest first; nil when the default account has no such

@@ -1421,7 +1421,10 @@ enum ExtSrcAccCLI {
     /// `AllInOneIME <arguments> --config <config> --sources-dir <sources>`.
     static func run(_ arguments: [String], config: URL, sources: URL) throws -> ExtSrcAcc.Ran {
         var env = ExtSrcAcc.isolatedEnvironment
-        env["DYLD_LIBRARY_PATH"] = package.appendingPathComponent("ThirdParty/librime/dist/lib").path
+        // No DYLD_LIBRARY_PATH: the binary finds librime by its own rpath (the debug build's, to the folder it linked,
+        // $ALLINONEIME_THIRDPARTY's or ThirdParty here; a bundled app's, @executable_path/../Frameworks), so nothing
+        // here has to know where ThirdParty is. An inherited one is dropped: dyld would search it first.
+        env.removeValue(forKey: "DYLD_LIBRARY_PATH")
         env["SHELL"] = "/usr/bin/false"  // the login shell isn't read: the user's startup files aren't run
         guard let binary else { throw ExtensionSourceError.git("test harness: no app binary built") }
         return try ExtSrcAcc.run(binary, arguments + ["--config", config.path, "--sources-dir", sources.path],

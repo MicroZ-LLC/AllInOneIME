@@ -231,8 +231,10 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
     @Test func timeout() async {
         let runner = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sleep"), environment: [:], timeout: 0.3)
         let start = Date()
-        await #expect(throws: ExtensionSourceError.timedOut(0.3)) { try await runner.run(["5"], in: nil) }
-        #expect(Date().timeIntervalSince(start) < 10)
+        // A sleep of a minute (`Timing`): a busy test run can take seconds to get to the timeout, and a sleep that
+        // ended by itself first would be a plain exit, not a timeout.
+        await #expect(throws: ExtensionSourceError.timedOut(0.3)) { try await runner.run(["\(Timing.longSleep)"], in: nil) }
+        #expect(Date().timeIntervalSince(start) < Timing.wellBeforeLongSleep)
     }
 
     @Test func stdinClosed() async throws {
@@ -588,6 +590,105 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         #expect(lost.extensionFolders == ["~/my-scripts"])
     }
 
+    /// The config file as a JSON object.
+    static func object(_ url: URL) throws -> [String: Any] {
+        try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    }
+
+    /// A config file with a few keys of its own, in a temporary folder removed after the test.
+    static func configFile(_ text: String) throws -> (url: URL, folder: URL) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("config.json")
+        try Data(text.utf8).write(to: url)
+        return (url, folder)
+    }
+
+    /// Unreviewed folders taken out of the config file at launch (`ExtensionSourceController.quarantineConfigFile`): only
+    /// `extensionFolders` changes; no key the file didn't have (`agent`, `agentPageContext` … with their defaults) is added,
+    /// and the others keep their text.
+    @Test func quarantineWritesOnlyTheLoadList() throws {
+        let root = URL(fileURLWithPath: "/Users/me/Library/Application Support/AllInOneIME/Sources")
+        let stray = root.appendingPathComponent("stray/x").path
+        let original = """
+        {
+          "extensionFolders" : [
+            "~/my-scripts",
+            "\(stray)"
+          ],
+          "maxTokens" : 900
+        }
+        """
+        let (url, folder) = try Self.configFile(original)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(try ExtensionSources.quarantineConfigFile(at: url, statuses: [:], root: root) == [stray])
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(text == """
+        {
+          "extensionFolders" : [
+            "~/my-scripts"
+          ],
+          "maxTokens" : 900
+        }
+        """, "\(text)")
+        // Nothing left to take out: the file isn't written.
+        let date = try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+        #expect(try ExtensionSources.quarantineConfigFile(at: url, statuses: [:], root: root).isEmpty)
+        #expect(try String(contentsOf: url, encoding: .utf8) == text)
+        #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date == date)
+    }
+
+    /// `--add-source`'s Enable (`ExtensionSourceCommands.add`): only `extensionSources` and `extensionFolders` change in the
+    /// file; no key it didn't have is added, and the others keep their text.
+    @Test func enableWritesOnlyTheSourceKeys() throws {
+        let root = URL(fileURLWithPath: "/Users/me/Library/Application Support/AllInOneIME/Sources")
+        let stray = root.appendingPathComponent("stray/x").path
+        let original = """
+        {
+          "customCommands" : [
+            {
+              "name" : "mine",
+              "prompt" : "x",
+              "type" : "prompt"
+            }
+          ],
+          "extensionFolders" : [
+            "~/my-scripts",
+            "\(stray)"
+          ],
+          "maxTokens" : 900
+        }
+        """
+        let (url, folder) = try Self.configFile(original)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = ExtensionSource(url: "git@github.com:you/a.git", path: "ext")
+        try ExtensionSources.enableInConfigFile(source, at: url, quarantining: [:], root: root)
+
+        let object = try Self.object(url)
+        #expect(Set(object.keys) == ["customCommands", "extensionFolders", "extensionSources", "maxTokens"])
+        #expect(object["extensionFolders"] as? [String] == ["~/my-scripts", ExtensionSources.loadPath(for: source, root: root)])
+        let config = try Config.load(from: url)
+        #expect(config.extensionSources.map(\.url) == [source.url] && ExtensionSources.isEnabled(source, in: config, root: root))
+        // The keys it didn't change, as they were.
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(text.hasPrefix("""
+        {
+          "customCommands" : [
+            {
+              "name" : "mine",
+              "prompt" : "x",
+              "type" : "prompt"
+            }
+          ],
+        """), "\(text)")
+        #expect(text.contains(#""maxTokens" : 900"#), "\(text)")
+
+        // A missing file: written whole, the source enabled in it.
+        let missing = folder.appendingPathComponent("new.json")
+        try ExtensionSources.enableInConfigFile(source, at: missing, quarantining: [:], root: root)
+        #expect(ExtensionSources.isEnabled(source, in: try Config.load(from: missing), root: root))
+    }
+
     @Test func statusFileRobust() throws {
         let fixture = try GitFixture()
         let file = fixture.root.appendingPathComponent("sources.json")
@@ -664,8 +765,9 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         #expect(try await runner.run(["-c", "exit 3"], in: nil).status == 3)
         let quick = ProcessGitRunner(executable: URL(fileURLWithPath: "/bin/sh"), environment: ["PATH": "/usr/bin:/bin"], timeout: 0.5)
         let started = Date()
-        await #expect(throws: ExtensionSourceError.timedOut(0.5)) { _ = try await quick.run(["-c", "sleep 30 & sleep 30; wait"], in: nil) }
-        #expect(Date().timeIntervalSince(started) < 10)
+        let sleeps = "sleep \(Timing.longSleep) & sleep \(Timing.longSleep); wait"
+        await #expect(throws: ExtensionSourceError.timedOut(0.5)) { _ = try await quick.run(["-c", sleeps], in: nil) }
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
     }
 
     /// git starts with every signal at its default, whatever this process ignores (the input method ignores SIGTERM and

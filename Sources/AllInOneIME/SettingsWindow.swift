@@ -180,6 +180,58 @@ final class SettingsModel: ObservableObject {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
+    // MARK: Lists edited while sync may change them
+
+    // The window may not have read the file again yet when one of these saves (its reload waits while a slider is dragged
+    // or a menu is open), and sync through iCloud may have changed the list in it: each reads it again first (`refresh`),
+    // and edits the list by name, never by an index the page showed.
+
+    /// The file as it is now: what the window changed and hasn't saved yet saved (a save reads the file back), else the
+    /// file read again if something else changed it.
+    private func refresh() {
+        save()
+        reloadIfChanged()
+    }
+
+    /// The hidden-words field saved (Return, or leaving the page): its edit since it showed `shown` (`RedactionSettings.
+    /// edited`) on the words as the file has them now. The list to show.
+    @discardableResult
+    func saveWords(field text: String, shown: [String]) -> [String] {
+        refresh()
+        let list = RedactionSettings.edited(config.redaction.customWords, field: text, shown: shown)
+        guard list != config.redaction.customWords else { return list }
+        config.redaction.customWords = list
+        save()
+        return config.redaction.customWords
+    }
+
+    /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
+    func otherCommands(than original: String?) -> [CustomCommand] {
+        CustomCommand.others(than: original, in: config.customCommands)
+    }
+
+    /// The command editor's Save: `command` in place of the one named `original` wherever it is now (of two of that
+    /// name, the one the editor opened on, `shown`), else added (it was deleted elsewhere meanwhile). Not saved when
+    /// another command has its name by now: false, and the editor stays open saying so.
+    @discardableResult
+    func saveCommand(_ command: CustomCommand, editing original: String?, shown: CustomCommand? = nil) -> Bool {
+        refresh()
+        guard let list = CustomCommand.saving(command, as: original, in: config.customCommands, shown: shown) else { return false }
+        config.customCommands = list
+        save()
+        return true
+    }
+
+    /// The Delete dialog's Delete: the command named `name`, wherever it is now; one only (of two of that name, the one
+    /// the dialog was opened on, `shown`).
+    func deleteCommand(named name: String, shown: CustomCommand? = nil) {
+        refresh()
+        let list = CustomCommand.removing(name, from: config.customCommands, shown: shown)
+        guard list != config.customCommands else { return }
+        config.customCommands = list
+        save()
+    }
+
     /// Switches the window's language at once (a config value, `Config.uiLanguage`; nil: follow the system) and saves
     /// the choice.
     func setUILanguage(_ language: String?) {
@@ -423,6 +475,148 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    // MARK: Notes (@note)
+
+    /// Where the Notion token comes from (nil until looked up), the last save's error, and Test.
+    @Published private(set) var notionTokenSource: APIKeys.Source?
+    @Published private(set) var notionTokenEnding: String?
+    @Published private(set) var notionTokenError: String?
+    @Published private(set) var notesTestStatus: TestStatus = .idle
+    /// The page or database link pasted in the section, which Test resolves (`NotionLink`, `NotionAPI.resolve`).
+    @Published var notionLink = ""
+    private var notesTestTask: Task<Void, Never>?
+    /// Asks for the folder notes go to, starting at the one there is (an open panel; the self-test answers instead).
+    var pickNotesFolder: @MainActor (URL?) -> URL? = { SettingsModel.askForNotesFolder($0) }
+
+    func refreshNotionToken() {
+        // A preview (the self-test's images) shows no token and never asks the user's keychain.
+        guard persists, Self.looksUpKeys else {
+            notionTokenSource = APIKeys.Source.none
+            return
+        }
+        // From the item's attributes: the token isn't read, so nothing asks for the login password.
+        notionTokenSource = APIKeys.source(account: NotionAPI.keyAccount, variables: [])
+        notionTokenEnding = APIKeys.keyEnding(account: NotionAPI.keyAccount)
+    }
+
+    var notionTokenState: KeyState { KeyState(notionTokenSource, ending: notionTokenEnding) }
+
+    /// Stores the Notion token in the keychain, sent to api.notion.com only, never in the config; an empty one does
+    /// nothing (`removeNotionToken`).
+    func saveNotionToken(_ token: String) {
+        guard persists, !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        do {
+            try NotionAPI.saveToken(token)
+            notionTokenError = nil
+        } catch {
+            notionTokenError = tr("无法保存到钥匙串：", "Couldn't save to the keychain: ") + UIText.describe(error)
+        }
+        notesTestStatus = .idle
+        refreshNotionToken()
+    }
+
+    /// Removes the Notion token: Remove…, confirmed.
+    func removeNotionToken() {
+        guard persists else { return }
+        do {
+            try NotionAPI.removeToken()
+            notionTokenError = nil
+        } catch {
+            notionTokenError = tr("无法从钥匙串里删除：", "Couldn't remove it from the keychain: ") + UIText.describe(error)
+        }
+        notesTestStatus = .idle
+        refreshNotionToken()
+    }
+
+    /// The "Save to" picker. A folder without one chosen yet asks for it first (cancelled: as it was).
+    func setNotesDestination(_ destination: NoteSettings.Destination) {
+        guard destination != config.notes.destination else { return }
+        if destination == .folder, config.notes.folderURL == nil {
+            guard let url = pickNotesFolder(nil) else { return }
+            config.notes.folder = Self.notesPath(url)
+        }
+        config.notes.destination = destination
+        notesTestStatus = .idle
+        save()
+    }
+
+    /// Choose Folder…: kept as "~/…" when it is in the home folder, and saved to from now on.
+    func chooseNotesFolder() {
+        guard let url = pickNotesFolder(config.notes.folderURL) else { return }
+        config.notes.folder = Self.notesPath(url)
+        config.notes.destination = .folder
+        save()
+    }
+
+    static func notesPath(_ url: URL) -> String { (url.path as NSString).abbreviatingWithTildeInPath }
+
+    /// The folder chosen isn't there (an unmounted volume, a moved vault): a save would fail. Looked at off the main
+    /// thread (`refreshNotesFolder`: a network volume that went away can hang a `stat`), never while rendering.
+    @Published private(set) var notesFolderMissing = false
+    private var notesFolderLook = 0
+
+    /// Looks at the folder notes go to, in the background, and says whether it is missing (`notesFolderMissing`).
+    func refreshNotesFolder() {
+        notesFolderLook += 1
+        let look = notesFolderLook
+        guard config.notes.destination == .folder, let folder = config.notes.folderURL else {
+            notesFolderMissing = false
+            return
+        }
+        Task { [weak self] in
+            let missing = await Task.detached(priority: .utility) { () -> Bool in
+                var isDirectory: ObjCBool = false
+                return !(FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory) && isDirectory.boolValue)
+            }.value
+            guard let self, look == self.notesFolderLook else { return }
+            self.notesFolderMissing = missing
+        }
+    }
+
+    static func askForNotesFolder(_ current: URL?) -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = current
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
+    /// Test: the link pasted (else the page or database kept) resolved with the token kept, within 10 s; what it is goes
+    /// into the config, and @note saves there from now on: "✓ “Inbox” (database)".
+    func testNotes() {
+        notesTestTask?.cancel()
+        notesTestStatus = .running
+        let link = notionLink.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (kept, session) = (config.notes.notion, NoteSaving.notionSession)
+        notesTestTask = Task { [weak self] in
+            do {
+                let id: String
+                if link.isEmpty {
+                    guard let kept else { throw NoteError.notionNotSetUp }
+                    id = kept.id
+                } else {
+                    guard let found = NotionLink.id(from: link) else { throw NoteError.notNotionLink }
+                    id = found
+                }
+                // The keychain may ask for the login password: not on the main thread.
+                let token = await Task.detached { NotionAPI.loadToken() }.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !token.isEmpty else { throw NoteError.notionNotSetUp }
+                let target = try await NotionAPI.resolve(id, token: token, session: session)
+                guard let self, !Task.isCancelled else { return }
+                self.config.notes.notion = target
+                self.config.notes.destination = .notion
+                self.save()
+                self.notionLink = ""
+                self.notesTestStatus = .passed(target.label(language: UIText.language))
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.notesTestStatus = .failed(UIText.describe(error))
+            }
+        }
+    }
+
     // MARK: AllInOneIME Cloud (the hosted provider)
 
     @Published private(set) var account: HostedAccount?
@@ -539,6 +733,9 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var skippedExtensions: [ExtensionStore.Skipped] = []
     /// The commands on but left out of the list because another command has their name: id → why.
     @Published private(set) var hiddenExtensions: [String: ScriptCommand.Problem] = [:]
+    /// The bundles' snippets ("<bundle>/<name>"): the name each got, and the ones on but left out (and why).
+    @Published private(set) var snippetNames: [String: String] = [:]
+    @Published private(set) var hiddenSnippets: [String: ScriptCommand.Problem] = [:]
     /// The password preferences saved in the keychain ("bundle/name"): only whether they are, never their value.
     @Published private(set) var passwordsSaved: Set<String> = []
     /// Their last 4 characters, where kept ("bundle/name" → "a1b2").
@@ -552,9 +749,17 @@ final class SettingsModel: ObservableObject {
         let index = LiveExtensions.load(config)
         extensionIndex = index
         let enabled = index.enabled(config.disabledExtensions)
-        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins)
-        extensionNames = Dictionary(Command.catalog(config.customCommands, plugins: plugins, scripts: enabled)
-            .compactMap { command in command.script.map { ($0.id, command.name) } }, uniquingKeysWith: { first, _ in first })
+        let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
+        let hidden = Command.hiddenScripts(enabled, custom: config.customCommands, plugins: plugins, snippets: enabledSnippets)
+        let catalog = Command.catalog(config.customCommands, plugins: plugins, scripts: enabled, snippets: enabledSnippets)
+        extensionNames = Dictionary(catalog.compactMap { command in command.script.map { ($0.id, command.name) } },
+                                    uniquingKeysWith: { first, _ in first })
+        snippetNames = Dictionary(catalog.compactMap { command -> (String, String)? in
+            guard command.kind == .snippet, let bundle = command.bundle, let custom = command.custom else { return nil }
+            return (bundle + "/" + custom.name, command.name)
+        }, uniquingKeysWith: { first, _ in first })
+        hiddenSnippets = Dictionary(Command.hiddenSnippets(enabledSnippets, scripts: enabled, custom: config.customCommands, plugins: plugins)
+            .map { ($0.snippet.id, .nameTaken($0.snippet.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
@@ -876,13 +1081,15 @@ struct SettingsView: View {
     @State private var pluginToInstall: PluginIndex.Entry?
     /// The custom command being added or edited (the editor sheet), and the one about to be deleted.
     @State private var commandEdit: CommandEdit?
-    @State private var commandToDelete: Int?
+    /// The name of the command the Delete dialog asks about (by name: sync may change the list while it is open).
+    @State private var commandToDelete: CustomCommand?
     /// The provider whose key row shows its paste field (Replace…, or the Assistant opening Settings at the key).
     @State private var editingKey: Provider?
     /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
     @State private var keySheet: KeySheetRequest?
     /// The web search key row's paste field.
     @State private var editingSearchKey = false
+    @State private var editingNotionToken = false
     /// The page shown (Assistant when none is asked for) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
     @State private var query = ""
@@ -1201,6 +1408,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var commandsSection: some View {
         Section {
+            // By place: two of one name (a config edited by hand) are two rows. Edit and Delete still go by the name.
             ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
@@ -1212,7 +1420,7 @@ struct SettingsView: View {
                         }
                         Spacer()
                         Button(tr("编辑", "Edit")) { commandEdit = CommandEdit(index: index, command: command) }
-                        Button(tr("删除", "Delete")) { commandToDelete = index }
+                        Button(tr("删除", "Delete")) { commandToDelete = command }
                     }
                     if Self.hiddenByBuiltIn(command) {
                         Label(tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it"),
@@ -1471,7 +1679,10 @@ struct SettingsView: View {
                 LabeledContent("API key") {
                     KeyRowContent(state: model.searchKeyState, missing: tr("还没有 API key", "No API key yet"),
                                   prompt: tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key"),
-                                  removeTitle: tr("删除钥匙串里的搜索 API key？", "Remove the search API key from the keychain?"),
+                                  removeTitle: { everywhere in
+                                      everywhere ? tr("从你所有的 Mac 上删除搜索 API key？", "Remove the search API key from all your Macs?")
+                                          : tr("从这台 Mac 上删除搜索 API key？", "Remove the search API key from this Mac?")
+                                  },
                                   save: { model.saveSearchKey($0) },
                                   remove: model.searchKeySource == .keychain ? { model.removeSearchKey() } : nil,
                                   editing: $editingSearchKey)
@@ -1498,6 +1709,81 @@ struct SettingsView: View {
                 SectionTitle(tr("网页搜索（@search）", "Web Search (@search)"), icon: CommandIcons.webSearch)
             }
         }
+    }
+
+    /// Where `@note` saves (`Config.notes`): Notes, Notion (its token in the keychain, never in the config; the link of a
+    /// page or database, which Test resolves) or a folder of Markdown files (an Obsidian vault or any folder).
+    @ViewBuilder private var notesSection: some View {
+        Section {
+            Picker(tr("存到", "Save to"), selection: Binding(get: { model.config.notes.destination }, set: { destination in
+                // After the picker's own update: a folder may ask for one first, in an open panel.
+                DispatchQueue.main.async { model.setNotesDestination(destination) }
+            })) {
+                Text(tr("备忘录", "Notes")).tag(NoteSettings.Destination.notes)
+                Text("Notion").tag(NoteSettings.Destination.notion)
+                Text(tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)")).tag(NoteSettings.Destination.folder)
+            }
+            switch model.config.notes.destination {
+            case .notes:
+                EmptyView()
+            case .folder:
+                HStack {
+                    Text(model.config.notes.folder ?? "").font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button(tr("选择文件夹…", "Choose Folder…")) { model.chooseNotesFolder() }
+                }
+                if model.config.notes.folderURL == nil {
+                    // Only a config edited by hand gets here (the picker asks for a folder first): saved to Notes meanwhile.
+                    Text(tr("还没选文件夹：笔记先存到备忘录", "No folder chosen: notes go to Notes until you choose one"))
+                        .foregroundStyle(.orange)
+                } else if model.notesFolderMissing {
+                    Text(NoteError.folderMissing(path: "").message(language: UIText.language)).foregroundStyle(.red)
+                }
+            case .notion:
+                HStack {
+                    Button(tr("创建集成…", "Create Integration…")) { NSWorkspace.shared.open(NotionAPI.integrationsPage) }
+                    Text(tr("新建集成 → 内部 → 复制令牌", "New integration → Internal → copy the token"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                LabeledContent(tr("令牌", "Token")) {
+                    KeyRowContent(state: model.notionTokenState, missing: tr("还没有设置", "Not set yet"),
+                                  prompt: tr("粘贴 Notion 集成的令牌", "Paste a Notion integration token"),
+                                  removeTitle: { everywhere in
+                                      everywhere ? tr("从你所有的 Mac 上删除 Notion 令牌？", "Remove the Notion token from all your Macs?")
+                                          : tr("从这台 Mac 上删除 Notion 令牌？", "Remove the Notion token from this Mac?")
+                                  },
+                                  save: { model.saveNotionToken($0) },
+                                  remove: model.notionTokenSource == .keychain ? { model.removeNotionToken() } : nil,
+                                  editing: $editingNotionToken)
+                }
+                if let error = model.notionTokenError { Text(error).foregroundStyle(.red) }
+                Text(tr("在 Notion 里打开那个页面 → ··· → 连接 → 加上你的集成", "In Notion, open the page → ··· → Connections → add your integration"))
+                    .font(.caption).foregroundStyle(.secondary)
+                LabeledContent(tr("页面或数据库链接", "Page or database link")) {
+                    TextField("", text: $model.notionLink, prompt: Text(verbatim: "https://www.notion.so/…"))
+                        .onSubmit { model.testNotes() }
+                }
+                HStack {
+                    Button(tr("测试", "Test")) { model.testNotes() }
+                        .disabled(model.notesTestStatus == .running
+                                  || (model.notionLink.trimmingCharacters(in: .whitespaces).isEmpty && model.config.notes.notion == nil))
+                    switch model.notesTestStatus {
+                    case .idle:
+                        // What it saves under now, as Test found it.
+                        if let target = model.config.notes.notion {
+                            Text(target.label(language: UIText.language)).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                    case .running: ProgressView().controlSize(.small)
+                    case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                    case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                    }
+                }
+            }
+        } header: {
+            SectionTitle(tr("笔记（@note）", "Notes (@note)"), icon: CommandIcons.icon(for: .note))
+        }
+        .disabled(!model.canSave)
     }
 
     /// How each request is made, under the AI provider: output tokens, temperature (Bedrock), timeout.
@@ -1857,6 +2143,7 @@ struct SettingsView: View {
                 case .plugins:
                     pluginsSection
                     webSearchSection
+                    notesSection
                 case .voice: voiceSection
                 case .agent: AgentSettingsPage(model: model)
                 case .provider:
@@ -1874,36 +2161,25 @@ struct SettingsView: View {
             .background(Color(nsColor: .textBackgroundColor))
             // A page starts at its top, and is drawn anew in the other interface language: controls of their
             // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
-            .id("\(page.rawValue)-\(UIText.chinese)"))
+            .id("\(page.rawValue)-\(UIText.language)"))
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, idealWidth: 860, minHeight: 480, idealHeight: 720)
         // Text fields save on Return; everything else (pickers, steppers, toggles) saves on change.
         .sheet(item: $commandEdit) { edit in
-            CommandEditor(edit: edit, others: model.config.customCommands.enumerated()
-                            .filter { $0.offset != edit.index }.map(\.element),
-                          plugins: model.plugins.map(\.name)) { command in
-                if let index = edit.index {
-                    model.config.customCommands[index] = command
-                } else {
-                    model.config.customCommands.append(command)
-                }
-                model.save()
+            CommandEditor(edit: edit, others: model.otherCommands(than: edit.original),
+                          plugins: model.plugins.map(\.name), unread: model.config.unreadCustomCommandNames) { command in
+                model.saveCommand(command, editing: edit.original, shown: edit.original == nil ? nil : edit.command)
             }
         }
         .confirmationDialog(tr("删除这个命令？", "Delete this command?"),
                             isPresented: Binding(get: { commandToDelete != nil }, set: { if !$0 { commandToDelete = nil } })) {
             Button(tr("删除", "Delete"), role: .destructive) {
-                if let index = commandToDelete, model.config.customCommands.indices.contains(index) {
-                    model.config.customCommands.remove(at: index)
-                    model.save()
-                }
+                if let command = commandToDelete { model.deleteCommand(named: command.name, shown: command) }
                 commandToDelete = nil
             }
         } message: {
-            if let index = commandToDelete, model.config.customCommands.indices.contains(index) {
-                Text("@" + model.config.customCommands[index].name)
-            }
+            if let command = commandToDelete { Text("@" + command.name) }
         }
         .confirmationDialog(tr("删除这个插件？", "Remove this plugin?"),
                             isPresented: Binding(get: { pluginToRemove != nil }, set: { if !$0 { pluginToRemove = nil } })) {
@@ -1947,11 +2223,14 @@ struct SettingsView: View {
         }
         .onChange(of: page) { if page == .commands { model.refreshExtensions(discover: true) } }
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
+        .onChange(of: model.config.notes) { model.refreshNotesFolder() }
         .onAppear {
             model.refreshPlugins()
             model.refreshExtensions(discover: page == .commands)
             model.refreshKeys()
             model.refreshSearchKey()
+            model.refreshNotionToken()
+            model.refreshNotesFolder()
             model.refreshAccount()
             model.refreshVoice()
             model.refreshJargon()
@@ -1959,6 +2238,7 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargon()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
+            model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
             model.refreshRecentQuestions()
             // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
             if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
@@ -2294,8 +2574,12 @@ struct SettingsView: View {
         LabeledContent("API key") {
             KeyRowContent(state: model.keyState(provider), missing: tr("还没有 API key", "No API key yet"),
                           prompt: tr("粘贴新的 API key", "Paste a new API key"),
-                          removeTitle: tr("从钥匙串里删除 \(UIText.name(provider)) 的 API key？",
-                                          "Remove the key for \(UIText.name(provider)) from the keychain?"),
+                          removeTitle: { everywhere in
+                              everywhere ? tr("从你所有的 Mac 上删除 \(UIText.name(provider)) 的 API key？",
+                                              "Remove the key for \(UIText.name(provider)) from all your Macs?")
+                                  : tr("从这台 Mac 上删除 \(UIText.name(provider)) 的 API key？",
+                                       "Remove the key for \(UIText.name(provider)) from this Mac?")
+                          },
                           removeMessage: tr("删除后，要再粘贴一次 key 才能用 \(UIText.name(provider))。",
                                             "To use \(UIText.name(provider)) again, you'll have to paste the key again."),
                           save: { model.saveKey($0, for: provider) },
@@ -2931,7 +3215,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .input: return "input languages pinyin english chinese shift 输入语言 拼音 中文 英文 fuzzy 模糊音 zh ch sh candidate layout horizontal vertical 候选 排列 横排 竖排"
         case .writing: return "translate languages 翻译 语言 rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 jargon list 黑话库 improve"
         case .commands: return "custom commands 自定义 命令 prompt program terminal link 程序 终端 网页 raycast script commands scripts extensions bundles preferences 脚本 扩展 扩展包 偏好 文件夹 folder spotlight 聚焦 extension sources git repository link clone update pin ssh 扩展来源 仓库 链接 从链接添加 克隆 更新 固定"
-        case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave"
+        case .plugins: return "plugins library 插件 插件库 stock xe search 搜索 brave @note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成"
         case .voice: return "voice speech microphone dictation 语音 说话 麦克风 right option 右 ⌥"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed not installed background notify tasks @tasks claude tasks 编程 交给 自定义 命令 终端 已安装 未安装 后台 通知 任务"
         case .provider: return "ai provider model bedrock aws profile region claude gemini openai deepseek ollama api key test connection tokens temperature timeout apple intelligence on-device local 服务 模型 密钥 测试连接 模型参数 超时 温度 本机 苹果 sso role assume credential_process sts mfa 角色 登录 privacy hide sensitive information redact placeholder email phone card key token ip address words 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 密钥 地址"
@@ -3050,7 +3334,10 @@ private struct PreferenceField: View {
                 // As an API key's row: whether it is saved, in the row; the field only after Replace… (or when not set).
                 KeyRowContent(state: saved ? .saved(ending: ending) : .missing, missing: tr("还没有设置", "Not set yet"),
                               prompt: tr("粘贴", "Paste it"),
-                              removeTitle: tr("从钥匙串里删除「\(preference.title)」？", "Remove “\(preference.title)” from the keychain?"),
+                              removeTitle: { everywhere in
+                                  everywhere ? tr("从你所有的 Mac 上删除「\(preference.title)」？", "Remove “\(preference.title)” from all your Macs?")
+                                      : tr("从这台 Mac 上删除「\(preference.title)」？", "Remove “\(preference.title)” from this Mac?")
+                              },
                               save: save, remove: remove, editing: $editingPassword)
                     .frame(maxWidth: 360)
             case .textfield:

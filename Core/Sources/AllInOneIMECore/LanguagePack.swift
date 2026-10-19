@@ -216,6 +216,9 @@ public struct LanguagePackStore: Sendable {
         guard let walker = fm.enumerator(at: folder, includingPropertiesForKeys: keys) else {
             throw LanguagePackError.invalidContent("unreadable")
         }
+        #if os(Windows)
+        try refuseLinks(in: folder)
+        #endif
         for case let url as URL in walker {
             let values = try url.resourceValues(forKeys: Set(keys))
             let name = url.lastPathComponent
@@ -236,6 +239,22 @@ public struct LanguagePackStore: Sendable {
             throw LanguagePackError.invalidContent("pack.json doesn't name \(pack.id)")
         }
     }
+
+    #if os(Windows)
+    /// Foundation's walk on Windows leaves out a link whose target isn't there (tar writes "/etc" as "\etc", which
+    /// isn't): every folder is listed as well, and a link anywhere refused.
+    private static func refuseLinks(in folder: URL) throws {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: folder.path) else { throw LanguagePackError.invalidContent("unreadable") }
+        for name in names {
+            let item = folder.appendingPathComponent(name)
+            guard let attributes = try? fm.attributesOfItem(atPath: item.path) else { throw LanguagePackError.invalidContent("unreadable") }
+            let type = attributes[.type] as? FileAttributeType
+            if type == .typeSymbolicLink { throw LanguagePackError.invalidContent("it has a link (\(name))") }
+            if type == .typeDirectory { try refuseLinks(in: item) }
+        }
+    }
+    #endif
 
     /// Points the pack's `lua/` at the app's own copy of the scripts its schemas use (`code`), replacing
     /// whatever link was there; removes it when the app has none. Called before every engine start, so a

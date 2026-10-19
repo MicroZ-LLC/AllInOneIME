@@ -8,13 +8,23 @@
 #     file is deep, or a "../" appended on the way;
 #   - a script finds its files from its own place (`$0`, `__file__`) and climbs above the package with "..";
 #   - a workflow names a path above it ("../");
+#   - a Markdown file links above it (a relative link that "../" takes out; the macOS shell's docs are linked by URL);
 #   - a symbolic link points outside it.
 # Test data that merely mentions "..", say a path a check must refuse, isn't a way out and doesn't count.
 #
 #   Scripts/check-core-standalone.sh            check (run by the macOS shell's `make test`, and in CI)
 #   Scripts/check-core-standalone.sh --list     print every offence, one a line
+#   Scripts/check-core-standalone.sh --release  build the package in release (`make test`, and CI on macOS and Linux)
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
+
+if [ "${1:-}" = --release ]; then
+    # Every target in release, as the core's own repository builds it (and a shell that depends on it).
+    echo "core-standalone: swift build -c release"
+    swift build --package-path "$root" -c release
+    echo "core-standalone: the core builds in release"
+    exit 0
+fi
 exec python3 - "$root" "$@" <<'EOF'
 import os
 import re
@@ -66,6 +76,9 @@ STEP = re.compile(r"(deletingLastPathComponent)\(\)|appendingPathComponent\(\s*\
 INCLUDE = re.compile(r"^\s*#\s*(?:include|import)\s*\"([^\"]+)\"|^\s*(?:umbrella\s+)?header\s+\"([^\"]+)\"", re.M)
 STRING = re.compile(r"\"((?:[^\"\\\n]|\\.)*)\"")
 SELF_PLACE = re.compile(r"\$0|\$\{?BASH_SOURCE|__file__")
+# A Markdown link's target: [text](target "title"), ![alt](target), or a reference definition, [label]: target.
+MD_LINK = re.compile(r"\]\(\s*<?([^)\s>]+)>?[^)]*\)|^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?", re.M)
+MD_FENCE = re.compile(r"^ {0,3}(```|~~~).*?^ {0,3}\1[^\n]*$", re.M | re.S)
 
 for path in files():
     name = os.path.basename(path)
@@ -122,6 +135,19 @@ for path in files():
             if not inside(os.path.join(folder, *([".."] * climbs))):
                 offence(path, number, "climbs from the script's own place above the package")
 
+    if name.endswith(".md"):
+        # Code blocks are examples, not links: blanked, their lines kept for the line numbers.
+        prose = MD_FENCE.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+        for m in MD_LINK.finditer(prose):
+            target = m.group(1) or m.group(2)
+            local = target.split("#", 1)[0].split("?", 1)[0]
+            if not local or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", local) or local.startswith("//"):
+                continue  # an anchor, a URL (https:, mailto:)
+            # "/…" is from the repository's root, as GitHub shows it: the package's, once it is its own repository.
+            place = os.path.join(root, local.lstrip("/")) if local.startswith("/") else os.path.join(folder, local)
+            if not inside(place):
+                offence(path, line_of(prose, m.start()), f"a link above the package: \"{target}\"")
+
     if relative.startswith(".github" + os.sep):
         for number, line in enumerate(text.splitlines(), 1):
             if re.search(r"(^|[\s:=\"'])\.\./", line.split("#", 1)[0]):
@@ -137,5 +163,5 @@ if offences:
         print("  " + o)
     sys.exit(1)
 print("core-standalone: nothing reaches outside the package (no path dependencies, includes, #filePath walks, script "
-      "paths or links above it)")
+      "paths, Markdown links or symbolic links above it)")
 EOF

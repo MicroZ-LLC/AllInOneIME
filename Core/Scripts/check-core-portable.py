@@ -4,10 +4,14 @@
 It reads each file with its comments and string literals blanked out (line numbers kept), so nothing in a comment or a
 string counts, and nothing there (an unbalanced \"\"\" in a comment, say) changes how the rest is read. It fails when
   - a core file imports a module that isn't one every platform has (ALLOWED), anywhere but Platform/Apple/; a C library
-    (C_LIBRARIES) only under its own guard (`#if canImport(Glibc)`, `#elseif os(Linux)`, ...);
-  - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one;
+    (C_LIBRARIES), or one of the package's own that the core depends on only on some systems (OWN_GUARDED), only under
+    its own guard (`#if canImport(Glibc)`, `#elseif os(Linux)`, ...);
+  - a file in Platform/Apple/ isn't wholly inside `#if canImport(...)`: every line of code is in the branch of one; a
+    file in Platform/Windows/ isn't wholly inside `#if os(Windows)` (that alone, or in a `&&`);
   - a core file starts a program itself (`Process(`, `posix_spawn`, `fork(`, `system(`, `CreateProcessW(`,
-    `ShellExecuteW(`, ...) instead of through the ProcessLauncher (only Platform/FoundationProcessLauncher.swift does).
+    `ShellExecuteW(`, ...) instead of through the ProcessLauncher; its files start them only their own way (LAUNCHERS).
+A guard counts only when its branch can't be taken without it (`implies`): `#if !(canImport(X))`,
+`#if canImport(X) || true` and `#if !(os(Linux) || os(Windows))` guard nothing.
 
     check-core-portable.py [--list] [--root DIR]    the offences, one a line (DIR: the package, by default this one)
 """
@@ -15,9 +19,10 @@ import os
 import re
 import sys
 
-# What the core may import outside Platform/Apple/: Foundation and the libraries of every platform's Swift.
+# What the core may import outside Platform/Apple/: Foundation and the libraries of every platform's Swift, and the
+# package's own modules below the core.
 ALLOWED = {"Foundation", "FoundationNetworking", "FoundationXML", "FoundationEssentials", "Dispatch", "Crypto",
-           "AllInOneIMEText", "Synchronization"}
+           "AllInOneIMEText", "AllInOneIMEScriptEngine", "Synchronization"}
 # The C libraries, each allowed under a guard that names it or its systems.
 APPLE_SYSTEMS = ["macOS", "iOS", "tvOS", "watchOS", "visionOS"]
 C_LIBRARIES = {
@@ -28,8 +33,9 @@ C_LIBRARIES = {
     "WinSDK": ["Windows"],
     "ucrt": ["Windows"],
 }
-LAUNCHERS = {"Platform/FoundationProcessLauncher.swift"}
-
+# The package's own modules that the core depends on only on some systems, each allowed under its guard as a C library
+# is: QuickJS, the JavaScript where there is no JavaScriptCore (Package.swift's condition).
+OWN_GUARDED = {"AllInOneIMEQuickJS": ["Linux", "Windows", "Android"]}
 IMPORT = re.compile(
     r"(?m)(?:^|;)[ \t]*"
     r"(?:@\w+(?:\s*\([^()]*\))?\s*|(?:public|package|internal|private|fileprivate|open)\s+)*"
@@ -45,6 +51,12 @@ PROGRAMS = [
     re.compile(r"(?<!\w)(?:CreateProcess\w*|ShellExecute\w*|WinExec|_w?spawn[lv]p?e?|_w?exec[lv]\w*)\s*\("),
     re.compile(r"(?<!\w)" + C_MODULE + r"system\s*\("),
 ]
+# The ProcessLauncher's files, the only ones that start programs, each its own way only: Foundation's `Process`,
+# Windows' `CreateProcessW` (not CreateProcessAsUserW, ShellExecuteW, posix_spawn, ...).
+LAUNCHERS = {
+    "Platform/FoundationProcessLauncher.swift": PROGRAMS[:2],
+    "Platform/Windows/WindowsProcessLauncher.swift": [re.compile(r"(?<!\w)CreateProcessW\s*\(")],
+}
 # `system(` unqualified: the C call when its argument is a string literal, or when the core has no `system` of its own
 # (Prompt.system, ...) that it could mean.
 SYSTEM_WITH_TEXT = re.compile(r"(?<![\w.])system\s*\(\s*#*\"")
@@ -149,15 +161,59 @@ def branches(lines):
     return result
 
 
-def names(condition, check):
-    """Whether the branch `condition` (spaces removed; None: an `#else`) holds `check(...)`, not negated."""
-    return condition is not None and re.search(r"(?<![!\w])" + check + r"\(", condition) is not None
+def split(expression, operator):
+    """`expression`'s parts between `operator`s (`&&`, `||`) outside parentheses."""
+    parts, depth, start, i = [], 0, 0, 0
+    while i < len(expression):
+        if expression[i] == "(":
+            depth += 1
+        elif expression[i] == ")":
+            depth -= 1
+        elif depth == 0 and expression.startswith(operator, i):
+            parts.append(expression[start:i])
+            i += len(operator)
+            start = i
+            continue
+        i += 1
+    return parts + [expression[start:]]
 
 
-def guards(condition, check, values):
-    """Whether the branch `condition` holds `check(value)`, not negated, for one of `values`."""
-    return condition is not None and any(
-        re.search(r"(?<![!\w])" + check + r"\(" + re.escape(v) + r"\)", condition) for v in values)
+def unwrapped(expression):
+    """`expression` without the parentheses around all of it: "((a&&b))" is "a&&b", "(a)&&(b)" stays."""
+    while expression.startswith("(") and expression.endswith(")"):
+        depth = 0
+        for i, c in enumerate(expression):
+            depth += {"(": 1, ")": -1}.get(c, 0)
+            if depth == 0 and i < len(expression) - 1:
+                return expression  # the first "(" closes before the end
+        expression = expression[1:-1]
+    return expression
+
+
+def implies(condition, atoms, alternatives=True):
+    r"""Whether the branch `condition` (spaces removed; None: an `#else`) is taken only when one of `atoms` (regular
+    expressions, each a whole check: `os\(Windows\)`) holds: it is one of them (in parentheses or not), a `&&` with one
+    term that implies it, or (when `alternatives`) a `||` whose alternatives each do. Nothing negated implies anything:
+    `!canImport(X)`, `!(os(Linux)||os(Windows))`; nor does a `||` with another way in (`canImport(X)||true`)."""
+    if condition is None:
+        return False
+    expression = unwrapped(condition)
+    options = split(expression, "||")
+    if len(options) > 1:
+        return alternatives and all(implies(o, atoms, alternatives) for o in options)
+    terms = split(expression, "&&")
+    if len(terms) > 1:
+        return any(implies(t, atoms, alternatives) for t in terms)
+    return any(re.fullmatch(atom, expression) for atom in atoms)
+
+
+def check_of(check, values):
+    """The atoms (`implies`) for `check(value)`, one of `values`."""
+    return [re.escape(check) + r"\(" + re.escape(v) + r"\)" for v in values]
+
+
+ANY_CAN_IMPORT = [r"canImport\(\w+\)"]
+WINDOWS = check_of("os", ["Windows"])
 
 
 def check(root):
@@ -177,6 +233,7 @@ def check(root):
         relative = os.path.relpath(path, core).replace(os.sep, "/")
         shown = os.path.relpath(path, root).replace(os.sep, "/")
         apple = relative.startswith("Platform/Apple/")
+        windows = relative.startswith("Platform/Windows/")
         text = stripped[path]
         lines = text.split("\n")
         where = branches(lines)
@@ -188,13 +245,16 @@ def check(root):
             conditions = where[line] or []
             if module in ALLOWED:
                 continue
-            if module in C_LIBRARIES:
-                if not any(guards(c, "canImport", [module]) or guards(c, "os", C_LIBRARIES[module]) for c in conditions):
-                    found.append(f"{shown}:{line + 1}: import {module} (a C library, only under #if canImport({module}) or its os(...))")
+            if module in C_LIBRARIES or module in OWN_GUARDED:
+                systems = C_LIBRARIES.get(module) or OWN_GUARDED[module]
+                what = "a C library" if module in C_LIBRARIES else "the core's on some systems only"
+                guard = check_of("canImport", [module]) + check_of("os", systems)
+                if not any(implies(c, guard) for c in conditions):
+                    found.append(f"{shown}:{line + 1}: import {module} ({what}, only under #if canImport({module}) or its os(...))")
                 continue
             if not apple:
                 found.append(f"{shown}:{line + 1}: import {module} (not one every platform has: only in Platform/Apple/)")
-            elif not any(names(c, "canImport") for c in conditions):
+            elif not any(implies(c, ANY_CAN_IMPORT) for c in conditions):
                 found.append(f"{shown}:{line + 1}: import {module} (outside #if canImport)")
 
         # Platform/Apple/ files wholly inside `#if canImport(...)`.
@@ -203,15 +263,26 @@ def check(root):
             if not code:
                 found.append(f"{shown}: not wholly inside #if canImport(...) (no code)")
             for i in code:
-                if not any(names(c, "canImport") for c in where[i]):
+                if not any(implies(c, ANY_CAN_IMPORT) for c in where[i]):
                     found.append(f"{shown}:{i + 1}: not wholly inside #if canImport(...): {lines[i].strip()}")
 
-        # Programs.
-        if relative not in LAUNCHERS:
-            for i, l in enumerate(lines):
-                if (any(p.search(l) for p in PROGRAMS) or SYSTEM_WITH_TEXT.search(l)
-                        or (not declares_system and SYSTEM_CALL.search(l))):
-                    found.append(f"{shown}:{i + 1}: starts a program (use Platform.current.processes, a ProcessLauncher)")
+        # Platform/Windows/ files wholly inside `#if os(Windows)`: that alone, or in a `&&`.
+        if windows:
+            code = [i for i, l in enumerate(lines) if l.strip() and where[i] is not None]
+            if not code:
+                found.append(f"{shown}: not wholly inside #if os(Windows) (no code)")
+            for i in code:
+                if not any(implies(c, WINDOWS, alternatives=False) for c in where[i]):
+                    found.append(f"{shown}:{i + 1}: not wholly inside #if os(Windows): {lines[i].strip()}")
+
+        # Programs: none but in a launcher, and there its own way only (blanked before the rest is looked for).
+        own = LAUNCHERS.get(relative, [])
+        for i, l in enumerate(lines):
+            for allowed in own:
+                l = allowed.sub(lambda m: " " * len(m.group(0)), l)
+            if (any(p.search(l) for p in PROGRAMS) or SYSTEM_WITH_TEXT.search(l)
+                    or (not declares_system and SYSTEM_CALL.search(l))):
+                found.append(f"{shown}:{i + 1}: starts a program (use Platform.current.processes, a ProcessLauncher)")
     return found
 
 
@@ -238,7 +309,7 @@ def main(arguments):
             print("  " + line, file=sys.stderr)
         return 1
     print("core-portable: imports only what every platform has (Apple's in Platform/Apple/, wholly guarded; C libraries "
-          "under their guard), no program started outside the ProcessLauncher")
+          "under their guard), Platform/Windows/ wholly under os(Windows), no program started outside the ProcessLauncher")
     return 0
 
 

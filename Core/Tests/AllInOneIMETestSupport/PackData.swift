@@ -1,5 +1,5 @@
 import Foundation
-@testable import AllInOneIMECore
+import AllInOneIMECore
 
 /// The Korean and Hindi packs' data as this checkout has it (LanguagePacks/), for the tests.
 public enum PackData {

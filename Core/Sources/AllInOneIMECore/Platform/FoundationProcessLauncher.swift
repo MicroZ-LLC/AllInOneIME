@@ -4,7 +4,8 @@ import Foundation
 /// Foundation's `Process`: the core's only use of it (the lint guard, `Scripts/check-core-portable.sh`, keeps it so).
 /// On macOS and Linux Foundation starts each program in a process group of its own, so stopping it (SIGTERM, SIGKILL to
 /// the group) reaches what it started too. Windows has neither signals nor groups: there the program alone is ended
-/// (`FoundationProcess`).
+/// (`FoundationProcess`), which is why the core's programs start with `WindowsProcessLauncher` there (a job object
+/// for each, `Platform.systemProcesses`).
 public struct FoundationProcessLauncher: ProcessLauncher {
     public init() {}
 
@@ -51,9 +52,8 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     func waitUntilExit() { process.waitUntilExit() }
 
     #if os(Windows)
-    // Untested: never compiled yet. No signals or process groups: `Process.terminate()` (TerminateProcess) ends the
-    // program at once, but not what it started. TODO: start it in a job object (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE),
-    // so that its whole tree goes.
+    // No signals or process groups: `Process.terminate()` (TerminateProcess) ends the program at once, but not what it
+    // started. (`WindowsProcessLauncher`, the core's on Windows, ends the whole tree: its job object.)
     var treeIsRunning: Bool { process.isRunning }
     func terminate() -> Bool { end() }
     func kill() -> Bool { end() }

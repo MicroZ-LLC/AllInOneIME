@@ -4,7 +4,7 @@ import FoundationNetworking
 import Crypto
 import Foundation
 import Testing
-@testable import AllInOneIMECore
+import AllInOneIMECore
 
 // What the acceptance tests share, the core's (Core/Tests/AllInOneIMECoreTests/Acceptance/) and the macOS shell's
 // (Tests/AllInOneIMEMacTests/Acceptance/): the keys and the live-data rule they use, and the golden requests of release

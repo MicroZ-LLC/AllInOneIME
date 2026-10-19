@@ -18,7 +18,7 @@ struct CommandTests {
         #expect(Command.matching("Q") == [.question])
         #expect(Command.matching("ag") == [.agent])
         #expect(Command.matching("x").isEmpty)
-        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .run, .note, .reminder, .run, .run, .run,
+        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .generate, .run, .note, .reminder, .run, .run, .run,
                                                       .agents, .settings, .message, .report])
     }
 
@@ -33,21 +33,39 @@ struct CommandTests {
         #expect(CustomCommand(name: "reminder", type: .run, argv: ["x"]).problem(among: []) == .nameTaken)
     }
 
+    @Test("custom commands are edited and deleted by the name they had, wherever they are in the list by now")
+    func editedAndDeletedByName() {
+        func command(_ name: String, _ prompt: String) -> CustomCommand { CustomCommand(name: name, type: .prompt, prompt: prompt) }
+        let list = [command("beta", "do beta"), command("gamma", "do gamma")]  // alpha, first, deleted on another Mac
+        #expect(CustomCommand.others(than: "gamma", in: list) == [command("beta", "do beta")])
+        #expect(CustomCommand.others(than: "Beta", in: list) == [command("gamma", "do gamma")])
+        #expect(CustomCommand.others(than: nil, in: list) == list)
+        // The same name, renamed in place, or added back when it is gone.
+        #expect(CustomCommand.saving(command("beta", "better"), as: "beta", in: list) == [command("beta", "better"), command("gamma", "do gamma")])
+        #expect(CustomCommand.saving(command("omega", "do gamma"), as: "gamma", in: list) == [command("beta", "do beta"), command("omega", "do gamma")])
+        #expect(CustomCommand.saving(command("alpha", "better"), as: "alpha", in: list) == list + [command("alpha", "better")])
+        #expect(CustomCommand.saving(command("delta", "x"), as: nil, in: list) == list + [command("delta", "x")])
+        // A name another command has by now: not saved over it.
+        #expect(CustomCommand.saving(command("gamma", "x"), as: "beta", in: list) == nil)
+        #expect(CustomCommand.removing("gamma", from: list) == [command("beta", "do beta")])
+        #expect(CustomCommand.removing("alpha", from: list) == list)
+    }
+
     let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
-    let reply = CustomCommand(name: "reply", type: .prompt, summary: "Write a reply", prompt: "Write a short, polite reply.")
+    let respond = CustomCommand(name: "respond", type: .prompt, summary: "Write a reply", prompt: "Write a short, polite reply.")
     let sh = CustomCommand(name: "sh", type: .terminal, argv: ["zsh", "-c", "{input}"])
 
     @Test func catalogAddsValidCustomCommandsAfterTheBuiltIns() {
         let catalog = Command.catalog([
-            python, reply, sh,
+            python, respond, sh,
             CustomCommand(name: "open", type: .run, argv: ["x"]),           // taken by a built-in
             CustomCommand(name: "Python", type: .run, argv: ["python2"]),  // taken (names are case-insensitive)
             CustomCommand(name: "py3", type: .run, argv: ["python3"]),     // digits pick from the list
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "note", "reminder", "py", "js", "tasks",
-                                        "settings", "imessage", "reportissue", "python", "reply", "sh"])
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "reply", "note", "reminder", "py", "js",
+                                        "tasks", "settings", "imessage", "reportissue", "python", "respond", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
         #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
         #expect(Command.parse("@python print(1)", in: catalog)?.command.custom == python)
@@ -65,7 +83,7 @@ struct CommandTests {
     }
 
     @Test func latinCommandsTakeHalfWidthPunctuation() {
-        #expect(python.typesLatin && sh.typesLatin && !reply.typesLatin)
+        #expect(python.typesLatin && sh.typesLatin && !respond.typesLatin)
         #expect(python.arguments(for: "if True: print（“牛逼”）")[2] == "if True: print(\"牛逼\")")
         #expect(CustomCommand.halfWidth("a，b：c；【1】") == "a,b:c;[1]")
         // A prompt command keeps the text as typed.
@@ -74,7 +92,7 @@ struct CommandTests {
     }
 
     @Test func customPromptGoesToTheModel() throws {
-        let command = try #require(Command.catalog([reply]).last)
+        let command = try #require(Command.catalog([respond]).last)
         let system = Prompt.commandSystem(command)
         #expect(system.contains("inserted at their cursor") && system.hasSuffix("Write a short, polite reply."))
         #expect(!Prompt.commandSystem(.question).contains("polite reply"))
@@ -83,10 +101,10 @@ struct CommandTests {
     @Test func configReadsCustomCommands() throws {
         let json = """
             {"customCommands": [{"name": "python", "type": "run", "argv": ["python3", "-c", "{input}"]},
-                                {"name": "reply", "type": "prompt", "summary": "Write a reply", "prompt": "Write a short, polite reply."}]}
+                                {"name": "respond", "type": "prompt", "summary": "Write a reply", "prompt": "Write a short, polite reply."}]}
             """
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
-        #expect(config.customCommands == [python, reply])
+        #expect(config.customCommands == [python, respond])
         #expect(try JSONDecoder().decode(Config.self, from: Data("{}".utf8)).customCommands.isEmpty)
         // Written back as they were (unset fields stay out of the file).
         let again = try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
@@ -131,13 +149,13 @@ struct CommandTests {
     }
 
     @Test func editorProblems() {
-        let ok = CustomCommand(name: "reply", type: .prompt, prompt: "Reply politely.")
+        let ok = CustomCommand(name: "respond", type: .prompt, prompt: "Reply politely.")
         #expect(ok.problem(among: []) == nil)
         #expect(CustomCommand(name: "", type: .prompt, prompt: "x").problem(among: []) == .emptyName)
         #expect(CustomCommand(name: "py3", type: .run, argv: ["python3"]).problem(among: []) == .nameNotLetters)
         #expect(CustomCommand(name: "Open", type: .run, argv: ["x"]).problem(among: []) == .nameTaken)  // built-in
         #expect(CustomCommand(name: "calculate", type: .run, argv: ["bc", "-l"]).problem(among: []) == nil)  // no longer one
-        #expect(ok.problem(among: [CustomCommand(name: "Reply", type: .prompt, prompt: "y")]) == .nameTaken)
+        #expect(ok.problem(among: [CustomCommand(name: "Respond", type: .prompt, prompt: "y")]) == .nameTaken)
         #expect(CustomCommand(name: "x", type: .prompt, prompt: "  ").problem(among: []) == .emptyPrompt)
         #expect(CustomCommand(name: "x", type: .terminal, argv: []).problem(among: []) == .emptyCommand)
     }
@@ -160,10 +178,10 @@ struct CommandTests {
 
     @Test func paletteShowsFiveByUse() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let custom = ["calculate", "sh", "reply", "python", "japanese"].map {
+        let custom = ["calculate", "sh", "respond", "python", "japanese"].map {
             CustomCommand(name: $0, type: .run, argv: ["x"])
         }
-        let catalog = Command.catalog(custom)  // 15 built-in + 5 ("calculate" is no built-in's name)
+        let catalog = Command.catalog(custom)  // 16 built-in + 5 ("calculate" is no built-in's name)
         // Nothing used yet: the first five in catalog order.
         #expect(Command.palette("", in: catalog, usage: CommandUsage(), now: now).map(\.name)
             == ["improve", "translate", "question", "agent", "open"])

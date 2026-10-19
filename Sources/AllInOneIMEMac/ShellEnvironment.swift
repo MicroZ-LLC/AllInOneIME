@@ -7,6 +7,12 @@ import AllInOneIMECore
 public enum ShellEnvironment {
     public static let fallbackPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+    /// How long the login shell has to start and print (`loginValues`). What it gave is kept for the session, so a
+    /// shell cut off on a busy Mac (at login, as everything starts; in a loaded test run 3 s were once not enough)
+    /// leaves the fallback PATH and no keys until the input method restarts: generous, as only a shell that hangs
+    /// waits it out.
+    static let loginTimeout: TimeInterval = 10
+
     public static let current: [String: String] = {
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = login["PATH"] ?? fallbackPath
@@ -22,7 +28,7 @@ public enum ShellEnvironment {
                                                                 + AWSEnvironment.variables)
 
     /// `names` as the user's interactive login shell sets them up (unset ones are left out); empty if
-    /// the shell couldn't be read in 3 seconds.
+    /// the shell couldn't be read in `loginTimeout` seconds.
     static func loginValues(_ names: [String]) -> [String: String] {
         let shell = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/zsh"
         let marker = "__AllInOneIME_\(UUID().uuidString)__"
@@ -40,7 +46,7 @@ public enum ShellEnvironment {
         let exited = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in exited.signal() }
         guard (try? process.run()) != nil else { return [:] }
-        if exited.wait(timeout: .now() + 3) == .timedOut {
+        if exited.wait(timeout: .now() + loginTimeout) == .timedOut {
             process.terminate()
             return [:]
         }

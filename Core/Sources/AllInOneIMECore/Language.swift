@@ -31,9 +31,9 @@ public enum Language: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// Its name in the interface language `language` (`InterfaceLanguage`): "法语" / "French" / "français".
+    /// Its name in the interface language `language` (`InterfaceLanguage`): "法语" / "French" / "français" / "法文".
     public func name(in language: String) -> String {
-        if InterfaceLanguage.isChinese(language) { return displayName }
+        if InterfaceLanguage.isSimplifiedChinese(language) { return displayName }
         if language == "en" { return englishName }
         return Locale(identifier: language).localizedString(forLanguageCode: rawValue) ?? englishName
     }
@@ -145,9 +145,9 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
     public func name(chinese: Bool) -> String { name(in: InterfaceLanguage.code(chinese: chinese)) }
 
     /// Its name in the interface language `language` (`InterfaceLanguage`): "英文", "日语" / "English", "Japanese" /
-    /// "anglais", "japonais".
+    /// "anglais", "japonais" / "英文", "日文" (Traditional Chinese, as the system names them there).
     public func name(in language: String) -> String {
-        if InterfaceLanguage.isChinese(language) {
+        if InterfaceLanguage.isSimplifiedChinese(language) {
             switch code {
             case "en": return "英文"
             case "zh": return "中文"

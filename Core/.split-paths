@@ -1,3 +1,11 @@
+# Before you split with this file, or change it:
+#   - The core's history is kept as it was: a Mac-only file that was in the core in the past (at a path listed below as
+#     where the core's files were, before it moved to the macOS shell) is in the Core repository's history. Its newest
+#     tree is clean: Core/ as it is.
+#   - A path listed below as where the core's files were before 0.6.5 must never be a file in this repository's root
+#     again: filter-repo renames Core/ to the root, the two collide, and it aborts. Scripts/check-split-paths.sh in the
+#     root, part of `make test`, fails when one is there.
+#
 # The core's own repository (MicroZ-LLC/AllInOneIME-Core), from a fresh clone of AllInOneIME, with its history:
 #
 #   git filter-repo --paths-from-file Core/.split-paths

@@ -217,10 +217,9 @@ final class ExtensionSourceController: ObservableObject {
 
     /// The config file without the unreviewed folders of the sources folder in its load list (written only if it had any).
     func quarantineConfigFile(_ url: URL = Config.defaultURL) {
-        guard var config = try? Config.load(from: url) else { return }
-        let removed = ExtensionSources.quarantine(&config, statuses: statuses, root: root)
-        guard !removed.isEmpty else { return }
-        try? config.write(to: url)
+        // Only the keys that changed are written (`ExtensionSources.quarantineConfigFile`).
+        guard let removed = try? ExtensionSources.quarantineConfigFile(at: url, statuses: statuses, root: root),
+              !removed.isEmpty else { return }
         log.notice("extension sources: \(removed.count) unreviewed folder(s) taken out of the load list")
     }
 }

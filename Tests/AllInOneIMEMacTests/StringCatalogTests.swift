@@ -7,7 +7,15 @@ struct StringCatalogTests {
     /// The repository root (this file is Tests/AllInOneIMEMacTests/StringCatalogTests.swift).
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
+    static let catalog = root.appendingPathComponent("Resources/Localizable.xcstrings")
+
     @Test func catalogTranslationsFit() throws {
-        try StringCatalogCheck.translationsFit(Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
+        try StringCatalogCheck.translationsFit(Self.catalog)
+    }
+
+    /// Every interface language has every key in use, and its placeholders are the English's.
+    @Test func everyLanguageHasEveryKey() throws {
+        try StringCatalogCheck.everyKeyTranslated(Self.catalog)
+        try StringCatalogCheck.placeholdersMatch(Self.catalog)
     }
 }

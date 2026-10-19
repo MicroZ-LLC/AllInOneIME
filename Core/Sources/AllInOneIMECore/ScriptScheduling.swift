@@ -70,7 +70,7 @@ public struct CatalogCache: Sendable {
         let new = Key(custom: custom, plugins: plugins, generation: index.generation, disabled: disabled)
         guard new != key else { return (commands, false) }
         key = new
-        commands = Command.catalog(custom, plugins: plugins, scripts: index.enabled(disabled))
+        commands = Command.catalog(custom, plugins: plugins, scripts: index.enabled(disabled), snippets: index.enabledSnippets(disabled))
         return (commands, true)
     }
 }

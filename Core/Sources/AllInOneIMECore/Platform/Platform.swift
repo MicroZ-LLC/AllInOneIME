@@ -1,11 +1,16 @@
 import Foundation
+#if !canImport(JavaScriptCore) && canImport(AllInOneIMEQuickJS)
+import AllInOneIMEQuickJS
+#endif
 
 /// What the core needs from the system it runs on, in one place. A shell (the macOS app, later the Windows, iOS and
 /// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
-/// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), and
-/// elsewhere neutral stand-ins: a heuristic language guess, the date rules alone, and no JavaScript, on-device model,
-/// PDF text or secret store ("not supported on this platform").
+/// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), Windows'
+/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin),
+/// QuickJS-ng for JavaScript off Apple platforms (AllInOneIMEQuickJS), and elsewhere neutral stand-ins: a heuristic
+/// language guess, the date rules alone, and no on-device model, PDF text, text recognition or secret store ("not
+/// supported on this platform").
 public struct Platform: Sendable {
     /// API keys and the like (`APIKeys`).
     public var secrets: SecretStore
@@ -19,6 +24,8 @@ public struct Platform: Sendable {
     public var dates: any DateDetector
     /// A PDF's text (`WebReader`).
     public var pdf: any PDFTextExtractor
+    /// The text in an image, read on the device (`ScreenText`: a screenshot pasted into a draft).
+    public var text: any TextRecognizer
     /// Programs: commands, scripts, plugins, `@py`, `@js`, AWS `credential_process`, a language pack's archive.
     public var processes: any ProcessLauncher
     /// Atomic swaps, private writes, modification dates, the Trash.
@@ -27,14 +34,15 @@ public struct Platform: Sendable {
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
                 languages: any LanguageIdentifier = Platform.systemLanguages, dates: any DateDetector = Platform.systemDates,
-                pdf: any PDFTextExtractor = Platform.systemPDF, processes: any ProcessLauncher = Platform.systemProcesses,
-                files: any FileOps = SystemFileOps()) {
+                pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
+                processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps()) {
         self.secrets = secrets
         self.scripts = scripts
         self.onDeviceModel = onDeviceModel
         self.languages = languages
         self.dates = dates
         self.pdf = pdf
+        self.text = text
         self.processes = processes
         self.files = files
     }
@@ -63,19 +71,25 @@ public typealias OnDeviceModel = AppleModelBackend
 // MARK: - What the core is built with
 
 extension Platform {
-    /// The login keychain where there is one.
+    /// The login keychain where there is one; Windows' Credential Manager on Windows. (A shell entitled to the data
+    /// protection keychain installs the store routed over it instead: `KeySync.system`.)
     public static var systemSecrets: SecretStore {
         #if canImport(Security)
         return .login
+        #elseif os(Windows)
+        return .credentialManager
         #else
         return .unavailable
         #endif
     }
 
-    /// JavaScriptCore where there is one.
+    /// JavaScriptCore where there is one; QuickJS-ng on Windows, Linux and Android (AllInOneIMEQuickJS, a dependency of
+    /// the core there only).
     public static var systemScripts: any ScriptEngine {
         #if canImport(JavaScriptCore)
         return JavaScriptCoreEngine()
+        #elseif canImport(AllInOneIMEQuickJS)
+        return QuickJSEngine()
         #else
         return UnsupportedScriptEngine()
         #endif
@@ -116,10 +130,22 @@ extension Platform {
         #endif
     }
 
-    /// Foundation's `Process` on the desktop systems; none on iOS and Android, which have no child processes for apps.
+    /// Vision where there is one, else none (a screenshot's text can't be read).
+    public static var systemText: any TextRecognizer {
+        #if canImport(Vision)
+        return VisionTextRecognizer()
+        #else
+        return UnsupportedTextRecognizer()
+        #endif
+    }
+
+    /// Foundation's `Process` on macOS and Linux, `CreateProcessW` with a job object on Windows; none on iOS and Android,
+    /// which have no child processes for apps.
     public static var systemProcesses: any ProcessLauncher {
-        #if os(macOS) || os(Linux) || os(Windows)
+        #if os(macOS) || os(Linux)
         return FoundationProcessLauncher()
+        #elseif os(Windows)
+        return WindowsProcessLauncher()
         #else
         return NoProcessLauncher()
         #endif

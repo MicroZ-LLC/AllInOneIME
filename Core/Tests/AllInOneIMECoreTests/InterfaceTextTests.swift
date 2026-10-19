@@ -120,15 +120,49 @@ struct InterfaceTextTests {
         #expect(InterfaceLanguage.pick(preferred: preferred, shipped: shipped) == expected, "\(preferred)")
     }
 
-    /// The language with a region, else the language alone; never another region of it.
-    @Test func pickKeepsToTheRegion() {
+    /// The language with a region, else the language alone, else another variant of it in the same script.
+    @Test func pickPrefersTheRegion() {
         #expect(InterfaceLanguage.pick(preferred: ["pt-BR"], shipped: ["en", "zh-Hans", "pt"]) == "pt")
-        #expect(InterfaceLanguage.pick(preferred: ["pt-BR", "zh-Hans"], shipped: ["en", "zh-Hans", "pt-PT"]) == "zh-Hans")
-        #expect(InterfaceLanguage.pick(preferred: ["es-419"], shipped: ["en", "zh-Hans", "es-MX"]) == "en")
+        #expect(InterfaceLanguage.pick(preferred: ["pt-BR"], shipped: ["en", "zh-Hans", "pt", "pt-PT"]) == "pt")
+        #expect(InterfaceLanguage.pick(preferred: ["pt-BR", "zh-Hans"], shipped: ["en", "zh-Hans", "pt-PT"]) == "pt-PT")
+        #expect(InterfaceLanguage.pick(preferred: ["es-419"], shipped: ["en", "zh-Hans", "es-MX"]) == "es-MX")
         #expect(InterfaceLanguage.pick(preferred: ["sr-Latn-RS"], shipped: ["en", "zh-Hans", "sr-Latn"]) == "sr-Latn")
+        #expect(InterfaceLanguage.pick(preferred: ["sr-Cyrl-RS", "en"], shipped: ["en", "zh-Hans", "sr-Latn"]) == "en")
         // Spelled as shipped.
         #expect(InterfaceLanguage.pick(preferred: ["PT_BR"], shipped: ["en", "zh-Hans", "pt-br"]) == "pt-br")
         #expect(InterfaceLanguage.pick(preferred: ["zh-TW"], shipped: ["en", "zh-Hans", "zh_Hant"]) == "zh_Hant")
+    }
+
+    /// The languages the apps ship (`StringCatalogCheck.languages`, compiled into `<code>.lproj`), from the system's
+    /// preferred languages: a region is its language, Traditional Chinese never Simplified, Portugal's Portuguese
+    /// Brazil's rather than English.
+    static let everyLanguage = InterfaceLanguage.builtIn + StringCatalogCheck.languages
+
+    @Test(arguments: [
+        (["zh-Hant-TW"], "zh-Hant"), (["zh-Hant"], "zh-Hant"), (["zh-TW"], "zh-Hant"), (["zh-HK"], "zh-Hant"),
+        (["zh-Hant-HK", "en"], "zh-Hant"), (["zh-MO"], "zh-Hant"), (["zh_Hant_TW"], "zh-Hant"),
+        (["zh-Hans-CN"], "zh-Hans"), (["zh-CN"], "zh-Hans"), (["zh-SG"], "zh-Hans"), (["zh-Hans-HK"], "zh-Hans"),
+        (["pt-BR"], "pt-BR"), (["pt-PT"], "pt-BR"), (["pt-PT", "en"], "pt-BR"), (["pt"], "pt-BR"), (["pt-AO"], "pt-BR"),
+        (["de-AT"], "de"), (["de-CH"], "de"), (["de-DE"], "de"), (["es-MX"], "es"), (["es-419"], "es"), (["es-ES"], "es"),
+        (["fr-CA"], "fr"), (["fr-FR"], "fr"), (["ja-JP"], "ja"), (["ja"], "ja"), (["ko-KR"], "ko"), (["ko"], "ko"),
+        (["en-GB", "ja"], "en"), (["ru-RU", "de-AT"], "de"), (["ru-RU", "it"], "en"), (["ja-JP", "zh-Hant-TW"], "ja"),
+    ])
+    func pickEachLanguage(_ preferred: [String], _ expected: String) {
+        #expect(InterfaceLanguage.pick(preferred: preferred, shipped: Self.everyLanguage) == expected, "\(preferred)")
+    }
+
+    /// Only Simplified Chinese takes `tr`'s first argument; Traditional Chinese is a catalog language like the others.
+    @Test func simplifiedOrTraditional() {
+        for code in ["zh-Hans", "zh-CN", "zh", "zh_Hans_SG"] { #expect(InterfaceLanguage.isSimplifiedChinese(code), "\(code)") }
+        for code in ["zh-Hant", "zh-TW", "zh-HK", "en", "ja"] { #expect(!InterfaceLanguage.isSimplifiedChinese(code), "\(code)") }
+        #expect(InterfaceLanguage.isChinese("zh-Hant"))
+        let lookup: InterfaceText.Lookup = { key, language in language == "zh-Hant" && key == "Open" ? "打開" : nil }
+        #expect(InterfaceText.text("打开", "Open", language: "zh-Hant", lookup: lookup) == "打開")
+        #expect(InterfaceText.text("打开", "Open", language: "zh-Hans", lookup: lookup) == "打开")
+        // Names written in Chinese in the code are Simplified Chinese's; Traditional Chinese has the system's.
+        #expect(Language.french.name(in: "zh-Hans") == "法语" && Language.french.name(in: "zh-Hant") == "法文")
+        #expect(OutputLanguage("ja").name(in: "zh-Hans") == "日语" && OutputLanguage("ja").name(in: "zh-Hant") == "日文")
+        #expect(OutputLanguage("zh-Hant").name(in: "zh-Hant") == "繁體中文")
     }
 
     @Test func codeForTheSetting() {
@@ -262,5 +296,43 @@ struct InterfaceTextTests {
     /// arguments (else the app shows English for them).
     @Test func catalogTranslationsFit() throws {
         try StringCatalogCheck.translationsFit(Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
+    }
+
+    /// Every interface language has every key in use, and its placeholders are the English's.
+    @Test func everyLanguageHasEveryKey() throws {
+        let catalog = Self.root.appendingPathComponent("Resources/Localizable.xcstrings")
+        try StringCatalogCheck.everyKeyTranslated(catalog)
+        try StringCatalogCheck.placeholdersMatch(catalog)
+    }
+
+    @Test func placeholdersReadAsArguments() {
+        #expect(StringCatalogCheck.arguments("%@ of %@, 100%%") == [0: 1, 1: 1])
+        #expect(StringCatalogCheck.arguments("%2$@ sur %1$@") == [0: 1, 1: 1])
+        #expect(StringCatalogCheck.arguments("plain") == [:])
+        #expect(StringCatalogCheck.arguments("%@ %@") != StringCatalogCheck.arguments("%@"))
+        #expect(StringCatalogCheck.arguments("50% off") == nil && StringCatalogCheck.arguments("%d") == nil)
+    }
+
+    /// The core's catalog read without Apple's tools, as the Windows shell reads it (`StringCatalog`): every language
+    /// has a table with every key in use, Traditional Chinese's filled in and looked up as the shell's `tr` does.
+    @Test func everyLanguageLoadsFromTheCatalog() throws {
+        let data = try Data(contentsOf: Self.root.appendingPathComponent("Resources/Localizable.xcstrings"))
+        let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let entries = try #require(catalog["strings"] as? [String: [String: Any]])
+        let inUse = Set(entries.filter { $0.value["extractionState"] as? String != "stale" }.keys)
+        let tables = try StringCatalog.tables(from: data)
+        #expect(Set(try StringCatalog.languages(in: data)).isSuperset(of: StringCatalogCheck.languages))
+        for language in StringCatalogCheck.languages {
+            let table = try StringCatalog.table(language, from: data)
+            #expect(inUse.isSubset(of: Set(table.keys)), "\(language): \(inUse.subtracting(table.keys).sorted().prefix(5))")
+            #expect(tables[language] == table)
+        }
+        let hant = try StringCatalog.table("zh-Hant", from: data)
+        let lookup = InterfaceText.tableLookup(tables)
+        let n = 12
+        let vertical = InterfaceText.text("竖排", "Vertical", language: "zh-Hant", lookup: lookup)
+        #expect(vertical == hant["Vertical"] && vertical != "竖排" && vertical != "Vertical")
+        let english: UIString = " (\(n))"
+        #expect(InterfaceText.translate(english, in: hant) == hant[" (%@)"].flatMap { InterfaceText.fill($0, ["12"]) })
     }
 }

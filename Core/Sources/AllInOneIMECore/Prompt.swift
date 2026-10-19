@@ -259,8 +259,8 @@ public enum Prompt {
     public static let commandVersion = 4
 
     /// What `@question` adds about live data: the model can't look anything up, so it must not make up today's weather,
-    /// news, prices or scores.
-    static let liveDataRule = "You can't check live information: never make up the weather, news, prices, scores, "
+    /// news, prices or scores. (`package`: the acceptance helpers in AllInOneIMETestSupport compare requests without it.)
+    package static let liveDataRule = "You can't check live information: never make up the weather, news, prices, scores, "
         + "exchange rates or anything else about today or right now. If the question needs it, say plainly that you "
         + "can't check live information, then give what general guidance you can."
 

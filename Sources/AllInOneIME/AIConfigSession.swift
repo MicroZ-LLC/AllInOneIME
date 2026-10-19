@@ -128,8 +128,11 @@ enum AIConfigSession {
         names += [info["CFBundleDisplayName"], info["CFBundleName"]].compactMap { $0 as? String }
         let chinese = localizedNames(at: url, in: ["zh-Hans", "zh_CN", "zh-CN", "zh_Hans", "zh"])
         names += chinese
-        // English: Finder's name, as before. Another language: the app's own name in it, where its bundle has one.
-        let interface = InterfaceLanguage.isChinese(language) ? chinese
+        // English: Finder's name, as before. Another language: the app's own name in it, where its bundle has one
+        // (Traditional Chinese: its Taiwan or Hong Kong name, else its Chinese one).
+        let traditional = ["zh-Hant", "zh_TW", "zh-TW", "zh_HK", "zh-HK"]
+        let interface = InterfaceLanguage.isSimplifiedChinese(language) ? chinese
+            : InterfaceLanguage.isChinese(language) ? localizedNames(at: url, in: traditional) + chinese
             : language == "en" ? [] : localizedNames(at: url, in: [language, language.replacingOccurrences(of: "-", with: "_")])
         if let shown = interface.first { names.insert(shown, at: 0) }
         var seen = Set<String>()

@@ -79,7 +79,7 @@ struct PathCheckTests {
         let entries = (["ok.sh"] + out).enumerated().map { ["script": $1, "name": "c\($0)"] }
         let manifest = try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "name": "tools", "commands": entries])
         var asked: [String] = []
-        guard case let .success((_, commands, skipped)) = ExtensionStore.loadBundle(manifest, folder: folder, read: {
+        guard case let .success((_, commands, _, skipped)) = ExtensionStore.loadBundle(manifest, folder: folder, read: {
             asked.append($0.path)
             return nil
         }) else {
@@ -139,7 +139,12 @@ struct PathCheckTests {
         config.findRaycastScripts = false
         let review = ExtensionSourceReview.make(bundleFolder: folder, path: "", url: "file:///r.git", commit: nil, commitDate: nil, config: config)
         #expect(review.commands.map(\.status) == ["left.sh --short"])
+        #if os(Windows)
+        // Windows starts the script itself, through the interpreter its kind or "#!" line names (`WindowsPrograms`).
+        #expect(review.programs == ["tool.sh", "left.sh --short"])
+        #else
         #expect(review.programs == ["/bin/sh tool.sh", "left.sh --short"])
+        #endif
         #expect(review.summary.contains("  status:    left.sh --short"))
     }
 

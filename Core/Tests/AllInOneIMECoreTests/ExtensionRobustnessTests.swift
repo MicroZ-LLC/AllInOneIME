@@ -110,7 +110,8 @@ struct ExtensionRobustnessTests {
     @Test func aStoppedScriptsChildrenGoToo() async throws {
         let folder = ScriptFolder()
         let pids = folder.url.appendingPathComponent("pids")
-        folder.add("stubborn.sh", script(["input none", "timeout 1"], "trap '' TERM; sleep 30 & echo $! > \(pids.path); wait"))
+        folder.add("stubborn.sh", script(["input none", "timeout 1"],
+                                         "trap '' TERM; sleep \(Timing.longSleep) & echo $! > \(pids.path); wait"))
         let command = try #require(folder.load().commands.first)
         let started = Date()
         var failure: CommandRunner.RunError?
@@ -119,9 +120,10 @@ struct ExtensionRobustnessTests {
         } catch {
             failure = error as? CommandRunner.RunError
         }
-        // 1 s, then 0.5 s to SIGKILL (about 1.6 s); the bound is loose, for a test pool busy with other tests.
+        // 1 s, then 0.5 s to SIGKILL (about 1.6 s). A busy test run can take ten times that or more (`Timing`): the
+        // bound is against the script's child, which would hold it up for a minute if it weren't killed.
         #expect(failure == .timedOut(1))
-        #expect(Date().timeIntervalSince(started) < 10)
+        #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
         let child = try #require(pid_t(String(decoding: try Data(contentsOf: pids), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)))
         // Gone once it's reaped, which a busy test run can hold up (`Timing`).
         #expect(await Timing.eventually { kill(child, 0) != 0 }, "the script's child \(child) is still running")

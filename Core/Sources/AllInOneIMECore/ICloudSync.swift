@@ -55,13 +55,13 @@ public enum ICloudSync {
 
     /// Never synced, whatever the switches: each Mac decides for itself. The keys and tokens aren't in the config at all
     /// (they're in the keychain); extension sources and their clones run code; extension folders and plugins are paths on
-    /// this Mac; the sync setting itself is per Mac; `typeOutSpeed` is only read (from older files); `outputLanguage` and
+    /// this Mac, and so is where `@note` saves (`notes`: a folder's path); the sync setting itself is per Mac; `typeOutSpeed` is only read (from older files); `outputLanguage` and
     /// `defaultInput` come with their lists. Apps without typos and the recent apps aren't config keys either: named so
     /// that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage", "defaultInput",
-        "typeOutNoTyposApps", "recentApps",
+        "typeOutNoTyposApps", "recentApps", "notes",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
@@ -120,51 +120,80 @@ public enum ICloudSync {
     /// In `settings.json`: `{ "value": <the value>, "modified": "2026-10-16T18:00:00.000Z", "by": "<Mac id>" }`; a
     /// tombstone (an app's settings removed, `questionRounds` back to its default, which the config leaves out) is
     /// `{ "deleted": true, "modified": …, "by": … }`, with no value. An entry with both, or neither, isn't read.
+    ///
+    /// A collection (`mergedOnJoin`) changed on a Mac also carries `base`, `"base": { "modified": …, "by": … }`: which
+    /// merge its value derives from, the stamp that merge went up with (or a first join's, for a list put up as it was
+    /// because iCloud had none), carried along every change made on top of it, on any Mac (`changeBase`). A Mac whose
+    /// join merge is still provisional takes an entry of that base as made after seeing its merge: newer, it wins as any
+    /// change does, rather than being merged again (which would bring back what was deleted on top of it). In this
+    /// Mac's own record, a provisional merge's (or a first join's) `base` is that stamp, and a value received keeps the
+    /// base it came with. A merge's result has none: each merge starts anew. A version that doesn't know `base` (0.6.4)
+    /// ignores it, and drops it when it writes the entry: the Mac then merges again, as it did before (a delete made on
+    /// top of a provisional merge comes back once; made again, it sticks). Two entries are the same whatever their `base`.
     public struct Entry: Equatable, Sendable {
         public var value: AIConfig.JSONValue?
         public var stamp: Stamp
+        public var base: Stamp?
 
-        public init(value: AIConfig.JSONValue?, stamp: Stamp) {
+        public init(value: AIConfig.JSONValue?, stamp: Stamp, base: Stamp? = nil) {
             self.value = value
             self.stamp = stamp
+            self.base = base
         }
 
         public var isTombstone: Bool { value == nil }
+
+        public static func == (a: Entry, b: Entry) -> Bool { a.value == b.value && a.stamp == b.stamp }
 
         /// As `settings.json` holds it.
         public var json: AIConfig.JSONValue {
             var fields: [String: AIConfig.JSONValue] = ["modified": .string(ICloudSync.dateText(stamp.modified)), "by": .string(stamp.by)]
             if let value { fields["value"] = value } else { fields["deleted"] = .bool(true) }
+            if let base { fields["base"] = .object(["modified": .string(ICloudSync.dateText(base.modified)), "by": .string(base.by)]) }
             return .object(fields)
         }
 
-        /// An entry of `settings.json`; nil when it isn't one (no stamp, a value and a tombstone at once …).
+        /// An entry of `settings.json`; nil when it isn't one (no stamp, a value and a tombstone at once …). A `base`
+        /// that isn't a stamp is left out.
         public init?(json: AIConfig.JSONValue) {
-            guard case let .object(fields) = json, case let .string(modified)? = fields["modified"],
-                  let date = ICloudSync.date(modified), case let .string(by)? = fields["by"], !by.isEmpty else { return nil }
+            guard case let .object(fields) = json, let stamp = Self.stamp(fields) else { return nil }
+            var base: Stamp?
+            if case let .object(b)? = fields["base"] { base = Self.stamp(b) }
             let deleted = fields["deleted"] == .bool(true)
             switch (fields["value"], deleted) {
-            case (let value?, false): self.init(value: value, stamp: Stamp(modified: date, by: by))
-            case (nil, true): self.init(value: nil, stamp: Stamp(modified: date, by: by))
+            case (let value?, false): self.init(value: value, stamp: stamp, base: base)
+            case (nil, true): self.init(value: nil, stamp: stamp, base: base)
             default: return nil
             }
+        }
+
+        private static func stamp(_ fields: [String: AIConfig.JSONValue]) -> Stamp? {
+            guard case let .string(modified)? = fields["modified"], let date = ICloudSync.date(modified),
+                  case let .string(by)? = fields["by"], !by.isEmpty else { return nil }
+            return Stamp(modified: date, by: by)
         }
     }
 
     /// ISO 8601 with milliseconds (two changes in one second are told apart), in UTC.
     public static func dateText(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        dateFormatters.withLock { $0.milliseconds.string(from: date) }
     }
 
     /// An ISO 8601 date, with or without the fraction of a second.
     public static func date(_ text: String) -> Date? {
+        dateFormatters.withLock { $0.milliseconds.date(from: text) ?? $0.seconds.date(from: text) }
+    }
+
+    /// The two formats, made once: a sync reads and writes a date for every entry, and making a formatter (ICU's,
+    /// behind a lock of its own) costs far more than using one. Behind a lock: one is used by one thread at a time.
+    private static let dateFormatters = Locked(initialState: (
+        milliseconds: isoFormatter([.withInternetDateTime, .withFractionalSeconds]),
+        seconds: isoFormatter([.withInternetDateTime])))
+
+    private static func isoFormatter(_ options: ISO8601DateFormatter.Options) -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: text) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: text)
+        formatter.formatOptions = options
+        return formatter
     }
 
     // MARK: - settings.json
@@ -440,7 +469,9 @@ public enum ICloudSync {
                 } else if let value {
                     let entry = Entry(value: value, stamp: .joining(mac))
                     plan.outgoing[key] = entry
-                    plan.entries[key] = entry
+                    // A collection put up as it is: a change another Mac makes on top of it is based on it (`base`),
+                    // and wins here rather than being merged again (which would bring back what that Mac deleted).
+                    plan.entries[key] = mergedOnJoin.contains(key) ? Entry(value: value, stamp: entry.stamp, base: entry.stamp) : entry
                 }
             case .rejoining:
                 guard remote != nil else {
@@ -464,7 +495,7 @@ public enum ICloudSync {
                         plan.kept[key] = held ?? record
                     }
                 } else if changedHere {
-                    let entry = Entry(value: value, stamp: Stamp(modified: now, by: mac))
+                    let entry = Entry(value: value, stamp: Stamp(modified: now, by: mac), base: changeBase(key, record))
                     plan.outgoing[key] = entry
                     plan.entries[key] = entry
                 } else if let record {
@@ -478,7 +509,8 @@ public enum ICloudSync {
                     // Stamped when the file changed if that is known, never later than now nor before the value it
                     // replaces.
                     let at = max(min(changedAt(key) ?? now, now), record.stamp.modified.addingTimeInterval(0.001))
-                    mine = record.value == value || absent ? record : Entry(value: value, stamp: Stamp(modified: at, by: mac))
+                    mine = record.value == value || absent ? record
+                        : Entry(value: value, stamp: Stamp(modified: at, by: mac), base: changeBase(key, record))
                 } else if let value {
                     mine = Entry(value: value, stamp: Stamp(modified: min(changedAt(key) ?? now, now), by: mac))
                 }
@@ -502,9 +534,19 @@ public enum ICloudSync {
                     continue
                 }
                 if mergedOnJoin.contains(key), let record, record.stamp.isJoining, record.stamp.by == mac, theirs.stamp.by != mac,
-                   theirs.stamp != record.stamp, let value, theirs.value != nil, value != theirs.value {
+                   theirs.stamp != record.stamp, let value, theirs.value != nil, value != theirs.value,
+                   theirs.base == nil || theirs.base != record.base {
                     // Still as this Mac joined (or provisional, from a join's merge), and another Mac's in iCloud: Macs
-                    // joined at once, or this one joined offline. The collections merge, as on a join.
+                    // joined at once, or this one joined offline. The collections merge, as on a join. Not when iCloud's
+                    // was changed from this Mac's merge as it went up (`Entry.base`): that Mac saw it, and its change
+                    // stands as any newer change does.
+                    // Known limits: the merge is of this Mac's whole list, merge included, so a command another Mac
+                    // deleted from a list this one hasn't seen (two Macs joined at once, a third deleted one it had)
+                    // comes back once; an item from the first Mac to sync that another Mac deleted comes back once too
+                    // when the first Mac slept through a merge made on another Mac (that merge starts a `base` of its
+                    // own, which this Mac's join record doesn't know), and deleted again it stays deleted; and a join
+                    // made offline settles on that Mac's own copy of settings.json, so when the two files meet, iCloud
+                    // keeps one and the other Mac's command added meanwhile can be lost.
                     plan.merges[key] = theirs
                     plan.provisional.insert(key)
                     plan.kept[key] = mine
@@ -533,16 +575,24 @@ public enum ICloudSync {
         // Fields of an object a newer version added (in iCloud's entry, unknown here) go back up with this Mac's edit.
         for (key, entry) in plan.outgoing {
             if let carried = carryingUnknownFields(of: remote?[key]?.value, into: entry.value, key: key) {
-                plan.outgoing[key] = Entry(value: carried, stamp: entry.stamp)
+                plan.outgoing[key] = Entry(value: carried, stamp: entry.stamp, base: entry.base)
             }
         }
         return plan
     }
 
+    /// What a change of `key` made here on top of `record` is based on (`Entry.base`), for a collection: the merge (or
+    /// the first join) the record's value derives from, its `base`, carried along every change made on top of it, on any
+    /// Mac; the record's own stamp when it has none (a merge's result, a value from a version that doesn't know `base`).
+    static func changeBase(_ key: String, _ record: Entry?) -> Stamp? {
+        guard mergedOnJoin.contains(key), let record else { return nil }
+        return record.base ?? record.stamp
+    }
+
     /// The fields this version knows of an object-valued key (`redaction`, a provider's settings, an app's settings); nil
     /// for any other key.
     public static func knownFields(of key: String) -> Set<String>? {
-        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI"] }
+        if key.hasPrefix(appPrefix) { return ["inputLanguage", "rewriteStyles", "typeOut", "noAI", "translateAlways"] }
         switch key {
         case "redaction": return ["enabled", "emails", "phones", "cards", "keys", "ips", "customWords"]
         case "anthropic", "gemini", "openai": return ["model", "baseURL", "effort", "temperature"]
@@ -562,20 +612,54 @@ public enum ICloudSync {
 
     // MARK: - Writing the config
 
-    /// Writes `keys` of `config` into the config file at `url` (`AIConfig.writing`), except those whose value in the
-    /// file changed since the run read it as `old` (Settings saved meanwhile: that change stays, and goes up as a local
-    /// change next run). The keys written.
+    /// Writes `keys` of `config` into the config file at `url` (`AIConfig.writing`), leaving what changed in the file
+    /// since the run read it as `old` (Settings saved meanwhile): that change stays, and goes up as a local change next
+    /// run. Field by field, at every depth: inside an object-valued key (`appProfiles` per app and per field, `redaction`
+    /// per switch and its words, a provider's settings) only the fields Settings changed are left, and the run's other
+    /// fields are written, so a save of one app's settings (or one switch) never keeps the run from writing another's.
+    /// A list or a plain value Settings changed is left whole (the languages with their companion). Which of the run's
+    /// sync keys the file holds as written is for the run to read back (`ICloudSyncEngine`). The top-level keys written,
+    /// some maybe only in part.
     @discardableResult
     public static func writeConfig(_ config: Config, readAs old: Config, keys: Set<String>, at url: URL) throws -> Set<String> {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            try config.write(to: url)
+            return keys
+        }
         let current = (try? Config.load(from: url)) ?? old
         let now = AIConfig.encoded(current), then = AIConfig.encoded(old)
-        let companions = AIConfig.companions
-        let unchanged = keys.filter { key in
-            ([key] + (companions[key] ?? [])).allSatisfy { now[$0] == then[$0] }
+        var values = AIConfig.encoded(config)
+        var write = Set<String>()
+        for key in keys {
+            let companions = AIConfig.companions[key] ?? []
+            if ([key] + companions).allSatisfy({ now[$0] == then[$0] }) {
+                write.insert(key)
+                continue
+            }
+            // Written with its companion, which Settings changed: both stay as Settings saved them.
+            guard companions.isEmpty else { continue }
+            let value = keepingChanges(new: values[key], old: then[key], file: now[key])
+            values[key] = value
+            if value != then[key] { write.insert(key) }
         }
-        guard !unchanged.isEmpty else { return [] }
-        try AIConfig.writing(config, from: current, keys: unchanged, at: url)
-        return unchanged
+        guard !write.isEmpty else { return [] }
+        try AIConfig.writing(values, from: then, keys: write, at: url)
+        return write
+    }
+
+    /// `new` (a run's value of a key, read as `old`) with `old`'s value wherever `file` (the key in the file now) changed
+    /// it since: fields of objects one by one, at every depth; anything else whole. Written from `old`, it leaves exactly
+    /// the file's changes.
+    static func keepingChanges(new: AIConfig.JSONValue?, old: AIConfig.JSONValue?, file: AIConfig.JSONValue?) -> AIConfig.JSONValue? {
+        if new == old || file == old { return new }
+        guard case let .object(newFields)? = new, case let .object(oldFields)? = old, case let .object(fileFields)? = file else {
+            return old
+        }
+        var out: [String: AIConfig.JSONValue] = [:]
+        for name in Set(newFields.keys).union(oldFields.keys) {
+            out[name] = keepingChanges(new: newFields[name], old: oldFields[name], file: fileFields[name])
+        }
+        return .object(out)
     }
 
     // MARK: - Merging collections
@@ -726,7 +810,7 @@ public enum ICloudSync {
                 if Language(rawValue: code) == nil { return .unknownValue }
             }
             if let styles = fields["rewriteStyles"], styles != .null, styles.strings == nil { return .wrongType }
-            for flag in ["typeOut", "noAI"] {
+            for flag in ["typeOut", "noAI", "translateAlways"] {
                 guard let field = fields[flag], field != .null else { continue }
                 guard case .bool = field else { return .wrongType }
             }
@@ -804,10 +888,17 @@ public enum ICloudSync {
         case hiddenWordsKey:
             return strings() == nil ? .wrongType : nil
         case commandsKey:
-            guard case .array = value, let commands = decodes([CustomCommand].self, value) else { return .wrongType }
+            // An entry of a type this version doesn't know (a later one's) is kept as the config file keeps it; its name
+            // is taken all the same.
+            guard case .array = value, let entries = decodes([CustomCommand.Entry].self, value) else { return .wrongType }
             var names = Set<String>()
-            for command in commands {
-                guard command.isValid, names.insert(command.name.lowercased()).inserted else { return .invalidCommand }
+            for entry in entries {
+                if let command = entry.command {
+                    guard command.isValid, names.insert(command.name.lowercased()).inserted else { return .invalidCommand }
+                } else {
+                    guard let name = entry.unread.flatMap(CustomCommand.Entry.name) else { return .wrongType }
+                    guard names.insert(name.lowercased()).inserted else { return .invalidCommand }
+                }
             }
             return nil
         case jargonKey, questionsKey:
@@ -901,15 +992,20 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
     public var learnedWords: Bool
     public var hiddenWords: Bool
     public var recentQuestions: Bool
+    /// API keys and passwords, through iCloud Keychain rather than iCloud Drive (`KeySync`): off by default (keys move
+    /// into iCloud Keychain only once the user turns this on, never because sync itself was turned on), written in the
+    /// config only when on.
+    public var keys: Bool
 
     public init(enabled: Bool = false, settings: Bool = true, jargon: Bool = true, learnedWords: Bool = true,
-                hiddenWords: Bool = false, recentQuestions: Bool = false) {
+                hiddenWords: Bool = false, recentQuestions: Bool = false, keys: Bool = false) {
         self.enabled = enabled
         self.settings = settings
         self.jargon = jargon
         self.learnedWords = learnedWords
         self.hiddenWords = hiddenWords
         self.recentQuestions = recentQuestions
+        self.keys = keys
     }
 
     /// The categories turned on (none while sync is off).
@@ -924,7 +1020,10 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
         return out
     }
 
-    private enum CodingKeys: String, CodingKey { case enabled, settings, jargon, learnedWords, hiddenWords, recentQuestions }
+    /// Keys go through iCloud Keychain: sync on, and its "API keys and passwords" row on.
+    public var syncsKeys: Bool { enabled && keys }
+
+    private enum CodingKeys: String, CodingKey { case enabled, settings, jargon, learnedWords, hiddenWords, recentQuestions, keys }
 
     /// Each switch on its own: a missing one, or one of the wrong type, keeps its default (never an error).
     public init(from decoder: Decoder) throws {
@@ -937,5 +1036,18 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
         learnedWords = flag(.learnedWords, d.learnedWords)
         hiddenWords = flag(.hiddenWords, d.hiddenWords)
         recentQuestions = flag(.recentQuestions, d.recentQuestions)
+        keys = flag(.keys, d.keys)
+    }
+
+    /// As before `keys` came, and `keys` only when it's on (the default needs no line).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(enabled, forKey: .enabled)
+        try c.encode(settings, forKey: .settings)
+        try c.encode(jargon, forKey: .jargon)
+        try c.encode(learnedWords, forKey: .learnedWords)
+        try c.encode(hiddenWords, forKey: .hiddenWords)
+        try c.encode(recentQuestions, forKey: .recentQuestions)
+        if keys != ICloudSyncSettings().keys { try c.encode(keys, forKey: .keys) }
     }
 }

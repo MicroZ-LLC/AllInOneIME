@@ -50,14 +50,21 @@ enum UIText {
     /// The same, as Chinese or English: what script plugins are told (`run(input, {language})`, "zh" or "en").
     static var pluginLanguage: Language { chinese ? .chinese : .english }
 
+    /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
+    /// language name), for the Chinese interface: as it is in Simplified Chinese, in Traditional characters in
+    /// Traditional Chinese (ICU's Hans-Hant transform), never Simplified Chinese there.
+    static func chineseOnly(_ text: String) -> String {
+        guard !InterfaceLanguage.isSimplifiedChinese(language) else { return text }
+        return text.applyingTransform(StringTransform(rawValue: "Hans-Hant"), reverse: false) ?? text
+    }
+
     /// "单按 ⌥" / "Tap ⌥", …
     static func name(_ key: ActionKey) -> String {
-        guard !chinese else { return key.displayName }
         switch key {
         case .enter: return "⏎"
-        case .optionTap: return "Tap ⌥"
-        case .optionSpace: return "⌥Space"
-        case .space: return "Space"
+        case .optionTap: return tr("单按 ⌥", "Tap ⌥")
+        case .optionSpace: return tr("⌥空格", "⌥Space")
+        case .space: return tr("空格", "Space")
         case let .shortcut(key): return key.name
         }
     }
@@ -69,13 +76,12 @@ enum UIText {
 
     /// "单按 ⌥" / "tap ⌥", "按空格" / "press Space", …
     static func howToPress(_ key: ActionKey) -> String {
-        guard !chinese else { return key.howToPress() }
         switch key {
-        case .enter: return "press Return"
-        case .optionTap: return "tap ⌥"
-        case .optionSpace: return "press ⌥Space"
-        case .space: return "press Space"
-        case let .shortcut(key): return "press " + key.name
+        case .enter: return tr("按 ⏎", "press Return")
+        case .optionTap: return tr("单按 ⌥", "tap ⌥")
+        case .optionSpace: return tr("按 ⌥空格", "press ⌥Space")
+        case .space: return tr("按空格", "press Space")
+        case let .shortcut(key): return tr("按 \(key.name)", "press \(key.name)")
         }
     }
 
@@ -136,18 +142,22 @@ enum UIText {
         if let plugin = command.plugin {
             return plugin.manifest.summary?.text(chinese: chinese) ?? tr("插件", "Plugin")
         }
+        if let row = command.snippetRowText {
+            return command.bundle.map { row + " · " + tr("来自 \($0)", "From \($0)") } ?? row
+        }
         if let custom = command.custom { return custom.summary ?? customKind(custom) }
         if let script = command.script { return summary(script) }
         switch command {
         case .improve: return tr("润色，再给几种改写（不翻译）", "Polish in the same language, plus rewrites")
         case .translate: return tr("翻译成你加的语言；和 @improve 一起写就翻译加改写", "Translate into your languages; with @improve, both")
         case .question: return tr("提问，答案可以直接上屏", "Ask a question; insert the answer")
+        case .reply: return tr("回复对方：⌃V 粘贴消息或截图", "Reply: ⌃V their message or a screenshot")
         case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
         case .open: return tr("找文件、文件夹或 App 并打开", "Find a file, folder or app and open it")
         case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
         case .settings: return tr("打开设置", "Open the settings")
-        case .note: return tr("存到备忘录", "Save to Notes")
+        case .note: return tr("存一条笔记到\(afterChineseWord(noteDestinationName))", "Save a note to \(noteDestinationName)")
         case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
         case .py: return tr("运行 Python，结果可以直接上屏", "Run Python; insert the result")
         case .js: return tr("运行 JavaScript，结果可以直接上屏", "Run JavaScript; insert the result")
@@ -208,6 +218,8 @@ enum UIText {
             case .custom: return tr("\(name) 是一个自定义命令的名字", "\(name) is one of your custom commands")
             case let .command(id):
                 return tr("这个名字已经给了 \(id)（先找到的生效）", "The name is taken by \(id), found first")
+            case let .snippet(id):
+                return tr("这个名字已经给了片段 \(id)（先找到的生效）", "The name is taken by the snippet \(id), found first")
             }
         }
     }
@@ -229,6 +241,7 @@ enum UIText {
         case .run: return tr("运行 ", "Run ") + (custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? "")
         case .terminal: return tr("在终端运行 ", "Run in Terminal: ") + (custom.argv?.first.map { ($0 as NSString).lastPathComponent } ?? "")
         case .link: return tr("在浏览器打开 ", "Open in the browser: ") + (LinkTemplate.host(custom.url) ?? "")
+        case .snippet: return tr("插入文字", "Insert text")
         }
     }
 
@@ -246,12 +259,14 @@ enum UIText {
         case .prompt?: return tr("AI 生成", "generate")
         case .run?: return tr("运行", "run")
         case .terminal?: return tr("在终端运行", "run in Terminal")
+        case .snippet?: return tr("插入文字", "Insert text")
         case .link?, nil: break
         }
         switch command {
         case .improve, .translate:
             return action(WritingMode.parse(command, draft, improveTranslates: config.improveTranslates).mode, input: input, config: config)
         case .question: return tr("提问", "ask")
+        case .reply: return tr("写三条回复", "write three replies")
         case .agent:
             let agent = config.agent.displayName(custom: config.agentCommand)
             return config.claudeInBackground && config.agent.supportsBackground
@@ -261,7 +276,7 @@ enum UIText {
         case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
         case .settings: return tr("打开设置", "open the settings")
-        case .note: return tr("存到备忘录", "save to Notes")
+        case .note: return tr("存到\(afterChineseWord(noteDestinationName))", "save to \(noteDestinationName)")
         case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
         case .py: return tr("运行 Python", "run Python")
         case .js: return tr("运行 JavaScript", "run JavaScript")
@@ -288,6 +303,20 @@ enum UIText {
     /// Main thread only.
     static var agentName = AgentKind.claude.displayName()
 
+    /// Where `@note` saves, by name (`NoteDestination.name`: 备忘录 / Notes, Notion, Obsidian, “Inbox”; the controller
+    /// sets it with the settings). Main thread only.
+    static var noteDestinationName = tr("备忘录", "Notes")
+
+    /// `name` as it follows a Chinese word ("存到"): straight after it when it starts with Chinese or a full-width mark
+    /// (备忘录, “收件箱”, 「…」), else after a space (Notion, Obsidian).
+    static func afterChineseWord(_ name: String) -> String {
+        guard let first = name.unicodeScalars.first else { return name }
+        let joined = first.properties.isIdeographic || [0x201C, 0x2018].contains(first.value)
+            || (0x2E80...0x303F).contains(first.value) || (0x3040...0x30FF).contains(first.value)
+            || (0xAC00...0xD7AF).contains(first.value) || (0xFF00...0xFFEF).contains(first.value)
+        return joined ? name : " " + name
+    }
+
     /// Added to the notice when `@agent` took the Chrome page along: " · 带上了网页「标题」".
     static func withPage(_ title: String) -> String {
         let short = title.count > 40 ? String(title.prefix(40)) + "…" : title
@@ -302,6 +331,7 @@ enum UIText {
     static func answerLabel(_ command: Command?) -> String {
         if command == .webSearch { return tr("搜索结果", "results") }
         if command?.kind == .run { return command?.plugin.map { "@" + $0.name } ?? tr("输出", "output") }
+        if command == .reply { return tr("回复", "reply") }
         return command == .agent ? agentName : tr("回答", "answer")
     }
 
@@ -324,6 +354,7 @@ enum UIText {
            [Command.read, .py, .js, .webSearch].contains(where: { $0.name == name }) {
             return "@" + name + tr("：", ": ") + underlying
         }
+        if let error = error as? NoteError { return error.message(language: language) }
         if let error = error as? NotesBridge.NotesError {
             switch error {
             case .notPermitted:
@@ -400,24 +431,8 @@ enum UIText {
             }
         }
         if let error = error as? AppleModelError { return describe(error) }
-        if chinese, let error = error as? PluginLibraryError {
-            switch error {
-            case let .unreachable(host): return "连不上 \(host)"
-            case let .http(status, file): return "插件库返回 HTTP \(status)（\(file)）"
-            case let .tooLarge(file): return "\(file) 太大"
-            case .missingSignature: return "插件库的索引没有签名"
-            case .badSignature: return "插件库的索引没有通过签名验证（可能正在更新，过几分钟再试）"
-            case let .unsupportedSchema(schema): return "插件库需要更新版本的 AllInOneIME（索引格式 \(schema)）"
-            case .malformedIndex: return "读不懂插件库的索引"
-            case let .invalidName(name): return "插件名字不合规：\(name)"
-            case let .invalidFile(file): return "插件里有不合规的文件：\(file)"
-            case let .hashMismatch(file): return "\(file) 和签名的索引对不上；什么都没有改"
-            case let .invalidManifest(detail): return "插件的 plugin.json 有问题：\(detail)"
-            case let .incompatible(problem): return "这个插件不能用：\(problem)"
-            case let .localPlugin(name): return "已经有一个叫 \(name) 的本地插件；先删除它才能装插件库里的"
-            }
-        }
-        guard !chinese else { return AllInOneIMEInputController.describe(error) }
+        if chinese, let error = error as? PluginLibraryError { return chineseOnly(describeInChinese(error)) }
+        guard !chinese else { return chineseOnly(AllInOneIMEInputController.describe(error)) }
         switch error {
         case let error as URLError:
             switch error.code {
@@ -450,9 +465,33 @@ enum UIText {
         }
     }
 
+    /// A plugin library's error in Simplified Chinese (`describe`).
+    private static func describeInChinese(_ error: PluginLibraryError) -> String {
+        switch error {
+        case let .unreachable(host): return "连不上 \(host)"
+        case let .http(status, file): return "插件库返回 HTTP \(status)（\(file)）"
+        case let .tooLarge(file): return "\(file) 太大"
+        case .missingSignature: return "插件库的索引没有签名"
+        case .badSignature: return "插件库的索引没有通过签名验证（可能正在更新，过几分钟再试）"
+        case let .unsupportedSchema(schema): return "插件库需要更新版本的 AllInOneIME（索引格式 \(schema)）"
+        case .malformedIndex: return "读不懂插件库的索引"
+        case let .invalidName(name): return "插件名字不合规：\(name)"
+        case let .invalidFile(file): return "插件里有不合规的文件：\(file)"
+        case let .hashMismatch(file): return "\(file) 和签名的索引对不上；什么都没有改"
+        case let .invalidManifest(detail): return "插件的 plugin.json 有问题：\(detail)"
+        case let .incompatible(problem): return "这个插件不能用：\(problem)"
+        case let .localPlugin(name): return "已经有一个叫 \(name) 的本地插件；先删除它才能装插件库里的"
+        }
+    }
+
     /// An error of Apple Intelligence on this Mac: what to do about it.
     static func describe(_ error: AppleModelError) -> String {
         guard chinese else { return error.errorDescription ?? "\(error)" }
+        return chineseOnly(describeInChinese(error))
+    }
+
+    /// An error of Apple Intelligence in Simplified Chinese (`describe`).
+    private static func describeInChinese(_ error: AppleModelError) -> String {
         switch error {
         case let .unavailable(reason):
             switch reason {

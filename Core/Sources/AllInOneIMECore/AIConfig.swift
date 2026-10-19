@@ -484,8 +484,12 @@ public enum AIConfig {
     /// `old` is the config the writer last read or wrote. A missing file is written whole (`Config.write`).
     public static func writing(_ config: Config, from old: Config, keys: Set<String>, at url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return try config.write(to: url) }
+        try writing(encoded(config), from: encoded(old), keys: keys, at: url)
+    }
+
+    /// `writing` with the config and the one read before as the file holds them (`encoded`), into a file that exists.
+    static func writing(_ values: [String: JSONValue], from before: [String: JSONValue], keys: Set<String>, at url: URL) throws {
         guard !keys.isEmpty else { return }
-        let values = encoded(config), before = encoded(old)
         try patchingFile(at: url) { file in
             for key in keys.union(keys.flatMap { companions[$0] ?? [] }) {
                 file[key] = merged(file: file[key], old: before[key], new: values[key])
@@ -654,6 +658,26 @@ extension AIConfig.JSONValue: Encodable {
         case let .string(value): try c.encode(value)
         case let .array(items): try c.encode(items)
         case let .object(fields): try c.encode(fields)
+        }
+    }
+}
+
+extension AIConfig.JSONValue: Decodable {
+    /// Any JSON value, as it is (an entry a later version wrote, kept to be written back: `Config.unreadCustomCommands`).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() {
+            self = .null
+        } else if let value = try? c.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? c.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? c.decode(String.self) {
+            self = .string(value)
+        } else if let items = try? c.decode([AIConfig.JSONValue].self) {
+            self = .array(items)
+        } else {
+            self = .object(try c.decode([String: AIConfig.JSONValue].self))
         }
     }
 }

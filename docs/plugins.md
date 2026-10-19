@@ -60,10 +60,29 @@ browser. Nothing is inserted; the draft is cleared, as when `@open` opens someth
 
 ## How a script runs
 
-In JavaScriptCore (part of macOS: nothing to install), in a **child process**:
-`AllInOneIME --run-plugin <dir> --language zh|en` with the text on standard input, the result on standard output.
-JavaScriptCore can't stop a running script, so a stuck plugin must not run inside the input method; a child
-process is killed by the existing runner (timeout, output limit, Esc), the same path as custom `run` commands.
+In a **child process**: `AllInOneIME --run-plugin <dir> --language zh|en` with the text on standard input, the
+result on standard output. The engine is JavaScriptCore on the Mac (part of macOS: nothing to install), and
+QuickJS-ng (built into the app) on Windows, Linux and Android. JavaScriptCore can't stop a running script, and
+QuickJS-ng only where it checks (some of its built-in functions run to their end), so a stuck plugin must not run
+inside the input method; a child process is killed by the existing runner (timeout, output limit, Esc), the same
+path as custom `run` commands.
+
+### Two engines: write for both
+
+Both are modern JavaScript, and a plugin runs the same on either as long as it keeps to what they share. Where they
+differ, measured (QuickJS-ng 0.17.0, macOS 27's JavaScriptCore):
+
+| | QuickJS-ng | JavaScriptCore |
+|---|---|---|
+| `Intl` (`Intl.NumberFormat`, `Intl.DateTimeFormat`, …) | none | there |
+| `(1234.5).toLocaleString()` | `1234.5` | `1,234.5` |
+| `localeCompare`, so sorting by it | by code point: `Z,a,b,ä,é` | by language: `a,ä,b,é,Z` |
+| `String(new Date(0))` (`Date#toString`), in California | `… GMT-0800` | `… GMT-0800 (Pacific Standard Time)` |
+| Globals only one has | `atob`, `btoa`, `performance`, `queueMicrotask`, `DOMException`, `InternalError`, `SharedArrayBuffer`, `DisposableStack`, `AsyncDisposableStack`, `SuppressedError` | `Intl`, `WebAssembly`, `console` |
+
+So: format numbers and dates yourself (`toFixed`, `getFullYear()` and the like, or the ISO form,
+`toISOString()`), compare text with `<` or your own order rather than `localeCompare`, and don't use the globals
+only one engine has (on the Mac, `btoa` is a ReferenceError).
 
 The script sees nothing but `fetch`:
 
@@ -74,7 +93,7 @@ fetch([url, …], {headers}) → [{status, ok, text, json()} | {ok: false, error
 
 - HTTPS only, and only to the manifest's `hosts` (redirects too); no cookies, no cache.
 - At most 8 requests a run, 1 MB a response, 5 s a request; the run itself ends after `timeoutSeconds` (≤ 20).
-- No file system, processes, environment, timers or clipboard: a bare `JSContext` has none of them.
+- No file system, processes, environment, timers or clipboard: neither engine has them, as the app makes it.
 - Secure input (password fields) refuses plugins like any command.
 - The text goes to the plugin's hosts as typed: "Hide sensitive information before sending" (Settings → AI Provider →
   Privacy) covers requests to the AI, so a `prompt` plugin, but not what a script or link plugin sends. Likewise an

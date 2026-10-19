@@ -68,6 +68,10 @@ struct RedactionTests {
         #expect(found("bob@acme.com 555-123-4567 10.0.0.1", settings) == ["IP 10.0.0.1"])
         #expect(RedactionSettings.words(from: "Phoenix, 张三，Project X、Phoenix;\nAtlas ") == ["Phoenix", "张三", "Project X", "Atlas"])
         #expect(Redaction(RedactionSettings()) == nil)  // off by default
+        // The field's edit goes on the list as it is now: a word another Mac added since the field showed it stays.
+        let now = ["Acme", "Project Phoenix"]
+        #expect(RedactionSettings.edited(now, field: "Acme, Bolt", shown: ["Acme"]) == ["Acme", "Project Phoenix", "Bolt"])
+        #expect(RedactionSettings.edited(now, field: "Bolt", shown: ["Acme"]) == ["Project Phoenix", "Bolt"])
     }
 
     // MARK: Hiding and restoring

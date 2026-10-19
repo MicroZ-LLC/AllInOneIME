@@ -12,8 +12,10 @@ public enum InterfaceLanguage {
     /// (the bundle's localizations).
     ///
     /// The first preferred language that matches wins; none, English. Chinese is Simplified Chinese, or Traditional
-    /// Chinese ("zh-Hant", "zh-TW", "zh-HK", "zh-MO") when that ships, else Simplified Chinese too. Other languages
-    /// match the code with its region ("pt-BR"), else the language ("pt"); never another region of it.
+    /// Chinese ("zh-Hant", "zh-TW", "zh-HK", "zh-MO") when that ships, else Simplified Chinese too: never a Traditional
+    /// Chinese system in Simplified Chinese while Traditional ships. Other languages match the code with its region
+    /// ("pt-BR"), else the language ("de-AT", "es-MX", "fr-CA" → "de", "es", "fr"), else another variant of the language
+    /// in the same script ("pt-PT" → "pt-BR"): Portuguese written in Brazil reads better in Portugal than English does.
     public static func pick(preferred: [String], shipped: [String]) -> String {
         let shipped = shipped.filter { $0 != "Base" }
         for identifier in preferred {
@@ -32,6 +34,11 @@ public enum InterfaceLanguage {
                 for candidate in candidates {
                     if let match = shipped.first(where: { Tag($0).code.lowercased() == candidate }) { return match }
                 }
+                // Another variant of it: another region ("pt-PT" for "pt-BR"), in the same script where both say one.
+                if let match = shipped.first(where: { variant in
+                    let other = Tag(variant)
+                    return other.language == tag.language && (other.script == nil || tag.script == nil || other.script == tag.script)
+                }) { return match }
             }
         }
         return spelled("en", in: shipped) ?? "en"
@@ -73,9 +80,16 @@ public enum InterfaceLanguage {
         return builtIn + others.sorted()
     }
 
-    /// Whether `code` is Chinese ("zh-Hans", "zh-Hant"): the interface texts that only come in Chinese and English
-    /// (`UIText.chinese`) are Chinese then.
+    /// Whether `code` is Chinese ("zh-Hans", "zh-Hant"): what only comes in Chinese and English (a plugin's summary, an
+    /// update's notes) is Chinese then.
     public static func isChinese(_ code: String) -> Bool { Tag(code).language == "zh" }
+
+    /// Whether `code` is Simplified Chinese ("zh-Hans", "zh-CN", "zh"), whose interface text is `tr`'s first argument
+    /// and the fixed wording written next to it. Traditional Chinese ("zh-Hant") is not: its text is the catalog's.
+    public static func isSimplifiedChinese(_ code: String) -> Bool {
+        let tag = Tag(code)
+        return tag.language == "zh" && !tag.traditional
+    }
 
     /// The code of Simplified Chinese or English: for what only knows whether the interface is Chinese.
     public static func code(chinese: Bool) -> String { chinese ? "zh-Hans" : "en" }

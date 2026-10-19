@@ -71,11 +71,12 @@
 | `@improve` | 润色：1–3 是原文语言的三种说法，4 起是改写风格（设置里加、拖动排序），0 是原文。不翻译；设置里打开「@improve 同时翻译」就和 `@translate @improve` 一样 |
 | `@translate` | 翻译成你加的语言（设置「翻译」里加、拖动排序），每种一行，只加了一种就出 3 个版本；和原文同一种语言的跳过。`@translate @improve` 写在一起就一次请求同时翻译和改写 |
 | `@question` | 提问，答案出现在候选里，⏎ 或空格上屏，⌘C 复制。接着打字按 ⇧⏎ 就是追问：候选框变成最多 5 轮的对话，聊满后建议到 Claude 或别的 AI 里接着聊。后面不打字时，列出最近 5 个问题（最新的在前）；接着打字就按问题里任何位置的字筛选（不分大小写，中文也行）。按数字、↑↓ 再按 ⏎，或者点一下，马上显示当时保存的答案（不联网），照常上屏或复制；在那里按 ⌘R 重新问一遍，拿新的答案。没有匹配的、或者没选时，⏎ 照常问你打的问题 |
-| `@agent` | 交给本机的编程 agent，在设置 →「Agent」里选：Claude Code（默认）、Gemini CLI、Kiro CLI，或你自己的命令（你打的字加在最后，作为最后一个参数）。这一页也列出每个 agent 装了没有、怎么启动。Claude Code 默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看；关掉那里 Claude Code 下面的「在后台运行，做完通知我」就在终端打开。别的 agent 在终端打开，你打的字是第一句话。各自用自己的登录和设置。在 Google Chrome 里用时会带上网页：网址和标题、你打字的那个输入框和它所在的表单或区块（★ 标出你在哪）、选中的文字、窗口里看得到的内容——不读密码框，不发整页。所以在登录表单的用户名框里打 `@agent 为什么不行`，说的就是这个框；在 pipeline 页面上打 `@agent 为什么 block`，说的就是这个页面，由 agent 自己判断。网页的文字照读到的交给 agent，并注明它来自网页、不是你的指令。需要「辅助功能」权限；Chrome 只在你写 `@agent` 时为它建页面树，之后关回去（设置 →「Agent」→「@agent 带上 Chrome 里的网页」可以全部关掉）。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」。（0.6.4 以前叫 `@claude`。） |
+| `@reply` | 帮你写三条回复：用对方的语言，语气跟着 App 走（设置 →「App」里这个 App 的第一种改写风格，否则聊天软件随意、邮件正式，邮件里每条都是完整的正文）。把对方的消息选中、复制后在草稿里按 ⌃V，或截图（⌃⇧⌘4 或微信自带的截图）后按 ⌃V；后面写的字是你想回什么：`@reply 委婉拒绝`。⌘R 再写三条；见[回复消息](#用-reply-回复消息新) |
+| `@agent` | 交给本机的编程 agent，在设置 →「Agent」里选：Claude Code（默认）、Gemini CLI、Kiro CLI，或你自己的命令（你打的字加在最后，作为最后一个参数）。这一页也列出每个 agent 装了没有、怎么启动。Claude Code 默认在后台做，做完弹系统通知（点通知在终端里打开这个会话接着聊），也可以用 `@tasks` 查看；关掉那里 Claude Code 下面的「在后台运行，做完通知我」就在终端打开。别的 agent 在终端打开，你打的字是第一句话。各自用自己的登录和设置。在 Google Chrome 里用时会带上网页：网址和标题、你打字的那个输入框和它所在的表单或区块（★ 标出你在哪）、选中的文字、窗口里看得到的内容——不读密码框，不发整页。所以在登录表单的用户名框里打 `@agent 为什么不行`，说的就是这个框；在 pipeline 页面上打 `@agent 为什么 block`，说的就是这个页面，由 agent 自己判断。网页的文字照读到的交给 agent，并注明它来自网页、不是你的指令。需要「辅助功能」权限；Chrome 只在你写 `@agent` 时为它建页面树，之后关回去（设置 →「Agent」→「@agent 和 @reply 带上 Chrome 里的网页」可以全部关掉）。第一次打开终端时 macOS 会问是否允许控制「终端」，点「好」。（0.6.4 以前叫 `@claude`。） |
 | `@tasks` | 列出后台的 Claude 任务（进行中 / 完成 / 等你确认）和它们最后的回复；⏎ 在终端打开接着聊，⌘C 复制回复 |
 | `@settings` | 直接打开设置窗口（选中就打开，不用再写内容） |
 | `@open` | 边打边列出匹配的文件、文件夹和 App（聚焦搜索）。可以写几个关键词，用空格隔开：每个都要在路径里，至少一个在名字里（常用文件夹的中文名也算：`下载 pdf` 找下载文件夹里的 PDF）。App 也能用中文名找（计算器、系统设置；先单按 Shift 切到中文再打），访达和常用文件夹也是（下载、桌面、文稿），中文界面里也显示中文名。用 `@open` 打开过的排在最前，然后是 App、这些文件夹和最近用过、改过的文件；按名字只找到两个以内、也没有 App 或这些文件夹时，再按内容找主目录里的文件，这些标着「内容」；全是这种时，⏎ 先列出来让你选，不直接打开第一个。打网址（`github.com`、`localhost:3000`、`https://…`）时第一条是「在浏览器中打开」，不按内容找；有文件正好叫这个名字（比如 `MANIFEST.in`）时，它排在最前。以 `~/`、`/` 开头就是路径，Tab 补全，进文件夹；⏎ 打开，⌘C 复制路径 |
-| `@note` | 存进「备忘录」App 的 AllInOneIME 文件夹（没有就新建），不上屏。粘贴的文字保留换行，最多 20000 字 |
+| `@note` | 存进「备忘录」App 的 AllInOneIME 文件夹（没有就新建），或者 设置 → 插件 →「笔记（@note）」里选的地方：Notion，或一个放 Markdown 文件的文件夹（Obsidian 库或任何文件夹）；不上屏。粘贴的文字保留换行，最多 20000 字 |
 | `@reminder` | 加到「提醒事项」App 的 AllInOneIME 列表。时间直接写在里面，在本机读出：先出一行给你确认，⏎ 或空格加进去，Esc 回去改。写了时间就到点提醒，只写日期是全天的 |
 | `@py` | 运行一行 Python（本机的 `python3`），上屏结果：代码以表达式结尾时是它的值，比如 `@py 2**100`、`@py import math; math.sqrt(2)`，否则是打印出来的内容。没装 `python3` 时不显示（装了 Xcode 命令行工具就有） |
 | `@js` | 运行一行 JavaScript，同样上屏最后一个表达式的值或 `console.log` 打印的内容：`@js [1, 2, 3].map(x => x * 2)`。用 macOS 自带的 JavaScriptCore，不用装别的；读不到文件，也不能联网或运行别的程序 |
@@ -98,7 +99,7 @@
 `@` 后面跟的不是命令时，比如 `@张三`、`@john`，`@` 照常上屏，在聊天软件里 @ 人不受影响。
 紧跟着刚打的英文字母、数字、`.`、`_` 或 `-` 打 `@` 时（比如 `bob@example.com`、`ssh user@host`），`@` 就是普通字符，不弹命令列表，哪个 App 里都一样，终端也是。
 列表打开时，按 ← → 或者命令名里不会有的键（`.`、`:`、`/`）会关掉列表，打的字（`@`、`@im`）照原样留下；在终端里 ← → 这时只关掉列表。
-`@question`、`@improve`、`@translate` 只在按执行键时发到你自己的 Bedrock；`@open` 只在本机搜索；`@note`、`@reminder` 只交给本机的「备忘录」和「提醒事项」；`@agent` 用的是你本机装的
+`@question`、`@improve`、`@translate`、`@reply` 只在按执行键时发到你自己的 Bedrock（截图在本机识别，只发送认出的文字）；`@open` 只在本机搜索；`@note`、`@reminder` 只交给本机的「备忘录」和「提醒事项」（`@note` 选了文件夹或 Notion 就存到那里）；`@agent` 用的是你本机装的
 agent（默认是 Claude Code 的 `claude` 命令）和它自己的账号，改文件、跑命令前它会照常先问你；没装这个 agent 时不显示
 `@agent`。`@imessage` 只在本机读通讯录（姓名、电话、邮箱），不经过 AI，由「信息」发出；没有「信息」App 时不显示。
 
@@ -110,6 +111,27 @@ agent（默认是 Claude Code 的 `claude` 命令）和它自己的账号，改�
 命令后面再写的字，对 `@improve`、`@translate` 是要求（`@translate ja`、`@improve 更正式`），对 `@question` 是关于这段文字的问题
 （`@question 这是什么意思`）。`@open`、`@agent`、`@tasks`、`@settings`、`@reminder`、`@imessage`、`@reportissue`、终端命令和脚本扩展不用它：它们只用你打的字，选中的文字不动。
 最多 5000 字；系统安全输入时、终端里不读。哪个 App 里不正常，在设置 →「通用」→「使用选中的文字」里关掉。
+
+### 用 @reply 回复消息（新）
+
+`@reply` 帮你写三条可以直接发出去的回复。把对方的消息交给它，任选一种，然后按 ⏎：
+
+- **选中**输入框里对方的消息，再打 `@reply`（选好的回复放在它后面，另起一行）。
+- **复制**对方的消息，打 `@reply` 后按 ⌃V：候选框显示「复制的消息 · N 字」，草稿不变。
+- **截图**到剪贴板（⌃⇧⌘4，或微信自带的截图），打 `@reply` 后按 ⌃V：候选框显示「截图 · N 行（本机识别）」。截图在本机识别
+  （Apple 的 Vision，第一次稍慢），只发送认出的文字，图片不离开这台 Mac，也不保存。和聊天软件一样，左边的是对方说的，右边的是你说的；
+  消息之间的时间不算。微信的窗口读不到文字，就用这个办法。
+
+后面写你想回什么（`@reply 委婉拒绝`、`@reply politely decline`），不写就让它照常回。回复用对方的语言（你要别的语言也可以写上），
+语气跟着 App 走：设置 →「App」里这个 App 的第一种改写风格，否则聊天软件随意、邮件正式，邮件里每条都是完整的正文。光标前后的文字也一起带上。
+`@reply` 后面没打字时按 ⌫，去掉粘贴进来的消息或截图。⏎ 或数字上屏一条；⌘R 再写三条（Esc 回到这三条），打字再按 ⇧⏎ 照常修改结果。
+在 Google Chrome 里，没有选中也没有粘贴时，它像 `@agent` 一样带上网页（设置 →「Agent」→「@agent 和 @reply 带上 Chrome 里的网页」）。
+既没有要回的消息也没打字时，它会提示怎么做。隐藏敏感信息也管截图里的文字；系统安全输入时不读剪贴板，也不发送。
+原来自己建的 `reply` 命令改名为 `@myreply`。
+
+截图粘进别的命令也能用：`@translate` 按 ⌃V 就是翻译截图（结果放在光标处），`@question 这上面说了什么` 按 ⌃V 就是问截图，
+不用 AI 的命令拿到的是截图里的文字，和复制来的一样（`@note` 保留换行）。选中了文字时，`@improve`、`@translate` 照旧处理选中的文字，
+并提示截图没有用上。
 
 ### 修改结果（新）
 
@@ -156,6 +178,13 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 ### 备忘录和提醒事项
 
 `@note` 存成一条新的备忘录，第一行是标题。复制一段话后在 `@note ` 后面按 ⌃V（终端以外也可以按 ⌘V），换行照原样保留，在命令里显示成 ↵。
+存到哪里在 设置 → 插件 →「笔记（@note）」→「存到」：
+
+- **备忘录**（和以前一样）：AllInOneIME 文件夹里的一条新备忘录。
+- **文件夹（Obsidian 等）**：你选的文件夹里，一条笔记一个 Markdown 文件，用第一行命名（`/\:*?"<>|#^[]` 换成 `-`；重名就加「 2」「 3」）。文件开头是 `created:` 的 front matter，后面是原样的全文。从不覆盖已有的文件；文件夹不在了（外接硬盘没接上、库挪走了）也不会新建，笔记回到命令里。在 Obsidian 库里（这个文件夹或上层有 `.obsidian`）提示说「已存到 Obsidian」，菜单栏面板用 Obsidian 打开。
+- **Notion**：点「创建集成…」（新建集成 → 内部 → 复制令牌），粘贴令牌（存在钥匙串里），再在 Notion 里打开那个页面或数据库 → ··· → 连接 → 加上你的集成，把它的链接贴进来；「测试」显示「✓ “Inbox”（数据库）」。页面下面新建一个子页面，数据库里新加一行（第一行当标题），其余是正文，一次请求存完。没联网或被拒绝时不会留着以后再发：笔记回到命令里。系统安全输入时 `@note` 不发到 Notion。
+
+提示会说存到了哪里（「已存到 Notion」「已存到 “Inbox”」）。
 有换行的笔记还没存就离开了输入框（点到别处、换 App），或者按了 ⇧⏎（原样上屏），它不会打进 App（在终端里每一行都会当成命令执行），而是复制到剪贴板（「笔记还没存，原文已复制到剪贴板」）；只有一行的照原样上屏。
 
 `@reminder` 认得这些写法：`明天下午3点`、`明晚7点`、`3点半`、`30分钟后`、`下周一 9:30`、`15号`、`周末`、`月底`、`下个月`（1号）、`月初`、`年底`、`元旦`、`圣诞节`、`1个月后`、`tomorrow at 3pm`、`in 2 hours`、`in 3 days at 3pm`、`next month`。
@@ -171,7 +200,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 
 ### 自己加命令
 
-在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页），也可以从例子开始。
+在设置的「自定义 @ 命令」里点「添加命令…」：起个名字，选它做什么（AI 指令、运行程序、在终端运行、打开网页、插入文字），也可以从例子开始。
 命令排在内置命令后面，名字只能用英文字母，不能和内置命令重名；保存后下一句就能用。
 它们存在配置文件（`~/.config/allinoneime/config.json`）的 `customCommands` 里，也可以直接改：
 
@@ -181,7 +210,8 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
   { "name": "bc", "type": "run", "argv": ["bc", "-l"], "stdin": "{input}\n" },
   { "name": "sh", "type": "terminal", "argv": ["zsh", "-c", "{input}"] },
   { "name": "reply", "type": "prompt", "prompt": "Write a short, polite reply to the user's message." },
-  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" }
+  { "name": "google", "type": "link", "url": "https://www.google.com/search?q={input}" },
+  { "name": "sig", "type": "snippet", "summary": "邮件签名", "text": "Best,\nWei\n{cursor}" }
 ]
 ```
 
@@ -191,6 +221,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 | `run` | 在后台运行 `argv`，打印的内容出现在候选里（多行照原样上屏，在终端里合成一行）；出错时显示错误的最后一行 |
 | `terminal` | 在新的终端窗口里运行 `argv`，不上屏 |
 | `link` | 把内容填进网址 `url`，在默认浏览器里打开，不上屏 |
+| `snippet` | 直接插入 `text`，里面的占位符先填好（见下）；不用 AI，不运行程序 |
 
 - `{input}` 换成命令后面写的内容，而且永远只占它所在的那一个参数，不经过 shell。要用 shell 就像上面的 `sh` 那样明确写 `zsh -c`。
 - `stdin`：给程序标准输入的内容，`{input}` 同样会被替换。
@@ -201,6 +232,28 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 - 找不到 `argv` 里的程序时（比如没装 `python3`），这个命令不显示，`@python …` 照常当文字上屏；装好后切换一下输入框就会出现。
 
 `run` 和 `terminal` 会在你的 Mac 上执行代码：只放你自己写的、信得过的命令；它们同样只在按执行键时运行，安全输入时不运行。
+
+#### 片段：常用的文字（新）
+
+`snippet` 命令（编辑器里的「插入文字」）插入存好的文字，比如签名、地址、会议链接：`@sig` ⏎ 直接上屏（Tab、空格只补全名字）。
+`text` 里可以写占位符：
+
+| 占位符 | 换成 |
+|---|---|
+| `{input}` | 名字后面写的全部内容：`#{input}` 配 `@tag foo bar` 插入 `#foo bar` |
+| `{名字?}` | 要填的空，按你写的内容用逗号（`,` 或 `，`）分开依次填：`Dear {name?}, see you {day?}.` 配 `@meet 张三，周五`。少写了会提示缺哪个，不上屏 |
+| `{clipboard}` | 剪贴板里的文字（macOS 可能先问一下） |
+| `{selection}` | 打 `@` 时选中的文字（会被替换掉，和别的命令作用在选中文字上一样） |
+| `{date}`、`{time}` | 今天 `2026-10-17`，时间 `14:05`；`{date:M月d日 EEEE}` 用[日期格式](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table)，按界面语言显示 |
+| `{cursor}` | 插入后光标停在这里（最多一个；终端里不移动） |
+
+- `{{` 写出 `{`，和它配对的 `}}` 写出 `}`（`{{input}}` 插入 `{input}`）；别的 `}}` 和 `{…}` 原样保留，片段里放 JSON 或代码没问题：
+  `{"a":{"b":1}}` 照原样插入。
+- 没有 `{input}` 也没有空时，名字后面写的内容接在片段后面，中间一个空格。
+- 在别的命令的文字里写 `@sig` 也会展开：`@question 总结一下 @zoom` 发出去的是链接本身。只有不含 `{clipboard}`、`{selection}`
+  和空的片段能这样用；带 `{input}` 的取一个词或引号里的内容：`@meet「周五 3点」`。
+- 只是纯文字（换行保留），最多 20000 字。片段只在这台 Mac 上处理，安全输入时、设成「不用 AI」的 App 里也能用。扩展包也能带片段
+  （`extension.json` 里的 `snippets`，见 [docs/extensions.md](docs/extensions.md)）。
 
 ### 脚本扩展
 
@@ -375,6 +428,7 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 | 学到的词 | 拼音从你的选择里学到的词（Rime 的用户词典，用 librime 的用户词典同步；你自己的 Rime 文件，比如自定义短语，只留在这台 Mac 上） | 开 |
 | 隐藏的词 | 你对 AI 隐藏的词（「只有开了『高级数据保护』，iCloud 云盘才是端到端加密的」） | 关 |
 | 最近的问题 | `@question` 最近的问题和答案（开着「记住最近的问题」时） | 关 |
+| API 密钥和密码 | 你的 API key 和扩展的密码，经过 iCloud 钥匙串，始终端到端加密（需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」） | 关 |
 
 `iCloud 云盘/AllInOneIME/settings.json` 里每项设置都记着什么时候改的、在哪台 Mac 上改的（一个随机编号），每项按最新的改动为准：列表
 （自定义命令、改写风格）算一个值，按 App 的设置一个 App 一个 App 地合并，删掉某个 App 的设置也算一次改动。输入法启动时、你改了东西
@@ -383,6 +437,9 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 
 - 打开同步时，这台 Mac 先接收 iCloud 里已有的设置；它自己的设置只补上 iCloud 里还没有的。成组的内容则合并：最近的问题（两边的都留，
   新的在前，同一个问题只留一次）、隐藏的词、自定义命令（按名字合并，重名时用 iCloud 里的）和黑话库的每一行。第一次打开下面某个开关时也一样。
+  之后在另一台 Mac 上删掉的（比如一条自定义命令或一个隐藏词）不会再回来。以下情况会回来一次，再删一次就不会再回来：它来自第一台开启同步的
+  Mac，而另一台 Mac 合并自己的列表时那台 Mac 正在睡眠；它是在还在用 0.6.4 的 Mac 上删的；或者被还在用 0.6.4 的 Mac 带了回来。
+  一台 Mac 打开同步的过程中在设置里保存的设置会保留，并同步到其他 Mac。
 - 关掉后再打开：这期间 iCloud 里改过的用 iCloud 的（这台 Mac 也改过的同样如此），只有这台 Mac 改过的传上去，这台 Mac 这期间往成组内容里加的
   会合并进去，不会丢。
 - 两台 Mac 的最近的问题会合并；在一台 Mac 上点「清除」，别的 Mac 上在那之前问的问题也会清掉。关掉「记住最近的问题」只删这台 Mac 上的，再打开时别的 Mac 上的问题会回来。
@@ -392,11 +449,22 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 - 别的 Mac 来的值在这台 Mac 上用不了时（这里没有密钥的服务、这里没有的 AWS profile、超出范围的值）不会用上：状态那一行和设置 → 助手的「检查问题」会说是哪些。
 - iCloud 还没下载下来的文件会等它下载，从不当成空的；读不了的 `settings.json` 会改名放到一边（`settings (unreadable …).json`），从不覆盖。
   新版本才有的设置原样保留。
-- 从不同步：密钥、令牌和密码（它们在钥匙串里），扩展来源（会运行代码：每台 Mac 自己决定），扩展文件夹和插件（每台 Mac 上的路径），
+- API 密钥和密码经过 iCloud 钥匙串，不经过 iCloud 云盘：开着「API 密钥和密码」（同步打开时）时，在一台 Mac 上保存或替换的密钥，别的 Mac 上也有。
+  它默认关：只打开同步不会移动任何密钥，你打开这一项之前什么都不移。
+  打开时，这台 Mac 的密钥从登录钥匙串移进 iCloud 钥匙串（之后更新时 macOS 不再为它们要登录密码）；关掉时，密钥复制回登录钥匙串，iCloud 钥匙串里的留给你别的 Mac。
+  不同步的密钥照旧留在登录钥匙串里；AllInOneIME Cloud 的登录也是，它从不同步：每台 Mac 各自登录。两台 Mac 上的密钥不一样时，以最后保存的为准（按保存的时间，每个副本都带着）。
+  另一个不会被删：作为替换下来的副本留在它那台 Mac 的登录钥匙串里（在「AllInOneIME replaced API key」下，名称以「(replaced)」结尾），从不使用。
+  移进 iCloud 钥匙串的密钥也留一份这样的副本，以防别的 Mac 上不一样的密钥盖过它。每台 Mac 上每个密钥只留一份副本：后来的替换先前的。
+  同步时删除密钥，每台同步密钥的 Mac 上都删除（确认时问「所有的 Mac」），这台 Mac 上的副本也删掉；关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，留着自己的那份，以后在那台 Mac 上打开密钥同步时会把它放回去（确认时也会说明）。
+  关着它的 Mac 上点「删除…」，只删这台 Mac 上的密钥和副本（确认时问「这台 Mac」），iCloud 钥匙串里的留给你别的 Mac。
+  要移动时 macOS 不给读、需要登录密码的密钥，会留在登录钥匙串里，直到下次用到：那时 macOS 问密码、你允许的话，它还会被用上，即使它已经在别的 Mac 上删掉了。
+  每个密钥仍然只发给它保存时对应的主机。同步密钥时，`allinoneime-cli` 和 0.6.5 以前的版本读不到钥匙串里的这些密钥。没有描述文件的版本（开发版）把密钥留在登录钥匙串里，
+  不能同步：那一行会写明。
+- 从不同步：AllInOneIME Cloud 的登录，AWS 凭证（在 `~/.aws` 里），扩展来源（会运行代码：每台 Mac 自己决定），扩展文件夹和插件（每台 Mac 上的路径），
   不再打错的 App 和最近用过的 App，窗口状态，还有同步开关本身（每台 Mac 自己的）。
 - 关掉同步就不再同步，这台 Mac 和 iCloud 里的东西都原样保留；「**从 iCloud 移除…**」（先确认）把那个文件夹移到废纸篓，并关掉这台 Mac 的同步。
 - 在设置 → 助手里写「通过 iCloud 同步」可以打开或关掉同步；隐藏的词和最近的问题只能在设置 → 通用里选。配置里是 `iCloudSync`（`enabled`、`settings`、
-  `jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`）。
+  `jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`、`keys`）。
 
 ## 菜单栏面板
 
@@ -404,7 +472,7 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 
 点菜单栏的 AllInOneIME 图标（∞ 和光标的标志，不带方框；带方框的是输入法本身的图标），面板就从图标下面拉下来，点别处就收起：
 
-- 备忘录：用 `@note` 存的笔记，最新的 5 条；点一条在「备忘录」里打开。
+- 笔记：用 `@note` 存的笔记，最新的 5 条；点一条就在存到的地方打开：「备忘录」、Obsidian 或文件自己的 App、Notion 页面。文件不在了就不再列出。
 - 提醒事项：「提醒事项」里 AllInOneIME 列表中还没完成的提醒（`@reminder` 就加在这个列表里），快到期的在前，显示 8 个；点前面的圆圈就勾掉，点标题打开「提醒事项」。
 - Claude 任务：和 `@tasks` 一样，列出后台的 Claude 任务（`@agent` 交给 Claude Code 的），最多 30 个，一次显示 5 个，多了可以滚动，也可以在搜索框里按标题或回复搜；带进度和最后回复的第一行，点一个在终端里打开接着聊。
 
@@ -568,7 +636,7 @@ make install
 2. 用一个有 `bedrock:InvokeModelWithResponseStream` 权限的 AWS profile：`~/.aws/credentials` 里的固定密钥，或者能拿到临时凭证的
    profile（`credential_process`、角色、SSO；见下面的「AWS profile」）。
 3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
-   选好 profile、区域和模型，点「测试连接」。设置 →「通用」里的「界面语言」可以选简体中文或 English；默认「跟随系统」，跟随系统的首选语言（系统设置 → 通用 → 语言与地区）：用其中排在最前、App 带有的那一种，任何中文都显示简体中文，都没有时显示英文。
+   选好 profile、区域和模型，点「测试连接」。界面有简体中文、繁體中文、English、日本語、한국어、Deutsch、Français、Español 和 Português (Brasil)。默认（设置 →「通用」→「界面语言」里的「跟随系统」）跟随系统的首选语言（系统设置 → 通用 → 语言与地区）：用其中排在最前、App 带有的那一种，带地区的用它的语言（de-AT 用德语，es-MX 用西班牙语，fr-CA 用法语），zh-Hant、zh-TW 和 zh-HK 用繁体中文，别的中文用简体中文，葡萄牙的葡萄牙语也用巴西葡萄牙语（比英文好读），都没有时显示英文。也可以在那里直接选一种，每种都用它自己的语言写。
    设置窗口、候选框里的提示和输入法菜单都跟着它。
    设置打开时先显示「助手」：用一句话改设置，检查问题、能修的点「修复」（见[设置 → 助手](#设置--助手新)）。
 
@@ -616,7 +684,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | 兼容 OpenAI 的服务 | OpenAI 的 `gpt-6-luna`（也可选 `gpt-5.4-mini`）；「常用服务…」里有 DeepSeek、通义千问、Kimi、智谱 GLM、硅基流动、OpenRouter、本机 Ollama，选了会填好 Base URL，再填它的模型 | 那个服务的 key；Base URL 填它的地址，比如 `https://api.deepseek.com/v1`，本机 Ollama 填 `http://localhost:11434/v1` |
 
-- API key 存在系统钥匙串里，不写进配置文件。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
+- API key 存在登录钥匙串里，不写进配置文件；在「通过 iCloud 同步」里打开「API 密钥和密码」的话，改存在 iCloud 钥匙串里，`allinoneime-cli` 和 0.6.5 以前的版本读不到。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
 - API key 那一行直接写有没有 key：「✓ 已保存 · 结尾 a1b2」（最后 4 位，存 key 时一起记下，显示时不用读 key 本身），旁边是「替换…」「删除…」；用 shell 里的写「✓ 来自 $OPENAI_API_KEY」；没有就写「还没有 API key」，直接给出粘贴框。
 - 「思考」默认是 low：输入法每句话都在等，思考越少越快。模型不支持这个参数时选「不设置」。
 - 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
@@ -659,7 +727,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `improveTranslates` | `@improve` 同时翻译（等于 `@translate @improve`） | `false` |
 | `voiceInput` | 按住右 ⌥ 说话 | `true` |
 | `actionKey` | 执行键：`"enter"`（⏎）、`"optionTap"`（单按 ⌥）、`"optionSpace"`（⌥空格）、`"space"`（空格） | `"enter"` |
-| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码 | `null`（跟随系统） |
+| `uiLanguage` | 界面语言（设置窗口、候选框提示、菜单）：`"zh"`（简体中文）、`"en"`，或 App 带的别的语言的代码：`"zh-Hant"`、`"ja"`、`"ko"`、`"de"`、`"fr"`、`"es"`、`"pt-BR"` | `null`（跟随系统） |
 | `rewriteStyles` | 改写风格，例如 `["润色", "简洁", "黑话"]` | `["润色", "简洁", "正式"]` |
 | `jargonFile` | 你自己的黑话词表文件 | `null`（即 `~/.config/allinoneime/jargon.txt`） |
 | `menuBarIcon` | 菜单栏图标和它的下拉面板 | `true` |
@@ -675,6 +743,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`（见「按 App 设置」） | `{}` |
+| `notes` | `@note` 存到哪里（设置 → 插件 → 笔记）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或者 `"notion"` 加上「测试」找到的页面或数据库；不通过 iCloud 云盘同步（令牌在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `destination: "notes"` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
 ## 隐私
@@ -687,12 +756,12 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - 语音只在按住右 ⌥ 时录音，在本机识别；只有在上面这些命令里，识别出的文字才会在你按执行键时发出去。
 - 只有在命令里按 ⌃V 或 ⌘V 时，输入法才读一次剪贴板里的文字；密码管理器标成隐藏的内容不读。读到的文字先显示在命令里，同样要你再按执行键才发出去。新版 macOS 会问是否允许 AllInOneIME 读取剪贴板，选「允许」；不想每次都问，可以在 系统设置 → 隐私与安全性 里把 AllInOneIME 的粘贴权限设成总是允许。
 - 在密码框里 macOS 会临时切到系统键盘（U.S. 或 ABC），离开后切回来。只要你正在打字的应用开着安全输入，AllInOneIME 就不组字、也不能录音，按键原样输入。只要系统处于安全输入状态（密码框、终端的安全键盘输入等），就不会发任何内容给 AI。
-- `@note`、`@reminder` 不发给 AI：AllInOneIME 只把文字交给这台 Mac 上的「备忘录」和「提醒事项」，提醒的时间也在本机读出（这两个 App 会不会把它同步到别的设备，看它们用的账户，比如 iCloud）。所以系统处于安全输入状态时，它们也照常能用。
+- `@note`、`@reminder` 不发给 AI：AllInOneIME 只把文字交给这台 Mac 上的「备忘录」和「提醒事项」，提醒的时间也在本机读出（这两个 App 会不会把它同步到别的设备，看它们用的账户，比如 iCloud）。所以系统处于安全输入状态时，它们也照常能用。`@note` 存到文件夹是在这台 Mac 上写一个文件（文件夹本身同步的话，比如在 iCloud 云盘或用 Obsidian Sync，它也跟着同步）。`@note` 存到 Notion 会把笔记发给 Notion（api.notion.com，用你的集成令牌，令牌存在钥匙串里），只有这时才发；系统安全输入时不发。
 - `@reportissue`（和「报告问题…」）自己不发送任何东西：它在浏览器里打开 GitHub 的新问题页，带着你写的标题和上面说的版本、语言、AI 服务的种类和数量，打开前先在候选框里列出来。你不在 GitHub 上点提交，什么都不会发出去。
 - `@open` 只在本机搜索。它记得你用它打开过什么（最近 200 个），存在输入法自己的偏好设置里（不在 config.json 里），用来排序。
 - 为了「按 App 设置」里的「添加 App…」，输入法记下最近打过字的 12 个 App 的 bundle ID，存在它自己的偏好设置里，别的都不记。
 - `@question` 记着最近 5 个问题、答案和提问时间，只存在这台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的用户能读；除非你选了通过 iCloud 同步它们，见上面），用来在 `@question` 下面列出来；看保存的答案不联网。系统安全输入时什么都不存；对选中文字的提问一律不存（答案说的是选中的文字，存下来就会把那段文字写到磁盘上）。在设置 →「通用」里关掉「记住最近的问题」会删掉已存的；用设置 → 助手关掉（配置里的 `rememberQuestions`）时保留，这样能原样撤销。「清除」删掉已存的。
-- 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。
+- 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号（备忘录里的编号、文件的路径或 Notion 页面的地址）和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。打开面板从不访问 Notion。
 - `@py`、`@js` 只在你按执行键时运行，运行的只是你自己打的或明确粘贴进来的代码：AI 的回答和其他命令的输出从来不会被当成代码执行。`@py` 用你本机的 `python3`，和在终端里运行一样能读写文件、联网；`@js` 在单独的进程里运行，读不到文件，也不能联网或运行别的程序。安全输入时它们都不运行。
 - 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update.json 和它的签名；请求里没有任何标识，也没有你打的字。只有点了「更新」，才会从 GitHub release 下载新版本。
 - 扩展来源：git 在你的 Mac 上以你的身份运行，只针对你加的来源：自动检查的来源每天拉取一次（固定的不拉取），以及你点「立即检查」「更新」「重新克隆」时。
@@ -718,7 +787,8 @@ make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已�
 make screenshots  # 重新生成 docs/ 里的截图
 make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # 在终端里试翻译和改写
 make icon         # 从 Resources/AppIcon.png 重新生成 App 图标和菜单栏图标
-make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；有 Developer ID 证书时签名，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
+make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；需要签名用的 Developer ID 证书和描述文件 DIST_PROFILE，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
+make app PROFILE=<描述文件> SIGN_IDENTITY=<它列出的证书>   # 带钥匙串权限的版本：可以经过 iCloud 钥匙串同步密钥
 make update-test  # 应用内更新的端到端测试：临时的安装目录、127.0.0.1 上的测试服务器、测试密钥（不碰装好的 App）
 ```
 
@@ -728,13 +798,15 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 `Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的
 `xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为 key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过；自测 `*SelfTest.swift` 里的文字不拿去翻译）。同一句英文有两种意思时（`make strings` 会列出来，`make strings-check` 会不通过），给其中一个单独的
 key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", key: "remove.delete")`；catalog 里这个 key 的英文就是这句英文。加一种
-语言，就是在 catalog 里加它的一列。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
+语言，就是在 catalog 里加它的一列：审过的译文每种语言一个 JSON 文件（`"core\t<key>"` 或 `"app\t<key>"` → 译文），用
+`Scripts/import-translations.py <文件夹>` 合进去；它从不改英文，占位符和 key 对不上的译文不收。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
 `.lproj`；别的平台用 `StringCatalog` 读 catalog 里的表）。
 
 代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）；`Windows/` 是 Windows App 的开头。
 
 - `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含 @ 命令和语音手势），不依赖 AppKit
 - `Core/Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）
+- `Core/Sources/AllInOneIMEQuickJS`：QuickJS-ng（C 源码在 `Core/Sources/CQuickJS`），没有 JavaScriptCore 的平台（Windows、Linux、Android）上插件和 `@js` 用的 JavaScript
 - `Core/Sources/AllInOneIMERime`：librime 封装
 - `Core/Sources/AllInOneIMECLI`：命令行 `allinoneime-cli`（`make cli`），由各平台自己的 `main` 运行
 - `Sources/AllInOneIMEMac`：只有 Mac 才有的部分（键盘布局、代码签名、Spotlight、AppleScript、更新的安装）和 `Platform.mac`
@@ -747,6 +819,10 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致）和更新日志。
 2. `make dmg NOTARY_PROFILE=<profile>`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
    App 和磁盘映像用钥匙串里的 Developer ID Application 证书签名，磁盘映像再用这个 `xcrun notarytool` 钥匙串配置公证并装订（staple）。
+   输入法带着 Developer ID 描述文件（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），钥匙串权限来自它；
+   描述文件没列出签名用的证书、不是所有设备都能用、或剩下不到 30 天时，构建会停下（`Scripts/profile-entitlements.sh`），签名里没有钥匙串权限也会停下，
+   签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移进 iCloud 钥匙串的密钥。描述文件只列了两张 Developer ID G1 证书：换用别的证书（G2）签名前，先在开发者网站上手动做一个列出它的
+   新描述文件（这个 App ID 的签名不要再交给 Xcode 自动管理），提交进来。
 3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update.json`
    （版本、build 号和最低 macOS 从 App 里读，下载地址、大小、SHA-256、更新说明的地址和摘要），再用登录钥匙串里的密钥
