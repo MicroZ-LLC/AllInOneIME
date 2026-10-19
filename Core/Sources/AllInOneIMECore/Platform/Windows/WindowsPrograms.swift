@@ -14,9 +14,11 @@ import WinSDK
 ///   the other Windows Script Host files with cscript, .sh and a file whose first line is "#!" with Git Bash's bash when
 ///   it is installed (a "#!" line names the interpreter: sh and bash are Git Bash's, python the Python launcher's, any
 ///   other one found on the PATH or among Git's tools).
-enum WindowsPrograms {
+///
+/// Public for the Windows shell, which starts a program in a console window of its own the same way (`@agent`).
+public enum WindowsPrograms {
     /// What a file is, as far as starting it goes.
-    enum Kind: Equatable {
+    public enum Kind: Equatable {
         /// A Windows program: .exe, .com, or another file that is one (it starts with "MZ").
         case program
         /// .bat, .cmd: through cmd.exe.
@@ -35,9 +37,9 @@ enum WindowsPrograms {
 
     /// What `CreateProcessW` is given: the program it starts (a full path, "C:\…") and the command line it hands that
     /// program, from which it reads its arguments.
-    struct Invocation: Equatable {
-        var application: String
-        var commandLine: String
+    public struct Invocation: Equatable {
+        public var application: String
+        public var commandLine: String
     }
 
     // MARK: Finding a program
@@ -46,7 +48,7 @@ enum WindowsPrograms {
     /// written (relative to `directory`, or to the current folder when there is none; "~" is the home folder only when
     /// `expandingTilde`). Either is the file itself when it is one Windows runs or a script whose kind is known
     /// (`kind(of:)`), else the first that is with one of PATHEXT's extensions added ("git" → "git.exe"). Nil when none is.
-    static func find(_ program: String, path: String?, directory: URL? = nil, expandingTilde: Bool = false) -> URL? {
+    public static func find(_ program: String, path: String?, directory: URL? = nil, expandingTilde: Bool = false) -> URL? {
         guard !program.isEmpty, !program.contains("\0") else { return nil }
         let extensions = executableExtensions()
         if program.contains(where: CorePaths.isSeparator) || hasDrive(program) {
@@ -105,7 +107,7 @@ enum WindowsPrograms {
     }
 
     /// `name`'s value in `environment`, its name in any case (Windows' variables are "Path" as much as "PATH").
-    static func variable(_ name: String, in environment: [String: String]) -> String? {
+    public static func variable(_ name: String, in environment: [String: String]) -> String? {
         environment[name] ?? environment.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value
     }
 
@@ -143,7 +145,7 @@ enum WindowsPrograms {
     /// What `url` is when it is a file (not a folder) that can be started: by its extension, else by its first bytes
     /// ("#!", "MZ"). Nil for any other file, or none, and for a device's name (`CorePaths.isDeviceName`: "NUL",
     /// "con.bat"), which Windows opens as the device in any folder.
-    static func kind(of url: URL) -> Kind? {
+    public static func kind(of url: URL) -> Kind? {
         guard !CorePaths.isDeviceName(Substring(url.lastPathComponent)) else { return nil }
         var isFolder: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), !isFolder.boolValue else { return nil }
@@ -183,7 +185,7 @@ enum WindowsPrograms {
     /// How `file` is started with `arguments`: what `CreateProcessW` is given. `environment` (nil: the input method's) is
     /// the program's, whose PATH is looked in first for an interpreter. Throws when the file isn't one that runs, its
     /// interpreter isn't installed, or an argument can't be passed (`WindowsCommandLine`).
-    static func invocation(of file: URL, arguments: [String], environment: [String: String]?) throws -> Invocation {
+    public static func invocation(of file: URL, arguments: [String], environment: [String: String]?) throws -> Invocation {
         guard let kind = kind(of: file) else { throw WindowsLaunchError.notRunnable(file.path) }
         let path = windowsPath(file)
         switch kind {

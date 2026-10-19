@@ -29,8 +29,11 @@ struct EffectsTests {
         #expect(client.system.opened == [#"C:\Users\Public"#, "https://example.com/", "https://example.com/search?q=a%20b"])
         client.host.perform(.launchInTerminal(argv: ["git", "status"]), in: session)
         client.host.perform(.runInTerminal(prompt: "fix the bug"), in: session)
-        #expect(client.system.launched.first == ["git", "status"])
-        #expect(client.system.launched.last?.last == "fix the bug")
+        client.host.perform(.continueInClaudeCode(prompt: "-the conversation"), in: session)
+        let launched = client.system.launched
+        #expect(launched.map(\.argv) == [["git", "status"], ["claude", "--"], ["claude", "--"]])
+        // The prompt is the agent's first message, after "--": never read as an option.
+        #expect(launched.map(\.prompt) == [nil, "fix the bug", "-the conversation"])
     }
 
     @Test func pasteReadsTheClipboardIntoTheDraft() throws {

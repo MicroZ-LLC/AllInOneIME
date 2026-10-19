@@ -14,8 +14,9 @@ public protocol SystemActions: Sendable {
     func readClipboard() -> String?
     /// Opens a web address in the default browser, or a file, folder or program as Explorer would.
     func open(_ target: String) throws
-    /// Runs `argv` in a new console window, where the user sees and answers it.
-    func launchInTerminal(_ argv: [String]) throws
+    /// Runs `argv` in a new console window, where the user sees and answers it, with `prompt` (an agent's first
+    /// message) as its last argument when there is one.
+    func launchInTerminal(_ argv: [String], prompt: String?) throws
     /// Files and apps named like `query` (`@open`).
     func search(_ query: String) -> [SearchResult]
 }
@@ -78,33 +79,48 @@ public struct WindowsSystem: SystemActions {
         }
     }
 
-    /// In Windows PowerShell's console, which runs the program with its arguments as they are: they go to it encoded
-    /// (`-EncodedCommand`, UTF-16 in Base64), each in single quotes, so no character in a prompt is the shell's.
-    public func launchInTerminal(_ argv: [String]) throws {
-        guard let program = argv.first, !program.isEmpty else { throw SystemActionError("No program to run") }
-        let quoted = argv.map { "'" + $0.replacingOccurrences(of: "'", with: "''") + "'" }
-        let script = "& " + quoted.joined(separator: " ")
-        let encoded = Data(script.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }).base64EncodedString()
-        let system = Self.systemFolder
-        let powershell = system + #"\WindowsPowerShell\v1.0\powershell.exe"#
-        var commandLine = Array(("\"\(powershell)\" -NoLogo -NoExit -ExecutionPolicy Bypass -EncodedCommand \(encoded)").utf16) + [0]
+    /// In a console window of its own, started directly, with no shell in between (`ConsoleCommand`: the program found
+    /// on the PATH, its arguments quoted for it, a batch file's escaped for cmd.exe, a prompt too long for the command
+    /// line in a file), in the user's home folder. Started suspended: the right to take the foreground the client gave
+    /// the engine (`allowForeground`) goes to that one process, then it runs.
+    public func launchInTerminal(_ argv: [String], prompt: String?) throws {
+        let path = WindowsPrograms.variable("PATH", in: ProcessInfo.processInfo.environment)
+        let command = try ConsoleCommand.make(argv, prompt: prompt, path: path, promptFolder: ConsoleCommand.defaultPromptFolder)
+        do {
+            try Self.start(command, flags: DWORD(CREATE_NEW_CONSOLE))
+        } catch {
+            if let file = command.promptFile { try? FileManager.default.removeItem(at: file) }
+            throw error
+        }
+    }
+
+    /// Starts `command` suspended (with `flags`: a console of its own), lets it take the foreground, then lets it run.
+    /// Its process id.
+    @discardableResult
+    static func start(_ command: ConsoleCommand, flags: DWORD) throws -> DWORD {
+        var commandLine = Array(command.commandLine.utf16) + [0]
         var startup = STARTUPINFOW()
         startup.cb = DWORD(MemoryLayout<STARTUPINFOW>.size)
         var info = PROCESS_INFORMATION()
-        AllowSetForegroundWindow(DWORD(bitPattern: -1))  // ASFW_ANY
-        let ok = powershell.withCString(encodedAs: UTF16.self) { application in
-            CreateProcessW(application, &commandLine, nil, nil, false, DWORD(CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT), nil,
-                           nil, &startup, &info)
+        let home = CorePaths.home.withUnsafeFileSystemRepresentation { String(cString: $0!) }
+        let ok = command.application.withCString(encodedAs: UTF16.self) { application in
+            home.withCString(encodedAs: UTF16.self) { home in
+                CreateProcessW(application, &commandLine, nil, nil, false, flags | DWORD(CREATE_SUSPENDED) | DWORD(CREATE_UNICODE_ENVIRONMENT),
+                               nil, home, &startup, &info)
+            }
         }
-        guard ok else { throw SystemActionError("Couldn't start a terminal window (error \(GetLastError()))") }
-        CloseHandle(info.hThread)
-        CloseHandle(info.hProcess)
-    }
-
-    static var systemFolder: String {
-        var buffer = [WCHAR](repeating: 0, count: Int(MAX_PATH))
-        let count = GetSystemDirectoryW(&buffer, UINT(buffer.count))
-        return count > 0 ? String(decoding: buffer.prefix(Int(count)), as: UTF16.self) : #"C:\Windows\System32"#
+        guard ok else { throw SystemActionError("Couldn't start \(command.application) (error \(GetLastError()))") }
+        defer {
+            CloseHandle(info.hThread)
+            CloseHandle(info.hProcess)
+        }
+        AllowSetForegroundWindow(info.dwProcessId)
+        guard ResumeThread(info.hThread) != DWORD(bitPattern: -1) else {
+            let error = GetLastError()
+            TerminateProcess(info.hProcess, 1)
+            throw SystemActionError("Couldn't start \(command.application) (error \(error))")
+        }
+        return info.dwProcessId
     }
 
     public func search(_ query: String) -> [SearchResult] { FileSearch.search(query) }

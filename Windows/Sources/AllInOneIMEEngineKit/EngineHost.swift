@@ -329,23 +329,13 @@ public final class EngineHost: WireHost, @unchecked Sendable {
                 return composer.pasted(text, id: id)
             }
         case let .runInTerminal(prompt):
-            let config = settings.current
-            guard let argv = config.agent.terminalArguments(custom: config.agentCommand) else {
-                notice(tr("还没有设置编程助手的命令", "No command set for the coding agent"), in: session)
-                break
-            }
-            launch(argv + [prompt], in: session)
+            launch(settings.current.agent, prompt: prompt, in: session)
         case let .continueInClaudeCode(prompt):
-            launch(["claude", prompt], in: session)
+            launch(.claude, prompt: prompt, in: session)
         case let .continueInAgent(agent, prompt):
-            let config = settings.current
-            guard let argv = agent.terminalArguments(custom: config.agentCommand) else {
-                notice(tr("还没有设置编程助手的命令", "No command set for the coding agent"), in: session)
-                break
-            }
-            launch(argv + [prompt], in: session)
+            launch(agent, prompt: prompt, in: session)
         case let .launchInTerminal(argv):
-            launch(argv, in: session)
+            launch(argv, prompt: nil, in: session)
         case let .saveNote(text):
             saveNote(text, in: session)
         case .openSettings:
@@ -379,10 +369,20 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
-    func launch(_ argv: [String], in session: ComposerSession) {
+    /// `agent` (`AgentKind.terminalArguments`: "claude --", the custom agent's command) in a console window, `prompt`
+    /// its first message, as the Mac's `@agent` and `@question`'s hand-off start it.
+    func launch(_ agent: AgentKind, prompt: String, in session: ComposerSession) {
+        guard let argv = agent.terminalArguments(custom: settings.current.agentCommand) else {
+            notice(tr("还没有设置编程助手的命令", "No command set for the coding agent"), in: session)
+            return
+        }
+        launch(argv, prompt: prompt, in: session)
+    }
+
+    func launch(_ argv: [String], prompt: String?, in session: ComposerSession) {
         do {
-            try system.launchInTerminal(argv)
-            log("session \(session.sid): started a terminal window (\(argv.count) arguments)")
+            try system.launchInTerminal(argv, prompt: prompt)
+            log("session \(session.sid): started a terminal window (\(argv.count) arguments\(prompt.map { ", a prompt of \($0.count) characters" } ?? ""))")
         } catch {
             notice(Self.describe(error), in: session)
         }

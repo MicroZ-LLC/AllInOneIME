@@ -94,7 +94,7 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
     private let lock = NSLock()
     private var _clipboard: String?
     private var _opened: [String] = []
-    private var _launched: [[String]] = []
+    private var _launched: [(argv: [String], prompt: String?)] = []
     var searchResults: [SearchResult] = []
 
     var clipboard: String? {
@@ -102,7 +102,7 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
         set { lock.lock(); _clipboard = newValue; lock.unlock() }
     }
     var opened: [String] { lock.lock(); defer { lock.unlock() }; return _opened }
-    var launched: [[String]] { lock.lock(); defer { lock.unlock() }; return _launched }
+    var launched: [(argv: [String], prompt: String?)] { lock.lock(); defer { lock.unlock() }; return _launched }
 
     func copy(_ text: String) -> Bool {
         clipboard = text
@@ -117,9 +117,9 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
         lock.unlock()
     }
 
-    func launchInTerminal(_ argv: [String]) throws {
+    func launchInTerminal(_ argv: [String], prompt: String?) throws {
         lock.lock()
-        _launched.append(argv)
+        _launched.append((argv, prompt))
         lock.unlock()
     }
 
