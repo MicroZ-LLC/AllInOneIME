@@ -23,20 +23,35 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
     /// Why the last save failed.
     public var saveError: String?
     public var sections: [Section]
+    /// The words of the window's own controls, in the interface language, by name (`SettingsText.windowStrings`): its
+    /// title, the buttons an action or a list has ("action.setKey": "Save", "moveUp": "Move up"), a confirmation
+    /// ("confirm.remove": "Remove “%@”?"). A client keeps its own words for what isn't here.
+    public var strings: [String: String]?
 
     public init(language: String, platform: SettingsPlatform, loadError: String? = nil, saveError: String? = nil,
-                sections: [Section]) {
+                sections: [Section], strings: [String: String]? = nil) {
         self.language = language
         self.platform = platform
         self.loadError = loadError
         self.saveError = saveError
         self.sections = sections
+        self.strings = strings
     }
 
-    /// The field `id`, wherever it is.
+    /// The field `id`, wherever it is: in a section, or one of an item's own fields (an app's settings, an extension's).
     public func field(_ id: String) -> Field? {
         for section in sections {
-            if let field = section.fields.first(where: { $0.id == id }) { return field }
+            if let field = Self.field(id, in: section.fields) { return field }
+        }
+        return nil
+    }
+
+    static func field(_ id: String, in fields: [Field]) -> Field? {
+        for field in fields {
+            if field.id == id { return field }
+            for item in field.items ?? [] {
+                if let found = Self.field(id, in: item.fields ?? []) { return found }
+            }
         }
         return nil
     }
@@ -118,6 +133,19 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         /// What `settingsAction` takes for it.
         public var actions: [String]?
         public var items: [Item]?
+        /// A `words` field's list as one line of text, as the field shows it (", " between the words, or a command line):
+        /// `settingsSet` takes such a line too, split the same way.
+        public var text: String?
+        /// "folder" or "file": a text (or an `add` action's value) that names one, for which a window may offer its picker.
+        public var pick: String?
+        /// A text of several lines (an instruction, a snippet).
+        public var multiline: Bool?
+        /// A form's field (`form`) shown only while the form's other field (the key) has one of these values: what a
+        /// command of one type has.
+        public var when: [String: [AIConfig.JSONValue]]?
+        /// An `items` field whose `save` takes a definition (a custom command's): the editor's fields, by the definition's
+        /// keys, empty for a new one or filled in from an item's `value`.
+        public var form: [Field]?
 
         public init(id: String, kind: Kind, label: String, help: String? = nil, value: AIConfig.JSONValue? = nil) {
             self.id = id
@@ -157,13 +185,18 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         /// Its definition, for an editor (a custom command's fields).
         public var value: AIConfig.JSONValue?
         public var actions: [String]?
+        /// Its own settings (an app's, an extension's switch and preferences): fields as any other, set and acted on by
+        /// their `id`.
+        public var fields: [Field]?
 
-        public init(id: String, title: String, detail: String? = nil, value: AIConfig.JSONValue? = nil, actions: [String]? = nil) {
+        public init(id: String, title: String, detail: String? = nil, value: AIConfig.JSONValue? = nil, actions: [String]? = nil,
+                    fields: [Field]? = nil) {
             self.id = id
             self.title = title
             self.detail = detail
             self.value = value
             self.actions = actions
+            self.fields = fields
         }
     }
 }
@@ -198,7 +231,7 @@ public struct SettingsProblem: Error, Codable, Equatable, Sendable {
 /// What `settingsAction` asks of a field: one of its `actions`.
 public struct SettingsAction: Equatable, Sendable {
     public var field: String
-    /// "setKey", "removeKey", "test", "browse", "install", "remove", "save", "delete".
+    /// "setKey", "removeKey", "test", "browse", "install", "remove", "save", "delete", "add", "hide", "show".
     public var name: String
     /// The item it is about (a plugin's name, a command's).
     public var item: String?
@@ -223,6 +256,9 @@ public struct SettingsAction: Equatable, Sendable {
     public static let remove = "remove"
     public static let save = "save"
     public static let delete = "delete"
+    public static let add = "add"
+    public static let hide = "hide"
+    public static let show = "show"
 }
 
 /// What an action did: done, with what it says (a test's outcome); or refused (`SettingsProblem`).

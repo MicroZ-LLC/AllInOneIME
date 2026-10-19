@@ -27,6 +27,39 @@ extension UIText {
         }
     }
 
+    /// The words of a settings window's own controls (`SettingsDocument.strings`), in the interface language: its title,
+    /// the buttons of the fields' actions ("action.<name>", and "action.<name>.item" where an item's differs), of the
+    /// lists and the editors, and the confirmation an action that deletes asks for ("confirm.<name>", "{name}" the thing's).
+    public static var settingsWindowStrings: [String: String] {
+        [
+            "window.title": tr("AllInOneIME 设置", "AllInOneIME Settings"),
+            "action.setKey": tr("保存", "Save"),
+            "action.removeKey": tr("删除…", "Remove…", key: "action.removeKey"),
+            "action.test": tr("测试", "Test"),
+            "action.browse": tr("打开插件库", "Open the Library"),
+            "action.install": tr("安装", "Install"),
+            "action.remove": tr("移除", "Remove"),
+            "action.save": tr("新建…", "New…"),
+            "action.save.item": tr("编辑…", "Edit…"),
+            "action.delete": tr("删除…", "Delete…"),
+            "action.add": tr("添加", "Add"),
+            "action.hide": tr("隐藏", "Hide"),
+            "action.show": tr("显示", "Show"),
+            "confirm.removeKey": tr("删除「{name}」？", "Remove “{name}”?"),
+            "confirm.delete": tr("删除「{name}」？", "Delete “{name}”?"),
+            "confirm.remove": tr("移除「{name}」？", "Remove “{name}”?", key: "confirm.removeItem"),
+            "save": tr("保存", "Save"),
+            "cancel": tr("取消", "Cancel"),
+            "choose": tr("选择…", "Choose…"),
+            "moveUp": tr("上移", "Move up"),
+            "moveDown": tr("下移", "Move down"),
+            "remove": tr("移除", "Remove"),
+            "add": tr("添加…", "Add…"),
+            "paste": tr("粘贴", "Paste it"),
+            "working": tr("正在进行…", "Working…"),
+        ]
+    }
+
     /// What keeps a custom command from being saved, as its editor says it.
     public static func describe(_ problem: CustomCommand.Problem) -> String {
         switch problem {
