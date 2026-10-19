@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The AllInOneIME installer for Windows (WiX Toolset 5): build.ps1 stages the files and runs `wix build` on this.
+
+  Per machine, x64, into Program Files\AllInOneIME\<version>\, so an app that loaded an older DLL keeps it until it
+  restarts while new apps load the new one. It installs the TSF text service (AllInOneTIP.dll), the per-user engine
+  (AllInOneIMEEngine.exe) with the Swift and VC++ runtime DLLs it needs, and AllInOneIMESetup.exe, the helper for what
+  an MSI can't author itself.
+
+  - The text service: its DllRegisterServer, run as SelfReg (the COM server in HKLM, the en-US and zh-CN profiles
+    through ITfInputProcessorProfileMgr, the categories); DllUnregisterServer at uninstall.
+  - The user's keyboard list: AllInOneIMESetup add-keyboard (InstallLayoutOrTip), as the installing user; never the
+    default input method, never switched to. remove-keyboard at uninstall. Other users add it in Settings.
+  - The engine: HKLM\Software\AllInOneIME, Engine, the path the DLL starts it from when an app needs it, and a Run entry
+    so every user's engine starts at logon. Installed from a desktop session, it is started for that user at the end.
+    At uninstall every engine from Program Files\AllInOneIME is stopped before the files go.
+  - The user's data (%APPDATA%\AllInOneIME) is never touched.
+
+  Not signed yet.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="AllInOneIME"
+           Manufacturer="AllInOneIME"
+           Version="$(Version)"
+           UpgradeCode="{2C03A6C3-784A-4F9C-BBCD-DC391C37E2D2}"
+           Scope="perMachine"
+           Language="1033"
+           InstallerVersion="500">
+    <SummaryInformation Description="AllInOneIME $(Version), an input method for Windows" />
+
+    <!-- The same version replaces itself too, so a rebuilt package installs over the last one. -->
+    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of AllInOneIME is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AllInOneIME.ico" SourceFile="$(TipDir)\res\tip.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AllInOneIME.ico" />
+    <!-- An input method's DLL is loaded in every app that used it: never close the user's apps to replace it. -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(LicenseRtf)" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ProductFolder" Name="AllInOneIME">
+        <Directory Id="INSTALLFOLDER" Name="$(Version)" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="AllInOneIME">
+      <ComponentGroupRef Id="Program" />
+      <ComponentGroupRef Id="Runtime" />
+      <ComponentRef Id="MachineSettings" />
+    </Feature>
+
+    <ComponentGroup Id="Program" Directory="INSTALLFOLDER">
+      <Component>
+        <File Id="AllInOneTIP.dll" Source="$(StageDir)\AllInOneTIP.dll" SelfRegCost="1" />
+      </Component>
+      <Component>
+        <File Id="AllInOneIMEEngine.exe" Source="$(StageDir)\AllInOneIMEEngine.exe" />
+      </Component>
+      <Component>
+        <File Id="AllInOneIMESetup.exe" Source="$(StageDir)\AllInOneIMESetup.exe" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- The Swift runtime and the VC++ runtime the engine links, next to it (build.ps1 finds them with dumpbin). -->
+    <ComponentGroup Id="Runtime" Directory="INSTALLFOLDER">
+      <Files Include="$(StageDir)\runtime\*.dll" />
+    </ComponentGroup>
+
+    <Component Id="MachineSettings" Directory="INSTALLFOLDER">
+      <RegistryKey Root="HKLM" Key="Software\AllInOneIME">
+        <RegistryValue Name="Engine" Type="string" Value="[INSTALLFOLDER]AllInOneIMEEngine.exe" KeyPath="yes" />
+        <RegistryValue Name="Version" Type="string" Value="$(Version)" />
+        <RegistryValue Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" />
+      </RegistryKey>
+      <RemoveRegistryKey Root="HKLM" Key="Software\AllInOneIME" Action="removeOnUninstall" />
+      <!-- Each user's engine at logon (HKLM: every user who logs on gets their own, in their session). -->
+      <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="AllInOneIME"
+                     Type="string" Value="&quot;[INSTALLFOLDER]AllInOneIMEEngine.exe&quot;" />
+      <RemoveFolder Id="RemoveProductFolder" Directory="ProductFolder" On="uninstall" />
+    </Component>
+
+    <!-- AllInOneIMESetup, through WixQuietExec: hidden, and its output goes to the MSI log. -->
+    <SetProperty Id="AioAddKeyboard" Value="&quot;[INSTALLFOLDER]AllInOneIMESetup.exe&quot; add-keyboard"
+                 Before="AioAddKeyboard" Sequence="execute" />
+    <CustomAction Id="AioAddKeyboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <SetProperty Id="AioRollbackAddKeyboard" Value="&quot;[INSTALLFOLDER]AllInOneIMESetup.exe&quot; remove-keyboard"
+                 Before="AioRollbackAddKeyboard" Sequence="execute" />
+    <CustomAction Id="AioRollbackAddKeyboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="rollback" Impersonate="yes" Return="ignore" />
+
+    <SetProperty Id="AioRemoveKeyboard" Value="&quot;[INSTALLFOLDER]AllInOneIMESetup.exe&quot; remove-keyboard"
+                 Before="AioRemoveKeyboard" Sequence="execute" />
+    <CustomAction Id="AioRemoveKeyboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <SetProperty Id="AioRollbackRemoveKeyboard" Value="&quot;[INSTALLFOLDER]AllInOneIMESetup.exe&quot; add-keyboard"
+                 Before="AioRollbackRemoveKeyboard" Sequence="execute" />
+    <CustomAction Id="AioRollbackRemoveKeyboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="rollback" Impersonate="yes" Return="ignore" />
+
+    <SetProperty Id="AioStopEngines" Value="&quot;[INSTALLFOLDER]AllInOneIMESetup.exe&quot; stop-engines"
+                 Before="AioStopEngines" Sequence="execute" />
+    <CustomAction Id="AioStopEngines" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <SetProperty Id="WixQuietExecCmdLine" Value="&quot;[INSTALLFOLDER]AllInOneIMESetup.exe&quot; start-engine"
+                 Before="AioStartEngine" Sequence="execute" />
+    <CustomAction Id="AioStartEngine" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="immediate" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <!-- Install and upgrade, not a repair (a keyboard the user took out stays out): the user's keyboard list once the
+           profiles are registered (SelfRegModules). -->
+      <Custom Action="AioRollbackAddKeyboard" After="SelfRegModules" Condition="NOT Installed" />
+      <Custom Action="AioAddKeyboard" After="AioRollbackAddKeyboard" Condition="NOT Installed" />
+      <!-- Uninstall: out of the user's list while the profiles are still registered (not for an upgrade, which keeps
+           it); the engines stopped once their path is gone from the registry (so no DLL starts one again) and before
+           the files go. -->
+      <Custom Action="AioRollbackRemoveKeyboard" Before="AioRemoveKeyboard"
+              Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="AioRemoveKeyboard" Before="SelfUnregModules"
+              Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="AioStopEngines" After="RemoveRegistryValues" Condition="REMOVE~=&quot;ALL&quot;" />
+      <!-- After the transaction: this user's engine, now (AllInOneIMESetup skips it in session 0). -->
+      <Custom Action="AioStartEngine" After="InstallFinalize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>
