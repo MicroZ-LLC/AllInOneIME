@@ -651,6 +651,15 @@ public enum EngineMessage: Equatable, Sendable {
     case settingsChanged(revision: UInt64)
     case unknown(type: String)
 
+    /// The request it answers, if it is an answer (§3).
+    public var re: UInt32? {
+        switch self {
+        case let .welcome(re, _), let .result(re, _, _), let .pong(re), let .settings(re, _): return re
+        case let .error(re, _, _, _): return re
+        case .apply, .bye, .settingsChanged, .unknown: return nil
+        }
+    }
+
     public var type: String {
         switch self {
         case .welcome: return "welcome"

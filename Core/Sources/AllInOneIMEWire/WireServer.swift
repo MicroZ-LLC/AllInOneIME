@@ -621,12 +621,16 @@ public final class WireServer: @unchecked Sendable {
         frames.compactMap(encode)
     }
 
+    /// The frame's bytes; nil when it can't be sent. An answer over the limit (a settings document of 1 MiB) is replaced
+    /// by an `error` with its `re` and id, so that the client isn't left waiting (§2.2).
     private func encode(_ frame: EngineFrame) -> Data? {
         do {
             let data = try WireJSON.encode(frame)
             guard data.count <= WireFrame.engineLimit else {
                 environment.log("a \(frame.message.type) frame of \(data.count) bytes is over the limit: not sent")
-                return nil
+                guard let re = frame.message.re, frame.message.type != "error" else { return nil }
+                let refused = EngineMessage.error(re: re, code: .internal, message: "the answer is over the frame limit (\(data.count) bytes)")
+                return try? WireJSON.encode(EngineFrame(v: frame.v, id: frame.id, refused))
             }
             return data
         } catch {

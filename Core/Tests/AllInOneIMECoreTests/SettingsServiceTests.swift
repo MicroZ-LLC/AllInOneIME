@@ -332,6 +332,40 @@ struct SettingsServiceTests {
         }
     }
 
+    /// What a generic client needs to draw what isn't a plain field: the command editor (`schema`: a field for each
+    /// key of a command's `value`, some only for some types), the path fields' open panels (`picker`), and the button
+    /// that takes a text (`textActions`: the Notion link). A command made from the schema's keys is saved as given.
+    @Test func whatAnEditorIsTold() async throws {
+        let (service, url) = try service(#"{"notes": {"destination": "notion"}}"#)
+        var document = service.document()
+        let schema = try #require(document.field("commands.custom")?.schema)
+        #expect(schema.map(\.id) == ["name", "type", "summary", "prompt", "text", "url", "argv", "stdin", "timeoutSeconds", "ascii", "programs"])
+        let byID = Dictionary(uniqueKeysWithValues: schema.map { ($0.id, $0) })
+        #expect(byID["type"]?.choices?.map(\.value) == ["prompt", "run", "terminal", "link", "snippet"].map(AIConfig.JSONValue.string))
+        #expect(byID["type"]?.value == .string("prompt") && byID["name"]?.when == nil)
+        #expect(byID["argv"]?.kind == .words && byID["argv"]?.ordered == true
+                && byID["argv"]?.when == ["type": [.string("run"), .string("terminal")]])
+        #expect(byID["prompt"]?.multiline == true && byID["timeoutSeconds"]?.kind == .number && byID["timeoutSeconds"]?.max == 120)
+        // Every key the schema names is a key of a command's definition.
+        let definition: [String: AIConfig.JSONValue] = [
+            "name": .string("shout"), "type": .string("run"), "summary": .string("Shout it"),
+            "argv": .array([.string("tr"), .string("a-z"), .string("A-Z")]), "stdin": .string("{input}"),
+            "timeoutSeconds": .number(5), "ascii": .bool(true),
+        ]
+        #expect(Set(definition.keys).isSubset(of: Set(schema.map(\.id))))
+        let saved = await service.perform(SettingsAction(field: "commands.custom", name: "save", value: .object(definition)))
+        #expect((try? saved.get()) != nil)
+        #expect(try Config.load(from: url).customCommands == [CustomCommand(name: "shout", type: .run, summary: "Shout it",
+                                                                            argv: ["tr", "a-z", "A-Z"], stdin: "{input}",
+                                                                            ascii: true, timeoutSeconds: 5)])
+        document = service.document()
+        #expect(document.field("commands.custom")?.items?.first?.value == .object(definition))
+        // Pickers, and the button that takes a text.
+        #expect(document.field("notes.folder")?.picker == .folder && document.field("jargonFile")?.picker == .file)
+        let notion = try #require(document.field("notes.notion"))
+        #expect(notion.textActions == ["test"] && notion.placeholder != nil)
+    }
+
     /// The document as JSON: what a client reads (keys sorted, nothing it doesn't have), and back.
     @Test func theDocumentAsJSON() throws {
         let (service, _) = try service(#"{"typeOut": true}"#)

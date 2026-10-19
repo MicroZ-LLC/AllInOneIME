@@ -131,6 +131,20 @@ struct WireSettingsTests {
         #expect(engine.takePushes(for: typing).isEmpty)
     }
 
+    /// An answer the frame limit (1 MiB) can't hold (a document with a huge word list) is an error with its `re`, not
+    /// left out: the client isn't left waiting, and the connection goes on.
+    @Test func anAnswerOverTheLimit() throws {
+        let words = (0..<20_000).map { "\"a-very-long-word-to-hide-from-the-model-number-\($0)\"" }.joined(separator: ",")
+        let (engine, id, _) = engine(#"{"redaction": {"enabled": true, "customWords": ["# + words + #"]}}"#)
+        let answer = engine.send(ClientFrame(id: 2, .settingsGet), on: id)
+        guard case let .error(re, code, message, _)? = answer.first?.message, answer.count == 1 else {
+            Issue.record("not an error: \(answer.map(\.message.type))")
+            return
+        }
+        #expect(re == 2 && code == .internal && message.hasPrefix("the answer is over the frame limit"))
+        #expect(engine.send(ClientFrame(id: 3, .ping), on: id).map(\.message) == [.pong(re: 3)])
+    }
+
     /// Settings windows and the engine's own check of the file at once, on real queues as the engine runs them: every
     /// change is answered, the revision counts each once, and each window is told of the changes in order (never an
     /// older revision after a newer one), the last one too.

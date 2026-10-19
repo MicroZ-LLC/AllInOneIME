@@ -47,6 +47,10 @@
   - DLL → engine: 64 KiB.
   - Engine → DLL: 1 MiB (a long answer committed in one frame).
 - **Reading:** the reader grows its buffer on `ERROR_MORE_DATA` up to the maximum. Anything bigger gets `tooLarge` and the connection closes.
+- **An answer the engine can't fit** in 1 MiB (a settings document with a huge word list) isn't sent; in its place,
+  with the same `id` and `re`, goes `{"type":"error","code":"internal","message":"the answer is over the frame limit (… bytes)"}`,
+  so that the client isn't left waiting. The connection goes on. (A push over the limit, which nobody waits for, is
+  left out and logged.)
 
 ### 2.3 Connections
 
@@ -558,7 +562,18 @@ given and sends back what the user did. It opens no sessions.
 - **Field:** `id` (what `settingsSet` and `settingsAction` name), `kind`, `label`, and as it has them: `help`, `value`,
   `placeholder` (what an empty text stands for: the default), `choices` (`{value, label, note, disabled}`), `ordered`,
   `minCount`, `maxCount`, `min`, `max`, `step`, `optional`, `readOnly`, `platforms`, `status`, `isSet`, `actions`,
-  `items` (`{id, title, detail, value, actions, running}`), `running` (an action that takes a while runs now, §12.5).
+  `items` (`{id, title, detail, value, actions, running}`), `running` (an action that takes a while runs now, §12.5),
+  `multiline` (a text of several lines), `picker` (`file` or `folder`: a path, picked with the system's open panel;
+  `jargonFile`, `notes.folder`), `textActions` (its actions that take a text the user types, sent as the action's
+  `value`: `notes.notion`'s `test` takes the link, `placeholder` the box's hint), `schema` (what its items' `value`
+  is, below), `when` (in a `schema`).
+- **`schema`** (`commands.custom`): the fields of a custom command's definition, the `value` its items carry and `save`
+  takes, as the Mac's command editor shows them. Each field's `id` is a key of that object, its `kind`, `label`,
+  `help`, `placeholder`, `choices`, bounds and `optional` as for any field, its `value` what a new command starts with.
+  `when` (`{"type": ["run", "terminal"]}`) says which values other fields of the definition must have for it to apply:
+  leave the others out of the `value` sent. An `info` field in it is text to show (the warning about programs). A
+  definition is checked when saved (§12.5). Send back the keys of the item's `value` the schema doesn't name (`icon`,
+  `color`) as they were: what isn't sent isn't kept.
 - **Canonical form** (§1): what a field doesn't have is left out, and so is a `value` that is null: no `value` means
   null (a text not set, "follow the system").
 
@@ -652,7 +667,7 @@ given and sends back what the user did. It opens no sessions.
 | `browse` | `plugins.library` | — | downloads the library's signed index; the field's `items` are then what it offers |
 | `install` | `plugins.library` | `item` (a plugin's name) | installs or updates it |
 | `remove` | `plugins.installed` | `item` | removes the plugin |
-| `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
+| `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it and the field's `schema` describes), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
 | `delete` | `commands.custom` | `item` | deletes the command |
 | `cancel` | a field with `test`, `browse` or `install` (and `item`, an install's plugin) | — | stops what runs there (§12.5, "Takes a while") |
 

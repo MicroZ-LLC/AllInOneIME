@@ -120,6 +120,18 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         public var items: [Item]?
         /// One of its actions that takes a while (`test`, `browse`) runs now: `cancel` (then among `actions`) stops it.
         public var running: Bool?
+        /// A text of several lines (an AI instruction, a snippet).
+        public var multiline: Bool?
+        /// A path, picked with the system's open panel: a file's (`jargonFile`) or a folder's (`notes.folder`).
+        public var picker: Picker?
+        /// Its actions that take a text the user types (`value`, a string: the Notion link for `test`): a text box goes
+        /// with them, `placeholder` its hint.
+        public var textActions: [String]?
+        /// What its items' `value` is, as an editor shows it (a custom command's): a field for each key of it, by `id`.
+        /// One with `when` only applies while the other fields named there have one of those values (`type`: `run`).
+        public var schema: [Field]?
+        /// In a `schema`: the values other fields of it must have for this one to apply.
+        public var when: [String: [AIConfig.JSONValue]]?
 
         public init(id: String, kind: Kind, label: String, help: String? = nil, value: AIConfig.JSONValue? = nil) {
             self.id = id
@@ -128,6 +140,12 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
             self.help = help
             self.value = value
         }
+    }
+
+    /// What a path field picks (`Field.picker`).
+    public enum Picker: String, Codable, Sendable {
+        case file
+        case folder
     }
 
     /// A choice: the value set, and how it reads.

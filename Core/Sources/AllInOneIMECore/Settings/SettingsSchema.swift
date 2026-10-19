@@ -273,8 +273,10 @@ struct SettingsSchema {
         }
         add(toggle("improveTranslates", tr("@improve 同时翻译", "@improve also translates"), nil, config.improveTranslates),
             to: &fields) { store.config.improveTranslates = Self.bool($0) }
-        add(text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),
-                 value: config.jargonFile, placeholder: ExtensionStore.abbreviated(JargonLibrary.defaultURL.path)), to: &fields) { value in
+        var jargon = text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),
+                          value: config.jargonFile, placeholder: ExtensionStore.abbreviated(JargonLibrary.defaultURL.path))
+        jargon.picker = .file
+        add(jargon, to: &fields) { value in
             let path = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
             store.config.jargonFile = path.isEmpty ? nil : path
         }
@@ -507,7 +509,9 @@ struct SettingsSchema {
             store.setNotesDestination(destination) { nil }
         }
         if notes.destination == .folder || platform != .mac {
-            add(text("notes.folder", tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)"), value: notes.folder), to: &fields) { value in
+            var folder = text("notes.folder", tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)"), value: notes.folder)
+            folder.picker = .folder
+            add(folder, to: &fields) { value in
                 let path = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
                 guard !path.isEmpty else { throw SettingsProblem(.badValue, field: "notes.folder", message: SettingsService.badValue) }
                 store.setNotesFolder(path)
@@ -523,6 +527,7 @@ struct SettingsSchema {
                              help: tr("在 Notion 里打开那个页面 → ··· → 连接 → 加上你的集成", "In Notion, open the page → ··· → Connections → add your integration"))
             link.placeholder = "https://www.notion.so/…"
             link.actions = [SettingsAction.test]
+            link.textActions = [SettingsAction.test]
             link.status = outcome("notes.notion") ?? notes.notion?.label(language: UIText.language)
             add(link, to: &fields)
         }
@@ -535,6 +540,7 @@ struct SettingsSchema {
         var fields: [Field] = []
         var list = Field(id: "commands.custom", kind: .items, label: tr("自定义 @ 命令", "Custom @ Commands"))
         list.actions = [SettingsAction.save]
+        list.schema = Self.commandSchema
         list.items = config.customCommands.map { command in
             let value = (try? JSONEncoder().encode(command)).flatMap { try? JSONSerialization.jsonObject(with: $0) }.flatMap(JSON.init)
             let detail = [UIText.customKind(command), command.summary].compactMap { $0 }.joined(separator: " · ")
@@ -545,6 +551,49 @@ struct SettingsSchema {
         }
         add(list, to: &fields)
         return fields
+    }
+
+    /// A custom command's definition (`CustomCommand`, as `config.json` has it), as the Mac's command editor shows it:
+    /// what `save` takes as its `value`.
+    static var commandSchema: [Field] {
+        let types = ["prompt", "run", "terminal", "link", "snippet"].map(JSON.string)
+        func only(_ values: String...) -> [String: [JSON]] { ["type": values.map(JSON.string)] }
+        var name = Field(id: "name", kind: .text, label: tr("名字", "Name"))
+        name.placeholder = tr("只用英文字母，比如 py", "Letters only, e.g. py")
+        var type = Field(id: "type", kind: .choice, label: tr("做什么", "What it does"), value: .string("prompt"))
+        type.choices = zip(types, [tr("AI 指令", "AI instruction"), tr("运行程序", "Run a program"), tr("在终端运行", "Run in Terminal"),
+                                   tr("打开网页", "Open a web page"), tr("插入文字", "Insert text")]).map { Choice(value: $0, label: $1) }
+        var summary = Field(id: "summary", kind: .text, label: tr("说明", "Description"))
+        (summary.placeholder, summary.optional) = (tr("命令列表里显示，可以不填", "Shown in the command list (optional)"), true)
+        var prompt = Field(id: "prompt", kind: .text, label: tr("AI 指令", "AI instruction"),
+                           help: tr("告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
+                                    "Tell the AI what to do with the text after the command, e.g. \"Write a short, polite reply to the user's message.\" The answer appears in the candidates; ⏎ inserts it."))
+        (prompt.multiline, prompt.when) = (true, only("prompt"))
+        var text = Field(id: "text", kind: .text, label: tr("插入文字", "Insert text"),
+                         help: tr("命令后面写的内容换掉 {input}；{名字?} 是要填的空，用逗号分开依次填；{{ 写出 {",
+                                  "The text after the command replaces {input}; {label?} is a blank, filled in order, separated by commas; write {{ for {"))
+        (text.multiline, text.when) = (true, only("snippet"))
+        var url = Field(id: "url", kind: .text, label: tr("网址", "Address"),
+                        help: tr("{input} 换成命令后面写的内容（自动编码），放在 ? 后面。按执行键在浏览器打开，不上屏。只能用 https://。",
+                                 "{input} becomes the text after the command (encoded), after the ?. The action key opens it in the browser; nothing is inserted. https:// only."))
+        (url.placeholder, url.when) = ("https://www.google.com/search?q={input}", only("link"))
+        var argv = Field(id: "argv", kind: .words, label: tr("命令", "Command"),
+                         help: tr("{input} 换成命令后面写的内容，始终是一个参数，不经过 shell（要 shell 就写 zsh -c {input}）。参数里有空格时用引号。",
+                                  "{input} becomes the text after the command, always as one argument, never through a shell (for one, write zsh -c {input}). Quote arguments with spaces."))
+        (argv.placeholder, argv.ordered, argv.when) = ("python3 -c {input}", true, only("run", "terminal"))
+        var stdin = Field(id: "stdin", kind: .text, label: tr("标准输入", "Standard input"),
+                          help: tr("把内容作为标准输入（命令里不用写 {input}）", "Send the text to standard input (no {input} needed)"))
+        (stdin.placeholder, stdin.optional, stdin.when) = (CustomCommand.placeholder, true, only("run"))
+        var timeout = Field(id: "timeoutSeconds", kind: .number, label: tr("最多运行（秒）", "Stop after (seconds)"))
+        (timeout.min, timeout.max, timeout.step, timeout.optional) = (1, 120, 1, true)
+        (timeout.placeholder, timeout.when) = (String(Int(CustomCommand.defaultTimeout)), only("run"))
+        var ascii = Field(id: "ascii", kind: .toggle, label: tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"))
+        (ascii.optional, ascii.when) = (true, only("prompt", "run", "terminal", "link"))
+        var programs = Field(id: "programs", kind: .info, label: "",
+                             value: .string(tr("「运行程序」和「在终端运行」会在你的 Mac 上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
+                                               "Programs run on your Mac: add only commands you wrote and trust. They run only when you press the action key, never in password fields.")))
+        programs.when = only("run", "terminal")
+        return [name, type, summary, prompt, text, url, argv, stdin, timeout, ascii, programs]
     }
 
     // MARK: Advanced
