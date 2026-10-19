@@ -292,7 +292,9 @@ enum WindowsPrograms {
         return nil
     }
 
-    /// Git for Windows' folder: the one with bin\bash.exe, above git.exe on the PATH or where the installer puts it.
+    /// Git for Windows' folder: the one with bin\bash.exe, one or two folders above git.exe on the PATH (its <Git>\cmd,
+    /// <Git>\bin or <Git>\mingw64\bin), or where the installer puts it. No higher: a git.exe elsewhere (a package
+    /// manager's shim, a tool's own copy) doesn't make a bin\bash.exe further up Git Bash.
     static func gitRoot(_ environment: [String: String]?) -> URL? {
         var roots: [URL] = []
         for path in searchPaths(environment) {
@@ -300,7 +302,7 @@ enum WindowsPrograms {
                 .map({ URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("git.exe") })
                 .first(where: { kind(of: $0) == .program }) else { continue }
             var folder = git.deletingLastPathComponent()
-            for _ in 0..<3 {
+            for _ in 0..<2 {
                 folder = folder.deletingLastPathComponent()
                 roots.append(folder)
             }

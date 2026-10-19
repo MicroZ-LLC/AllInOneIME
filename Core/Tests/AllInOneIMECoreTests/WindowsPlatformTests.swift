@@ -105,6 +105,24 @@ struct WindowsPlatformTests {
         #expect(WindowsPrograms.find("planted", path: rooted.replacingOccurrences(of: "\\", with: "/")) == nil)
     }
 
+    /// Git Bash is found one or two folders above git.exe on the PATH (Git's cmd, bin, mingw64\bin), no higher.
+    @Test func gitBashIsLookedForNearGitOnly() throws {
+        let folder = try Folder()
+        for name in ["Git/bin/bash.exe", "Git/mingw64/bin/git.exe", "Git/cmd/git.exe", "Git/a/b/c/git.exe"] {
+            let file = folder.url.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("MZ".utf8).write(to: file)
+        }
+        let bash = folder.url.appendingPathComponent("Git/bin/bash.exe").standardizedFileURL.path
+        func found(_ git: String) -> String? {
+            let path = WindowsPrograms.windowsPath(folder.url.appendingPathComponent(git, isDirectory: true))
+            return WindowsPrograms.gitBash(["PATH": path])?.standardizedFileURL.path
+        }
+        #expect(found("Git/cmd") == bash)
+        #expect(found("Git/mingw64/bin") == bash)
+        #expect(found("Git/a/b/c") != bash, "three folders up")
+    }
+
     /// .ps1 runs with PowerShell, .py with Python, .sh and "#!/bin/sh" with Git Bash: each gets its arguments as given.
     @Test func scriptsRunThroughTheirInterpreters() throws {
         let folder = try Folder()
