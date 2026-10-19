@@ -47,10 +47,12 @@ enum WindowsCommandLine {
     /// (`!VAR!`), each argument with anything but letters, digits and `#$*+-./:?@\_` in quotes, its `"` doubled, the
     /// backslashes before a `"` doubled, and each `%` written `%%cd:~,%` (an empty piece of %cd%: nothing a variable's
     /// name can be read from). An argument with a line break (or a NUL) is refused: cmd.exe would end the command there.
+    /// So is a script whose path has a `%`, which cmd.exe would expand in it too (C:\Users\me\%TEMP%\x.bat).
     static func batch(script: String, arguments: [String]) throws -> String {
         guard !script.contains("\""), !script.hasSuffix("\\"), !script.contains("\0") else {
             throw WindowsLaunchError.invalidArgument("a batch file's name with a `\"` or ending in `\\`")
         }
+        guard !script.contains("%") else { throw WindowsLaunchError.invalidArgument("a batch file's path with a `%`") }
         var line = "cmd.exe /e:ON /v:OFF /d /c \"\"" + script + "\""
         for argument in arguments {
             guard !argument.contains(where: { $0 == "\r" || $0 == "\n" || $0 == "\r\n" || $0 == "\0" }) else {

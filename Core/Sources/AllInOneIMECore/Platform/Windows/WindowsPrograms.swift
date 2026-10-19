@@ -141,8 +141,10 @@ enum WindowsPrograms {
     // MARK: What starts a file
 
     /// What `url` is when it is a file (not a folder) that can be started: by its extension, else by its first bytes
-    /// ("#!", "MZ"). Nil for any other file, or none.
+    /// ("#!", "MZ"). Nil for any other file, or none, and for a device's name (`CorePaths.isDeviceName`: "NUL",
+    /// "con.bat"), which Windows opens as the device in any folder.
     static func kind(of url: URL) -> Kind? {
+        guard !CorePaths.isDeviceName(Substring(url.lastPathComponent)) else { return nil }
         var isFolder: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), !isFolder.boolValue else { return nil }
         let suffix = url.pathExtension.lowercased()

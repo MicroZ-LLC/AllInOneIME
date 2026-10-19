@@ -105,6 +105,22 @@ struct WindowsPlatformTests {
         #expect(WindowsPrograms.find("planted", path: rooted.replacingOccurrences(of: "\\", with: "/")) == nil)
     }
 
+    /// A device's name is no program in any folder ("NUL", "con.bat"); a batch file whose path has a "%" isn't run
+    /// (cmd.exe would expand it there).
+    @Test func devicesAndPercentPathsAreRefused() throws {
+        let folder = try Folder()
+        for name in ["NUL", "nul.exe", "CON.bat", "com1.cmd", "Aux.ps1", "conin$"] {
+            #expect(WindowsPrograms.kind(of: folder.url.appendingPathComponent(name)) == nil, "\(name)")
+        }
+        #expect(WindowsPrograms.find("con", path: WindowsPrograms.windowsPath(folder.url)) == nil)
+        let sub = folder.url.appendingPathComponent("100%PATH%", isDirectory: true)
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        let script = sub.appendingPathComponent("x.bat")
+        try Data("@echo x\r\n".utf8).write(to: script)
+        #expect(throws: WindowsLaunchError.self) { try run(script) }
+        #expect(throws: WindowsLaunchError.self) { try WindowsCommandLine.batch(script: #"C:\Users\me\%TEMP%\x.bat"#, arguments: []) }
+    }
+
     /// Git Bash is found one or two folders above git.exe on the PATH (Git's cmd, bin, mingw64\bin), no higher.
     @Test func gitBashIsLookedForNearGitOnly() throws {
         let folder = try Folder()
