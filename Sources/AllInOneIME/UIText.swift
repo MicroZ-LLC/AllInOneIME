@@ -486,8 +486,14 @@ enum UIText {
         }
     }
 
-    /// An error of Apple Intelligence on this Mac: what to do about it.
+    /// An error of Apple Intelligence on this Mac: what to do about it. Too long for its context (@improve on a long text,
+    /// say): in every interface language, as Settings → Assistant says it (`AIConfigService.TooLong`); the others in
+    /// Chinese and English.
     static func describe(_ error: AppleModelError) -> String {
+        if error == .contextExceeded {
+            return tr("内容太长，本机的 Apple Intelligence 处理不了（它的上下文很小）：缩短一些，或换一个 AI 服务",
+                      "Too long for Apple Intelligence on this Mac (its context is small): shorten the text or use another provider")
+        }
         guard chinese else { return error.errorDescription ?? "\(error)" }
         return chineseOnly(describeInChinese(error))
     }
@@ -503,7 +509,7 @@ enum UIText {
             case .appleIntelligenceNotEnabled: return "Apple Intelligence 没有打开：在 系统设置 → Apple 智能与 Siri 里打开"
             case .modelNotReady: return "Apple Intelligence 还没准备好（模型可能还在下载）：稍后再试"
             }
-        case .contextExceeded: return "内容太长，本机的 Apple Intelligence 处理不了（它的上下文很小）：缩短一些，或换一个 AI 服务"
+        case .contextExceeded: return describe(error)
         case .unsupportedLanguage: return "本机的 Apple Intelligence 不支持这种语言：这种语言请换一个 AI 服务"
         case .busy: return "Apple Intelligence 正忙：稍后再试"
         case let .timedOut(seconds): return "Apple Intelligence \(Int(seconds)) 秒内没有回应"
