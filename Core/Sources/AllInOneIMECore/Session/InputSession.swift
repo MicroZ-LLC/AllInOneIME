@@ -208,8 +208,15 @@ public final class InputSession {
         composer.pastesIntoDraft = !info.terminal
         // …and don't act on a key after text inserted during it (`Composer.appTakesKeysAfterInsert`).
         composer.appTakesKeysAfterInsert = composer.pastesIntoDraft
-        // A custom command renamed because a built-in has its name now (`Config.freeBuiltinNames`): said once.
-        if let notice = services.takeRenameNotice(composer.messages.reply) { say(notice, long: true) }
+    }
+
+    /// A custom command renamed because a built-in has its name now (`Config.freeBuiltinNames`): said once, in the
+    /// field that takes the focus next. The shell tells it last, after its own notices of the focus (the Mac's
+    /// Translate as You Type, on in an app that translates always): one said after it would take its place for good.
+    public func tellBuiltinRenames() -> [SessionOutput] {
+        collect {
+            if let notice = services.takeRenameNotice(composer.messages.reply) { say(notice, long: true) }
+        }
     }
 
     // MARK: - Level one

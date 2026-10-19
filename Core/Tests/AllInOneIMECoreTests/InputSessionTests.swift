@@ -620,6 +620,13 @@ struct InputSessionTests {
             host.session.notice = nil
             host.focus()
             #expect(first?.contains("@myreply") == true && host.session.notice == nil, "\(first ?? "-")")
+            // Told when the shell says, after its own notices of the focus: none of those covers it.
+            told.withLock { $0 = false }
+            host.send(.focus(FieldInfo(app: host.app)))
+            #expect(host.session.notice == nil, "not with the focus itself")
+            _ = host.session.showNotice("Translate as You Type on")
+            _ = host.session.tellBuiltinRenames()
+            #expect(host.session.notice?.contains("@myreply") == true, "\(host.session.notice ?? "-")")
         }
     }
 

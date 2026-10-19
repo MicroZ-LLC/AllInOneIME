@@ -370,9 +370,20 @@ extension SelfTest {
         controller.activateServer(client)
         check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && controller.notice == nil
               && !MenuBarIcon.shared.translating && chip() != zhEn, "switching to another app leaves it, with no notice and no chip")
+        // A rename to tell in that field too: said after its notice that the mode is on, which doesn't cover it.
+        let renames = controller.services.takeRenameNotice
+        var renameTold = false
+        controller.services.takeRenameNotice = { messages in
+            defer { renameTold = true }
+            return renameTold ? nil : messages.renamed(old: "reply", new: "myreply")
+        }
         client.bundleIDOverride = mail
         controller.activateServer(client)
+        controller.services.takeRenameNotice = renames
         check(TranslateModeShared.state.isOn && controller.composer.translateMode?.target == .english, "an app that translates always turns it on")
+        let renamed = controller.composer.messages.reply.renamed(old: "reply", new: "myreply")
+        check(renameTold && controller.notice == renamed, "…a rename told then is the notice up (\(controller.notice ?? "none"))")
+        endNotice()
         draft("nihao")
         _ = enter(controller, client)
         check(pump(timeout: 5) { client.inserted.last == "Hello" } && model.requests.last?.instructions.contains(AppTone.formal.rule) == true,

@@ -35,7 +35,9 @@ character before the caret when "@" may start a command, the text around the car
 so: the selection with Accessibility, where the field doesn't tell it, only when "@" may use it.
 
 `FieldInfo` comes with the focus: the app (its own settings: `AppProfile`), whether it's a terminal (it runs every line
-it is given and pastes on ⌘V itself), whether it's a password field.
+it is given and pastes on ⌘V itself), whether it's a password field. Once the shell has said what it says of the focus
+itself (the Mac: Translate as You Type on, in an app that translates always), it calls `tellBuiltinRenames()`: a custom
+command renamed because a built-in has its name now is said once, last, so no notice of the focus takes its place.
 
 ## Outputs
 
@@ -79,9 +81,10 @@ The engine (on the `0.6.6/windows-engine` branch, not merged here) drives a `Com
      session no longer has), `selectedRange` = `ctx.selection`, `selection` = `ctx.selText` with it, `beforeCaret` =
      the last character of `ctx.before`, `text` = `FieldText(before: ctx.before, after: "")`; a modifier's key-down or
      key-up → `.modifiers(ModifierChange(key:modifiers:timestamp: t / 1000), context)`.
-   - `focus` → `.focus(FieldInfo(app: field.app, terminal: isTerminal(field.process), secure: field.secure))` (in
-     place of `sessionFocused` and `applyIdentity`); `blur` → `.blur`; `endComposition` "terminated" → `.commit`,
-     "timeout" → `apply(composer.appTookMarkedText())`; `close` → `.close`; a row clicked → `.pick`, scrolled → `.scroll`.
+   - `focus` → `.focus(FieldInfo(app: field.app, terminal: isTerminal(field.process), secure: field.secure))`, then
+     `tellBuiltinRenames()` (in place of `sessionFocused` and `applyIdentity`); `blur` → `.blur`; `endComposition`
+     "terminated" → `.commit`, "timeout" → `apply(composer.appTookMarkedText())`; `close` → `.close`; a row clicked →
+     `.pick`, scrolled → `.scroll`.
    - Outputs → the wire's: `commit` and `replace` → `commit(text:)` (a range once the wire carries one),
      `commitAfterKey` → `commit(text:afterKey: true)`, `marked` → `composition` (the caret, a `draft` or `converted`
      segment, `typed` from `composer.textAsTyped`), `typeOut` → `commit` (in one go, as now), `panel` → the engine's

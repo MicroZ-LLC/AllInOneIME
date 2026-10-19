@@ -76,9 +76,10 @@ public final class FakeHost: @unchecked Sendable {
 
     // MARK: Events
 
-    /// The field takes the focus.
+    /// The field takes the focus; a rename to tell is said then (`InputSession.tellBuiltinRenames`).
     public func focus() {
         apply(session.handle(.focus(FieldInfo(app: app, terminal: terminal))).outputs)
+        apply(session.tellBuiltinRenames())
     }
 
     /// A key goes down: whether the session took it.
