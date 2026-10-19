@@ -9,11 +9,11 @@ extension SelfTest {
     static func testAppProfiles(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("per-app settings (two apps through the fake client)", needs: .composing)
         let (chat, mail) = ("com.example.chat", "com.example.mail")
-        let (settingsBefore, converterBefore, recordBefore) = (settings, controller.converter, controller.recordApp)
+        let (settingsBefore, converterBefore, recordBefore) = (settings, controller.services.converter, controller.recordApp)
         var recorded: [String] = []
         controller.recordApp = { recorded.append($0) }  // never the user's list of recent apps
         defer {
-            (settings, controller.converter, controller.recordApp) = (settingsBefore, converterBefore, recordBefore)
+            (settings, controller.services.converter, controller.recordApp) = (settingsBefore, converterBefore, recordBefore)
             controller.commitComposition(client)
             client.bundleIDOverride = nil
             controller.activateServer(client)
@@ -25,7 +25,7 @@ extension SelfTest {
                                 mail: AppProfile(inputLanguage: .chinese, rewriteStyles: ["正式"], typeOut: true)]
         let profiles = settings.appProfiles
         // The live requests with the same profiles (the self-test's config otherwise, translating into English).
-        controller.converter = Converter(loadConfig: {
+        controller.services.converter = Converter(loadConfig: {
             var config = try Config.load()
             config.setOrder([OutputLanguage.english, .chinese])
             config.appProfiles = profiles

@@ -39,8 +39,8 @@ extension AllInOneIMEInputController {
     /// The image goes nowhere and isn't kept; the log has only how many lines were read.
     @MainActor
     func recognizeScreenshot(_ image: Data, id: Int) {
-        let languages = ScreenText.languages(loadSettings())
-        let recognizer = recognizeText
+        let languages = ScreenText.languages(services.loadSettings())
+        let recognizer = services.recognizeText
         let started = Date()
         Task { @MainActor [weak self] in
             do {
@@ -63,13 +63,13 @@ extension AllInOneIMEInputController {
     /// quickly.
     @MainActor
     func warmUpScreenshotReading() {
-        guard warmsUpVision, composer.draftTakesScreenshot, !secureInputActive() else { return }
+        guard warmsUpVision, composer.draftTakesScreenshot, !services.secureInputActive() else { return }
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != Self.warmedFor else { return }
         Self.warmedFor = pasteboard.changeCount
         let types = pasteboard.types ?? []
         guard types.contains(.png) || types.contains(.tiff) else { return }
-        let recognizer = recognizeText, languages = ScreenText.languages(loadSettings())
+        let recognizer = services.recognizeText, languages = ScreenText.languages(services.loadSettings())
         Task.detached(priority: .utility) { await recognizer.prepare(languages: languages) }
     }
 
@@ -81,7 +81,7 @@ extension AllInOneIMEInputController {
     /// terminal (its text isn't being edited).
     @MainActor
     func readFieldText(from target: IMKTextInput?) -> FieldText? {
-        guard !secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
+        guard !services.secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
         let length = target.length()
         guard length > 0, length != NSNotFound else { return nil }
         let marked = target.markedRange(), selected = target.selectedRange()
@@ -109,7 +109,7 @@ extension AllInOneIMEInputController {
     /// The notice of the custom commands renamed for the built-in ones (`BuiltinRenames`), once.
     @MainActor
     func tellBuiltinRenames(client: IMKTextInput?) {
-        guard let notice = takeRenameNotice(composer.messages.reply) else { return }
+        guard let notice = services.takeRenameNotice(composer.messages.reply) else { return }
         showNotice(notice, client: client, long: true)
     }
 }

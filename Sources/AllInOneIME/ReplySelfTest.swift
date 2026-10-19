@@ -163,16 +163,16 @@ extension SelfTest {
         check(reads { $0.writeObjects([both]) } == .text("their message"), "text and an image on the clipboard: the text is taken")
 
         section("@reply: a screenshot pasted, read here, its text sent", needs: .composing)
-        let (converterBefore, secureBefore, clipboardBefore) = (controller.converter, controller.secureInputActive, controller.readClipboard)
-        let (recognizerBefore, pageProcessBefore, pageBefore) = (controller.recognizeText, controller.pageProcess, controller.readPageContext)
+        let (converterBefore, secureBefore, clipboardBefore) = (controller.services.converter, controller.services.secureInputActive, controller.readClipboard)
+        let (recognizerBefore, pageProcessBefore, pageBefore) = (controller.services.recognizeText, controller.pageProcess, controller.readPageContext)
         defer {
-            (controller.converter, controller.secureInputActive, controller.readClipboard) = (converterBefore, secureBefore, clipboardBefore)
-            (controller.recognizeText, controller.pageProcess, controller.readPageContext) = (recognizerBefore, pageProcessBefore, pageBefore)
+            (controller.services.converter, controller.services.secureInputActive, controller.readClipboard) = (converterBefore, secureBefore, clipboardBefore)
+            (controller.services.recognizeText, controller.pageProcess, controller.readPageContext) = (recognizerBefore, pageProcessBefore, pageBefore)
             controller.commitComposition(client)
             client.inserted.removeAll()
         }
-        controller.converter = ReplySelfTestEndpoint.converter()
-        controller.recognizeText = vision
+        controller.services.converter = ReplySelfTestEndpoint.converter()
+        controller.services.recognizeText = vision
         controller.commitComposition(client)
         func startReply() {
             press(controller, client, "@", code: 0x13, flags: .shift)
@@ -218,14 +218,14 @@ extension SelfTest {
 
         section("@reply: nothing read during secure input", needs: .composing)
         clipboardReads = 0
-        controller.secureInputActive = { true }
+        controller.services.secureInputActive = { true }
         startReply()
         controlV()
         _ = pump(timeout: 0.5) { false }
         check(clipboardReads == 0 && controller.composer.attachment == nil, "⌃V during secure input reads no clipboard (\(clipboardReads))")
         check(controller.readFieldText(from: client) == nil, "nor the field's text")
         controller.commitComposition(client)
-        controller.secureInputActive = secureBefore
+        controller.services.secureInputActive = secureBefore
 
         section("@reply: the text around the caret, through IMK", needs: .composing)
         let field = MarkedInTextClient()
@@ -279,9 +279,9 @@ extension SelfTest {
         let written = (try? Config.load(from: url))?.customCommands.map(\.name) ?? []
         check(renamed.map(\.new) == ["myreply"] && written == ["myreply"] && BuiltinRenames.apply(configURL: url, defaults: defaults, taken: []).isEmpty,
               "the custom @reply is @myreply in the config, once (\(written))")
-        let takeBefore = controller.takeRenameNotice
-        defer { controller.takeRenameNotice = takeBefore }
-        controller.takeRenameNotice = { BuiltinRenames.takeNotice($0, defaults: defaults) }
+        let takeBefore = controller.services.takeRenameNotice
+        defer { controller.services.takeRenameNotice = takeBefore }
+        controller.services.takeRenameNotice = { BuiltinRenames.takeNotice($0, defaults: defaults) }
         controller.notice = nil
         controller.activateServer(client)
         let first = controller.notice

@@ -56,8 +56,8 @@ extension SelfTest {
     /// content, canned answers and a stand-in endpoint: nothing is sent, nothing of the user's is read.
     static func testReleaseImages(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("0.6.5's release images (canned answers)", needs: .composing)
-        let saved = (converter: controller.converter, settings: settings, load: controller.loadSettings,
-                     clipboard: controller.readClipboard, recognizer: controller.recognizeText, secure: controller.secureInputActive,
+        let saved = (converter: controller.services.converter, settings: settings, load: controller.services.loadSettings,
+                     clipboard: controller.readClipboard, recognizer: controller.services.recognizeText, secure: controller.services.secureInputActive,
                      defaults: TranslateModeShared.defaults, lastTarget: TranslateModeShared.lastTarget, shiftHeld: TranslateModeShared.shiftHeld)
         let caretBefore = client.caretRect
         let suite = "com.aipinyin.selftest.releaseimages"
@@ -71,8 +71,8 @@ extension SelfTest {
             MenuBarIcon.shared.setTranslating(false)
             if let notice = controller.notice { controller.endNotice(notice) }
             controller.commitComposition(client)
-            (controller.converter, settings, controller.loadSettings) = (saved.converter, saved.settings, saved.load)
-            (controller.readClipboard, controller.recognizeText, controller.secureInputActive) = (saved.clipboard, saved.recognizer, saved.secure)
+            (controller.services.converter, settings, controller.services.loadSettings) = (saved.converter, saved.settings, saved.load)
+            (controller.readClipboard, controller.services.recognizeText, controller.services.secureInputActive) = (saved.clipboard, saved.recognizer, saved.secure)
             TranslateModeShared.defaults = saved.defaults
             if TranslateModeShared.lastTarget != saved.lastTarget { TranslateModeShared.lastTarget = saved.lastTarget }
             TranslateModeShared.shiftHeld = saved.shiftHeld
@@ -84,8 +84,8 @@ extension SelfTest {
             controller.composer.setInputMode(settings.defaultInput)
             client.inserted.removeAll()
         }
-        controller.loadSettings = { SelfTest.settings }
-        controller.secureInputActive = { false }
+        controller.services.loadSettings = { SelfTest.settings }
+        controller.services.secureInputActive = { false }
         // The panels away from the pointer, so no row shows as hovered in the images.
         let screen = NSScreen.screens[0].frame, mouse = NSEvent.mouseLocation
         client.caretRect = NSRect(x: mouse.x < screen.midX ? screen.maxX - 1100 : screen.minX + 80,
@@ -119,7 +119,7 @@ extension SelfTest {
             use(input: english ? [.english] : [.chinese, .english], outputs: english ? ["es", "fr"].map(OutputLanguage.init) : [.english, OutputLanguage("ja")])
             let model = CannedTranslationModel(answers: [:])
             let fixed = settings
-            controller.converter = Converter(loadConfig: { fixed }, appleModel: model)
+            controller.services.converter = Converter(loadConfig: { fixed }, appleModel: model)
             client.bundleIDOverride = "com.example.chat"
             controller.activateServer(client)
             controller.composer.setInputMode(english ? .english : .chinese)
@@ -138,8 +138,8 @@ extension SelfTest {
 
             // @reply with a screenshot pasted (⌃V): read here, then three replies.
             use(input: english ? [.english] : [.chinese, .english], outputs: english ? [OutputLanguage("es")] : [.english])
-            controller.converter = ReleaseImageEndpoint.converter()
-            controller.recognizeText = vision
+            controller.services.converter = ReleaseImageEndpoint.converter()
+            controller.services.recognizeText = vision
             controller.composer.setInputMode(.english)
             let conversation = english ? ["Can you join the launch review on Friday at 3?", "Let me check my calendar"]
                 : ["周五下午三点能来参加上线评审吗？", "我看一下日程"]

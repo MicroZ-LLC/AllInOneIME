@@ -109,7 +109,7 @@ extension AllInOneIMEInputController {
         guard composer.translateMode != nil else { return }
         TranslateModeShared.listOpen = false  // a key closes the chip's list, and does what it does
         scheduleChipRefresh()
-        guard secureInputActive() else {
+        guard services.secureInputActive() else {
             TranslateModeShared.toldSecureInput = false
             return
         }
@@ -128,7 +128,7 @@ extension AllInOneIMEInputController {
             Self.endHoldHint()
             return
         }
-        switch TranslateModeShared.hold.poll(pointerUsed: pointerUsedWithin(held)) {
+        switch TranslateModeShared.hold.poll(pointerUsed: services.pointerUsedWithin(held)) {
         case .hint?:
             // Up until about when the toggle would come; the press ended before it, nothing happens and it goes then.
             let hint = holdHint()
@@ -158,7 +158,7 @@ extension AllInOneIMEInputController {
         if TranslateModeShared.state.isOn {
             return tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off")
         }
-        guard TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: loadSettings().outputLanguages) != nil else {
+        guard TranslateMode.target(last: TranslateModeShared.lastTarget, outputs: services.loadSettings().outputLanguages) != nil else {
             return noTargetText
         }
         return tr("继续按住 → 边打边译", "Keep holding → Translate as You Type")
@@ -176,7 +176,7 @@ extension AllInOneIMEInputController {
     /// is being typed, in the app's tone. In an app with no AI it's on but does nothing there, and says so.
     @MainActor
     private func enterTranslateMode() {
-        let config = loadSettings()
+        let config = services.loadSettings()
         guard let session = TranslateModeShared.state.enter(last: TranslateModeShared.lastTarget, config: config) else {
             showNotice(noTargetText, client: nil)
             return
@@ -208,7 +208,7 @@ extension AllInOneIMEInputController {
         TranslateModeShared.hold.resync(shiftDown: TranslateModeShared.shiftDown())
         Self.endHoldHint()
         TranslateModeShared.listOpen = false
-        let config = loadSettings()
+        let config = services.loadSettings()
         let transition = TranslateModeShared.state.activated(app: app, last: TranslateModeShared.lastTarget, config: config)
         let allowed = config.allowsAI(in: app)
         perform(composer.setTranslateMode(TranslateModeShared.state.session.flatMap { allowed ? $0 : nil }), client: nil)
@@ -233,7 +233,7 @@ extension AllInOneIMEInputController {
         TranslateModeShared.hold.resync(shiftDown: TranslateModeShared.shiftDown())
         endHoldHint()
         let field = activeController
-        let config = field?.loadSettings() ?? LiveConfig.current
+        let config = field?.services.loadSettings() ?? LiveConfig.current
         guard case .left = TranslateModeShared.state.appActivated(app, config: config) else { return }
         log.notice("Translate as You Type off (another app)")
         TranslateModeShared.listOpen = false
@@ -263,7 +263,7 @@ extension AllInOneIMEInputController {
         let from = typed.matches(session.target) ? composer.inputLanguages.first { !$0.matches(session.target) } : typed
         let languages = (from.map { UIText.name(OutputLanguage($0)) + " → " } ?? "") + UIText.name(session.target)
         let why = !allowed ? tr(" · 这个 App 里关了 AI，照原样上屏", " · AI is off in this app, text goes in as typed")
-            : secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
+            : services.secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
         let text = tr("边打边译 已开启：\(languages) · 再长按 Shift 关闭", "Translate as You Type on: \(languages) · hold Shift again to turn off")
         showNotice(text + why, client: nil, lasting: why.isEmpty ? TranslateModeShared.noticeLasting : nil)
     }
@@ -280,7 +280,7 @@ extension AllInOneIMEInputController {
     func translateChip() -> TranslateMode.Chip? {
         guard composer.translateMode != nil, Self.activeController === self,
               !SecureInput.blocksComposing(clientOverride ?? client()) else { return nil }
-        return composer.translateModeChip(choices: TranslateModeShared.listOpen ? loadSettings().outputLanguages : nil)
+        return composer.translateModeChip(choices: TranslateModeShared.listOpen ? services.loadSettings().outputLanguages : nil)
     }
 
     /// The chip's list is what the panel shows here (it's open and the chip is here), over anything else.
@@ -371,7 +371,7 @@ extension AllInOneIMEInputController {
         conversionTask?.cancel()
         (lastElapsed, lastFromCache, lastHidden, lastShortened) = (nil, false, 0, false)
         log.notice("conversion \(id) started (Translate as You Type, \(input.count) chars, into \(session.target.code, privacy: .public))")
-        let stream = converter.translateMode(input, target: session.target, app: app)
+        let stream = services.converter.translateMode(input, target: session.target, app: app)
         return Self.isTerminal(clientOverride ?? client()) ? Self.oneLine(stream) : stream
     }
 }

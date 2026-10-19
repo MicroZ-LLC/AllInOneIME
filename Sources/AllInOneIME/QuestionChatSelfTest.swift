@@ -79,11 +79,11 @@ extension SelfTest {
         ]
         let model = CannedChatModel(answers: answers)
         var started: [String] = [], opened: [String] = [], copied: [String] = [], agentArguments: [[String]] = []
-        let saved = (converter: controller.converter, settings: settings, open: controller.openItem, copy: controller.copyText,
-                     agent: controller.continueInAgent, installed: controller.agentInstalled)
+        let saved = (converter: controller.services.converter, settings: settings, open: controller.openItem, copy: controller.copyText,
+                     agent: controller.services.continueInAgent, installed: controller.services.agentInstalled)
         defer {
             controller.commitComposition(client)
-            (controller.converter, settings, controller.openItem, controller.copyText, controller.continueInAgent, controller.agentInstalled)
+            (controller.services.converter, settings, controller.openItem, controller.copyText, controller.services.continueInAgent, controller.services.agentInstalled)
                 = (saved.converter, saved.settings, saved.open, saved.copy, saved.agent, saved.installed)
             controller.applySettings()
             controller.composer.setInputMode(settings.defaultInput)
@@ -92,12 +92,12 @@ extension SelfTest {
         settings.questionRounds = 3
         settings.rememberQuestions = true
         let fixed = settings
-        controller.converter = Converter(loadConfig: { fixed }, appleModel: model)
+        controller.services.converter = Converter(loadConfig: { fixed }, appleModel: model)
         controller.openItem = { opened.append($0) }
         controller.copyText = { copied.append($0) }
-        controller.continueInAgent = { agentArguments.append($0); started.append($1) }
+        controller.services.continueInAgent = { agentArguments.append($0); started.append($1) }
         // The agents "installed" here, whatever is on this Mac: Claude Code and Gemini CLI, and the custom one once set.
-        controller.agentInstalled = { kind, custom in kind == .claude || kind == .gemini || (kind == .custom && !custom.isEmpty) }
+        controller.services.agentInstalled = { kind, custom in kind == .claude || kind == .gemini || (kind == .custom && !custom.isEmpty) }
         controller.applySettings()
         controller.composer.setInputMode(.english)
         QuestionHistoryStore.clear()
@@ -238,7 +238,7 @@ extension SelfTest {
         // A long conversation for a small context: shortened, and said so; the panel scrolls within half the screen.
         let long = String(repeating: "This answer goes on and on to fill the model's small context. ", count: 30)
         let small = CannedChatModel(contextSize: 1800, answers: ["one": long, "two": long, "three": long])
-        controller.converter = Converter(loadConfig: { fixed }, appleModel: small)
+        controller.services.converter = Converter(loadConfig: { fixed }, appleModel: small)
         settings.questionRounds = 5
         controller.applySettings()
         ask("one")

@@ -57,15 +57,15 @@ extension SelfTest {
     /// many were hidden; the version picked goes in with them.
     static func testRedaction(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("hiding sensitive information from the AI (live Bedrock)", needs: [.composing, .bedrock])
-        let (converterBefore, document, inserted) = (controller.converter, client.document, client.inserted)
+        let (converterBefore, document, inserted) = (controller.services.converter, client.document, client.inserted)
         defer {
-            controller.converter = converterBefore
+            controller.services.converter = converterBefore
             controller.commitComposition(client)
             (client.document, client.inserted, client.selection, client.insertionPoint) = (document, inserted, nil, nil)
         }
         let email = "bob.tester@example.com", phone = "555-123-4567"
         LoggingProxyProtocol.reset()
-        controller.converter = Converter(client: BedrockClient(session: LoggingProxyProtocol.session()), loadConfig: {
+        controller.services.converter = Converter(client: BedrockClient(session: LoggingProxyProtocol.session()), loadConfig: {
             var config = try Config.load()
             config.setOrder([OutputLanguage.english])
             config.rewriteStyles = ["简洁"]

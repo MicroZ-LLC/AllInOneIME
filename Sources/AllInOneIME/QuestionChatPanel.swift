@@ -8,7 +8,7 @@ extension AllInOneIMEInputController {
     @MainActor
     func applyChatSettings(_ config: Config) {
         composer.questionRounds = config.questionRounds
-        let installed = agentInstalled
+        let installed = services.agentInstalled
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil

@@ -23,9 +23,9 @@ extension SelfTest {
             return
         }
         needing(.composing)  // the on-device model, not Bedrock
-        let (converterBefore, settingsBefore) = (controller.converter, settings)
+        let (converterBefore, settingsBefore) = (controller.services.converter, settings)
         defer {
-            (controller.converter, settings) = (converterBefore, settingsBefore)
+            (controller.services.converter, settings) = (converterBefore, settingsBefore)
             controller.applySettings()
         }
         var apple = settings
@@ -34,7 +34,7 @@ extension SelfTest {
         apple.rewriteStyles = ["简洁"]
         settings = apple
         let fixed = apple
-        controller.converter = Converter(loadConfig: { fixed })
+        controller.services.converter = Converter(loadConfig: { fixed })
         controller.applySettings()
 
         // English typed in English mode: three English versions and the concise rewrite, in English.

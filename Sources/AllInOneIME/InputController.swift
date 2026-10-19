@@ -111,7 +111,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The input state machine. It asks `secureInputActive` before starting the agent.
     lazy var composer: Composer = {
         let composer = Composer()
-        composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
+        composer.secureInputActive = { [weak self] in self?.services.secureInputActive() ?? false }
         composer.readSelection = { [weak self] in MainActor.assumeIsolated { self?.readSelection() } }
         composer.characterBeforeCaret = { [weak self] in MainActor.assumeIsolated { self?.characterBeforeCaret() } }
         composer.aiRefusal = { [weak self] in MainActor.assumeIsolated { self?.aiRefusal() } }
@@ -141,13 +141,9 @@ final class AllInOneIMEInputController: IMKInputController {
     private var deadKeys = DeadKeyComposer()
     /// Shown once each time composing gets paused for secure input.
     private var secureNoticeShown = false
-    var converter: Converter = sharedConverter
-    /// The command usage as kept, and keeping it (the self-test leaves the user's alone).
-    var loadCommandUsage: () -> CommandUsage = { CommandUsageStore.usage }
-    var saveCommandUsage: (CommandUsage) -> Void = { CommandUsageStore.save($0) }
-    /// The recent `@question`s as kept, and keeping one (the self-test leaves the user's alone).
-    var loadQuestionHistory: () -> QuestionHistory = { QuestionHistoryStore.history }
-    var recordQuestion: (QuestionHistory.Entry) -> Void = { QuestionHistoryStore.record($0) }
+    /// What the session asks of this Mac, or has it do (`SessionServices.mac`; the self-test supplies stand-ins that
+    /// leave the user's own alone).
+    lazy var services: SessionServices = MainActor.assumeIsolated { MainThreadBox(SessionServices.mac) }.value
     /// The text field of the key being handled (`handleKeyDown`): where the selection is read.
     var keyClient: IMKTextInput?
     /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
@@ -156,43 +152,23 @@ final class AllInOneIMEInputController: IMKInputController {
     /// What the field said was selected when a command started on its selection (`selectedRange()`, as it reported it):
     /// a key finding it changed (a click, the app's own keys) gives the command up (`Composer.selectionMoved`).
     private var selectionReported: NSRange?
-    /// Whether secure event input is on anywhere; no text is sent to the model then.
-    /// (The self-test replaces this to exercise both states.)
-    var secureInputActive: () -> Bool = { SecureInput.isOn }
     /// Only set by the self-test: IMK refuses to create a controller for anything but its own
     /// client proxies, so the test injects its fake text field here.
     var clientOverride: IMKTextInput?
-    /// The settings the controller follows (the self-test supplies its own).
-    var loadSettings: () -> Config = { LiveConfig.current }
     /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
     var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
     /// The bundle id of the app being typed in (its `AppProfile`), as the field of the key, else the client, says it.
     var appID: String? { (keyClient ?? clientOverride ?? client())?.bundleIdentifier() }
     /// The app of the text field that became active last (for what's shown on every key, without asking it again).
     var activeApp: String?
-    /// `@open`: finds files and apps, what it opened before first (`loadOpenHistory`), and opens the one
-    /// picked, which `recordOpen` keeps. The self-test opens nothing and keeps its history in memory.
-    var searchFiles: @MainActor (_ query: String, _ history: OpenHistory) async -> [SearchResult] = {
-        await FileSearch.run($0, history: $1)
-    }
-    /// Opens an `@open` result: a web address in the default browser, anything else as a file.
+    /// Opens an `@open` result: a web address in the default browser, anything else as a file (the self-test opens
+    /// nothing).
     var openItem: (String) -> Void = {
         NSWorkspace.shared.open(SearchResult(name: "", path: $0).webURL ?? URL(fileURLWithPath: $0))
     }
-    var loadOpenHistory: () -> OpenHistory = { OpenHistoryStore.history }
-    var recordOpen: (String) -> Void = { OpenHistoryStore.record($0) }
-    /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in Terminal (the self-test
-    /// starts nothing).
-    var runInTerminal: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`, `applyAgent`).
     private(set) var agent = AgentKind.claude
     private(set) var agentCommand: [String] = []
-    /// An `@question` conversation going on in a coding agent: its arguments (`AgentKind.terminalArguments`) with the
-    /// conversation in Terminal (`ChatHandoff`; the self-test starts nothing).
-    var continueInAgent: ([String], String) throws -> Void = { try TerminalLauncher.agent($0, prompt: $1) }
-    /// Whether an agent is on this Mac (a custom one by its command), for the `@question` hand-off's choices (the
-    /// self-test supplies its own). Main thread only.
-    var agentInstalled: (AgentKind, [String]) -> Bool = { AgentAvailability.installed($0, custom: $1) }
     /// `@agent` in Chrome takes the page along (`Config.agentPageContext`).
     private(set) var agentPageContext = true
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
@@ -201,15 +177,6 @@ final class AllInOneIMEInputController: IMKInputController {
         PageContextReader.applies(app: app, enabled: true) ? app.flatMap(PageContextReader.runningPID) : nil
     }
     var readPageContext: @Sendable (pid_t, CGPoint) -> PageContext? = { PageContextReader.read(pid: $0, pointer: $1) }
-    /// A custom `terminal` command: runs its arguments in Terminal (the self-test starts nothing).
-    var launchInTerminal: ([String]) throws -> Void = { try TerminalLauncher.launch($0) }
-    /// `@note`: where the text is saved (`Config.notes`: Apple Notes, a folder, Notion), made for each save (the self-test
-    /// supplies stand-ins, or a folder of its own).
-    var noteDestination: @MainActor (NoteSettings) -> any NoteDestination = { NoteSaving.destination($0) }
-    /// `@reminder`: reads the reminder in a text by the real clock (the self-test may supply its own), and
-    /// adds a confirmed one to Apple Reminders (the self-test adds nothing).
-    var parseReminder: (String) -> ReminderDraft = { ReminderParser().parse($0, now: Date()) }
-    var addReminder: @MainActor (ReminderDraft) async throws -> Void = { _ = try await RemindersBridge.add($0) }
     /// Counts this controller's activations and deactivations: a save to Notes or Reminders that comes back to
     /// another count is no longer in the text field it came from (a failed one's text then goes to the
     /// clipboard instead of back into the draft).
@@ -217,13 +184,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The controller of the text field being typed in, if any: where the outcome of a save is told once the
     /// field it came from is gone.
     private(set) static weak var activeController: AllInOneIMEInputController?
-    /// Whether a command's program is on this Mac (the self-test supplies its own). Called off the main thread.
-    var programInstalled: @Sendable (String) -> Bool = { program in
-        if program.isEmpty { return false }  // a custom agent without a command
-        if program == "claude", TerminalLauncher.claudePath != nil { return true }
-        if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
-        return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
-    }
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing.
     private var checkedCommands: [Command] = []
     private var checkedAgent: [String] = []
@@ -232,22 +192,8 @@ final class AllInOneIMEInputController: IMKInputController {
     private var missingCheckWaiting = false
     /// The latest check (an older one that finishes later is ignored).
     private var programCheck = 0
-    /// Background `@agent` tasks (Claude Code's): starting one, the list, opening one (the self-test supplies its own).
-    var startAgent: (String) async throws -> String = { try await AgentMonitor.shared.start($0) }
-    var listAgents: () async throws -> [(session: AgentSession, reply: String?)] = { try await AgentMonitor.shared.list() }
+    /// Opens a background `@agent` task (Claude Code's) in Terminal.
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
-    /// A custom `run` command: runs its program in the background (the self-test supplies its own).
-    var runProgram: (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { CommandRunner.run($0, input: $1) }
-    /// The script extensions for these settings (`rescan`: a text field became active: the index is built
-    /// again in the background, and Spotlight may look for Raycast script folders). The self-test supplies its
-    /// own: never the user's.
-    var loadExtensions: (Config, _ rescan: Bool) -> ExtensionIndex = { config, rescan in
-        if rescan { LiveExtensions.discoverIfDue(config) }
-        return LiveExtensions.current(config, rescan: rescan)
-    }
-    /// The values a bundle's commands get (`LiveExtensions.preferences`, the keychain read for passwords). Called
-    /// off the main thread, never while a key is handled.
-    var extensionPreferences: @Sendable (ExtensionBundle, Config) -> [String: String] = { LiveExtensions.preferences(of: $0, config: $1) }
     /// The command list as last built from the settings and the extensions (`CatalogCache`).
     private var catalog = CatalogCache()
     /// Where script extensions run (`ScriptTasks.shared`).
@@ -257,13 +203,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// A `list` command's text being run (or waiting for its `queryDelay`), and that run.
     private var listRunKey: String?
     private var listTask: Task<Void, Never>?
-    /// A script plugin: runs in this program's own child process (`--run-plugin`), told the interface language.
-    var runPlugin: (InstalledPlugin, String, Language) -> AsyncThrowingStream<ConversionUpdate, Error> = {
-        PluginRunner.run($0, input: $1, language: $2)
-    }
-    /// `@search`'s key: the keychain's, else the login shell's (the self-test supplies its own: it never reads
-    /// the user's keychain). Called in the search's own task, off the main thread.
-    var loadSearchKey: @Sendable () -> String? = { WebSearch.loadKey() }
     /// ⌘C on a result (the self-test leaves the clipboard alone).
     var copyText: (String) -> Void = { text in
         NSPasteboard.general.clearContents()
@@ -273,24 +212,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// the key is answered and never during secure input (the self-test supplies its own and never reads the real
     /// clipboard).
     var readClipboard: () -> ClipboardContent = { AllInOneIMEInputController.clipboardContent(NSPasteboard.general) }
-    /// What reads a screenshot's text on this Mac (`Platform.current.text`: Vision; the self-test may supply its own).
-    var recognizeText: any TextRecognizer = Platform.current.text
-    /// The notice of the custom commands renamed for the built-in ones, once (`BuiltinRenames`; the self-test keeps its
-    /// own).
-    var takeRenameNotice: (Composer.ReplyMessages) -> String? = { BuiltinRenames.takeNotice($0) }
     /// Whether a draft started with an image on the clipboard warms Vision up (`warmUpScreenshotReading`; not in the
     /// self-test: it would look at the real clipboard's types).
     var warmsUpVision = true
-    /// `@imessage`: the address book (nil: no access), and sending (the self-test supplies stand-ins:
-    /// never the real Contacts or Messages).
-    var loadContacts: () async -> [Contact]? = {
-        if case let .contacts(contacts) = await ContactBook.load() { return contacts }
-        return nil
-    }
-    var messageSender: MessageSender = AppleScriptMessageSender()
-    /// The handles last messaged, and keeping them (the self-test leaves the user's alone).
-    var loadRecentHandles: () -> [String] = { RecentRecipients.handles }
-    var saveRecentHandles: ([String]) -> Void = { RecentRecipients.handles = $0 }
     /// The recipient text last searched, and the search in flight for it.
     private var recipientSearchQuery: String?
     private var recipientSearchTask: Task<Void, Never>?
@@ -315,13 +239,6 @@ final class AllInOneIMEInputController: IMKInputController {
     private var hasMarkedText = false
     /// The last character the user typed into this text field (`characterBeforeCaret`).
     private var lastTyped = LastTyped()
-    /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a
-    /// Shift-click or ⌥-click is no tap of the key. The self-test replaces this.
-    var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { seconds in
-        let kinds: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
-                                    .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
-        return kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
-    }
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 
@@ -424,7 +341,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func readSelection() -> Composer.Selection? {
         let target = keyClient ?? clientOverride ?? client()
-        guard loadSettings().useSelection, !secureInputActive(), !Self.isTerminal(target),
+        guard services.loadSettings().useSelection, !services.secureInputActive(), !Self.isTerminal(target),
               let read = SelectedText.read(from: target, accessibility: selectionByAccessibility) else { return nil }
         log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
         selectionReported = target?.selectedRange()
@@ -438,7 +355,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func characterBeforeCaret() -> Character? {
         guard let typed = lastTyped.character,
-              !pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
+              !services.pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
         let target = keyClient ?? clientOverride ?? client()
         guard let target, !Self.isTerminal(target) else { return typed }
         let caret = target.selectedRange()
@@ -653,7 +570,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// and type results out or not (`AppProfile`).
     @MainActor
     func applySettings(app: String? = nil) {
-        let config = loadSettings()
+        let config = services.loadSettings()
         let app = app ?? appID
         composer.voiceEnabled = config.voiceInput && VoiceInput.isSupported
         composer.actionKey = config.actionKey
@@ -664,13 +581,13 @@ final class AllInOneIMEInputController: IMKInputController {
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         composer.issueDiagnostics = { [weak self] in
             guard let self else { return IssueReporting.current(config: LiveConfig.current) }
-            let config = self.loadSettings()
+            let config = self.services.loadSettings()
             return IssueReporting.diagnostics(config: config, plugins: LivePlugins.current().count,
-                                              extensions: self.loadExtensions(config, false).commands.count)
+                                              extensions: self.services.loadExtensions(config, false).commands.count)
         }
         (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
         applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
-        setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: loadExtensions(config, true),
+        setCommands(catalog.catalog(config.customCommands, plugins: LivePlugins.current(rescan: true), index: services.loadExtensions(config, true),
                                     disabled: config.disabledExtensions).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
@@ -679,7 +596,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // Where @note saves (named in the interface language): its name in the command list, and whether the note leaves
         // the Mac (then it isn't saved during secure input). A folder's name is what is remembered of it (never a walk up
         // its tree here: on a network volume that went away, that can hang); it is looked up in the background.
-        let notes = noteDestination(config.notes)
+        let notes = services.noteDestination(config.notes)
         UIText.noteDestinationName = notes.name
         composer.noteLeavesDevice = notes.leavesDevice
         nameNoteFolder(notes, settings: config.notes)
@@ -708,7 +625,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// English). macOS translates the keys with it for this text field, typing and shortcuts alike.
     @MainActor
     private func applyKeyboardLayout(config: Config? = nil, client: IMKTextInput? = nil) {
-        let config = config ?? loadSettings()
+        let config = config ?? services.loadSettings()
         let language = composer.inputLanguage
         let id = config.keyboardLayout(for: language.isLatin ? language : .english) ?? Self.systemLayoutID
         guard let id, id != appliedLayout, let target = client ?? clientOverride ?? self.client() else { return }
@@ -834,7 +751,7 @@ final class AllInOneIMEInputController: IMKInputController {
             command == .agent ? (command.name, command.program(agent: agent, custom: agentCommand) ?? "")
                 : command.program.map { (command.name, $0) }
         }
-        let installed = programInstalled
+        let installed = services.programInstalled
         DispatchQueue.global().async { [weak self] in
             // The first check asks the user's shell for its PATH, which takes a moment.
             let missing = Set(needed.filter { !installed($0.1) }.map(\.0))
@@ -862,7 +779,7 @@ final class AllInOneIMEInputController: IMKInputController {
             return
         }
         do {
-            try continueInAgent(arguments, prompt)
+            try services.continueInAgent(arguments, prompt)
             log.notice("@question: conversation handed to \(kind.rawValue, privacy: .public) (\(prompt.count) chars)")
         } catch {
             log.error("@question: could not start Terminal: \(String(describing: error), privacy: .public)")
@@ -926,9 +843,9 @@ final class AllInOneIMEInputController: IMKInputController {
         // Commands added to the config apply from the next sentence on (the file is re-read only when it changed).
         if !composer.isComposing {
             // Built again only when what it's made of changed (`CatalogCache`): not for each key.
-            let config = loadSettings()
+            let config = services.loadSettings()
             let (commands, changed) = catalog.catalog(config.customCommands, plugins: LivePlugins.current(),
-                                                      index: loadExtensions(config, false), disabled: config.disabledExtensions)
+                                                      index: services.loadExtensions(config, false), disabled: config.disabledExtensions)
             applyAgent(config)
             translateModeFollow(config)
             // Another agent picked in Settings: its program is checked (`setCommands` sees it changed).
@@ -939,10 +856,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 composer.commands = checkedCommands.filter { !missingCommands.contains($0.name) }
             }
             missingCheckWaiting = false
-            composer.commandUsage = loadCommandUsage()  // another text field may have run commands
-            composer.remembersQuestions = loadSettings().rememberQuestions
-            applyChatSettings(loadSettings())
-            composer.questionHistory = loadQuestionHistory()  // asked in another text field, or cleared
+            composer.commandUsage = services.loadCommandUsage()  // another text field may have run commands
+            composer.remembersQuestions = services.loadSettings().rememberQuestions
+            applyChatSettings(services.loadSettings())
+            composer.questionHistory = services.loadQuestionHistory()  // asked in another text field, or cleared
         }
         // Dead keys aren't composed for an input method: done here, from the layout the keys come from.
         if composer.pendingAccent == nil { deadKeys.reset() }
@@ -980,7 +897,7 @@ final class AllInOneIMEInputController: IMKInputController {
         ensureEngine()
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let late = max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0)
-        composer.pointerUsedWithin = { [pointerUsedWithin] in pointerUsedWithin($0 + late) }
+        composer.pointerUsedWithin = { [pointerUsedWithin = services.pointerUsedWithin] in pointerUsedWithin($0 + late) }
         perform(composer.handleFlagsChanged(keyCode: event.keyCode, modifiers: Self.flagsChangedModifiers(event.modifierFlags),
                                             timestamp: event.timestamp),
                 client: client)
@@ -1015,11 +932,6 @@ final class AllInOneIMEInputController: IMKInputController {
         return result
     }
 
-    /// Whether an Option key is still down with no mouse button pressed, as a sanity check when the
-    /// hold timer fires (the composer tracks which key from the events). The self-test replaces this.
-    var isVoiceKeyHeld: () -> Bool = {
-        NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0
-    }
 
     // MARK: - Effects
 
@@ -1113,7 +1025,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 conversionTask?.cancel()
                 conversionTask = Task { @MainActor [weak self] in
                     guard let self else { return }
-                    let results = await self.searchFiles(query, self.loadOpenHistory())
+                    let results = await self.services.searchFiles(query, self.services.loadOpenHistory())
                     guard !Task.isCancelled else { return }
                     log.notice("search \(id): \(results.count) results")
                     self.perform(self.composer.receiveSearch(results, id: id), client: nil)
@@ -1126,7 +1038,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 log.notice("opening an @open result")
                 openItem(path)
                 // Listed first by the next searches (files only: a web address is typed again).
-                if SearchResult(name: "", path: path).webURL == nil { recordOpen(path) }
+                if SearchResult(name: "", path: path).webURL == nil { services.recordOpen(path) }
             case let .openLink(url):
                 // The site is public (a plugin's or the user's own template); the text in it is not.
                 log.notice("link command: opening \(url.isFileURL ? "a file" : url.host ?? "-", privacy: .public)")
@@ -1137,7 +1049,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 withPage(prompt) { [self] prompt, page in
                     Task { @MainActor [self] in
                         do {
-                            _ = try await self.startAgent(prompt)
+                            _ = try await self.services.startAgent(prompt)
                             if let page { self.showNotice(self.composer.messages.startedInBackground + UIText.withPage(page), client: nil) }
                         } catch {
                             log.error("@agent in the background failed: \(String(describing: error), privacy: .public)")
@@ -1153,7 +1065,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     guard let self else { return }
                     let results: [SearchResult]
                     do {
-                        results = try await self.listAgents().map { session, reply in
+                        results = try await self.services.listAgents().map { session, reply in
                             let mark = session.progress == .done ? "✓" : session.progress == .needsYou ? "⚠︎" : "…"
                             return SearchResult(name: "\(mark) \(session.name ?? session.shortID)",
                                                 path: SearchResult.agentPrefix + session.shortID, detail: reply)
@@ -1174,7 +1086,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
                 withPage(prompt) { [self] prompt, page in  // kept until the page is read (see above)
                     do {
-                        try self.runInTerminal(arguments, prompt)
+                        try self.services.runInTerminal(arguments, prompt)
                         log.notice("@agent: \(self.agent.rawValue, privacy: .public) started in Terminal (\(prompt.count) chars)")
                         if let page { self.showNotice(self.composer.messages.openedTerminal + UIText.withPage(page), client: target) }
                     } catch {
@@ -1187,14 +1099,14 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind, client: target)
             case .commandUsed:
-                saveCommandUsage(composer.commandUsage)
+                services.saveCommandUsage(composer.commandUsage)
             case let .rememberQuestion(entry):
                 // Kept only on this Mac, never while secure input is on (the composer checks too).
-                guard loadSettings().rememberQuestions, !secureInputActive() else { break }
-                recordQuestion(entry)
+                guard services.loadSettings().rememberQuestions, !services.secureInputActive() else { break }
+                services.recordQuestion(entry)
             case let .launchInTerminal(argv):
                 do {
-                    try launchInTerminal(argv)
+                    try services.launchInTerminal(argv)
                     log.notice("custom command: Terminal started (\(argv.count) arguments)")
                 } catch {
                     log.error("custom command: could not start Terminal: \(String(describing: error), privacy: .public)")
@@ -1207,7 +1119,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .previewReminder(input, id):
                 // Read here by the real clock (NSDataDetector and the parser's own rules), quick enough for
                 // a keystroke. Nothing leaves the Mac, so secure input doesn't hold it back either.
-                perform(composer.receiveReminder(parseReminder(input), id: id), client: target)
+                perform(composer.receiveReminder(services.parseReminder(input), id: id), client: target)
             case let .startTranslateMode(input, session, id):
                 if refusedForSecureInput(id: id, client: target) { break }
                 consume(translateModeStream(input, session: session, app: appID, id: id), id: id)
@@ -1223,7 +1135,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     // Nothing is read during secure input.
-                    let content = self.secureInputActive() ? .none : self.readClipboard()
+                    let content = self.services.secureInputActive() ? .none : self.readClipboard()
                     // Only how much: never the text or the image itself.
                     log.notice("clipboard for a command: \(Self.logged(content), privacy: .public)")
                     self.perform(self.composer.pasted(content, id: id), client: nil)
@@ -1248,7 +1160,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 let token = voiceArmToken
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self, token == self.voiceArmToken else { return }
-                    self.perform(self.composer.voiceHoldElapsed(stillHeld: self.isVoiceKeyHeld()), client: nil)
+                    self.perform(self.composer.voiceHoldElapsed(stillHeld: self.services.isVoiceKeyHeld()), client: nil)
                 }
             case let .startVoice(id, language):
                 startVoice(id: id, language: language)
@@ -1288,10 +1200,10 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func environmentMaker(_ command: ScriptCommand, query: String, status: Bool = false,
                                   action: Bool = false) -> @Sendable () async -> Result<[String: String], DescribedError> {
-        let config = loadSettings()
-        let bundle = loadExtensions(config, false).bundle(of: command)
+        let config = services.loadSettings()
+        let bundle = services.loadExtensions(config, false).bundle(of: command)
         let context = scriptContext(query: query)
-        let preferences = extensionPreferences
+        let preferences = services.extensionPreferences
         let missingMessage = { (missing: ExtensionBundle.Preference, bundle: ExtensionBundle) in
             tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
         }
@@ -1353,7 +1265,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func startInBackground(_ command: Command, arguments: [String], query: String, client: IMKTextInput?) {
         guard let script = command.script else { return }
-        guard !secureInputActive() else {
+        guard !services.secureInputActive() else {
             showNotice(tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
                           "Secure input is on (a password field or the lock screen): the command was not run"), client: client)
             return
@@ -1377,7 +1289,7 @@ final class AllInOneIMEInputController: IMKInputController {
         listTask?.cancel()
         listTask = nil
         guard let query, let command, let script = command.script else { return }
-        guard !secureInputActive(), case let .success(arguments) = script.arguments(from: query) else { return }
+        guard !services.secureInputActive(), case let .success(arguments) = script.arguments(from: query) else { return }
         listTask = Task { @MainActor [weak self] in
             var delay = now ? 0 : script.queryDelay
             var environment: [String: String]?
@@ -1416,7 +1328,7 @@ final class AllInOneIMEInputController: IMKInputController {
     private func refreshStatuses() {
         guard composer.paletteQuery != nil else { return }
         let shown = composer.paletteVisible.compactMap(\.script).filter { $0.status != nil }
-        guard !shown.isEmpty, !secureInputActive() else { return }
+        guard !shown.isEmpty, !services.secureInputActive() else { return }
         ScriptStatus.shared.refresh(shown, environment: { [weak self] command in
             guard let self, case let .success(env) = await self.scriptEnvironment(command, query: "", status: true) else { return nil }
             return env
@@ -1435,11 +1347,11 @@ final class AllInOneIMEInputController: IMKInputController {
         recipientSearchQuery = query
         recipientSearchTask?.cancel()
         guard let query else { return }
-        let recent = loadRecentHandles()
+        let recent = services.loadRecentHandles()
         recipientSearchTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 80_000_000)
             guard let self, !Task.isCancelled else { return }
-            let contacts = await self.loadContacts()
+            let contacts = await self.services.loadContacts()
             guard !Task.isCancelled else { return }
             let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
             guard !Task.isCancelled else { return }
@@ -1457,19 +1369,19 @@ final class AllInOneIMEInputController: IMKInputController {
     /// names, handles or text.
     @MainActor
     private func sendMessage(_ text: String, to recipient: Recipient, command: Command, client: IMKTextInput?) {
-        guard !secureInputActive() else {
+        guard !services.secureInputActive() else {
             showNotice(tr("系统安全输入已开启（密码框或锁屏），没有发送", "Secure input is on (a password field or the lock screen): nothing was sent"),
                        client: client)
             return
         }
         log.notice("@\(command.name, privacy: .public): sending (\(text.count) chars)")
-        let sender = messageSender
+        let sender = services.messageSender
         Task { @MainActor [weak self] in
             do {
                 try await sender.send(text, to: recipient)
                 log.notice("@\(command.name, privacy: .public): sent")
                 guard let self else { return }
-                self.saveRecentHandles(RecipientSearch.remember(recipient.handle, in: self.loadRecentHandles()))
+                self.services.saveRecentHandles(RecipientSearch.remember(recipient.handle, in: self.services.loadRecentHandles()))
                 self.showNotice(tr("已发送给 ", "Sent to ") + recipient.displayName, client: nil)
             } catch {
                 let code: String
@@ -1496,7 +1408,7 @@ final class AllInOneIMEInputController: IMKInputController {
         liveSearchTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard let self, !Task.isCancelled else { return }
-            let results = await self.searchFiles(query, self.loadOpenHistory())
+            let results = await self.services.searchFiles(query, self.services.loadOpenHistory())
             guard !Task.isCancelled else { return }
             self.perform(self.composer.receiveLive(results, for: query), client: nil)
         }
@@ -1511,7 +1423,7 @@ final class AllInOneIMEInputController: IMKInputController {
         guard let folder = destination as? MarkdownFolderDestination else { return }
         Task { @MainActor [weak self] in
             let name = await Task.detached(priority: .utility) { folder.name }.value
-            guard let self, UIText.noteDestinationName != name, self.loadSettings().notes == settings else { return }
+            guard let self, UIText.noteDestinationName != name, self.services.loadSettings().notes == settings else { return }
             UIText.noteDestinationName = name
         }
     }
@@ -1523,10 +1435,10 @@ final class AllInOneIMEInputController: IMKInputController {
     /// menu bar panel can list is posted (`.allInOneIMENoteSaved`). Only its length is logged.
     @MainActor
     private func saveToNotes(_ text: String) {
-        let destination = noteDestination(loadSettings().notes)
+        let destination = services.noteDestination(services.loadSettings().notes)
         let name = destination.name
         // The composer refuses it already; the setting may have changed since it was told.
-        if destination.leavesDevice, secureInputActive() {
+        if destination.leavesDevice, services.secureInputActive() {
             log.notice("@note: not sent to Notion while secure input is on")
             if let effects = composer.restoreDraft(.note, text: text) { perform(effects, client: nil) } else { copyText(text) }
             showNotice(composer.messages.secureInputNote, client: nil)
@@ -1567,7 +1479,7 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("@reminder: adding one with \(kind, privacy: .public)")
         let progress = tr("正在加到提醒事项…", "Adding to Reminders…")
         showNotice(progress, client: nil, lasting: Self.progressNoticeLimit)
-        let (add, outcome) = (addReminder, SaveOutcome(from: self, progress: progress))
+        let (add, outcome) = (services.addReminder, SaveOutcome(from: self, progress: progress))
         Task { @MainActor in
             do {
                 try await add(reminder)
@@ -1823,7 +1735,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// off the Mac: the request fails at once. True if refused.
     @MainActor
     private func refusedForSecureInput(id: Int, client: IMKTextInput?, running: Bool = false) -> Bool {
-        guard secureInputActive() else { return false }
+        guard services.secureInputActive() else { return false }
         log.info("conversion \(id) not sent: secure input \(SecureInput.ownerDescription(), privacy: .public)")
         let message = running
             ? tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
@@ -1839,7 +1751,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The notice of an AI command in an app with no AI (`AppProfile.noAI`), read when the command starts; nil: AI may run.
     @MainActor
     private func aiRefusal() -> String? {
-        guard !loadSettings().allowsAI(in: appID) else { return nil }
+        guard !services.loadSettings().allowsAI(in: appID) else { return nil }
         log.notice("AI command refused: no AI in this app")
         return AppProfileText.refusal
     }
@@ -1863,15 +1775,15 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
         // @translate with no language to translate into but the sentence's own (a new user whose system has no
         // other language): nothing is sent; the settings open where languages are added.
-        if command == .translate, !SessionText.hasTranslationTarget(for: input, config: loadSettings()) {
+        if command == .translate, !SessionText.hasTranslationTarget(for: input, config: services.loadSettings()) {
             log.notice("conversion \(id): no language to translate into")
             perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
                                   id: id), client: nil)
             openSettings(.writing)
             return
         }
-        let (runPlugin, runProgram, converter, loadSearchKey) = (self.runPlugin, self.runProgram, self.converter, self.loadSearchKey)
-        let improveTranslates = loadSettings().improveTranslates
+        let (runPlugin, runProgram, converter, loadSearchKey) = (services.runPlugin, services.runProgram, services.converter, services.loadSearchKey)
+        let improveTranslates = services.loadSettings().improveTranslates
         // Script plugins get the language this conversion's own texts are in (read here: `UIText` is main-thread only).
         let pluginLanguage = UIText.pluginLanguage
         // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
@@ -1941,12 +1853,12 @@ final class AllInOneIMEInputController: IMKInputController {
         switch refinement.request {
         case let .writing(command, input):
             let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
-                                                 improveTranslates: loadSettings().improveTranslates)
-            stream = converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
+                                                 improveTranslates: services.loadSettings().improveTranslates)
+            stream = services.converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
         case let .command(command, input):
             // @reply with the Chrome page: asked again with it (the composer has the message without it).
             let sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
-            stream = converter.generate(command, input: sent, app: appID, fresh: refinement.fresh, turns: refinement.turns)
+            stream = services.converter.generate(command, input: sent, app: appID, fresh: refinement.fresh, turns: refinement.turns)
             generates = true
         }
         // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
@@ -2145,7 +2057,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// What the panel is made from besides the composer: the settings now, this field's notice, app and last result.
     @MainActor
     func panelPresenter() -> PanelPresenter {
-        let config = loadSettings()
+        let config = services.loadSettings()
         return PanelPresenter(
             config: config, app: activeApp, notice: notice, elapsed: lastElapsed, fromCache: lastFromCache, hidden: lastHidden,
             shortened: lastShortened, agent: agent, agentCommand: agentCommand,
@@ -2160,7 +2072,7 @@ final class AllInOneIMEInputController: IMKInputController {
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
         let config = try? Config.load()
-        UIText.choice = loadSettings().uiLanguage  // the menu can open before any text field in this process
+        UIText.choice = services.loadSettings().uiLanguage  // the menu can open before any text field in this process
         let settings = NSMenuItem(title: tr("设置…", "Settings…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
@@ -2387,9 +2299,9 @@ final class AllInOneIMEInputController: IMKInputController {
     @objc func reportIssue(_ sender: Any?) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)
-            let config = loadSettings()
+            let config = services.loadSettings()
             NSWorkspace.shared.open(IssueReport(title: "", diagnostics: IssueReporting.diagnostics(
-                config: config, plugins: LivePlugins.current().count, extensions: loadExtensions(config, false).commands.count)).url)
+                config: config, plugins: LivePlugins.current().count, extensions: services.loadExtensions(config, false).commands.count)).url)
         }
     }
 
