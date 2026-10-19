@@ -6,7 +6,8 @@ import Foundation
 /// when it fits, as before; else the settings the sentence is about first (`relevance`, a look at its words), a refine's
 /// latest turn, then the rest while there is room: older turns, the other settings, the other apps' current values.
 /// Room is kept for the answer (`answerRoom`) and the tools' calls (`toolRoom`). Nil when not even the sentence and the
-/// latest turn fit with one part of the settings (`AIConfigService` throws `AppleModelError.contextExceeded`).
+/// latest turn fit with one part of the settings: `AIConfigService` sends it to the user's own provider instead, or says
+/// what to do.
 public struct AIConfigFit: Sendable {
     /// The settings listed.
     public var scope: AIConfigPrompt.Scope

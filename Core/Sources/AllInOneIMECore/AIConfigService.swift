@@ -7,7 +7,9 @@ import Foundation
 /// user hides from the AI are hidden as in any request (`Redaction`), and answers are kept like other conversions.
 ///
 /// The on-device model's context is small (4096 tokens before macOS 27, 8192 since) and holds the schema and the tools
-/// too: the request is fitted to it (`AIConfigFit`), counted by the model where it can tell.
+/// too: the request is fitted to it (`AIConfigFit`), counted by the model where it can tell. When it can't be fitted, or
+/// the model says it was too long all the same, it goes to the user's own provider instead (the answer says so,
+/// `Answer.instead`); without one that works, `TooLong` says what to do.
 public final class AIConfigService: Sendable {
     public struct Answer: Equatable, Sendable {
         /// The JSON as written (an on-device answer with its apps put back into its keys, `AIConfigPrompt.canonical`).
@@ -17,6 +19,47 @@ public final class AIConfigService: Sendable {
         public var onDevice: Bool
         /// How many values were hidden from the AI.
         public var hidden: Int
+        /// The user's own provider, which answered instead of the on-device model: the request was too long for its
+        /// context (`AIConfig.Text.answeredInstead`).
+        public var instead: Provider? = nil
+    }
+
+    /// The request was too long for the on-device model's context, and the user's own provider couldn't take it instead:
+    /// there is none (the on-device model is the provider chosen), it isn't set up (no key, no sign-in, no AWS profile),
+    /// or it failed (the network …).
+    public struct TooLong: Error, Sendable {
+        /// The user's provider, tried instead; nil when there is none to try.
+        public var provider: Provider?
+        /// Why it couldn't answer; nil when it wasn't tried.
+        public var providerError: (any Error)?
+
+        public init(provider: Provider? = nil, providerError: (any Error)? = nil) {
+            self.provider = provider
+            self.providerError = providerError
+        }
+
+        /// The provider wasn't tried, or isn't set up: what to set up is said, not its error.
+        public var providerNotSetUp: Bool {
+            switch providerError {
+            case nil: return true
+            case let error as ProviderError:
+                switch error {
+                case .missingKey, .missingModel, .signedOut, .keyForAnotherHost, .invalidBaseURL, .insecureBaseURL: return true
+                default: return false
+                }
+            case is AWSConfigError: return true
+            default: return false
+            }
+        }
+
+        /// The line Settings → Assistant shows, in the interface language `language`: a shorter request, or the provider
+        /// to set up, or what the provider said (`describe`, the interface's own words for an error).
+        public func line(language: String, describe: (any Error) -> String) -> String {
+            let text = AIConfig.Text(language: language)
+            guard let provider else { return text.tooLongNoProvider }
+            guard let providerError, !providerNotSetUp else { return text.tooLong(notSetUp: provider) }
+            return text.tooLong(provider: provider, failed: describe(providerError))
+        }
     }
 
     /// Lookups the on-device model may call (FoundationModels tools); each answers in a few short lines, nothing secret.
@@ -70,7 +113,8 @@ public final class AIConfigService: Sendable {
 
     /// The answer for `sentence` (keys already dropped), or with `turns`, the revised one after them. Throws the
     /// provider's error (no key, the network …), `AppleModelError.unavailable` when the user's provider is the on-device
-    /// model and it can't be used, or `AppleModelError.contextExceeded` when the request can't be fitted to its context.
+    /// model and it can't be used, or `TooLong` when the request was too long for the on-device model and the user's own
+    /// provider couldn't take it instead.
     public func ask(_ sentence: String, turns: [Refinement.Turn] = [], context: AIConfigPrompt.Context,
                     tools: Tools? = nil) async throws -> Answer {
         let onDevice = self.onDevice
@@ -84,8 +128,22 @@ public final class AIConfigService: Sendable {
         let sent = redaction?.hide(sentence) ?? sentence
         let lastMessage = Converter.hideTurns(turns, with: &redaction) ?? sent
         let hiding = Hiding(redaction: redaction, lastMessage: lastMessage)
-        guard onDevice else { return try await askProvider(sentence, turns: turns, context: context, hiding: hiding) }
-        return try await askOnDevice(sentence, turns: turns, context: context, tools: tools?.guided ?? [], hiding: hiding)
+        guard onDevice else { return try await askProvider(sentence, turns: turns, context: context, hiding: hiding, instead: false) }
+        do {
+            return try await askOnDevice(sentence, turns: turns, context: context, tools: tools?.guided ?? [], hiding: hiding)
+        } catch AppleModelError.contextExceeded {
+            // Too long for it even fitted: the user's own provider, with what it would get without the on-device model.
+            guard config.provider != .apple else { throw TooLong() }
+            var context = context
+            // The AWS profiles' names go to a cloud provider only when the request is about AWS or Bedrock.
+            context.showsAWSProfile = AIConfig.mentionsAWS(([sentence] + turns.map(\.instruction)).joined(separator: "\n"))
+            if !context.showsAWSProfile { context.awsProfiles = [] }
+            do {
+                return try await askProvider(sentence, turns: turns, context: context, hiding: hiding, instead: true)
+            } catch let error where !(error is CancellationError) {
+                throw TooLong(provider: config.provider, providerError: error)
+            }
+        }
     }
 
     /// What the request hides from the AI (`Redaction`), and the last message as it goes.
@@ -98,17 +156,20 @@ public final class AIConfigService: Sendable {
         func restore(_ text: String) -> String { redaction?.restore(text) ?? text }
     }
 
-    /// The configured provider's answer, with every setting in the instructions.
-    private func askProvider(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, hiding: Hiding) async throws -> Answer {
+    /// The configured provider's answer, with every setting in the instructions; `instead` of the on-device model, the
+    /// request being too long for it.
+    private func askProvider(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, hiding: Hiding,
+                             instead: Bool) async throws -> Answer {
         let config = context.config
         let request = AIConfigPrompt.request(sentence, context: context, turns: turns)
         let key = "@config|\(AIConfigPrompt.version)|\(config.activeModel)|\(request.system.map(\.text).joined())|\(sentence)"
             + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
+        let provider = instead ? config.provider : nil
         if let hit = cache.withLock({ $0.get(key) }), let text = hit.versions.first?.text {
-            return Answer(text: text, fromCache: true, onDevice: false, hidden: hiding.count)
+            return Answer(text: text, fromCache: true, onDevice: false, hidden: hiding.count, instead: provider)
         }
         let text = try await collect(client.stream(hiding.protect(request), config: config, loadCredentials: loadCredentials, loadKey: loadKey))
-        return keep(hiding.restore(text), key: key, Answer(text: "", fromCache: false, onDevice: false, hidden: hiding.count))
+        return keep(hiding.restore(text), key: key, Answer(text: "", fromCache: false, onDevice: false, hidden: hiding.count, instead: provider))
     }
 
     /// `answer` with `text`, kept under `key` unless it is empty.
@@ -123,7 +184,7 @@ public final class AIConfigService: Sendable {
 
     /// The on-device model held to the schema with `tools`, the request fitted to its context (`fitted`), where the
     /// backend can (`AppleGuidedBackend`); else the JSON in the instructions, as for any provider. Throws
-    /// `AppleModelError.contextExceeded` when the request can't be fitted.
+    /// `AppleModelError.contextExceeded` when the request can't be fitted, or the model found it too long all the same.
     private func askOnDevice(_ sentence: String, turns: [Refinement.Turn], context: AIConfigPrompt.Context, tools: [GuidedTool],
                              hiding: Hiding) async throws -> Answer {
         var config = context.config

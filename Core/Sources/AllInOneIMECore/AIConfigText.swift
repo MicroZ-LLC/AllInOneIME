@@ -201,6 +201,32 @@ extension AIConfig {
             }
         }
 
+        /// The request was too long for the on-device model's context, and there is no other provider to ask (it is the one
+        /// chosen): `AIConfigService.TooLong`.
+        public var tooLongNoProvider: String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务",
+               "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+        }
+
+        /// Too long for the on-device model, and the user's own provider isn't set up (no key, no sign-in, no AWS profile).
+        public func tooLong(notSetUp provider: Provider) -> String {
+            let name = self.provider(provider)
+            return tr("这句话对本机的 Apple Intelligence 来说太长了，\(name) 也还没设置好：请说得短一些，或者在设置 → AI 服务里设置好 \(name)",
+                      "Too long for Apple Intelligence on this Mac, and \(name) isn't set up: try a shorter request, or set up \(name) in Settings → AI Provider")
+        }
+
+        /// Too long for the on-device model, and the user's own provider failed too: what it said (`detail`).
+        public func tooLong(provider: Provider, failed detail: String) -> String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了，改问 \(self.provider(provider)) 也没成功：\(detail)",
+               "Too long for Apple Intelligence on this Mac, and \(self.provider(provider)) couldn't answer instead: \(detail)")
+        }
+
+        /// Over the preview when the user's own provider answered instead of the on-device model (`AIConfigService.Answer.instead`).
+        public func answeredInstead(_ provider: Provider) -> String {
+            tr("这句话对本机的 Apple Intelligence 来说太长了，改由 \(self.provider(provider)) 回答",
+               "Too long for Apple Intelligence on this Mac: \(self.provider(provider)) answered instead")
+        }
+
         /// A key typed into the sentence, with nothing else in it: nothing is sent, and the key field opens.
         public var droppedKey: String {
             tr("别在这里打密钥：没有发出去，我打开了填密钥的地方", "Don't type keys here; I opened the key field instead.")

@@ -93,7 +93,8 @@ final class ContextLimitedModel: AppleGuidedBackend, @unchecked Sendable {
 }
 
 /// Settings → Assistant on the on-device model, whose context (4096 tokens before macOS 27, 8192 since) holds the
-/// instructions, the schema, the tools and the answer together: the request fitted to it.
+/// instructions, the schema, the tools and the answer together: the request fitted to it, and when it can't be, the
+/// user's own provider, or a line that says what to do.
 struct AIConfigContextTests {
     /// A config as a long-time user's: five languages each way, every style, many apps with settings of their own,
     /// custom commands, hidden words.
@@ -229,6 +230,83 @@ struct AIConfigContextTests {
                 #expect(AIConfigFit.estimatedTokens(request, schema: schema, tools: tools) >= ContextLimitedModel.tokens(request, schema: schema, tools: tools))
             }
         }
+    }
+
+    // MARK: - Too long all the same
+
+    /// The model says it's too long though it was fitted: the user's own provider answers instead, with every setting in
+    /// the instructions as when the on-device model isn't there, and the answer says so.
+    @Test func tooLongAllTheSameGoesToTheUsersProvider() async throws {
+        let host = "assistant-fallback.test"
+        let answer = #"{"changes": [{"key": "candidateLayout", "value": "vertical"}]}"#
+        let chunk = "data: " + String(decoding: try JSONSerialization.data(withJSONObject: ["choices": [["delta": ["content": answer]]]]), as: UTF8.self)
+            + "\n\ndata: [DONE]\n\n"
+        StubURLProtocol.register(host: host, .init(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data(chunk.utf8)]))
+        let model = ContextLimitedModel(overflows: true)
+        let service = AIConfigService(client: ChatClient(bedrock: BedrockClient(session: StubURLProtocol.session()), apple: model),
+                                      loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                      loadKey: { provider, keyHost in provider == .openai && keyHost == host ? "sk-test" : nil })
+        var config = Self.bigConfig()
+        config.provider = .openai
+        config.openai = ProviderSettings(model: "some-model", baseURL: "https://\(host)/v1")
+        let got = try await service.ask("candidates in a column", context: Self.context(config), tools: Self.tools)
+        #expect(got.text == answer && !got.onDevice && got.instead == .openai && !got.fromCache)
+        #expect(model.sent.count == 1)
+        let body = RedactionTests.body(StubURLProtocol.lastRequest(host: host))
+        // The instructions as the providers get them (the allowed values); no AWS profile named: the sentence isn't about AWS.
+        #expect(body.contains("allowed values") && !body.contains("personal"), "\(body.prefix(300))")
+        // Asked again: kept, still said to be the provider's.
+        let again = try await service.ask("candidates in a column", context: Self.context(config), tools: Self.tools)
+        #expect(again.fromCache && again.instead == .openai && model.sent.count == 2)
+        #expect(AIConfig.Text(language: "en").answeredInstead(.openai)
+            == "Too long for Apple Intelligence on this Mac: OpenAI-compatible API answered instead")
+    }
+
+    /// With the on-device model as the provider chosen there is nothing else to ask: the line says what to do, in the
+    /// interface language; never the model's own error.
+    @Test func tooLongWithoutAProviderSaysWhatToDo() async throws {
+        let model = ContextLimitedModel(overflows: true)
+        var config = Self.bigConfig()
+        config.provider = .apple
+        do {
+            _ = try await Self.service(model).ask("candidates in a column", context: Self.context(config), tools: Self.tools)
+            Issue.record("no error")
+        } catch let error as AIConfigService.TooLong {
+            #expect(error.provider == nil && error.providerNotSetUp)
+            #expect(error.line(language: "en", describe: { _ in "" })
+                == "Too long for Apple Intelligence on this Mac: try a shorter request, or choose another AI provider in Settings → AI Provider")
+            #expect(error.line(language: "zh-Hans", describe: { _ in "" })
+                == "这句话对本机的 Apple Intelligence 来说太长了：请说得短一些，或者在设置 → AI 服务里换一个 AI 服务")
+        }
+    }
+
+    /// The user's provider isn't set up (no key here): what to set up, and where; a provider that fails otherwise, what it said.
+    @Test func tooLongAndTheProviderIsNotSetUp() async throws {
+        let model = ContextLimitedModel(overflows: true)
+        do {
+            _ = try await Self.service(model).ask("candidates in a column", context: Self.context(Self.bigConfig()), tools: Self.tools)
+            Issue.record("no error")
+        } catch let error as AIConfigService.TooLong {
+            #expect(error.provider == .anthropic && error.providerError as? ProviderError == .missingKey(.anthropic) && error.providerNotSetUp)
+            #expect(error.line(language: "en", describe: { _ in "unused" })
+                == "Too long for Apple Intelligence on this Mac, and Claude API isn't set up: try a shorter request, or set up Claude API in Settings → AI Provider")
+        }
+        let failed = AIConfigService.TooLong(provider: .gemini, providerError: URLError(.notConnectedToInternet))
+        #expect(!failed.providerNotSetUp)
+        #expect(failed.line(language: "en", describe: { _ in "No network connection" })
+            == "Too long for Apple Intelligence on this Mac, and Gemini API couldn't answer instead: No network connection")
+        #expect(failed.line(language: "zh-Hans", describe: { _ in "没有网络连接" })
+            == "这句话对本机的 Apple Intelligence 来说太长了，改问 Gemini API 也没成功：没有网络连接")
+    }
+
+    /// A sentence too long to fit with any of the settings never goes to the on-device model at all.
+    @Test func aSentenceTooLongForTheContextIsNotSentToTheModel() async throws {
+        let model = ContextLimitedModel(contextSize: 4096)
+        let sentence = String(repeating: "Please make the candidates vertical. ", count: 400)
+        await #expect(throws: AIConfigService.TooLong.self) {
+            _ = try await Self.service(model).ask(sentence, context: Self.context(Self.bigConfig()), tools: Self.tools)
+        }
+        #expect(model.sent.isEmpty)
     }
 
     // MARK: - What the sentence is about

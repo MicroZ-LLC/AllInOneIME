@@ -22,6 +22,8 @@ final class AssistantModel: ObservableObject {
     @Published private(set) var lines: [String] = []
     /// Why there is no preview (no model, not understood, nothing to change), or what applying couldn't do: one line.
     @Published private(set) var message: String?
+    /// Over the preview: the user's own provider answered, the request being too long for the on-device model.
+    @Published private(set) var notice: String?
     /// "Changed 2 settings", while those changes can be undone (`AIConfigSession.lastApplied`) or after an action.
     @Published private(set) var applied: String?
     /// The changes applied wrote settings: Undo is offered.
@@ -116,6 +118,10 @@ final class AssistantModel: ObservableObject {
                 let answer = try await service.ask(keys.text, context: context, tools: tools)
                 guard let self, !Task.isCancelled else { return }
                 self.working = false
+                if let provider = answer.instead {
+                    log.notice("assistant: too long for the on-device model; \(provider.rawValue, privacy: .public) answered instead")
+                    self.notice = AIConfig.Text(language: env.language).answeredInstead(provider)
+                }
                 self.show(answer: answer.text, env: env, droppedKey: (keys.dropped, keys.provider))
             } catch {
                 guard let self, !Task.isCancelled else { return }
@@ -174,6 +180,7 @@ final class AssistantModel: ObservableObject {
         preview = nil
         lines = []
         previewConfig = nil
+        notice = nil
     }
 
     /// The page shown again: a preview made before the settings changed elsewhere (another page, the menu, a hand edit)
@@ -266,6 +273,7 @@ final class AssistantModel: ObservableObject {
     /// What a new request or apply replaces: the last outcome's lines.
     private func clearOutcome() {
         message = nil
+        notice = nil
         undone = nil
         connection = nil
         connectionTask?.cancel()
@@ -473,6 +481,10 @@ struct AssistantPage: View {
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(!assistant.canPreview)
                 }
+            }
+            if let notice = assistant.notice {
+                Label(notice, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let preview = assistant.preview {
                 ForEach(Array(preview.rows.enumerated()), id: \.offset) { index, row in

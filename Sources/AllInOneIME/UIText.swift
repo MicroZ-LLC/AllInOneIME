@@ -339,6 +339,8 @@ enum UIText {
     static func describe(_ error: Error) -> String {
         // One line that says what to do ("SSO sign-in expired: run aws sso login --profile X").
         if let error = error as? AWSCredentialError { return error.shortMessage(language: language) }
+        // Settings → Assistant's request too long for Apple Intelligence on this Mac: a shorter one, or the provider to set up.
+        if let error = error as? AIConfigService.TooLong { return error.line(language: language, describe: { describe($0) }) }
         if let error = error as? WebReader.ReadError {
             switch error {
             case let .invalidURL(text): return tr("不是网址：\(text)", "Not a web address: \(text)")
