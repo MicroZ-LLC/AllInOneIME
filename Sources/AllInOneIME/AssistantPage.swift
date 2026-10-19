@@ -109,7 +109,7 @@ final class AssistantModel: ObservableObject {
             let profiles = showsAWS ? await Task.detached { env.awsProfiles() }.value : []
             let context = AIConfigPrompt.Context(
                 config: config, knownModels: models, awsProfiles: profiles, offeredProviders: env.offeredProviders,
-                installedPacks: Set(Language.allCases.filter(env.packInstalled)), showsAWSProfile: showsAWS)
+                installedPacks: Set(Language.allCases.filter(env.packInstalled)), showsAWSProfile: showsAWS, apps: env.apps)
             let tools = AIConfigSession.tools(env)
             guard !Task.isCancelled else { return }
             do {
