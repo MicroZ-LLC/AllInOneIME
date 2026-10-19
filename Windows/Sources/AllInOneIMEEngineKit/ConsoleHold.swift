@@ -99,7 +99,6 @@ public enum ConsoleHold {
             }
             return handle == INVALID_HANDLE_VALUE ? nil : handle
         }
-        bringToFront()
 
         var message: String
         var commandLineBuffer = Array(commandLine.utf16) + [0]
@@ -109,6 +108,9 @@ public enum ConsoleHold {
         let started = application.withCString(encodedAs: UTF16.self) {
             CreateProcessW($0, &commandLineBuffer, nil, nil, false, DWORD(CREATE_UNICODE_ENVIRONMENT), nil, nil, &startup, &info)
         }
+        let error = GetLastError()
+        // Once the program runs: it never waits on the window (a terminal may take a moment to show it, or never say).
+        bringToFront()
         if started {
             CloseHandle(info.hThread)
             WaitForSingleObject(info.hProcess, INFINITE)
@@ -117,8 +119,8 @@ public enum ConsoleHold {
             CloseHandle(info.hProcess)
             message = endMessage(name, code: code)
         } else {
-            message = chinese ? "\(name) 没能启动（错误 \(GetLastError())）。按任意键关闭此窗口。"
-                : "Couldn't start \(name) (error \(GetLastError())). Press any key to close this window."
+            message = chinese ? "\(name) 没能启动（错误 \(error)）。按任意键关闭此窗口。"
+                : "Couldn't start \(name) (error \(error)). Press any key to close this window."
         }
         if let held { CloseHandle(held) }
         if let promptFile { _ = promptFile.withCString(encodedAs: UTF16.self) { DeleteFileW($0) } }

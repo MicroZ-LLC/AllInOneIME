@@ -122,6 +122,75 @@ extension OnTheDesktop {
             #expect(WaitForSingleObject(process, 5000) == WAIT_OBJECT_0)
         }
 
+        /// The program starts at once, whatever the window that shows the console is doing: in a pseudo console that no
+        /// terminal takes (its window, `GetConsoleWindow`'s, never gets an owner), as a default terminal that is slow to
+        /// show it, or never says, would leave it, the console's process brings the window to the front only once the
+        /// program runs (it tries for 5 s).
+        @Test(.timeLimit(.minutes(1))) func theProgramDoesntWaitForTheWindow() throws {
+            try #require(FileManager.default.fileExists(atPath: debugEngine.path), "build the engine first (swift build)")
+            let folder = try temporaryFolder("hold-pty")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let marker = folder.appendingPathComponent("started.txt")
+            let markerPath = marker.withUnsafeFileSystemRepresentation { String(cString: $0!) }
+            var system = [WCHAR](repeating: 0, count: Int(MAX_PATH))
+            let count = Int(GetSystemDirectoryW(&system, UINT(MAX_PATH)))
+            let cmd = String(decoding: system.prefix(count), as: UTF16.self) + #"\cmd.exe"#
+            // A pseudo console of the test's own, its output read (and dropped) so that it never blocks.
+            var inputRead: HANDLE?, inputWrite: HANDLE?, outputRead: HANDLE?, outputWrite: HANDLE?
+            #expect(CreatePipe(&inputRead, &inputWrite, nil, 0) && CreatePipe(&outputRead, &outputWrite, nil, 0))
+            var console: HPCON?
+            #expect(CreatePseudoConsole(COORD(X: 120, Y: 30), inputRead, outputWrite, 0, &console) == S_OK)
+            nonisolated(unsafe) let reader = outputRead
+            Thread.detachNewThread {
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                var read: DWORD = 0
+                while ReadFile(reader, &buffer, DWORD(buffer.count), &read, nil), read > 0 {}
+            }
+            var size: SIZE_T = 0
+            InitializeProcThreadAttributeList(nil, 1, 0, &size)
+            let list = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: 16)
+            defer { list.deallocate() }
+            let attributes: LPPROC_THREAD_ATTRIBUTE_LIST = OpaquePointer(list)
+            #expect(InitializeProcThreadAttributeList(attributes, 1, 0, &size))
+            defer { DeleteProcThreadAttributeList(attributes) }
+            // PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: a macro Swift doesn't import.
+            #expect(UpdateProcThreadAttribute(attributes, 0, DWORD_PTR(0x0002_0016), UnsafeMutableRawPointer(console),
+                                              SIZE_T(MemoryLayout<HPCON>.size), nil, nil))
+            var environment = ConsoleHold.environmentBlock(adding: [
+                ConsoleHold.applicationVariable: cmd,
+                ConsoleHold.commandLineVariable: "cmd.exe /d /c \"echo started> \"\(markerPath)\"\"",
+                ConsoleHold.titleVariable: "pty",
+            ])
+            let holder = debugEngine.withUnsafeFileSystemRepresentation { String(cString: $0!) }
+            var commandLine = Array("\"\(holder)\" \(ConsoleHold.option)".utf16) + [0]
+            var startup = STARTUPINFOEXW()
+            startup.StartupInfo.cb = DWORD(MemoryLayout<STARTUPINFOEXW>.size)
+            startup.lpAttributeList = attributes
+            var info = PROCESS_INFORMATION()
+            let launched = Date()
+            let ok = holder.withCString(encodedAs: UTF16.self) { application in
+                environment.withUnsafeMutableBufferPointer { environment in
+                    CreateProcessW(application, &commandLine, nil, nil, false,
+                                   DWORD(EXTENDED_STARTUPINFO_PRESENT) | DWORD(CREATE_UNICODE_ENVIRONMENT),
+                                   environment.baseAddress, nil, &startup.StartupInfo, &info)
+                }
+            }
+            try #require(ok, "couldn't start the console's process (error \(GetLastError()))")
+            defer {
+                TerminateProcess(info.hProcess, 0)
+                WaitForSingleObject(info.hProcess, 5000)
+                CloseHandle(info.hThread)
+                CloseHandle(info.hProcess)
+                ClosePseudoConsole(console)
+                for handle in [inputRead, inputWrite, outputWrite, outputRead] { CloseHandle(handle) }
+            }
+            let deadline = Date().addingTimeInterval(15)
+            while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+            let waited = Date().timeIntervalSince(launched)
+            #expect(FileManager.default.fileExists(atPath: marker.path))
+            #expect(waited < 3, "the program started \(waited) s after its console's process")
+        }
+
         /// What the console's process is given is in its environment (the whole command line a program may have, in
         /// none of its own), and gone from it before the program starts: the program's environment is the engine's.
         @Test func theProgramIsInTheConsolesEnvironmentNotItsCommandLine() throws {
