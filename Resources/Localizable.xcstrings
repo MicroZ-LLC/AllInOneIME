@@ -16635,53 +16635,6 @@
         }
       }
     },
-    "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email" : {
-      "comment" : "没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kein Zugriff auf Kontakte: Systemeinstellungen → Datenschutz & Sicherheit → Kontakte → AllInOneIME einschalten; oder Telefonnummer bzw. E-Mail-Adresse eingeben"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sin acceso a Contactos: Ajustes del Sistema → Privacidad y seguridad → Contactos → activa AllInOneIME; o escribe un número de teléfono o un correo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pas d’accès aux Contacts : Réglages Système → Confidentialité et sécurité → Contacts → activez AllInOneIME ; ou saisissez un numéro de téléphone ou une adresse e-mail"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連絡先へのアクセス権がありません：システム設定 → プライバシーとセキュリティ → 連絡先 → AllInOneIMEをオンにしてください。または電話番号かメールアドレスを入力してください"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "연락처에 접근할 수 없음: 시스템 설정 → 개인정보 보호 및 보안 → 연락처 → AllInOneIME 켜기. 또는 전화번호나 이메일을 입력하세요"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sem acesso aos Contatos: Ajustes do Sistema → Privacidade e Segurança → Contatos → ative o AllInOneIME; ou digite um número de telefone ou e-mail"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有「聯絡人」的取用權限：系統設定 → 隱私權與安全性 → 聯絡人 → 開啟 AllInOneIME；或直接輸入電話號碼或電子郵件"
-          }
-        }
-      }
-    },
     "No access to Reminders" : {
       "comment" : "没有读取提醒事项的权限 — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -16960,53 +16913,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有指令"
-          }
-        }
-      }
-    },
-    "No contact found; or type a full phone number or email" : {
-      "comment" : "没有找到联系人；也可以输入完整的手机号或邮箱 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kein Kontakt gefunden; oder vollständige Telefonnummer bzw. E-Mail-Adresse eingeben"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No se encontró ningún contacto; o escribe un número de teléfono o un correo completo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aucun contact trouvé ; ou saisissez un numéro de téléphone ou une adresse e-mail complets"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連絡先が見つかりません。完全な電話番号かメールアドレスを入力することもできます"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "연락처를 찾을 수 없음. 또는 전체 전화번호나 이메일을 입력하세요"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nenhum contato encontrado; ou digite um número de telefone ou e-mail completo"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "找不到聯絡人；或輸入完整的電話號碼或電子郵件"
           }
         }
       }
@@ -26245,53 +26151,6 @@
         }
       }
     },
-    "Set “%@” for %@ in the settings first" : {
-      "comment" : "先在设置里填好「%@」（%@） — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lege zuerst „%@“ für %@ in den Einstellungen fest"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Primero define “%@” para %@ en los ajustes"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Définissez d’abord « %@ » pour %@ dans les réglages"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先に設定で「%@」（%@）を設定してください"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "먼저 설정에서 %2$@의 “%1$@”을(를) 설정하세요"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Defina “%@” para %@ nos Ajustes primeiro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請先在設定中為 %2$@ 設定「%1$@」"
-          }
-        }
-      }
-    },
     "Settings" : {
       "comment" : "设置 — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "localizations" : {
@@ -31464,53 +31323,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試一次"
-          }
-        }
-      }
-    },
-    "Type a name, phone number or email" : {
-      "comment" : "输入名字、拼音、手机号或邮箱 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name, Telefonnummer oder E-Mail-Adresse eingeben"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escribe un nombre, un número de teléfono o un correo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saisissez un nom, un numéro de téléphone ou une adresse e-mail"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名前、電話番号、メールアドレスを入力"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이름, 전화번호 또는 이메일 입력"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Digite um nome, número de telefone ou e-mail"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輸入名字、電話號碼或電子郵件"
           }
         }
       }

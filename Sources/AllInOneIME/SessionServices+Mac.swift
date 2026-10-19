@@ -46,6 +46,22 @@ extension SessionServices {
             return LiveExtensions.current(config, rescan: rescan)
         }
         services.extensionPreferences = { LiveExtensions.preferences(of: $0, config: $1) }
+        // Script extensions run where the menu bar panel lists those that go on in the background (`ScriptTasks`).
+        services.startScript = { script, arguments, environment, event in
+            MainActor.assumeIsolated {
+                ScriptTasks.shared.start(script, arguments: arguments, environment: environment, detached: false) { update in
+                    switch update {
+                    case let .update(update): event(.update(update))
+                    case let .failed(error): event(.failed(error))
+                    }
+                }
+            }
+        }
+        services.cancelScript = { run in MainActor.assumeIsolated { ScriptTasks.shared.cancel(run) } }
+        services.detachScript = { run in MainActor.assumeIsolated { ScriptTasks.shared.detach(run) } }
+        services.startScriptInBackground = { script, arguments, prepare, say in
+            MainActor.assumeIsolated { ScriptTasks.shared.startInBackground(script, arguments: arguments, prepare: prepare, say: say) }
+        }
         services.loadSearchKey = { WebSearch.loadKey() }
         services.takeRenameNotice = { BuiltinRenames.takeNotice($0) }
         services.noteDestination = { settings in MainActor.assumeIsolated { NoteSaving.destination(settings) } }

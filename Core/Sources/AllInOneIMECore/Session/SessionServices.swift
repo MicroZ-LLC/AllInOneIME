@@ -65,6 +65,18 @@ public struct SessionServices {
     /// handled).
     public var loadExtensions: (Config, _ rescan: Bool) -> ExtensionIndex
     public var extensionPreferences: @Sendable (ExtensionBundle, Config) -> [String: String]
+    /// Script extensions run for a field's request (the Mac's `ScriptTasks`: its menu bar panel lists those that go on in
+    /// the background): started with their environment, `event` told what they print, from any thread (nil: not
+    /// started); stopped; left to go on in the background (the field was left while a `show` runs).
+    public var startScript: (ScriptCommand, _ arguments: [String], _ environment: [String: String],
+                             _ event: @escaping @Sendable (ScriptRunEvent) -> Void) -> Int?
+    public var cancelScript: (Int) -> Void
+    public var detachScript: (Int) -> Void
+    /// A `background` script extension: started on its own once `prepare` made its environment, even if the field is
+    /// gone by then; `say` tells why it didn't start.
+    public var startScriptInBackground: (ScriptCommand, _ arguments: [String],
+                                         _ prepare: @escaping @Sendable () async -> Result<[String: String], DescribedError>,
+                                         _ say: @escaping (String) -> Void) -> Void
     /// `@search`'s key.
     public var loadSearchKey: @Sendable () -> String?
     /// The notice of the custom commands renamed for the built-in ones, once (`Config.freeBuiltinNames`).
@@ -108,6 +120,10 @@ public struct SessionServices {
         runPlugin = { _, _, _ in AsyncThrowingStream { $0.finish(throwing: SessionServicesError.unsupported) } }
         loadExtensions = { _, _ in .empty }
         extensionPreferences = { _, _ in [:] }
+        startScript = { _, _, _, _ in nil }
+        cancelScript = { _ in }
+        detachScript = { _ in }
+        startScriptInBackground = { _, _, _, say in say(UIText.describe(SessionServicesError.unsupported)) }
         loadSearchKey = { nil }
         takeRenameNotice = { _ in nil }
         noteDestination = { _ in NoDestination() }

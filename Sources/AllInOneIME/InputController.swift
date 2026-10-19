@@ -17,10 +17,11 @@ struct MainThreadBox<T>: @unchecked Sendable {
     init(_ value: T) { self.value = value }
 }
 
-/// An error already described for the user (`UIText.describe`), passed on as its message.
-struct DescribedError: LocalizedError {
-    let message: String
-    var errorDescription: String? { message }
+/// A weak reference that crosses threads: what the session's work answers through finds the controller on the main
+/// thread, if it's still there.
+final class WeakBox<T: AnyObject>: @unchecked Sendable {
+    weak var value: T?
+    init(_ value: T) { self.value = value }
 }
 
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
@@ -127,7 +128,14 @@ final class AllInOneIMEInputController: IMKInputController {
     private var session: RimeSession?
     /// Whether the app still has the text being typed (Slack may take it into a mention on its own).
     private var markedWatch = MarkedTextWatch()
-    var conversionTask: Task<Void, Never>?
+    /// The work this field's session started (level two, script extensions, lists, searches): its answers come back on
+    /// the main thread (`received`).
+    lazy var tasks: SessionTasks = {
+        let box = WeakBox(self)
+        return SessionTasks(deliver: { event in
+            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(event) } }
+        })
+    }()
     var lastElapsed: TimeInterval?
     var lastFromCache = false
     /// How many values the last request hid from the AI (`Redaction`): the panel says so.
@@ -198,11 +206,11 @@ final class AllInOneIMEInputController: IMKInputController {
     private var catalog = CatalogCache()
     /// Where script extensions run (`ScriptTasks.shared`).
     lazy var scriptTasks: ScriptTasks = MainActor.assumeIsolated { ScriptTasks.shared }
-    /// The script extension run of this field's request (`Composer.Effect.startScript`): its request and run.
+    /// The script extension run of this field's request (`Composer.Effect.startScript`): its request and run, and when it
+    /// started; the script and its arguments of a request while its environment is made.
     private var scriptRun: (request: Int, run: Int)?
-    /// A `list` command's text being run (or waiting for its `queryDelay`), and that run.
-    private var listRunKey: String?
-    private var listTask: Task<Void, Never>?
+    private var scriptStarted = Date()
+    private var preparingScripts: [Int: (script: ScriptCommand, arguments: [String])] = [:]
     /// ⌘C on a result (the self-test leaves the clipboard alone).
     var copyText: (String) -> Void = { text in
         NSPasteboard.general.clearContents()
@@ -215,12 +223,6 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Whether a draft started with an image on the clipboard warms Vision up (`warmUpScreenshotReading`; not in the
     /// self-test: it would look at the real clipboard's types).
     var warmsUpVision = true
-    /// The recipient text last searched, and the search in flight for it.
-    private var recipientSearchQuery: String?
-    private var recipientSearchTask: Task<Void, Never>?
-    /// The `@open` text last searched as it was typed, and the search in flight for it.
-    private var liveSearchQuery: String?
-    private var liveSearchTask: Task<Void, Never>?
     /// The default input mode last applied to this session (re-applied when the setting changes).
     private var appliedDefaultInput: Language?
     /// The keyboard layout this text field was last told to type with (`applyKeyboardLayout`).
@@ -521,8 +523,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func inputControllerWillClose() {
         MainActor.assumeIsolated {
-            conversionTask?.cancel()
-            conversionTask = nil
+            tasks.cancel(.request)
             cancelVoiceSession()
             NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
             hidePanelIfOwned()
@@ -1016,20 +1017,15 @@ final class AllInOneIMEInputController: IMKInputController {
                 startInBackground(command, arguments: arguments, query: query, client: target)
             case let .detachScript(id):
                 // The field was left while a `show` runs: it goes on, and says when it's done.
-                if let run = scriptRun, run.request == id { scriptTasks.detach(run.run) }
+                if let run = scriptRun, run.request == id {
+                    services.detachScript(run.run)
+                    tasks.cancel(.script)
+                }
                 scriptRun = nil
             case .refreshList:
-                listRunKey = nil  // run it now (below), not after its delay
-                scheduleListRun(now: true)
+                scheduleListRun(now: true)  // now, not after its delay
             case let .search(query, id):
-                conversionTask?.cancel()
-                conversionTask = Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    let results = await self.services.searchFiles(query, self.services.loadOpenHistory())
-                    guard !Task.isCancelled else { return }
-                    log.notice("search \(id): \(results.count) results")
-                    self.perform(self.composer.receiveSearch(results, id: id), client: nil)
-                }
+                tasks.search(query, id: id, history: services.loadOpenHistory(), with: services.searchFiles)
             case let .open(path):
                 if let agent = SearchResult(name: "", path: path).agentID {
                     openAgent(agent)  // a background task: in Terminal
@@ -1060,24 +1056,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case .openSettings:
                 SettingsWindow.shared.show()
             case let .listAgents(id):
-                conversionTask?.cancel()
-                conversionTask = Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    let results: [SearchResult]
-                    do {
-                        results = try await self.services.listAgents().map { session, reply in
-                            let mark = session.progress == .done ? "✓" : session.progress == .needsYou ? "⚠︎" : "…"
-                            return SearchResult(name: "\(mark) \(session.name ?? session.shortID)",
-                                                path: SearchResult.agentPrefix + session.shortID, detail: reply)
-                        }
-                    } catch {
-                        guard !Task.isCancelled else { return }
-                        self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
-                        return
-                    }
-                    guard !Task.isCancelled else { return }
-                    self.perform(self.composer.receiveSearch(results, id: id), client: nil)
-                }
+                tasks.listAgents(id: id, with: services.listAgents)
             case let .runInTerminal(prompt):
                 // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
                 guard let arguments = agent.terminalArguments(custom: agentCommand) else {
@@ -1122,7 +1101,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 perform(composer.receiveReminder(services.parseReminder(input), id: id), client: target)
             case let .startTranslateMode(input, session, id):
                 if refusedForSecureInput(id: id, client: target) { break }
-                consume(translateModeStream(input, session: session, app: appID, id: id), id: id)
+                startTranslateMode(input, session: session, id: id)
             case let .addReminder(reminder, input):
                 addToReminders(reminder, input: input)
             case let .copy(text):
@@ -1144,10 +1123,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 // On this Mac (Vision): the image goes nowhere (ScreenshotAndReply.swift).
                 recognizeScreenshot(image, id: id)
             case .cancelConversion:
-                conversionTask?.cancel()
-                conversionTask = nil
-                if let run = scriptRun { scriptTasks.cancel(run.run) }
+                tasks.cancel(.request)
+                if let run = scriptRun { services.cancelScript(run.run) }
                 scriptRun = nil
+                tasks.cancel(.script)
             case .showPanel:
                 showPanel(target)
             case .hidePanel:
@@ -1186,78 +1165,47 @@ final class AllInOneIMEInputController: IMKInputController {
                       app: (clientOverride ?? client())?.bundleIdentifier(), query: query)
     }
 
-    /// The environment `command` runs with, or the message that keeps it from running: a required preference
-    /// of its bundle isn't set yet. The keychain (password preferences) and the login shell's PATH are read off
-    /// the main thread: never while a key is handled.
-    @MainActor
-    private func scriptEnvironment(_ command: ScriptCommand, query: String, status: Bool = false,
-                                   action: Bool = false) async -> Result<[String: String], DescribedError> {
-        await environmentMaker(command, query: query, status: status, action: action)()
-    }
-
-    /// What builds `command`'s environment (`scriptEnvironment`), with what it needs of this text field taken now:
-    /// it needs nothing of the field afterwards, which may be gone by the time it runs.
+    /// What builds `command`'s environment (`SessionTasks.environmentMaker`), with what it needs of this text field taken
+    /// now: it needs nothing of the field afterwards, which may be gone by the time it runs.
     @MainActor
     private func environmentMaker(_ command: ScriptCommand, query: String, status: Bool = false,
                                   action: Bool = false) -> @Sendable () async -> Result<[String: String], DescribedError> {
         let config = services.loadSettings()
-        let bundle = services.loadExtensions(config, false).bundle(of: command)
-        let context = scriptContext(query: query)
-        let preferences = services.extensionPreferences
-        let missingMessage = { (missing: ExtensionBundle.Preference, bundle: ExtensionBundle) in
-            tr("先在设置里填好「\(missing.title)」（\(bundle.title)）", "Set “\(missing.title)” for \(bundle.title) in the settings first")
-        }
-        return {
-            await Task.detached(priority: .userInitiated) { () -> Result<[String: String], DescribedError> in
-                let values = bundle.map { preferences($0, config) } ?? [:]
-                if let bundle, let missing = bundle.preferences.first(where: { $0.required && (values[$0.name] ?? "").isEmpty }) {
-                    return .failure(DescribedError(message: missingMessage(missing, bundle)))
-                }
-                return .success(context.environment(for: command, base: ShellEnvironment.current, preferences: values,
-                                                    status: status, action: action))
-            }.value
-        }
+        return SessionTasks.environmentMaker(command, bundle: services.loadExtensions(config, false).bundle(of: command), config: config,
+                                             context: scriptContext(query: query), preferences: services.extensionPreferences,
+                                             status: status, action: action)
     }
 
     /// Runs a script extension for this field's request: what it prints goes to the composer as it comes. It
-    /// starts once its environment is ready (the request may be gone by then: Esc, another key).
+    /// starts once its environment is ready (`started`; the request may be gone by then: Esc, another key).
     @MainActor
     private func startScript(_ command: Command, arguments: [String], query: String, id: Int, action: Bool) {
         guard let script = command.script else { return }
-        if let run = scriptRun { scriptTasks.cancel(run.run) }
+        if let run = scriptRun { services.cancelScript(run.run) }
         scriptRun = nil
+        tasks.cancel(.script)
         lastElapsed = nil
         lastFromCache = false
         lastHidden = 0
         log.notice("conversion \(id) started (an extension, \(arguments.count) arguments)")
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let environment: [String: String]
-            switch await self.scriptEnvironment(script, query: query, action: action) {
-            case let .success(env): environment = env
-            case let .failure(error):
-                self.perform(self.composer.fail(error.message, id: id), client: nil)
-                return
+        preparingScripts[id] = (script, arguments)
+        tasks.prepareScript(id: id, environment: environmentMaker(script, query: query, action: action))
+    }
+
+    /// The environment of request `id`'s script extension is ready: it runs, if the request is still on.
+    @MainActor
+    private func started(_ id: Int, environment: [String: String]) {
+        guard let (script, arguments) = preparingScripts.removeValue(forKey: id), composer.phase == .translating(id: id) else { return }
+        scriptStarted = Date()
+        let token = tasks.token(.script)
+        let deliver = tasks.deliver
+        let run = services.startScript(script, arguments, environment) { event in
+            switch event {
+            case let .update(update): deliver(.task(token, .script(update, request: id)))
+            case let .failed(error): deliver(.task(token, .failed(error, request: id)))
             }
-            guard self.composer.phase == .translating(id: id) else { return }
-            let started = Date()
-            let run = self.scriptTasks.start(script, arguments: arguments, environment: environment, detached: false) { [weak self] event in
-                guard let self else { return }
-                switch event {
-                case let .update(update):
-                    if update.isFinal {
-                        self.lastElapsed = Date().timeIntervalSince(started)
-                        if self.scriptRun?.request == id { self.scriptRun = nil }
-                    }
-                    self.perform(self.composer.receiveScript(update.output, isFinal: update.isFinal, id: id), client: nil)
-                case let .failed(error):
-                    if self.scriptRun?.request == id { self.scriptRun = nil }
-                    log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public)")
-                    self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
-                }
-            }
-            self.scriptRun = run.map { (id, $0) }
         }
+        scriptRun = run.map { (id, $0) }
     }
 
     /// A `background` script extension: started on its own; the menu bar panel lists it and a notification says
@@ -1272,53 +1220,16 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         // Held by ScriptTasks while the environment is made, not by this field: it starts even if the field is gone
         // by then. What went wrong is said here, or in the field being typed in then.
-        scriptTasks.startInBackground(script, arguments: arguments, prepare: environmentMaker(script, query: query)) { [weak self] message in
-            (self ?? Self.activeController)?.showNotice(message, client: nil)
+        services.startScriptInBackground(script, arguments, environmentMaker(script, query: query)) { [weak self] message in
+            MainActor.assumeIsolated { (self ?? Self.activeController)?.showNotice(message, client: nil) }
         }
     }
 
-    /// A `list` command as it's typed: run after its `queryDelay` once the text stops changing (the run before
-    /// stopped), and again after the list's `rerun` while the same text is shown. `now`: without the delay.
+    /// A `list` command as it's typed (`SessionTasks.runList`). `now`: without the delay.
     @MainActor
     private func scheduleListRun(now: Bool = false) {
-        let query = composer.listQuery
-        let command = composer.draftCommand
-        let key = query.flatMap { query in command.map { $0.name + "\u{0}" + query } }
-        guard key != listRunKey else { return }
-        listRunKey = key
-        listTask?.cancel()
-        listTask = nil
-        guard let query, let command, let script = command.script else { return }
-        guard !services.secureInputActive(), case let .success(arguments) = script.arguments(from: query) else { return }
-        listTask = Task { @MainActor [weak self] in
-            var delay = now ? 0 : script.queryDelay
-            var environment: [String: String]?
-            while true {
-                if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-                guard let self, !Task.isCancelled else { return }
-                if environment == nil {
-                    switch await self.scriptEnvironment(script, query: query) {
-                    case let .success(env): environment = env
-                    case let .failure(error):
-                        // A required preference isn't set: the list says so.
-                        if !Task.isCancelled { self.perform(self.composer.receiveList(.text(error.message), for: query), client: nil) }
-                        return
-                    }
-                }
-                guard !Task.isCancelled, let env = environment else { return }
-                var output: ScriptOutput?
-                do {
-                    for try await update in CommandRunner.run(script, arguments: arguments, environment: env) where update.isFinal {
-                        output = update.output
-                    }
-                } catch {
-                    output = .text(UIText.describe(error))
-                }
-                guard !Task.isCancelled, let output else { return }
-                self.perform(self.composer.receiveList(output, for: query), client: nil)
-                guard case let .list(list) = output, let rerun = list.rerun else { return }
-                delay = rerun
-            }
+        tasks.runList(composer.listQuery, command: composer.draftCommand, now: now, secureInput: services.secureInputActive()) { script, query in
+            environmentMaker(script, query: query)
         }
     }
 
@@ -1330,7 +1241,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let shown = composer.paletteVisible.compactMap(\.script).filter { $0.status != nil }
         guard !shown.isEmpty, !services.secureInputActive() else { return }
         ScriptStatus.shared.refresh(shown, environment: { [weak self] command in
-            guard let self, case let .success(env) = await self.scriptEnvironment(command, query: "", status: true) else { return nil }
+            guard let self, case let .success(env) = await self.environmentMaker(command, query: "", status: true)() else { return nil }
             return env
         }) { [weak self] in
             guard let self, self.composer.paletteQuery != nil else { return }
@@ -1338,31 +1249,10 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// A send command's recipient as it is typed: a short pause, then the contacts that match (Contacts
-    /// access is asked for here, the first time).
+    /// A send command's recipient as it is typed (`SessionTasks.findRecipients`).
     @MainActor
     private func scheduleRecipientSearch() {
-        let query = composer.recipientQuery
-        guard query != recipientSearchQuery else { return }
-        recipientSearchQuery = query
-        recipientSearchTask?.cancel()
-        guard let query else { return }
-        let recent = services.loadRecentHandles()
-        recipientSearchTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            guard let self, !Task.isCancelled else { return }
-            let contacts = await self.services.loadContacts()
-            guard !Task.isCancelled else { return }
-            let found = await Task.detached { RecipientSearch.results(query, contacts: contacts ?? [], recent: recent) }.value
-            guard !Task.isCancelled else { return }
-            let note = contacts == nil
-                ? tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
-                     "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")
-                : found.isEmpty ? (query.isEmpty ? tr("输入名字、拼音、手机号或邮箱", "Type a name, phone number or email")
-                                                 : tr("没有找到联系人；也可以输入完整的手机号或邮箱", "No contact found; or type a full phone number or email"))
-                : nil
-            self.perform(self.composer.receiveRecipients(found, note: note, for: query), client: nil)
-        }
+        tasks.findRecipients(composer.recipientQuery, recent: services.loadRecentHandles, contacts: services.loadContacts)
     }
 
     /// Sends a confirmed message off the main thread; a notice says how it went. The log keeps no
@@ -1396,22 +1286,10 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// `@open` as you type: a short pause after the text changes, then a search for it. Not for a single
-    /// letter (`FileSearchRanking.searchesAsYouType`): that takes seconds; ⏎ searches it.
+    /// `@open` as you type (`SessionTasks.searchAsTyped`).
     @MainActor
     private func scheduleLiveSearch() {
-        let query = composer.liveQuery
-        guard query != liveSearchQuery else { return }
-        liveSearchQuery = query
-        liveSearchTask?.cancel()
-        guard let query, FileSearchRanking.searchesAsYouType(query) else { return }
-        liveSearchTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard let self, !Task.isCancelled else { return }
-            let results = await self.services.searchFiles(query, self.services.loadOpenHistory())
-            guard !Task.isCancelled else { return }
-            self.perform(self.composer.receiveLive(results, for: query), client: nil)
-        }
+        tasks.searchAsTyped(composer.liveQuery, history: services.loadOpenHistory, with: services.searchFiles)
     }
 
     // MARK: - Notes and Reminders
@@ -1759,12 +1637,13 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Opens the settings window on `page` (the self-test records it instead).
     var openSettings: @MainActor (SettingsPage) -> Void = { SettingsWindow.shared.show(page: $0) }
 
+    /// Streams level two for `input` (`SessionTasks.convert`): the improve conversion, a `.generate` command's answer, or
+    /// what a `.run` command's program printed. `replyPage`: `@reply`'s Chrome page (`Prompt.replyMessage(_:page:)` of
+    /// nothing), added after its message once the commands inside it have run (`plan`).
     @MainActor
-    /// `replyPage`: `@reply`'s Chrome page (`Prompt.replyMessage(_:page:)` of nothing), added after its message once the
-    /// commands inside it have run (`plan`).
     private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false,
                                  replyPage: String = "") {
-        conversionTask?.cancel()
+        tasks.cancel(.request)
         lastElapsed = nil
         lastFromCache = false
         lastHidden = 0
@@ -1782,153 +1661,98 @@ final class AllInOneIMEInputController: IMKInputController {
             openSettings(.writing)
             return
         }
-        let (runPlugin, runProgram, converter, loadSearchKey) = (services.runPlugin, services.runProgram, services.converter, services.loadSearchKey)
-        let improveTranslates = services.loadSettings().improveTranslates
-        // Script plugins get the language this conversion's own texts are in (read here: `UIText` is main-thread only).
-        let pluginLanguage = UIText.pluginLanguage
-        // The app's own rewrite styles, or no AI at all (`AppProfile`), for the requests below.
-        let app = appID
-        // A terminal runs each line it is given: there @search's list, and any command's output, goes in
-        // as one line.
-        let terminal = Self.isTerminal(clientOverride ?? client())
-        let searchList: WebSearch.Output = terminal ? .line : .list
-        // Not tied to the main actor: the pipeline calls it from its own task.
-        let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
-            if command == .read { return WebReader.stream(input) }
-            // @py, @js: the code runs in a child process, like a custom program (never in this one).
-            if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
-            if command == .webSearch { return WebSearch.stream(input, output: searchList, loadKey: loadSearchKey) }
-            // A link opens once the commands inside its text have run: their outputs go in it as they are.
-            if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
-            if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
-            if let command, command.kind == .run, let plugin = command.plugin { return runPlugin(plugin, input, pluginLanguage) }
-            if let command, command.kind == .run, let custom = command.custom { return runProgram(custom, input) }
-            // @improve, @translate, or both written together: one request (`WritingMode`).
-            if command == nil || command?.kind == .convert {
-                let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates)
-                return converter.convert(text, mode: mode, app: app)
-            }
-            return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
-        }
-        let stream: AsyncThrowingStream<ConversionUpdate, Error>
-        let replyContext = command == .reply ? composer.replyContext : nil
-        if let plan, !plan.isEmpty {
-            // @search inside a text is context for the AI, but not where the text goes out as written: into a
-            // web page (a link) or to a person (a message).
-            let innerSearch = WebSearch.Output.inside(command)
-            // The commands inside the text first (together), then this one on the text with their outputs.
-            stream = CommandPipeline.run(plan, inner: { command, argument in
-                // Its errors (no key, say) in the interface language.
-                command == .webSearch ? Self.described(WebSearch.stream(argument, output: innerSearch, loadKey: loadSearchKey))
-                    : streamFor(command, argument)
-            }, outer: { text in
-                // @reply: the text with the commands' outputs is what to reply (capped as what's typed is), sent with the
-                // rest of its context, and the page if it goes along.
-                guard let context = replyContext else { return streamFor(command, text) }
-                return streamFor(command, Prompt.replyMessage(context.withIntent(text)) + replyPage)
-            })
-        } else {
-            stream = streamFor(command, input)
-        }
-        // A terminal runs each line it is given: a program's output goes in as one line there, and so does
-        // an answer with line breaks (code) unless they can go in as a paste (`insert`, `TerminalPaste`).
-        let oneLine = terminal && (command?.kind == .run || (command?.kind == .generate && !canPasteInTerminal()))
-        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
+        let request = SessionTasks.Request(input: input, command: command, plan: plan, fresh: fresh, replyPage: replyPage,
+                                           replyContext: command == .reply ? composer.replyContext : nil)
+        tasks.convert(request, id: id, in: place(generates: command?.kind == .generate), services: services)
     }
 
-    /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"): the same
-    /// request as before (`WritingMode` from the command, as `startConversion` works it out), with the conversation
-    /// after it. The new results replace the shown ones as they stream in (`Composer.receive`). In the app's settings
-    /// (`AppProfile`): its rewrite styles, and nothing sent where it has no AI.
+    /// Where a request runs (`SessionTasks.Place`): the app's own rewrite styles, or no AI at all (`AppProfile`); a terminal
+    /// runs each line it is given, and an answer (`generates`) keeps its line breaks there only as a paste (`insert`,
+    /// `TerminalPaste`, asked only then: it may ask for Accessibility); script plugins get the language this request's own
+    /// texts are in.
+    @MainActor
+    private func place(generates: Bool) -> SessionTasks.Place {
+        let terminal = Self.isTerminal(clientOverride ?? client())
+        return SessionTasks.Place(app: appID, terminal: terminal, pastesInTerminal: terminal && generates && canPasteInTerminal(),
+                                  improveTranslates: services.loadSettings().improveTranslates, pluginLanguage: UIText.pluginLanguage)
+    }
+
+    /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).
+    /// The new results replace the shown ones as they stream in (`Composer.receive`). In the app's settings (`AppProfile`):
+    /// its rewrite styles, and nothing sent where it has no AI.
     @MainActor
     private func startRefine(_ refinement: Refinement, id: Int) {
-        conversionTask?.cancel()
+        tasks.cancel(.request)
         lastElapsed = nil
         lastFromCache = false
         lastShortened = false
         let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
         log.notice("conversion \(id) started (\(step, privacy: .public))")
-        let stream: AsyncThrowingStream<ConversionUpdate, Error>
+        var sent: String?
         var generates = false
-        switch refinement.request {
-        case let .writing(command, input):
-            let (mode, text) = WritingMode.parse(command?.kind == .convert ? command : nil, input,
-                                                 improveTranslates: services.loadSettings().improveTranslates)
-            stream = services.converter.convert(text, mode: mode, app: appID, turns: refinement.turns)
-        case let .command(command, input):
+        if case let .command(command, input) = refinement.request {
             // @reply with the Chrome page: asked again with it (the composer has the message without it).
-            let sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
-            stream = services.converter.generate(command, input: sent, app: appID, fresh: refinement.fresh, turns: refinement.turns)
+            sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
             generates = true
         }
-        // In a terminal an answer goes in on one line unless it can be pasted, as the first time.
-        let oneLine = generates && Self.isTerminal(clientOverride ?? client()) && !canPasteInTerminal()
-        consume(oneLine ? Self.oneLine(stream) : stream, id: id)
+        tasks.refine(refinement, id: id, sent: sent, in: place(generates: generates), converter: services.converter)
     }
 
-    /// Hands `stream`'s updates for request `id` to the composer, and its error if it fails.
+    /// The work this field's session started answers (`SessionTasks`), on the main thread: dropped once it no longer
+    /// counts (stopped, or another took its place).
     @MainActor
-    private func consume(_ inserted: AsyncThrowingStream<ConversionUpdate, Error>, id: Int) {
-        conversionTask = Task { @MainActor [weak self] in
-            do {
-                for try await update in inserted {
-                    guard let self, !Task.isCancelled else { return }
-                    self.lastHidden = update.hidden
-                    self.lastShortened = update.shortened
-                    if update.isFinal {
-                        self.lastElapsed = update.elapsed
-                        self.lastFromCache = update.fromCache
-                        log.notice("conversion \(id) done in \(update.elapsed, format: .fixed(precision: 2))s cache=\(update.fromCache)")
-                    }
-                    self.perform(self.composer.receive(update.result, isFinal: update.isFinal, id: id), client: nil)
-                }
-            } catch {
-                guard let self, !Task.isCancelled else { return }
-                log.error("conversion \(id) failed: \(Self.errorKind(error), privacy: .public) \(String(describing: error), privacy: .private)")
-                self.perform(self.composer.fail(UIText.describe(error), id: id), client: nil)
+    func received(_ event: SessionEvent) {
+        switch event {
+        case let .task(id, update):
+            guard tasks.isCurrent(id) else { return }
+            received(update, from: id)
+        }
+    }
+
+    @MainActor
+    private func received(_ update: TaskUpdate, from id: TaskID) {
+        switch update {
+        case let .converted(update, request):
+            lastHidden = update.hidden
+            lastShortened = update.shortened
+            if update.isFinal {
+                lastElapsed = update.elapsed
+                lastFromCache = update.fromCache
+                log.notice("conversion \(request) done in \(update.elapsed, format: .fixed(precision: 2))s cache=\(update.fromCache)")
             }
+            perform(composer.receive(update.result, isFinal: update.isFinal, id: request), client: nil)
+        case let .failed(error, request):
+            if id.slot == .script, scriptRun?.request == request { scriptRun = nil }
+            let message: String
+            if let error = error as? DescribedError {
+                message = error.message
+            } else {
+                log.error("conversion \(request) failed: \(Self.errorKind(error), privacy: .public) \(String(describing: error), privacy: .private)")
+                message = UIText.describe(error)
+            }
+            perform(composer.fail(message, id: request), client: nil)
+        case let .searched(results, request):
+            perform(composer.receiveSearch(results, id: request), client: nil)
+        case let .environment(environment, request):
+            started(request, environment: environment)
+        case let .script(update, request):
+            if update.isFinal {
+                lastElapsed = Date().timeIntervalSince(scriptStarted)
+                if scriptRun?.request == request { scriptRun = nil }
+            }
+            perform(composer.receiveScript(update.output, isFinal: update.isFinal, id: request), client: nil)
+        case let .list(output, query):
+            perform(composer.receiveList(output, for: query), client: nil)
+        case let .live(results, query):
+            perform(composer.receiveLive(results, for: query), client: nil)
+        case let .recipients(found, note, query):
+            perform(composer.receiveRecipients(found, note: note, for: query), client: nil)
         }
     }
 
     /// Whether `client` is a terminal, which runs every line it is given.
     static func isTerminal(_ client: IMKTextInput?) -> Bool {
         client?.bundleIdentifier().map(SecureInput.terminals.contains) ?? false
-    }
-
-    /// `stream` with each result on one line (`CommandRunner.oneLine`): what goes into a terminal.
-    static func oneLine(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) -> AsyncThrowingStream<ConversionUpdate, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    for try await update in stream {
-                        var update = update
-                        update.result = CommandRunner.oneLine(update.result)
-                        continuation.yield(update)
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
-    /// `stream` with its error described in the interface language: inside a text, an inner command's
-    /// error reaches the panel only as its message (`CommandPipelineError.inner`).
-    static func described(_ stream: AsyncThrowingStream<ConversionUpdate, Error>) -> AsyncThrowingStream<ConversionUpdate, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    for try await update in stream { continuation.yield(update) }
-                    continuation.finish()
-                } catch {
-                    let message = await MainActor.run { UIText.describe(error) }
-                    continuation.finish(throwing: DescribedError(message: message))
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
     }
 
     /// Error category without any server-provided text (safe for the public log).

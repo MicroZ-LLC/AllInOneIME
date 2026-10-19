@@ -363,15 +363,17 @@ extension AllInOneIMEInputController {
 
     // MARK: The request
 
-    /// Translate as You Type's request for `input` (`Composer.Effect.startTranslateMode`), in `app`'s settings; in a terminal
-    /// on one line.
+    /// Translate as You Type's request for `input` (`Composer.Effect.startTranslateMode`, `SessionTasks.translate`), in the
+    /// app's settings; in a terminal on one line.
     @MainActor
-    func translateModeStream(_ input: String, session: TranslateMode.Session, app: String?, id: Int)
-        -> AsyncThrowingStream<ConversionUpdate, Error> {
-        conversionTask?.cancel()
+    func startTranslateMode(_ input: String, session: TranslateMode.Session, id: Int) {
+        tasks.cancel(.request)
         (lastElapsed, lastFromCache, lastHidden, lastShortened) = (nil, false, 0, false)
         log.notice("conversion \(id) started (Translate as You Type, \(input.count) chars, into \(session.target.code, privacy: .public))")
-        let stream = services.converter.translateMode(input, target: session.target, app: app)
-        return Self.isTerminal(clientOverride ?? client()) ? Self.oneLine(stream) : stream
+        let terminal = Self.isTerminal(clientOverride ?? client())
+        tasks.translate(input, session: session, id: id,
+                        in: SessionTasks.Place(app: appID, terminal: terminal, pastesInTerminal: false, improveTranslates: false,
+                                               pluginLanguage: UIText.pluginLanguage),
+                        converter: services.converter)
     }
 }
