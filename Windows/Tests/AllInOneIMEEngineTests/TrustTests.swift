@@ -69,6 +69,43 @@ struct TrustTests {
         #expect(client.panel.caret == CaretRect(x: 500, y: 100, width: 0, height: 0))
     }
 
+    /// An untrusted client (low integrity, or in an AppContainer: §8) only types and rewrites its own text. Through the
+    /// real wire server and the engine's host (not `host.perform`, which is past the check): `@open`'s search, Ctrl+V's
+    /// clipboard and `@agent`'s terminal are refused with a notice, and nothing reaches the system.
+    @Test(arguments: [WirePeer(pid: GetCurrentProcessId(), integrity: .low),
+                      WirePeer(pid: GetCurrentProcessId(), integrity: .medium, appContainer: true)])
+    func anUntrustedClientIsRefusedWhatRunsOpensOrReads(peer: WirePeer) throws {
+        let refused = "Not available in this app (it runs sandboxed)"
+        let (client, folder) = try client(peer: peer)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        client.system.searchResults = [SearchResult(name: "Notepad", path: #"C:\Windows\notepad.exe"#)]
+        client.system.clipboard = "a password on the clipboard"
+        client.type("@open notepad")
+        client.enter()
+        #expect(client.wait {
+            if case .failed = client.composer.phase { return true }
+            return false
+        })
+        #expect(client.panel.model?.status == .error(refused))
+        client.escape()
+        client.escape()
+        // Ctrl+V in a draft: nothing read.
+        client.type("@improve ")
+        client.press(vk: 0x56, scan: 0x2F, text: "\u{16}", ignoringModifiers: "v", modifiers: [.control, .leftControl])
+        _ = client.wait(0.3) { false }
+        #expect(!client.composer.draft.contains("password"))
+        client.escape()
+        client.escape()
+        client.type("@agent fix the bug")
+        client.enter()
+        _ = client.wait(0.3) { false }
+        #expect(client.panel.notices.filter { $0 == refused }.count >= 2)
+        #expect(client.system.opened.isEmpty && client.system.launched.isEmpty && client.system.threads.isEmpty)
+        // Typing a draft still works (a rewrite of its own text is allowed).
+        client.type("@improve hello")
+        #expect(client.composition.hasSuffix("hello"))
+    }
+
     @Test func aCaretIsCutToItsWindow() {
         let window = CaretRect(x: 0, y: 0, width: 100, height: 50)
         #expect(CaretRect(x: 10, y: 10, width: 2, height: 20).clamped(to: window) == CaretRect(x: 10, y: 10, width: 2, height: 20))

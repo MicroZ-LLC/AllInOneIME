@@ -57,8 +57,15 @@ extension OnTheDesktop {
             }
             // Shown (WS_VISIBLE: `IsWindowVisible` also asks whether the desktop is, which an SSH session's isn't).
             #expect(GetWindowLongPtrW(hwnd, GWL_STYLE) & LONG_PTR(WS_VISIBLE) != 0)
-            // Never activated: the foreground is where it was.
-            #expect(GetForegroundWindow() == foregroundBefore)
+            // Never activated: not its thread's active or focused window (as a window shown with SW_SHOW would be, in
+            // any session), and the foreground, when there is one (a desktop session; under SSH there is none), is
+            // where it was.
+            var thread = GUITHREADINFO()
+            thread.cbSize = DWORD(MemoryLayout<GUITHREADINFO>.size)
+            #expect(GetGUIThreadInfo(GetWindowThreadProcessId(hwnd, nil), &thread))
+            #expect(thread.hwndActive != hwnd && thread.hwndFocus != hwnd)
+            #expect(GetActiveWindow() != hwnd)
+            if foregroundBefore != nil { #expect(GetForegroundWindow() == foregroundBefore) }
             #expect(GetForegroundWindow() != hwnd)
             // A click on row 2 (its middle, in the window's pixels) is a pick of row 2 by the owner.
             let row = try #require(window.rowRect(1))
@@ -114,17 +121,32 @@ extension OnTheDesktop {
         @Test func itFollowsTheCaretAndWaitsForItsFirstReport() throws {
             let window = try window()
             let owner = PanelOwner(pid: nil, choose: { _ in })
-            // No caret yet (§6: up to 50 ms for the first report): not drawn until it comes, or the wait ends.
+            // No caret yet (§6: up to 50 ms for the first report): not drawn until it comes.
             window.show(Self.model, owner: owner, caret: nil)
             let first = window.state
-            #expect(first.draws == 0 || first.visible == 1)
+            #expect(first.visible == 0 && first.draws == 0)
             window.move(owner: owner, caret: Self.caret)
-            #expect(window.state.visible == 1)
+            let drawn = window.state
+            #expect(drawn.visible == 1 && drawn.draws == 1)
+            #expect(Int(drawn.y) >= Self.caret.y + Self.caret.height)
             let at = window.state.x
             var moved = Self.caret
             moved.x += 120
             window.move(owner: owner, caret: moved)
             #expect(window.state.x == at + 120)
+            window.hide(owner: owner)
+        }
+
+        /// No caret report within 50 ms (§6): drawn where the system says the caret is, or the foreground window, or the
+        /// pointer (`FallbackCaret`).
+        @Test func withNoReportItGoesWhereTheSystemSaysAfterAWait() throws {
+            let window = try window()
+            let owner = PanelOwner(pid: nil, choose: { _ in })
+            window.show(Self.model, owner: owner, caret: nil)
+            #expect(window.state.visible == 0)
+            Thread.sleep(forTimeInterval: 0.3)
+            let state = window.state
+            #expect(state.visible == 1 && state.draws == 1 && state.rows == 3)
             window.hide(owner: owner)
         }
 

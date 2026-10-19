@@ -396,7 +396,9 @@ final class StubProvider {
     let log: URL
     let key: String
 
-    init(folder: URL, key: String = "stub-key", versions: String = "Hello there.|Hi!|Greetings.", status: Int = 200) throws {
+    /// `delayMs`: the pause after each piece of the stream.
+    init(folder: URL, key: String = "stub-key", versions: String = "Hello there.|Hi!|Greetings.", status: Int = 200,
+         delayMs: Int = 30) throws {
         let portFile = folder.appendingPathComponent("stub.port")
         log = folder.appendingPathComponent("stub.log")
         self.key = key
@@ -404,7 +406,7 @@ final class StubProvider {
         process = Process()
         process.executableURL = try Self.python()
         process.arguments = ["-I", script.path, "--port-file", portFile.path, "--log", log.path, "--key", key,
-                             "--versions", versions, "--status", String(status), "--lifetime", "300"]
+                             "--versions", versions, "--status", String(status), "--delay-ms", String(delayMs), "--lifetime", "300"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
@@ -426,9 +428,18 @@ final class StubProvider {
     var baseURL: String { "http://127.0.0.1:\(port)" }
 
     /// The requests it got, one JSON object each.
-    var requests: [[String: Any]] {
+    var requests: [[String: Any]] { entries.filter { $0["event"] == nil } }
+
+    /// How each stream ended: "complete", or "client-gone" (the client closed the connection before the end).
+    var events: [String] { entries.compactMap { $0["event"] as? String } }
+
+    /// Its log as it is, for a failure's message.
+    var logText: String { (try? String(contentsOf: log, encoding: .utf8)) ?? "(no log)" }
+
+    private var entries: [[String: Any]] {
         guard let text = try? String(contentsOf: log, encoding: .utf8) else { return [] }
-        return text.split(separator: "\n").compactMap {
+        // One object a line, "\r\n" at their ends on Windows: one Character to Swift, so split on any line break.
+        return text.split(whereSeparator: \.isNewline).compactMap {
             try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]
         }
     }
