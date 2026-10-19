@@ -52,6 +52,10 @@ public enum KeySync {
 
         /// Nothing left to try again: every item was moved or was already there.
         public var isComplete: Bool { waiting.isEmpty && mismatched.isEmpty }
+
+        /// The accounts left to try again (`waiting` and `mismatched`), by name: what a retry of an incomplete copy-back
+        /// handles alone (`merge(only:)`).
+        public var remaining: [String] { Array(Set(waiting + mismatched)).sorted() }
     }
 
     /// The newest wins: `a` over `b` only when its key was set later, by when it was saved (`ItemAttributes.saved`, which
@@ -81,11 +85,19 @@ public enum KeySync {
     /// or when `into` has an item for it whose key can't be read: it is never written over unseen. One of `from`'s that
     /// can't be read without asking waits (`waiting`; it loses quietly when `into`'s is newer). A write that fails
     /// throws (`APIKeys.KeychainError`), what was moved before it staying moved.
+    ///
+    /// A key is never kept aside over its own replaced copy (the only one left of a key that lost, say): the same key
+    /// isn't kept again when `aside` already has a copy for the account, except when it moves into a synced store that
+    /// had none. A move into a store that had no item for the account only adds (`APIKeys.Keychain.adding`): an item
+    /// that arrived meanwhile is never written over, and the account is tried again (`mismatched`).
+    ///
+    /// `only`: these accounts alone (an incomplete copy-back tried again: the accounts it left); nil, every one.
     @discardableResult
-    public static func merge(from: APIKeys.Keychain, into: APIKeys.Keychain, aside: APIKeys.Keychain) throws -> Moves {
+    public static func merge(from: APIKeys.Keychain, into: APIKeys.Keychain, aside: APIKeys.Keychain,
+                             only: Set<String>? = nil) throws -> Moves {
         var moves = Moves()
         let keepsFrom = from.kind == .synced
-        for account in from.accounts() where !APIKeys.neverSynced.contains(account) {
+        for account in from.accounts() where !APIKeys.neverSynced.contains(account) && only?.contains(account) != false {
             guard let theirs = from.attributes(account) else { continue }
             let ours = into.attributes(account)
             let wins = ours.map { newer(theirs, than: $0) } ?? true
@@ -201,6 +213,59 @@ public enum KeySync {
         return .copied
     }
 
+    // MARK: - The keys-synced marker
+
+    /// What the keys-synced marker says (a file beside the sync record, `url(besides:)`; absent: this Mac's keys were
+    /// last all in the login keychain). Account names only, never a key.
+    public enum Marker: Equatable, Sendable {
+        /// Turning key sync on is moving the keys into iCloud Keychain (or stopped before it was done).
+        case moving
+        /// Every key moved: they may be in iCloud Keychain alone.
+        case done
+        /// Turning key sync off copied the synced keys back but these were left: a retry copies these alone, and
+        /// Remove… on this Mac (key sync off) takes one off.
+        case copyingBack([String])
+
+        static let copyingBackLine = "copying back"
+
+        /// The marker's text as written ("moving", "done", or "copying back" and an account per line); an earlier
+        /// build's (empty, or anything else) is `done`.
+        public init(text: String) {
+            let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            switch lines.first {
+            case "moving": self = .moving
+            case Self.copyingBackLine: self = .copyingBack(Array(Set(lines.dropFirst())).sorted())
+            default: self = .done
+            }
+        }
+
+        public var text: String {
+            switch self {
+            case .moving: return "moving"
+            case .done: return "done"
+            case let .copyingBack(accounts): return ([Self.copyingBackLine] + accounts).joined(separator: "\n") + "\n"
+            }
+        }
+
+        /// Whether this Mac's keys may be in iCloud Keychain while key sync is on (`moving`, `done`): the routing to keep
+        /// when the config can't be read at launch.
+        public var syncing: Bool {
+            if case .copyingBack = self { return false }
+            return true
+        }
+
+        /// The marker beside the sync record at `stateURL` (`ICloudSync.State.defaultURL` on the Mac).
+        public static func url(besides stateURL: URL) -> URL {
+            stateURL.deletingLastPathComponent().appendingPathComponent("keys-synced")
+        }
+
+        /// The marker at `url`; nil when there is none.
+        public static func read(at url: URL) -> Marker? {
+            FileManager.default.contents(atPath: url.path).map { Marker(text: String(decoding: $0, as: UTF8.self)) }
+        }
+    }
+
     // MARK: - The stores in use
 
     /// The stores of a build entitled to the data protection keychain (the Mac's: `KeySync.system`), and the switch the
@@ -219,6 +284,7 @@ public enum KeySync {
         let quietLogin: APIKeys.Keychain
         let quietReplaced: APIKeys.Keychain
         private let on: Locked<Bool>
+        private let removedHere = Locked<(@Sendable (String) -> Void)?>(initialState: nil)
 
         public init(login: APIKeys.Keychain, synced: APIKeys.Keychain, replaced: APIKeys.Keychain,
                     quietLogin: APIKeys.Keychain? = nil, quietReplaced: APIKeys.Keychain? = nil, syncing: Bool = false) {
@@ -236,8 +302,15 @@ public enum KeySync {
         /// The store `APIKeys` uses (`Platform.secrets`): routed over the login keychain and the synced items, following
         /// the switch.
         public var store: APIKeys.Keychain {
-            let on = self.on
-            return .routed(login: login, synced: synced, replaced: replaced, syncs: { on.withLock { $0 } })
+            let on = self.on, removedHere = self.removedHere
+            return .routed(login: login, synced: synced, replaced: replaced, syncs: { on.withLock { $0 } },
+                           removedHere: { account in removedHere.withLock { $0 }?(account) })
+        }
+
+        /// Told of each account Remove… removed while key sync was off (`routed`'s `removedHere`): the sync controller
+        /// takes it off the accounts an incomplete copy-back left, so that it isn't copied back again.
+        public func whenRemovedHere(_ handler: (@Sendable (String) -> Void)?) {
+            removedHere.withLock { $0 = handler }
         }
 
         /// The switch as the config has it, nothing moved: at launch, before anything reads a key.
@@ -249,14 +322,16 @@ public enum KeySync {
         /// copied back into the login keychain); the routed store follows it even when a move fails (the error is thrown,
         /// to be tried again). Turned on, it follows first (reads try the synced store, then the login keychain, so a key
         /// is found while it moves); turned off, once the synced keys are copied back (until then reads still find them).
+        ///
+        /// `only` (turned off): the copy-back of these accounts alone, the ones an incomplete one left (`Moves.remaining`).
         @discardableResult
-        public func turn(syncing: Bool) throws -> Moves {
+        public func turn(syncing: Bool, only: Set<String>? = nil) throws -> Moves {
             if syncing {
                 on.withLock { $0 = true }
                 return try KeySync.merge(from: quietLogin, into: synced, aside: quietReplaced)
             }
             defer { on.withLock { $0 = false } }
-            return try KeySync.merge(from: synced, into: quietLogin, aside: quietReplaced)
+            return try KeySync.merge(from: synced, into: quietLogin, aside: quietReplaced, only: only)
         }
     }
 
@@ -293,11 +368,13 @@ extension APIKeys.Keychain {
     ///   fails is the error, with no other store tried);
     /// - `delete` removes the login keychain's copy first (stopping there when that fails), then the replaced copy
     ///   (`replaced`, `replacedService`), and the synced one only while `syncs()`: Remove… on a Mac that doesn't sync
-    ///   keys removes them from this Mac alone, never from the others.
+    ///   keys removes them from this Mac alone, never from the others (and tells `removedHere`, once the copies here are
+    ///   gone).
     ///
     /// `replaced` is never read: a replaced copy is a safety copy, never the key in use. `syncs` is asked on every call:
     /// the switch can change while the store, chosen at launch, stays.
-    public static func routed(login: Self, synced: Self, replaced: Self, syncs: @escaping @Sendable () -> Bool) -> Self {
+    public static func routed(login: Self, synced: Self, replaced: Self, syncs: @escaping @Sendable () -> Bool,
+                              removedHere: @escaping @Sendable (String) -> Void = { _ in }) -> Self {
         @Sendable func syncing(_ account: String) -> Bool { syncs() && !APIKeys.neverSynced.contains(account) }
         /// The store that holds `account`'s item, in the order reads try them, and its attributes.
         @Sendable func holder(_ account: String) -> (store: Self, attributes: APIKeys.ItemAttributes, login: Bool)? {
@@ -332,8 +409,10 @@ extension APIKeys.Keychain {
                 // so that no copy left in it comes back at its next use, moved anew.
                 let first = login.delete(account)
                 guard first == .ok || first == .notFound else { return first }
-                let statuses = [first] + (syncs() ? [replaced, synced] : [replaced]).map { $0.delete(account) }
+                let everywhere = syncs()
+                let statuses = [first] + (everywhere ? [replaced, synced] : [replaced]).map { $0.delete(account) }
                 if let failure = statuses.first(where: { $0 != .ok && $0 != .notFound }) { return failure }
+                if !everywhere { removedHere(account) }
                 return statuses.contains(.ok) ? .ok : .notFound
             },
             message: { code in (syncs() ? synced.message(code) : nil) ?? login.message(code) })
