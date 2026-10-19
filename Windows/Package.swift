@@ -2,8 +2,8 @@
 import PackageDescription
 
 // The Windows shell: the engine (the per-user process the TSF text service talks to over a named pipe, wire protocol
-// v1) and the command line. The text service itself (a C++ DLL, Windows/tip), its settings and its installer come
-// next, as the macOS shell has them.
+// v1) and the command line. The text service itself is a C++ DLL (Windows/tip), its installer an MSI
+// (Windows/installer); its settings come next, as the macOS shell has them.
 
 /// The core's package: every product of it goes through `core`, so that when the core comes from its own repository
 /// (`.package(url:)`, whose identity is "allinoneime-core") only this changes.

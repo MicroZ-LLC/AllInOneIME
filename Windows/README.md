@@ -11,8 +11,9 @@ The Windows shell of AllInOneIME, on the core in `../Core` (the same Swift packa
 - `allinoneime-cli`, the command line. It runs level two (translate / polish, the rewrites) with the core's code and
   settings (`config.json` where the core keeps it on Windows, under `%APPDATA%`). `wire-replay` replays the
   protocol's goldens over the real pipe.
+- The installer, in `installer/`: an MSI that makes AllInOneIME an input method like any other (see "Installing").
 
-The settings window and the installer come next.
+The settings window comes next.
 
 ```
 swift build                                   # Swift 6.4 for Windows, with Visual Studio's MSVC and Windows SDK
@@ -21,6 +22,95 @@ swift run allinoneime-cli --help
 
 The core builds and its tests build here too: `swift build --build-tests` in `../Core`, and `swift test --filter
 AllInOneIMEWireTests` runs the protocol's goldens in process.
+
+## Installing (M4)
+
+```
+powershell -ExecutionPolicy Bypass -File installer\build.ps1     :: -> installer\build\AllInOneIME-<version>-x64.msi
+```
+
+`build.ps1` builds the DLL, the engine and the installer's helper in Release and packages them with WiX Toolset 5
+(`dotnet tool install --global wix --version 5.0.2`, which needs the .NET SDK; the script adds the UI and Util
+extensions itself). The version is the app's, from `Resources/Info.plist`. The package isn't signed yet.
+
+- **Install:** double-click the MSI (one license page, then the UAC prompt), or `msiexec /i AllInOneIME-0.6.4-x64.msi
+  /qn` from an elevated shell. Then pick **AllInOneIME** with Win+Space, as any keyboard.
+- **Uninstall:** Settings → Apps → Installed apps → AllInOneIME → Uninstall, or `msiexec /x AllInOneIME-0.6.4-x64.msi
+  /qn`.
+
+What the MSI does:
+
+- **Files:** `Program Files\AllInOneIME\<version>\`: `AllInOneTIP.dll`, `AllInOneIMEEngine.exe` (made a GUI program,
+  so it opens no console at logon), `AllInOneIMESetup.exe` (the helper), and the 20 DLLs the engine imports from the
+  Swift runtime and the VC++ redistributable, next to it. A version has its own folder, so an app that loaded an older
+  DLL keeps it until it restarts while new apps load the new one.
+- **Registration:** the DLL's own `DllRegisterServer`, run as SelfReg: the COM server in HKLM, the en-US and zh-CN
+  profiles, the categories (`tip/README.md`, "Registration").
+- **The user's keyboard list:** `AllInOneIMESetup add-keyboard`, for the user who installs, through `InstallLayoutOrTip`
+  (input.dll). It goes under Chinese (Simplified) if that is in their list, else English (US), at the end of that
+  language's input methods: never the default input method, never switched to. Windows rewrites `HKCU\Keyboard
+  Layout\Preload` from the list as it does so; the helper puts that back as it was. Other users of the PC add it in
+  Settings (Time & language → Language & region → the language → Language options → Add a keyboard), or with
+  `AllInOneIMESetup add-keyboard`.
+- **The engine:** `HKLM\Software\AllInOneIME`, value `Engine`, is its path (the DLL starts it from there when an app
+  needs it), and an `AllInOneIME` value under `HKLM\...\CurrentVersion\Run` starts each user's engine at logon, in
+  their session. The installer starts it for the installing user right away, never elevated (through Explorer when
+  the installer is elevated); not from an SSH session (session 0), where it would only hold the pipe's name.
+- **Uninstall:** AllInOneIME out of the user's language list (and TSF's state for it in their HKCU), every engine from
+  `Program Files\AllInOneIME` stopped, `DllUnregisterServer`, the files, the folder and the registry values gone. An
+  upgrade keeps the keyboard in the list. `%APPDATA%\AllInOneIME`, the user's data, is never touched.
+- **A DLL in use:** an installed input method's DLL is loaded, as a module or for its icon, by Explorer and every app
+  that showed it (in the test: Explorer, Discord, Notepad...). Restart Manager is off (`MSIRESTARTMANAGERCONTROL`), so
+  the installer never closes the user's apps: Windows Installer moves the file to `Config.Msi` and deletes it at the
+  next restart, and the folder goes at once.
+
+`AllInOneIMESetup status` shows what is registered, where AllInOneIME is in the user's list and which engines run (run it
+in a desktop session for TSF's own view; session 0 has no TSF). `remove-keyboard`, `start-engine` and `stop-engines`
+are the installer's other steps.
+
+**What works now:** English typing passes straight through to the app, in every app that loads TSF text services (the
+classic Win32 ones, and WinUI ones like the Store Notepad). `@improve` and the other rewrites work only with the test
+provider (`AllInOneIMEEngine --test --provider <fixture>`, as the e2e harness runs it): the installed engine asks no
+model yet and answers them with a failure ("Not available in the Windows engine yet") that nothing shows, since the
+candidate panel isn't drawn. Real AI and pinyin come next.
+
+### Testing the installer
+
+```
+bash installer/test/run-install-test.sh     # from an elevated shell (an administrator's SSH session), user logged on
+```
+
+It records the user's language list, the default input method, the session's input method, `HKCU\Keyboard Layout` and
+everything of AllInOneIME's (`installer/test/snapshot.ps1`), then: a silent install and its checks; an upgrade over it
+(a second package of the same version); `tip/test/run-e2e.sh --installed` three times; a silent uninstall and its
+checks; anything of the record that changed, put back; and, if everything passed, the package installed again for the
+user to try. The steps that need the desktop run in the user's session as one-shot scheduled tasks
+(`tip/test/run-in-session.sh`).
+
+Run on 2026-10-18 on this PC (Windows 11 Pro 26200, the user's language list Chinese (Simplified) with Microsoft
+Pinyin, and English (US) with no keyboard): **47 passed, 0 failed, 1 warning**.
+
+- **Install and upgrade:** the files, the 20 runtime DLLs, the COM server at the installed path, both profiles and the
+  5 categories, TSF enumerating both profiles as enabled in the user's session, AllInOneIME in the list under
+  zh-Hans-CN after Microsoft Pinyin, the rest of the list, the default input method, `Keyboard Layout` and the session's
+  input method all as recorded. The engine, started as at logon: in the user's session, no window, the runtime from its
+  own folder.
+- **Typing through the installed copy:**
+  - in a new process (the driver's EDIT control), the installed DLL loaded by TSF from the registration with the
+    installed engine: "hi @improve helo", Return, "1" gives "hi Hello.";
+  - in the user's real Notepad, through the installed engine as it runs for a user (no test mode): "Hello world. 123"
+    comes out as typed;
+  - in real Notepad with the test provider: "hi Hello.".
+- **The warning:** the user's Notepad (their tabs, unsaved work: not to be closed) had been running since before the
+  install, with the DLL of an earlier development run loaded. COM doesn't load a class's DLL again in a process, so
+  that Notepad keeps using that one (the same sources) until it restarts; a Notepad started after the install loads
+  the installed one, as the new process did.
+- **Uninstall:** nothing of AllInOneIME's left (keys in HKLM and HKCU, the Run entry, the ARP entry, the files and the
+  folder); the language list, the User Profile keys, `Keyboard Layout`, TSF's order of the user's input methods, the
+  default and the session's input method all as recorded; the user's data folder untouched. Nothing needed putting
+  back.
+- **Not covered without a human:** the dialogs of an interactive install (the license page; the Files in Use list an
+  uninstall from Settings may show, where Ignore is the answer).
 
 ## The engine
 
@@ -122,8 +212,7 @@ Composer and scripted level two → outputs → the composition and commit in th
   in the loop. Still far inside the 20 ms p99 budget and the 150 ms timeout.
 
 - **Notepad:** the driver's target is Notepad (it finds the document by UIA and guards every key on Notepad holding the
-  foreground), but the only Notepad on this machine is the packaged WinUI Store app, which does not host a classic
-  in-process TSF text service, so the DLL never loads into it (the switch succeeds; TSF just doesn't load the TIP). The
-  edit-control run above exercises the identical pipeline through a surface the DLL does load into. See
-  `Windows/tip/README.md` ("End to end") for the details and for how one app's thread is switched without touching the
-  session.
+  foreground). M3 found that the DLL never loaded into the Store (WinUI) Notepad and took it for an app that can't host
+  a text service. M4 found why: its text input runs TSF on threads of its own, not the window's, and the driver had
+  activated the profile on the window's thread only. Activated for Notepad's process, the DLL loads there and "hi
+  Hello." comes out in real Notepad (see "Testing the installer" above, and `Windows/tip/README.md`, "End to end").

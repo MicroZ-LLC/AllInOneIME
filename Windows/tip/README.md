@@ -32,9 +32,9 @@ the tests.
 | `test/wiretest/` | the wire layer, and `PipeClient` against the fake engine; no TSF |
 | `test/fake-engine/` | the fake engine as a program of its own |
 | `test/tsfstate/` | shows, and restores, the session's active input method |
-| `test/e2edriver/`, `test/e2ehook/` | the end-to-end driver (real engine + real DLL, keys with SendInput, UIA read) and the hook it injects to put the profile on one app's thread |
+| `test/e2edriver/`, `test/e2ehook/` | the end-to-end driver (real engine + real DLL, keys with SendInput, UIA read) and the hook it injects to put the profile on one app, and back |
 | `test/run-in-session.sh`, `test/run-tests.sh` | run a test in the user's session; build, register and run them all |
-| `test/run-e2e.sh` | the end-to-end harness (M3): see "End to end" below |
+| `test/run-e2e.sh` | the end-to-end harness (M3, M4): see "End to end" below |
 
 ## Build
 
@@ -75,15 +75,11 @@ Unregistering also removes what TSF keeps of the TIP under `HKLM\SOFTWARE\Micros
 `HKCU\Software\Microsoft\CTF\TIP\{CLSID}` (the enabled flag), all of it this TIP's own. Registering doesn't add the
 profile to anyone's keyboard list, and touches no other input method.
 
-**To try it:** Settings → Time & language → Language & region → Chinese (Simplified) (or English (United States)) →
-Language options → Add a keyboard → AllInOneIME; then switch to it with Win+Space. Or in PowerShell, for the first
-language of the list (zh-CN here):
-
-```
-$l = Get-WinUserLanguageList
-$l[0].InputMethodTips.Add('0804:{DBB94280-C4C2-4C91-816F-79BB471AFE56}{5BD6752B-379B-4ECD-9B1B-0819CBE55171}')
-Set-WinUserLanguageList $l -Force          # and .Remove(…) the same string to take it out again
-```
+**To try it:** install it (`Windows/installer`, see `Windows/README.md`, "Installing"): the MSI registers the installed
+DLL and adds it to the user's keyboard list. With a build registered by hand: Settings → Time & language → Language &
+region → Chinese (Simplified) (or English (United States)) → Language options → Add a keyboard → AllInOneIME; or
+`AllInOneIMESetup add-keyboard` (the installer's helper, `Windows/installer/setup`), which calls `InstallLayoutOrTip` as
+the installer does (`remove-keyboard` to take it out). Then switch to it with Win+Space.
 
 With no engine it passes every key through. Apps in an AppContainer load it only if ALL APPLICATION PACKAGES may read it: `run-tests.sh` grants that on the
 built DLL (`icacls … /grant *S-1-15-2-1:(RX) *S-1-15-2-2:(RX)`); an installed copy under Program Files has it anyway.
@@ -218,7 +214,7 @@ tiptest focus-resent          PASS  10/10 frames, "Hi."
 the session's input method    as it was
 ```
 
-## End to end (M3): the real engine and DLL, into a real edit control
+## End to end (M3, M4): the real engine and DLL, into a real edit control and real Notepad
 
 `bash test/run-e2e.sh` runs the whole real stack in the logged-on session (a scheduled task, as the other tests): it
 registers the DLL, and the driver (`e2edriver`) starts the real engine in that session (test mode, the scripted
@@ -230,20 +226,30 @@ window. The engine runs in the session (not over SSH), so it and the DLL pass §
 - **Default (hosted edit):** the driver types into a classic Win32 `EDIT` control in its own window. The DLL loads
   into that process, composes, and commits; the control reads back "hi Hello." Per-key round trips as the DLL times
   them (`QueryPerformanceCounter`) are in `Windows/README.md`.
-- **Notepad (`--notepad`, `--probe`):** on this Windows 11 the only Notepad is the packaged (WinUI) Store app, whose
-  text input does **not** host a classic in-process TSF text service — `ActivateProfile` succeeds (the hook runs in
-  Notepad and the session stays per-thread) but TSF never loads the DLL into it, so AllInOneIME can't compose there.
-  The driver still exercises the path safely: it seeds its own temp file and finds, by UIA, the one document whose text
-  is its unique marker; it only ever types into that document, never the user's tab, and closes only its own saved tab.
-  A classic Notepad (or AllInOneIME once it ships as an installed input method, with the settings/installer still to
-  come) would complete this path unchanged.
+- **Notepad (`--notepad`, `--probe`):** the only Notepad here is the Store (WinUI 3) app, and it composes: "hi Hello."
+  (M4). M3 saw TSF never load the DLL into it because the profile was activated on the window's thread, while
+  Notepad's text input (TextInputFramework) runs TSF on threads of its own; the hook now activates it for Notepad's
+  process (below). The driver seeds its own temp file and finds, by UIA, the one document whose text is its unique
+  marker; it only ever types into that document, never the user's tabs, and closes only its own saved tab. The Notepad
+  is usually the user's own, already running: the hook gets the language and the log file from the driver through a
+  named mapping (`Local\AllInOneIME-e2e-hook`), not the environment, and the driver reads the connection from the
+  engine's log (a DLL an earlier run left loaded there keeps writing to that run's log).
+- **`--installed`:** the installed copy (`Windows/installer`): the DLL the MSI registered, so no `regsvr32` before or
+  after, and the installed engine; the language is the one the user's list has AllInOneIME under. The driver checks
+  which DLL loaded: in its own window it must be the installed one. A Notepad that was running before the install keeps
+  the DLL it had loaded (COM doesn't load a class's DLL again in a process) and is only reported.
+- **`--plain TEXT`:** the engine as it runs for a user (no test mode, no provider), and TEXT typed and expected back as
+  typed.
 
-**Activating one app's thread only.** A TSF text service has no HKL (activating it leaves the thread on the base US
-layout, and it never appears in `GetKeyboardLayoutList`), so it can't be selected from outside with
-`WM_INPUTLANGCHANGEREQUEST` the way a keyboard layout can, and `ActivateProfile` acts on the calling thread. So, as the
-language bar does for one window, `e2ehook` is injected into the target thread (`SetWindowsHookEx(WH_GETMESSAGE)`) and
-runs `ActivateProfile` there. With per-thread input settings on (set in both processes, in memory), that touches only
-that thread, never the session; `run-e2e.sh` checks the session's input method is unchanged afterwards.
+**Activating one app only.** A TSF text service has no HKL (activating it leaves the thread on the base US layout, and
+it never appears in `GetKeyboardLayoutList`), so it can't be selected from outside with `WM_INPUTLANGCHANGEREQUEST` the
+way a keyboard layout can, and `ActivateProfile` acts on the calling thread or, with `TF_IPPMF_FORPROCESS`, on the
+calling process. So `e2ehook` is injected into the target's window thread (`SetWindowsHookEx(WH_GETMESSAGE)`) and runs
+`ActivateProfile(TF_IPPMF_FORPROCESS)` there: every TSF thread of that one app, never the session. Per-thread input
+settings are on for the run (`SPI_SETTHREADLOCALINPUTSETTINGS`, in memory, set and put back by the driver). Before the
+driver unhooks, it posts `AllInOneIME-e2e-restore` and the hook puts the app back on the session's input method as the
+driver found it, for the process. `run-e2e.sh` checks the session's input method is unchanged afterwards. The DLL stays
+loaded in the app (TSF keeps objects of it, so COM never unloads it) until the app exits.
 
 ## Diagnostics
 
