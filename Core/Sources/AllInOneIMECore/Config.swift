@@ -493,9 +493,10 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// A new user's settings (no config file yet): the hosted service once it is set up, which needs
-    /// nothing but a Google sign-in. A file without `provider` (from before providers) stays on Bedrock.
+    /// nothing but a Google sign-in. A file without `provider` (from before providers) stays on Bedrock. The
+    /// translation language is the first of the user's languages that isn't English (`Platform.userLanguages`).
     public static var fresh: Config {
-        fresh(preferring: Locale.preferredLanguages)
+        fresh(preferring: Platform.current.userLanguages.preferred)
     }
 
     /// `fresh`, translating into the first of `languages` (the system's preferred ones) that isn't

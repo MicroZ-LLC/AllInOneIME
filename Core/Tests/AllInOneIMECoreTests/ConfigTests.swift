@@ -129,6 +129,19 @@ struct ConfigTests {
         #expect(english.outputLanguages == [.english])
     }
 
+    /// `Config.fresh` reads the user's languages from the platform (`Platform.userLanguages`: Windows' own list on
+    /// Windows, where Foundation's says "en-001"), so the shells and the command line agree.
+    @Test func aNewUsersLanguagesComeFromThePlatform() {
+        struct Fixed: UserLanguages { var preferred: [String] }
+        Platform.$override.withValue(Platform(userLanguages: Fixed(preferred: ["ja-JP", "en-US"]))) {
+            #expect(Config.fresh.outputLanguages.map(\.code) == ["ja"])
+        }
+        Platform.$override.withValue(Platform(userLanguages: Fixed(preferred: ["en-US"]))) {
+            #expect(Config.fresh.outputLanguages == [.english])
+        }
+        #expect(!Platform.current.userLanguages.preferred.isEmpty)
+    }
+
     @Test func addedLanguages() throws {
         // A new user: English in, English out (translations added in the settings).
         #expect(Config.default.inputLanguages == [.english] && Config.default.defaultInput == .english && Config.default.outputLanguages == [.english])

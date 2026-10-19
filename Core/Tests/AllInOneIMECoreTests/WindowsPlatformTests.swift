@@ -32,6 +32,22 @@ struct WindowsPlatformTests {
         return (String(decoding: data, as: UTF8.self).replacingOccurrences(of: "\r\n", with: "\n"), process.terminationStatus)
     }
 
+    // MARK: The user's languages
+
+    /// Windows' own list (`GetUserPreferredUILanguages`), in its order, not Foundation's (which says "en-001" whatever
+    /// the user has): what `Config.fresh` reads, in the engine and the command line alike.
+    @Test func theUsersLanguagesAreWindowsOwn() {
+        var count: ULONG = 0, size: ULONG = 0
+        #expect(GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, nil, &size))
+        var buffer = [WCHAR](repeating: 0, count: Int(size))
+        #expect(GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, &buffer, &size))
+        let windows = buffer.split(separator: 0).map { String(decoding: $0, as: UTF16.self) }
+        #expect(!windows.isEmpty)
+        #expect(WindowsUserLanguages().preferred == windows)
+        #expect(Platform().userLanguages.preferred == windows)
+        #expect(Config.fresh(preferring: windows) == Config.fresh)
+    }
+
     // MARK: Command lines
 
     /// What the C runtime (`CommandLineToArgvW`, its rules) reads back from the line written is what was given.

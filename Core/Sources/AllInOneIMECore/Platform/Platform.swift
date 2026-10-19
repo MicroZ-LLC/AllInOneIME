@@ -7,7 +7,8 @@ import AllInOneIMEQuickJS
 /// Android ones) installs its own at launch (`Platform.current = …`); tests may give stand-ins to the code they test, or
 /// scope one to what they run (`Platform.$override.withValue(fake) { … }`).
 /// By default the core uses what it is built with: Apple's frameworks on Apple platforms (`Platform/Apple/`), Windows'
-/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin),
+/// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin, the
+/// user's languages),
 /// QuickJS-ng for JavaScript off Apple platforms (AllInOneIMEQuickJS), and elsewhere neutral stand-ins: a heuristic
 /// language guess, the date rules alone, and no on-device model, PDF text, text recognition or secret store ("not
 /// supported on this platform").
@@ -30,12 +31,15 @@ public struct Platform: Sendable {
     public var processes: any ProcessLauncher
     /// Atomic swaps, private writes, modification dates, the Trash.
     public var files: any FileOps
+    /// The user's languages, in their order (`Config.fresh`'s translation language).
+    public var userLanguages: any UserLanguages
 
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
                 languages: any LanguageIdentifier = Platform.systemLanguages, dates: any DateDetector = Platform.systemDates,
                 pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
-                processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps()) {
+                processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps(),
+                userLanguages: any UserLanguages = Platform.systemUserLanguages) {
         self.secrets = secrets
         self.scripts = scripts
         self.onDeviceModel = onDeviceModel
@@ -45,6 +49,7 @@ public struct Platform: Sendable {
         self.text = text
         self.processes = processes
         self.files = files
+        self.userLanguages = userLanguages
     }
 
     /// The platform in use: the task's `override` if it has one, else the installed one. Set (installed) at launch,
