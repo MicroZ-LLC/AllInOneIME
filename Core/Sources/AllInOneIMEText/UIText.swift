@@ -82,6 +82,10 @@ public enum UIText {
     /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
     public static var chinese: Bool { state.withLock { $0.chinese } }
 
+    /// The interface text in the interface language as it is now (`language`): what a shell hands the core's text that
+    /// takes its language (`PanelPresenter`, `SessionText`), and what `UIText`'s own texts are made with.
+    public static var words: InterfaceWords { InterfaceWords(language: language) }
+
     private static func picked(choice: String?, shipped: [String]) -> String {
         InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage
     }
@@ -89,10 +93,7 @@ public enum UIText {
     /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
     /// language name), for the Chinese interface: as it is in Simplified Chinese, in Traditional characters in
     /// Traditional Chinese (ICU's Hans-Hant transform), never Simplified Chinese there.
-    public static func chineseOnly(_ text: String) -> String {
-        guard !InterfaceLanguage.isSimplifiedChinese(language) else { return text }
-        return text.applyingTransform(StringTransform(rawValue: "Hans-Hant"), reverse: false) ?? text
-    }
+    public static func chineseOnly(_ text: String) -> String { words.chineseOnly(text) }
 }
 
 extension Notification.Name {

@@ -78,13 +78,14 @@ struct PrivacySection: View {
 /// What the candidate panel says when values were hidden from the AI (`PanelRedaction`, the core's), for a panel model of
 /// this shell's own.
 enum RedactionPanel {
-    static func hiddenLine(_ count: Int) -> String { PanelRedaction.hiddenLine(count) }
+    static func hiddenLine(_ count: Int) -> String { PanelRedaction.hiddenLine(count, language: UIText.language) }
 
-    static var changed: String { PanelRedaction.changed }
+    static var changed: String { PanelRedaction.changed(language: UIText.language) }
 
     static func annotate(_ model: inout CandidateView.Model, choices: [Composer.Choice], hidden: Int, phase: Composer.Phase) {
         var comments = model.rows.map(\.comment)
-        PanelRedaction.annotate(comments: &comments, detail: &model.detail, choices: choices, hidden: hidden, phase: phase)
+        PanelRedaction.annotate(comments: &comments, detail: &model.detail, choices: choices, hidden: hidden, phase: phase,
+                                language: UIText.language)
         for index in model.rows.indices { model.rows[index].comment = comments[index] }
     }
 }

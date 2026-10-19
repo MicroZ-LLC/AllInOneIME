@@ -1221,7 +1221,7 @@ struct SettingsView: View {
                         Menu(tr("添加…", "Add…")) {
                             ForEach(missing, id: \.self) { destination in
                                 Button(SessionText.name(destination, picked: model.config.agent,
-                                                                       custom: model.config.agentCommand)) {
+                                                        custom: model.config.agentCommand, language: UIText.language)) {
                                     model.addContinueIn(destination)
                                 }
                             }
@@ -1232,7 +1232,10 @@ struct SettingsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     // The agents by name (a custom one's from its command), `.atAgent` by @agent's.
                     LanguageChips(items: model.continueChoices,
-                                  name: { SessionText.shortName($0, picked: model.config.agent, custom: model.config.agentCommand) },
+                                  name: {
+                                      SessionText.shortName($0, picked: model.config.agent, custom: model.config.agentCommand,
+                                                            language: UIText.language)
+                                  },
                                   firstNote: tr("默认", "default"),
                                   reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
                         .fixedSize()
@@ -1262,7 +1265,7 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     Picker("", selection: Binding(get: { shownInput }, set: { inputTab = $0 })) {
                         ForEach(model.config.inputLanguages, id: \.self) { language in
-                            Text(SessionText.inputName(language)
+                            Text(SessionText.inputName(language, language: UIText.language)
                                  + (language == model.config.inputLanguages.first && model.config.inputLanguages.count > 1
                                     ? tr(" · 默认", " · default") : ""))
                                 .tag(language)
@@ -1277,7 +1280,7 @@ struct SettingsView: View {
                         ForEach(missing, id: \.self) { language in
                             // A language whose pack isn't here says it downloads first.
                             let download = !packs.isUsable(language)
-                            Button(SessionText.inputName(language)
+                            Button(SessionText.inputName(language, language: UIText.language)
                                    + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
                                 addInputLanguage(language)
                             }
@@ -2021,7 +2024,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            SectionTitle(SessionText.inputName(shownInput), icon: CommandIcons.input)
+            SectionTitle(SessionText.inputName(shownInput, language: UIText.language), icon: CommandIcons.input)
         } footer: {
             if shownInput == .chinese {
                 Text(tr("改完词库会重新部署，一两秒生效。", "Applied in a second or two: the dictionaries are deployed again."))
@@ -2280,7 +2283,8 @@ struct SettingsView: View {
     /// The commands, at the top: what this input method does beyond typing the user's input languages.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        let languages = model.config.inputLanguages.map(SessionText.inputName).joined(separator: tr("、", ", "))
+        let languages = model.config.inputLanguages.map { SessionText.inputName($0, language: UIText.language) }
+            .joined(separator: tr("、", ", "))
         return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
                   "A regular input method: \(languages). "

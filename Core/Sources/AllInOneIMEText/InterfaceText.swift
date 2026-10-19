@@ -224,6 +224,14 @@ public struct InterfaceWords: Sendable {
     public func tr(_ chinese: UIString, _ english: UIString, key: String? = nil) -> String {
         InterfaceText.text(chinese, english, key: key, language: language)
     }
+
+    /// Text written only in Simplified Chinese and English, without a catalog entry (an error's Chinese, a short
+    /// language name), for a Chinese language: as it is in Simplified Chinese, in Traditional characters in Traditional
+    /// Chinese (ICU's Hans-Hant transform), never Simplified Chinese there.
+    public func chineseOnly(_ text: String) -> String {
+        guard !InterfaceLanguage.isSimplifiedChinese(language) else { return text }
+        return text.applyingTransform(StringTransform(rawValue: "Hans-Hant"), reverse: false) ?? text
+    }
 }
 
 /// A value behind a lock, like `OSAllocatedUnfairLock(initialState:)` (Apple-only) or `Mutex` (macOS 15): an `NSLock`,

@@ -1175,13 +1175,15 @@ public final class InputSession {
     /// The candidate panel for the composer as it is now (`PanelPresenter`).
     public func panelModel() -> PanelModel { panelPresenter().model(for: composer) }
 
-    /// What the panel is made from besides the composer: the settings now, this field's notice, app and last result.
+    /// What the panel is made from besides the composer: the settings now, the interface language (`UIText.language`, set
+    /// from them), this field's notice, app and last result.
     public func panelPresenter() -> PanelPresenter {
         let config = services.loadSettings()
         let jargon = services.jargon
-        return PanelPresenter(config: config, app: field.app, notice: notice, elapsed: lastElapsed, fromCache: lastFromCache,
-                              hidden: lastHidden, shortened: lastShortened, agent: agent, agentCommand: agentCommand,
-                              jargon: { jargon(config) }, scriptStatus: services.scriptStatus, chip: services.translateChip)
+        return PanelPresenter(config: config, language: UIText.language, app: field.app, notice: notice, elapsed: lastElapsed,
+                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, agent: agent,
+                              agentCommand: agentCommand, jargon: { jargon(config) }, scriptStatus: services.scriptStatus,
+                              chip: services.translateChip)
     }
 
     private func showPanel() {

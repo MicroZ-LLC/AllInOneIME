@@ -361,9 +361,4 @@ struct InterfaceLanguageStateTests {
             #expect(notices.withLock { $0.allSatisfy(\.main) })
         }
     }
-
-    @Test func thePlaceholderMarkIsInTheLanguageAsItIsNow() {
-        #expect(withInterfaceLanguage("en") { PanelRedaction.changed } == "⚠ placeholder changed")
-        #expect(withInterfaceLanguage("zh") { PanelRedaction.changed } == "⚠ 占位符被改动")
-    }
 }

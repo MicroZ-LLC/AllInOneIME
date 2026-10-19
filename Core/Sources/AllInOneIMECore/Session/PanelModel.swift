@@ -61,11 +61,12 @@ public struct PanelModel: Equatable, Sendable {
             self.target = target
         }
 
-        /// As the panel draws it: 「中 → 英」 in the Chinese interface (「中 → 韓」 in Traditional Chinese), the language codes
-        /// ("ZH → EN") in the others.
-        public init(_ chip: TranslateMode.Chip) {
-            if UIText.chinese {
-                self.init(source: UIText.chineseOnly(chip.sourceText), target: UIText.chineseOnly(chip.targetText))
+        /// As the panel draws it in the interface language `language`: 「中 → 英」 in Chinese (「中 → 韓」 in Traditional
+        /// Chinese), the language codes ("ZH → EN") in the others.
+        public init(_ chip: TranslateMode.Chip, language: String) {
+            let t = InterfaceWords(language: language)
+            if t.chinese {
+                self.init(source: t.chineseOnly(chip.sourceText), target: t.chineseOnly(chip.targetText))
             } else {
                 self.init(source: chip.sourceTag, target: chip.targetTag)
             }

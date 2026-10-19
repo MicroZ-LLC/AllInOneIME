@@ -6,6 +6,6 @@ import AppKit
 extension AllInOneIMEInputController {
     /// A destination's short name (`SessionText.shortName`).
     static func shortName(_ destination: ChatHandoff.Destination, picked: AgentKind = .claude, custom: [String] = []) -> String {
-        SessionText.shortName(destination, picked: picked, custom: custom)
+        SessionText.shortName(destination, picked: picked, custom: custom, language: UIText.language)
     }
 }

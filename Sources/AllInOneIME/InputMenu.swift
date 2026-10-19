@@ -45,14 +45,15 @@ extension AllInOneIMEInputController {
         outputItem.submenu = outputs
         menu.addItem(outputItem)
 
-        let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + current.inputLanguages.map(SessionText.inputName).joined(separator: " + "),
+        let inputNames = current.inputLanguages.map { SessionText.inputName($0, language: UIText.language) }
+        let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + inputNames.joined(separator: " + "),
                                    action: nil, keyEquivalent: "")
         let inputs = NSMenu()
         // The added input languages, the default one checked (a new text field starts in it).
         for language in current.inputLanguages {
             // One whose pack isn't there yet can't be typed: shown, greyed, with why.
             let usable = LanguagePackManager.shared.isUsable(language)
-            let title = SessionText.inputName(language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
+            let title = SessionText.inputName(language, language: UIText.language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
             let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.rawValue

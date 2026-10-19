@@ -62,7 +62,7 @@ enum AppProfileSamples {
 /// What the settings and the menu say about an app's profile.
 @MainActor
 enum AppProfileText {
-    static func inputName(_ language: Language) -> String { SessionText.inputName(language) }
+    static func inputName(_ language: Language) -> String { SessionText.inputName(language, language: UIText.language) }
 
     /// "Starts in English · Rewrites: Formal · Typed out · No AI"; "Same as everywhere" when it sets nothing.
     static func summary(_ profile: AppProfile) -> String {
@@ -260,10 +260,11 @@ extension AllInOneIMEInputController {
         let note = NSMenuItem(title: tr("开始的输入语言：", "Starts In:"), action: nil, keyEquivalent: "")
         note.isEnabled = false
         menu.addItem(note)
-        add(tr("跟全局一样（\(SessionText.inputName(current.defaultInput))）", "Same as Everywhere (\(SessionText.inputName(current.defaultInput)))"),
+        let everywhere = AppProfileText.inputName(current.defaultInput)
+        add(tr("跟全局一样（\(everywhere)）", "Same as Everywhere (\(everywhere))"),
             #selector(setAppInput(_:)), on: profile.inputLanguage == nil)
         for language in current.inputLanguages {
-            add(SessionText.inputName(language), #selector(setAppInput(_:)), value: language.rawValue, on: profile.inputLanguage == language)
+            add(AppProfileText.inputName(language), #selector(setAppInput(_:)), value: language.rawValue, on: profile.inputLanguage == language)
         }
         menu.addItem(.separator())
         let settings = NSMenuItem(title: tr("按 App 设置…", "Per-App Settings…"), action: #selector(showAppSettings(_:)), keyEquivalent: "")

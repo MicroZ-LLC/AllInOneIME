@@ -16,13 +16,11 @@ func withInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) rethrows
 
 private let interfaceLanguageLock = NSRecursiveLock()
 
-/// What a text field's session says around the composer (`SessionText`), in Simplified Chinese and English.
-@Suite(.serialized)
+/// What a text field's session says around the composer (`SessionText`), in Simplified Chinese and English: in the
+/// language each call is given.
 struct SessionTextTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
-
-    func inLanguage<T>(_ choice: String, _ body: () throws -> T) rethrows -> T { try withInterfaceLanguage(choice, body) }
 
     func composer(key: ActionKey = .space) -> Composer {
         let c = Composer(engine: FakeEngine(), voiceEnabled: false, actionKey: key)
@@ -50,17 +48,15 @@ struct SessionTextTests {
 
     @Test func anOpenRowSaysWhereItIs() {
         let home = CorePaths.home.path
-        inLanguage("zh") {
-            #expect(SessionText.openRow(SearchResult(name: "Calculator", path: "/System/Applications/Calculator.app",
-                                                     chineseName: "计算器")) == ("计算器", "应用"))
-            #expect(SessionText.openRow(SearchResult(name: "Notes", path: home + "/Documents/Notes", isFolder: true)).comment
-                    == "~/Documents/")
-            #expect(SessionText.openRow(SearchResult(name: "a.txt", path: home + "/a.txt", matchedContent: true)).comment == "内容 · ~")
-        }
-        inLanguage("en") {
-            #expect(SessionText.openRow(SearchResult(name: "Calculator", path: "/System/Applications/Calculator.app",
-                                                     chineseName: "计算器")) == ("Calculator", "app"))
-        }
+        let calculator = SearchResult(name: "Calculator", path: "/System/Applications/Calculator.app", chineseName: "计算器")
+        #expect(SessionText.openRow(calculator, language: "zh-Hans") == ("计算器", "应用"))
+        #expect(SessionText.openRow(SearchResult(name: "Notes", path: home + "/Documents/Notes", isFolder: true),
+                                    language: "zh-Hans").comment == "~/Documents/")
+        #expect(SessionText.openRow(SearchResult(name: "a.txt", path: home + "/a.txt", matchedContent: true),
+                                    language: "zh-Hans").comment == "内容 · ~")
+        #expect(SessionText.openRow(calculator, language: "en") == ("Calculator", "app"))
+        // Traditional Chinese has Finder's name, as the other languages.
+        #expect(SessionText.openRow(calculator, language: "zh-Hant").text == "Calculator")
     }
 
     @Test func whatGoesInAfterASelection() {
@@ -76,10 +72,22 @@ struct SessionTextTests {
         c.setInputMode(.english)
         improveDraft(c)
         type("hello", c)
-        let hint = inLanguage("zh") { SessionText.draftHint(c, config: .default) }
-        #expect(hint.hasPrefix("单按 ⌥ → "))
-        #expect(inLanguage("en") { SessionText.draftHint(c, config: .default) }.hasPrefix("Tap ⌥ → "))
-        #expect(SessionText.draftHint(composer(), config: .default) == "")
+        #expect(SessionText.draftHint(c, config: .default, language: "zh-Hans").hasPrefix("单按 ⌥ → "))
+        #expect(SessionText.draftHint(c, config: .default, language: "en").hasPrefix("Tap ⌥ → "))
+        #expect(SessionText.draftHint(composer(), config: .default, language: "en") == "")
+    }
+
+    /// The text is in the language given, whatever the process's is.
+    @Test func theLanguageGivenWhateverTheProcesssIs() {
+        let c = composer(key: .optionTap)
+        c.setInputMode(.english)
+        improveDraft(c)
+        type("hello", c)
+        let (english, chinese) = withInterfaceLanguage("zh") {
+            (SessionText.draftHint(c, config: .default, language: "en"), SessionText.inputName(.chinese, language: "en"))
+        }
+        #expect(english == withInterfaceLanguage("en") { SessionText.draftHint(c, config: .default, language: "en") })
+        #expect(english.hasPrefix("Tap ⌥ → ") && chinese == "Chinese (pinyin)")
     }
 
     @Test func menuAndSettingsRules() {
@@ -87,12 +95,14 @@ struct SessionTextTests {
         #expect(!SessionText.toggled("润色", in: ["正式", "润色"]).contains("润色"))
         #expect(SessionText.toggled(Language.english, in: [.chinese]) == [.chinese, .english])
         #expect(SessionText.toggled(Language.chinese, in: [.chinese]) == [.chinese])
-        #expect(inLanguage("zh") { SessionText.inputName(.chinese) } == "中文（拼音）")
-        #expect(inLanguage("en") { SessionText.inputName(.chinese) } == "Chinese (pinyin)")
+        #expect(SessionText.inputName(.chinese, language: "zh-Hans") == "中文（拼音）")
+        #expect(SessionText.inputName(.chinese, language: "en") == "Chinese (pinyin)")
+        #expect(SessionText.inputName(.english, language: "en") == "English")
         #expect(SessionText.chatChoice(row: 0) == nil && SessionText.chatChoice(row: 3) == 1)
         #expect(SessionText.noticeDuration("x", long: true) == 12 && SessionText.noticeDuration("", long: false) == 1.2)
         #expect(SessionText.noticeDuration(String(repeating: "x", count: 200), long: false) == 5)
-        #expect(inLanguage("en") { SessionText.shortName(.atAgent, picked: .claude) } == "@agent's agent (Claude Code)")
-        #expect(inLanguage("zh") { SessionText.name(.copy) } == "复制对话")
+        #expect(SessionText.shortName(.atAgent, picked: .claude, language: "en") == "@agent's agent (Claude Code)")
+        #expect(SessionText.name(.copy, language: "zh-Hans") == "复制对话")
+        #expect(SessionText.name(.claudeWeb, language: "en") == "Claude (web)")
     }
 }
