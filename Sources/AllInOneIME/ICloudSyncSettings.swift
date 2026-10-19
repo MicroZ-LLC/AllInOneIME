@@ -4,7 +4,8 @@ import SwiftUI
 
 /// Settings → General → Sync through iCloud (「通过 iCloud 同步」, `ICloudSyncController`): off by default; on only with
 /// iCloud Drive there (else how to turn it on, and a button to that pane). Under it, what syncs (hidden words and recent
-/// questions off until chosen here; API keys and passwords through iCloud Keychain, on, in a build entitled to it), the
+/// questions off until chosen here; API keys and passwords through iCloud Keychain, off until chosen here too, in a
+/// build entitled to it: turning sync on never moves a key), the
 /// status, Sync Now, and "Remove from iCloud…" (asked first). All of it is this Mac's own: never synced.
 struct ICloudSyncSection: View {
     @ObservedObject var model: SettingsModel
@@ -113,12 +114,12 @@ struct ICloudSyncSection: View {
     /// Keys sync through iCloud Keychain while sync is on: the build is entitled to it, and "API keys and passwords" is on.
     private var syncsKeys: Bool { APIKeys.Keychain.processIsEntitled && model.config.iCloudSync.keys }
 
-    /// The "API keys and passwords" row: on only in a build entitled to the data protection keychain (signed with the
-    /// provisioning profile); elsewhere off and greyed, saying why.
+    /// The "API keys and passwords" row (off by default): it can be turned on only in a build entitled to the data
+    /// protection keychain (signed with the provisioning profile); elsewhere off and greyed, saying why.
     static func keysRow(entitled: Bool) -> (enabled: Bool, note: String) {
         entitled
-            ? (true, tr("经过 iCloud 钥匙串，端到端加密。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。",
-                        "Through iCloud Keychain, end-to-end encrypted. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself."))
+            ? (true, tr("经过 iCloud 钥匙串，端到端加密。默认关：打开这一项时，这台 Mac 的密钥才移进 iCloud 钥匙串。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。",
+                        "Through iCloud Keychain, end-to-end encrypted. Off by default: this Mac's keys move into iCloud Keychain only when you turn this on. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself."))
             : (false, tr("这个版本不能同步密钥（没有描述文件）", "This build can't sync keys (no provisioning profile)"))
     }
 

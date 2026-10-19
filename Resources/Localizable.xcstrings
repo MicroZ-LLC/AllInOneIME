@@ -418,6 +418,9 @@
     "A link to something that isn't there" : {
       "comment" : "这个替身（符号链接）指向的东西不在了 — Sources/AllInOneIME/UIText.swift"
     },
+    "A Mac with “API keys and passwords” off, or one still on 0.6.4, keeps its own copy, and puts it back if it turns key sync on later." : {
+      "comment" : "关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，会留着自己的那份；那台 Mac 以后打开密钥同步时，会把它放回来。 — Sources/AllInOneIME/KeyRow.swift"
+    },
     "A preference has no name, or a type this app doesn't know" : {
       "comment" : "有一个偏好设置没有 name，或者 type 不认识 — Sources/AllInOneIME/UIText.swift"
     },
@@ -2821,7 +2824,11 @@
       "extractionState" : "stale"
     },
     "Through iCloud Keychain, end-to-end encrypted. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself." : {
-      "comment" : "经过 iCloud 钥匙串，端到端加密。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
+      "comment" : "经过 iCloud 钥匙串，端到端加密。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale"
+    },
+    "Through iCloud Keychain, end-to-end encrypted. Off by default: this Mac's keys move into iCloud Keychain only when you turn this on. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself." : {
+      "comment" : "经过 iCloud 钥匙串，端到端加密。默认关：打开这一项时，这台 Mac 的密钥才移进 iCloud 钥匙串。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift"
     },
     "Timeout %@ s" : {
       "comment" : "超时 %@ 秒 — Sources/AllInOneIME/SettingsWindow.swift"

@@ -104,7 +104,7 @@ struct KeyRowContent: View {
                                     Button(tr("取消", "Cancel"), role: .cancel) {}.keyboardShortcut(.defaultAction)
                                     Button(tr("删除", "Remove", key: "remove.delete"), role: .destructive, action: remove)
                                 } message: {
-                                    if let removeMessage { Text(removeMessage) }
+                                    if let message = removeDetail { Text(message) }
                                 }
                         }
                     }
@@ -117,7 +117,22 @@ struct KeyRowContent: View {
 
     /// Remove…'s question: while keys sync through iCloud Keychain, removing one removes it from every Mac; otherwise
     /// from this Mac alone (the copy in iCloud Keychain, if any, stays for the other Macs). It says which.
-    private var removeQuestion: String { removeTitle(ICloudSyncController.shared.keys?.syncing == true) }
+    private var removeQuestion: String { removeTitle(removesEverywhere) }
+
+    private var removesEverywhere: Bool { ICloudSyncController.shared.keys?.syncing == true }
+
+    /// What removing means (`removeMessage`), and, while it removes the key from every Mac, the Macs it can't reach.
+    private var removeDetail: String? {
+        let parts = [removeMessage, removesEverywhere ? Self.unreachedMacs : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    /// Remove… while keys sync can't reach a Mac with "API keys and passwords" off, or one still on 0.6.4: it keeps its
+    /// copy, and puts it back if it turns key sync on later.
+    static var unreachedMacs: String {
+        tr("关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，会留着自己的那份；那台 Mac 以后打开密钥同步时，会把它放回来。",
+           "A Mac with “API keys and passwords” off, or one still on 0.6.4, keeps its own copy, and puts it back if it turns key sync on later.")
+    }
 
     private func commit() {
         guard !blank else { return }
