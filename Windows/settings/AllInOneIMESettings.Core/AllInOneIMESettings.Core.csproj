@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Settings app without its window: the wire (the engine's pipe, §12 of the core's wire-protocol-v1.md), the
+       settings document, and what each field becomes on screen. No WinUI here, so the tests run it as it is. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>AllInOneIME.Settings</RootNamespace>
+    <AssemblyName>AllInOneIMESettings.Core</AssemblyName>
+    <IsTrimmable>true</IsTrimmable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AllInOneIMESettings.Tests" />
+  </ItemGroup>
+</Project>

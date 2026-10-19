@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Settings app's tests without a window: the wire client (against the settings golden, replayed by a stand-in
+       engine), the documents the engine really sends (Documents/, Scripts/make-test-documents.py), and what each field
+       becomes and sends. `dotnet test` here. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>AllInOneIME.Settings.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AllInOneIMESettings.Core\AllInOneIMESettings.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Documents\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

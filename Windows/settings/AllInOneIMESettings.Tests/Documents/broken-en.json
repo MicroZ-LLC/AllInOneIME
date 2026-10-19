@@ -1,0 +1,776 @@
+{
+ "document": {
+  "language": "zh-Hans",
+  "loadError": "配置文件格式错误（C:/Users/zwj10/AppData/Local/Temp/aio-docs-ngmtice3/config.json）：DecodingError.dataCorrupted: Data was corrupted. Debug description: The given data was not valid JSON.",
+  "platform": "windows",
+  "sections": [
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "⏎ 回车",
+        "value": "enter"
+       },
+       {
+        "label": "空格",
+        "value": "space"
+       }
+      ],
+      "help": "@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
+      "id": "actionKey",
+      "kind": "choice",
+      "label": "执行键",
+      "readOnly": true,
+      "value": "enter"
+     },
+     {
+      "help": "命令的结果（翻译、润色、回答…）像人打字一样一个字一个字打进去；打拼音选词还是马上上屏。按 Esc 停下，按别的键把剩下的一次打完。",
+      "id": "typeOut",
+      "kind": "toggle",
+      "label": "逐字上屏",
+      "readOnly": true,
+      "value": false
+     },
+     {
+      "help": "先选中一段文字，再打 @improve、@translate、@question 等命令按 ⏎：命令处理选中的文字（打字时它一直选中、不变），选好的结果替换它；Esc 什么都不改。哪个 App 里不正常就关掉。",
+      "id": "useSelection",
+      "kind": "toggle",
+      "label": "使用选中的文字",
+      "readOnly": true,
+      "value": true
+     },
+     {
+      "id": "rememberQuestions",
+      "kind": "toggle",
+      "label": "记住最近的问题",
+      "readOnly": true,
+      "value": true
+     },
+     {
+      "choices": [
+       {
+        "label": "跟随系统",
+        "value": null
+       },
+       {
+        "label": "English",
+        "value": "en"
+       },
+       {
+        "label": "简体中文",
+        "value": "zh-Hans"
+       },
+       {
+        "label": "Deutsch",
+        "value": "de"
+       },
+       {
+        "label": "Español",
+        "value": "es"
+       },
+       {
+        "label": "Français",
+        "value": "fr"
+       },
+       {
+        "label": "日本語",
+        "value": "ja"
+       },
+       {
+        "label": "한국어",
+        "value": "ko"
+       },
+       {
+        "label": "Português (Brasil)",
+        "value": "pt-BR"
+       },
+       {
+        "label": "繁體中文",
+        "value": "zh-Hant"
+       }
+      ],
+      "id": "uiLanguage",
+      "kind": "choice",
+      "label": "界面语言",
+      "readOnly": true
+     }
+    ],
+    "id": "general",
+    "title": "通用"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "中文（拼音）",
+        "value": "zh"
+       },
+       {
+        "label": "英文",
+        "value": "en"
+       },
+       {
+        "label": "法语",
+        "value": "fr"
+       },
+       {
+        "label": "韩语",
+        "value": "ko"
+       },
+       {
+        "label": "印地语",
+        "value": "hi"
+       }
+      ],
+      "help": "只有一种时 Shift 不切换",
+      "id": "inputLanguages",
+      "kind": "choices",
+      "label": "输入语言",
+      "maxCount": 5,
+      "minCount": 1,
+      "ordered": true,
+      "readOnly": true,
+      "value": [
+       "en"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "竖排",
+        "value": "vertical"
+       },
+       {
+        "label": "横排",
+        "value": "horizontal"
+       }
+      ],
+      "help": "选词（拼音、印地语）的候选并排（默认），像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。@ 命令列表和结果还是竖排。在下一个输入框生效。",
+      "id": "candidateLayout",
+      "kind": "choice",
+      "label": "候选排列",
+      "readOnly": true,
+      "value": "horizontal"
+     }
+    ],
+    "id": "input",
+    "title": "输入"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "英文",
+        "value": "en"
+       },
+       {
+        "label": "中文",
+        "value": "zh"
+       },
+       {
+        "label": "繁体中文",
+        "value": "zh-Hant"
+       },
+       {
+        "label": "日语",
+        "value": "ja"
+       },
+       {
+        "label": "韩语",
+        "value": "ko"
+       },
+       {
+        "label": "法语",
+        "value": "fr"
+       },
+       {
+        "label": "德语",
+        "value": "de"
+       },
+       {
+        "label": "西班牙语",
+        "value": "es"
+       },
+       {
+        "label": "葡萄牙语",
+        "value": "pt"
+       },
+       {
+        "label": "意大利语",
+        "value": "it"
+       },
+       {
+        "label": "俄语",
+        "value": "ru"
+       },
+       {
+        "label": "越南语",
+        "value": "vi"
+       },
+       {
+        "label": "泰语",
+        "value": "th"
+       },
+       {
+        "label": "印度尼西亚语",
+        "value": "id"
+       },
+       {
+        "label": "阿拉伯语",
+        "value": "ar"
+       },
+       {
+        "label": "印地语",
+        "value": "hi"
+       },
+       {
+        "label": "孟加拉语",
+        "value": "bn"
+       },
+       {
+        "label": "泰卢固语",
+        "value": "te"
+       },
+       {
+        "label": "马拉地语",
+        "value": "mr"
+       },
+       {
+        "label": "泰米尔语",
+        "value": "ta"
+       },
+       {
+        "label": "古吉拉特语",
+        "value": "gu"
+       },
+       {
+        "label": "卡纳达语",
+        "value": "kn"
+       },
+       {
+        "label": "马拉雅拉姆语",
+        "value": "ml"
+       },
+       {
+        "label": "旁遮普语",
+        "value": "pa"
+       },
+       {
+        "label": "乌尔都语",
+        "value": "ur"
+       }
+      ],
+      "help": "每种一行，拖动排序",
+      "id": "outputLanguages",
+      "kind": "choices",
+      "label": "翻译语言",
+      "minCount": 1,
+      "ordered": true,
+      "readOnly": true,
+      "value": [
+       "en"
+      ]
+     },
+     {
+      "choices": [
+       {
+        "label": "润色",
+        "note": "语气不变，更自然通顺",
+        "value": "润色"
+       },
+       {
+        "label": "简洁",
+        "note": "更短，去掉多余的话",
+        "value": "简洁"
+       },
+       {
+        "label": "正式",
+        "note": "适合发给领导、客户",
+        "value": "正式"
+       },
+       {
+        "label": "口语",
+        "note": "像跟朋友聊天",
+        "value": "口语"
+       },
+       {
+        "label": "委婉",
+        "note": "更客气，语气缓和",
+        "value": "委婉"
+       },
+       {
+        "label": "黑话",
+        "note": "大厂黑话，英文是 Amazon 腔",
+        "value": "黑话"
+       }
+      ],
+      "help": "用你写的语言改写，拖动排序",
+      "id": "rewriteStyles",
+      "kind": "choices",
+      "label": "风格",
+      "ordered": true,
+      "readOnly": true,
+      "value": [
+       "润色",
+       "简洁",
+       "正式"
+      ]
+     },
+     {
+      "id": "improveTranslates",
+      "kind": "toggle",
+      "label": "@improve 同时翻译",
+      "readOnly": true,
+      "value": false
+     },
+     {
+      "help": "你团队自己的说法",
+      "id": "jargonFile",
+      "kind": "text",
+      "label": "黑话库",
+      "optional": true,
+      "pick": "file",
+      "placeholder": "C:/Users/zwj10/AppData/Roaming/AllInOneIME/jargon.txt",
+      "readOnly": true
+     }
+    ],
+    "id": "writing",
+    "title": "翻译与改写"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Amazon Bedrock",
+        "value": "bedrock"
+       },
+       {
+        "label": "Claude API",
+        "value": "anthropic"
+       },
+       {
+        "label": "Gemini API",
+        "value": "gemini"
+       },
+       {
+        "label": "兼容 OpenAI 的服务",
+        "value": "openai"
+       }
+      ],
+      "id": "provider",
+      "kind": "choice",
+      "label": "服务",
+      "readOnly": true,
+      "value": "bedrock"
+     },
+     {
+      "choices": [
+       {
+        "label": "Claude Haiku 4.5",
+        "note": "推荐：约 1.3 秒，质量好",
+        "value": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+       },
+       {
+        "label": "Claude Sonnet 4.6",
+        "note": "约 2.2 秒，改写最用心",
+        "value": "us.anthropic.claude-sonnet-4-6"
+       },
+       {
+        "label": "Amazon Nova 2 Lite",
+        "note": "约 1 秒，最便宜，润色偏弱",
+        "value": "us.amazon.nova-2-lite-v1:0"
+       }
+      ],
+      "id": "bedrock.modelId",
+      "kind": "text",
+      "label": "模型",
+      "readOnly": true,
+      "value": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+     },
+     {
+      "choices": [
+       {
+        "label": "default",
+        "value": "default"
+       }
+      ],
+      "id": "bedrock.awsProfile",
+      "kind": "choice",
+      "label": "AWS Profile",
+      "readOnly": true,
+      "value": "default"
+     },
+     {
+      "id": "bedrock.region",
+      "kind": "text",
+      "label": "区域",
+      "optional": true,
+      "placeholder": "留空用 profile 的区域（us-east-1）",
+      "readOnly": true
+     },
+     {
+      "actions": [
+       "test"
+      ],
+      "id": "provider.test",
+      "kind": "button",
+      "label": "测试连接"
+     }
+    ],
+    "id": "provider",
+    "title": "AI 服务"
+   },
+   {
+    "fields": [
+     {
+      "id": "maxTokens",
+      "kind": "integer",
+      "label": "最多输出 1000 tokens",
+      "max": 4000,
+      "min": 200,
+      "readOnly": true,
+      "step": 100,
+      "value": 1000
+     },
+     {
+      "id": "temperature",
+      "kind": "number",
+      "label": "发送 temperature（有的模型不支持，报错时关掉）",
+      "max": 1,
+      "min": 0,
+      "optional": true,
+      "readOnly": true,
+      "step": 0.1,
+      "value": 0.3
+     },
+     {
+      "id": "timeoutSeconds",
+      "kind": "integer",
+      "label": "超时 15 秒",
+      "max": 60,
+      "min": 5,
+      "readOnly": true,
+      "step": 5,
+      "value": 15
+     }
+    ],
+    "id": "request",
+    "title": "模型参数"
+   },
+   {
+    "fields": [
+     {
+      "help": "邮箱、电话、卡号、密钥这些先换成 [EMAIL_1] 这样的占位符再发给 AI，结果里再换回真实内容。",
+      "id": "redaction.enabled",
+      "kind": "toggle",
+      "label": "发送前隐藏敏感信息",
+      "readOnly": true,
+      "value": false
+     }
+    ],
+    "id": "privacy",
+    "title": "隐私"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "label": "Claude Code",
+        "value": "claude"
+       },
+       {
+        "label": "Gemini CLI",
+        "value": "gemini"
+       },
+       {
+        "label": "Kiro CLI",
+        "value": "kiro"
+       },
+       {
+        "label": "自定义",
+        "value": "custom"
+       }
+      ],
+      "help": "在终端打开它，你打的字是第一句话。",
+      "id": "agent",
+      "kind": "choice",
+      "label": "@agent 交给",
+      "readOnly": true,
+      "value": "claude"
+     },
+     {
+      "id": "claudeInBackground",
+      "kind": "toggle",
+      "label": "在后台运行，做完通知我",
+      "readOnly": true,
+      "value": true
+     }
+    ],
+    "id": "agent",
+    "title": "Agent"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "在不同的 App 里用不同的设置：比如 Slack 里用英文开始、改写得口语一些，邮件里改写得正式一些，某个 App 里完全不用 AI。没设的跟全局设置一样。",
+      "id": "apps.profiles",
+      "items": [],
+      "kind": "items",
+      "label": "按 App 设置",
+      "placeholder": "程序名，比如 notepad.exe"
+     }
+    ],
+    "id": "apps",
+    "title": "按 App 设置"
+   },
+   {
+    "fields": [
+     {
+      "help": "还没有插件。插件是别人写好的 @ 命令，比如 @stock 查股价；装好后和其他命令一样用。",
+      "id": "plugins.installed",
+      "items": [],
+      "kind": "items",
+      "label": "插件"
+     },
+     {
+      "actions": [
+       "browse"
+      ],
+      "help": "插件库里的插件都经过审核和签名；打开时才会联网（plugins.allinoneime.com）。",
+      "id": "plugins.library",
+      "kind": "items",
+      "label": "插件库"
+     }
+    ],
+    "id": "plugins",
+    "title": "插件"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "add"
+      ],
+      "help": "选择放脚本或扩展包的文件夹",
+      "id": "extensions.folders",
+      "items": [
+       {
+        "actions": [
+         "remove"
+        ],
+        "detail": "添加的",
+        "id": "~/.config/allinoneime/extensions",
+        "title": "~/.config/allinoneime/extensions"
+       }
+      ],
+      "kind": "items",
+      "label": "文件夹",
+      "pick": "folder",
+      "placeholder": "~/.config/allinoneime/extensions"
+     },
+     {
+      "help": "还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
+      "id": "extensions.installed",
+      "items": [],
+      "kind": "items",
+      "label": "脚本扩展"
+     }
+    ],
+    "footer": "每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
+    "id": "extensions",
+    "title": "脚本扩展"
+   },
+   {
+    "fields": [
+     {
+      "choices": [
+       {
+        "disabled": true,
+        "label": "备忘录",
+        "value": "notes"
+       },
+       {
+        "label": "Notion",
+        "value": "notion"
+       },
+       {
+        "label": "文件夹（Obsidian 等）",
+        "value": "folder"
+       }
+      ],
+      "id": "notes.destination",
+      "kind": "choice",
+      "label": "存到",
+      "readOnly": true,
+      "value": "notes"
+     },
+     {
+      "id": "notes.folder",
+      "kind": "text",
+      "label": "文件夹（Obsidian 等）",
+      "optional": true,
+      "pick": "folder",
+      "readOnly": true
+     }
+    ],
+    "id": "notes",
+    "title": "笔记（@note）"
+   },
+   {
+    "fields": [
+     {
+      "actions": [
+       "save"
+      ],
+      "form": [
+       {
+        "id": "name",
+        "kind": "text",
+        "label": "名字",
+        "placeholder": "只用英文字母，比如 py"
+       },
+       {
+        "choices": [
+         {
+          "label": "AI 指令",
+          "value": "prompt"
+         },
+         {
+          "label": "运行程序",
+          "value": "run"
+         },
+         {
+          "label": "在终端运行",
+          "value": "terminal"
+         },
+         {
+          "label": "打开网页",
+          "value": "link"
+         },
+         {
+          "label": "插入文字",
+          "value": "snippet"
+         }
+        ],
+        "id": "type",
+        "kind": "choice",
+        "label": "做什么",
+        "value": "prompt"
+       },
+       {
+        "help": "命令列表里显示，可以不填",
+        "id": "summary",
+        "kind": "text",
+        "label": "说明",
+        "optional": true
+       },
+       {
+        "id": "prompt",
+        "kind": "text",
+        "label": "AI 指令",
+        "multiline": true,
+        "when": {
+         "type": [
+          "prompt"
+         ]
+        }
+       },
+       {
+        "id": "argv",
+        "kind": "words",
+        "label": "命令",
+        "placeholder": "python3 convert.py {input}",
+        "text": "",
+        "when": {
+         "type": [
+          "run",
+          "terminal"
+         ]
+        }
+       },
+       {
+        "id": "url",
+        "kind": "text",
+        "label": "网址",
+        "placeholder": "https://www.google.com/search?q={input}",
+        "when": {
+         "type": [
+          "link"
+         ]
+        }
+       },
+       {
+        "id": "text",
+        "kind": "text",
+        "label": "插入文字",
+        "multiline": true,
+        "when": {
+         "type": [
+          "snippet"
+         ]
+        }
+       }
+      ],
+      "id": "commands.custom",
+      "items": [],
+      "kind": "items",
+      "label": "自定义 @ 命令"
+     }
+    ],
+    "footer": "保存后，在任意输入框开头打 @ 加名字就能用，和 @improve 一样。",
+    "id": "commands",
+    "title": "自定义 @ 命令"
+   },
+   {
+    "fields": [
+     {
+      "id": "configFile",
+      "kind": "info",
+      "label": "配置文件",
+      "value": "C:/Users/zwj10/AppData/Local/Temp/aio-docs-ngmtice3/config.json"
+     }
+    ],
+    "footer": "改完立即生效，不用重启。",
+    "id": "advanced",
+    "title": "高级"
+   }
+  ],
+  "strings": {
+   "action.add": "添加",
+   "action.browse": "打开插件库",
+   "action.delete": "删除…",
+   "action.hide": "隐藏",
+   "action.install": "安装",
+   "action.remove": "移除",
+   "action.removeKey": "删除…",
+   "action.save": "新建…",
+   "action.save.item": "编辑…",
+   "action.setKey": "保存",
+   "action.show": "显示",
+   "action.test": "测试",
+   "add": "添加…",
+   "cancel": "取消",
+   "choose": "选择…",
+   "confirm.delete": "删除「{name}」？",
+   "confirm.remove": "移除「{name}」？",
+   "confirm.removeKey": "删除「{name}」？",
+   "moveDown": "下移",
+   "moveUp": "上移",
+   "paste": "粘贴",
+   "remove": "移除",
+   "save": "保存",
+   "window.title": "AllInOneIME 设置",
+   "working": "正在进行…"
+  }
+ },
+ "revision": 1,
+ "type": "settings"
+}
