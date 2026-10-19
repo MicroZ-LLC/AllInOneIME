@@ -170,6 +170,32 @@ struct WindowsPlatformTests {
         #expect(throws: WindowsLaunchError.self) { try run(vbs, ["a", "//T:1"]) }
     }
 
+    // MARK: Extensions
+
+    /// A batch file (.bat, .cmd) is an extension's script like a .sh or a .ps1: its bundle loads it, and it runs with its
+    /// arguments through cmd.exe's escaping (`WindowsCommandLine.batch`).
+    @Test func batchFileExtensionsLoadAndRun() async throws {
+        let folder = ScriptFolder()
+        folder.add("t/extension.json", #"""
+            {"schemaVersion": 1, "name": "t",
+             "commands": [{"script": "hello.bat", "name": "hello"}, {"script": "other.CMD", "name": "other"}]}
+            """#)
+        folder.add("t/hello.bat", "@echo off\r\necho(%1\r\n")
+        folder.add("t/other.CMD", "@echo other\r\n")
+        let index = folder.load()
+        #expect(index.skipped.isEmpty, "\(index.skipped)")
+        #expect(index.commands.map(\.name) == ["hello", "other"])
+        let hello = try #require(index.commands.first { $0.name == "hello" })
+        var text = ""
+        for try await update in CommandRunner.run(hello, arguments: ["it's & 100%"]) where update.isFinal { text = update.text }
+        #expect(text.trimmingCharacters(in: .whitespacesAndNewlines) == #""it's & 100%""#)
+        // By its extension, whatever Foundation's isExecutableFile says of it.
+        for name in ["hello.bat", "other.CMD"] {
+            let file = folder.url.appendingPathComponent("t/\(name)")
+            #expect(ScriptCommand.launch(for: file, firstLine: "@echo off", executable: false) == [file.path])
+        }
+    }
+
     // MARK: Stopping
 
     /// `terminate` ends what the program started too: a batch file's child, which would write a file 2 s later, doesn't.

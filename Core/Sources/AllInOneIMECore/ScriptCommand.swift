@@ -382,12 +382,12 @@ extension ScriptCommand {
     /// python3" → /usr/bin/env python3 file); an executable text file without one runs with /bin/sh, as a shell
     /// does when the system can't run it (ENOEXEC). Nil when it's neither executable nor has a "#!" line.
     /// On Windows, which has no executable bit and reads no "#!" line, the file itself, which the launcher starts by its
-    /// kind (`WindowsPrograms`): a program or batch file (`executable`), or a script through its interpreter (.sh, .ps1,
-    /// .py, or one with a "#!" line); nil for any other file.
+    /// kind (`WindowsPrograms`): a program (`executable`), a batch file (.bat, .cmd: through cmd.exe, its arguments
+    /// escaped), or a script through its interpreter (.sh, .ps1, .py, or one with a "#!" line); nil for any other file.
     static func launch(for file: URL, firstLine: String, executable: Bool, binary: Bool = false) -> [String]? {
         #if os(Windows)
         let line = firstLine.hasPrefix("\u{FEFF}") ? String(firstLine.dropFirst()) : firstLine
-        let script = ["sh", "ps1", "py", "pyw"].contains(file.pathExtension.lowercased())
+        let script = ["bat", "cmd", "sh", "ps1", "py", "pyw"].contains(file.pathExtension.lowercased())
         return executable || script || line.hasPrefix("#!") ? [file.path] : nil
         #else
         if executable, binary { return [file.path] }
