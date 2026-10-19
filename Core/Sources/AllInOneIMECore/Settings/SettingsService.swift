@@ -101,6 +101,13 @@ public final class SettingsService: @unchecked Sendable {
         get { hooks.withLock { $0.notionSession } }
         set { hooks.withLock { $0.notionSession = newValue } }
     }
+    /// The interface language the settings say (their `uiLanguage`, else the system's): what the document, the problems
+    /// and the outcomes are in, whatever the process's own is (`UIText.scopedLanguage`). Windows' engine picks it as its
+    /// panel does (Windows' own list of languages).
+    public var interfaceLanguage: @Sendable (Config) -> String {
+        get { hooks.withLock { $0.interfaceLanguage } }
+        set { hooks.withLock { $0.interfaceLanguage = newValue } }
+    }
 
     /// What the owner hooks in, and the last revision `changed` was called with.
     private struct Hooks {
@@ -109,6 +116,9 @@ public final class SettingsService: @unchecked Sendable {
         var pluginsChanged: @Sendable () -> Void = {}
         var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
         var notionSession: URLSession = NotionAPI.session
+        var interfaceLanguage: @Sendable (Config) -> String = { config in
+            InterfaceLanguage.code(forSetting: config.uiLanguage, shipped: UIText.shipped) ?? UIText.systemLanguage
+        }
         var notified: UInt64 = 1
     }
 
@@ -134,7 +144,8 @@ public final class SettingsService: @unchecked Sendable {
         current().document
     }
 
-    /// The settings now and their revision, together (`document`'s, read again first if the file changed).
+    /// The settings now and their revision, together (`document`'s, read again first if the file changed), in the
+    /// interface language they say: one just changed shows at once.
     public func current() -> (revision: UInt64, document: SettingsDocument) {
         changing { store.reloadIfChanged() }
         return scoped { locked { (revisionValue, build().document) } }
@@ -212,10 +223,12 @@ public final class SettingsService: @unchecked Sendable {
 
     /// Runs one of a field's `actions`.
     public func perform(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
-        guard let secrets else { return await performing(action) }
-        var platform = Platform.current
-        platform.secrets = secrets
-        return await Platform.$override.withValue(platform) { await performing(action) }
+        await UIText.$scopedLanguage.withValue(language) {
+            guard let secrets else { return await performing(action) }
+            var platform = Platform.current
+            platform.secrets = secrets
+            return await Platform.$override.withValue(platform) { await performing(action) }
+        }
     }
 
     /// Runs an action that is done at once (`takesAWhile` false), on the caller's thread; one that takes a while is
@@ -308,13 +321,18 @@ public final class SettingsService: @unchecked Sendable {
 
     // MARK: Locking
 
-    /// `body` with the keys in `secrets`, when the service has its own.
+    /// `body` in the settings' interface language, and with the keys in `secrets` when the service has its own.
     private func scoped<T>(_ body: () -> T) -> T {
-        guard let secrets else { return body() }
-        var platform = Platform.current
-        platform.secrets = secrets
-        return Platform.$override.withValue(platform, operation: body)
+        UIText.$scopedLanguage.withValue(language) {
+            guard let secrets else { return body() }
+            var platform = Platform.current
+            platform.secrets = secrets
+            return Platform.$override.withValue(platform, operation: body)
+        }
     }
+
+    /// The interface language the settings say now (`interfaceLanguage`).
+    private var language: String { interfaceLanguage(locked { store.config }) }
 
     private func locked<T>(_ body: () -> T) -> T {
         lock.lock()

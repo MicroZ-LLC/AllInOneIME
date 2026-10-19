@@ -555,7 +555,8 @@ given and sends back what the user did. It opens no sessions.
   …]}
 ```
 
-- **Document:** `language` (the text's: "zh-Hans", "en", "fr" …), `platform` (`windows`, `mac`), `loadError` (the
+- **Document:** `language` (the text's: "zh-Hans", "en", "fr" …: the settings' `uiLanguage`, else the system's, as the
+  engine's panel picks it; changed, the answer's document is in the new one already), `platform` (`windows`, `mac`), `loadError` (the
   config file can't be read: every field is `readOnly`, nothing is changed, the file stays as it is), `saveError`,
   `sections`.
 - **Section:** `id`, `title`, `footer` (a note under it), `fields`. Sections without fields are left out.

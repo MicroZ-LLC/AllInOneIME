@@ -266,6 +266,31 @@ struct SettingsServiceTests {
         #expect(try Config.load(from: url).anthropic.effort == "low")
     }
 
+    /// The interface language changed: applied at once (the next document is in it, the process's language switched as
+    /// the Mac's window does) and saved. A document is in the language its settings say, whatever the process's is.
+    @Test func theInterfaceLanguageAtOnce() throws {
+        try withInterfaceLanguage("en") { () throws in
+            let (service, url) = try service(#"{"uiLanguage": "en"}"#)
+            var document = service.document()
+            #expect(document.language == "en" && document.sections.first?.title == "General")
+            #expect((try? service.set("uiLanguage", to: .string("zh-Hans")).get()) != nil)
+            document = service.document()
+            #expect(document.language == "zh-Hans" && document.sections.first?.title == "通用")
+            #expect(document.field("uiLanguage")?.value == .string("zh-Hans") && UIText.choice == "zh")
+            #expect(try Config.load(from: url).uiLanguage == "zh")
+            // The process in English again (another window, the panel): the settings still say Chinese.
+            UIText.choice = "en"
+            document = service.document()
+            #expect(document.language == "zh-Hans" && document.field("typeOut")?.label == "逐字上屏" && UIText.language == "en")
+            // A problem is in it too.
+            if case let .failure(problem) = service.set("maxTokens", to: .number(50)) {
+                #expect(problem.message == "要在 200 到 4000 之间")
+            } else {
+                Issue.record("a value out of bounds was taken")
+            }
+        }
+    }
+
     /// A file that can't be read: shown read-only, saying why, and left as it is.
     @Test func aBrokenFile() throws {
         let (service, url) = try service("{ nope")

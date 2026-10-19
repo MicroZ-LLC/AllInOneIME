@@ -241,7 +241,11 @@ func runEngine(_ options: EngineOptions) -> Never {
     // Credential Manager (with --no-keychain, in memory). In test mode a golden gives its own (`#! settings`).
     if !options.test {
         let store = SettingsStore(configURL: hostOptions.settings.url, fresh: { EngineSettings.fresh })
-        server.settings = SettingsService(store: store, platform: .windows, secrets: options.noKeychain ? .inMemory() : nil)
+        let service = SettingsService(store: store, platform: .windows, secrets: options.noKeychain ? .inMemory() : nil)
+        // The document in the language the panel speaks: the config's, else Windows' own list.
+        let engineSettings = hostOptions.settings
+        service.interfaceLanguage = { engineSettings.interfaceLanguage($0) }
+        server.settings = service
     }
     runningServer = server
 

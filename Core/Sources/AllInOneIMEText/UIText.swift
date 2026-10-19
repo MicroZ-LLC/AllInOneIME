@@ -67,11 +67,16 @@ public enum UIText {
     public static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages,
                                                                shipped: InterfaceLanguage.shipped(in: .main))
 
-    /// The interface language's code: "zh-Hans", "en", …
-    public static var language: String { state.value.language }
+    /// The interface language's code: "zh-Hans", "en", … (`scopedLanguage`, where one is set).
+    public static var language: String { scopedLanguage ?? state.value.language }
 
     /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
-    public static var chinese: Bool { state.value.chinese }
+    public static var chinese: Bool { scopedLanguage.map(InterfaceLanguage.isChinese) ?? state.value.chinese }
+
+    /// The interface language of what one task makes (or one synchronous scope: `$scopedLanguage.withValue`), the
+    /// process's left as it is: a settings document in the language its settings say, for a window in another process
+    /// (`SettingsService`). Nil: the process's.
+    @TaskLocal public static var scopedLanguage: String?
 
     private static func picked(choice: String?, shipped: [String]) -> String {
         InterfaceLanguage.code(forSetting: choice, shipped: shipped) ?? systemLanguage
