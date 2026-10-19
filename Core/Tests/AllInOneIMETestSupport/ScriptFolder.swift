@@ -10,9 +10,14 @@ public final class ScriptFolder {
     public init() {
         let made = FileManager.default.temporaryDirectory.appendingPathComponent("extensions-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: made, withIntermediateDirectories: true)
+        #if os(Windows)
+        // No realpath there, and no /var link to resolve: the folder as made.
+        url = made
+        #else
         // /private/var/…, as the folder's listing names its files (`resolvingSymlinksInPath` gives /var/… back).
         url = URL(fileURLWithPath: realpath(made.path, nil).map { defer { free($0) }; return String(cString: $0) } ?? made.path,
                   isDirectory: true)
+        #endif
     }
 
     deinit { try? FileManager.default.removeItem(at: url) }
