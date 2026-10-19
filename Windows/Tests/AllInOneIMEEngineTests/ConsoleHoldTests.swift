@@ -86,7 +86,8 @@ extension OnTheDesktop {
     struct ConsoleHoldTests {
         /// A batch file that prints what it is given and ends with exit code 3, started as a `terminal` command is, with
         /// a prompt that goes in a file (its line break: cmd.exe would end the command there). Its console's process is
-        /// still there after it, the output and "exited with code 3" on its screen; a key closes it.
+        /// still there after it, the output and "exited with code 3" on its screen, the prompt's file gone; a key closes
+        /// it.
         @Test(.timeLimit(.minutes(1))) func aConsoleStaysOpenAfterItsProgramEnds() throws {
             try #require(FileManager.default.fileExists(atPath: debugEngine.path), "build the engine first (swift build)")
             let folder = try temporaryFolder("hold")
@@ -115,6 +116,8 @@ extension OnTheDesktop {
             #expect(screen.contains(ended), "\(screen)")
             // The program has ended, its console hasn't: it waits for a key.
             #expect(WaitForSingleObject(process, 500) == WAIT_TIMEOUT)
+            // The prompt's file went with the program.
+            #expect(((try? FileManager.default.contentsOfDirectory(atPath: prompts.path)) ?? []).isEmpty)
             #expect(probe.pressKey(pid))
             #expect(WaitForSingleObject(process, 5000) == WAIT_OBJECT_0)
         }
@@ -134,6 +137,66 @@ extension OnTheDesktop {
             let names = entries.map(name)
             #expect(names == names.sorted { Array($0.utf16).lexicographicallyPrecedes(Array($1.utf16)) })
             #expect(block.suffix(2) == [0, 0])
+        }
+
+        /// The prompts' files (`ConsoleCommand.removeStalePrompts`): one no console needs is deleted; one a console
+        /// holds open (its program still runs) and one just written (its console not started yet) are kept.
+        @Test func aStalePromptIsDeletedAndOneInUseKept() throws {
+            let folder = try temporaryFolder("prompts")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            func file(_ name: String, minutesAgo: Double) throws -> URL {
+                let url = folder.appendingPathComponent("agent-prompt-\(name).txt")
+                try Data("a prompt".utf8).write(to: url)
+                try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-minutesAgo * 60)], ofItemAtPath: url.path)
+                return url
+            }
+            let stale = try file("stale", minutesAgo: 5), held = try file("held", minutesAgo: 5), fresh = try file("fresh", minutesAgo: 0)
+            let other = folder.appendingPathComponent("notes.txt")
+            try Data("not a prompt".utf8).write(to: other)
+            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-300)], ofItemAtPath: other.path)
+            // Held as a console's process holds it.
+            let handle = try #require(held.withUnsafeFileSystemRepresentation { path in
+                String(cString: path!).withCString(encodedAs: UTF16.self) {
+                    CreateFileW($0, GENERIC_READ, DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE), nil, DWORD(OPEN_EXISTING), 0, nil)
+                }
+            })
+            #expect(handle != INVALID_HANDLE_VALUE)
+            #expect(ConsoleCommand.removeStalePrompts(in: folder) == ["agent-prompt-stale.txt"])
+            #expect(!FileManager.default.fileExists(atPath: stale.path))
+            #expect(FileManager.default.fileExists(atPath: held.path) && FileManager.default.fileExists(atPath: fresh.path))
+            #expect(FileManager.default.fileExists(atPath: other.path))
+            // Still readable while held, as the agent reads it.
+            #expect(try String(contentsOf: held, encoding: .utf8) == "a prompt")
+            CloseHandle(handle)
+            #expect(ConsoleCommand.removeStalePrompts(in: folder) == ["agent-prompt-held.txt"])
+        }
+
+        /// The engine, as it starts, deletes the prompts' files an earlier run left (`%TEMP%\AllInOneIME`).
+        @Test(.timeLimit(.minutes(1))) func theEngineDeletesStalePromptsAsItStarts() throws {
+            try #require(FileManager.default.fileExists(atPath: debugEngine.path), "build the engine first (swift build)")
+            let temp = try temporaryFolder("engine-temp")
+            defer { try? FileManager.default.removeItem(at: temp) }
+            let prompts = temp.appendingPathComponent("AllInOneIME", isDirectory: true)
+            try FileManager.default.createDirectory(at: prompts, withIntermediateDirectories: true)
+            let stale = prompts.appendingPathComponent("agent-prompt-\(UUID().uuidString).txt")
+            try Data("the clipboard's text".utf8).write(to: stale)
+            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-600)], ofItemAtPath: stale.path)
+            let config = temp.appendingPathComponent("config.json")
+            try Data("{}".utf8).write(to: config)
+            let engine = Process()
+            engine.executableURL = debugEngine
+            engine.arguments = ["--test", "--no-panel", "--no-rime", "--quiet", "--config", config.path]
+            var environment = ProcessInfo.processInfo.environment
+            environment["TEMP"] = temp.path
+            environment["TMP"] = temp.path
+            engine.environment = environment
+            engine.standardOutput = FileHandle.nullDevice
+            engine.standardError = FileHandle.nullDevice
+            try engine.run()
+            defer { if engine.isRunning { engine.terminate() } }
+            let deadline = Date().addingTimeInterval(15)
+            while FileManager.default.fileExists(atPath: stale.path), Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+            #expect(!FileManager.default.fileExists(atPath: stale.path))
         }
     }
 }

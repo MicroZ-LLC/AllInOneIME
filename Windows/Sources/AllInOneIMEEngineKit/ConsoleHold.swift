@@ -19,13 +19,15 @@ public enum ConsoleHold {
     static let applicationVariable = "ALLINONEIME_CONSOLE_APPLICATION"
     static let commandLineVariable = "ALLINONEIME_CONSOLE_COMMAND_LINE"
     static let titleVariable = "ALLINONEIME_CONSOLE_TITLE"
+    static let promptFileVariable = "ALLINONEIME_CONSOLE_PROMPT_FILE"
 
     /// `command` in a console window of its own that stays open after it (`run`): `holder`, this program, started
     /// there with `option`, suspended, in `directory`, the right to take the foreground the client gave the engine
     /// given to it (`allowForeground`), then running. `title`: the window's. The console process's id.
     static func start(_ command: ConsoleCommand, title: String, holder: String, directory: URL,
                       allowForeground: (DWORD) -> Void = { _ = AllowSetForegroundWindow($0) }) throws -> DWORD {
-        let variables = [applicationVariable: command.application, commandLineVariable: command.commandLine, titleVariable: title]
+        var variables = [applicationVariable: command.application, commandLineVariable: command.commandLine, titleVariable: title]
+        if let file = command.promptFile { variables[promptFileVariable] = file.withUnsafeFileSystemRepresentation { String(cString: $0!) } }
         var environment = environmentBlock(adding: variables)
         var commandLine = Array("\"\(holder)\" \(option)".utf16) + [0]
         var startup = STARTUPINFOW()
@@ -77,18 +79,26 @@ public enum ConsoleHold {
     }
 
     /// The console's process (`AllInOneIMEEngine --run-in-console`): starts the program the environment names in this
-    /// console, waits for it, says how it ended and waits for a key. Ctrl+C and Ctrl+Break are the program's: this
-    /// process stays to say so. Its exit code: 0 once the key is pressed (the program's is on the screen), 2 without a
-    /// program.
+    /// console, waits for it, deletes its prompt's file (held open meanwhile, so that `ConsoleCommand.removeStalePrompts`
+    /// leaves it), says how it ended and waits for a key. Ctrl+C and Ctrl+Break are the program's: this process stays to
+    /// say so. Its exit code: 0 once the key is pressed (the program's is on the screen), 2 without a program.
     public static func run() -> Int32 {
         guard let application = take(applicationVariable), let commandLine = take(commandLineVariable) else { return 2 }
         let title = take(titleVariable)
+        let promptFile = take(promptFileVariable)
         // A GUI build (the installed engine) gets no console of its own from CREATE_NEW_CONSOLE: it makes one.
         if GetConsoleWindow() == nil { AllocConsole() }
         let output = open("CONOUT$"), input = open("CONIN$")
         let name = title.flatMap { $0.isEmpty ? nil : $0 } ?? (application as NSString).lastPathComponent
         _ = name.withCString(encodedAs: UTF16.self) { SetConsoleTitleW($0) }
         SetConsoleCtrlHandler({ event in WindowsBool(event == DWORD(CTRL_C_EVENT) || event == DWORD(CTRL_BREAK_EVENT)) }, true)
+        // The prompt's file, open (to read, no one may delete it) while the program runs.
+        let held = promptFile.flatMap { file -> HANDLE? in
+            let handle = file.withCString(encodedAs: UTF16.self) {
+                CreateFileW($0, GENERIC_READ, DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE), nil, DWORD(OPEN_EXISTING), 0, nil)
+            }
+            return handle == INVALID_HANDLE_VALUE ? nil : handle
+        }
         bringToFront()
 
         var message: String
@@ -110,6 +120,8 @@ public enum ConsoleHold {
             message = chinese ? "\(name) 没能启动（错误 \(GetLastError())）。按任意键关闭此窗口。"
                 : "Couldn't start \(name) (error \(GetLastError())). Press any key to close this window."
         }
+        if let held { CloseHandle(held) }
+        if let promptFile { _ = promptFile.withCString(encodedAs: UTF16.self) { DeleteFileW($0) } }
         write("\r\n" + message, to: output)
         waitForKey(input)
         return 0

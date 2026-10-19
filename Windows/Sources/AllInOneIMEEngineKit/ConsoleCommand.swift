@@ -1,6 +1,7 @@
 #if os(Windows)
 import AllInOneIMECore
 import Foundation
+import WinSDK
 
 /// A program to start in a console window of its own (`@agent`, an `@question` conversation handed to an agent, a
 /// `terminal` command): what `CreateProcessW` is given. No shell in between, so nothing in a prompt is ever code:
@@ -13,7 +14,8 @@ import Foundation
 ///   CVE-2024-24576); a script through its interpreter (`WindowsPrograms.invocation`);
 /// - a prompt the command line can't carry goes in a file, and the agent is asked to read it: one longer than
 ///   Windows' command line (32,767 characters) or cmd.exe's (8,191), or one with a line break for a batch file (cmd.exe
-///   would end the command there). Never cut, never refused for its length.
+///   would end the command there). Never cut, never refused for its length; the file goes once the program has ended,
+///   or as the engine next starts (`removeStalePrompts`).
 public struct ConsoleCommand: Equatable {
     /// The program `CreateProcessW` starts (cmd.exe for a batch file).
     public var application: String
@@ -65,21 +67,36 @@ public struct ConsoleCommand: Equatable {
         "The request is in the file \(file.withUnsafeFileSystemRepresentation { String(cString: $0!) }): read it, and do what it asks."
     }
 
-    /// `prompt` in a new file in `folder` (UTF-8), in the user's own temporary folder. Those of earlier launches go
-    /// after a day: an agent reads its prompt as it starts.
+    /// `prompt` in a new file in `folder` (UTF-8), in the user's own temporary folder (those of earlier launches gone
+    /// first: `removeStalePrompts`).
     static func write(_ prompt: String, in folder: URL) throws -> URL {
-        let fm = FileManager.default
-        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        let dayAgo = Date().addingTimeInterval(-86_400)
-        for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("agent-prompt-") && name.hasSuffix(".txt") {
-            let old = folder.appendingPathComponent(name)
-            if let modified = (try? fm.attributesOfItem(atPath: old.path))?[.modificationDate] as? Date, modified < dayAgo {
-                try? fm.removeItem(at: old)
-            }
-        }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        removeStalePrompts(in: folder)
         let file = folder.appendingPathComponent("agent-prompt-\(UUID().uuidString).txt")
         try Data(prompt.utf8).write(to: file, options: .withoutOverwriting)
         return file
+    }
+
+    /// Deletes the prompts' files in `folder` that no console needs any more, as the engine starts and before it writes
+    /// another: a prompt may be the clipboard's text or an AI conversation, and isn't left on the disk. A console's
+    /// process holds its prompt's file open while the program in it runs, so that it can't be deleted
+    /// (`ConsoleHold.run`), and deletes it once the program has ended; a file younger than `age` seconds may not be
+    /// open yet. The names of those deleted.
+    @discardableResult
+    public static func removeStalePrompts(in folder: URL = defaultPromptFolder, olderThan age: TimeInterval = 60) -> [String] {
+        let fm = FileManager.default
+        let before = Date().addingTimeInterval(-age)
+        var removed: [String] = []
+        for name in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix("agent-prompt-") && name.hasSuffix(".txt") {
+            let file = folder.appendingPathComponent(name)
+            guard let modified = (try? fm.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date, modified < before else { continue }
+            // DeleteFileW, which fails while a console holds the file (no FILE_SHARE_DELETE).
+            let deleted = file.withUnsafeFileSystemRepresentation { path in
+                String(cString: path!).withCString(encodedAs: UTF16.self) { DeleteFileW($0) }
+            }
+            if deleted { removed.append(name) }
+        }
+        return removed
     }
 
     /// Where a prompt too long for the command line goes: `%TEMP%\AllInOneIME`.

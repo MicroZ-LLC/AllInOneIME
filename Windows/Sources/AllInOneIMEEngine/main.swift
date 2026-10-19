@@ -161,6 +161,11 @@ func runEngine(_ options: EngineOptions) -> Never {
         exit(1)
     }
 
+    // The prompts an earlier run left in files for its consoles, which no console needs any more (one whose program
+    // still runs holds its own), even when this engine goes again at once.
+    let stale = ConsoleCommand.removeStalePrompts()
+    if !stale.isEmpty { log("deleted \(stale.count) prompt files no console needs any more", always: true) }
+
     // One engine per user and session (§2.5).
     let mutex = PipeNames.mutex(sid: sid).withCString(encodedAs: UTF16.self) { CreateMutexW(nil, true, $0) }
     if mutex == nil || GetLastError() == Win32Code.alreadyExists {
