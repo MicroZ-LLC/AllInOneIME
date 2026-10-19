@@ -1,6 +1,9 @@
 import AllInOneIMECore
 import CRime
 import Foundation
+#if os(Windows)
+import WinSDK
+#endif
 
 /// Process-wide librime instance (level one). Main thread only.
 public final class RimeService {
@@ -117,8 +120,26 @@ public final class RimeService {
         guard isStarted else { return nil }
         var buffer = [CChar](repeating: 0, count: 4096)
         api.pointee.get_user_data_sync_dir(&buffer, buffer.count)
-        let path = String(cString: buffer)
+        let path = Self.string(ofPath: buffer)
         return path.isEmpty ? nil : URL(fileURLWithPath: path)
+    }
+
+    /// A folder's path as librime gives it back: UTF-8, but on Windows in the code page of the system's file APIs (the
+    /// ANSI one: std::filesystem's `string()`), though it takes paths in UTF-8 there too. It shows under a Chinese user
+    /// name (C:\Users\张三).
+    static func string(ofPath buffer: [CChar]) -> String {
+        #if os(Windows)
+        let codePage = UINT(AreFileApisANSI() ? CP_ACP : CP_OEMCP)
+        return buffer.withUnsafeBufferPointer { bytes -> String in
+            let count = MultiByteToWideChar(codePage, 0, bytes.baseAddress, -1, nil, 0)
+            guard count > 0 else { return "" }
+            var wide = [WCHAR](repeating: 0, count: Int(count))
+            _ = MultiByteToWideChar(codePage, 0, bytes.baseAddress, -1, &wide, count)
+            return String(decodingCString: wide, as: UTF16.self)
+        }
+        #else
+        return String(cString: buffer)
+        #endif
     }
 
     /// Bumped by `redeploy()`; sessions from an older generation are invalid.
