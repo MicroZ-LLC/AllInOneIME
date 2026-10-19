@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import AllInOneIMECore
+@testable import AllInOneIMEText
 
 /// Interface text and its language: `UIString`, the catalog lookup (`InterfaceText`), picking the language
 /// (`InterfaceLanguage`), and the config value.
@@ -340,25 +341,22 @@ struct InterfaceTextTests {
 /// The interface language as the process keeps it (`UIText`): a change is told on the main thread, whatever thread made
 /// it, so a panel on screen all along redraws where it draws.
 struct InterfaceLanguageStateTests {
-    @Test func aChangeMadeOffTheMainThreadIsToldOnIt() throws {
-        // This test waits for the main thread: it can't be on it.
-        guard !Thread.isMainThread else { return }
-        try withInterfaceLanguage("en") {
-            // Each notice: on the main thread or not, and the language then.
-            let notices = Locked(initialState: [(main: Bool, language: String)]())
-            let told = DispatchSemaphore(value: 0)
-            let observer = NotificationCenter.default.addObserver(forName: .allInOneIMEInterfaceLanguageChanged, object: nil,
-                                                                  queue: nil) { _ in
-                notices.withLock { $0.append((Thread.isMainThread, UIText.language)) }
-                told.signal()
+    /// Told from a queue (as a session on a thread of its own changes it): the notice comes on the main thread. Not the
+    /// language itself changed, which other tests read: what it posts.
+    @Test func aChangeMadeOffTheMainThreadIsToldOnIt() async {
+        final class Observer: @unchecked Sendable { var token: NSObjectProtocol? }
+        let observer = Observer(), answered = Locked(initialState: false)
+        let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool?, Never>) in
+            func answer(_ value: Bool?) {
+                guard answered.withLock({ done in defer { done = true }; return !done }) else { return }
+                continuation.resume(returning: value)
             }
-            defer { NotificationCenter.default.removeObserver(observer) }
-            // A session on a thread of its own (a queue) picks another language.
-            DispatchQueue.global().async { UIText.choice = "zh" }
-            while !notices.withLock({ $0.contains { $0.language == "zh-Hans" } }) {
-                try #require(told.wait(timeout: .now() + 10) == .success, "no notice in Chinese")
-            }
-            #expect(notices.withLock { $0.allSatisfy(\.main) })
+            observer.token = NotificationCenter.default.addObserver(forName: .allInOneIMEInterfaceLanguageChanged, object: nil,
+                                                                    queue: nil) { _ in answer(Thread.isMainThread) }
+            DispatchQueue.global().async { UIText.languageChanged() }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10) { answer(nil) }
         }
+        observer.token.map(NotificationCenter.default.removeObserver)
+        #expect(onMain == true, "told on the main thread (nil: not told within 10 s)")
     }
 }

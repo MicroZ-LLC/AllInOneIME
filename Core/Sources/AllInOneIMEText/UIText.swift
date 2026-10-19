@@ -44,14 +44,17 @@ public enum UIText {
                 state.chinese = InterfaceLanguage.isChinese(state.language)
                 return true
             }
-            // A panel on screen all along (the Mac's menu bar panel) redraws in the new language, on the thread it draws
-            // on, also when a session on a thread of its own changed it.
-            guard changed else { return }
-            if Thread.isMainThread {
-                NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil)
-            } else {
-                DispatchQueue.main.async { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) }
-            }
+            if changed { languageChanged() }
+        }
+    }
+
+    /// Tells a panel on screen all along (the Mac's menu bar panel) to redraw in the new language, on the main thread,
+    /// where it draws: at once from there, else on the main queue (a session on a thread of its own changed it).
+    static func languageChanged() {
+        if Thread.isMainThread {
+            NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil)
+        } else {
+            DispatchQueue.main.async { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) }
         }
     }
 
