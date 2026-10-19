@@ -431,6 +431,11 @@ if arguments.first == "--version" {
     exit(0)
 }
 
+// Hidden: the two-Mac check of key sync, on the self-test's own synced items only (`KeychainProbe`).
+if arguments.first == "--keychain-probe" {
+    exit(KeychainProbe.run(Array(arguments.dropFirst())))
+}
+
 // Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.
 for (path, outcome) in LegacyData.migrate() where outcome != .nothingToMove {
     switch outcome {

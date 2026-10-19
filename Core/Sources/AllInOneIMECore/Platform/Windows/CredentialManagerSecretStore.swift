@@ -5,8 +5,9 @@ import WinSDK
 extension APIKeys.Keychain {
     /// The user's Windows Credential Manager (Control Panel → Credential Manager → Windows Credentials): a generic
     /// credential "AllInOneIME/<service>/<account>" for each account, kept on this computer for this user
-    /// (`CRED_PERSIST_LOCAL_MACHINE`). The key is its secret; the host it is for its comment; its label, when it was made
-    /// and the key's ending (`APIKeys.ending(of:)`) its attributes. A key longer than a credential holds (2,560 bytes)
+    /// (`CRED_PERSIST_LOCAL_MACHINE`). The key is its secret; the host it is for its comment; its label, when it was made,
+    /// the key's ending (`APIKeys.ending(of:)`) and when it was saved (`APIKeys.ItemAttributes.saved`) its attributes.
+    /// It is this computer's own, as the Mac's login keychain is (`Kind.legacy`): nothing syncs it. A key longer than a credential holds (2,560 bytes)
     /// goes to a file in %LOCALAPPDATA%\AllInOneIME\Secrets (`CorePaths.dataDir`: this computer's, as the credential
     /// is, never a roaming profile's) that only this user on this computer can decrypt (DPAPI, `CryptProtectData`),
     /// which the credential names. A file no credential names any more is removed (`removeOrphans`).
@@ -16,12 +17,17 @@ extension APIKeys.Keychain {
     static func credentialManager(service: String, folder: URL) -> APIKeys.Keychain {
         let store = CredentialStore(service: service, folder: folder)
         return APIKeys.Keychain(
+            kind: .legacy,
+            accounts: { (try? store.accounts()) ?? [] },
             attributes: { account in store.item(account).map(\.attributes) },
             read: { account in store.item(account).flatMap(store.key) },
-            write: { account, key, label, comment, ending in store.write(account, key: key, label: label, comment: comment, ending: ending) },
+            write: { account, key, label, comment, ending, saved in
+                store.write(account, key: key, label: label, comment: comment, ending: ending, saved: saved)
+            },
             setComment: { account, comment in store.setComment(account, comment) },
             delete: { account in store.delete(account) },
-            message: { code in CredentialStore.message(code) })
+            message: { code in CredentialStore.message(code) },
+            listing: { try store.accounts() })
     }
 }
 
@@ -45,11 +51,14 @@ private final class CredentialStore: @unchecked Sendable {
         var label: String?
         var created: Date?
         var ending: String?
+        /// When the key was saved (`APIKeys.save`; nil: the credential doesn't say).
+        var saved: Date?
         /// The file that holds the key, when it is too long for the credential.
         var file: String?
 
         var attributes: APIKeys.ItemAttributes {
-            APIKeys.ItemAttributes(created: created ?? modified, modified: modified, comment: comment, ending: ending)
+            APIKeys.ItemAttributes(created: created ?? modified, modified: modified, comment: comment, ending: ending,
+                                   label: label, saved: saved)
         }
     }
 
@@ -57,6 +66,7 @@ private final class CredentialStore: @unchecked Sendable {
     private static let labelKeyword = "AllInOneIME.label"
     private static let createdKeyword = "AllInOneIME.created"
     private static let endingKeyword = "AllInOneIME.ending"
+    private static let savedKeyword = "AllInOneIME.saved"
     private static let fileKeyword = "AllInOneIME.file"
     /// CRED_MAX_CREDENTIAL_BLOB_SIZE: 5 × 512 bytes.
     static let maxSecret = 5 * 512
@@ -95,6 +105,7 @@ private final class CredentialStore: @unchecked Sendable {
         item.label = values[labelKeyword]
         item.created = values[createdKeyword].flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
         item.ending = APIKeys.ending(fromAttribute: values[endingKeyword].map { Data($0.utf8) })
+        item.saved = APIKeys.saved(fromAttribute: values[savedKeyword])
         item.file = values[fileKeyword]
         return item
     }
@@ -109,6 +120,29 @@ private final class CredentialStore: @unchecked Sendable {
             values[keyword] = String(decoding: UnsafeBufferPointer(start: value, count: Int(attribute.ValueSize)), as: UTF8.self)
         }
         return values
+    }
+
+    /// The accounts of this service's credentials (none found: none); throws when they can't be listed (no Credential
+    /// Manager in this logon session).
+    func accounts() throws -> [String] {
+        let prefix = target("")
+        var count: DWORD = 0
+        var found: UnsafeMutablePointer<PCREDENTIALW?>?
+        let ok = (prefix + "*").withCString(encodedAs: UTF16.self) { CredEnumerateW($0, 0, &count, &found) }
+        guard ok, let found else {
+            let code = GetLastError()
+            if code == DWORD(ERROR_NOT_FOUND) { return [] }
+            throw APIKeys.KeychainError(status: Int32(bitPattern: code), message: Self.message(Int32(bitPattern: code)))
+        }
+        defer { CredFree(found) }
+        var accounts = Set<String>()
+        for index in 0..<Int(count) {
+            guard let credential = found[index]?.pointee, credential.`Type` == DWORD(CRED_TYPE_GENERIC),
+                  let name = credential.TargetName.map({ String(decodingCString: $0, as: UTF16.self) }),
+                  name.hasPrefix(prefix), name.count > prefix.count else { continue }
+            accounts.insert(String(name.dropFirst(prefix.count)))
+        }
+        return accounts.sorted()
     }
 
     /// The files AllInOneIME's credentials name (`CredEnumerateW`: of every service, which may share a folder); nil
@@ -137,11 +171,13 @@ private final class CredentialStore: @unchecked Sendable {
 
     // MARK: Changing
 
-    func write(_ account: String, key: String, label: String, comment: String, ending: String?) -> APIKeys.KeychainStatus {
+    /// Sets the key, its label, comment, ending and save time (nil: the one there is kept).
+    func write(_ account: String, key: String, label: String, comment: String, ending: String?,
+               saved: Date?) -> APIKeys.KeychainStatus {
         lock.withLock {
             let old = item(account)
             var item = Item(secret: Data(key.utf8), comment: comment, label: label, created: old?.created ?? old?.modified ?? Date(),
-                            ending: APIKeys.ending(fromAttribute: APIKeys.endingAttribute(ending)))
+                            ending: APIKeys.ending(fromAttribute: APIKeys.endingAttribute(ending)), saved: saved ?? old?.saved)
             var written: URL?
             if item.secret.count > Self.maxSecret {
                 // Too long for the credential: in a file of its own, which the credential names.
@@ -195,6 +231,7 @@ private final class CredentialStore: @unchecked Sendable {
         var values: [(String, String)] = [(Self.labelKeyword, item.label ?? ""),
                                           (Self.createdKeyword, String(item.created?.timeIntervalSince1970 ?? 0))]
         if let ending = item.ending { values.append((Self.endingKeyword, String(decoding: APIKeys.endingAttribute(ending), as: UTF8.self))) }
+        if let saved = item.saved { values.append((Self.savedKeyword, APIKeys.savedAttribute(saved))) }
         if let file = item.file { values.append((Self.fileKeyword, file)) }
         // What the calls read must last through `CredWriteW`: kept in these buffers until it returns. What is too long
         // (a label) is cut between two characters.

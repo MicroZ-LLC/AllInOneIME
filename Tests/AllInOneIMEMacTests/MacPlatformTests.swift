@@ -46,3 +46,25 @@ struct MacPlatformTests {
         }
     }
 }
+
+/// The keys' store as `Platform.mac` chooses it: the test process has no keychain entitlement, so it is the login
+/// keychain, as in 0.6.4 (an input method signed with the provisioning profile gets `KeySync.system`'s routed store).
+struct MacPlatformKeysTests {
+    @Test func withoutTheEntitlementKeysStayInTheLoginKeychain() {
+        #expect(!APIKeys.Keychain.processIsEntitled)
+        #expect(KeySync.system == nil)
+        #expect(Platform.mac.secrets.kind == .legacy)
+    }
+}
+
+/// The keychain access group the Makefile signs the input method with is the one the core queries.
+struct KeychainGroupTests {
+    @Test func theMakefilesGroupIsTheCoresAccessGroup() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let makefile = try String(contentsOf: root.appendingPathComponent("Makefile"), encoding: .utf8)
+        let line = makefile.split(separator: "\n").first { $0.hasPrefix("KEYCHAIN_GROUP") }
+        let group = line?.split(separator: "=", maxSplits: 1).last?.trimmingCharacters(in: .whitespaces)
+        #expect(group == KeySync.accessGroup, "KEYCHAIN_GROUP in the Makefile (\(line ?? "none")) and KeySync.accessGroup differ")
+    }
+}

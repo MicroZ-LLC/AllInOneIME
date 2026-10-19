@@ -13,6 +13,17 @@ SIGN_CERT = $(eval SIGN_CERT := $(shell Scripts/sign-identity.sh '$(SIGN_IDENTIT
 SIGN_HASH = $(firstword $(SIGN_CERT))
 # Developer ID signatures get a secure timestamp (from Apple, over the network): notarization needs it.
 TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
+# A provisioning profile to build the input method with (empty: none, as before): it grants the keychain entitlements
+# (Scripts/profile-entitlements.sh), so keys go to the data protection keychain and can sync through iCloud Keychain
+# (Core/Sources/AllInOneIMECore/KeySync.swift); without one they stay in the login keychain. A development build opts in
+# with `make app PROFILE=<the Development profile, kept outside the repository> SIGN_IDENTITY=<a certificate it lists>`;
+# `make dmg` uses the Developer ID one, committed (every shipped copy carries it). A profile that doesn't fit the
+# signature makes macOS kill the input method at launch, so it is checked first and the built app is run once after.
+PROFILE ?=
+DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
+# The keychain access group the entitlements give, KeySync.accessGroup in the core.
+KEYCHAIN_GROUP := 9SR8N3UD5Y.com.aipinyin.shared
+ENTITLEMENTS := $(BUILD_DIR)/AllInOneIME.entitlements
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=
 SWIFT_BUILD = swift build -c $(CONFIG) $(foreach arch,$(ARCHS),--arch $(arch))
@@ -140,18 +151,45 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
 	# @agent, Notes for @note, Messages for @imessage), EventKit's Reminders (@reminder) and Contacts
-	# (@imessage); the installer and `make dmg` ship this same build.
+	# (@imessage); the installer and `make dmg` ship this same build. They are signed as plain XML
+	# (the file's comments dropped), as notarization wants them.
+	plutil -convert xml1 -o "$(ENTITLEMENTS)" Resources/AllInOneIME.entitlements
+	# With a profile: its three entitlements added (once it's checked against the signature), and the profile
+	# embedded before signing, so that the signature seals it.
+	@if [ -n "$(PROFILE)" ]; then \
+		Scripts/profile-entitlements.sh "$(PROFILE)" "$(SIGN_HASH)" "$(APP)/Contents/Info.plist" "$(KEYCHAIN_GROUP)" \
+			"$(ENTITLEMENTS)" $(if $(PROFILE_ALL_DEVICES),--all-devices) && \
+		cp "$(PROFILE)" "$(APP)/Contents/embedded.provisionprofile"; \
+	fi
 	if [ -n "$(SIGN_HASH)" ]; then \
 		codesign --force --options runtime $(TIMESTAMP) --sign $(SIGN_HASH) "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib \
 			"$(APP)/Contents/Frameworks/librime.1.dylib" && \
-		codesign --force --options runtime $(TIMESTAMP) --entitlements Resources/AllInOneIME.entitlements \
-			--sign $(SIGN_HASH) "$(APP)"; \
+		codesign --force --options runtime $(TIMESTAMP) --entitlements "$(ENTITLEMENTS)" \
+			$(if $(PROFILE),--generate-entitlement-der) --sign $(SIGN_HASH) "$(APP)"; \
 	else \
 		echo "warning: no '$(SIGN_IDENTITY)' signing identity; ad-hoc signing without hardened runtime"; \
 		codesign --force --sign - "$(APP)"/Contents/Frameworks/rime-plugins/*.dylib "$(APP)/Contents/Frameworks/librime.1.dylib" && \
 		codesign --force --sign - "$(APP)"; \
 	fi
 	codesign --verify --strict --deep "$(APP)"
+	# With a profile: the signature carries the keychain entitlements (without them the keys of every user who had them
+	# synced or moved would seem gone), and macOS has to let it run (a profile that doesn't fit gets it killed at launch):
+	# this Mac's slice, and on Apple silicon the x86_64 one too (`make dmg`'s universal build) when Rosetta is there.
+	@if [ -n "$(PROFILE)" ]; then \
+		codesign -d --entitlements - --xml "$(APP)" 2>/dev/null | grep -q '<key>keychain-access-groups</key>' \
+			|| { echo "error: $(APP) is signed without the keychain-access-groups entitlement" >&2; exit 1; }; \
+		version=$$("$(APP)/Contents/MacOS/$(APP_NAME)" --version) && echo "launch check: $(APP_NAME) $$version runs" \
+			|| { echo "error: $(APP) doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
+		if [ "$$(uname -m)" = arm64 ] && lipo -archs "$(APP)/Contents/MacOS/$(APP_NAME)" | grep -qw x86_64; then \
+			if arch -x86_64 /usr/bin/true 2>/dev/null; then \
+				version=$$(arch -x86_64 "$(APP)/Contents/MacOS/$(APP_NAME)" --version) \
+					&& echo "launch check: $(APP_NAME) $$version runs as x86_64 (Rosetta)" \
+					|| { echo "error: $(APP)'s x86_64 slice doesn't start with the profile; macOS killed it?" >&2; exit 1; }; \
+			else \
+				echo "launch check: the x86_64 slice not run (no Rosetta on this Mac)"; \
+			fi; \
+		fi; \
+	fi
 	@echo "Built $(APP)"
 
 # Both icons come from the 1024 px artwork Resources/AppIcon.png: the app icon (input method and
@@ -251,7 +289,10 @@ DIST_ARCHS     ?= arm64 x86_64
 NOTARY_PROFILE ?=
 
 dmg:
-	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)"
+	@# A release without the profile would have no keychain entitlements: every key moved to (or synced through) the
+	@# data protection keychain by an earlier one would seem gone.
+	@[ -n "$(DIST_PROFILE)" ] || { echo "error: make dmg needs DIST_PROFILE (the Developer ID provisioning profile)" >&2; exit 1; }
+	$(MAKE) installer-app SIGN_IDENTITY="$(DIST_IDENTITY)" ARCHS="$(DIST_ARCHS)" PROFILE="$(DIST_PROFILE)" PROFILE_ALL_DEVICES=1
 	Scripts/make-dmg.sh "$(INSTALLER_APP)" "$(DMG)" "$(APP_NAME) $(VERSION)" "$(DIST_IDENTITY)" "$(NOTARY_PROFILE)"
 	$(MAKE) update-zip
 

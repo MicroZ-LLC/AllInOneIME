@@ -2588,8 +2588,10 @@ enum SelfTest {
             folder: ICloudSyncFolder(url: snapshotDirectory.appendingPathComponent("icloud-unused/CloudDocs/AllInOneIME")),
             configURL: Config.defaultURL, stateURL: snapshotDirectory.appendingPathComponent("icloud-unused/state.json"),
             questionsURL: QuestionHistoryStore.url, machineID: MachineIdentity.syncID)
-        // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched.
+        // Keys saved, read or removed by anything it runs go to a keychain in memory: the user's is never touched (nor
+        // moved between the login keychain and iCloud Keychain when a section turns sync on).
         APIKeys.keychain = .inMemory()
+        ICloudSyncController.shared.keys = nil
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""
@@ -3221,6 +3223,7 @@ enum SelfTest {
         testExtensionSources(snapshotDirectory: snapshotDirectory)
         testICloudSync(snapshotDirectory: snapshotDirectory)
         testSettingsListsAfterSync(snapshotDirectory: snapshotDirectory)
+        testKeychainSync()
         controller.deactivateServer(client)
 
         section("the user's config")

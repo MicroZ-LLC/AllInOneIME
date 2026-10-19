@@ -4,8 +4,9 @@ import SwiftUI
 
 /// Settings → General → Sync through iCloud (「通过 iCloud 同步」, `ICloudSyncController`): off by default; on only with
 /// iCloud Drive there (else how to turn it on, and a button to that pane). Under it, what syncs (hidden words and recent
-/// questions off until chosen here), the status, Sync Now, and "Remove from iCloud…" (asked first). All of it is this
-/// Mac's own: never synced.
+/// questions off until chosen here; API keys and passwords through iCloud Keychain, off until chosen here too, in a
+/// build entitled to it: turning sync on never moves a key), the
+/// status, Sync Now, and "Remove from iCloud…" (asked first). All of it is this Mac's own: never synced.
 struct ICloudSyncSection: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject private var sync = ICloudSyncController.shared
@@ -19,9 +20,11 @@ struct ICloudSyncSection: View {
     var body: some View {
         Section {
             Toggle(isOn: Binding(get: { model.config.iCloudSync.enabled }, set: setEnabled)) {
-                titled(tr("通过 iCloud 同步", "Sync through iCloud"),
-                       tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
-                          "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
+                titled(tr("通过 iCloud 同步", "Sync through iCloud"), syncsKeys
+                       ? tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。",
+                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to.")
+                       : tr("设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样。只经过你自己的 iCloud 云盘，不经过我们的服务器，也不用另外登录。",
+                            "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs. Only through your own iCloud Drive: nothing goes to our servers, and there's nothing else to sign in to."))
             }
             if driveMissing || (model.config.iCloudSync.enabled && !sync.driveAvailable) {
                 HStack(alignment: .firstTextBaseline) {
@@ -52,6 +55,11 @@ struct ICloudSyncSection: View {
                               "@question's questions and answers; only while “Remember recent questions” is on. Turned off, the ones synced stay in iCloud until you remove them."))
                 }
                 removeRow(.recentQuestions)
+                let keysRow = Self.keysRow(entitled: APIKeys.Keychain.processIsEntitled)
+                Toggle(isOn: keysRow.enabled ? binding(\.keys) : .constant(false)) {
+                    titled(tr("API 密钥和密码", "API keys and passwords"), keysRow.note)
+                }
+                .disabled(!keysRow.enabled)
                 HStack(alignment: .firstTextBaseline) {
                     TimelineView(.periodic(from: .now, by: 30)) { context in
                         Text(statusLine(now: context.date)).font(.callout).foregroundStyle(statusColor)
@@ -71,8 +79,8 @@ struct ICloudSyncSection: View {
         } header: {
             SectionTitle("iCloud", icon: CandidateView.Icon(symbol: "icloud.fill", color: .systemBlue))
         } footer: {
-            Text(tr("从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，不再打错的 App 和最近用过的 App，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。",
-                    "Never synced: keys, tokens and passwords, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what."))
+            Text(tr("从不同步：AllInOneIME Cloud 的登录、扩展来源、扩展文件夹和插件、不再打错的 App 和最近用过的 App、窗口状态。每台 Mac 自己决定开不开同步、同步哪些。",
+                    "Never synced: the AllInOneIME Cloud sign-in, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what."))
                 .font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
@@ -82,7 +90,9 @@ struct ICloudSyncSection: View {
             Button(tr("取消", "Cancel"), role: .cancel) {}
         } message: {
             Text(tr("iCloud 云盘里的 AllInOneIME 文件夹会移到废纸篓，这台 Mac 也不再同步；这台 Mac 上的设置保持不变。还在同步的 Mac 会把它们的设置再放回去：先在那些 Mac 上关掉。",
-                    "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first."))
+                    "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first.")
+                 + (syncsKeys ? " " + tr("API 密钥和密码留在 iCloud 钥匙串里，给你别的 Mac 用（也复制到这台 Mac 上）；要从所有 Mac 上删除一个 key，在同步开着时点它的「删除…」。",
+                                         "API keys and passwords stay in iCloud Keychain for your other Macs (and are copied to this Mac); to remove a key from all your Macs, use its Remove… while sync is on.") : ""))
         }
         .confirmationDialog(categoryToRemove == .recentQuestions ? tr("从 iCloud 移除最近的问题？", "Remove the recent questions from iCloud?")
                                 : tr("从 iCloud 移除隐藏的词？", "Remove the hidden words from iCloud?"),
@@ -99,6 +109,18 @@ struct ICloudSyncSection: View {
                  : tr("它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的词保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。",
                       "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back."))
         }
+    }
+
+    /// Keys sync through iCloud Keychain while sync is on: the build is entitled to it, and "API keys and passwords" is on.
+    private var syncsKeys: Bool { APIKeys.Keychain.processIsEntitled && model.config.iCloudSync.keys }
+
+    /// The "API keys and passwords" row (off by default): it can be turned on only in a build entitled to the data
+    /// protection keychain (signed with the provisioning profile); elsewhere off and greyed, saying why.
+    static func keysRow(entitled: Bool) -> (enabled: Bool, note: String) {
+        entitled
+            ? (true, tr("经过 iCloud 钥匙串，端到端加密。默认关：打开这一项时，这台 Mac 的密钥才移进 iCloud 钥匙串。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。",
+                        "Through iCloud Keychain, end-to-end encrypted. Off by default: this Mac's keys move into iCloud Keychain only when you turn this on. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself."))
+            : (false, tr("这个版本不能同步密钥（没有描述文件）", "This build can't sync keys (no provisioning profile)"))
     }
 
     /// One of the switches under it: saved, and synced at once.

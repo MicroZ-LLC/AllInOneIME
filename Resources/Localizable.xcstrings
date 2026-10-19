@@ -5453,6 +5453,53 @@
         }
       }
     },
+    "A Mac with “API keys and passwords” off, or one still on 0.6.4, keeps its own copy, and puts it back if it turns key sync on later." : {
+      "comment" : "关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，会留着自己的那份；那台 Mac 以后打开密钥同步时，会把它放回来。 — Sources/AllInOneIME/KeyRow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Mac, auf dem „API-Schlüssel und Passwörter“ aus ist oder noch 0.6.4 läuft, behält seine eigene Kopie und lädt sie wieder hoch, wenn er die Schlüsselsynchronisierung später einschaltet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un Mac con “Claves de API y contraseñas” desactivado, o uno que aún use la versión 0.6.4, conserva su propia copia y la vuelve a poner si más adelante activa la sincronización de claves."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un Mac où « Clés API et mots de passe » est désactivé, ou qui est toujours en version 0.6.4, conserve sa propre copie, et la rétablit s’il active plus tard la synchronisation des clés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「APIキーとパスワード」がオフのMacや、まだ0.6.4を使っているMacは自分のコピーを残し、あとでキーの同期をオンにするとそれを戻します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“API 키 및 암호”가 꺼져 있거나 아직 0.6.4를 사용하는 Mac은 자신의 사본을 유지하며, 나중에 키 동기화를 켜면 그 사본을 다시 올립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um Mac com “Chaves de API e senhas” desativado, ou um que ainda esteja na versão 0.6.4, mantém a própria cópia, e a coloca de volta se ativar a sincronização de chaves mais tarde."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已關閉「API 金鑰和密碼」的 Mac，或仍在使用 0.6.4 的 Mac，會保留自己的那一份，並在日後開啟金鑰同步時把它放回去。"
+          }
+        }
+      }
+    },
     "A preference has no name, or a type this app doesn't know" : {
       "comment" : "有一个偏好设置没有 name，或者 type 不认识 — Sources/AllInOneIME/UIText.swift",
       "localizations" : {
@@ -8322,6 +8369,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在回答⋯ · 可以先輸入下一個問題 · Esc 回到上一輪"
+          }
+        }
+      }
+    },
+    "API keys and passwords" : {
+      "comment" : "API 密钥和密码 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-Schlüssel und Passwörter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claves de API y contraseñas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clés API et mots de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APIキーとパスワード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키 및 암호"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaves de API e senhas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 金鑰和密碼"
+          }
+        }
+      }
+    },
+    "API keys and passwords stay in iCloud Keychain for your other Macs (and are copied to this Mac); to remove a key from all your Macs, use its Remove… while sync is on." : {
+      "comment" : "API 密钥和密码留在 iCloud 钥匙串里，给你别的 Mac 用（也复制到这台 Mac 上）；要从所有 Mac 上删除一个 key，在同步开着时点它的「删除…」。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-Schlüssel und Passwörter bleiben für deine anderen Macs im iCloud-Schlüsselbund (und werden auf diesen Mac kopiert); um einen Schlüssel von all deinen Macs zu entfernen, klicke bei eingeschalteter Synchronisierung bei diesem Schlüssel auf „Entfernen …“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las claves de API y las contraseñas se quedan en el Llavero de iCloud para tus demás Mac (y se copian en este Mac); para eliminar una clave de todos tus Mac, pulsa su botón “Eliminar…” mientras la sincronización esté activada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les clés API et les mots de passe restent dans le trousseau iCloud pour vos autres Mac (et sont copiés sur ce Mac) ; pour supprimer une clé de tous vos Mac, cliquez sur son bouton Supprimer… lorsque la synchronisation est activée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APIキーとパスワードは、ほかのMacのためにiCloudキーチェーンに残ります（このMacにもコピーされます）。すべてのMacからキーを削除するには、同期がオンのときにそのキーの「削除…」をクリックしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키와 암호는 다른 Mac에서 사용할 수 있도록 iCloud 키체인에 남습니다 (이 Mac에도 복사됨). 모든 Mac에서 키를 제거하려면 동기화가 켜져 있을 때 해당 키의 “제거…”를 사용하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As chaves de API e as senhas ficam nas Chaves do iCloud para os seus outros Macs (e são copiadas para este Mac); para remover uma chave de todos os seus Macs, use Remover… ao lado dela enquanto a sincronização estiver ativada."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 金鑰和密碼會留在 iCloud 鑰匙圈中供你的其他 Mac 使用（也會拷貝到這台 Mac 上）；若要從你所有的 Mac 上移除某個金鑰，請在同步開啟時按該金鑰的「移除⋯」。"
           }
         }
       }
@@ -20819,6 +20960,7 @@
     },
     "Never synced: keys, tokens and passwords, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what." : {
       "comment" : "从不同步：密钥、令牌和密码，扩展来源，扩展文件夹和插件，不再打错的 App 和最近用过的 App，窗口状态。每台 Mac 自己决定开不开同步、同步哪些。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -20860,6 +21002,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "絕不同步：金鑰、權杖和密碼、擴充功能來源、擴充功能檔案夾和外掛、不打錯字的 App 和最近使用的 App、視窗狀態。每台 Mac 各自決定是否同步，以及同步哪些項目。"
+          }
+        }
+      }
+    },
+    "Never synced: the AllInOneIME Cloud sign-in, extension sources, extension folders and plugins, the apps without typos and the recent apps, window state. Each Mac decides for itself whether to sync, and what." : {
+      "comment" : "从不同步：AllInOneIME Cloud 的登录、扩展来源、扩展文件夹和插件、不再打错的 App 和最近用过的 App、窗口状态。每台 Mac 自己决定开不开同步、同步哪些。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie synchronisiert: die Anmeldung bei AllInOneIME Cloud, Erweiterungsquellen, Erweiterungsordner und Plug-ins, die Apps ohne Tippfehler und die zuletzt verwendeten Apps, Fensterzustand. Jeder Mac entscheidet selbst, ob und was er synchronisiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca se sincronizan: el inicio de sesión de AllInOneIME Cloud, orígenes de extensiones, carpetas de extensiones y plugins, las apps sin erratas y las apps recientes, ni el estado de las ventanas. Cada Mac decide por sí mismo si sincroniza y qué."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jamais synchronisés : connexion à AllInOneIME Cloud, sources d’extensions, dossiers d’extensions et plug-ins, apps sans fautes de frappe et apps récentes, état des fenêtres. Chaque Mac choisit lui-même s’il synchronise et ce qu’il synchronise."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期されないもの：AllInOneIME Cloudのサインイン、拡張機能のソース、拡張機能フォルダとプラグイン、タイプミスなしのApp、最近使ったApp、ウインドウの状態。同期するかどうか、何を同期するかはMacごとに決めます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화하지 않는 항목: AllInOneIME Cloud 로그인, 확장 프로그램 소스, 확장 프로그램 폴더와 플러그인, 오타를 내지 않는 앱과 최근 앱, 윈도우 상태. 동기화 여부와 대상은 Mac마다 따로 정합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca sincronizados: a sessão do AllInOneIME Cloud, fontes de extensões, pastas de extensões e plug-ins, os apps sem erros de digitação e os apps recentes, estado das janelas. Cada Mac decide por conta própria se sincroniza, e o quê."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絕不同步：AllInOneIME Cloud 的登入資訊、擴充功能來源、擴充功能檔案夾和外掛、不打錯字的 App 和最近使用的 App、視窗狀態。每台 Mac 各自決定是否同步，以及同步哪些項目。"
           }
         }
       }
@@ -30282,8 +30471,56 @@
         }
       }
     },
+    "Remove “%@” from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ von all deinen Macs entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar “%@” de todos tus Mac?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer « %@ » de tous vos Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのMacから「%@」を削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 Mac에서 “%@”을(를) 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover “%@” de todos os seus Macs?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從你所有的 Mac 上移除「%@」嗎？"
+          }
+        }
+      }
+    },
     "Remove “%@” from the keychain?" : {
       "comment" : "从钥匙串里删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30325,6 +30562,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從鑰匙圈中移除「%@」嗎？"
+          }
+        }
+      }
+    },
+    "Remove “%@” from this Mac?" : {
+      "comment" : "从这台 Mac 上删除「%@」？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ von diesem Mac entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar “%@” de este Mac?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer « %@ » de ce Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacから「%@」を削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 “%@”을(를) 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover “%@” deste Mac?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從這台 Mac 上移除「%@」嗎？"
           }
         }
       }
@@ -30470,8 +30754,56 @@
         }
       }
     },
+    "Remove the key for %@ from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüssel für %@ von all deinen Macs entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar de todos tus Mac la clave de %@?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer la clé de %@ de tous vos Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のキーをすべてのMacから削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 Mac에서 %@의 키를 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover a chave de %@ de todos os seus Macs?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從你所有的 Mac 上移除 %@ 的金鑰嗎？"
+          }
+        }
+      }
+    },
     "Remove the key for %@ from the keychain?" : {
       "comment" : "从钥匙串里删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30517,8 +30849,103 @@
         }
       }
     },
+    "Remove the key for %@ from this Mac?" : {
+      "comment" : "从这台 Mac 上删除 %@ 的 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüssel für %@ von diesem Mac entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar de este Mac la clave de %@?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer la clé de %@ de ce Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のキーをこのMacから削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 %@의 키를 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover a chave de %@ deste Mac?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從這台 Mac 上移除 %@ 的金鑰嗎？"
+          }
+        }
+      }
+    },
+    "Remove the Notion token from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除 Notion 令牌？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion-Token von all deinen Macs entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar de todos tus Mac el token de Notion?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le jeton Notion de tous vos Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NotionのトークンをすべてのMacから削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 Mac에서 Notion 토큰을 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover o token do Notion de todos os seus Macs?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從你所有的 Mac 上移除 Notion 權杖嗎？"
+          }
+        }
+      }
+    },
     "Remove the Notion token from the keychain?" : {
       "comment" : "删除钥匙串里的 Notion 令牌？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30560,6 +30987,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從鑰匙圈中移除 Notion 權杖嗎？"
+          }
+        }
+      }
+    },
+    "Remove the Notion token from this Mac?" : {
+      "comment" : "从这台 Mac 上删除 Notion 令牌？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notion-Token von diesem Mac entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar de este Mac el token de Notion?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le jeton Notion de ce Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NotionのトークンをこのMacから削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 Notion 토큰을 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover o token do Notion deste Mac?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從這台 Mac 上移除 Notion 權杖嗎？"
           }
         }
       }
@@ -30611,8 +31085,56 @@
         }
       }
     },
+    "Remove the search API key from all your Macs?" : {
+      "comment" : "从你所有的 Mac 上删除搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-Schlüssel für die Suche von all deinen Macs entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar de todos tus Mac la clave de API de búsqueda?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer la clé API de recherche de tous vos Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索のAPIキーをすべてのMacから削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 Mac에서 검색 API 키를 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover a chave de API de pesquisa de todos os seus Macs?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從你所有的 Mac 上移除搜尋 API 金鑰嗎？"
+          }
+        }
+      }
+    },
     "Remove the search API key from the keychain?" : {
       "comment" : "删除钥匙串里的搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30654,6 +31176,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從鑰匙圈中移除搜尋 API 金鑰嗎？"
+          }
+        }
+      }
+    },
+    "Remove the search API key from this Mac?" : {
+      "comment" : "从这台 Mac 上删除搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-Schlüssel für die Suche von diesem Mac entfernen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar de este Mac la clave de API de búsqueda?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer la clé API de recherche de ce Mac ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索のAPIキーをこのMacから削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 검색 API 키를 제거하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover a chave de API de pesquisa deste Mac?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從這台 Mac 上移除搜尋 API 金鑰嗎？"
           }
         }
       }
@@ -38707,6 +39276,53 @@
         }
       }
     },
+    "The new input method doesn't start, so it wasn't installed (what was there before is as it was). Please download it again from Releases." : {
+      "comment" : "新的输入法启动不了，所以没有装上（原来的保持不变）。请从 Releases 重新下载。 — Sources/AllInOneIMEInstaller/Installer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die neue Eingabemethode startet nicht und wurde daher nicht installiert (die bisherige Installation bleibt unverändert). Lade sie bitte erneut von Releases herunter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El nuevo método de entrada no se inicia, así que no se ha instalado (lo que había antes sigue como estaba). Vuelve a descargarlo desde Releases."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nouvelle méthode de saisie ne démarre pas, elle n’a donc pas été installée (ce qui était installé auparavant reste tel quel). Veuillez la télécharger à nouveau depuis Releases."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい入力メソッドが起動しないため、インストールしませんでした（以前のものはそのままです）。Releasesからもう一度ダウンロードしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 입력기가 실행되지 않아 설치하지 않았습니다 (기존 항목은 그대로 유지됩니다). Releases에서 다시 다운로드하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O novo método de entrada não inicia, por isso não foi instalado (o que havia antes continua como estava). Baixe-o novamente em Releases."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的輸入法無法啟動，因此沒有安裝（原本安裝的保持不變）。請從 Releases 重新下載。"
+          }
+        }
+      }
+    },
     "The old AIPinyin (AI 拼音) is replaced; its settings and learned words move over." : {
       "comment" : "旧的 AI 拼音（AIPinyin）会被替换，设置和学到的词会搬过来。 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -40023,6 +40639,53 @@
         }
       }
     },
+    "This build can't sync keys (no provisioning profile)" : {
+      "comment" : "这个版本不能同步密钥（没有描述文件） — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Build kann keine Schlüssel synchronisieren (kein Bereitstellungsprofil)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta compilación no puede sincronizar claves (no tiene perfil de aprovisionamiento)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette version ne peut pas synchroniser les clés (aucun profil de provisionnement)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドではキーを同期できません（プロビジョニングプロファイルがありません）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 빌드는 키를 동기화할 수 없음 (프로비저닝 프로파일 없음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta versão não pode sincronizar chaves (sem perfil de provisionamento)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個建置版本無法同步金鑰（沒有佈建描述檔）"
+          }
+        }
+      }
+    },
     "This bundle can't be loaded: " : {
       "comment" : "这个扩展包加载不了： — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -40442,6 +41105,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這會使用你自己的 git 和 SSH 設定；請在「終端機」中確認 git ls-remote %@ 可以正常運作。"
+          }
+        }
+      }
+    },
+    "Through iCloud Keychain, end-to-end encrypted. Off by default: this Mac's keys move into iCloud Keychain only when you turn this on. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself." : {
+      "comment" : "经过 iCloud 钥匙串，端到端加密。默认关：打开这一项时，这台 Mac 的密钥才移进 iCloud 钥匙串。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Über den iCloud-Schlüsselbund, Ende-zu-Ende-verschlüsselt. Standardmäßig aus: Die Schlüssel dieses Macs werden erst in den iCloud-Schlüsselbund verschoben, wenn du dies einschaltest. Dafür muss „Passwörter & Schlüsselbund“ in Systemeinstellungen → Apple Account → iCloud eingeschaltet sein. Bei AllInOneIME Cloud meldet sich jeder Mac selbst an."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A través del Llavero de iCloud, con cifrado de extremo a extremo. Desactivado de forma predeterminada: las claves de este Mac solo pasan al Llavero de iCloud cuando lo activas. Requiere tener activado “Contraseñas y llavero” en Ajustes del Sistema → Cuenta de Apple → iCloud. Cada Mac inicia sesión en AllInOneIME Cloud por su cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Via le trousseau iCloud, chiffré de bout en bout. Désactivé par défaut : les clés de ce Mac ne passent dans le trousseau iCloud que lorsque vous activez cette option. Mots de passe et trousseau doit être activé dans Réglages Système → Compte Apple → iCloud. Chaque Mac se connecte lui-même à AllInOneIME Cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudキーチェーンを経由し、エンドツーエンドで暗号化されます。デフォルトではオフで、これをオンにしたときにのみ、このMacのキーがiCloudキーチェーンに移動します。システム設定 → Appleアカウント → iCloudで「パスワードとキーチェーン」をオンにする必要があります。AllInOneIME CloudへのサインインはMacごとに行います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 키체인을 통해 동기화되며 종단 간 암호화됩니다. 기본적으로 꺼져 있으며, 이 항목을 켜야만 이 Mac의 키가 iCloud 키체인으로 옮겨집니다. 시스템 설정 → Apple 계정 → iCloud에서 “암호 및 키체인”을 켜야 합니다. AllInOneIME Cloud 로그인은 Mac마다 따로 해야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pelas Chaves do iCloud, com criptografia de ponta a ponta. Desativado por padrão: as chaves deste Mac só passam para as Chaves do iCloud quando você ativa esta opção. É preciso ativar Senhas e Chaves em Ajustes do Sistema → Conta Apple → iCloud. Cada Mac inicia sessão no AllInOneIME Cloud por conta própria."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 iCloud 鑰匙圈，端對端加密。預設為關閉：只有在你開啟這個選項時，這台 Mac 的金鑰才會移到 iCloud 鑰匙圈。需要在系統設定 → Apple 帳號 → iCloud 中開啟「密碼與鑰匙圈」。每台 Mac 各自登入 AllInOneIME Cloud。"
           }
         }
       }
@@ -44114,6 +44824,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的設定、行話詞庫和學到的詞仍然存在。若也要刪除它們，請參閱 Wiki「安裝與疑難排解」中的「解除安裝」。"
+          }
+        }
+      }
+    },
+    "Your settings, jargon list, custom commands and the words pinyin learned, the same on all your Macs, and your API keys and passwords through iCloud Keychain. Only through your own iCloud: nothing goes to our servers, and there's nothing else to sign in to." : {
+      "comment" : "设置、黑话库和自定义命令、拼音学到的词，在你所有的 Mac 上都一样，API 密钥和密码经过 iCloud 钥匙串。只经过你自己的 iCloud，不经过我们的服务器，也不用另外登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Einstellungen, Jargonliste, eigenen Befehle und die von Pinyin gelernten Wörter, gleich auf all deinen Macs, und deine API-Schlüssel und Passwörter über den iCloud-Schlüsselbund. Nur über deinen eigenen iCloud-Account: Nichts geht an unsere Server, und es ist keine weitere Anmeldung nötig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus ajustes, lista de jerga, comandos personalizados y las palabras que ha aprendido el pinyin, iguales en todos tus Mac, y tus claves de API y contraseñas a través del Llavero de iCloud. Solo a través de tu propio iCloud: nada pasa por nuestros servidores y no hay que iniciar sesión en ningún otro sitio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos réglages, votre liste de jargon, vos commandes personnalisées et les mots appris par le pinyin, identiques sur tous vos Mac, ainsi que vos clés API et mots de passe via le trousseau iCloud. Uniquement via votre propre iCloud : rien ne passe par nos serveurs, et aucune autre connexion n’est nécessaire."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定、業界用語リスト、カスタムコマンド、ピンインが学習した単語を、すべてのMacでそろえます。APIキーとパスワードもiCloudキーチェーン経由でそろえます。自分のiCloudのみを経由するため、当社のサーバには何も送られず、ほかにサインインする必要もありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정, 용어 목록, 사용자 지정 명령, 병음이 학습한 단어를 모든 Mac에서 동일하게 유지하고, API 키와 암호는 iCloud 키체인을 통해 동기화합니다. 자신의 iCloud만 거치며, 당사 서버로는 아무것도 전송되지 않고 따로 로그인할 필요도 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seus ajustes, a lista de jargões, os comandos personalizados e as palavras que o pinyin aprendeu, iguais em todos os seus Macs, e suas chaves de API e senhas pelas Chaves do iCloud. Somente pelo seu próprio iCloud: nada vai para os nossos servidores, e não há mais nada em que iniciar sessão."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的設定、行話詞庫、自訂指令和拼音學到的詞，在你所有的 Mac 上都一樣，API 金鑰和密碼也透過 iCloud 鑰匙圈同步。只透過你自己的 iCloud：不會傳送到我們的伺服器，也不需要另外登入。"
           }
         }
       }

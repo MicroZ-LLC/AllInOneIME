@@ -514,6 +514,7 @@ so, with a button that opens that pane.
 | Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync; your own Rime files, such as custom phrases, stay on the Mac) | on |
 | Hidden words | the words you hide from the AI ("iCloud Drive is end-to-end encrypted only with Advanced Data Protection") | off |
 | Recent questions | `@question`'s recent questions and answers (while "Remember recent questions" is on) | off |
+| API keys and passwords | your API keys and extensions' passwords, through iCloud Keychain, which is always end-to-end encrypted (needs Passwords & Keychain on in System Settings → Apple Account → iCloud) | off |
 
 `iCloud Drive/AllInOneIME/settings.json` holds each setting with when it changed and on which Mac (a random id), and per
 setting the newest change wins: a list (your custom commands, the rewrite styles) is one value, per-app settings go app
@@ -541,13 +542,32 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   out of range) isn't applied: the status line and Settings → Assistant's Check for problems say which.
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
   aside as `settings (unreadable …).json`, never overwritten. Settings of a newer version are kept as they are.
-- Never synced: keys, tokens and passwords (they're in the keychain), extension sources (they run code: each Mac decides),
+- API keys and passwords go through iCloud Keychain, not iCloud Drive: with "API keys and passwords" on (while sync is
+  on), a key saved or replaced on one Mac is there on the others. It's off by default: turning on sync alone moves no
+  key, and nothing moves until you turn the row on. Turning it on moves this Mac's keys from the login
+  keychain into iCloud Keychain (macOS then no longer asks for your login password for them after an update); turning
+  it off copies them back into the login keychain and leaves them in iCloud Keychain for your other Macs. Keys that don't
+  sync stay in the login keychain, as before, and so does the AllInOneIME Cloud sign-in, which never syncs: each Mac
+  signs in itself. When two Macs have different keys, the one saved last wins (by when it was saved, which every copy
+  keeps). The other isn't deleted: it's kept in its Mac's login keychain as a replaced copy (under "AllInOneIME replaced
+  API key", its name ending in "(replaced)"), which is never used. A key that moves into iCloud Keychain keeps one too,
+  in case another Mac's different key arrives over it. There is one replaced copy per key on each Mac: a later one
+  replaces it. Removing a key while it syncs removes it on every Mac that syncs keys (the question says "all your Macs"),
+  and this Mac's replaced copy; a Mac with "API keys and passwords" off, or one still on 0.6.4, keeps its own copy, and
+  puts it back if key sync is turned on there later (the question says so too). On a Mac with it off, Remove… removes the key and its replaced copy from that Mac only (the
+  question says "this Mac"), and the copy in iCloud Keychain stays for your other Macs. A key that macOS wouldn't let
+  AllInOneIME read without your login password when it was to move stays in the login keychain until it's next used:
+  if macOS then asks and you allow it, it's used again, even if it was removed on another Mac. Each key still goes only
+  to the host it was saved for. While keys sync, `allinoneime-cli` and versions before 0.6.5 don't see them in the
+  keychain. A build without the provisioning profile (a development build) keeps keys in the login keychain and can't
+  sync them: the row says so.
+- Never synced: the AllInOneIME Cloud sign-in, AWS credentials (in `~/.aws`), extension sources (they run code: each Mac decides),
   extension folders and plugins (paths on each Mac), the apps without typos and the recent apps, window state, and the
   sync switches themselves (each Mac's own).
 - Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** (asked
   first) moves the folder to the Trash and turns sync off on this Mac.
 - Settings → Assistant ("sync through iCloud") turns it on or off; hidden words and recent questions are only chosen in
-  Settings → General. In the config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`).
+  Settings → General. In the config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`, `keys`).
 
 ## Menu bar panel
 
@@ -791,7 +811,7 @@ You don't need AWS: pick one under "AI Provider" in the settings, paste an API k
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | OpenAI-compatible | OpenAI's `gpt-6-luna` (or `gpt-5.4-mini`); "Common Services…" has DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter and Ollama on this Mac: picking one fills in its base URL, then enter its model | The service's key; set the Base URL to its address, e.g. `https://api.deepseek.com/v1`, or `http://localhost:11434/v1` for Ollama on this Mac |
 
-- API keys are kept in the system keychain, never in the config file. Without one there, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and `OPENAI_API_KEY` from your shell are used.
+- API keys are kept in the login keychain, never in the config file; if you turn on "API keys and passwords" under Sync through iCloud, in iCloud Keychain instead, where `allinoneime-cli` and versions before 0.6.5 don't see them. Without one there, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and `OPENAI_API_KEY` from your shell are used.
 - The API key row says whether a key is set: "✓ Saved · ends in a1b2" (its last 4 characters, kept with it so the key itself isn't read to show them) with Replace… and Remove…, "✓ From $OPENAI_API_KEY" for one in your shell, or "No API key yet" with the field to paste it.
 - "Thinking" is low by default: the input method waits on every sentence, and less thinking is faster. Choose "Not set" for models that don't take it.
 - With Claude Opus 5.5 or Sonnet 5.5 chosen, requests carry the Claude API's refusal fallback (`fallbacks: "default"`): when a safety classifier declines, the server retries on another model.
@@ -855,7 +875,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI`, `translateAlways` (see Per-app settings) | `{}` |
-| `notes` | Where `@note` saves (Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud (the token is in the keychain) | `destination: "notes"` |
+| `notes` | Where `@note` saves (Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
 | `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` | `enabled: false` |
 
 ## Privacy
@@ -904,7 +924,8 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; needs the Developer ID certificate it's signed with and DIST_PROFILE, the provisioning profile; optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make app PROFILE=<profile> SIGN_IDENTITY=<a certificate it lists>   # a build with the keychain entitlements: it can sync keys through iCloud Keychain
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
@@ -952,7 +973,14 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update.jso
 2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and
    `build/AllInOneIME-<version>-update.zip` (both apps, as the disk image's installer carries them). The apps and the
    image are signed with the Developer ID Application certificate in the keychain, and the image is notarized with
-   that `xcrun notarytool` keychain profile and stapled.
+   that `xcrun notarytool` keychain profile and stapled. The input method carries the Developer ID provisioning profile
+   (`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`, `DIST_PROFILE`), which grants its keychain entitlements;
+   the build stops if the profile doesn't list the signing certificate, provision all devices, or have 30 days left
+   (`Scripts/profile-entitlements.sh`) or the signature lacks the keychain entitlements, and runs the signed input method
+   once (macOS kills one whose profile doesn't fit). An empty `DIST_PROFILE` stops it too: a release without the
+   entitlements would lose sight of every key that moved into iCloud Keychain.
+   The profile lists the two Developer ID G1 certificates only: before signing with another (G2), make a new profile in
+   the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists it, and commit it.
 3. Upload both to the GitHub release `v<version>` and publish it.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
    `site/public/update.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,

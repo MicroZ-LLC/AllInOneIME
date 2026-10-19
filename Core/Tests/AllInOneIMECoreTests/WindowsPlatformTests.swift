@@ -271,7 +271,7 @@ struct WindowsPlatformTests {
         // A folder of its own (never made: the key is short), as a store removes the files no credential names in its.
         let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests probe \(UUID().uuidString)",
                                                        folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
-        guard store.write("probe", "probe", "", "", nil) == .ok else { return false }
+        guard store.write("probe", "probe", "", "", nil, nil) == .ok else { return false }
         _ = store.delete("probe")
         return true
     }()
@@ -286,10 +286,16 @@ struct WindowsPlatformTests {
         defer { _ = store.delete(account) }
 
         #expect(store.attributes(account) == nil && store.read(account) == nil)
-        #expect(store.write(account, "sk-short-key-1234", "AllInOneIME: Test", "api.example.com", "1234") == .ok)
+        #expect(store.kind == .legacy && store.accounts().isEmpty)
+        #expect(try store.listedAccounts().isEmpty)
+        let saved = Date(timeIntervalSince1970: 1_790_000_000.25)
+        #expect(store.write(account, "sk-short-key-1234", "AllInOneIME: Test", "api.example.com", "1234", saved) == .ok)
         #expect(store.read(account) == "sk-short-key-1234")
         let first = try #require(store.attributes(account))
         #expect(first.comment == "api.example.com" && first.ending == "1234" && first.created != nil && first.modified != nil)
+        #expect(first.label == "AllInOneIME: Test" && first.saved == saved && first.changed == saved)
+        #expect(store.accounts() == [account])
+        #expect(try store.listedAccounts() == [account])
 
         #expect(store.setComment(account, "other.example.com") == .ok)
         let second = try #require(store.attributes(account))
@@ -298,22 +304,24 @@ struct WindowsPlatformTests {
 
         // Longer than a credential holds: in a file of its own, encrypted.
         let long = "sk-" + String(repeating: "abcdefghij", count: 400)
-        #expect(store.write(account, long, "AllInOneIME: Test", "api.example.com", "ghij") == .ok)
+        #expect(store.write(account, long, "AllInOneIME: Test", "api.example.com", "ghij", nil) == .ok)
         #expect(store.read(account) == long)
         let files = try FileManager.default.contentsOfDirectory(atPath: folder.url.appendingPathComponent("Secrets").path)
         #expect(files.count == 1 && files[0].hasSuffix(".secret"))
         let sealed = try Data(contentsOf: folder.url.appendingPathComponent("Secrets/\(files[0])"))
         #expect(sealed.range(of: Data("abcdefghij".utf8)) == nil, "the key is in the file as it is")
         #expect(store.attributes(account)?.created == first.created)
+        #expect(store.attributes(account)?.saved == saved, "a write without a save time keeps the one there")
 
         // Short again: the file goes.
-        #expect(store.write(account, "sk-short-key-5678", "AllInOneIME: Test", "", "5678") == .ok)
+        #expect(store.write(account, "sk-short-key-5678", "AllInOneIME: Test", "", "5678", saved.addingTimeInterval(60)) == .ok)
+        #expect(store.attributes(account)?.saved == saved.addingTimeInterval(60))
         #expect(store.read(account) == "sk-short-key-5678")
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.url.appendingPathComponent("Secrets").path).isEmpty)
 
         #expect(store.delete(account) == .ok)
         #expect(store.delete(account) == .notFound && store.setComment(account, "x") == .notFound)
-        #expect(store.attributes(account) == nil && store.read(account) == nil)
+        #expect(store.attributes(account) == nil && store.read(account) == nil && store.accounts().isEmpty)
         #expect(store.message(Int32(ERROR_NOT_FOUND))?.isEmpty == false)
     }
 
@@ -326,7 +334,7 @@ struct WindowsPlatformTests {
         let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests \(UUID().uuidString)", folder: secrets)
         defer { _ = store.delete("long"); _ = store.delete("short") }
         let long = "sk-" + String(repeating: "0123456789", count: 300)
-        #expect(store.write("long", long, "AllInOneIME: Test", "", nil) == .ok)
+        #expect(store.write("long", long, "AllInOneIME: Test", "", nil, nil) == .ok)
         let named = try #require(try FileManager.default.contentsOfDirectory(atPath: secrets.path).first)
         let hourAgo = Date().addingTimeInterval(-3600)
         let orphan = "\(UUID().uuidString).secret", young = "\(UUID().uuidString).secret"
@@ -335,7 +343,7 @@ struct WindowsPlatformTests {
             if name != named { try Data("x".utf8).write(to: url) }
             if old { try FileManager.default.setAttributes([.modificationDate: hourAgo], ofItemAtPath: url.path) }
         }
-        #expect(store.write("short", "sk-short-key", "AllInOneIME: Test", "", nil) == .ok)
+        #expect(store.write("short", "sk-short-key", "AllInOneIME: Test", "", nil, nil) == .ok)
         #expect(Set(try FileManager.default.contentsOfDirectory(atPath: secrets.path)) == [named, young, "notes.txt"])
         #expect(store.read("long") == long)
     }
@@ -348,7 +356,7 @@ struct WindowsPlatformTests {
         let message = store.message(Int32(ERROR_NO_SUCH_LOGON_SESSION)) ?? ""
         #expect(message.contains("Credential Manager") && message.contains("SSH"), "\(message)")
         if !Self.hasCredentialManager {
-            #expect(store.write("probe", "probe", "", "", nil) == .failed(Int32(ERROR_NO_SUCH_LOGON_SESSION)))
+            #expect(store.write("probe", "probe", "", "", nil, nil) == .failed(Int32(ERROR_NO_SUCH_LOGON_SESSION)))
         }
     }
 

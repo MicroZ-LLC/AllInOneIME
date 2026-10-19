@@ -5,11 +5,28 @@ extension Platform {
     /// The Mac's: the core's Apple defaults (Keychain, JavaScriptCore, Foundation Models, NaturalLanguage,
     /// NSDataDetector, PDFKit), and programs started with the login shell's environment (`MacProcessLauncher`).
     /// The input method, its command line and the installer install it at launch.
+    ///
+    /// The keys: the login keychain, as before; in the input method signed with the provisioning profile (entitled to the
+    /// shared keychain access group), routed over it and iCloud Keychain's items, which hold the keys while key sync is on
+    /// (`KeySync.system`, its switch set once from the config, then by the sync controller when the config changes);
+    /// anywhere else (a development or ad-hoc build, the command line, the installer) the login keychain alone.
     public static var mac: Platform {
         var platform = Platform()
         platform.processes = MacProcessLauncher()
+        if let macKeys { platform.secrets = macKeys }
         return platform
     }
+
+    /// The routed store of `KeySync.system`, its switch set as the config has it at launch: once, however often `mac` is
+    /// asked for. A config that can't be read (a typo while editing it by hand) changes nothing: the switch is as the
+    /// keys-synced marker last left it (`KeySync.Marker.syncing`; no marker: off).
+    private static let macKeys: SecretStore? = {
+        guard let keys = KeySync.system else { return nil }
+        let syncing = (try? Config.load()).map { $0.iCloudSync.syncsKeys }
+            ?? KeySync.Marker.read(at: KeySync.Marker.url(besides: ICloudSync.State.defaultURL))?.syncing ?? false
+        keys.start(syncing: syncing)
+        return keys.store
+    }()
 }
 
 /// Programs as the input method starts them on the Mac: Foundation's `Process` (`FoundationProcessLauncher`), with the

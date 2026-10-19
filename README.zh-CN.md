@@ -428,6 +428,7 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 | 学到的词 | 拼音从你的选择里学到的词（Rime 的用户词典，用 librime 的用户词典同步；你自己的 Rime 文件，比如自定义短语，只留在这台 Mac 上） | 开 |
 | 隐藏的词 | 你对 AI 隐藏的词（「只有开了『高级数据保护』，iCloud 云盘才是端到端加密的」） | 关 |
 | 最近的问题 | `@question` 最近的问题和答案（开着「记住最近的问题」时） | 关 |
+| API 密钥和密码 | 你的 API key 和扩展的密码，经过 iCloud 钥匙串，始终端到端加密（需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」） | 关 |
 
 `iCloud 云盘/AllInOneIME/settings.json` 里每项设置都记着什么时候改的、在哪台 Mac 上改的（一个随机编号），每项按最新的改动为准：列表
 （自定义命令、改写风格）算一个值，按 App 的设置一个 App 一个 App 地合并，删掉某个 App 的设置也算一次改动。输入法启动时、你改了东西
@@ -448,11 +449,22 @@ iCloud 云盘：不用另外登录，也不经过我们的服务器。需要打�
 - 别的 Mac 来的值在这台 Mac 上用不了时（这里没有密钥的服务、这里没有的 AWS profile、超出范围的值）不会用上：状态那一行和设置 → 助手的「检查问题」会说是哪些。
 - iCloud 还没下载下来的文件会等它下载，从不当成空的；读不了的 `settings.json` 会改名放到一边（`settings (unreadable …).json`），从不覆盖。
   新版本才有的设置原样保留。
-- 从不同步：密钥、令牌和密码（它们在钥匙串里），扩展来源（会运行代码：每台 Mac 自己决定），扩展文件夹和插件（每台 Mac 上的路径），
+- API 密钥和密码经过 iCloud 钥匙串，不经过 iCloud 云盘：开着「API 密钥和密码」（同步打开时）时，在一台 Mac 上保存或替换的密钥，别的 Mac 上也有。
+  它默认关：只打开同步不会移动任何密钥，你打开这一项之前什么都不移。
+  打开时，这台 Mac 的密钥从登录钥匙串移进 iCloud 钥匙串（之后更新时 macOS 不再为它们要登录密码）；关掉时，密钥复制回登录钥匙串，iCloud 钥匙串里的留给你别的 Mac。
+  不同步的密钥照旧留在登录钥匙串里；AllInOneIME Cloud 的登录也是，它从不同步：每台 Mac 各自登录。两台 Mac 上的密钥不一样时，以最后保存的为准（按保存的时间，每个副本都带着）。
+  另一个不会被删：作为替换下来的副本留在它那台 Mac 的登录钥匙串里（在「AllInOneIME replaced API key」下，名称以「(replaced)」结尾），从不使用。
+  移进 iCloud 钥匙串的密钥也留一份这样的副本，以防别的 Mac 上不一样的密钥盖过它。每台 Mac 上每个密钥只留一份副本：后来的替换先前的。
+  同步时删除密钥，每台同步密钥的 Mac 上都删除（确认时问「所有的 Mac」），这台 Mac 上的副本也删掉；关了「API 密钥和密码」的 Mac，或还在用 0.6.4 的 Mac，留着自己的那份，以后在那台 Mac 上打开密钥同步时会把它放回去（确认时也会说明）。
+  关着它的 Mac 上点「删除…」，只删这台 Mac 上的密钥和副本（确认时问「这台 Mac」），iCloud 钥匙串里的留给你别的 Mac。
+  要移动时 macOS 不给读、需要登录密码的密钥，会留在登录钥匙串里，直到下次用到：那时 macOS 问密码、你允许的话，它还会被用上，即使它已经在别的 Mac 上删掉了。
+  每个密钥仍然只发给它保存时对应的主机。同步密钥时，`allinoneime-cli` 和 0.6.5 以前的版本读不到钥匙串里的这些密钥。没有描述文件的版本（开发版）把密钥留在登录钥匙串里，
+  不能同步：那一行会写明。
+- 从不同步：AllInOneIME Cloud 的登录，AWS 凭证（在 `~/.aws` 里），扩展来源（会运行代码：每台 Mac 自己决定），扩展文件夹和插件（每台 Mac 上的路径），
   不再打错的 App 和最近用过的 App，窗口状态，还有同步开关本身（每台 Mac 自己的）。
 - 关掉同步就不再同步，这台 Mac 和 iCloud 里的东西都原样保留；「**从 iCloud 移除…**」（先确认）把那个文件夹移到废纸篓，并关掉这台 Mac 的同步。
 - 在设置 → 助手里写「通过 iCloud 同步」可以打开或关掉同步；隐藏的词和最近的问题只能在设置 → 通用里选。配置里是 `iCloudSync`（`enabled`、`settings`、
-  `jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`）。
+  `jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`、`keys`）。
 
 ## 菜单栏面板
 
@@ -672,7 +684,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | 兼容 OpenAI 的服务 | OpenAI 的 `gpt-6-luna`（也可选 `gpt-5.4-mini`）；「常用服务…」里有 DeepSeek、通义千问、Kimi、智谱 GLM、硅基流动、OpenRouter、本机 Ollama，选了会填好 Base URL，再填它的模型 | 那个服务的 key；Base URL 填它的地址，比如 `https://api.deepseek.com/v1`，本机 Ollama 填 `http://localhost:11434/v1` |
 
-- API key 存在系统钥匙串里，不写进配置文件。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
+- API key 存在登录钥匙串里，不写进配置文件；在「通过 iCloud 同步」里打开「API 密钥和密码」的话，改存在 iCloud 钥匙串里，`allinoneime-cli` 和 0.6.5 以前的版本读不到。钥匙串里没有时，也会用 shell 里设的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）、`OPENAI_API_KEY`。
 - API key 那一行直接写有没有 key：「✓ 已保存 · 结尾 a1b2」（最后 4 位，存 key 时一起记下，显示时不用读 key 本身），旁边是「替换…」「删除…」；用 shell 里的写「✓ 来自 $OPENAI_API_KEY」；没有就写「还没有 API key」，直接给出粘贴框。
 - 「思考」默认是 low：输入法每句话都在等，思考越少越快。模型不支持这个参数时选「不设置」。
 - 选 Claude Opus 5.5、Sonnet 5.5 时会带上 Claude API 的拒答兜底（`fallbacks: "default"`）：安全分类器拒绝时，服务端自动换一个模型重试。
@@ -731,7 +743,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`（见「按 App 设置」） | `{}` |
-| `notes` | `@note` 存到哪里（设置 → 插件 → 笔记）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或者 `"notion"` 加上「测试」找到的页面或数据库；不通过 iCloud 同步（令牌在钥匙串里） | `destination: "notes"` |
+| `notes` | `@note` 存到哪里（设置 → 插件 → 笔记）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或者 `"notion"` 加上「测试」找到的页面或数据库；不通过 iCloud 云盘同步（令牌在钥匙串里，只有打开「API 密钥和密码」时才经过 iCloud 钥匙串） | `destination: "notes"` |
 | `redaction` | 发送前对 AI 隐藏敏感信息（见「隐私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；各类识别（`emails`、`phones`、`cards`、`keys`、`ips`）不设成 `false` 就开着 | `enabled: false` |
 
 ## 隐私
@@ -775,7 +787,8 @@ make realtest     # 在真实 App 的文本框里打字测试（需要屏幕已�
 make screenshots  # 重新生成 docs/ 里的截图
 make cli && .build/release/allinoneime-cli --styles 简洁,黑话 "我今天有点不舒服"   # 在终端里试翻译和改写
 make icon         # 从 Resources/AppIcon.png 重新生成 App 图标和菜单栏图标
-make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；有 Developer ID 证书时签名，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
+make dmg          # 发布用的安装包 build/AllInOneIME-<版本>.dmg（通用版；需要签名用的 Developer ID 证书和描述文件 DIST_PROFILE，可以顺便公证），和应用内更新用的 build/AllInOneIME-<版本>-update.zip
+make app PROFILE=<描述文件> SIGN_IDENTITY=<它列出的证书>   # 带钥匙串权限的版本：可以经过 iCloud 钥匙串同步密钥
 make update-test  # 应用内更新的端到端测试：临时的安装目录、127.0.0.1 上的测试服务器、测试密钥（不碰装好的 App）
 ```
 
@@ -806,6 +819,10 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致）和更新日志。
 2. `make dmg NOTARY_PROFILE=<profile>`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
    App 和磁盘映像用钥匙串里的 Developer ID Application 证书签名，磁盘映像再用这个 `xcrun notarytool` 钥匙串配置公证并装订（staple）。
+   输入法带着 Developer ID 描述文件（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），钥匙串权限来自它；
+   描述文件没列出签名用的证书、不是所有设备都能用、或剩下不到 30 天时，构建会停下（`Scripts/profile-entitlements.sh`），签名里没有钥匙串权限也会停下，
+   签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移进 iCloud 钥匙串的密钥。描述文件只列了两张 Developer ID G1 证书：换用别的证书（G2）签名前，先在开发者网站上手动做一个列出它的
+   新描述文件（这个 App ID 的签名不要再交给 Xcode 自动管理），提交进来。
 3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update.json`
    （版本、build 号和最低 macOS 从 App 里读，下载地址、大小、SHA-256、更新说明的地址和摘要），再用登录钥匙串里的密钥
