@@ -25,9 +25,10 @@ the older one still sends is dropped. Timers are outputs too (`startTimer`): the
 `SessionEvent.timer` when they're due; a newer one of a kind makes the older one's firing do nothing.
 
 Still the process's, not a session's: the interface language the session sets from the settings (`UIText.choice`),
-which it hands its panel (`UIText.language`) and its messages; a change of it is told on the main thread
-(`.allInOneIMEInterfaceLanguageChanged`, posted on the main queue when another thread made it), where a panel on screen
-all along draws. Where `@note` saves and the agent `@agent` hands to, by name (`UIText.noteDestinationName`,
+which it hands its panel (`UIText.language`) and its messages; a change of it is told on the main queue
+(`.allInOneIMEInterfaceLanguageChanged`: at once when it was made there, else posted there), where a panel on screen all
+along draws. On Apple platforms that is the main thread; elsewhere the main queue's work may run on another thread (on
+Linux, after `dispatchMain()`), so the core asks the queue, not `Thread.isMainThread`. Where `@note` saves and the agent `@agent` hands to, by name (`UIText.noteDestinationName`,
 `UIText.agentName`), too.
 
 ## What the field says

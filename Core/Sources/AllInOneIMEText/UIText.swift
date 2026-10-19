@@ -7,7 +7,7 @@ import Foundation
 ///
 /// The process's own: what every text the shell and the core make reads (`tr`). The core's texts that name its types
 /// (commands, providers, errors …) are in AllInOneIMECore's extensions of it (UIText+Names.swift, UIText+Errors.swift).
-/// Safe from any thread; a shell changes it from one (the Mac: the main thread), and a change is told on the main thread
+/// Safe from any thread; a shell changes it from one (the Mac: the main thread), and a change is told on the main queue
 /// (`.allInOneIMEInterfaceLanguageChanged`).
 public enum UIText {
     private struct State {
@@ -33,7 +33,7 @@ public enum UIText {
 
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
     /// text field or the window opens); nil follows the system. A change posts `.allInOneIMEInterfaceLanguageChanged` on
-    /// the main thread: at once when it is changed there, else soon after, on the main queue.
+    /// the main queue: at once when it is changed there, else soon after.
     public static var choice: String? {
         get { state.withLock { $0.choice } }
         set {
@@ -48,10 +48,10 @@ public enum UIText {
         }
     }
 
-    /// Tells a panel on screen all along (the Mac's menu bar panel) to redraw in the new language, on the main thread,
-    /// where it draws: at once from there, else on the main queue (a session on a thread of its own changed it).
+    /// Tells a panel on screen all along (the Mac's menu bar panel) to redraw in the new language, on the main queue,
+    /// where it draws: at once from there, else soon after (a session on a thread of its own changed it).
     static func languageChanged() {
-        if Thread.isMainThread {
+        if MainQueue.isCurrent {
             NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil)
         } else {
             DispatchQueue.main.async { NotificationCenter.default.post(name: .allInOneIMEInterfaceLanguageChanged, object: nil) }
@@ -101,8 +101,27 @@ public enum UIText {
 
 extension Notification.Name {
     /// The interface language changed (`UIText.choice`): a panel on screen all along redraws in it. Posted on the main
-    /// thread.
+    /// queue (on Apple platforms, the main thread).
     public static let allInOneIMEInterfaceLanguageChanged = Notification.Name("AllInOneIMEInterfaceLanguageChanged")
+}
+
+/// Whether the caller runs on the main queue, where a shell draws. On Apple platforms that is the main thread. Elsewhere
+/// another thread may run the main queue's work: on Linux `dispatchMain()` ends the main thread and the main queue runs on
+/// a worker thread, as under swift-testing. So the queue is asked (a mark on it, which its work sees on whatever thread),
+/// and the main thread counts too (a shell's run loop there drains the main queue).
+enum MainQueue {
+    private struct Mark: @unchecked Sendable {
+        let key = DispatchSpecificKey<Bool>()
+    }
+
+    /// Put on the main queue on first use.
+    private static let mark: Mark = {
+        let mark = Mark()
+        DispatchQueue.main.setSpecific(key: mark.key, value: true)
+        return mark
+    }()
+
+    static var isCurrent: Bool { Thread.isMainThread || DispatchQueue.getSpecific(key: mark.key) == true }
 }
 
 /// Interface text in the interface language (see `UIText`): `chinese` for Simplified Chinese, `english` for English,

@@ -338,25 +338,43 @@ struct InterfaceTextTests {
     }
 }
 
-/// The interface language as the process keeps it (`UIText`): a change is told on the main thread, whatever thread made
+/// The interface language as the process keeps it (`UIText`): a change is told on the main queue, whatever thread made
 /// it, so a panel on screen all along redraws where it draws.
 struct InterfaceLanguageStateTests {
-    /// Told from a queue (as a session on a thread of its own changes it): the notice comes on the main thread. Not the
-    /// language itself changed, which other tests read: what it posts.
+    /// Told from a queue (as a session on a thread of its own changes it): the notice comes on the main queue. Not the
+    /// language itself changed, which other tests read: what it posts. The main queue is told by a mark of the test's
+    /// own on it, not by the thread: off Apple platforms its work may run on another thread than the main one (on Linux,
+    /// under swift-testing, a worker thread).
     @Test func aChangeMadeOffTheMainThreadIsToldOnIt() async {
         final class Observer: @unchecked Sendable { var token: NSObjectProtocol? }
-        let observer = Observer(), answered = Locked(initialState: false)
+        struct Mark: @unchecked Sendable { let key = DispatchSpecificKey<Bool>() }
+        let observer = Observer(), answered = Locked(initialState: false), main = Mark()
+        DispatchQueue.main.setSpecific(key: main.key, value: true)
         let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool?, Never>) in
-            func answer(_ value: Bool?) {
+            @Sendable func answer(_ value: Bool?) {
                 guard answered.withLock({ done in defer { done = true }; return !done }) else { return }
                 continuation.resume(returning: value)
             }
             observer.token = NotificationCenter.default.addObserver(forName: .allInOneIMEInterfaceLanguageChanged, object: nil,
-                                                                    queue: nil) { _ in answer(Thread.isMainThread) }
+                                                                    queue: nil) { _ in
+                answer(DispatchQueue.getSpecific(key: main.key) == true)
+            }
             DispatchQueue.global().async { UIText.languageChanged() }
             DispatchQueue.global().asyncAfter(deadline: .now() + 10) { answer(nil) }
         }
         observer.token.map(NotificationCenter.default.removeObserver)
-        #expect(onMain == true, "told on the main thread (nil: not told within 10 s)")
+        DispatchQueue.main.setSpecific(key: main.key, value: nil)
+        #expect(onMain == true, "told on the main queue (nil: not told within 10 s)")
+    }
+
+    /// The main queue's work is on it, wherever it runs; a queue of its own isn't.
+    @Test func theMainQueueIsToldByItsWork() async {
+        let onMain = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.main.async { continuation.resume(returning: MainQueue.isCurrent) }
+        }
+        let elsewhere = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            DispatchQueue(label: "not-main").async { continuation.resume(returning: MainQueue.isCurrent) }
+        }
+        #expect(onMain && !elsewhere)
     }
 }
