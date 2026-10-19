@@ -49,7 +49,11 @@ extension APIKeys.Keychain {
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
             },
             delete: { account in keychainStatus(SecItemDelete(query(account) as CFDictionary)) },
-            message: { code in SecCopyErrorMessageString(code, nil) as String? })
+            message: { code in SecCopyErrorMessageString(code, nil) as String? },
+            add: { account, key, label, comment, ending, saved in
+                add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
+                    adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
+            })
     }
 
     /// Whether this process may use the shared access group (`KeySync.accessGroup`): its `keychain-access-groups`
@@ -126,7 +130,11 @@ extension APIKeys.Keychain {
                 asking ? keychainStatus(SecItemDelete(query(account) as CFDictionary))
                     : withoutAsking { keychainStatus(SecItemDelete(query(account) as CFDictionary)) }
             },
-            message: { code in SecCopyErrorMessageString(code, nil) as String? })
+            message: { code in SecCopyErrorMessageString(code, nil) as String? },
+            add: { account, key, label, comment, ending, saved in
+                let set = { add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:]) }
+                return asking ? set() : withoutAsking(set)
+            })
     }
 
     /// `body` with the file-based keychain's prompts turned off for the process (on again after).
@@ -174,14 +182,28 @@ extension APIKeys.Keychain {
     /// (`APIKeys.savedAttribute`), which iCloud Keychain carries with the item.
     private static func write(_ query: [String: Any], key: String, label: String, comment: String, ending: String?,
                               saved: Date?, adding: [String: Any]) -> APIKeys.KeychainStatus {
-        var values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
-                                     kSecAttrComment as String: comment,
-                                     kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
-        if let saved { values[kSecAttrDescription as String] = APIKeys.savedAttribute(saved) }
+        let values = values(key: key, label: label, comment: comment, ending: ending, saved: saved)
         let status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
         guard status == errSecItemNotFound else { return keychainStatus(status) }
         let item = query.merging(values) { $1 }.merging(adding) { $1 }
         return keychainStatus(SecItemAdd(item as CFDictionary, nil))
+    }
+
+    /// A new item only, with `adding` besides (`APIKeys.Keychain.add`): one that is there is never updated
+    /// (`errSecDuplicateItem`).
+    private static func add(_ query: [String: Any], key: String, label: String, comment: String, ending: String?,
+                            saved: Date?, adding: [String: Any]) -> APIKeys.KeychainStatus {
+        let item = query.merging(values(key: key, label: label, comment: comment, ending: ending, saved: saved)) { $1 }
+            .merging(adding) { $1 }
+        return keychainStatus(SecItemAdd(item as CFDictionary, nil))
+    }
+
+    private static func values(key: String, label: String, comment: String, ending: String?, saved: Date?) -> [String: Any] {
+        var values: [String: Any] = [kSecValueData as String: Data(key.utf8), kSecAttrLabel as String: label,
+                                     kSecAttrComment as String: comment,
+                                     kSecAttrGeneric as String: APIKeys.endingAttribute(ending)]
+        if let saved { values[kSecAttrDescription as String] = APIKeys.savedAttribute(saved) }
+        return values
     }
 
     private static func keychainStatus(_ status: OSStatus) -> APIKeys.KeychainStatus {

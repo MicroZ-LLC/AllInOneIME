@@ -263,13 +263,19 @@ public enum APIKeys {
         public var delete: @Sendable (_ account: String) -> KeychainStatus
         /// What a failure's code means, in words (nil: the code is all there is).
         public var message: @Sendable (_ code: Int32) -> String?
+        /// Sets the key as `write` does, but only as a new item: one that is there is never written over (another Mac's
+        /// that arrived meanwhile), `duplicateItem` then. Nil: `adding` looks for an item, then writes (in-memory stores,
+        /// and copies of one with their closures replaced, go through their own `write`).
+        public var add: (@Sendable (_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?,
+                                    _ saved: Date?) -> KeychainStatus)?
 
         public init(kind: Kind = .memory, accounts: @escaping @Sendable () -> [String] = { [] },
                     attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
                     write: @escaping @Sendable (String, String, String, String, String?, Date?) -> KeychainStatus,
                     setComment: @escaping @Sendable (String, String) -> KeychainStatus,
                     delete: @escaping @Sendable (String) -> KeychainStatus,
-                    message: @escaping @Sendable (Int32) -> String? = { _ in nil }) {
+                    message: @escaping @Sendable (Int32) -> String? = { _ in nil },
+                    add: (@Sendable (String, String, String, String, String?, Date?) -> KeychainStatus)? = nil) {
             self.kind = kind
             self.accounts = accounts
             self.attributes = attributes
@@ -278,6 +284,19 @@ public enum APIKeys {
             self.setComment = setComment
             self.delete = delete
             self.message = message
+            self.add = add
+        }
+
+        /// The status of an add that found an item there (the keychain's `errSecDuplicateItem`).
+        public static let duplicateItem: Int32 = -25299
+
+        /// `account`'s key as a new item only (`add`; without one, written only when no item is there): never over an
+        /// item that is there, `.failed(duplicateItem)` then.
+        public func adding(_ account: String, _ key: String, _ label: String, _ comment: String, _ ending: String?,
+                           _ saved: Date?) -> KeychainStatus {
+            if let add { return add(account, key, label, comment, ending, saved) }
+            guard attributes(account) == nil else { return .failed(Self.duplicateItem) }
+            return write(account, key, label, comment, ending, saved)
         }
 
         /// No secret store on this platform (until its shell brings one): nothing is kept, a save fails.

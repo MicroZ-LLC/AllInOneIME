@@ -141,7 +141,7 @@ public enum KeySync {
                     }
                 }
                 moves.moved.append(account)
-            case .mismatched:
+            case .mismatched, .taken:
                 moves.mismatched.append(account)
             }
         }
@@ -151,7 +151,9 @@ public enum KeySync {
         return moves
     }
 
-    enum Copy { case copied, mismatched }
+    /// How a copy went: it read back as written; it didn't (`mismatched`); or an item arrived meanwhile in the store
+    /// that had none, and was left as it was (`taken`).
+    enum Copy { case copied, mismatched, taken }
 
     /// `key` of `account` kept in `aside` (the store of `replacedService`) with its attributes, its label ending in
     /// `replacedLabelSuffix`, and read back: true when it reads back as written (the original may then go, or be written
@@ -169,13 +171,20 @@ public enum KeySync {
     }
 
     /// `key` under `account` into `store` with the attributes it had (label, comment: the host, ending, and when it was
-    /// saved: its save time, else its modification date), then read back. A copy that reads back otherwise is taken out
-    /// of `store` again, but only when it had no item for `account` before (`hadOne`: one that was there, another Mac's,
-    /// is kept); the original is kept, and it is logged. A write that fails throws.
+    /// saved: its save time, else its modification date), then read back. Into a store that had no item for `account`
+    /// (`hadOne` false) it is only added: one that arrived meanwhile (another Mac's) is left as it is (`taken`). A copy
+    /// that reads back otherwise is taken out of `store` again, but only when it had no item for `account` before (one
+    /// that was there, another Mac's, is kept); the original is kept, and it is logged. A write that fails throws.
     static func copy(_ account: String, key: String, attributes: APIKeys.ItemAttributes, into store: APIKeys.Keychain,
                      hadOne: Bool) throws -> Copy {
-        let status = store.write(account, key, attributes.label ?? APIKeys.label(account: account), attributes.comment ?? "",
-                                 attributes.ending ?? APIKeys.ending(of: key), attributes.changed)
+        let label = attributes.label ?? APIKeys.label(account: account), comment = attributes.comment ?? ""
+        let ending = attributes.ending ?? APIKeys.ending(of: key)
+        let status = hadOne ? store.write(account, key, label, comment, ending, attributes.changed)
+            : store.adding(account, key, label, comment, ending, attributes.changed)
+        if !hadOne, status == .failed(APIKeys.Keychain.duplicateItem) {
+            APIKeys.log.notice("key not moved: \(account): an item arrived there meanwhile; compared at the next merge")
+            return .taken
+        }
         guard status == .ok else {
             APIKeys.log.error("key not moved: \(account) (\(status.code))")
             throw APIKeys.KeychainError(status: status.code, message: store.message(status.code))
@@ -303,7 +312,10 @@ extension APIKeys.Keychain {
                 guard let found = holder(account), let key = found.store.read(account) else { return nil }
                 guard found.login, syncing(account), !key.isEmpty else { return key }
                 // Left in the login keychain when key sync was turned on (it asks for the password): moved at its first
-                // use, into a synced store that has no item for it (or the holder would have been that store).
+                // use, into a synced store that has no item for it (or the holder would have been that store). The read
+                // may have waited for the password a long while: an item that arrived in the synced store meanwhile
+                // (another Mac's) is never written over, but left to the next merge to compare; and the copy only adds.
+                guard synced.attributes(account) == nil else { return key }
                 guard KeySync.setAside(account, key: key, attributes: found.attributes, in: replaced) else { return key }
                 if (try? KeySync.copy(account, key: key, attributes: found.attributes, into: synced, hadOne: false)) == .copied {
                     _ = login.delete(account)
