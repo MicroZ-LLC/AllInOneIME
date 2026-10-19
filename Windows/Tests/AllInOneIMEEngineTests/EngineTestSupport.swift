@@ -96,20 +96,27 @@ final class RecordingPanel: PanelPresenter, @unchecked Sendable {
     }
 }
 
-/// The engine's system thread, one for the whole test process (it lives as long as the process, as the engine's).
-let testSystemThread = SystemThread()
+/// The engine's system threads, the shell's and the clipboard's, one each for the whole test process (they live as long
+/// as the process, as the engine's).
+let testShellThread = SystemThread(name: "AllInOneIME shell (tests)")
+let testClipboardThread = SystemThread(name: "AllInOneIME clipboard (tests)")
+
+/// The engine's `WindowsSystem`, on those.
+func testWindowsSystem() -> WindowsSystem { WindowsSystem(clipboard: testClipboardThread, shell: testShellThread) }
 
 /// The system as the host used it: nothing is opened or started, the clipboard is a string here. Each call notes the
 /// thread it came on; with `gate` set, each waits for it to be signalled first (a share that is offline, a clipboard
-/// whose owner doesn't answer).
+/// whose owner doesn't answer), with `shellGate` set, opening and terminals do (the shell alone hanging).
 final class RecordingSystem: SystemActions, @unchecked Sendable {
     private let lock = NSLock()
     private var _clipboard: String?
     private var _opened: [String] = []
     private var _launched: [(argv: [String], prompt: String?)] = []
-    private var _threads: Set<DWORD> = []
+    private var _clipboardThreads: Set<DWORD> = []
+    private var _shellThreads: Set<DWORD> = []
     var searchResults: [SearchResult] = []
     var gate: DispatchSemaphore?
+    var shellGate: DispatchSemaphore?
 
     var clipboard: String? {
         get { lock.lock(); defer { lock.unlock() }; return _clipboard }
@@ -117,36 +124,41 @@ final class RecordingSystem: SystemActions, @unchecked Sendable {
     }
     var opened: [String] { lock.lock(); defer { lock.unlock() }; return _opened }
     var launched: [(argv: [String], prompt: String?)] { lock.lock(); defer { lock.unlock() }; return _launched }
-    /// The threads the clipboard, opening and terminals were used on.
-    var threads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _threads }
+    /// The threads the clipboard was used on.
+    var clipboardThreads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _clipboardThreads }
+    /// The threads opening and terminals were used on.
+    var shellThreads: Set<DWORD> { lock.lock(); defer { lock.unlock() }; return _shellThreads }
+    /// Both.
+    var threads: Set<DWORD> { clipboardThreads.union(shellThreads) }
 
-    private func called() {
+    private func called(shell: Bool) {
         gate?.wait()
+        if shell { shellGate?.wait() }
         lock.lock()
-        _threads.insert(GetCurrentThreadId())
+        if shell { _shellThreads.insert(GetCurrentThreadId()) } else { _clipboardThreads.insert(GetCurrentThreadId()) }
         lock.unlock()
     }
 
     func copy(_ text: String) -> Bool {
-        called()
+        called(shell: false)
         clipboard = text
         return true
     }
 
     func readClipboard() -> String? {
-        called()
+        called(shell: false)
         return clipboard
     }
 
     func open(_ target: String) throws {
-        called()
+        called(shell: true)
         lock.lock()
         _opened.append(target)
         lock.unlock()
     }
 
     func launchInTerminal(_ argv: [String], prompt: String?) throws {
-        called()
+        called(shell: true)
         lock.lock()
         _launched.append((argv, prompt))
         lock.unlock()
@@ -211,7 +223,7 @@ final class EngineClient: @unchecked Sendable {
          peer: WirePeer = WirePeer(pid: GetCurrentProcessId()), configure: (inout EngineHost.Options) -> Void = { _ in }) {
         panel = RecordingPanel()
         system = RecordingSystem()
-        var options = EngineHost.Options(system: system, systemQueue: testSystemThread)
+        var options = EngineHost.Options(system: system, systemQueue: testShellThread, clipboardQueue: testClipboardThread)
         options.settings = settings
         options.rime = rime
         options.panel = panel

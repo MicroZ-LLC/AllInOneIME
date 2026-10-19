@@ -156,7 +156,7 @@ extension OnTheDesktop {
                 _ = "AIO_DUMP".withCString(encodedAs: UTF16.self) { name in
                     Self.path(out).withCString(encodedAs: UTF16.self) { SetEnvironmentVariableW(name, $0) }
                 }
-                try WindowsSystem(thread: testSystemThread).launchInTerminal([Self.path(agent), "--"], prompt: prompt)
+                try testWindowsSystem().launchInTerminal([Self.path(agent), "--"], prompt: prompt)
                 let deadline = Date().addingTimeInterval(20)
                 while !FileManager.default.fileExists(atPath: out.path), Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
                 let data = try Data(contentsOf: out)

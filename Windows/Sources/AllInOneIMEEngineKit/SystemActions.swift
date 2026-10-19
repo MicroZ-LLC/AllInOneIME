@@ -6,8 +6,9 @@ import WinSDK
 
 /// What the engine does to the system for a Composer's effects (§6 "What the engine does itself"): the clipboard,
 /// opening an address or a file, a program in a terminal window, finding files and apps for `@open`. Windows' own in
-/// the engine (`WindowsSystem`); the tests record them instead. Called on the system queue (`SystemQueue`), except
-/// `search`, which walks folders on a thread of its own.
+/// the engine (`WindowsSystem`); the tests record them instead. The clipboard is used on the clipboard's queue, opening
+/// and terminals on the system queue (`SystemQueue`: the shell's thread), `search`, which walks folders, on a thread of
+/// its own.
 public protocol SystemActions: Sendable {
     /// Puts `text` on the clipboard.
     func copy(_ text: String) -> Bool
@@ -22,8 +23,9 @@ public protocol SystemActions: Sendable {
     func search(_ query: String) -> [SearchResult]
 }
 
-/// Where the engine uses `SystemActions`: a thread of its own (`SystemThread` on Windows), never a session's queue nor
-/// a key's way (§5.4). What comes of it goes back to the session through `ComposerSession.feed`.
+/// Where the engine uses `SystemActions`: threads of its own (`SystemThread` on Windows: the shell's, the clipboard's),
+/// never a session's queue nor a key's way (§5.4). What comes of it goes back to the session through
+/// `ComposerSession.feed`.
 public protocol SystemQueue: Sendable {
     func async(_ work: @escaping @Sendable () -> Void)
 }
@@ -44,25 +46,30 @@ public struct SystemActionError: Error, LocalizedError, Equatable {
 #if os(Windows)
 
 /// Windows' clipboard (CF_UNICODETEXT), ShellExecuteExW, a console window for a terminal command, and `@open`'s search
-/// over the Start menu and the user's own folders. All but the search run on the engine's system thread (`thread`),
-/// whoever calls them: the shell wants its COM apartment, and the clipboard is the thread's message-only window's
-/// (`SystemThread.window`).
+/// over the Start menu and the user's own folders. The clipboard runs on the engine's clipboard thread (`clipboard`),
+/// opening and consoles on its shell thread (`shell`), whoever calls them: the shell wants its COM apartment and may
+/// keep it tens of seconds, and the clipboard is the clipboard thread's message-only window's (`SystemThread.window`),
+/// whose `WM_DESTROYCLIPBOARD` another program's Ctrl+C waits on, so nothing slow ever runs there.
 public struct WindowsSystem: SystemActions {
-    public let thread: SystemThread
+    /// The clipboard's thread: only what is quick.
+    public let clipboard: SystemThread
+    /// The shell's thread: `ShellExecuteExW`, `CreateProcessW`.
+    public let shell: SystemThread
     /// Marks what is copied as not for the clipboard's history and the cloud clipboard
     /// ("ExcludeClipboardContentFromMonitorProcessing"): for the tests, which put the user's clipboard back after.
     var excludedFromHistory = false
 
-    public init(thread: SystemThread) {
-        self.thread = thread
+    public init(clipboard: SystemThread, shell: SystemThread) {
+        self.clipboard = clipboard
+        self.shell = shell
     }
 
-    /// The clipboard's owner is the system thread's window: `SetClipboardData` fails on a clipboard opened without one
-    /// (`OpenClipboard(NULL)`, then `EmptyClipboard`: the owner is NULL), and another program emptying it sends the
-    /// owner `WM_DESTROYCLIPBOARD`, which that thread's message loop answers.
+    /// The clipboard's owner is the clipboard thread's window: `SetClipboardData` fails on a clipboard opened without
+    /// one (`OpenClipboard(NULL)`, then `EmptyClipboard`: the owner is NULL), and another program emptying it sends the
+    /// owner `WM_DESTROYCLIPBOARD`, which that thread's message loop answers at once.
     public func copy(_ text: String) -> Bool {
-        thread.sync { [excludedFromHistory] in
-            guard let window = thread.window, Self.openClipboard(window) else { return false }
+        clipboard.sync { [excludedFromHistory, clipboard] in
+            guard let window = clipboard.window, Self.openClipboard(window) else { return false }
             defer { CloseClipboard() }
             guard EmptyClipboard(), Self.set(UINT(CF_UNICODETEXT), Data(bytes: Array(text.utf16) + [0], count: (text.utf16.count + 1) * 2)) else {
                 return false
@@ -73,8 +80,8 @@ public struct WindowsSystem: SystemActions {
     }
 
     public func readClipboard() -> String? {
-        thread.sync {
-            guard IsClipboardFormatAvailable(UINT(CF_UNICODETEXT)), let window = thread.window, Self.openClipboard(window) else {
+        clipboard.sync { [clipboard] in
+            guard IsClipboardFormatAvailable(UINT(CF_UNICODETEXT)), let window = clipboard.window, Self.openClipboard(window) else {
                 return nil
             }
             defer { CloseClipboard() }
@@ -117,7 +124,7 @@ public struct WindowsSystem: SystemActions {
     }
 
     public func open(_ target: String) throws {
-        _ = try thread.syncThrowing { try Self.shellOpen(target) }
+        _ = try shell.syncThrowing { try Self.shellOpen(target) }
     }
 
     /// `ShellExecuteExW`'s "open", as Explorer opens what is double-clicked. The client gave the engine the right to
@@ -151,7 +158,7 @@ public struct WindowsSystem: SystemActions {
     /// line in a file), in the user's home folder. Started suspended: the right to take the foreground the client gave
     /// the engine (`allowForeground`) goes to that one process, then it runs.
     public func launchInTerminal(_ argv: [String], prompt: String?) throws {
-        try thread.syncThrowing {
+        try shell.syncThrowing {
             let path = WindowsPrograms.variable("PATH", in: ProcessInfo.processInfo.environment)
             let command = try ConsoleCommand.make(argv, prompt: prompt, path: path, promptFolder: ConsoleCommand.defaultPromptFolder)
             do {

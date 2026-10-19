@@ -175,8 +175,10 @@ func runEngine(_ options: EngineOptions) -> Never {
     }
 
     let clock: WireClock = options.test && !options.systemClock ? ManualClock() : SystemClock()
-    let systemThread = SystemThread()
-    var hostOptions = EngineHost.Options(system: WindowsSystem(thread: systemThread), systemQueue: systemThread)
+    let shellThread = SystemThread(name: "AllInOneIME shell")
+    let clipboardThread = SystemThread(name: "AllInOneIME clipboard")
+    var hostOptions = EngineHost.Options(system: WindowsSystem(clipboard: clipboardThread, shell: shellThread),
+                                         systemQueue: shellThread, clipboardQueue: clipboardThread)
     hostOptions.testMode = options.test
     hostOptions.foreground = { peer in peer.pid.map(Foreground.isOwned(by:)) ?? false }
     hostOptions.caretBounds = { Foreground.caretBounds(hwnd: $0, pid: $1) }

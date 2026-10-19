@@ -12,9 +12,9 @@ import Foundation
 /// - **Level two:** the AI requests through the core's `Converter` and the provider the settings name, the API key from
 ///   the Credential Manager (`APIKeys`); programs, scripts, plugins and `@js` through the core's runners (the Windows
 ///   process launcher, QuickJS in a child process of this program).
-/// - **The rest:** the clipboard, opening addresses and files, terminal windows (`SystemActions`), on the system's
-///   thread (`SystemQueue`), never on the session's queue: a key's reply never waits on them (§5.4); what comes of them
-///   goes back through `ComposerSession.feed`. What only macOS has (Apple Notes, Reminders, Messages, dictation) says
+/// - **The rest:** the clipboard, opening addresses and files, terminal windows (`SystemActions`), on threads of the
+///   system's (`SystemQueue`: the clipboard's, the shell's), never on the session's queue: a key's reply never waits on
+///   them (§5.4); what comes of them goes back through `ComposerSession.feed`. What only macOS has (Apple Notes, Reminders, Messages, dictation) says
 ///   so in a notice.
 ///
 /// In test mode (`--test`) the Composer types Latin letters, level two comes from a golden's `ScriptedProvider`, and
@@ -35,16 +35,21 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         public var rime: EngineRime?
         public var panel: PanelPresenter = NoPanel()
         public var system: SystemActions
-        /// Where `system` is used: a thread of its own, never a session's queue nor a key's way (§5.4).
+        /// Where `system` opens and starts programs: a thread of its own, never a session's queue nor a key's way
+        /// (§5.4).
         public var systemQueue: SystemQueue
+        /// Where `system`'s clipboard is used: another thread, which never waits on the first's (the shell can take
+        /// tens of seconds, and another app's Ctrl+C waits on the clipboard's owner).
+        public var clipboardQueue: SystemQueue
         /// This program, for `@js` and script plugins, which run in a child process of it (`--run-js`, `--run-plugin`).
         public var executable: String = CommandLine.arguments.first ?? ""
         /// The requests' converter; nil: one on `settings` and the platform's API keys.
         public var converter: Converter?
 
-        public init(system: SystemActions, systemQueue: SystemQueue) {
+        public init(system: SystemActions, systemQueue: SystemQueue, clipboardQueue: SystemQueue) {
             self.system = system
             self.systemQueue = systemQueue
+            self.clipboardQueue = clipboardQueue
         }
     }
 
@@ -59,6 +64,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public let panelPresenter: PanelPresenter
     let system: SystemActions
     let systemQueue: SystemQueue
+    let clipboardQueue: SystemQueue
     let executable: String
     public let converter: Converter
 
@@ -79,6 +85,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         panelPresenter = options.panel
         system = options.system
         systemQueue = options.systemQueue
+        clipboardQueue = options.clipboardQueue
         executable = options.executable
         let settings = options.settings
         converter = options.converter ?? Converter(loadConfig: { settings.current })
@@ -349,14 +356,14 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             open(url.isFileURL ? url.path : url.absoluteString, in: session)
         case let .copy(text):
             let failed = tr("没能复制到剪贴板", "Couldn't copy to the clipboard")
-            onSystem(session) { system in
+            onSystem(session, clipboardQueue) { system in
                 guard system.copy(text) else { throw SystemActionError(failed) }
             }
         case let .readClipboard(id):
-            // On the system's thread, never on the session's queue: the program that put the text there may render it
-            // only when asked (WM_RENDERFORMAT), and that may be the app whose key waits for this queue.
+            // On the clipboard's thread, never on the session's queue: the program that put the text there may render
+            // it only when asked (WM_RENDERFORMAT), and that may be the app whose key waits for this queue.
             let (system, log, sid) = (self.system, self.log, session.sid)
-            systemQueue.async { [weak session] in
+            clipboardQueue.async { [weak session] in
                 let text = system.readClipboard()
                 log("session \(sid): clipboard for a command: \(text.map { "\($0.count) characters" } ?? "nothing")")
                 session?.feed { $0.pasted(text, id: id) }
@@ -395,11 +402,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         }
     }
 
-    /// `work` on the system's thread (`systemQueue`); its error, if it throws, a notice in `session`'s panel, through
-    /// the session's queue.
-    func onSystem(_ session: ComposerSession, _ work: @escaping @Sendable (SystemActions) throws -> Void) {
+    /// `work` on one of the system's threads (`queue`; the shell's, `systemQueue`, if not given); its error, if it
+    /// throws, a notice in `session`'s panel, through the session's queue.
+    func onSystem(_ session: ComposerSession, _ queue: SystemQueue? = nil,
+                  _ work: @escaping @Sendable (SystemActions) throws -> Void) {
         let system = self.system
-        systemQueue.async { [weak self, weak session] in
+        (queue ?? systemQueue).async { [weak self, weak session] in
             do {
                 try work(system)
             } catch {
@@ -451,8 +459,8 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             } catch {
                 guard let self, let session else { return }
                 let message = error is UnavailableNotes.Unavailable ? unsaved : Self.describe(error)
-                // On the clipboard (on the system's thread), then the notice that says so.
-                self.onSystem(session) { system in
+                // On the clipboard (on its thread), then the notice that says so.
+                self.onSystem(session, self.clipboardQueue) { system in
                     _ = system.copy(text)
                     throw SystemActionError(message)
                 }

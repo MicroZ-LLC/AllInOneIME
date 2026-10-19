@@ -2,10 +2,13 @@
 import Foundation
 import WinSDK
 
-/// The engine's thread for what it asks of the system (`SystemActions`): `ShellExecuteExW`, `CreateProcessW`, the
-/// clipboard. None of it runs on a session's queue or on a key's way (§5.4: the reply to a key never waits on it): a
-/// path on a share that is offline keeps the shell tens of seconds (past the 2 s watchdog), and reading the clipboard
-/// can wait on the program that put a format there to render it, which may be the very app whose key is waiting.
+/// One of the engine's threads for what it asks of the system (`SystemActions`): the shell's (`ShellExecuteExW`,
+/// `CreateProcessW`) and the clipboard's, two of them. None of it runs on a session's queue or on a key's way (§5.4:
+/// the reply to a key never waits on it): a path on a share that is offline keeps the shell tens of seconds (past the
+/// 2 s watchdog), and reading the clipboard can wait on the program that put a format there to render it, which may be
+/// the very app whose key is waiting. And the clipboard's never waits on the shell's: while what the engine copied is
+/// on the clipboard, another program's `EmptyClipboard` (its Ctrl+C) waits for this thread's window to answer
+/// `WM_DESTROYCLIPBOARD`.
 ///
 /// A COM single-threaded apartment (`CoInitializeEx`, as the shell asks of its callers) with a message loop, as such a
 /// thread must have: what COM and the windows of this thread are sent is answered while it waits for work. Work runs
@@ -16,14 +19,16 @@ public final class SystemThread: SystemQueue, @unchecked Sendable {
     /// Set when there is work.
     private let wake: HANDLE
     public private(set) var threadId: DWORD = 0
-    /// The thread's message-only window: the clipboard's owner while what the engine copied is on it.
+    /// The thread's message-only window: the clipboard's owner while what the engine copied is on it (the clipboard's
+    /// thread's).
     public private(set) var window: HWND?
 
-    public init() {
+    /// `name`: the thread's, for a debugger.
+    public init(name: String = "AllInOneIME system") {
         wake = CreateEventW(nil, false, false, nil)
         let ready = DispatchSemaphore(value: 0)
         let thread = Thread { [self] in run(ready) }
-        thread.name = "AllInOneIME system"
+        thread.name = name
         thread.start()
         ready.wait()
     }

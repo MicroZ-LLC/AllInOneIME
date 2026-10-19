@@ -32,8 +32,10 @@ struct EffectsTests {
         client.host.perform(.runInTerminal(prompt: "fix the bug"), in: session)
         client.host.perform(.continueInClaudeCode(prompt: "-the conversation"), in: session)
         #expect(client.wait { client.system.launched.count == 3 })
-        // All of it on the engine's system thread, none on the session's queue.
-        #expect(client.system.threads == [testSystemThread.threadId])
+        // All of it on the engine's system threads, none on the session's queue: the clipboard on its own, opening and
+        // terminals on the shell's.
+        #expect(client.system.clipboardThreads == [testClipboardThread.threadId])
+        #expect(client.system.shellThreads == [testShellThread.threadId])
         let launched = client.system.launched
         #expect(launched.map(\.argv) == [["git", "status"], ["claude", "--"], ["claude", "--"]])
         // The prompt is the agent's first message, after "--": never read as an option.
@@ -174,8 +176,34 @@ struct EffectsTests {
         gate.signal()
         #expect(client.wait { client.system.opened == [#"\\offline\share"#] })
         #expect(client.wait { client.composer.draft.contains("pasted") })
-        #expect(client.system.threads == [testSystemThread.threadId])
+        #expect(client.system.clipboardThreads == [testClipboardThread.threadId])
+        #expect(client.system.shellThreads == [testShellThread.threadId])
         client.system.gate = nil
+    }
+
+    /// The clipboard never waits on the shell: with `@open` hanging on a share that is offline (or ShellExecuteExW on a
+    /// DDE conversation), Ctrl+C copies and Ctrl+V pastes at once, on the clipboard's own thread.
+    @Test(.timeLimit(.minutes(1))) func theClipboardNeverWaitsOnTheShell() throws {
+        let (client, folder) = try client()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let session = try #require(client.host.liveSessions.first)
+        let shell = DispatchSemaphore(value: 0)
+        client.system.shellGate = shell
+        defer {
+            client.system.shellGate = nil
+            shell.signal()
+        }
+        client.host.perform(.open(path: #"\\offline\share"#), in: session)
+        client.host.perform(.copy("copied while the shell hangs"), in: session)
+        #expect(client.wait(5) { client.system.clipboard == "copied while the shell hangs" })
+        client.system.clipboard = "pasted while the shell hangs"
+        client.type("@improve ")
+        client.press(vk: 0x56, scan: 0x2F, text: "\u{16}", ignoringModifiers: "v", modifiers: [.control, .leftControl])
+        #expect(client.wait(5) { client.composer.draft.contains("pasted while the shell hangs") })
+        #expect(client.system.opened.isEmpty)
+        shell.signal()
+        #expect(client.wait { client.system.opened == [#"\\offline\share"#] })
+        #expect(client.system.clipboardThreads == [testClipboardThread.threadId])
     }
 
     @Test func fileSearchFindsAddressesAndPaths() {

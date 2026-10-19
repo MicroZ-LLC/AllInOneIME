@@ -12,26 +12,65 @@ extension OnTheDesktop {
     struct WindowsSystemTests {
         static func path(_ url: URL) -> String { url.withUnsafeFileSystemRepresentation { String(cString: $0!) } }
 
-        /// Ctrl+C and Ctrl+V's clipboard, for real: what is copied is on the clipboard, owned by the system thread's
+        /// Ctrl+C and Ctrl+V's clipboard, for real: what is copied is on the clipboard, owned by the clipboard thread's
         /// message-only window (with none, `SetClipboardData` fails), and reads back as it was, from any thread. The
         /// clipboard as it was before (the user's, in a desktop session) is put back after, and what the test copies is
         /// kept out of the clipboard's history.
         @Test(.timeLimit(.minutes(1))) func theClipboardRoundTrips() throws {
-            var system = WindowsSystem(thread: testSystemThread)
+            var system = testWindowsSystem()
             system.excludedFromHistory = true
-            let saved = ClipboardContents.take(on: testSystemThread)
-            defer { saved.restore(on: testSystemThread) }
+            let saved = ClipboardContents.take(on: testClipboardThread)
+            defer { saved.restore(on: testClipboardThread) }
             let texts = ["AllInOneIME clipboard test \(UUID().uuidString)",
                          "你好，“引号”和‘单引号’ 👋\r\nline two\ttab \\ \" ' & % ^",
                          String(repeating: "长文本 long text. ", count: 5_000)]
             for text in texts {
                 #expect(system.copy(text))
                 let owner = GetClipboardOwner()
-                #expect(owner != nil && owner == testSystemThread.window)
+                #expect(owner != nil && owner == testClipboardThread.window)
                 #expect(system.readClipboard() == text)
-                // On the system thread itself too, as the engine reads it (Ctrl+V).
-                #expect(testSystemThread.sync { system.readClipboard() } == text)
+                // On the clipboard thread itself too, as the engine reads it (Ctrl+V).
+                #expect(testClipboardThread.sync { system.readClipboard() } == text)
             }
+        }
+
+        /// The clipboard's thread is never the shell's: with the shell's busy (ShellExecuteExW on a share that is
+        /// offline, on a DDE conversation), the engine still copies and reads, and another program's Ctrl+C, whose
+        /// `EmptyClipboard` waits for the owner's window to answer `WM_DESTROYCLIPBOARD`, isn't held up.
+        @Test(.timeLimit(.minutes(1))) func theClipboardAnswersWhileTheShellIsBusy() throws {
+            var system = testWindowsSystem()
+            system.excludedFromHistory = true
+            let saved = ClipboardContents.take(on: testClipboardThread)
+            defer { saved.restore(on: testClipboardThread) }
+            let busy = DispatchSemaphore(value: 0), started = DispatchSemaphore(value: 0)
+            testShellThread.async {
+                started.signal()
+                busy.wait()
+            }
+            defer { busy.signal() }
+            started.wait()
+            /// `work` on a thread of its own, if it is done within 5 s.
+            func within5s<T>(_ work: @escaping @Sendable () -> T) -> T? {
+                let done = DispatchSemaphore(value: 0)
+                nonisolated(unsafe) var result: T?
+                Thread.detachNewThread {
+                    result = work()
+                    done.signal()
+                }
+                return done.wait(timeout: .now() + 5) == .success ? result : nil
+            }
+            let text = "AllInOneIME clipboard test \(UUID().uuidString)"
+            let copier = system
+            #expect(within5s { copier.copy(text) } == true)
+            #expect(GetClipboardOwner() == testClipboardThread.window)
+            #expect(within5s { copier.readClipboard() } == text)
+            // Another program empties it, as its Ctrl+C does: the owner is told, and answers.
+            let emptied = within5s { () -> Bool in
+                guard OpenClipboard(nil) else { return false }
+                defer { CloseClipboard() }
+                return EmptyClipboard()
+            }
+            #expect(emptied == true)
         }
 
         /// `@open` of a file: the shell starts what opens it (a batch file runs), and that process, and only it, gets
@@ -42,13 +81,13 @@ extension OnTheDesktop {
             let marker = folder.appendingPathComponent("opened.txt")
             let script = folder.appendingPathComponent("opened.cmd")
             try Data("@echo opened> \"\(Self.path(marker))\"\r\n".utf8).write(to: script)
-            let pid = try testSystemThread.syncThrowing { try WindowsSystem.shellOpen(Self.path(script)) }
+            let pid = try testShellThread.syncThrowing { try WindowsSystem.shellOpen(Self.path(script)) }
             #expect(pid != nil && pid != 0)
             let deadline = Date().addingTimeInterval(20)
             while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
             #expect(FileManager.default.fileExists(atPath: marker.path))
             let missing = Self.path(folder.appendingPathComponent("missing.txt"))
-            #expect(throws: SystemActionError.self) { try WindowsSystem(thread: testSystemThread).open(missing) }
+            #expect(throws: SystemActionError.self) { try testWindowsSystem().open(missing) }
         }
     }
 }
