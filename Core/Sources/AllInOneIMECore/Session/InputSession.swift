@@ -90,7 +90,7 @@ public final class InputSession {
     /// arguments of a request while its environment is made.
     private var scriptRun: (request: Int, run: Int)?
     private var scriptStarted = Date()
-    private var preparingScripts: [Int: (script: ScriptCommand, arguments: [String])] = [:]
+    private(set) var preparingScripts: [Int: (script: ScriptCommand, arguments: [String])] = [:]
     /// The page asked for while `@agent …` is written (`wakePageIfAgent`), and the focus it was asked for in; what waits
     /// for a page being read.
     private var wokenPage: PageSource?
@@ -385,7 +385,9 @@ public final class InputSession {
     // MARK: - Keys
 
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
-    /// the key on, asking again until there is nothing more (twice at most). A shell where reading is cheap reads it all.
+    /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
+    /// may need, with the character before an "@"; the selection, unless that "@" comes right after a word). A shell where
+    /// reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
@@ -880,6 +882,7 @@ public final class InputSession {
             perform(composer.receive(update.result, isFinal: update.isFinal, id: request))
         case let .failed(error, request):
             if id.slot == .script, scriptRun?.request == request { scriptRun = nil }
+            preparingScripts[request] = nil  // a script waiting for its environment (that couldn't be made) never starts
             let message: String
             if let error = error as? DescribedError {
                 message = error.message

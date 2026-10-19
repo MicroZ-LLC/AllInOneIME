@@ -609,6 +609,32 @@ struct InputSessionTests {
         }
     }
 
+    @Test func aScriptWhoseEnvironmentCantBeMadeIsLetGo() {
+        inEnglish {
+            let folder = URL(fileURLWithPath: "/tmp/stand-in-scripts", isDirectory: true)
+            let script = ScriptCommand(source: .bundle("greeter"), file: folder.appendingPathComponent("greet.sh"), name: "greet",
+                                       title: "Greet", output: .show)
+            let bundle = ExtensionBundle(folder: folder, name: "greeter", title: "Greeter",
+                                         preferences: [.init(name: "token", title: "Token", required: true)])
+            let ran = Locked(initialState: 0)
+            let host = host {
+                $0.loadExtensions = { _, _ in ExtensionIndex(commands: [script], bundles: [bundle]) }
+                $0.startScript = { _, _, _, _ in
+                    ran.withLock { $0 += 1 }
+                    return 1
+                }
+            }
+            host.send(.focus(FieldInfo(app: host.app)))  // the extensions read again
+            host.composer.setInputMode(.english)  // letters, not pinyin
+            pick("gre", in: host)
+            host.type("you")
+            host.press(FakeHost.enter)
+            #expect(host.settle { host.composer.phase == .failed("Set “Token” for Greeter in the settings first") },
+                    "\(host.composer.phase)")
+            #expect(ran.withLock { $0 } == 0 && host.session.preparingScripts.isEmpty, "nothing waits to start")
+        }
+    }
+
     // MARK: - More of the self-test's
 
     @Test func aSnippetsCaretGoesWhereItsCursorIs() {
