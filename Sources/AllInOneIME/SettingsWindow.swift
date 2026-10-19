@@ -6,48 +6,6 @@ import Carbon
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Models offered in the settings window (any Bedrock model / inference-profile ID can be typed in).
-/// Measured on 10 everyday sentences with the default presets (2026-10).
-struct SuggestedModel: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let note: String
-
-    /// The models offered for `provider` (any other ID can be typed in).
-    static func suggested(for provider: Provider) -> [SuggestedModel] {
-        switch provider {
-        case .bedrock: return all
-        case .anthropic:
-            return [
-                SuggestedModel(id: "claude-haiku-5-5", title: "Claude Haiku 5.5", note: tr("默认：最快、最便宜", "Default: fastest, cheapest")),
-                SuggestedModel(id: "claude-sonnet-5-5", title: "Claude Sonnet 5.5", note: tr("更用心，慢一些", "More careful, slower")),
-                SuggestedModel(id: "claude-opus-5-5", title: "Claude Opus 5.5", note: tr("最强，最慢最贵", "Most capable, slowest, priciest")),
-            ]
-        case .gemini:
-            return [SuggestedModel(id: "gemini-3.8-flash", title: "Gemini 3.8 Flash", note: tr("默认", "Default"))]
-        case .hosted, .apple:
-            return []  // the service (the system) picks the model
-        case .openai:
-            // OpenAI's own; for another service (DeepSeek, Qwen, Ollama, …), "Custom…" and its base URL.
-            return [
-                SuggestedModel(id: "gpt-6-luna", title: "GPT-6 Luna", note: tr("默认：最快、最省", "Default: fastest, cheapest", key: "models.openaiDefault")),
-                SuggestedModel(id: "gpt-5.4-mini", title: "GPT-5.4 mini", note: tr("上一代 mini", "The previous mini")),
-            ]
-        }
-    }
-
-    static var all: [SuggestedModel] {
-        [
-            SuggestedModel(id: "us.anthropic.claude-haiku-4-5-20251001-v1:0", title: "Claude Haiku 4.5",
-                           note: tr("推荐：约 1.3 秒，质量好", "Recommended: about 1.3 s, good quality")),
-            SuggestedModel(id: "us.anthropic.claude-sonnet-4-6", title: "Claude Sonnet 4.6",
-                           note: tr("约 2.2 秒，改写最用心", "About 2.2 s, the most careful rewrites")),
-            SuggestedModel(id: "us.amazon.nova-2-lite-v1:0", title: "Amazon Nova 2 Lite",
-                           note: tr("约 1 秒，最便宜，润色偏弱", "About 1 s, cheapest, weaker polish")),
-        ]
-    }
-}
-
 /// State of the settings window, around the core's `SettingsStore` (the config file, the rules each change follows, the
 /// keys: what Windows' Settings app has too), with what only the Mac has: its open panels, the menu bar icon, iCloud,
 /// Apple Notes, the voice models, the AllInOneIME Cloud sign-in. Every change is written to the config file right away;
@@ -2169,43 +2127,14 @@ struct SettingsView: View {
         model.store.removeOutputLanguage(language)
     }
 
-    /// The typing speed as shown: "每秒 16 个字" / "16 a second", or slower than one a second "6 秒一个字" / "6 s each".
-    static func rateLabel(_ rate: Double) -> String {
-        if rate >= 1 { return tr("每秒 \(Int(rate.rounded())) 个字", "\(Int(rate.rounded())) a second") }
-        let seconds = 1 / rate
-        let shown = seconds < 2 ? String(format: "%.1f", seconds) : String(Int(seconds.rounded()))
-        return tr("\(shown) 秒一个字", "\(shown) s each")
-    }
+    /// The typing speed as shown (`TypeOut.label`).
+    static func rateLabel(_ rate: Double) -> String { TypeOut.label(rate: rate) }
 
-    /// Slider values rounded to what the label shows (whole characters a second, or whole / tenth seconds each).
-    static func roundedRate(_ rate: Double) -> Double {
-        if rate >= 1 { return rate.rounded() }
-        let seconds = 1 / rate
-        return 1 / (seconds < 2 ? (seconds * 10).rounded() / 10 : seconds.rounded())
-    }
+    /// Slider values rounded to what the label shows (`TypeOut.rounded`).
+    static func roundedRate(_ rate: Double) -> Double { TypeOut.rounded(rate: rate) }
 
-    /// How the chosen action key works, and what Space does with it.
-    static func actionKeyNote(_ key: ActionKey) -> String {
-        switch key {
-        case .enter:
-            return tr("@ 命令写完按 ⏎ 执行，拼音没选完也能直接按。没有 @ 时 ⏎ 就是普通回车。",
-                      "Return runs an @ command, also on pinyin not yet picked. Without @, Return is a normal Return.")
-        case .optionTap:
-            return tr("按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。",
-                      "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return.")
-        case .optionSpace:
-            return tr("拼音没选完也可以直接按 ⌥空格。⌥空格被 Alfred、Raycast 等占用时，改用「单按 ⌥」。@ 命令按 ⏎ 也执行。",
-                      "⌥Space also works before the pinyin is picked. If Alfred, Raycast or another app uses ⌥Space, "
-                          + "choose Tap ⌥. @ commands also run on Return.")
-        case .space:
-            return tr("空格先选词，没有要选的了再按一次空格执行；英文模式下连按两次空格。@ 命令按 ⏎ 也执行。",
-                      "Space picks words; once nothing is left to pick, Space again runs it. In English mode, press Space twice. "
-                          + "@ commands also run on Return.")
-        case let .shortcut(key):
-            return tr("@ 命令写完按 \(key.name) 执行；⏎ 也执行，没有 @ 时 ⏎ 是普通回车。",
-                      "\(key.name) runs an @ command; Return does too, and without @ Return is a normal Return.")
-        }
-    }
+    /// How the chosen action key works (`UIText.actionKeyNote`).
+    static func actionKeyNote(_ key: ActionKey) -> String { UIText.actionKeyNote(key) }
 
     @ViewBuilder
     private func modelStatus(_ language: Language) -> some View {

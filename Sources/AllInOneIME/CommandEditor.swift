@@ -272,23 +272,7 @@ struct CommandEditor: View {
         missingProgram = found ? nil : program
     }
 
-    static func describe(_ problem: CustomCommand.Problem) -> String {
-        switch problem {
-        case .emptyName: return tr("给命令起个名字", "Give the command a name")
-        case .nameNotLetters: return tr("名字只能用英文字母（最多 24 个）", "Names are letters only (24 at most)")
-        case .nameTaken: return tr("这个名字已经有命令在用了", "Another command has this name")
-        case .emptyPrompt: return tr("写上给 AI 的指令", "Write the instruction for the AI")
-        case .emptyCommand: return tr("写上要运行的命令", "Write the command to run")
-        case .unbalancedQuote: return tr("命令里有引号没有配对", "A quote in the command isn't closed")
-        case .link(.empty): return tr("写上要打开的网址", "Write the address to open")
-        case .link(.notHTTPS): return tr("网址要以 https:// 开头", "The address must start with https://")
-        case .link(.placeholderCount): return tr("网址里要有一个 {input}", "Put {input} in the address once")
-        case .link(.placeholderNotInQuery): return tr("{input} 要放在 ? 后面", "Put {input} after the ? in the address")
-        case .link(.invalid): return tr("网址格式不对", "The address isn't valid")
-        case .emptyText: return tr("写上要插入的文字", "Write the text to insert")
-        case .twoCursors: return tr("{cursor} 只能有一个", "{cursor} can appear only once")
-        }
-    }
+    static func describe(_ problem: CustomCommand.Problem) -> String { UIText.describe(problem) }
 
     /// The menu's starting points.
     static var examples: [CustomCommand] {

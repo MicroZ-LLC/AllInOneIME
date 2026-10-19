@@ -13,7 +13,7 @@ struct SettingsStoreTests {
           "provider" : "anthropic",
           "maxTokens": 1000,
           "aLaterVersionsKey" : {"kept": [1, 2.50, "as is"]},
-          "inputLanguages" : ["chinese", "english"],
+          "inputLanguages" : ["zh", "en"],
           "anthropic" : { "model" : "claude-haiku-5-5", "aFieldOfLater" : true }
         }
 
@@ -192,7 +192,7 @@ struct SettingsStoreTests {
 
     /// Input languages: one to five, the first the default; removing the only one leaves English.
     @Test func inputLanguages() throws {
-        let store = SettingsStore(configURL: try file("{\"inputLanguages\": [\"english\"]}"))
+        let store = SettingsStore(configURL: try file("{\"inputLanguages\": [\"en\"]}"))
         store.addInputLanguage(.chinese)
         store.addInputLanguage(.french)
         #expect(store.config.inputLanguages == [.english, .chinese, .french] && store.config.defaultInput == .english)
