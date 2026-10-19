@@ -6,7 +6,8 @@ import Foundation
 /// `terminal` command): what `CreateProcessW` is given. No shell in between, so nothing in a prompt is ever code:
 ///
 /// - the program is found as cmd.exe finds one (`WindowsPrograms.find`: on the PATH, PATHEXT's extensions added,
-///   never in the current folder): `claude` is claude.exe, or npm's claude.cmd;
+///   never in the current folder): `claude` is claude.exe, or npm's claude.cmd; a relative path (`.\tools\x.cmd`) is
+///   in the folder the program runs in (the home folder), not the engine's current folder;
 /// - a .exe gets its arguments quoted as the C runtime reads them back (`WindowsCommandLine`); a .bat or .cmd goes
 ///   through cmd.exe with its arguments escaped so that cmd.exe runs and expands nothing in them (BatBadBut,
 ///   CVE-2024-24576); a script through its interpreter (`WindowsPrograms.invocation`);
@@ -27,10 +28,12 @@ public struct ConsoleCommand: Equatable {
     public static let maxBatchCommandLine = 8_191
 
     /// `argv` (the program first), and `prompt` after it as its last argument when there is one. `path`: the PATH the
-    /// program is looked for in; `promptFolder`: where a prompt too long for the command line goes.
-    public static func make(_ argv: [String], prompt: String? = nil, path: String?, promptFolder: URL) throws -> ConsoleCommand {
+    /// program is looked for in; `directory`: the folder it runs in, where a relative path to it starts;
+    /// `promptFolder`: where a prompt too long for the command line goes.
+    public static func make(_ argv: [String], prompt: String? = nil, path: String?, directory: URL = CorePaths.home,
+                            promptFolder: URL) throws -> ConsoleCommand {
         guard let program = argv.first, !program.isEmpty else { throw SystemActionError("No program to run") }
-        guard let file = WindowsPrograms.find(program, path: path, expandingTilde: true) else {
+        guard let file = WindowsPrograms.find(program, path: path, directory: directory, expandingTilde: true)?.standardizedFileURL else {
             throw SystemActionError("Couldn't find \(program): is it installed, and on the PATH?")
         }
         let arguments = Array(argv.dropFirst())

@@ -90,15 +90,42 @@ extension OnTheDesktop {
             #expect(throws: SystemActionError.self) {
                 try ConsoleCommand.make(["no-such-agent", "--"], prompt: "hi", path: Self.path(folder), promptFolder: folder)
             }
-            // Never the current folder: a program planted where the engine runs isn't taken.
+            // Never the current folder: a program planted where the engine runs isn't taken, nor in the folder the
+            // program would run in.
+            let planted = try self.folder(with: ["agent.exe", "agent.cmd"])
+            defer { try? FileManager.default.removeItem(at: planted) }
+            let current = FileManager.default.currentDirectoryPath
+            #expect(FileManager.default.changeCurrentDirectoryPath(planted.path))
             #expect(throws: SystemActionError.self) {
-                try ConsoleCommand.make(["agent"], prompt: nil, path: "", promptFolder: folder)
+                try ConsoleCommand.make(["agent"], prompt: nil, path: "", directory: planted, promptFolder: folder)
             }
+            _ = FileManager.default.changeCurrentDirectoryPath(current)
             // A custom `terminal` command too long for any command line is refused (it has no prompt to put in a file).
             let program = try self.folder(with: ["tool.exe"])
             defer { try? FileManager.default.removeItem(at: program) }
             #expect(throws: SystemActionError.self) {
                 try ConsoleCommand.make(["tool", String(repeating: "x", count: 40_000)], prompt: nil, path: Self.path(program), promptFolder: folder)
+            }
+        }
+
+        /// A program given by a relative path (`.\tools\agent.cmd`, `tools/agent.exe`) is the one in the folder it runs
+        /// in (the home folder), not in the engine's current folder.
+        @Test func aRelativePathIsInTheFolderItRunsIn() throws {
+            let home = try folder(with: [])
+            defer { try? FileManager.default.removeItem(at: home) }
+            let tools = home.appendingPathComponent("tools", isDirectory: true)
+            try FileManager.default.createDirectory(at: tools, withIntermediateDirectories: true)
+            for name in ["agent.cmd", "agent.exe"] { try Data("MZ".utf8).write(to: tools.appendingPathComponent(name)) }
+            let elsewhere = try folder(with: [])
+            defer { try? FileManager.default.removeItem(at: elsewhere) }
+            let batch = try ConsoleCommand.make([#".\tools\agent.cmd"#, "--"], prompt: "hi", path: "", directory: home, promptFolder: home)
+            #expect(batch.application.lowercased().hasSuffix(#"\cmd.exe"#))
+            #expect(batch.commandLine.contains(Self.path(tools.appendingPathComponent("agent.cmd"))), "\(batch.commandLine)")
+            let program = try ConsoleCommand.make(["tools/agent.exe"], prompt: nil, path: "", directory: home, promptFolder: home)
+            #expect(program.application == Self.path(tools.appendingPathComponent("agent.exe")))
+            // Not there for a program run in another folder.
+            #expect(throws: SystemActionError.self) {
+                try ConsoleCommand.make(["tools/agent.exe"], prompt: nil, path: "", directory: elsewhere, promptFolder: home)
             }
         }
 
