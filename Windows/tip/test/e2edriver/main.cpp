@@ -2,24 +2,25 @@
 // and SendInput need an interactive desktop, see README), starts the real engine and real, registered DLL, and types
 // English into real Notepad through AllInOneIME, reading the result back through UI Automation.
 //
-//   e2edriver --engine <AllInOneIMEEngine.exe> --fixture <provider.json>
-//             [--engine-log <file>] [--langid 0x0409] [--timeout-ms 60000] [--probe]
+//   e2edriver --engine <AllInOneIMEEngine.exe> (--fixture <provider.json> | --plain <text>)
+//             [--engine-log <file>] [--langid 0x0409] [--timeout-ms 60000] [--expect-tip <dll>] [--probe] [--host]
 //
 // What it does:
 //   1. starts the engine in this session (so it and the DLL pass §2.1's same-session client check), in test mode with
-//      the scripted provider on the system clock, so the @improve stream plays out in real time;
+//      the scripted provider on the system clock, so the @improve stream plays out in real time; with --plain, as it
+//      runs for a user (no test mode, no provider);
 //   2. enables per-thread input settings for the session (in memory), so switching an input method changes only the
 //      window it is done on, never every app (see the README's warning about the session-wide input method);
 //   3. starts Notepad and finds its editable document through UIA;
-//   4. activates the AllInOneIME profile for Notepad's thread only (WM_INPUTLANGCHANGEREQUEST with the profile's HKL,
-//      the way the language bar switches one window), never for the session;
-//   5. types "hi @improve helo", Return, "1" with SendInput — each key only while Notepad has the foreground, and
-//      stopping at once if it ever doesn't, so no key reaches another window;
-//   6. reads Notepad's text with UIA TextPattern and checks it is "hi Hello.".
+//   4. activates the AllInOneIME profile for Notepad's process only, from inside it (the e2ehook), never for the
+//      session; --expect-tip names the DLL that must then be loaded there (an installed copy);
+//   5. types "hi @improve helo", Return, "1" (or the --plain text) with SendInput — each key only while Notepad has the
+//      foreground, and stopping at once if it ever doesn't, so no key reaches another window;
+//   6. reads Notepad's text with UIA TextPattern and checks it is "hi Hello." (or the --plain text, passed through).
 //
-// At the end it puts Notepad's thread back to the input method it had, closes Notepad, stops the engine, and restores
+// At the end it puts Notepad back on the session's input method, closes its own tab, stops the engine, and restores
 // the per-thread input setting. --probe stops after step 4 and reports what it found (used to settle how the switch
-// works on this machine); it changes nothing lasting either.
+// works on this machine); it changes nothing lasting either. --host types into an EDIT control of its own instead.
 
 #include <windows.h>
 #include <msctf.h>
@@ -305,19 +306,28 @@ bool Chord(WORD mod, WORD vk, DWORD pid) {
     return true;
 }
 
-// Whether the TIP DLL is loaded in process `pid` (a diagnostic: it loads when AllInOneIME engages).
-bool TipLoaded(DWORD pid) {
+// The TIP DLLs loaded in process `pid`, by path (it loads when AllInOneIME engages; an installed copy and a build's
+// can both be there, in a Notepad that outlived an earlier run).
+std::vector<std::wstring> TipModules(DWORD pid) {
+    std::vector<std::wstring> paths;
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
-    if (snap == INVALID_HANDLE_VALUE) return false;
+    if (snap == INVALID_HANDLE_VALUE) return paths;
     MODULEENTRY32W me = {sizeof me};
-    bool found = false;
     if (Module32FirstW(snap, &me)) {
         do {
-            if (_wcsicmp(me.szModule, L"AllInOneTIP.dll") == 0) { found = true; break; }
+            if (_wcsicmp(me.szModule, L"AllInOneTIP.dll") == 0) paths.push_back(me.szExePath);
         } while (Module32NextW(snap, &me));
     }
     CloseHandle(snap);
-    return found;
+    return paths;
+}
+
+bool TipLoaded(DWORD pid) { return !TipModules(pid).empty(); }
+
+std::string TipModulesText(DWORD pid) {
+    std::string text;
+    for (const auto& path : TipModules(pid)) text += (text.empty() ? "" : ", ") + Narrow(path);
+    return text.empty() ? "none" : text;
 }
 
 // Write a one-line marker file (UTF-8, no BOM, no newline), so we can tell our own document from the user's.
@@ -340,9 +350,31 @@ bool WriteSeed(const std::wstring& path, const std::string& marker) {
 struct Injection {
     HMODULE lib = nullptr;
     HHOOK hook = nullptr;
+    HANDLE config = nullptr;  // the hand-over the hook reads in Notepad
 };
 
-bool Inject(Injection& in, HWND window, DWORD threadId, const std::wstring& dllPath) {
+// The hook's hand-over (must match e2ehook.cpp): the Notepad it lands in is usually the user's, already running, so it
+// hasn't our environment (AIO_E2E_LANGID, AIO_TIP_LOG).
+struct HookConfig {
+    DWORD langid;
+    wchar_t log[MAX_PATH];
+    BOOL haveRestore;                  // the session's input method now: what Notepad goes back to
+    TF_INPUTPROCESSORPROFILE restore;
+};
+
+bool Inject(Injection& in, HWND window, DWORD threadId, const std::wstring& dllPath, LANGID lang,
+            const TF_INPUTPROCESSORPROFILE* restore) {
+    in.config = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(HookConfig),
+                                   L"Local\\AllInOneIME-e2e-hook");
+    if (in.config) {
+        if (auto* config = static_cast<HookConfig*>(MapViewOfFile(in.config, FILE_MAP_WRITE, 0, 0, sizeof(HookConfig)))) {
+            config->langid = lang;
+            GetEnvironmentVariableW(L"AIO_TIP_LOG", config->log, MAX_PATH);
+            config->haveRestore = restore != nullptr;
+            if (restore) config->restore = *restore;
+            UnmapViewOfFile(config);
+        }
+    }
     in.lib = LoadLibraryW(dllPath.c_str());
     if (!in.lib) { Log("  LoadLibrary %ls failed: %lu", dllPath.c_str(), GetLastError()); return false; }
     auto proc = reinterpret_cast<HOOKPROC>(GetProcAddress(in.lib, "GetMsgProc"));
@@ -357,29 +389,64 @@ bool Inject(Injection& in, HWND window, DWORD threadId, const std::wstring& dllP
     return true;
 }
 
-void Uninject(Injection& in) {
+bool LogContains(const char* text);
+
+// Before unhooking: the hook puts Notepad back on the session's input method (and the rest it changed there). The TIP
+// stays loaded in Notepad (TSF keeps objects of it, so COM never unloads it) until Notepad exits: an uninstall meanwhile
+// moves the file aside and deletes it at the next restart.
+void Uninject(Injection& in, HWND window, DWORD pid) {
+    if (in.hook && window) {
+        const UINT restore = RegisterWindowMessageW(L"AllInOneIME-e2e-restore");
+        for (int i = 0; i < 40 && !LogContains("hook: restore: done"); ++i) {
+            PostMessageW(window, restore, 0, 0);
+            Pump(50);
+        }
+        Check(LogContains("hook: restore: done"), "Notepad is back on the session's input method");
+        if (pid) Log("  AllInOneTIP.dll in Notepad: %s", TipModulesText(pid).c_str());
+    }
     if (in.hook) { UnhookWindowsHookEx(in.hook); in.hook = nullptr; }
     if (in.lib) { FreeLibrary(in.lib); in.lib = nullptr; }
+    if (in.config) { CloseHandle(in.config); in.config = nullptr; }
 }
 
 // Wait up to `ms` for the DLL to log that it reached the engine. The DLL writes "engine connected" to its diagnostic
 // log (AIO_TIP_LOG) only after the handshake, in whatever process TSF loaded it into (Notepad, or ours in host mode),
 // so this is the reliable signal that AllInOneIME engaged. We read the same file the driver logs to.
-bool WaitForEngineConnection(const std::wstring&, DWORD ms) {
+// The diagnostic log (AIO_TIP_LOG: ours, the DLL's and the hook's) holds `text`.
+bool LogContains(const char* text) {
     char path[MAX_PATH] = {};
     if (!GetEnvironmentVariableA("AIO_TIP_LOG", path, MAX_PATH)) return false;
+    HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return false;
+    std::string data;
+    char buf[4096];
+    DWORD n = 0;
+    while (ReadFile(f, buf, sizeof buf, &n, nullptr) && n) data.append(buf, n);
+    CloseHandle(f);
+    return data.find(text) != std::string::npos;
+}
+
+// The engine logs each connection with its client's pid ("connection N: pid P, ..."). That is the signal to trust: a
+// DLL that an earlier run left loaded in the user's Notepad keeps writing to that run's (deleted) diagnostic log.
+bool EngineSawPid(const std::wstring& engineLog, DWORD pid) {
+    if (engineLog.empty()) return false;
+    HANDLE f = CreateFileW(engineLog.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return false;
+    std::string data;
+    char buf[4096];
+    DWORD n = 0;
+    while (ReadFile(f, buf, sizeof buf, &n, nullptr) && n) data.append(buf, n);
+    CloseHandle(f);
+    return data.find(": pid " + std::to_string(pid) + ",") != std::string::npos;
+}
+
+// Wait up to `ms` for AllInOneIME in process `pid` to reach the engine.
+bool WaitForEngineConnection(const std::wstring& engineLog, DWORD pid, DWORD ms) {
     ULONGLONG end = GetTickCount64() + ms;
     do {
-        HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (f != INVALID_HANDLE_VALUE) {
-            std::string data;
-            char buf[4096];
-            DWORD n = 0;
-            while (ReadFile(f, buf, sizeof buf, &n, nullptr) && n) data.append(buf, n);
-            CloseHandle(f);
-            if (data.find("engine connected") != std::string::npos) return true;
-        }
+        if (EngineSawPid(engineLog, pid)) return true;
         Pump(100);
     } while (GetTickCount64() < end);
     return false;
@@ -413,7 +480,7 @@ void RestoreSession(SessionState& s, ITfInputProcessorProfileMgr* mgr) {
 // EDIT control in the driver's own window. It is the end-to-end the DLL supports on this machine; the Notepad path
 // above is kept for a host that can load the TIP (classic Notepad, or once AllInOneIME ships as an installed IM).
 int HostEditRun(IUIAutomation* uia, ITfInputProcessorProfileMgr* profileMgr, const std::wstring& engineLog,
-                LANGID lang) {
+                LANGID lang, const std::wstring& expectTip) {
     Log("host-edit: a classic EDIT control in our own window");
     WNDCLASSEXW wc = {sizeof wc};
     wc.lpfnWndProc = DefWindowProcW;
@@ -440,9 +507,14 @@ int HostEditRun(IUIAutomation* uia, ITfInputProcessorProfileMgr* profileMgr, con
                             : E_FAIL;
     Log("  ActivateProfile(this thread) = 0x%08lx", hr);
     Pump(300);
-    bool switched = WaitForEngineConnection(engineLog, 6000);
-    Log("  TIP loaded here: %s; engine saw us connect: %s", TipLoaded(mine) ? "yes" : "no", switched ? "yes" : "no");
+    bool switched = WaitForEngineConnection(engineLog, mine, 6000);
+    Log("  TIP loaded here: %s; engine saw us connect: %s", TipModulesText(mine).c_str(), switched ? "yes" : "no");
     Check(switched, "AllInOneIME engaged (the DLL reached the engine)");
+    if (!expectTip.empty()) {
+        bool found = false;
+        for (const auto& path : TipModules(mine)) found = found || _wcsicmp(path.c_str(), expectTip.c_str()) == 0;
+        Check(found, "the DLL loaded here is the expected copy");
+    }
 
     IUIAutomationElement* el = nullptr;
     if (uia) uia->ElementFromHandle(edit, &el);
@@ -494,6 +566,7 @@ int main(int argc, char** argv) {
     std::wstring enginePath, fixturePath, engineLog;
     LANGID lang = 0x0409;
     DWORD timeoutMs = 60000;
+    std::wstring plain, expectTip;
     bool probe = false;
     bool host = false;
     for (int i = 1; i < argc; ++i) {
@@ -509,12 +582,14 @@ int main(int argc, char** argv) {
         else if (a == "--engine-log" && i + 1 < argc) engineLog = wide(argv[++i]);
         else if (a == "--langid" && i + 1 < argc) lang = (LANGID)strtoul(argv[++i], nullptr, 0);
         else if (a == "--timeout-ms" && i + 1 < argc) timeoutMs = strtoul(argv[++i], nullptr, 10);
+        else if (a == "--plain" && i + 1 < argc) plain = wide(argv[++i]);
+        else if (a == "--expect-tip" && i + 1 < argc) expectTip = wide(argv[++i]);
         else if (a == "--probe") probe = true;
         else if (a == "--host") host = true;
     }
-    if (enginePath.empty() || fixturePath.empty()) {
-        printf("usage: e2edriver --engine <exe> --fixture <json> [--engine-log <file>] [--langid 0xNNNN] "
-               "[--timeout-ms N] [--probe] [--host]\n");
+    if (enginePath.empty() || (fixturePath.empty() && plain.empty())) {
+        printf("usage: e2edriver --engine <exe> (--fixture <json> | --plain <text>) [--engine-log <file>] "
+               "[--langid 0xNNNN] [--timeout-ms N] [--expect-tip <dll>] [--probe] [--host]\n");
         return 2;
     }
 
@@ -547,9 +622,11 @@ int main(int argc, char** argv) {
     std::wstring hookDll = selfPath;
     hookDll = hookDll.substr(0, hookDll.find_last_of(L"\\/") + 1) + L"e2ehook.dll";
 
-    // 1. The engine, in this session, test mode, scripted provider, system clock (the stream plays in real time).
-    Log("starting the engine: %ls", enginePath.c_str());
-    std::wstring cmd = L"\"" + enginePath + L"\" --test --provider \"" + fixturePath + L"\" --clock system --quiet";
+    // 1. The engine, in this session: test mode, scripted provider, system clock (the stream plays in real time); or,
+    // for --plain, as a user's runs.
+    Log("starting the engine: %ls%s", enginePath.c_str(), plain.empty() ? " (test mode)" : "");
+    std::wstring cmd = L"\"" + enginePath + L"\"";
+    if (plain.empty()) cmd += L" --test --provider \"" + fixturePath + L"\" --clock system";
     STARTUPINFOW si = {sizeof si};
     HANDLE engineErr = INVALID_HANDLE_VALUE;
     if (!engineLog.empty()) {
@@ -602,7 +679,7 @@ int main(int argc, char** argv) {
 
     if (host) {
         // The hosted-edit end-to-end: the full real stack through an EDIT control in our own process.
-        HostEditRun(uia, profileMgr, engineLog, lang);
+        HostEditRun(uia, profileMgr, engineLog, lang, expectTip);
         Release(uia);
         RestoreSession(state, profileMgr);
         if (threadMgr) { threadMgr->Deactivate(); threadMgr->Release(); }
@@ -668,7 +745,7 @@ int main(int argc, char** argv) {
 
         DWORD npThread = GetWindowThreadProcessId(np.window, nullptr);
         Log("  injecting e2ehook into Notepad thread %lu", npThread);
-        if (Inject(injection, np.window, npThread, hookDll)) {
+        if (Inject(injection, np.window, npThread, hookDll, lang, state.havePrevious ? &state.previous : nullptr)) {
             // TSF loads the TIP into a process on a focus transition, not merely when the active profile changes. Move
             // the focus away and back to Notepad (through a tiny scratch window of our own), so TSF re-reads the active
             // profile for Notepad's thread and loads AllInOneIME there.
@@ -684,13 +761,18 @@ int main(int argc, char** argv) {
                 TakeForeground(np.window);
                 SetUiaFocus(np.edit);
                 Pump(200);
-                switched = WaitForEngineConnection(engineLog, 2500);
+                switched = WaitForEngineConnection(engineLog, np.pid, 2500);
             }
             if (scratch) DestroyWindow(scratch);
-            Log("  AllInOneTIP.dll loaded in Notepad: %s; engine saw Notepad connect: %s",
-                TipLoaded(np.pid) ? "yes" : "no", switched ? "yes" : "no");
+            Log("  AllInOneTIP.dll in Notepad: %s; engine saw Notepad connect: %s", TipModulesText(np.pid).c_str(),
+                switched ? "yes" : "no");
         }
-        Check(switched, "AllInOneIME is active on Notepad's thread (the DLL reached the engine)");
+        Check(switched, "AllInOneIME is active in Notepad (the DLL reached the engine)");
+        if (!expectTip.empty()) {
+            bool found = false;
+            for (const auto& path : TipModules(np.pid)) found = found || _wcsicmp(path.c_str(), expectTip.c_str()) == 0;
+            Check(found, "the DLL in Notepad is the expected copy");
+        }
     }
 
     bool mayType = np.window && np.edit && switched && confirmedMine;
@@ -707,19 +789,25 @@ int main(int argc, char** argv) {
         Check(empty, "cleared our document before typing");
         if (empty) {
             Log("typing");
-            bool typed = TypeText(L"hi ", np.pid) && TypeText(L"@improve helo", np.pid) && TapKey(VK_RETURN, np.pid);
-            if (typed) {
-                Log("  Return: waiting for the scripted stream");
-                Pump(1500); // the provider streams the versions in real time (the system clock)
-                typed = TapKey('1', np.pid);
+            bool typed = false;
+            if (!plain.empty()) {
+                typed = TypeText(plain, np.pid);
+            } else {
+                typed = TypeText(L"hi ", np.pid) && TypeText(L"@improve helo", np.pid) && TapKey(VK_RETURN, np.pid);
+                if (typed) {
+                    Log("  Return: waiting for the scripted stream");
+                    Pump(1500); // the provider streams the versions in real time (the system clock)
+                    typed = TapKey('1', np.pid);
+                }
             }
             Check(typed, "typed the keys into Notepad");
             Pump(500);
 
             // 6. The result.
+            const std::wstring expected = plain.empty() ? L"hi Hello." : plain;
             std::wstring doc = ReadDocument(np.edit);
             Log("  document: \"%s\"", Narrow(doc).c_str());
-            Check(doc == L"hi Hello.", "Notepad shows \"hi Hello.\"");
+            Check(doc == expected, plain.empty() ? "Notepad shows \"hi Hello.\"" : "Notepad shows the text as typed");
         }
     } else if (probe) {
         Log("probe: engine=%d notepad=%p edit=%p mine=%d tipLoaded=%d switched=%d", engineStarted, (void*)np.window,
@@ -729,10 +817,11 @@ int main(int argc, char** argv) {
     // Teardown. Unhook. Then, only if our document is still the active one, save it (no prompt, it is a file) and
     // close our tab (Ctrl+W). We never close the user's window or terminate the shared Notepad process.
     Log("teardown");
-    Uninject(injection);
+    Uninject(injection, np.window, np.pid);
     if (np.window && np.edit) {
         std::wstring now = ReadDocument(np.edit);
         bool oursActive = ForegroundIsNotepad(np.pid) && (now == want || now == L"hi Hello." || now.empty() ||
+                                                          (!plain.empty() && now.find(plain) == 0) ||
                                                           now.find(L"improve") != std::wstring::npos);
         if (oursActive) {
             Chord(VK_CONTROL, 'S', np.pid);
