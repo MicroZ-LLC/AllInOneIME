@@ -1744,8 +1744,8 @@ enum SelfTest {
         check(client.marked == "reportissue › panel stuck", "@reporti Tab picks @reportissue, the title after it (\(client.marked))")
         _ = enter(controller, client)
         let model = controller.panelModel()
-        var shown = ""
-        if case let .hint(text) = model.status { shown = text }
+        // What it fills in besides the title, as the panel says it (a list under the hint).
+        let shown = model.statusText ?? ""
         check(controller.composer.phase == .choosing && opened.isEmpty && model.rows.first?.text == "panel stuck",
               "⏎ shows the issue first, nothing opened (\(model.rows.map(\.text)))")
         check(shown.contains("AllInOneIME: \(AppVersion.string)") && shown.contains("macOS: ") && shown.contains("Input languages: ")
