@@ -154,6 +154,27 @@ struct InputSessionTests {
         }
     }
 
+    @Test func atReadsTheFieldOnlyWhereItMayStartACommand() {
+        inEnglish {
+            func at(_ host: FakeHost) -> FieldContext.Parts {
+                host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure))
+            }
+            // Pinyin being typed: "@" goes to the engine.
+            let pinyin = host()
+            pinyin.type("ni")
+            #expect(!at(pinyin).contains(.selection), "\(at(pinyin))")
+            // A command written on the selection: "@" goes into its text.
+            let selected = host()
+            selected.document = "hello world"
+            selected.selection = 6..<11
+            pick("i", in: selected)
+            #expect(selected.composer.draftInPanel && !at(selected).contains(.selection), "\(at(selected))")
+            // No engine yet (librime deploying): the key goes to the app.
+            let starting = host { $0.levelOne = { .starting } }
+            #expect(starting.composer.engine == nil && at(starting) == [.secure], "\(at(starting))")
+        }
+    }
+
     @Test func nothingIsReadInAPasswordField() {
         inEnglish {
             let host = host()

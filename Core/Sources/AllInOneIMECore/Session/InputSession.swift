@@ -391,8 +391,10 @@ public final class InputSession {
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
-        // "@" may start a command: on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == "@", !composer.isLevelTwo, composer.draft.isEmpty || composer.draftInPanel {
+        // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
+        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
+        if key.printableText == "@", !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+           !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
