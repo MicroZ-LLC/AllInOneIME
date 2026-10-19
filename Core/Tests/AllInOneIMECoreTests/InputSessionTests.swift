@@ -224,13 +224,13 @@ struct InputSessionTests {
 
     @Test func aNewerRequestDropsTheOldOnesAnswer() {
         inEnglish {
-            let host = host { $0.runProgram = Self.printing("42", after: .milliseconds(300)) }
+            let host = host { $0.runProgram = Self.printing("42", after: .milliseconds(100)) }
             pick("js", in: host)
             host.composer.setInputMode(.english)
             host.type("6*7")
             host.press(FakeHost.enter)
             host.press(FakeHost.escape)  // back to the draft: the request stops
-            #expect(!host.settle(timeout: 0.8) { host.composer.phase == .choosing }, "its answer counts no more")
+            #expect(!host.settle(timeout: 0.3) { host.composer.phase == .choosing }, "its answer counts no more")
             #expect(host.composer.draft == "@js 6*7", "\(host.composer.draft)")
         }
     }
@@ -606,6 +606,50 @@ struct InputSessionTests {
             host.press(FakeHost.enter)  // sent
             #expect(host.settle { host.session.notice == "Sent to Ann Lee" }, "\(host.session.notice ?? "-")")
             #expect(sender.sent.withLock { $0.map(\.0) } == ["see you at 6"] && recent.withLock { $0 } == ["+1 555 0100"])
+        }
+    }
+
+    // MARK: - The model (a stand-in)
+
+    @Test func aRequestToTheModelThenAFollowUp() {
+        inEnglish {
+            let settings = Settings()
+            settings.config.provider = .apple
+            let stub = StubAppleModel(answer: ["Canberra is the capital."])
+            let converter = Converter(loadConfig: { settings.config }, loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                      loadKey: { _, _ in nil }, loadJargon: { _ in [] }, appleModel: stub)
+            let host = host(settings) { $0.converter = converter }
+            host.composer.setInputMode(.english)
+            pick("que", in: host)
+            host.type("capital of australia")
+            host.press(FakeHost.enter)
+            #expect(host.settle { host.composer.phase == .choosing }, "\(host.composer.phase)")
+            #expect(host.composer.choices.contains { $0.text == "Canberra is the capital." } && host.session.lastElapsed != nil,
+                    "\(host.composer.choices.map(\.text))")
+            host.type("shorter")
+            host.press(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift))
+            #expect(host.settle { stub.requests.count == 2 && host.composer.phase == .choosing }, "asked again (\(stub.requests.count))")
+            #expect(stub.requests.last.map { "\($0)".contains("shorter") } == true, "with the follow-up")
+        }
+    }
+
+    @Test func improveWithTheModel() {
+        inEnglish {
+            let settings = Settings()
+            settings.config.provider = .apple
+            settings.config.setOrder([OutputLanguage.english])
+            let stub = StubAppleModel(answer: ["EN: Hello there."])
+            let converter = Converter(loadConfig: { settings.config }, loadCredentials: { _ in throw AWSConfigError.profileNotFound("none") },
+                                      loadKey: { _, _ in nil }, loadJargon: { _ in [] }, appleModel: stub)
+            let host = host(settings) { $0.converter = converter }
+            host.composer.setInputMode(.english)
+            pick("i", in: host)
+            host.type("hello thre")
+            host.press(FakeHost.enter)
+            #expect(host.settle { host.composer.phase == .choosing }, "\(host.composer.phase)")
+            #expect(host.composer.choices.contains { $0.text == "Hello there." }, "\(host.composer.choices.map(\.text))")
+            host.press(FakeHost.enter)
+            #expect(host.document == "Hello there.", "the version highlighted goes in (\(host.document))")
         }
     }
 }

@@ -161,7 +161,7 @@ public final class InputSession {
             case .configChanged:
                 settings(app: nil)
             case .close:
-                tasks.cancel(.request)
+                tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 noticeToken += 1  // its timer does nothing now
                 composer.engine = nil
                 engine = nil
@@ -900,6 +900,8 @@ public final class InputSession {
             say(text)
         case let .agentStarted(page):
             say(composer.messages.startedInBackground + UIText.withPage(page))
+        case let .agentFailed(message):
+            say(message)
         case let .sent(recipient):
             services.saveRecentHandles(RecipientSearch.remember(recipient.handle, in: services.loadRecentHandles()))
             say(tr("已发送给 ", "Sent to ") + recipient.displayName)

@@ -683,6 +683,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 }
             case .keyboardLayout:
                 applyKeyboardLayout(client: target)
+            case let .startTimer(.notice(token), seconds):
+                // In the run loop's default mode, as a notice always expired: not while a menu is tracked.
+                let box = WeakBox(self)
+                let timer = Timer(timeInterval: seconds, repeats: false) { _ in
+                    MainActor.assumeIsolated { box.value?.received(.timer(.notice(token))) }
+                }
+                RunLoop.main.add(timer, forMode: .default)
             case let .startTimer(id, seconds):
                 DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.received(.timer(id)) }
             case let .platform(.startVoice(id, language)):

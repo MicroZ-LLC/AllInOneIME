@@ -104,6 +104,27 @@ struct SessionTasksTests {
         #expect(query == "not" && results.map(\.name) == ["not"])
     }
 
+    @Test func closingStopsTheWorkInSlots() async {
+        let inbox = Inbox()
+        let tasks = SessionTasks(deliver: inbox.deliver)
+        let searched = Locked<[String]>(initialState: [])
+        let search: @Sendable (String, OpenHistory) async -> [SearchResult] = { query, _ in
+            searched.withLock { $0.append(query) }
+            return []
+        }
+        tasks.searchAsTyped("notes", history: { OpenHistory() }, with: search)
+        tasks.close()
+        tasks.searchAsTyped("other", history: { OpenHistory() }, with: search)
+        let (stream, continuation) = AsyncThrowingStream<ConversionUpdate, Error>.makeStream()
+        tasks.consume(stream, id: 3)
+        continuation.yield(update("late", final: true))
+        try? await Task.sleep(for: .milliseconds(400))
+        #expect(searched.withLock { $0 }.isEmpty && inbox.all.isEmpty, "nothing ran or answered once closed (\(inbox.all.count))")
+        let poster = tasks.poster()
+        poster(.notice("a save's outcome"))
+        #expect(inbox.all.count == 1, "work that ends on its own still answers")
+    }
+
     @Test func recipientsWithoutTheAddressBookSaySo() async {
         let inbox = Inbox()
         let tasks = SessionTasks(deliver: inbox.deliver)

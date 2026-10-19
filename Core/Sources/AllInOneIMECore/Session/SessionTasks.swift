@@ -43,8 +43,9 @@ public enum TaskUpdate: Sendable {
     case page(PageContext?)
     /// A notice from work that ended (a background command that couldn't start, an agent that couldn't).
     case notice(String)
-    /// `@agent` started in the background, with the page it took along (`withPage`).
+    /// `@agent` started in the background, with the page it took along (`withPage`); or why it didn't start.
     case agentStarted(page: String)
+    case agentFailed(String)
     /// A message went to `recipient`.
     case sent(Recipient)
     /// A note saved, or a reminder added, or not (`SaveOutcome`).
@@ -118,11 +119,25 @@ public final class SessionTasks {
     private var listKey: String?
     private var liveQuery: String?
     private var recipientQuery: String?
+    /// The field's session is over: nothing more starts in a slot.
+    private var closed = false
 
     static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
 
     public init(deliver: @escaping @Sendable (SessionEvent) -> Void) {
         self.deliver = deliver
+    }
+
+    /// The work in slots stops with the session it belongs to: nothing is left to take what it would answer.
+    deinit {
+        for (_, entry) in running { entry.task?.cancel() }
+    }
+
+    /// The field's session is over: the work in slots stops, and none starts any more (the work that ends on its own, a
+    /// save, a message, an agent, goes on).
+    public func close() {
+        closed = true
+        for slot in Array(running.keys) { cancel(slot) }
     }
 
     /// Whether `id`'s updates still count: work in a slot until it's stopped or another takes its place.
@@ -143,7 +158,7 @@ public final class SessionTasks {
         cancel(slot)
         serial += 1
         let id = TaskID(slot: slot, serial: serial)
-        running[slot] = (id, nil)
+        if !closed { running[slot] = (id, nil) }
         return id
     }
 
@@ -162,6 +177,7 @@ public final class SessionTasks {
         if let slot { cancel(slot) }
         serial += 1
         let id = TaskID(slot: slot, serial: serial)
+        if slot != nil, closed { return id }  // nothing starts in a slot once the session is over
         let deliver = deliver
         let task = Task {
             await work { update in
@@ -548,7 +564,7 @@ public final class SessionTasks {
                 if let page { post(.agentStarted(page: page)) }
             } catch {
                 Self.log.error("@agent in the background failed: \(String(describing: error))")
-                post(.notice(UIText.describe(error)))
+                post(.agentFailed(UIText.describe(error)))
             }
         }
     }
