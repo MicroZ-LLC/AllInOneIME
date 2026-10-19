@@ -37,7 +37,19 @@ public final class SettingsService: @unchecked Sendable {
         private let lock = NSLock()
         private var answer: Outcome?
         private var waiting: CheckedContinuation<Outcome, Never>?
-        var task: Task<Void, Never>?
+        private var running: Task<Void, Never>?
+
+        /// The task it runs in: stopped by `stop`, also one set after it.
+        var task: Task<Void, Never>? {
+            get { lock.lock(); defer { lock.unlock() }; return running }
+            set {
+                lock.lock()
+                running = newValue
+                let stopped = answer != nil
+                lock.unlock()
+                if stopped { newValue?.cancel() }
+            }
+        }
 
         /// The answer, once: later ones are left out.
         func answer(_ outcome: Outcome) {
