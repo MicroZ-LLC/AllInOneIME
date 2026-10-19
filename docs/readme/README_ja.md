@@ -292,6 +292,7 @@ Settings → General → **Sync through iCloud**（iCloud で同期、デフォ�
 | Learned words（学習した語） | 選んだ語からピンインが学習した内容（Rime のユーザー辞書。librime のユーザー辞書の同期を使います。カスタムフレーズなど、あなた自身の Rime のファイルは Mac に残ります） | オン |
 | Hidden words（隠す語） | AI から隠す語（「iCloud Drive is end-to-end encrypted only with Advanced Data Protection」：iCloud Drive がエンドツーエンドで暗号化されるのは、高度なデータ保護を使っている場合だけです） | オフ |
 | Recent questions（最近の質問） | `@question` の最近の質問と答え（「Remember recent questions」がオンの間） | オフ |
+| API keys and passwords（API キーとパスワード） | API キーと拡張機能のパスワード。常にエンドツーエンドで暗号化される iCloud キーチェーンを通じて同期します（システム設定 → Apple アカウント → iCloud で「パスワードとキーチェーン」がオンである必要があります） | オフ |
 
 `iCloud Drive/AllInOneIME/settings.json` には、各設定が、いつどの Mac（ランダムな ID）で変更されたかとともに保存され、設定ごとに最新の変更が優先されます。リスト（独自のコマンド、書き換えスタイル）は 1 つの値として扱い、アプリごとの設定はアプリ単位で扱います。アプリの設定を削除することも 1 つの変更です。同期するのは、入力メソッドの起動時、何かを変更して約 5 秒後、ほかの Mac の変更を iCloud が届けたとき（と 5 分ごと）、**Sync Now**（今すぐ同期）を押したときです。学習した語は、入力メソッドの起動時、30 分ごと（入力が途切れたとき）、Sync Now のときです。ステータス行には「Last synced 2 min ago」（2 分前に同期）、「Waiting for iCloud…」（iCloud を待っています…）、またはエラーが表示されます。
 
@@ -301,9 +302,10 @@ Settings → General → **Sync through iCloud**（iCloud で同期、デフォ�
 - Hidden words や Recent questions をオフにしても、同期済みのものは iCloud に残ります。各スイッチの下の **Remove from iCloud…**（iCloud から削除…、確認あり）で取り除けます。ほかの Mac には残り、まだそれを同期している Mac は自分のものを戻します。
 - ほかの Mac から来た値でこの Mac が使えないもの（この Mac ではキーのないプロバイダ、この Mac にない AWS プロファイル、範囲外の値）は適用されません。どれなのかは、ステータス行と Settings → Assistant の問題の確認に表示されます。
 - iCloud がまだダウンロードしていないファイルは届くのを待ち、空とはみなしません。読み取れない `settings.json` は `settings (unreadable …).json` として脇に置き、上書きしません。新しいバージョンの設定はそのまま保持します。
-- 同期しないもの：キー、トークン、パスワード（キーチェーンにあります）、拡張機能のソース（コードを実行するので、Mac ごとに決めます）、拡張機能のフォルダとプラグイン（Mac ごとのパス）、打ち間違いをしないアプリと最近のアプリ、ウインドウの状態、同期のスイッチそのもの（Mac ごとの設定）。
+- API キーとパスワードは、iCloud Drive ではなく iCloud キーチェーンを通じて同期されます。「API keys and passwords」がオンなら（同期がオンの間）、1 台の Mac で保存または置き換えたキーが、ほかの Mac にも届きます。デフォルトはオフです。同期をオンにしただけではキーは移らず、この行をオンにするまで何も移りません。オンにすると、この Mac のキーがログインキーチェーンから iCloud キーチェーンに移ります（その後は、アップデートの後に macOS がこれらのキーのためにログインパスワードを尋ねることはなくなります）。オフにすると、キーはログインキーチェーンにコピーし戻され、ほかの Mac のために iCloud キーチェーンにも残ります。同期しないキーはこれまでどおりログインキーチェーンに残り、AllInOneIME Cloud のサインインも同じです。サインインは決して同期されず、各 Mac でそれぞれサインインします。2 台の Mac のキーが異なる場合は、最後に保存したものが優先されます（保存した時刻で判断します。どのコピーもその時刻を持っています）。もう一方は削除されず、置き換えられたコピーとしてその Mac のログインキーチェーンに保持されますが（「AllInOneIME replaced API key」の項目で、名前の末尾に「(replaced)」が付きます）、使われることはありません。iCloud キーチェーンに移るキーも、ほかの Mac の異なるキーが上書きした場合に備えて、このコピーを残します。置き換えられたコピーは各 Mac でキーごとに 1 つで、新しいものが古いものに取って代わります。同期中のキーを削除すると、キーを同期しているすべての Mac からそのキーが削除され（確認メッセージには「all your Macs」（すべての Mac）と表示されます）、この Mac の置き換えられたコピーも削除されます。「API keys and passwords」がオフの Mac や、まだ 0.6.4 の Mac は自分のコピーを保持し、後でその Mac でキーの同期をオンにすると、それを戻します（確認メッセージにもそう表示されます）。オフの Mac では、Remove… はその Mac からだけキーとその置き換えられたコピーを削除し（確認メッセージには「this Mac」（この Mac）と表示されます）、iCloud キーチェーンのコピーはほかの Mac のために残ります。移すときに、ログインパスワードなしでは macOS が AllInOneIME に読ませなかったキーは、次に使われるまでログインキーチェーンに残ります。そのとき macOS が尋ねて許可すれば、ほかの Mac で削除されていても、そのキーがまた使われます。どのキーも、これまでどおり保存した対象のホストにだけ送られます。キーを同期している間、`allinoneime-cli` と 0.6.5 より前のバージョンからは、キーチェーンにあるそれらのキーが見えません。プロビジョニングプロファイルのないビルド（開発用ビルド）は、キーをログインキーチェーンに保存し、同期できません。この行にその旨が表示されます。
+- 同期しないもの：AllInOneIME Cloud のサインイン、AWS の認証情報（`~/.aws` にあります）、拡張機能のソース（コードを実行するので、Mac ごとに決めます）、拡張機能のフォルダとプラグイン（Mac ごとのパス）、打ち間違いをしないアプリと最近のアプリ、ウインドウの状態、同期のスイッチそのもの（Mac ごとの設定）。
 - オフにすると同期は止まり、この Mac でも iCloud でも、すべてそのまま残ります。**Remove from iCloud…**（確認あり）はフォルダをゴミ箱に移し、この Mac の同期をオフにします。
-- Settings → Assistant（「sync through iCloud」）でもオン／オフできます。隠す語と最近の質問を同期するかどうかは、Settings → General でだけ選べます。設定ファイルでは `iCloudSync`（`enabled`、`settings`、`jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`）です。
+- Settings → Assistant（「sync through iCloud」）でもオン／オフできます。隠す語と最近の質問を同期するかどうかは、Settings → General でだけ選べます。設定ファイルでは `iCloudSync`（`enabled`、`settings`、`jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`、`keys`）です。
 
 ## メニューバーパネル
 
@@ -472,7 +474,7 @@ AWS は必須ではありません。設定の「AI Provider」（AI プロバ�
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | OpenAI 互換 | OpenAI の `gpt-6-luna`（または `gpt-5.4-mini`）。「Common Services…」（よく使うサービス…）には DeepSeek、Qwen、Kimi、Zhipu GLM、SiliconFlow、OpenRouter、この Mac の Ollama があり、選ぶとその Base URL が入力されるので、続けてモデルを入力します | そのサービスのキー。Base URL をそのアドレスに設定します（例：`https://api.deepseek.com/v1`、この Mac の Ollama なら `http://localhost:11434/v1`） |
 
-- API キーはシステムのキーチェーンに保存され、設定ファイルには決して書き込まれません。キーチェーンにキーがない場合は、シェルの `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（または `GOOGLE_API_KEY`）、`OPENAI_API_KEY` が使われます。
+- API キーはログインキーチェーンに保存され、設定ファイルには決して書き込まれません。Sync through iCloud（iCloud で同期）の「API keys and passwords」をオンにした場合は、代わりに iCloud キーチェーンに保存され、`allinoneime-cli` と 0.6.5 より前のバージョンからは見えません。キーチェーンにキーがない場合は、シェルの `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（または `GOOGLE_API_KEY`）、`OPENAI_API_KEY` が使われます。
 - API キーの行には、キーが設定されているかどうかが表示されます。「✓ Saved · ends in a1b2」（保存済み · 末尾 a1b2：末尾 4 文字をキーと一緒に保存しておくので、表示のためにキー自体を読み出すことはありません）と「Replace…」（置き換え）、「Remove…」（削除）。シェルのキーなら「✓ From $OPENAI_API_KEY」（$OPENAI_API_KEY から）、なければ「No API key yet」（API キーはまだありません）と貼り付け用の欄が表示されます。
 - 「Thinking」（思考）はデフォルトで低です。入力メソッドは文ごとに応答を待つので、思考が少ないほうが速くなります。対応していないモデルでは「Not set」（未設定）を選んでください。
 - Claude Opus 5.5 または Sonnet 5.5 を選んだ場合、リクエストには Claude API の拒否時フォールバック（`fallbacks: "default"`）が付きます。安全性の分類器が拒否すると、サーバが別のモデルで再試行します。
@@ -529,7 +531,7 @@ Settings → AI Provider → Privacy → 「Hide sensitive information before se
 | `questionRounds` | `@question` の会話が、ほかの場所で続けることを提案するまでにパネル内で行う往復数、2–10 | `5` |
 | `questionContinueIn` | `@question` の会話を続けられる場所（順番どおり、最初のものがデフォルト）：`agent`（`@agent` の引き渡し先。そのエージェント自身の項目の代わり）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各エージェント。インストールされている場合のみ）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、インストールされているほかのエージェント、Claude、ChatGPT、コピー |
 | `appProfiles` | アプリ 1 つの設定。バンドル ID ごとで、どれも任意：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`（「アプリごとの設定」を参照） | `{}` |
-| `notes` | `@note` の保存先（Settings → Plugins → Notes）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`、または Test で見つけたページやデータベースと `"notion"`。iCloud で同期されることはありません（トークンはキーチェーンにあります） | `destination: "notes"` |
+| `notes` | `@note` の保存先（Settings → Plugins → Notes）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`、または Test で見つけたページやデータベースと `"notion"`。iCloud Drive で同期されることはありません（トークンはキーチェーンにあり、iCloud キーチェーンを通じて同期されるのは「API keys and passwords」がオンの場合だけです） | `destination: "notes"` |
 | `redaction` | 機密情報を AI から隠す（プライバシーを参照）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`。各検出（`emails`、`phones`、`cards`、`keys`、`ips`）は `false` にしない限りオン | `enabled: false` |
 
 ## プライバシー
@@ -566,7 +568,8 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; needs the Developer ID certificate it's signed with and DIST_PROFILE, the provisioning profile; optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make app PROFILE=<profile> SIGN_IDENTITY=<a certificate it lists>   # a build with the keychain entitlements: it can sync keys through iCloud Keychain
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
@@ -578,6 +581,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 - `Core/Sources/AllInOneIMECore`：Bedrock クライアント、SigV4、プロンプト、2 階層の入力ステートマシン（@ コマンドと音声ジェスチャを含む）。AppKit には依存しません
 - `Core/Sources/AllInOneIMEText`：インターフェイスのテキストとその言語（`UIString`、`InterfaceText`、`InterfaceLanguage`、そして `.lproj` バンドルがない環境でカタログを読み取る `StringCatalog`）。設定を開くリンクもすべてここにあります（`AllInOneIMECore` がこれを再エクスポートします）
+- `Core/Sources/AllInOneIMEQuickJS`：QuickJS-ng（その C のソースは `Core/Sources/CQuickJS`）。JavaScriptCore のない環境（Windows、Linux、Android）で、プラグインと `@js` の JavaScript を実行します
 - `Core/Sources/AllInOneIMERime`：librime のラッパー
 - `Core/Sources/AllInOneIMECLI`：コマンドライン `allinoneime-cli`（`make cli`）。各プラットフォーム自身の `main` から実行されます
 - `Sources/AllInOneIMEMac`：Mac にしかないもの（キーレイアウト、コード署名、Spotlight、AppleScript、アップデータのインストール処理）と `Platform.mac`
@@ -590,7 +594,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 バージョンのリリース（アプリ内アップデートは、リリース専用の鍵で署名された https://allinoneime.com/update.json を読み込みます）：
 
 1. バージョンを上げ（`AppVersion.swift` と 3 つの Info.plist。`AppVersionTests` が一致を確認します）、変更履歴を更新します。
-2. `make dmg NOTARY_PROFILE=<profile>`：`build/AllInOneIME-<version>.dmg` とその `.sha256`、および `build/AllInOneIME-<version>-update.zip`（ディスクイメージのインストーラが含むのと同じ 2 つのアプリ）を作ります。アプリとイメージはキーチェーンにある Developer ID Application 証明書で署名され、イメージはその `xcrun notarytool` のキーチェーンプロファイルで公証され、ステープル（staple）されます。
+2. `make dmg NOTARY_PROFILE=<profile>`：`build/AllInOneIME-<version>.dmg` とその `.sha256`、および `build/AllInOneIME-<version>-update.zip`（ディスクイメージのインストーラが含むのと同じ 2 つのアプリ）を作ります。アプリとイメージはキーチェーンにある Developer ID Application 証明書で署名され、イメージはその `xcrun notarytool` のキーチェーンプロファイルで公証され、ステープル（staple）されます。入力メソッドには Developer ID のプロビジョニングプロファイル（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`、`DIST_PROFILE`）が含まれ、これがキーチェーンのエンタイトルメントを与えます。プロファイルに署名用の証明書が含まれていない、すべてのデバイスを対象にしていない、有効期限まで 30 日を切っている（`Scripts/profile-entitlements.sh`）、または署名にキーチェーンのエンタイトルメントがない場合、ビルドは止まります。また、署名した入力メソッドを一度実行してみます（プロファイルが合わないものは macOS が強制終了します）。`DIST_PROFILE` が空の場合も止まります。エンタイトルメントのないリリースでは、iCloud キーチェーンに移ったすべてのキーが見えなくなるからです。プロファイルに含まれるのは 2 つの Developer ID G1 証明書だけです。別の証明書（G2）で署名する前に、それを含む新しいプロファイルを Apple Developer のポータルで作り（手作業で。この App ID の署名は Xcode に任せていません）、コミットしてください。
 3. 両方を GitHub のリリース `v<version>` にアップロードし、公開します。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（それぞれ 1〜2 文）：`site/public/update.json`（アプリから読み取ったバージョン、ビルド、最小 macOS、ファイルのアドレス、サイズ、SHA-256、リリースノートのアドレス、概要）を書き出し、ログインキーチェーンの鍵（`allinoneime-releases-signing`。macOS がアクセスの許可を求めることがあります）で署名して `update.json.sig` にします。両方をコミットします。
 5. リリースのファイルがダウンロードできるようになってから、サイトをデプロイします（`cd site && npx wrangler@4 deploy`）。アプリは 1 日 1 回確認し、`AllInOneIME --check-update` でアプリから見える内容を確認できます。

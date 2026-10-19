@@ -292,6 +292,7 @@ Settings → General → **Sync through iCloud**(iCloud로 동기화, 기본값�
 | Learned words(학습한 단어) | 병음이 사용자의 선택에서 학습한 것(Rime의 사용자 사전. librime의 사용자 사전 동기화를 씀. 사용자 정의 문구 같은 여러분 자신의 Rime 파일은 Mac에 남음) | 켬 |
 | Hidden words(숨긴 단어) | AI에게 숨기는 단어("iCloud Drive is end-to-end encrypted only with Advanced Data Protection": iCloud Drive는 고급 데이터 보호를 켠 경우에만 종단 간 암호화됨) | 끔 |
 | Recent questions(최근 질문) | `@question`의 최근 질문과 답("Remember recent questions"가 켜져 있는 동안) | 끔 |
+| API keys and passwords(API 키와 암호) | API 키와 확장의 암호. 항상 종단 간 암호화되는 iCloud 키체인을 통해 동기화(시스템 설정 → Apple 계정 → iCloud에서 암호 및 키체인이 켜져 있어야 함) | 끔 |
 
 `iCloud Drive/AllInOneIME/settings.json`에는 설정마다 언제, 어느 Mac(무작위 ID)에서 바뀌었는지가 기록되며, 설정별로 가장 최근의 변경이 이깁니다. 목록(사용자 지정 명령어, 다시 쓰기 스타일)은 하나의 값으로 취급하고, 앱별 설정은 앱 단위로 처리하며, 앱의 설정을 지우는 것도 변경입니다. 동기화는 입력기가 시작될 때, 무언가를 바꾸고 약 5초 뒤, iCloud가 다른 Mac의 변경을 가져올 때(그리고 5분마다), **Sync Now**(지금 동기화)를 누를 때 일어납니다. 학습한 단어는 입력기가 시작될 때, 30분마다(타이핑이 잠시 멈췄을 때), Sync Now를 누를 때 동기화됩니다. 상태 줄에는 "Last synced 2 min ago"(2분 전에 동기화함), "Waiting for iCloud…"(iCloud 기다리는 중…) 또는 오류가 표시됩니다.
 
@@ -301,9 +302,10 @@ Settings → General → **Sync through iCloud**(iCloud로 동기화, 기본값�
 - Hidden words나 Recent questions를 꺼도 이미 동기화된 것은 iCloud에 남습니다. 각 스위치 아래의 **Remove from iCloud…**(iCloud에서 제거…, 먼저 확인)로 지울 수 있습니다. 다른 Mac은 자기 것을 유지하며, 아직 그것을 동기화하는 Mac은 자기 것을 다시 올립니다.
 - 다른 Mac에서 온 값을 이 Mac에서 쓸 수 없으면(여기에 키가 없는 제공업체, 이 Mac에 없는 AWS 프로필, 범위를 벗어난 값) 적용하지 않으며, 상태 줄과 Settings → Assistant의 문제 점검이 어느 것인지 알려 줍니다.
 - iCloud가 아직 내려받지 않은 파일은 기다리며, 비어 있는 것으로 취급하지 않습니다. 읽을 수 없는 `settings.json`은 `settings (unreadable …).json`으로 옆에 치워 두며, 덮어쓰지 않습니다. 더 새 버전이 저장한 설정은 그대로 둡니다.
-- 절대 동기화하지 않는 것: 키, 토큰, 암호(키체인에 있음), 확장 소스(코드를 실행하므로 Mac마다 결정), 확장 폴더와 플러그인(Mac마다 다른 경로), 오타를 내지 않는 앱과 최근 앱, 창 상태, 동기화 스위치 자체(Mac마다 따로).
+- API 키와 암호는 iCloud Drive가 아니라 iCloud 키체인을 통해 동기화됩니다. (동기화가 켜진 상태에서) "API keys and passwords"를 켜면, 한 Mac에서 저장하거나 교체한 키가 다른 Mac에도 생깁니다. 기본값은 끔입니다. 동기화를 켜는 것만으로는 어떤 키도 옮겨지지 않으며, 이 행을 켜기 전까지는 아무것도 옮겨지지 않습니다. 켜면 이 Mac의 키가 로그인 키체인에서 iCloud 키체인으로 옮겨지고(그 뒤로는 업데이트 후에도 macOS가 그 키들에 대해 로그인 암호를 묻지 않습니다), 끄면 키를 로그인 키체인으로 다시 복사하고 다른 Mac을 위해 iCloud 키체인에도 남겨 둡니다. 동기화하지 않는 키는 전처럼 로그인 키체인에 남으며, AllInOneIME Cloud 로그인도 그렇습니다. 이 로그인은 절대 동기화되지 않으므로 Mac마다 직접 로그인합니다. 두 Mac의 키가 서로 다르면 마지막에 저장한 키가 이깁니다(모든 사본에 함께 보관되는 저장 시각 기준). 다른 쪽은 지워지지 않고 그 Mac의 로그인 키체인에 교체된 사본으로 보관되며("AllInOneIME replaced API key" 아래, 이름이 "(replaced)"로 끝남), 절대 사용되지 않습니다. iCloud 키체인으로 옮겨지는 키도 다른 Mac의 다른 키가 그 위에 덮일 때를 대비해 사본을 하나 남깁니다. 교체된 사본은 Mac마다 키당 하나이며, 나중 것이 이전 것을 대신합니다. 동기화 중에 키를 제거하면 키를 동기화하는 모든 Mac에서 제거되고(확인 창에 "all your Macs"라고 표시됨) 이 Mac의 교체된 사본도 제거됩니다. "API keys and passwords"를 끈 Mac이나 아직 0.6.4인 Mac은 자기 사본을 유지하며, 나중에 그 Mac에서 키 동기화를 켜면 그 키를 다시 올립니다(확인 창에서도 그렇게 알려 줌). 이 행을 끈 Mac에서 Remove…는 키와 그 교체된 사본을 그 Mac에서만 제거하며(확인 창에 "this Mac"이라고 표시됨), iCloud 키체인의 사본은 다른 Mac을 위해 남습니다. 옮길 때 macOS가 로그인 암호 없이는 AllInOneIME에게 읽기를 허락하지 않은 키는 다음에 쓰일 때까지 로그인 키체인에 남습니다. 그때 macOS가 묻고 허용하면, 다른 Mac에서 제거된 키라도 다시 사용됩니다. 각 키는 여전히 저장할 때 정한 호스트로만 전송됩니다. 키를 동기화하는 동안에는 `allinoneime-cli`와 0.6.5 이전 버전이 키체인에서 키를 보지 못합니다. 프로비저닝 프로파일이 없는 빌드(개발 빌드)는 키를 로그인 키체인에 두며 동기화할 수 없고, 그 행에 그렇게 표시됩니다.
+- 절대 동기화하지 않는 것: AllInOneIME Cloud 로그인, AWS 자격 증명(`~/.aws`에 있음), 확장 소스(코드를 실행하므로 Mac마다 결정), 확장 폴더와 플러그인(Mac마다 다른 경로), 오타를 내지 않는 앱과 최근 앱, 창 상태, 동기화 스위치 자체(Mac마다 따로).
 - 끄면 동기화를 멈추고, 이 Mac과 iCloud의 모든 것을 그대로 둡니다. **Remove from iCloud…**(먼저 확인)는 폴더를 휴지통으로 옮기고 이 Mac의 동기화를 끕니다.
-- Settings → Assistant("sync through iCloud")로도 켜고 끌 수 있습니다. 숨긴 단어와 최근 질문은 Settings → General에서만 고릅니다. 설정 파일에서는 `iCloudSync`(`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`)입니다.
+- Settings → Assistant("sync through iCloud")로도 켜고 끌 수 있습니다. 숨긴 단어와 최근 질문은 Settings → General에서만 고릅니다. 설정 파일에서는 `iCloudSync`(`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`, `keys`)입니다.
 
 ## 메뉴 막대 패널
 
@@ -472,7 +474,7 @@ AWS가 없어도 됩니다. 설정의 "AI Provider"(AI 제공업체)에서 하�
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | OpenAI 호환 | OpenAI의 `gpt-6-luna`(또는 `gpt-5.4-mini`). "Common Services…"(자주 쓰는 서비스…)에는 DeepSeek, Qwen, Kimi, Zhipu GLM, SiliconFlow, OpenRouter, 이 Mac의 Ollama가 있으며, 하나를 고르면 Base URL이 채워지므로 이어서 모델을 입력합니다 | 해당 서비스의 키. Base URL을 그 주소로 설정합니다(예: `https://api.deepseek.com/v1`, 이 Mac의 Ollama는 `http://localhost:11434/v1`) |
 
-- API 키는 시스템 키체인에 보관되며, 설정 파일에는 절대 저장되지 않습니다. 키체인에 키가 없으면 셸의 `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`(또는 `GOOGLE_API_KEY`), `OPENAI_API_KEY`를 사용합니다.
+- API 키는 로그인 키체인에 보관되며, 설정 파일에는 절대 저장되지 않습니다. Sync through iCloud(iCloud로 동기화)에서 "API keys and passwords"를 켜면 대신 iCloud 키체인에 보관되며, 그곳의 키는 `allinoneime-cli`와 0.6.5 이전 버전이 보지 못합니다. 키체인에 키가 없으면 셸의 `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`(또는 `GOOGLE_API_KEY`), `OPENAI_API_KEY`를 사용합니다.
 - API 키 행에는 키가 설정되어 있는지 표시됩니다: "✓ Saved · ends in a1b2"(저장됨 · 끝자리 a1b2: 마지막 4자를 키와 함께 저장해 두어, 표시할 때 키 자체를 읽지 않음)와 "Replace…"(교체), "Remove…"(제거), 셸에서 온 키라면 "✓ From $OPENAI_API_KEY"($OPENAI_API_KEY에서), 없으면 "No API key yet"(아직 API 키 없음)과 붙여 넣을 칸이 표시됩니다.
 - "Thinking"(사고)은 기본값이 낮음입니다. 입력기는 문장마다 기다리므로, 사고가 적을수록 빠릅니다. 이를 지원하지 않는 모델에는 "Not set"(설정 안 함)을 고르세요.
 - Claude Opus 5.5나 Sonnet 5.5를 고르면 요청에 Claude API의 거부 시 대체(`fallbacks: "default"`)가 포함됩니다. 안전 분류기가 거부하면 서버가 다른 모델로 다시 시도합니다.
@@ -529,7 +531,7 @@ Settings → AI Provider → Privacy → "Hide sensitive information before send
 | `questionRounds` | `@question` 대화가 다른 곳에서 이어 가자고 제안하기 전까지 패널에서 진행하는 회차 수, 2–10 | `5` |
 | `questionContinueIn` | `@question` 대화를 이어 갈 수 있는 곳, 순서대로, 첫 번째가 기본값: `agent`(`@agent`가 넘기는 에이전트, 그 에이전트 자신의 항목 대신), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent`(각 에이전트, 설치된 경우에만), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, 설치된 다른 에이전트, Claude, ChatGPT, 복사 |
 | `appProfiles` | 앱 하나의 설정, 번들 ID별, 모두 선택 사항: `inputLanguage`, `rewriteStyles`, `typeOut`, `noAI`, `translateAlways` ("앱별 설정" 참고) | `{}` |
-| `notes` | `@note`가 저장하는 곳(Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, 또는 Test로 찾은 페이지나 데이터베이스와 함께 `"notion"`. iCloud로 동기화되지 않음(토큰은 키체인에 있음) | `destination: "notes"` |
+| `notes` | `@note`가 저장하는 곳(Settings → Plugins → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, 또는 Test로 찾은 페이지나 데이터베이스와 함께 `"notion"`. iCloud Drive로 동기화되지 않음(토큰은 키체인에 있으며, "API keys and passwords"를 켠 경우에만 iCloud 키체인을 통해 동기화됨) | `destination: "notes"` |
 | `redaction` | 민감한 정보를 AI에게 숨김 (개인정보 보호 참고): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`. 각 감지기(`emails`, `phones`, `cards`, `keys`, `ips`)는 `false`로 두지 않는 한 켜져 있음 | `enabled: false` |
 
 ## 개인정보 보호
@@ -566,7 +568,8 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; needs the Developer ID certificate it's signed with and DIST_PROFILE, the provisioning profile; optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make app PROFILE=<profile> SIGN_IDENTITY=<a certificate it lists>   # a build with the keychain entitlements: it can sync keys through iCloud Keychain
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
@@ -578,6 +581,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 - `Core/Sources/AllInOneIMECore`: Bedrock 클라이언트, SigV4, 프롬프트, 2단계 입력 상태 머신(@ 명령어와 음성 제스처 포함). AppKit 의존성 없음
 - `Core/Sources/AllInOneIMEText`: 인터페이스 텍스트와 그 언어(`UIString`, `InterfaceText`, `InterfaceLanguage`, 그리고 `.lproj` 번들이 없는 곳에서 카탈로그를 읽는 `StringCatalog`). 설정 실행기는 이 모듈만 링크합니다(`AllInOneIMECore`가 이것을 다시 내보냄)
+- `Core/Sources/AllInOneIMEQuickJS`: QuickJS-ng(C 소스는 `Core/Sources/CQuickJS`에 있음). JavaScriptCore가 없는 곳(Windows, Linux, Android)에서 플러그인과 `@js`의 JavaScript를 실행
 - `Core/Sources/AllInOneIMERime`: librime 래퍼
 - `Core/Sources/AllInOneIMECLI`: 명령줄 도구 `allinoneime-cli`(`make cli`). 각 플랫폼 자체의 `main`이 실행
 - `Sources/AllInOneIMEMac`: Mac에만 있는 것(키 배열, 코드 서명, Spotlight, AppleScript, 업데이트 설치)과 `Platform.mac`
@@ -590,7 +594,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 버전 출시하기 (앱 내 업데이트는 릴리스 전용 키로 서명된 https://allinoneime.com/update.json을 읽습니다):
 
 1. 버전을 올리고(`AppVersion.swift`와 Info.plist 세 개. `AppVersionTests`가 서로 일치하는지 확인합니다) 변경 기록을 갱신합니다.
-2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg`와 그 `.sha256`, 그리고 `build/AllInOneIME-<version>-update.zip`(디스크 이미지의 설치 프로그램에 든 것과 같은 두 앱)을 만듭니다. 앱과 이미지는 키체인에 있는 Developer ID Application 인증서로 서명되고, 이미지는 그 `xcrun notarytool` 키체인 프로필로 공증된 뒤 스테이플(staple)됩니다.
+2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg`와 그 `.sha256`, 그리고 `build/AllInOneIME-<version>-update.zip`(디스크 이미지의 설치 프로그램에 든 것과 같은 두 앱)을 만듭니다. 앱과 이미지는 키체인에 있는 Developer ID Application 인증서로 서명되고, 이미지는 그 `xcrun notarytool` 키체인 프로필로 공증된 뒤 스테이플(staple)됩니다. 입력기에는 키체인 인타이틀먼트(entitlement)를 부여하는 Developer ID 프로비저닝 프로파일(`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`, `DIST_PROFILE`)이 들어갑니다. 프로파일에 서명 인증서가 없거나, 모든 기기를 프로비저닝하지 않거나, 남은 기간이 30일 미만이면(`Scripts/profile-entitlements.sh`), 또는 서명에 키체인 인타이틀먼트가 빠져 있으면 빌드가 멈춥니다. 빌드는 서명된 입력기를 한 번 실행해 봅니다(프로파일이 맞지 않으면 macOS가 입력기를 종료시킵니다). `DIST_PROFILE`이 비어 있어도 멈춥니다. 인타이틀먼트가 없는 릴리스는 iCloud 키체인으로 옮겨진 키를 모두 보지 못하게 되기 때문입니다. 이 프로파일에는 Developer ID G1 인증서 두 개만 들어 있으므로, 다른 인증서(G2)로 서명하기 전에 개발자 포털에서 그 인증서가 들어간 새 프로파일을 만들어(직접 만들어야 합니다. 이 App ID의 서명은 Xcode에 맡기지 않습니다) 커밋하세요.
 3. 두 파일을 GitHub 릴리스 `v<version>`에 올리고 게시합니다.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`(각각 한두 문장): `site/public/update.json`(앱에서 읽은 버전, 빌드, 최소 macOS, 파일의 주소, 크기, SHA-256, 릴리스 노트 주소와 요약)을 쓰고, 로그인 키체인의 키(`allinoneime-releases-signing`. macOS가 접근 허용을 물을 수 있습니다)로 서명해 `update.json.sig`를 만듭니다. 둘 다 커밋합니다.
 5. 릴리스 파일을 내려받을 수 있게 된 뒤에만 사이트를 배포합니다(`cd site && npx wrangler@4 deploy`). 앱은 하루에 한 번 확인하며, `AllInOneIME --check-update`로 앱이 보는 내용을 확인할 수 있습니다.

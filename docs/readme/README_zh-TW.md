@@ -292,6 +292,7 @@ Settings → General → **Sync through iCloud**（透過 iCloud 同步，預設
 | Learned words（學到的詞） | 拼音從你的選字中學到的字詞（Rime 的使用者詞典，透過 librime 的使用者詞典同步；你自己的 Rime 檔案，例如自訂短語，留在 Mac 上） | 開啟 |
 | Hidden words（隱藏的詞） | 你對 AI 隱藏的字詞（「iCloud Drive is end-to-end encrypted only with Advanced Data Protection」：只有開啟「進階資料保護」時，iCloud 雲碟才是端對端加密） | 關閉 |
 | Recent questions（最近的問題） | `@question` 最近的問題和答案（「Remember recent questions」開啟時） | 關閉 |
+| API keys and passwords（API 金鑰和密碼） | 你的 API 金鑰和擴充功能的密碼，透過一律端對端加密的 iCloud 鑰匙圈同步（需要在 系統設定 → Apple 帳號 → iCloud 中開啟「密碼與鑰匙圈」） | 關閉 |
 
 `iCloud Drive/AllInOneIME/settings.json` 保存每項設定，以及它在何時、在哪台 Mac（一個隨機 ID）上變更；每項設定以最新的變更為準：清單（你的自訂指令、改寫風格）算一個值，依 App 設定則逐個 App 處理，移除某個 App 的設定也算一次變更。同步的時機：輸入法啟動時、你變更設定約 5 秒後、iCloud 帶來另一台 Mac 的變更時（以及每 5 分鐘），以及按 **Sync Now**（立即同步）時；學到的字詞則在輸入法啟動時、每 30 分鐘（在打字暫停之後）和按 Sync Now 時同步。狀態那一行會顯示「Last synced 2 min ago」（2 分鐘前同步）、「Waiting for iCloud…」（正在等待 iCloud…）或錯誤。
 
@@ -301,9 +302,10 @@ Settings → General → **Sync through iCloud**（透過 iCloud 同步，預設
 - 關閉「Hidden words」或「Recent questions」時，已同步的內容會留在 iCloud：每個開關下方的 **Remove from iCloud…**（從 iCloud 移除…，會先詢問）會把它們移除；其他 Mac 會保留自己的，仍在同步它們的 Mac 會把自己的放回去。
 - 來自另一台 Mac、但這台無法使用的值（這裡沒有金鑰的供應商、這台沒有的 AWS 設定檔、超出範圍的值）不會套用：狀態那一行和 Settings → Assistant 的檢查問題會說明是哪些。
 - iCloud 還沒下載的檔案會等它下載，絕不當作空的；無法讀取的 `settings.json` 會改名為 `settings (unreadable …).json` 放在一旁，絕不覆寫。較新版本的設定會原樣保留。
-- 絕不同步：金鑰、權杖和密碼（它們在鑰匙圈中）、擴充功能來源（它們會執行程式碼：由每台 Mac 自己決定）、擴充功能資料夾和外掛程式（每台 Mac 上的路徑）、不再打錯的 App 和最近的 App、視窗狀態，以及同步開關本身（每台 Mac 各自設定）。
+- API 金鑰和密碼透過 iCloud 鑰匙圈同步，而不是 iCloud 雲碟：「API keys and passwords」開啟時（同步也要開啟），在一台 Mac 上儲存或取代的金鑰，其他 Mac 上也會有。它預設關閉：只開啟同步不會移動任何金鑰，要等你開啟這一列才會移動。開啟時，這台 Mac 的金鑰會從登入鑰匙圈移到 iCloud 鑰匙圈（之後更新時，macOS 就不會再為它們詢問你的登入密碼）；關閉時，金鑰會拷貝回登入鑰匙圈，iCloud 鑰匙圈中的仍留給你的其他 Mac。不同步的金鑰和以前一樣留在登入鑰匙圈中，AllInOneIME Cloud 的登入也是，它絕不同步：每台 Mac 各自登入。兩台 Mac 的金鑰不同時，以最後儲存的為準（依儲存的時間，每份拷貝都會記下）。另一把不會被刪除：它會以「被取代的拷貝」留在它那台 Mac 的登入鑰匙圈中（在「AllInOneIME replaced API key」之下，名稱以「(replaced)」結尾），絕不會被使用。移到 iCloud 鑰匙圈的金鑰也會留一份這樣的拷貝，以防另一台 Mac 上不同的金鑰蓋過它。每台 Mac 上每把金鑰只有一份被取代的拷貝：較新的會取代它。在金鑰同步時移除某把金鑰，會把它從每台同步金鑰的 Mac 上移除（詢問中寫的是「all your Macs」：你所有的 Mac），連同這台 Mac 上被取代的拷貝；關閉「API keys and passwords」的 Mac，或仍使用 0.6.4 的 Mac，會保留自己的那份，日後那台 Mac 開啟金鑰同步時會把它放回去（詢問中也會說明）。在關閉這項同步的 Mac 上，Remove… 只會從那台 Mac 移除金鑰和它被取代的拷貝（詢問中寫的是「this Mac」：這台 Mac），iCloud 鑰匙圈中的拷貝仍留給你的其他 Mac。移動時，如果 macOS 要你的登入密碼才讓 AllInOneIME 讀取某把金鑰，那把金鑰會留在登入鑰匙圈中，直到下次使用：那時 macOS 若詢問而你允許了，它就會再次被使用，即使它已在另一台 Mac 上被移除。每把金鑰仍然只會送往儲存時對應的主機。金鑰同步期間，`allinoneime-cli` 和 0.6.5 以前的版本在鑰匙圈中看不到它們。沒有佈建描述檔的版本（開發版本）會把金鑰留在登入鑰匙圈中，無法同步：這一列會說明。
+- 絕不同步：AllInOneIME Cloud 的登入、AWS 憑證（在 `~/.aws` 中）、擴充功能來源（它們會執行程式碼：由每台 Mac 自己決定）、擴充功能資料夾和外掛程式（每台 Mac 上的路徑）、不再打錯的 App 和最近的 App、視窗狀態，以及同步開關本身（每台 Mac 各自設定）。
 - 關閉同步會停止同步，並讓這台 Mac 和 iCloud 上的一切都保持原樣；**Remove from iCloud…**（會先詢問）會把資料夾移到垃圾桶，並關閉這台 Mac 的同步。
-- Settings → Assistant（「sync through iCloud」）可以開關同步；隱藏的字詞和最近的問題只能在 Settings → General 中選擇。設定檔中為 `iCloudSync`（`enabled`、`settings`、`jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`）。
+- Settings → Assistant（「sync through iCloud」）可以開關同步；隱藏的字詞和最近的問題只能在 Settings → General 中選擇。設定檔中為 `iCloudSync`（`enabled`、`settings`、`jargon`、`learnedWords`、`hiddenWords`、`recentQuestions`、`keys`）。
 
 ## 選單列面板
 
@@ -472,7 +474,7 @@ make install
 | Gemini API | `gemini-3.8-flash` | Google AI Studio |
 | 與 OpenAI 相容 | OpenAI 的 `gpt-6-luna`（或 `gpt-5.4-mini`）；「Common Services…」（常用服務…）中有 DeepSeek、Qwen、Kimi、Zhipu GLM、SiliconFlow、OpenRouter，以及這台 Mac 上的 Ollama：選擇其中一個會填入它的 Base URL，再輸入它的模型 | 該服務的金鑰；把 Base URL 設為它的位址，例如 `https://api.deepseek.com/v1`，或這台 Mac 上 Ollama 的 `http://localhost:11434/v1` |
 
-- API 金鑰保存在系統鑰匙圈中，絕不會寫進設定檔。鑰匙圈中沒有金鑰時，會使用你 shell 中的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）和 `OPENAI_API_KEY`。
+- API 金鑰保存在登入鑰匙圈中，絕不會寫進設定檔；如果你在「透過 iCloud 同步」下開啟「API keys and passwords」，則改為保存在 iCloud 鑰匙圈中，`allinoneime-cli` 和 0.6.5 以前的版本在那裡看不到它們。鑰匙圈中沒有金鑰時，會使用你 shell 中的 `ANTHROPIC_API_KEY`、`GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）和 `OPENAI_API_KEY`。
 - API 金鑰那一列會顯示是否已設定金鑰：「✓ Saved · ends in a1b2」（已儲存 · 結尾為 a1b2：最後 4 個字元，儲存金鑰時一併記下，顯示時不必讀取金鑰本身），旁邊有「Replace…」（取代）和「Remove…」（移除）；來自 shell 的顯示「✓ From $OPENAI_API_KEY」（來自 $OPENAI_API_KEY）；沒有的話顯示「No API key yet」（尚未設定 API 金鑰），並直接提供貼上的欄位。
 - 「Thinking」（思考）預設為低：輸入法每一句都要等待，思考越少越快。不支援這項設定的模型請選擇「Not set」（未設定）。
 - 選擇 Claude Opus 5.5 或 Sonnet 5.5 時，請求會帶有 Claude API 的拒絕備援（`fallbacks: "default"`）：安全分類器拒絕時，伺服器會改用另一個模型重試。
@@ -529,7 +531,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | `questionRounds` | `@question` 對話在候選視窗中進行幾輪後，建議到別處接著聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 對話可以在哪裡接著聊，依序排列，第一個為預設：`agent`（`@agent` 所交給的那個，取代該 agent 自己的項目）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各個 agent，已安裝才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、其他已安裝的 agent、Claude、ChatGPT、拷貝 |
 | `appProfiles` | 單一 App 的設定，依 bundle ID，每一項都是選擇性的：`inputLanguage`、`rewriteStyles`、`typeOut`、`noAI`、`translateAlways`（見「依 App 設定」） | `{}` |
-| `notes` | `@note` 存到哪裡（Settings → Plugins → Notes）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或 `"notion"` 加上 Test 找到的頁面或資料庫；絕不透過 iCloud 同步（權杖在鑰匙圈中） | `destination: "notes"` |
+| `notes` | `@note` 存到哪裡（Settings → Plugins → Notes）：`{"destination": "folder", "folder": "~/Vault/Inbox"}`，或 `"notion"` 加上 Test 找到的頁面或資料庫；絕不透過 iCloud 雲碟同步（權杖在鑰匙圈中，只有開啟「API keys and passwords」時才會透過 iCloud 鑰匙圈同步） | `destination: "notes"` |
 | `redaction` | 對 AI 隱藏敏感資訊（見「隱私」）：`{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`；每種偵測（`emails`、`phones`、`cards`、`keys`、`ips`）除非設為 `false`，否則都開啟 | `enabled: false` |
 
 ## 隱私
@@ -566,7 +568,8 @@ make realtest     # types into a real app's text field (needs the screen unlocke
 make screenshots  # regenerates the screenshots in docs/
 make cli && .build/release/allinoneime-cli --styles concise,jargon "this is a blocker bug your team need fix it asap"   # try polishing and rewrites in the terminal
 make icon         # regenerates the app icon and the menu bar icon from Resources/AppIcon.png
-make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; signed if there's a Developer ID certificate, optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make dmg          # the release installer, build/AllInOneIME-<version>.dmg (universal; needs the Developer ID certificate it's signed with and DIST_PROFILE, the provisioning profile; optionally notarized), and the in-app update, build/AllInOneIME-<version>-update.zip
+make app PROFILE=<profile> SIGN_IDENTITY=<a certificate it lists>   # a build with the keychain entitlements: it can sync keys through iCloud Keychain
 make update-test  # the in-app updater end to end: a temporary install, a test server on 127.0.0.1, a test key (never the installed app)
 ```
 
@@ -578,6 +581,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 - `Core/Sources/AllInOneIMECore`：Bedrock 用戶端、SigV4、提示詞、兩層式輸入狀態機（包括 @ 指令和語音手勢）；不依賴 AppKit
 - `Core/Sources/AllInOneIMEText`：介面文字及其語言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在沒有 `.lproj` 套件的地方讀取 catalog 的 `StringCatalog`）；設定啟動器只連結這一個模組（`AllInOneIMECore` 會重新匯出它）
+- `Core/Sources/AllInOneIMEQuickJS`：QuickJS-ng（它的 C 原始碼在 `Core/Sources/CQuickJS` 中），在沒有 JavaScriptCore 的地方（Windows、Linux、Android）執行外掛程式和 `@js` 的 JavaScript
 - `Core/Sources/AllInOneIMERime`：librime 包裝層
 - `Core/Sources/AllInOneIMECLI`：命令列工具 `allinoneime-cli`（`make cli`），由各平台自己的 `main` 執行
 - `Sources/AllInOneIMEMac`：只有 Mac 才有的部分（鍵盤配置、程式碼簽署、Spotlight、AppleScript、更新程式的安裝步驟），以及 `Platform.mac`
@@ -590,7 +594,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 發佈新版本（App 內的更新程式會讀取 https://allinoneime.com/update.json，以發佈專用的金鑰簽署）：
 
 1. 提高版本號（`AppVersion.swift` 和三個 Info.plist；`AppVersionTests` 會檢查它們是否一致）並更新更新日誌。
-2. `make dmg NOTARY_PROFILE=<profile>`：產生 `build/AllInOneIME-<version>.dmg` 及其 `.sha256`，以及 `build/AllInOneIME-<version>-update.zip`（兩個 App，和磁碟映像檔中的安裝程式所帶的一樣）。App 和映像檔會以鑰匙圈中的 Developer ID Application 憑證簽署，映像檔再以該 `xcrun notarytool` 鑰匙圈設定檔進行公證並裝訂（staple）。
+2. `make dmg NOTARY_PROFILE=<profile>`：產生 `build/AllInOneIME-<version>.dmg` 及其 `.sha256`，以及 `build/AllInOneIME-<version>-update.zip`（兩個 App，和磁碟映像檔中的安裝程式所帶的一樣）。App 和映像檔會以鑰匙圈中的 Developer ID Application 憑證簽署，映像檔再以該 `xcrun notarytool` 鑰匙圈設定檔進行公證並裝訂（staple）。輸入法帶有 Developer ID 佈建描述檔（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），由它授予輸入法的鑰匙圈權限（entitlements）；如果描述檔沒有列出簽署用的憑證、沒有佈建所有裝置或剩不到 30 天（`Scripts/profile-entitlements.sh`），或簽章缺少鑰匙圈權限，建置就會停止，它也會執行一次簽署好的輸入法（描述檔不相符的話，macOS 會終止它）。`DIST_PROFILE` 是空的也會讓建置停止：沒有這些權限的版本會看不到所有已移到 iCloud 鑰匙圈的金鑰。描述檔只列出兩張 Developer ID G1 憑證：改用另一張（G2）簽署之前，請在開發者網站上建立列出它的新描述檔（手動建立：這個 App ID 的簽署不交給 Xcode 管理），並提交它。
 3. 把兩者上傳到 GitHub 的 `v<version>` release 並發佈。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一兩句）：寫出 `site/public/update.json`（從 App 讀取的版本、build 和最低 macOS 版本，檔案的位址、大小和 SHA-256，發佈說明的位址和摘要），並用登入鑰匙圈中的金鑰（`allinoneime-releases-signing`；macOS 可能會詢問是否允許存取）簽署成 `update.json.sig`。兩個檔案都要提交。
 5. 等 release 的檔案可以下載後，再部署網站（`cd site && npx wrangler@4 deploy`）：App 每天檢查一次，`AllInOneIME --check-update` 會顯示它們看到的內容。
