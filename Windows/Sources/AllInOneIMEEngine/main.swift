@@ -296,7 +296,7 @@ func runEngine(_ options: EngineOptions) -> Never {
             exit(3)
         }
         ticks += 1
-        if ticks % 4 == 0 { server.settings?.checkForChanges() }
+        if ticks % 4 == 0 { server.checkSettings() }  // on the settings' queue: this loop never waits for it
     }
 }
 

@@ -5,8 +5,9 @@ import FoundationNetworking
 
 /// The settings for a settings window in another process (Windows' Settings app, over the wire): the document of what
 /// there is to set (`document`), one change at a time (`set`), the actions (`perform`: a key saved, a provider tested, a
-/// plugin installed or removed, a command saved or deleted), and a revision that moves with each change, here or in the
-/// file (`changed`). Everything goes through a `SettingsStore`: the same rules as the Mac's window.
+/// plugin installed or removed, a command saved or deleted; one that takes a while shown `running` until it is done,
+/// and stopped by `cancel`), and a revision that moves with each change, here or in the file (`changed`). Everything goes
+/// through a `SettingsStore`: the same rules as the Mac's window.
 ///
 /// Safe from any thread: the store is only touched under a lock, and so are the hooks (`changed`, …), which may be set
 /// while it is in use. A test, a download or an install runs outside it.
@@ -20,6 +21,55 @@ public final class SettingsService: @unchecked Sendable {
     private var tests: [String: SettingsStore.TestStatus] = [:]
     /// What the plugin library offers, once browsed (`browse`).
     private var libraryEntries: [PluginIndex.Entry]?
+    /// The actions that take a while running now, by field and item (an install's plugin): shown `running`, with
+    /// `cancel` among the actions.
+    private var runs: [Run: Running] = [:]
+
+    struct Run: Hashable {
+        var field: String
+        var item: String?
+    }
+
+    /// An action running: its task, and its request's answer, which comes from the task or, stopped, at once (a test
+    /// whose request doesn't stop when asked is left to end on its own, and what it finds isn't shown).
+    final class Running: @unchecked Sendable {
+        typealias Outcome = Result<SettingsActionOutcome, SettingsProblem>
+        private let lock = NSLock()
+        private var answer: Outcome?
+        private var waiting: CheckedContinuation<Outcome, Never>?
+        var task: Task<Void, Never>?
+
+        /// The answer, once: later ones are left out.
+        func answer(_ outcome: Outcome) {
+            lock.lock()
+            guard answer == nil else { lock.unlock(); return }
+            answer = outcome
+            let waiting = waiting
+            self.waiting = nil
+            lock.unlock()
+            waiting?.resume(returning: outcome)
+        }
+
+        func stop(_ problem: SettingsProblem) {
+            task?.cancel()
+            answer(.failure(problem))
+        }
+
+        var outcome: Outcome {
+            get async {
+                await withCheckedContinuation { continuation in
+                    lock.lock()
+                    if let answer {
+                        lock.unlock()
+                        continuation.resume(returning: answer)
+                    } else {
+                        waiting = continuation
+                        lock.unlock()
+                    }
+                }
+            }
+        }
+    }
     private let library: PluginLibrary
     /// The secret store its keys go to, when not the platform's (`Platform.secrets`): an engine's test mode keeps them
     /// in memory, never in the user's.
@@ -81,8 +131,13 @@ public final class SettingsService: @unchecked Sendable {
 
     /// The settings now (the file read again if something else changed it), for this platform.
     public func document() -> SettingsDocument {
+        current().document
+    }
+
+    /// The settings now and their revision, together (`document`'s, read again first if the file changed).
+    public func current() -> (revision: UInt64, document: SettingsDocument) {
         changing { store.reloadIfChanged() }
-        return scoped { locked { build().document } }
+        return scoped { locked { (revisionValue, build().document) } }
     }
 
     /// Reads the file again if something else changed it (another process, an editor): `changed` says so.
@@ -147,9 +202,12 @@ public final class SettingsService: @unchecked Sendable {
         return .success(())
     }
 
+    /// The actions that run a while (a test, a download): `perform` them; any other is done at once (`performNow`).
+    public static let longActions = [SettingsAction.test, SettingsAction.browse, SettingsAction.install]
+
     /// Whether an action runs a while (a test, a download): `perform` it; any other is done at once (`performNow`).
     public static func takesAWhile(_ action: SettingsAction) -> Bool {
-        [SettingsAction.test, SettingsAction.browse, SettingsAction.install].contains(action.name)
+        longActions.contains(action.name)
     }
 
     /// Runs one of a field's `actions`.
@@ -171,12 +229,51 @@ public final class SettingsService: @unchecked Sendable {
 
     private func performing(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         if let problem = check(action) { return .failure(problem) }
+        guard Self.takesAWhile(action) else { return now(action) }
+        return await running(action)
+    }
+
+    /// An action that takes a while, in a task of its own: shown `running` (the document's revision moves when it starts
+    /// and when it is done). Another of the same field and item replaces it, as the Mac's Test does, and `cancel` stops
+    /// it: its request is then answered `cancelled`, and what it would have shown isn't.
+    private func running(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        let run = Run(field: action.field, item: action.item)
+        let running = Running()
+        changing {
+            runs[run]?.stop(Self.cancelled(action.field))
+            runs[run] = running
+            if action.name == SettingsAction.test { tests[action.field] = nil }  // the last outcome, gone while it runs
+            revisionValue += 1
+            // Started under the lock: a `cancel` finds it.
+            running.task = Task { running.answer(await longAction(action)) }
+        }
+        let result = await withTaskCancellationHandler { await running.outcome } onCancel: {
+            running.stop(Self.cancelled(action.field))
+        }
+        changing {
+            guard runs[run] === running else { return }  // stopped or replaced: shown already
+            runs[run] = nil
+            revisionValue += 1  // done, and what it found
+        }
+        return result
+    }
+
+    private func longAction(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         switch action.name {
         case SettingsAction.test: return await test(action)
         case SettingsAction.browse: return await browse(action)
-        case SettingsAction.install: return await install(action)
-        default: return now(action)
+        default: return await install(action)
         }
+    }
+
+    /// `cancel`: what runs for the field (and the item, if one is named) stopped. Nothing running (done already):
+    /// nothing to do.
+    private func cancel(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
+        let stopped = runs.keys.filter { $0.field == action.field && (action.item == nil || $0.item == action.item) }
+        guard !stopped.isEmpty else { return .success(SettingsActionOutcome()) }
+        for run in stopped { runs.removeValue(forKey: run)?.stop(Self.cancelled(run.field)) }
+        revisionValue += 1
+        return .success(SettingsActionOutcome())
     }
 
     /// The actions done at once.
@@ -185,16 +282,20 @@ public final class SettingsService: @unchecked Sendable {
         case SettingsAction.setKey, SettingsAction.removeKey: return changing { secret(action) }
         case SettingsAction.remove: return changing { remove(action) }
         case SettingsAction.save, SettingsAction.delete: return changing { command(action) }
+        case SettingsAction.cancel: return changing { cancel(action) }
         default: return .failure(SettingsProblem(.notChangeable, field: action.field, message: Self.notChangeable))
         }
     }
 
-    /// Whether the field is there and has the action (or an item of it does).
+    /// Whether the field is there and has the action (or an item of it does). `cancel` is for a field with an action
+    /// that takes a while, running or not (done meanwhile: nothing to stop).
     private func check(_ action: SettingsAction) -> SettingsProblem? {
         let found = changing { () -> Result<SettingsDocument.Field, SettingsProblem> in
             store.reloadIfChanged()
             let document = build().document
             guard let field = document.field(action.field) else { return .failure(Self.unknown(action.field)) }
+            let actions = (field.actions ?? []) + (field.items ?? []).flatMap { $0.actions ?? [] }
+            if action.name == SettingsAction.cancel, actions.contains(where: Self.longActions.contains) { return .success(field) }
             guard field.actions?.contains(action.name) == true
                     || (action.item != nil && field.items?.contains { $0.actions?.contains(action.name) == true } == true) else {
                 return .failure(SettingsProblem(.notChangeable, field: action.field, message: Self.notChangeable))
@@ -289,6 +390,7 @@ public final class SettingsService: @unchecked Sendable {
             let kept = locked { store.config.notes.notion }
             do {
                 let target = try await SettingsStore.resolveNotion(link: action.value?.string ?? "", kept: kept, session: notionSession)
+                guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
                 changing { store.useNotion(target) }
                 status = .passed(target.label(language: UIText.language))
             } catch {
@@ -297,10 +399,9 @@ public final class SettingsService: @unchecked Sendable {
         default:
             return .failure(Self.unknown(action.field))
         }
-        changing {
-            tests[action.field] = status
-            revisionValue += 1  // the status shown
-        }
+        // Stopped (`cancel`, or another run of it): what it found isn't shown.
+        guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
+        locked { tests[action.field] = status }  // shown with the revision `running` moves when it is done
         switch status {
         case let .passed(text): return .success(SettingsActionOutcome(message: "✓ " + text))
         case let .failed(text): return .failure(SettingsProblem(.failed, field: action.field, message: "✗ " + text))
@@ -310,12 +411,11 @@ public final class SettingsService: @unchecked Sendable {
 
     /// The plugin library opened: what it offers this version.
     private func browse(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
-        switch await SettingsStore.libraryEntries(library) {
+        let found = await SettingsStore.libraryEntries(library)
+        guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
+        switch found {
         case let .success(entries):
-            changing {
-                libraryEntries = entries
-                revisionValue += 1
-            }
+            locked { libraryEntries = entries }  // shown with the revision `running` moves when it is done
             return .success(SettingsActionOutcome())
         case let .failure(error):
             return .failure(SettingsProblem(.failed, field: action.field, message: error.message))
@@ -328,10 +428,11 @@ public final class SettingsService: @unchecked Sendable {
         guard let entry = locked({ libraryEntries?.first { $0.name == action.item } }) else {
             return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
         }
+        // Installed, though cancelled meanwhile: done, and shown. Not installed: cancelled, or why.
         if let error = await SettingsStore.install(entry, from: library) {
-            return .failure(SettingsProblem(.failed, field: action.field, message: error))
+            return .failure(Task.isCancelled ? Self.cancelled(action.field) : SettingsProblem(.failed, field: action.field, message: error))
         }
-        changing { revisionValue += 1 }
+        if Task.isCancelled { changing { revisionValue += 1 } }  // its request answered already: the change is told
         pluginsChanged()
         return .success(SettingsActionOutcome())
     }
@@ -379,6 +480,10 @@ public final class SettingsService: @unchecked Sendable {
 
     static var notChangeable: String { tr("这个设置不能这样改", "This setting isn't changed this way") }
     static var badValue: String { tr("这个设置不接受这个值", "This setting doesn't take that value") }
+
+    static func cancelled(_ id: String?) -> SettingsProblem {
+        SettingsProblem(.cancelled, field: id, message: tr("已取消", "Cancelled"))
+    }
 
     static func stale(_ id: String?) -> SettingsProblem {
         SettingsProblem(.stale, field: id, message: tr("设置刚在别处改过，没有改动；这里是现在的设置",
@@ -491,6 +596,21 @@ public final class SettingsService: @unchecked Sendable {
         let sections = builder.sections()
         var document = SettingsDocument(language: UIText.language, platform: platform, loadError: store.loadError,
                                         saveError: store.saveError, sections: sections)
+        // What runs now: `running`, and `cancel` to stop it.
+        for s in document.sections.indices {
+            for f in document.sections[s].fields.indices {
+                let id = document.sections[s].fields[f].id
+                if runs[Run(field: id, item: nil)] != nil {
+                    document.sections[s].fields[f].running = true
+                    document.sections[s].fields[f].actions = (document.sections[s].fields[f].actions ?? []) + [SettingsAction.cancel]
+                }
+                for i in (document.sections[s].fields[f].items ?? []).indices {
+                    guard let item = document.sections[s].fields[f].items?[i], runs[Run(field: id, item: item.id)] != nil else { continue }
+                    document.sections[s].fields[f].items?[i].running = true
+                    document.sections[s].fields[f].items?[i].actions = (item.actions ?? []) + [SettingsAction.cancel]
+                }
+            }
+        }
         if store.loadError != nil {
             for s in document.sections.indices {
                 for f in document.sections[s].fields.indices where [.toggle, .integer, .number, .text, .choice, .choices, .words]

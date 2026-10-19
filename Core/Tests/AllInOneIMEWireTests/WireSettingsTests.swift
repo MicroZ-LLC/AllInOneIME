@@ -136,7 +136,8 @@ struct WireSettingsTests {
     /// older revision after a newer one), the last one too.
     @Test func manyWindowsAtOnce() throws {
         let server = WireServer(environment: WireEnvironment(host: TestHost()))
-        #expect(server.useTestSettings(config: #"{"provider": "anthropic"}"#))
+        // 4000: none of the values the windows set, so that each is a change.
+        #expect(server.useTestSettings(config: #"{"provider": "anthropic", "maxTokens": 4000}"#))
         let service = try #require(server.settings)
         let pushes = Locked<[ConnectionID: [EngineMessage]]>(initialState: [:])
         server.push = { id, data in
@@ -198,27 +199,109 @@ struct WireSettingsTests {
         #expect(told == [.settingsChanged(revision: before.revision + 1)])
     }
 
+    /// The frames pushed to `id` until `done` says so (a test's task runs on its own), at most 2 s.
+    func pushes(_ engine: TestEngine, for id: ConnectionID, until done: ([EngineMessage]) -> Bool) async throws -> [EngineMessage] {
+        var pushed: [EngineMessage] = []
+        for _ in 0..<200 where !done(pushed) {
+            try await Task.sleep(for: .milliseconds(10))
+            engine.runUntilIdle()
+            pushed += engine.takePushes(for: id).map { try! WireJSON.decode(EngineFrame.self, from: $0).message }
+        }
+        return pushed
+    }
+
+    static func answer(to re: UInt32, in messages: [EngineMessage]) -> SettingsAnswer? {
+        for message in messages { if case .settings(re, let answer) = message { return answer } }
+        return nil
+    }
+
+    static func notices(_ messages: [EngineMessage]) -> [UInt64] {
+        messages.compactMap { if case let .settingsChanged(revision) = $0 { revision } else { nil } }
+    }
+
     /// An action that takes a while (a test) is answered when it is done, through a push with its `re`; meanwhile the
-    /// connection goes on. (The Notion link's Test with no link and no page kept: it fails at once, with no network.)
+    /// connection goes on. It is a change when it starts (shown `running`) and when it is done (what it found): a
+    /// notice each, then the answer. (The Notion link's Test with no link and no page kept: it fails at once, with no
+    /// network.)
     @Test func anActionThatTakesAWhile() async throws {
         let (engine, id, _) = engine(#"{"notes": {"destination": "notion"}}"#)
         let answers = engine.send(ClientFrame(id: 2, .settingsAction(SettingsAction(field: "notes.notion", name: "test"))), on: id)
         #expect(answers.isEmpty)
         #expect(engine.send(ClientFrame(id: 3, .ping), on: id).map(\.message) == [.pong(re: 3)])
-        var pushed: [EngineMessage] = []
-        func answered() -> (UInt32, SettingsAnswer)? {
-            for message in pushed { if case let .settings(re, answer) = message { return (re, answer) } }
-            return nil
+        let pushed = try await pushes(engine, for: id) { Self.answer(to: 2, in: $0) != nil }
+        guard let answer = Self.answer(to: 2, in: pushed) else { Issue.record("no answer: \(pushed)"); return }
+        #expect(Self.notices(pushed) == [2, 3] && answer.revision == 3 && pushed.last.map { if case .settings = $0 { true } else { false } } == true)
+        #expect(answer.problem?.code == .failed && answer.problem?.message.hasPrefix("✗ ") == true)
+        let field = answer.document?.field("notes.notion")
+        #expect(field?.status == answer.problem?.message && field?.running == nil && field?.actions == ["test"])
+    }
+
+    /// A test that doesn't come back (Bedrock's credentials never found): shown `running`, with `cancel`; cancelled, its
+    /// request is answered `cancelled`, and nothing it would have found is shown. Stopping one that isn't running (done
+    /// meanwhile) does nothing. (No request ever leaves: the credentials never come.)
+    @Test func cancellingATest() async throws {
+        let (engine, id, _) = engine(#"{"provider": "bedrock"}"#)
+        let service = try #require(engine.server.settings)
+        service.loadCredentials = { _ in
+            try await Task.sleep(for: .seconds(30))
+            throw CancellationError()
         }
-        for _ in 0..<200 where answered() == nil {
-            try await Task.sleep(for: .milliseconds(10))
-            engine.runUntilIdle()
-            pushed += engine.takePushes(for: id).map { try! WireJSON.decode(EngineFrame.self, from: $0).message }
+        #expect(engine.send(ClientFrame(id: 2, .settingsAction(SettingsAction(field: "provider.test", name: "test"))), on: id).isEmpty)
+        let started = try await pushes(engine, for: id) { !Self.notices($0).isEmpty }
+        #expect(Self.notices(started) == [2])
+        guard case let .settings(_, running)? = engine.send(ClientFrame(id: 3, .settingsGet), on: id).first?.message else {
+            Issue.record("no answer")
+            return
         }
-        // The outcome shown is a change too: the notice, then the answer.
-        guard let (re, answer) = answered() else { Issue.record("no answer: \(pushed)"); return }
-        #expect(pushed.first == .settingsChanged(revision: answer.revision))
-        #expect(re == 2 && answer.problem?.code == .failed && answer.problem?.message.hasPrefix("✗ ") == true)
-        #expect(answer.document?.field("notes.notion")?.status == answer.problem?.message)
+        let test = running.document?.field("provider.test")
+        #expect(test?.running == true && test?.actions == ["test", "cancel"] && test?.status == nil)
+        let cancel = engine.send(ClientFrame(id: 4, .settingsAction(SettingsAction(field: "provider.test", name: "cancel"))), on: id)
+        guard case let .settings(4, stopped)? = cancel.first?.message else { Issue.record("no answer: \(cancel)"); return }
+        #expect(stopped.problem == nil && stopped.revision == 3 && stopped.document?.field("provider.test")?.running == nil)
+        // Answered at once (perhaps with the cancel's own answer), though the test's task may still be on its way out.
+        let ended = cancel.map(\.message) + (try await pushes(engine, for: id) { Self.answer(to: 2, in: cancel.map(\.message) + $0) != nil })
+        let answer = try #require(Self.answer(to: 2, in: ended))
+        #expect(answer.problem?.code == .cancelled && answer.revision == 3)
+        #expect(answer.document?.field("provider.test")?.status == nil)
+        // Nothing running: nothing to stop, nothing changes.
+        guard case let .settings(5, idle)? = engine.send(ClientFrame(id: 5, .settingsAction(SettingsAction(field: "provider.test", name: "cancel"))), on: id).first?.message else {
+            Issue.record("no answer")
+            return
+        }
+        #expect(idle.problem == nil && idle.revision == 3)
+        // The same test again while one runs: the new one replaces it, and the first is answered cancelled.
+        #expect(engine.send(ClientFrame(id: 7, .settingsAction(SettingsAction(field: "provider.test", name: "test"))), on: id).isEmpty)
+        _ = try await pushes(engine, for: id) { Self.notices($0).contains(4) }
+        let again = engine.send(ClientFrame(id: 8, .settingsAction(SettingsAction(field: "provider.test", name: "test"))), on: id).map(\.message)
+        let replaced = again + (try await pushes(engine, for: id) { Self.answer(to: 7, in: again + $0) != nil })
+        #expect(Self.answer(to: 7, in: replaced)?.problem?.code == .cancelled)
+        let last = engine.send(ClientFrame(id: 9, .settingsAction(SettingsAction(field: "provider.test", name: "cancel"))), on: id).map(\.message)
+        let stoppedToo = last + (try await pushes(engine, for: id) { Self.answer(to: 8, in: last + $0) != nil })
+        #expect(Self.answer(to: 8, in: stoppedToo)?.problem?.code == .cancelled)
+        // A field without an action that takes a while has no cancel.
+        guard case let .settings(6, refused)? = engine.send(ClientFrame(id: 6, .settingsAction(SettingsAction(field: "maxTokens", name: "cancel"))), on: id).first?.message else {
+            Issue.record("no answer")
+            return
+        }
+        #expect(refused.problem?.code == .notChangeable)
+    }
+
+    /// The settings' work isn't on the connection's queue: the watchdog (`longestBusy`) never counts it, however long
+    /// the secret store takes.
+    @Test func theSettingsAreOffTheConnectionsQueue() throws {
+        let server = WireServer(environment: WireEnvironment(host: TestHost()))
+        #expect(server.useTestSettings(config: #"{"provider": "anthropic"}"#))
+        let id = try #require(server.connect(.trustedClient))
+        _ = server.receive(try WireJSON.encode(ClientFrame(id: 1, .hello(Hello(client: "settings/test", capabilities: [Hello.settings])))), on: id)
+        let busy = Locked<[Double]>(initialState: [])
+        server.settings?.keySource = { (_: Provider) -> APIKeys.Source in
+            // The secret store taking its time.
+            Thread.sleep(forTimeInterval: 0.05)
+            busy.withLock { $0.append(server.longestBusy) }
+            return .none
+        }
+        let answers = server.receive(try WireJSON.encode(ClientFrame(id: 2, .settingsGet)), on: id)
+        let seen = busy.withLock { $0 }
+        #expect(answers.count == 1 && !seen.isEmpty && seen.allSatisfy { $0 == 0 }, "\(seen)")
     }
 }

@@ -458,6 +458,14 @@ public enum ClientMessage: Equatable, Sendable {
         }
     }
 
+    /// `settingsGet`, `settingsSet`, `settingsAction` (§12).
+    public var isSettings: Bool {
+        switch self {
+        case .settingsGet, .settingsSet, .settingsAction: return true
+        default: return false
+        }
+    }
+
     /// Whether the engine answers it (§3): a request.
     public var isRequest: Bool {
         switch self {

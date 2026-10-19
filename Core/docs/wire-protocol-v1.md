@@ -82,7 +82,8 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
   3. reconnects with backoff: 0, 250 ms, 1 s, 2 s, then every 5 s;
   4. after a new `welcome`, re-sends `open` for each live context and `focus` for the focused one.
 - **Starting the engine:** on `ERROR_FILE_NOT_FOUND`, a DLL in a medium-integrity, non-AppContainer process starts the engine from the path in `HKLM\Software\AllInOneIME\Engine`. The engine is single-instance through a mutex, `Local\AllInOneIME-Engine-<SID>`. Other DLLs wait for the pipe to appear.
-- **Engine watchdog:** if a session queue stalls for more than 2 s, the engine exits so it can be relaunched.
+- **Engine watchdog:** if a session queue stalls for more than 2 s, the engine exits so it can be relaunched. The
+  settings' work (§12) isn't on a session queue and doesn't count: a slow secret store never stops the engine.
 
 ## 3. Envelope and errors
 
@@ -557,7 +558,7 @@ given and sends back what the user did. It opens no sessions.
 - **Field:** `id` (what `settingsSet` and `settingsAction` name), `kind`, `label`, and as it has them: `help`, `value`,
   `placeholder` (what an empty text stands for: the default), `choices` (`{value, label, note, disabled}`), `ordered`,
   `minCount`, `maxCount`, `min`, `max`, `step`, `optional`, `readOnly`, `platforms`, `status`, `isSet`, `actions`,
-  `items` (`{id, title, detail, value, actions}`).
+  `items` (`{id, title, detail, value, actions, running}`), `running` (an action that takes a while runs now, §12.5).
 - **Canonical form** (§1): what a field doesn't have is left out, and so is a `value` that is null: no `value` means
   null (a text not set, "follow the system").
 
@@ -638,6 +639,7 @@ given and sends back what the user did. It opens no sessions.
 | `notChangeable` | not changed this way: read-only, or an action the field doesn't have |
 | `configBroken` | the config file can't be read; nothing is changed until it is fixed |
 | `failed` | taken, but not done: the file couldn't be written (the settings are then as the file has them, `saveError` says why), the secret store refused, a test failed |
+| `cancelled` | an action that takes a while stopped by `cancel`, or by the same action again |
 | `stale` | made on a `revision` the settings have moved on from, or on a `shown` list that can't be merged (`ordered` words changed since): nothing changed |
 
 ### 12.5 Actions (`settingsAction`)
@@ -652,18 +654,27 @@ given and sends back what the user did. It opens no sessions.
 | `remove` | `plugins.installed` | `item` | removes the plugin |
 | `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
 | `delete` | `commands.custom` | `item` | deletes the command |
+| `cancel` | a field with `test`, `browse` or `install` (and `item`, an install's plugin) | — | stops what runs there (§12.5, "Takes a while") |
 
 - An action must be in the field's `actions` (or its item's).
 - **Done at once:** `setKey`, `removeKey`, `remove`, `save`, `delete`: the answer comes as any other.
 - **Takes a while:** `test`, `browse`, `install` (a request to an AI provider, a download): the answer comes when it is
   done, perhaps after other frames; match it by `re`. The connection goes on meanwhile. A failed test is a `problem`
   (`failed`, "✗ …"); a test that passed says so in `message` ("✓ …"). Either is also the field's `status` from then on.
+  - **While it runs** the document says so: the field (an install: its item) has `running: true` and `cancel` among
+    its `actions`; a test's last outcome is gone from `status` (draw a spinner). The revision moves when it starts and
+    when it is done (§12.6).
+  - **`cancel`** stops it: answered at once (nothing running any more, done meanwhile: nothing to do), and the request
+    it was running for is answered `problem.code` `cancelled`. What a stopped test would have found is never shown; a
+    plugin installed before the stop came is installed (the document says so).
+  - **The same action again** (same field and item) while one runs replaces it, as the Mac's Test button does: the
+    first is answered `cancelled`.
 
 ### 12.6 `settingsChanged`
 
 - Sent to every client that has the settings after any change: one it made (after its answer), another client's, a
-  key saved or removed, a test's outcome, the file changed by something else (the engine looks about once a second:
-  `allinoneime-cli set-provider`, an editor, sync).
+  key saved or removed, an action that takes a while started, stopped or done (its outcome), the file changed by
+  something else (the engine looks about once a second: `allinoneime-cli set-provider`, an editor, sync).
 - `revision` is the new one. A client whose document is older sends `settingsGet` (at its own pace: several
   notifications may come for one change it hasn't fetched yet).
 
@@ -671,7 +682,11 @@ given and sends back what the user did. It opens no sessions.
 
 - Answers and notifications go out in the order the engine made them (the pipe's `answersThroughPush`, Spec notes). A
   `settingsSet`, or an action done at once, is answered before the `settingsChanged` it causes; an action that takes a
-  while may come after the `settingsChanged` of its outcome.
+  while may come after the `settingsChanged` of its outcome. A client is never told of an older revision after a newer
+  one.
+- **Where the work is done:** on one settings queue of the engine's, not the connection's: reading and writing
+  `config.json`, the Credential Manager, a plugin's folder, the document. The watchdog (§2.5) doesn't count it, and
+  the text services' keys never wait for it. Requests from settings clients are worked out one at a time.
 
 ### 12.8 Security
 
@@ -691,10 +706,10 @@ given and sends back what the user did. It opens no sessions.
 - **Core (AllInOneIMECore/Settings):** `SettingsStore` (config.json read and written key by key, the rules, the keys:
   the Mac's `SettingsModel` is a SwiftUI adapter over it), `SettingsService` (the document, `set`, the actions, the
   revision; thread-safe), `SettingsSchema` (the fields), `SettingsDocument` (the JSON).
-- **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), and
-  `useTestSettings` (`#! settings`, test mode).
+- **Wire:** the messages in `WireMessages.swift`; `WireServer.settings` (a `SettingsService`; nil: none), its settings
+  queue (§12.7), `checkSettings` (the file checked on that queue), and `useTestSettings` (`#! settings`, test mode).
 - **Windows engine:** one `SettingsService` over its config file (`--config`, else `%APPDATA%\AllInOneIME\config.json`),
-  checked for changes about once a second.
+  checked for changes about once a second (`checkSettings`, from the watchdog's loop, which never waits for it).
 - **Golden:** `settings.jsonl` (its documents and messages `"$any"`: they are in the interface language; the core's
   `SettingsServiceTests` check them).
 

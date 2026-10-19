@@ -84,6 +84,10 @@ public final class WireServer: @unchecked Sendable {
     private var settingsService: SettingsService?
     /// A test's settings (`#! settings`): their folder, removed when they are replaced.
     private var testSettingsFolder: URL?
+    /// Where the settings' work is done (§12): made when first needed (`settingsQueue`).
+    private var settingsQueueMade: WireQueue?
+    /// A check of the settings file is queued (`checkSettings`).
+    private var settingsCheckQueued = false
 
     /// The settings a settings window may read and change over the wire (§12); nil (the default): none, and a client
     /// that asks for them gets no `settings` capability. Setting it makes the server tell the clients that have them of
@@ -145,7 +149,8 @@ public final class WireServer: @unchecked Sendable {
 
     public var connectionCount: Int { lock.guarded { connections.count } }
 
-    /// The longest any connection's queue has been busy with one piece of work: the watchdog's (§2.5).
+    /// The longest any connection's queue has been busy with one piece of work: the watchdog's (§2.5). The settings'
+    /// queue isn't one: a settings window's work (the secret store, a file) never stops the engine (§12).
     public var longestBusy: Double {
         lock.guarded { Array(connections.values) }.map(\.queue.busyFor).max() ?? 0
     }
@@ -192,6 +197,10 @@ public final class WireServer: @unchecked Sendable {
             }
         } catch {
             return refusing(WireFrame.Failure.badFrame("invalid JSON"), on: connection)
+        }
+        if frame.message.isSettings, let service = settings,
+           connection.queue.sync({ connection.settings && connection.version == frame.v }) {
+            return receiveSettings(frame, service: service, on: connection)
         }
         return connection.queue.sync { deliver(handle(frame, on: connection), on: connection) }
     }
@@ -349,7 +358,14 @@ public final class WireServer: @unchecked Sendable {
             return []
 
         case .settingsGet, .settingsSet, .settingsAction:
-            return answerSettings(message, id: id, on: connection)
+            // A client that has the settings is answered on the settings' queue (`receiveSettings`); here only when
+            // it doesn't (or they were replaced meanwhile).
+            guard connection.settings, let service = settings else {
+                // Not asked for: the type is unknown to this client, as before §12. Asked for and refused: not allowed.
+                guard connection.capabilities.contains(Hello.settings) else { return error(.unknownType, "unknown type") }
+                return error(.notAllowed, "the settings are for a trusted client only")
+            }
+            return settingsAnswers(message, id: id, service: service, on: connection).map(connection.frame)
 
         case let .unknown(type):
             environment.log("connection \(connection.id): unknown type (\(type.count) chars)")
@@ -359,30 +375,50 @@ public final class WireServer: @unchecked Sendable {
 
     // MARK: - Settings (§12)
 
-    /// A settings request: answered with the settings as they now are, and what was refused or said. An action that
-    /// takes a while (a test, a download) is answered when it is done, through `push`; meanwhile the connection goes on.
-    private func answerSettings(_ message: ClientMessage, id: UInt32, on connection: Connection) -> [EngineFrame] {
-        guard connection.settings, let service = settings else {
-            // Not asked for: the type is unknown to this client, as before §12. Asked for and refused: not allowed.
-            guard connection.capabilities.contains(Hello.settings) else {
-                return [connection.error(re: id, .unknownType, "unknown type")]
+    /// Where the settings' work is done: the config file, the secret store, plugins' folders, the document. One queue
+    /// for every settings window, not a connection's: the watchdog doesn't count it (`longestBusy`), so a secret store
+    /// that takes its time (a virus scan) never stops the engine; and the keys' queues never wait for it.
+    private var settingsQueue: WireQueue {
+        lock.guarded {
+            if let queue = settingsQueueMade { return queue }
+            let queue = environment.makeQueue("allinoneime.wire.settings")
+            settingsQueueMade = queue
+            return queue
+        }
+    }
+
+    /// A settings request from a client that has the settings: worked out on the settings' queue, its answers sent on
+    /// the connection's, in order with its notices (a change's `settingsChanged` goes out after its answer: §12.7).
+    private func receiveSettings(_ frame: ClientFrame, service: SettingsService, on connection: Connection) -> [Data] {
+        settingsQueue.sync {
+            let messages = settingsAnswers(frame.message, id: frame.id, service: service, on: connection)
+            return connection.queue.sync {
+                guard connection.isOpen else { return [] }
+                return deliver(encodeAll(connection, messages.map(connection.frame)), on: connection)
             }
-            return [connection.error(re: id, .notAllowed, "the settings are for a trusted client only")]
         }
-        func answer(_ problem: SettingsProblem? = nil, message: String? = nil) -> EngineFrame {
-            Self.settingsAnswer(service, re: id, on: connection, problem: problem, message: message)
+    }
+
+    /// A settings request's answers: the settings as they now are, and what was refused or said. An action that takes a
+    /// while (a test, a download) is answered when it is done, through `push`; meanwhile the connection goes on, and
+    /// the document shows it `running`.
+    private func settingsAnswers(_ message: ClientMessage, id: UInt32, service: SettingsService,
+                                 on connection: Connection) -> [EngineMessage] {
+        func answer(_ problem: SettingsProblem? = nil, message: String? = nil) -> EngineMessage {
+            Self.settingsAnswer(service, re: id, problem: problem, message: message)
         }
+        func error(_ text: String) -> [EngineMessage] { [.error(re: id, code: .badMessage, message: text)] }
         switch message {
         case .settingsGet:
             return [answer()]
         case let .settingsSet(field, value, revision, shown):
-            guard field.utf16.count <= FieldLimits.app else { return [connection.error(re: id, .badMessage, "field over its limit")] }
+            guard field.utf16.count <= FieldLimits.app else { return error("field over its limit") }
             environment.log("connection \(connection.id): settingsSet \(field.prefix(64))")
             if case let .failure(problem) = service.set(field, to: value, revision: revision, shown: shown) { return [answer(problem)] }
             return [answer()]
         case let .settingsAction(action):
             guard action.field.utf16.count <= FieldLimits.app, action.name.utf16.count <= FieldLimits.app else {
-                return [connection.error(re: id, .badMessage, "field or action over its limit")]
+                return error("field or action over its limit")
             }
             // The field and the action, never the key or a value.
             environment.log("connection \(connection.id): settingsAction \(action.name.prefix(16)) on \(action.field.prefix(64))")
@@ -394,14 +430,18 @@ public final class WireServer: @unchecked Sendable {
             }
             Task {
                 let result = await service.perform(action)
-                connection.queue.async {
+                // Made on the settings' queue, after the notices of what it changed; sent on the connection's.
+                self.settingsQueue.async {
                     guard connection.isOpen else { return }
-                    let frame: EngineFrame
+                    let message: EngineMessage
                     switch result {
-                    case let .success(outcome): frame = Self.settingsAnswer(service, re: id, on: connection, message: outcome.message)
-                    case let .failure(problem): frame = Self.settingsAnswer(service, re: id, on: connection, problem: problem)
+                    case let .success(outcome): message = Self.settingsAnswer(service, re: id, message: outcome.message)
+                    case let .failure(problem): message = Self.settingsAnswer(service, re: id, problem: problem)
                     }
-                    if let data = self.encode(frame) { self.push(connection.id, data) }
+                    connection.queue.async {
+                        guard connection.isOpen, let data = self.encode(connection.frame(message)) else { return }
+                        self.push(connection.id, data)
+                    }
                 }
             }
             return []
@@ -411,19 +451,38 @@ public final class WireServer: @unchecked Sendable {
     }
 
     /// The answer to the settings request `re`: the settings now, and what was refused or said.
-    private static func settingsAnswer(_ service: SettingsService, re: UInt32, on connection: Connection,
-                                       problem: SettingsProblem? = nil, message: String? = nil) -> EngineFrame {
-        connection.frame(.settings(re: re, SettingsAnswer(revision: service.revision, document: service.document(),
-                                                          problem: problem, message: message)))
+    private static func settingsAnswer(_ service: SettingsService, re: UInt32, problem: SettingsProblem? = nil,
+                                       message: String? = nil) -> EngineMessage {
+        let (revision, document) = service.current()
+        return .settings(re: re, SettingsAnswer(revision: revision, document: document, problem: problem, message: message))
     }
 
-    /// Tells every client that has the settings that they changed (`settingsChanged`), on its queue.
+    /// Tells every client that has the settings that they changed (`settingsChanged`): from the settings' queue, after
+    /// the answer of the request that changed them, on each one's queue.
     private func settingsChanged(_ revision: UInt64) {
-        for connection in lock.guarded({ Array(connections.values) }) where connection.settings {
-            connection.queue.async { [weak self] in
-                guard let self, connection.isOpen else { return }
-                if let data = self.encode(connection.frame(.settingsChanged(revision: revision))) { self.push(connection.id, data) }
+        settingsQueue.async { [weak self] in
+            guard let self else { return }
+            for connection in lock.guarded({ Array(connections.values) }) where connection.settings {
+                connection.queue.async {
+                    guard connection.isOpen, let data = self.encode(connection.frame(.settingsChanged(revision: revision))) else { return }
+                    self.push(connection.id, data)
+                }
             }
+        }
+    }
+
+    /// Reads the settings file again if something else changed it (`SettingsService.checkForChanges`: the windows are
+    /// told), on the settings' queue: the engine's watchdog asks about once a second, and never waits on a window's work.
+    public func checkSettings() {
+        guard let service = settings else { return }
+        let queued = lock.guarded { () -> Bool in
+            defer { settingsCheckQueued = true }
+            return settingsCheckQueued
+        }
+        guard !queued else { return }
+        settingsQueue.async { [weak self] in
+            self?.lock.guarded { self?.settingsCheckQueued = false }
+            service.checkForChanges()
         }
     }
 
@@ -619,8 +678,12 @@ public final class WireServer: @unchecked Sendable {
         }
     }
 
+    /// Every queue until idle: the settings' (its notices go to the connections' queues), then the connections'.
     private func drainAll() {
-        for connection in lock.guarded({ Array(connections.values) }) { connection.queue.drain() }
+        for _ in 0..<2 {
+            lock.guarded { settingsQueueMade }?.drain()
+            for connection in lock.guarded({ Array(connections.values) }) { connection.queue.drain() }
+        }
     }
 
     private func testAnswer(_ test: TestFrame, on connection: Connection) -> Data {

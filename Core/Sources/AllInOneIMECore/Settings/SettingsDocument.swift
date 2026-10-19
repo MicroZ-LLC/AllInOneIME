@@ -118,6 +118,8 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         /// What `settingsAction` takes for it.
         public var actions: [String]?
         public var items: [Item]?
+        /// One of its actions that takes a while (`test`, `browse`) runs now: `cancel` (then among `actions`) stops it.
+        public var running: Bool?
 
         public init(id: String, kind: Kind, label: String, help: String? = nil, value: AIConfig.JSONValue? = nil) {
             self.id = id
@@ -157,6 +159,8 @@ public struct SettingsDocument: Codable, Equatable, Sendable {
         /// Its definition, for an editor (a custom command's fields).
         public var value: AIConfig.JSONValue?
         public var actions: [String]?
+        /// One of its actions that takes a while (`install`) runs now: `cancel` (then among `actions`) stops it.
+        public var running: Bool?
 
         public init(id: String, title: String, detail: String? = nil, value: AIConfig.JSONValue? = nil, actions: [String]? = nil) {
             self.id = id
@@ -182,6 +186,8 @@ public struct SettingsProblem: Error, Codable, Equatable, Sendable {
         case configBroken
         /// It was taken, but couldn't be done (a save, the secret store).
         case failed
+        /// An action that takes a while was stopped (`cancel`, or the same action again): nothing it found is shown.
+        case cancelled
         /// The settings changed since the revision the change was made on (`set`'s `revision`), or the list it was
         /// made on (`shown`) can't be merged with the one now: nothing changed; the document is the settings now.
         case stale
@@ -201,7 +207,7 @@ public struct SettingsProblem: Error, Codable, Equatable, Sendable {
 /// What `settingsAction` asks of a field: one of its `actions`.
 public struct SettingsAction: Equatable, Sendable {
     public var field: String
-    /// "setKey", "removeKey", "test", "browse", "install", "remove", "save", "delete".
+    /// "setKey", "removeKey", "test", "browse", "install", "remove", "save", "delete", "cancel".
     public var name: String
     /// The item it is about (a plugin's name, a command's).
     public var item: String?
@@ -226,6 +232,8 @@ public struct SettingsAction: Equatable, Sendable {
     public static let remove = "remove"
     public static let save = "save"
     public static let delete = "delete"
+    /// Stops what a field (or, with `item`, one of its items) runs: an action that takes a while.
+    public static let cancel = "cancel"
 }
 
 /// What an action did: done, with what it says (a test's outcome); or refused (`SettingsProblem`).

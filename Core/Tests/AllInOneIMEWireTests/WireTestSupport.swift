@@ -24,8 +24,16 @@ final class ManualQueue: WireQueue, @unchecked Sendable {
         lock.unlock()
     }
 
-    func drain() {
-        while let job = next() { job() }
+    func drain() { _ = drained() }
+
+    /// Runs what is queued, and what that queues; how many jobs ran.
+    func drained() -> Int {
+        var ran = 0
+        while let job = next() {
+            job()
+            ran += 1
+        }
+        return ran
     }
 
     private func next() -> (@Sendable () -> Void)? {
@@ -136,12 +144,15 @@ final class TestEngine: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// Runs every queue until nothing is left to run.
+    /// Runs every queue until nothing is left to run (a job may queue one on another queue: the settings' notices).
     func runUntilIdle() {
-        lock.lock()
-        let all = queues
-        lock.unlock()
-        for queue in all { queue.drain() }
+        var ran: Int
+        repeat {
+            lock.lock()
+            let all = queues
+            lock.unlock()
+            ran = all.reduce(0) { $0 + $1.drained() }
+        } while ran > 0
     }
 
     /// The frames pushed to `id` since the last call.
