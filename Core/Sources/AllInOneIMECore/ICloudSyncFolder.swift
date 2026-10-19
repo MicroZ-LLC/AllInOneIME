@@ -165,10 +165,16 @@ extension ICloudSync {
 /// names the shared folder; each Mac's Rime installation (`installation_id`, its own) writes a snapshot of its user
 /// dictionaries in a folder of its own there and merges the others' into its own (`RimeService.syncUserData`).
 public enum RimeSync {
+    /// `installation.yaml`'s lines, without their ends: "\n", or "\r\n" as librime writes the file on Windows (one
+    /// Character to Swift, which `components(separatedBy: "\n")` doesn't split there). Written back with "\n" alone.
+    static func lines(_ text: String) -> [String] {
+        text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
+    }
+
     /// `installation.yaml`'s text with `sync_dir` set to `folder` (nil: removed), every other line as it was
     /// (`installation_id` is never touched: it is this Mac's).
     public static func installation(_ text: String, syncDir folder: String?) -> String {
-        var lines = text.components(separatedBy: "\n")
+        var lines = Self.lines(text)
         if lines.last == "" { lines.removeLast() }
         lines.removeAll { $0.hasPrefix("sync_dir:") }
         if let folder {
@@ -180,7 +186,7 @@ public enum RimeSync {
 
     /// The `sync_dir` `installation.yaml` names, if any.
     public static func syncDir(in text: String) -> String? {
-        guard let line = text.components(separatedBy: "\n").first(where: { $0.hasPrefix("sync_dir:") }) else { return nil }
+        guard let line = lines(text).first(where: { $0.hasPrefix("sync_dir:") }) else { return nil }
         var value = line.dropFirst("sync_dir:".count).trimmingCharacters(in: .whitespaces)
         if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
             value = String(value.dropFirst().dropLast()).replacingOccurrences(of: "\\\"", with: "\"").replacingOccurrences(of: "\\\\", with: "\\")
@@ -204,7 +210,7 @@ public enum RimeSync {
     public static func resetInstallationID(userDataDir: URL) throws -> Bool {
         let file = userDataDir.appendingPathComponent("installation.yaml")
         guard let text = try? String(contentsOf: file, encoding: .utf8) else { return false }
-        let lines = text.components(separatedBy: "\n")
+        let lines = Self.lines(text)
         let kept = lines.filter { !$0.hasPrefix("installation_id:") }
         guard kept.count != lines.count else { return false }
         try Data(kept.joined(separator: "\n").utf8).write(to: file, options: .atomic)
