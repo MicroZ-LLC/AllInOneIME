@@ -1,6 +1,7 @@
 #if os(Windows)
 import AllInOneIMECore
 @testable import AllInOneIMEEngineKit
+import CAllInOneIMEPanel
 import Foundation
 import Testing
 import WinSDK
@@ -214,6 +215,32 @@ extension OnTheDesktop {
             #expect(after.visible == 1 && after.owner == before.owner && after.rows == 3 && after.notice == 0)
             #expect(after.x == before.x && after.y == before.y)
             window.hide(owner: owner)
+        }
+
+        /// A system caret, where the panel goes when the DLL reports none: in an app that isn't per-monitor aware its
+        /// rectangle is in the app's logical pixels, mapped here to physical ones (on a monitor at 150%, 1.5 times as far
+        /// from the window's corner; at 100% the same).
+        @Test func aSystemCaretIsMappedFromTheAppsPixels() throws {
+            // A window of an app that isn't DPI aware: made by this thread while it isn't.
+            let previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE)
+            let made = "STATIC".withCString(encodedAs: UTF16.self) {
+                CreateWindowExW(0, $0, nil, DWORD(WS_POPUP), 200, 150, 400, 300, nil, nil, GetModuleHandleW(nil), nil)
+            }
+            SetThreadDpiAwarenessContext(previous)
+            let window = try #require(made)
+            defer { DestroyWindow(window) }
+            #expect(AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(window), DPI_AWARENESS_CONTEXT_UNAWARE))
+            // Its rectangle in physical pixels, as a per-monitor aware thread sees it, and the scale of its monitor.
+            let aware = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+            var physical = RECT()
+            GetWindowRect(window, &physical)
+            SetThreadDpiAwarenessContext(aware)
+            let scale = Double(physical.right - physical.left) / 400
+            var caret = AioCaret()
+            #expect(aio_client_rect_on_screen(UnsafeMutableRawPointer(window), 10, 20, 12, 44, &caret) != 0)
+            #expect(abs(Int(caret.x) - (Int(physical.left) + Int((10 * scale).rounded()))) <= 1)
+            #expect(abs(Int(caret.y) - (Int(physical.top) + Int((20 * scale).rounded()))) <= 1)
+            #expect(abs(Int(caret.height) - Int((24 * scale).rounded())) <= 1)
         }
 
         /// Where a caret report may put the panel (`Foreground.caretBounds`): inside the window it names, if that is the

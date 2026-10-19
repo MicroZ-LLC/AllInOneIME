@@ -111,6 +111,10 @@ int32_t aio_owns_foreground(uint32_t pid);
 /// screen pixels, if the window is the process's; with no window (0), the foreground window's, if the process owns it
 /// (`aio_owns_foreground`). 0 if neither: the report isn't the process's to make.
 int32_t aio_caret_bounds(uint64_t hwnd, uint32_t pid, AioCaret *bounds);
+/// A rectangle in `window`'s client coordinates (its own pixels: logical ones for an app that isn't per-monitor aware)
+/// in physical screen pixels: how the panel places itself at a system caret when the DLL hasn't reported one. 0 if it
+/// can't be mapped.
+int32_t aio_client_rect_on_screen(void *window, int32_t left, int32_t top, int32_t right, int32_t bottom, AioCaret *out);
 
 #ifdef __cplusplus
 }

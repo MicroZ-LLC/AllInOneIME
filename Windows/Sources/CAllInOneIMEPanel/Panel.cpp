@@ -324,28 +324,43 @@ bool BelongsTo(HWND window, DWORD pid) {
 
 bool OwnsForeground(DWORD pid) { return BelongsTo(GetForegroundWindow(), pid); }
 
+// `rect`, in the client coordinates of `window` (a system caret, as GetGUIThreadInfo gives it), in physical screen
+// pixels. Those coordinates are the window's own: for an app that isn't per-monitor aware they are its logical pixels,
+// scaled on a monitor at another DPI. So they are mapped to the screen as the window sees it (this thread in the
+// window's DPI awareness for ClientToScreen), then to physical pixels (LogicalToPhysicalPointForPerMonitorDPI); this
+// per-monitor aware thread's own ClientToScreen would take them for physical ones.
+bool ClientRectOnScreen(HWND window, RECT rect, AioCaret *out) {
+    POINT a = {rect.left, rect.top}, b = {rect.right, rect.bottom};
+    DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(window));
+    BOOL mapped = ClientToScreen(window, &a) && ClientToScreen(window, &b);
+    if (previous) SetThreadDpiAwarenessContext(previous);
+    if (!mapped) return false;
+    LogicalToPhysicalPointForPerMonitorDPI(window, &a);
+    LogicalToPhysicalPointForPerMonitorDPI(window, &b);
+    *out = {a.x, a.y, std::max<LONG>(b.x - a.x, 1), std::max<LONG>(b.y - a.y, 1), 0};
+    return true;
+}
+
 // Where the caret is when the DLL hasn't said: the foreground thread's system caret (classic Win32 controls have one),
-// else the bottom left of the foreground window, else the pointer.
+// else the bottom left of the foreground window, else the pointer. In physical pixels.
 AioCaret FallbackCaret() {
     AioCaret c = {};
     HWND fg = GetForegroundWindow();
     GUITHREADINFO info = {sizeof info};
     if (fg && GetGUIThreadInfo(GetWindowThreadProcessId(fg, nullptr), &info) && info.hwndCaret &&
-        (info.rcCaret.right > info.rcCaret.left || info.rcCaret.bottom > info.rcCaret.top)) {
-        POINT a = {info.rcCaret.left, info.rcCaret.top}, b = {info.rcCaret.right, info.rcCaret.bottom};
-        ClientToScreen(info.hwndCaret, &a);
-        ClientToScreen(info.hwndCaret, &b);
-        c = {a.x, a.y, std::max<LONG>(b.x - a.x, 1), std::max<LONG>(b.y - a.y, 1), 0};
+        (info.rcCaret.right > info.rcCaret.left || info.rcCaret.bottom > info.rcCaret.top) &&
+        ClientRectOnScreen(info.hwndCaret, info.rcCaret, &c)) {
         return c;
     }
     RECT r;
     if (fg && GetWindowRect(fg, &r)) {
-        c = {r.left + 40, r.top + 80, 1, 20, 0};
+        UINT dpi = DpiAt(POINT{r.left, r.top}, nullptr);
+        c = {r.left + MulDiv(40, (int)dpi, 96), r.top + MulDiv(80, (int)dpi, 96), 1, MulDiv(20, (int)dpi, 96), 0};
         return c;
     }
     POINT pt;
     GetCursorPos(&pt);
-    c = {pt.x, pt.y, 1, 20, 0};
+    c = {pt.x, pt.y, 1, MulDiv(20, (int)DpiAt(pt, nullptr), 96), 0};
     return c;
 }
 
@@ -979,6 +994,13 @@ int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path) {
 }
 
 int32_t aio_owns_foreground(uint32_t pid) { return OwnsForeground(pid) ? 1 : 0; }
+
+int32_t aio_client_rect_on_screen(void *window, int32_t left, int32_t top, int32_t right, int32_t bottom, AioCaret *out) {
+    AioCaret c = {};
+    if (!ClientRectOnScreen(static_cast<HWND>(window), RECT{left, top, right, bottom}, &c)) return 0;
+    if (out) *out = c;
+    return 1;
+}
 
 int32_t aio_caret_bounds(uint64_t hwnd, uint32_t pid, AioCaret *bounds) {
     HWND window = reinterpret_cast<HWND>(static_cast<uintptr_t>(hwnd));
