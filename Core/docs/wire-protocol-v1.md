@@ -520,10 +520,12 @@ given and sends back what the user did. It opens no sessions.
 {"v":1,"id":5,"re":4,"type":"settings","revision":2,"problem":{"code":"badValue","field":"maxTokens","message":"Between 200 and 4000"},"document":{…}}
 {"v":1,"id":5,"type":"settingsAction","field":"anthropic.key","action":"setKey","key":"sk-ant-…"}
 {"v":1,"id":6,"re":5,"type":"settings","revision":3,"document":{…}}
+{"v":1,"id":7,"type":"settingsChanged","revision":3}
 {"v":1,"id":6,"type":"settingsSet","field":"maxTokens","value":2000,"revision":2}
-{"v":1,"id":7,"re":6,"type":"settings","revision":3,"problem":{"code":"stale","field":"maxTokens","message":"The settings changed meanwhile: …"},"document":{…}}
+{"v":1,"id":8,"re":6,"type":"settings","revision":3,"problem":{"code":"stale","field":"maxTokens","message":"The settings changed meanwhile: …"},"document":{…}}
 {"v":1,"id":7,"type":"settingsSet","field":"redaction.customWords","value":["Acme","Mine"],"shown":["Acme"]}
-{"v":1,"id":8,"re":7,"type":"settings","revision":4,"document":{…"value":["Acme","Elsewhere","Mine"]…}}
+{"v":1,"id":9,"re":7,"type":"settings","revision":4,"document":{…"value":["Acme","Elsewhere","Mine"]…}}
+{"v":1,"id":10,"type":"settingsChanged","revision":4}
 ```
 
 **`settings`**, the answer to all three:
@@ -556,9 +558,9 @@ given and sends back what the user did. It opens no sessions.
 ```
 
 - **Document:** `language` (the text's: "zh-Hans", "en", "fr" …: the settings' `uiLanguage`, else the system's, as the
-  engine's panel picks it; changed, the answer's document is in the new one already), `platform` (`windows`, `mac`), `loadError` (the
-  config file can't be read: every field is `readOnly`, nothing is changed, the file stays as it is), `saveError`,
-  `sections`.
+  engine's panel picks it; changed, the answer's document is in the new one already), `platform` (`windows`, `mac`),
+  `loadError` (the config file can't be read: every field is `readOnly`, nothing is changed, the file stays as it is),
+  `saveError`, `sections`.
 - **Section:** `id`, `title`, `footer` (a note under it), `fields`. Sections without fields are left out.
 - **Field:** `id` (what `settingsSet` and `settingsAction` name), `kind`, `label`, and as it has them: `help`, `value`,
   `placeholder` (what an empty text stands for: the default), `choices` (`{value, label, note, disabled}`), `ordered`,
@@ -673,7 +675,7 @@ given and sends back what the user did. It opens no sessions.
 | `cancel` | a field with `test`, `browse` or `install` (and `item`, an install's plugin) | — | stops what runs there (§12.5, "Takes a while") |
 
 - An action must be in the field's `actions` (or its item's).
-- **Done at once:** `setKey`, `removeKey`, `remove`, `save`, `delete`: the answer comes as any other.
+- **Done at once:** `setKey`, `removeKey`, `remove`, `save`, `delete`, `cancel`: the answer comes as any other.
 - **Takes a while:** `test`, `browse`, `install` (a request to an AI provider, a download): the answer comes when it is
   done, perhaps after other frames; match it by `re`. The connection goes on meanwhile. A failed test is a `problem`
   (`failed`, "✗ …"); a test that passed says so in `message` ("✓ …"). Either is also the field's `status` from then on.
