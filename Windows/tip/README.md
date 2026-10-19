@@ -26,13 +26,15 @@ the tests.
 | `wire/Wire.h`, `wire/WireJson.cpp` | the protocol as plain structs, and their JSON, by hand over nlohmann/json |
 | `res/` | the version resource and a placeholder icon |
 | `third_party/nlohmann/` | nlohmann/json 3.11.3, the single header, unchanged (MIT, `LICENSE.MIT`) |
-| `test/goldens/*.jsonl` | the golden transcripts |
+| `test/goldens/*.jsonl` | the DLL's own golden transcripts (the engine's `notepad-improve`/`-click` are replayed from `Core`) |
 | `test/common/` | `Transcript` (reads goldens, matches frames) and `FakeEngine` (the §2.1 pipe, replays a golden) |
 | `test/tiptest/` | drives the registered DLL through real TSF against a golden; `TextStore` is its in-memory document |
 | `test/wiretest/` | the wire layer, and `PipeClient` against the fake engine; no TSF |
 | `test/fake-engine/` | the fake engine as a program of its own |
 | `test/tsfstate/` | shows, and restores, the session's active input method |
+| `test/e2edriver/`, `test/e2ehook/` | the end-to-end driver (real engine + real DLL, keys with SendInput, UIA read) and the hook it injects to put the profile on one app's thread |
 | `test/run-in-session.sh`, `test/run-tests.sh` | run a test in the user's session; build, register and run them all |
+| `test/run-e2e.sh` | the end-to-end harness (M3): see "End to end" below |
 
 ## Build
 
@@ -178,20 +180,24 @@ The host's directives (the spec's own, `provider`, `inputLanguage`, `run tasks`,
 | `#! terminate` | the app ends the composition (`ITfContextOwnerCompositionServices::TerminateComposition`) |
 | `#! wait <ms>` | the host runs its message loop for a while |
 | `#! reconnect` | the engine drops the connection and takes the DLL's next one |
+| `#! scope <n>` | the field's input scope becomes `n` (the DLL notices at its next key) |
+
+The engine's goldens (`Core/Tests/AllInOneIMEWireTests/WireGoldens`) replay here unchanged: a `>`/`<` line without `v` is read as `"v":1` (the spec notes' format), and an `#! expect-document` argument is a JSON string. `run-tests.sh` runs the engine's `notepad-improve` and `notepad-improve-click` straight from there, so both sides are tested against the very same transcripts.
 
 The keys the host types are those of the `>` keyDown/keyUp frames and of `#! type`, in order. After the last line, a
 frame the golden doesn't list fails the test.
 
 | Golden | What it checks |
 |---|---|
-| `notepad-improve` | §10, with the "improve hell" keys (ids 11–22 and 8–19) written out: plain keys pass, `@` starts a draft and shows the panel, the caret report, the Shift key-up, the composition grows, Enter converts, `1` commits "Hello.", blur, close |
-| `notepad-improve-click` | §10's mouse variant: the engine pushes the commit (`apply`), the DLL answers `applied` with the new ctx (§7) |
-| `terminated` | the app ends the composition: `endComposition {terminated}`, its commit replaces the composition's range (§5.5) |
+| `notepad-improve` (from `Core`) | §10, the full "improve helo" run: plain keys pass, `@` starts a draft and shows the panel, the caret report, the Shift key-up, the composition grows (shown `improve › helo`), Enter converts, `1` commits "Hello.", blur, close; document "hi Hello." |
+| `notepad-improve-click` (from `Core`) | §10's mouse variant: the engine pushes the commit (`apply`), the DLL answers `applied` with the new ctx (§7) |
+| `terminated` | the app ends the composition: `endComposition {terminated}`, its commit (the draft as typed, `@i`) replaces the composition's range (§5.5); document "@i" |
 | `retest` | each key tested twice: one request per key (§5.4 cache), a key-up ends a key, and TSF's own termination of the composition when the focus moves (then the blur) |
 | `secure-field` | an `IS_PASSWORD` field: after the handshake nothing at all, and every key reaches the app (§8) |
 | `engine-missing` | no engine: passive, every key passes (§2.5) |
-| `timeout-resync` | a key unanswered mid-draft: after 150 ms the composition ends keeping its text, the key passes, the late result is dropped, `endComposition {timeout}` resyncs (§5.4) |
-| `reconnect` | the engine goes away mid-draft: the composition ends keeping its text, the DLL reconnects, re-sends `open` and `focus` with a new serial (§2.5) |
+| `timeout-resync` | a key unanswered mid-draft: after 150 ms the composition ends keeping the draft as typed (`@i`), the key passes, the late result is dropped, `endComposition {timeout}` resyncs and the engine's reset removes nothing (§5.4); document "@imx" |
+| `reconnect` | the engine goes away mid-draft: the composition ends keeping the draft as typed (`@i`), the DLL reconnects, re-sends `open` and `focus` with a new serial (§2.5); document "@im" |
+| `focus-resent` | the field's input scope changes mid-draft: `focus` is re-sent with the new field and the same serial (no blur), the draft goes on, and a push for that serial still applies (§4, §7) |
 
 ### Results (this machine, Windows 11 Pro 26200, x64)
 
@@ -199,17 +205,45 @@ Run in the logged-on user's session by scheduled task, with the Release DLL regi
 real TSF dispatch, and the Debug DLL passes them too:
 
 ```
-wiretest                    PASS  (wire, and the pipe/server check/handshake/request in the session)
-tiptest notepad-improve     PASS  27/27 frames, "hi Hello."
-tiptest notepad-improve-click PASS  27/27 frames, "hi Hello."
-tiptest terminated          PASS  11/11 frames, "@i"
-tiptest retest              PASS  9/9 frames, "ll@"
-tiptest secure-field        PASS  1/1 frames (the handshake), then silence, "hi@"
-tiptest engine-missing      PASS  no engine, "hi@"
-tiptest timeout-resync      PASS  10/10 frames, "@ix"
-tiptest reconnect           PASS  11/11 frames, "@i"
-the session's input method  as it was
+wiretest                      PASS  (wire, and the pipe/server check/handshake/request in the session)
+tiptest notepad-improve       PASS  26/26 frames, "hi Hello."     (the engine's golden, from Core)
+tiptest notepad-improve-click PASS  26/26 frames, "hi Hello."     (the engine's golden, from Core)
+tiptest terminated            PASS  11/11 frames, "@i"
+tiptest retest                PASS  9/9 frames, "ll@"
+tiptest secure-field          PASS  1/1 frames (the handshake), then silence, "hi@"
+tiptest engine-missing        PASS  no engine, "hi@"
+tiptest timeout-resync        PASS  11/11 frames, "@imx"
+tiptest reconnect             PASS  12/12 frames, "@im"
+tiptest focus-resent          PASS  10/10 frames, "Hi."
+the session's input method    as it was
 ```
+
+## End to end (M3): the real engine and DLL, into a real edit control
+
+`bash test/run-e2e.sh` runs the whole real stack in the logged-on session (a scheduled task, as the other tests): it
+registers the DLL, and the driver (`e2edriver`) starts the real engine in that session (test mode, the scripted
+provider, the system clock, so `@improve` streams in real time), activates the AllInOneIME profile, types "hi @improve
+helo", Return and `1` with **SendInput**, and reads the result back through **UIA `TextPattern`**. Every key goes in
+only while the target window has the foreground; the run stops at once if it ever doesn't, so no key reaches another
+window. The engine runs in the session (not over SSH), so it and the DLL pass §2.1's same-session client check.
+
+- **Default (hosted edit):** the driver types into a classic Win32 `EDIT` control in its own window. The DLL loads
+  into that process, composes, and commits; the control reads back "hi Hello." Per-key round trips as the DLL times
+  them (`QueryPerformanceCounter`) are in `Windows/README.md`.
+- **Notepad (`--notepad`, `--probe`):** on this Windows 11 the only Notepad is the packaged (WinUI) Store app, whose
+  text input does **not** host a classic in-process TSF text service — `ActivateProfile` succeeds (the hook runs in
+  Notepad and the session stays per-thread) but TSF never loads the DLL into it, so AllInOneIME can't compose there.
+  The driver still exercises the path safely: it seeds its own temp file and finds, by UIA, the one document whose text
+  is its unique marker; it only ever types into that document, never the user's tab, and closes only its own saved tab.
+  A classic Notepad (or AllInOneIME once it ships as an installed input method, with the settings/installer still to
+  come) would complete this path unchanged.
+
+**Activating one app's thread only.** A TSF text service has no HKL (activating it leaves the thread on the base US
+layout, and it never appears in `GetKeyboardLayoutList`), so it can't be selected from outside with
+`WM_INPUTLANGCHANGEREQUEST` the way a keyboard layout can, and `ActivateProfile` acts on the calling thread. So, as the
+language bar does for one window, `e2ehook` is injected into the target thread (`SetWindowsHookEx(WH_GETMESSAGE)`) and
+runs `ActivateProfile` there. With per-thread input settings on (set in both processes, in memory), that touches only
+that thread, never the session; `run-e2e.sh` checks the session's input method is unchanged afterwards.
 
 ## Diagnostics
 
@@ -238,8 +272,9 @@ should agree:
   the key.
 - **A timeout (§5.4)** doesn't wait for `endComposition {timeout}` (that would take the TSF thread past the budget): its
   result goes in when it comes, or before a later key's outputs if it comes first. Before the key passes, the DLL ends
-  its composition keeping the text (as §2.5 does), so the app's key doesn't land in a range the engine's reset then
-  empties.
+  its composition keeping the text **as the user typed it** (`composition.typed`, not what the engine showed), so the
+  app's key lands after the real text and the engine's reset (which now returns no composition, only `panel shown:false`)
+  removes nothing. Same for a lost engine (§2.5): the kept text is the draft as typed.
 - **Blur mid-composition (§4, §5.5).** TSF itself terminates the composition (`OnCompositionTerminated`) before it calls
   `OnSetFocus` when the focus moves to another document: the engine sees `endComposition {terminated}` and then `blur`,
   with nothing left to commit.
@@ -250,7 +285,9 @@ should agree:
   `GUID_COMPARTMENT_KEYBOARD_DISABLED` or `GUID_COMPARTMENT_EMPTYCONTEXT` set (TSF's empty context of a document
   without one) gets no frames at all; nothing goes out for a context until its input scope has been read under a lock;
   a field that turns secure gets a `blur` and then nothing; `TF_TMAE_SECUREMODE` keeps the whole TIP passive.
-- **Caret reports (§6)** go only while the panel is shown, also for the edit-session and layout triggers.
+- **Caret reports (§6)** go only while the panel is shown, also for the edit-session and layout triggers. The engine
+  forgets the last caret when the panel hides, so a panel shown again waits for a fresh report rather than drawing where
+  the old one was.
 - **`applied` (§7)** is sent for a push merged into a key's edit session too, with the ctx right after its outputs.
 - **Goldens.** The spec puts the C++ under `Apps/windows/tip/` and the goldens under
   `Core/Tests/AllInOneIMEWireTests/WireGoldens/`; here they are `Windows/tip/` and `Windows/tip/test/goldens/`. A

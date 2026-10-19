@@ -96,3 +96,34 @@ Notes on the numbers:
   difference.
 - **Not measured yet:** the first draw (50 ms), keepalive, and anything with Rime or a model, which need the DLL, the
   panel and a language pack.
+
+## Measured (M3): the real DLL and engine, end to end
+
+Measured on 2026-10-18 on the same PC. `Windows/tip/test/run-e2e.sh` registers the real DLL, starts the real engine in
+the logged-on session (`--test`, the scripted `improve-hello` provider, `--clock system` so `@improve` streams in real
+time), and the driver types "hi @improve helo", Return and `1` into a focused edit control with **SendInput**, reading
+the text back through **UIA `TextPattern`**. This is the whole stack: SendInput → the TSF DLL → the pipe → the engine's
+Composer and scripted level two → outputs → the composition and commit in the control → UIA.
+
+- **Result:** the control ends up holding **"hi Hello."**; the pick of version 1 ("Hello.") committed over the draft.
+  The session's input method is the same before and after (AllInOneIME is activated for the one thread only).
+- **Per-key round trip, as the DLL times it** (`QueryPerformanceCounter`, write of the frame to read of the `result`),
+  over the 20 keys of a run:
+
+| | ms |
+|---|---|
+| key round trip, p50 | 0.37 |
+| key round trip, p90 | 0.51 |
+| key round trip, max | 1.15 (the Return that starts level two) |
+| key round trip, min (a modifier key-up) | 0.12 |
+
+  These are a little higher than M2's in-process replay numbers (p50 0.09 ms): a real key now carries a fresh read of
+  the document's selection and context under a TSF lock before the frame goes out, and the edit control's own work is
+  in the loop. Still far inside the 20 ms p99 budget and the 150 ms timeout.
+
+- **Notepad:** the driver's target is Notepad (it finds the document by UIA and guards every key on Notepad holding the
+  foreground), but the only Notepad on this machine is the packaged WinUI Store app, which does not host a classic
+  in-process TSF text service, so the DLL never loads into it (the switch succeeds; TSF just doesn't load the TIP). The
+  edit-control run above exercises the identical pipeline through a surface the DLL does load into. See
+  `Windows/tip/README.md` ("End to end") for the details and for how one app's thread is switched without touching the
+  session.

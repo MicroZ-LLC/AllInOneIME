@@ -12,6 +12,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fake-engine", "test\fake-en
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tsfstate", "test\tsfstate\tsfstate.vcxproj", "{A1B2C3D4-0005-4E5F-9A0B-ABCDEF000005}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "e2edriver", "test\e2edriver\e2edriver.vcxproj", "{A1B2C3D4-0006-4E5F-9A0B-ABCDEF000006}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "e2ehook", "test\e2ehook\e2ehook.vcxproj", "{A1B2C3D4-0007-4E5F-9A0B-ABCDEF000007}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -38,6 +42,14 @@ Global
 		{A1B2C3D4-0005-4E5F-9A0B-ABCDEF000005}.Debug|x64.Build.0 = Debug|x64
 		{A1B2C3D4-0005-4E5F-9A0B-ABCDEF000005}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-0005-4E5F-9A0B-ABCDEF000005}.Release|x64.Build.0 = Release|x64
+		{A1B2C3D4-0006-4E5F-9A0B-ABCDEF000006}.Debug|x64.ActiveCfg = Debug|x64
+		{A1B2C3D4-0006-4E5F-9A0B-ABCDEF000006}.Debug|x64.Build.0 = Debug|x64
+		{A1B2C3D4-0006-4E5F-9A0B-ABCDEF000006}.Release|x64.ActiveCfg = Release|x64
+		{A1B2C3D4-0006-4E5F-9A0B-ABCDEF000006}.Release|x64.Build.0 = Release|x64
+		{A1B2C3D4-0007-4E5F-9A0B-ABCDEF000007}.Debug|x64.ActiveCfg = Debug|x64
+		{A1B2C3D4-0007-4E5F-9A0B-ABCDEF000007}.Debug|x64.Build.0 = Debug|x64
+		{A1B2C3D4-0007-4E5F-9A0B-ABCDEF000007}.Release|x64.ActiveCfg = Release|x64
+		{A1B2C3D4-0007-4E5F-9A0B-ABCDEF000007}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
