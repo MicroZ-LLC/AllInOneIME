@@ -88,7 +88,7 @@ enum ExtensionSourceCommands {
         var source = ExtensionSource(url: url, path: options.values["--path"], branch: options.values["--branch"], pin: options.values["--pin"])
         do {
             source.url = try ExtensionSources.validate(url)
-            var config = try Config.load(from: options.configURL)
+            let config = try Config.load(from: options.configURL)
             // An entry the config has for it already (handed out with its hint, say): its settings unless given here.
             if let had = config.extensionSources.first(where: { $0.url == source.url }) {
                 source.path = source.path ?? had.path
@@ -128,11 +128,10 @@ enum ExtensionSourceCommands {
                 printError("✗ the bundle can't be loaded: not enabled")
                 return 1
             }
-            // Read again: the input method or Settings may have written it meanwhile. An unreviewed folder of the
-            // sources folder in its load list goes first, then the reviewed clone takes its place.
-            config = try Config.load(from: options.configURL)
+            // The statuses from before this clone is trusted: an unreviewed folder of the sources folder in the load
+            // list goes by them, before the reviewed clone takes its place (`enableInConfigFile`).
             var all = ExtensionSourceStatus.load(from: manager.statusFile)
-            ExtensionSources.quarantine(&config, statuses: all, root: options.root)
+            let unreviewed = all
             let installed: ExtensionSourceManager.Clone
             do {
                 installed = try manager.install(staged)
@@ -146,8 +145,8 @@ enum ExtensionSourceCommands {
             all = ExtensionSourceStatus.load(from: manager.statusFile)
             all[source.url] = trusted
             try manager.save(all)
-            ExtensionSources.enable(source, in: &config, root: options.root)
-            try config.write(to: options.configURL)
+            // Read again (the input method or Settings may have written it meanwhile), and only what changed written.
+            try ExtensionSources.enableInConfigFile(source, at: options.configURL, quarantining: unreviewed, root: options.root)
             ExtensionSourceController.postChanged()
             print("enabled:     \(ExtensionSources.loadPath(for: source, root: options.root))")
             return 0

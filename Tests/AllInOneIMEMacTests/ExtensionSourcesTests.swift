@@ -590,6 +590,105 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
         #expect(lost.extensionFolders == ["~/my-scripts"])
     }
 
+    /// The config file as a JSON object.
+    static func object(_ url: URL) throws -> [String: Any] {
+        try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    }
+
+    /// A config file with a few keys of its own, in a temporary folder removed after the test.
+    static func configFile(_ text: String) throws -> (url: URL, folder: URL) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("config.json")
+        try Data(text.utf8).write(to: url)
+        return (url, folder)
+    }
+
+    /// Unreviewed folders taken out of the config file at launch (`ExtensionSourceController.quarantineConfigFile`): only
+    /// `extensionFolders` changes; no key the file didn't have (`agent`, `agentPageContext` … with their defaults) is added,
+    /// and the others keep their text.
+    @Test func quarantineWritesOnlyTheLoadList() throws {
+        let root = URL(fileURLWithPath: "/Users/me/Library/Application Support/AllInOneIME/Sources")
+        let stray = root.appendingPathComponent("stray/x").path
+        let original = """
+        {
+          "extensionFolders" : [
+            "~/my-scripts",
+            "\(stray)"
+          ],
+          "maxTokens" : 900
+        }
+        """
+        let (url, folder) = try Self.configFile(original)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(try ExtensionSources.quarantineConfigFile(at: url, statuses: [:], root: root) == [stray])
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(text == """
+        {
+          "extensionFolders" : [
+            "~/my-scripts"
+          ],
+          "maxTokens" : 900
+        }
+        """, "\(text)")
+        // Nothing left to take out: the file isn't written.
+        let date = try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+        #expect(try ExtensionSources.quarantineConfigFile(at: url, statuses: [:], root: root).isEmpty)
+        #expect(try String(contentsOf: url, encoding: .utf8) == text)
+        #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date == date)
+    }
+
+    /// `--add-source`'s Enable (`ExtensionSourceCommands.add`): only `extensionSources` and `extensionFolders` change in the
+    /// file; no key it didn't have is added, and the others keep their text.
+    @Test func enableWritesOnlyTheSourceKeys() throws {
+        let root = URL(fileURLWithPath: "/Users/me/Library/Application Support/AllInOneIME/Sources")
+        let stray = root.appendingPathComponent("stray/x").path
+        let original = """
+        {
+          "customCommands" : [
+            {
+              "name" : "mine",
+              "prompt" : "x",
+              "type" : "prompt"
+            }
+          ],
+          "extensionFolders" : [
+            "~/my-scripts",
+            "\(stray)"
+          ],
+          "maxTokens" : 900
+        }
+        """
+        let (url, folder) = try Self.configFile(original)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = ExtensionSource(url: "git@github.com:you/a.git", path: "ext")
+        try ExtensionSources.enableInConfigFile(source, at: url, quarantining: [:], root: root)
+
+        let object = try Self.object(url)
+        #expect(Set(object.keys) == ["customCommands", "extensionFolders", "extensionSources", "maxTokens"])
+        #expect(object["extensionFolders"] as? [String] == ["~/my-scripts", ExtensionSources.loadPath(for: source, root: root)])
+        let config = try Config.load(from: url)
+        #expect(config.extensionSources.map(\.url) == [source.url] && ExtensionSources.isEnabled(source, in: config, root: root))
+        // The keys it didn't change, as they were.
+        let text = try String(contentsOf: url, encoding: .utf8)
+        #expect(text.hasPrefix("""
+        {
+          "customCommands" : [
+            {
+              "name" : "mine",
+              "prompt" : "x",
+              "type" : "prompt"
+            }
+          ],
+        """), "\(text)")
+        #expect(text.contains(#""maxTokens" : 900"#), "\(text)")
+
+        // A missing file: written whole, the source enabled in it.
+        let missing = folder.appendingPathComponent("new.json")
+        try ExtensionSources.enableInConfigFile(source, at: missing, quarantining: [:], root: root)
+        #expect(ExtensionSources.isEnabled(source, in: try Config.load(from: missing), root: root))
+    }
+
     @Test func statusFileRobust() throws {
         let fixture = try GitFixture()
         let file = fixture.root.appendingPathComponent("sources.json")

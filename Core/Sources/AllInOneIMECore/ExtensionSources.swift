@@ -594,6 +594,32 @@ public enum ExtensionSources {
         return untrusted
     }
 
+    /// `quarantine` in the config file at `url`: written only if a folder was taken out, and then only the keys that
+    /// changed (`AIConfig.writing`), so a file without a key this version always writes doesn't gain it with its
+    /// default. The folders taken out.
+    @discardableResult
+    public static func quarantineConfigFile(at url: URL, statuses: [String: ExtensionSourceStatus],
+                                            root: URL = directory) throws -> [String] {
+        let before = try Config.load(from: url)
+        var config = before
+        let removed = quarantine(&config, statuses: statuses, root: root)
+        guard !removed.isEmpty else { return [] }
+        try AIConfig.writing(config, from: before, keys: AIConfig.changedKeys(before, config), at: url)
+        return removed
+    }
+
+    /// Enable in the config file at `url`, read as it is now: the unreviewed folders of the sources folder out of its
+    /// load list first (`quarantine`, by `statuses`), then `source` in (`enable`). Only the keys that changed are written
+    /// (`AIConfig.writing`); every other key of the file stays as it was. A missing file is written whole.
+    public static func enableInConfigFile(_ source: ExtensionSource, at url: URL,
+                                          quarantining statuses: [String: ExtensionSourceStatus], root: URL = directory) throws {
+        let before = try Config.load(from: url)
+        var config = before
+        quarantine(&config, statuses: statuses, root: root)
+        enable(source, in: &config, root: root)
+        try AIConfig.writing(config, from: before, keys: AIConfig.changedKeys(before, config), at: url)
+    }
+
     /// Whether the source's bundle is in the load list.
     public static func isEnabled(_ source: ExtensionSource, in config: Config, root: URL = directory) -> Bool {
         let full = comparable(bundleFolder(for: source, root: root).path)
