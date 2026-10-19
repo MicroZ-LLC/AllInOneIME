@@ -131,7 +131,7 @@ public enum AIConfigPrompt {
         lines.append(line("redaction.customWords.add", "a list of words to hide as well (added; never removed here)", nil,
                           "\(config.redaction.customWords.count) words (not shown)"))
         lines.append(line("checkForUpdates", "true or false: look for a new version once a day", nil, json(config.checkForUpdates)))
-        lines.append(line("iCloudSync.enabled", "true or false: sync settings through the user's own iCloud Drive; API keys and passwords sync too, by default, through iCloud Keychain (what syncs is set only in Settings)",
+        lines.append(line("iCloudSync.enabled", "true or false: sync settings through the user's own iCloud Drive; API keys and passwords sync through iCloud Keychain only when the user turns that on in Settings (what syncs is set only in Settings)",
                           nil, json(config.iCloudSync.enabled)))
         let providers = context.offeredProviders.map(\.rawValue)
         lines.append(line("provider", "where AI requests go (a provider with a key gets the key in Settings, never here)",

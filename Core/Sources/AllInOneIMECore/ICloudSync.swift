@@ -901,12 +901,13 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
     public var learnedWords: Bool
     public var hiddenWords: Bool
     public var recentQuestions: Bool
-    /// API keys and passwords, through iCloud Keychain rather than iCloud Drive (`KeySync`): on by default, written in the
-    /// config only when off.
+    /// API keys and passwords, through iCloud Keychain rather than iCloud Drive (`KeySync`): off by default (keys move
+    /// into iCloud Keychain only once the user turns this on, never because sync itself was turned on), written in the
+    /// config only when on.
     public var keys: Bool
 
     public init(enabled: Bool = false, settings: Bool = true, jargon: Bool = true, learnedWords: Bool = true,
-                hiddenWords: Bool = false, recentQuestions: Bool = false, keys: Bool = true) {
+                hiddenWords: Bool = false, recentQuestions: Bool = false, keys: Bool = false) {
         self.enabled = enabled
         self.settings = settings
         self.jargon = jargon
@@ -947,7 +948,7 @@ public struct ICloudSyncSettings: Codable, Equatable, Sendable {
         keys = flag(.keys, d.keys)
     }
 
-    /// As before `keys` came, and `keys` only when it's off (the default needs no line).
+    /// As before `keys` came, and `keys` only when it's on (the default needs no line).
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(enabled, forKey: .enabled)
