@@ -1,5 +1,8 @@
 import AllInOneIMECore
 import Foundation
+#if os(Windows)
+import WinSDK
+#endif
 
 /// The engine's settings: the core's `config.json` (`Config`, in `%APPDATA%\AllInOneIME` on Windows, or the file
 /// `--config` names), read again only when the file changed (by its modification date), as the Mac's `LiveConfig`. A
@@ -53,7 +56,7 @@ public final class EngineSettings: @unchecked Sendable {
     /// is installed: the Windows installer ships the pack's data (rime-data), so Shift switches English and 中文 from the
     /// start.
     public static var fresh: Config {
-        var config = Config.fresh
+        var config = Config.fresh(preferring: preferredLanguages)
         if !config.inputLanguages.contains(.chinese) { config.inputLanguages.append(.chinese) }
         config.normalizeLanguages()
         return config
@@ -65,8 +68,23 @@ public final class EngineSettings: @unchecked Sendable {
             ?? InterfaceLanguage.pick(preferred: Self.preferredLanguages, shipped: InterfaceLanguage.builtIn)
     }
 
-    /// The user's languages, as Windows has them (Foundation's `Locale.preferredLanguages`), English when it has none.
-    static var preferredLanguages: [String] {
+    /// The user's languages, in their order: Windows' own list (`GetUserPreferredUILanguages`: "zh-CN", "en-US"), which
+    /// Foundation's `Locale.preferredLanguages` doesn't read on Windows (it says "en-001" whatever the user has).
+    /// English when there is none.
+    public static var preferredLanguages: [String] {
+        #if os(Windows)
+        var count: ULONG = 0
+        var size: ULONG = 0
+        let flags = DWORD(MUI_LANGUAGE_NAME)
+        if GetUserPreferredUILanguages(flags, &count, nil, &size), size > 0 {
+            var buffer = [WCHAR](repeating: 0, count: Int(size))
+            if GetUserPreferredUILanguages(flags, &count, &buffer, &size) {
+                // NUL-separated, ending with two.
+                let names = buffer.split(separator: 0).map { String(decoding: $0, as: UTF16.self) }.filter { !$0.isEmpty }
+                if !names.isEmpty { return names }
+            }
+        }
+        #endif
         let languages = Locale.preferredLanguages
         return languages.isEmpty ? ["en"] : languages
     }

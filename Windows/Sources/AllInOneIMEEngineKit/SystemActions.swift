@@ -130,7 +130,7 @@ public enum FileSearch {
         }
         if CorePaths.isAbsolute(text), fm.fileExists(atPath: text) {
             var isFolder: ObjCBool = false
-            fm.fileExists(atPath: text, isDirectory: &isFolder)
+            _ = fm.fileExists(atPath: text, isDirectory: &isFolder)
             results.append(SearchResult(name: (text as NSString).lastPathComponent, path: text, isFolder: isFolder.boolValue))
         }
         let needle = text.lowercased()

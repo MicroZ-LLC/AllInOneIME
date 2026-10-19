@@ -103,6 +103,21 @@ struct PinyinTests {
         #expect(client.type("hello") == [])
     }
 
+    @Test func whileLibrimeDeploysTheFieldTypesLatinLettersAndCommands() throws {
+        let folder = try temporaryFolder("deploying")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        // A librime not started yet (as while it deploys): no session to give.
+        let location = EngineRime.Location(sharedData: folder, library: folder.appendingPathComponent("rime.dll"))
+        let deploying = EngineRime(location: location, userData: folder, log: { _ in })
+        let client = EngineClient(settings: try settingsFile(Self.twoLanguages, in: folder), rime: deploying)
+        #expect(client.composer.engine is LatinEngine)
+        // English goes in, and a command drafts, from the first key.
+        #expect(client.type("hi ") == [])
+        client.type("@improve hello")
+        #expect(client.composer.draftCommand == .improve)
+        #expect(!client.composition.isEmpty)
+    }
+
     @Test func theSettingsFileIsReadAgainWhenItChanges() throws {
         let folder = try temporaryFolder("reload")
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -126,6 +141,13 @@ struct PinyinTests {
         // The provider is the Mac's for a new install: AllInOneIME Cloud.
         #expect(config.provider == Config.fresh.provider)
         #expect(settings.problem == nil)
+    }
+
+    @Test func theUsersLanguagesAreWindowsOwn() {
+        // Windows' list, not Foundation's (which says "en-001" on Windows whatever the user has).
+        let languages = EngineSettings.preferredLanguages
+        #expect(!languages.isEmpty)
+        #expect(languages.allSatisfy { $0.contains("-") || $0.count == 2 })
     }
 
     @Test func aBrokenSettingsFileReadsAsTheDefaultsAndSaysWhy() throws {

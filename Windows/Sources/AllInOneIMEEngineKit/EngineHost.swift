@@ -115,10 +115,12 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         return states.values.compactMap(\.session)
     }
 
-    /// A field's Composer: pinyin (librime) once it is ready, Latin letters without it; in test mode Latin letters, as
-    /// the goldens have them. Its settings are applied as it takes the focus (`sessionFocused`).
+    /// A field's Composer: pinyin (librime) once it is ready; Latin letters until then (librime deploys at the engine's
+    /// start, a second or so, longer the first time in a user folder or with the disk busy), so English and the
+    /// commands work from the first key; Latin letters only without librime, and in test mode, as the goldens have them.
+    /// Its settings are applied as it takes the focus (`sessionFocused`).
     public func makeComposer(_ field: FieldInfo, _ peer: WirePeer) -> Composer {
-        let engine: PinyinEngine? = testMode || rime == nil ? LatinEngine() : rime?.makeEngine()
+        let engine: PinyinEngine = testMode ? LatinEngine() : rime?.makeEngine() ?? LatinEngine()
         let composer = Composer(engine: engine)
         if testMode { composer.setInputMode(inputLanguage ?? .english) }
         return composer
@@ -127,24 +129,30 @@ public final class EngineHost: WireHost, @unchecked Sendable {
     public func sessionFocused(_ session: ComposerSession) {
         let state = state(session)
         guard !testMode else { return }
-        if session.composer.engine == nil || (session.composer.engine as? LockedRimeEngine)?.isValid == false,
-           !session.composer.isComposing, let engine = rime?.makeEngine() {
-            session.composer.engine = engine
-            state.appliedDefaultInput = nil  // a new session starts in the default input mode
-        }
+        attachRime(to: session, state: state)
         apply(settings.current, to: session, state: state)
+    }
+
+    /// Gives `session`'s Composer a librime session in place of its Latin letters (or of a session a redeploy dropped),
+    /// when librime is ready and nothing is being typed. Whether it did.
+    @discardableResult
+    func attachRime(to session: ComposerSession, state: SessionState) -> Bool {
+        let composer = session.composer
+        let current = composer.primaryEngine as? LockedRimeEngine
+        guard current == nil || current?.isValid == false, !composer.isComposing, let engine = rime?.makeEngine() else { return false }
+        composer.engine = engine
+        state.appliedDefaultInput = nil  // a new session starts in the default input mode
+        return true
     }
 
     /// librime finished deploying: the Composers made before get their session (those not in the middle of something;
     /// the others at their next focus).
     public func rimeBecameReady() {
         for session in liveSessions {
-            session.feed { [weak self] composer in
-                guard let self, composer.engine == nil, !composer.isComposing, let engine = self.rime?.makeEngine() else { return [] }
-                composer.engine = engine
+            session.feed { [weak self] _ in
+                guard let self else { return [] }
                 let state = self.state(session)
-                state.appliedDefaultInput = nil
-                self.apply(self.settings.current, to: session, state: state)
+                if self.attachRime(to: session, state: state) { self.apply(self.settings.current, to: session, state: state) }
                 return []
             }
         }
@@ -169,7 +177,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         messages.actionKeyName = PanelBuilder(config: config, chinese: InterfaceLanguage.isChinese(language)).name(config.actionKey)
         composer.messages = messages
         // Chinese only with librime; Latin languages always.
-        let usable = config.inputLanguages.filter { $0 != .chinese || composer.engine is LockedRimeEngine }
+        let usable = config.inputLanguages.filter { $0 != .chinese || composer.primaryEngine is LockedRimeEngine }
         let languages = usable.isEmpty ? [.english] : usable
         composer.inputLanguages = languages
         let defaultInput = config.startingInput(in: app, among: languages)

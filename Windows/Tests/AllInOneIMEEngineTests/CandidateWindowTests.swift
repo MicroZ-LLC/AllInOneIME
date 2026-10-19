@@ -11,7 +11,7 @@ import WinSDK
 @Suite(.serialized)
 struct CandidateWindowTests {
     static let model = PanelModel(
-        rows: [PanelModel.Row(label: "1", text: "你好"), PanelModel.Row(label: "2", text: "拟好"),
+        rows: [PanelModel.Row(label: "1", text: "你好"), PanelModel.Row(label: "2", text: "拟好👋"),
                PanelModel.Row(label: "3", text: "你号", comment: "comment")],
         highlighted: 0, footer: "空格 选词 · 数字 选择", detail: "第 1 页")
 

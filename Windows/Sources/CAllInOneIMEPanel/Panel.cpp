@@ -247,7 +247,9 @@ void DrawText(AioPanel *p, const std::wstring &text, IDWriteTextFormat *format, 
     p->dwrite->CreateTextLayout(text.c_str(), (UINT32)text.size(), format, width, height, &layout);
     if (layout) {
         layout->SetTextAlignment(alignment);
-        p->target->DrawTextLayout(D2D1::Point2F(x, y), layout, brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+        // Emoji in color (rime-ice offers them among the candidates: nihao gives 👋).
+        p->target->DrawTextLayout(D2D1::Point2F(x, y), layout, brush,
+                                  D2D1_DRAW_TEXT_OPTIONS_CLIP | D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
         layout->Release();
     }
     brush->Release();
