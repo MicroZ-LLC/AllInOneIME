@@ -474,13 +474,9 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
     }
 
-    /// What of `text` goes in after `selection` and where (an empty range at its end), when `text` starts with it and the
-    /// field told where it is; nil otherwise (it's replaced).
+    /// What of `text` goes in after `selection` and where (an empty range at its end): `SessionText.afterSelection`.
     static func afterSelection(_ text: String, _ selection: Composer.Selection) -> (String, NSRange)? {
-        guard let range = selection.range, !selection.text.isEmpty, text.hasPrefix(selection.text) else { return nil }
-        let rest = (text as NSString).substring(from: (selection.text as NSString).length)
-        guard !rest.isEmpty else { return nil }
-        return (rest, NSRange(location: range.upperBound, length: 0))
+        SessionText.afterSelection(text, selection).map { ($0.text, NSRange(location: $0.at, length: 0)) }
     }
 
     /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
@@ -1666,14 +1662,9 @@ final class AllInOneIMEInputController: IMKInputController {
         var model = CandidateView.Model()
         model.status = .hint(text)
         panel.show(model, anchor: .zero)  // an empty anchor: at the mouse pointer
-        DispatchQueue.main.asyncAfter(deadline: .now() + noticeDuration(text, long: long)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + SessionText.noticeDuration(text, long: long)) {
             if panel.owner === looseNoticeOwner { panel.hide() }
         }
-    }
-
-    /// How long a notice stays up: by its length, and longer for what the user has to act on.
-    static func noticeDuration(_ text: String, long: Bool) -> TimeInterval {
-        long ? 12 : min(5, 1.2 + Double(text.count) * 0.06)
     }
 
     // MARK: - Voice
@@ -1847,12 +1838,6 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Streams level two for `input`: the improve conversion, a `.generate` command's answer, or what a
     /// `.run` command's program printed.
-    /// Whether `config` has a language to translate `input` into other than its own.
-    static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = OutputLanguage(config.language(of: input))
-        return config.outputLanguages.contains { $0 != own }
-    }
-
     /// The notice of an AI command in an app with no AI (`AppProfile.noAI`), read when the command starts; nil: AI may run.
     @MainActor
     private func aiRefusal() -> String? {
@@ -1880,7 +1865,7 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("conversion \(id) started (\(input.count) chars\(command.map { ", @\(logged($0))" } ?? "")\(inner), privacy: .public))")
         // @translate with no language to translate into but the sentence's own (a new user whose system has no
         // other language): nothing is sent; the settings open where languages are added.
-        if command == .translate, !Self.hasTranslationTarget(for: input, config: loadSettings()) {
+        if command == .translate, !SessionText.hasTranslationTarget(for: input, config: loadSettings()) {
             log.notice("conversion \(id): no language to translate into")
             perform(composer.fail(tr("还没有要翻译成的语言：在设置的「翻译与改写」里加一种", "No language to translate into yet: add one under Translate & Rewrite in the settings"),
                                   id: id), client: nil)
@@ -2091,9 +2076,9 @@ final class AllInOneIMEInputController: IMKInputController {
         panel.owner = self
         panel.onSelect = { [weak self] index in
             guard let self else { return }
-            // A conversation's rows are its questions and answers: a click picks an answer (`chatChoice`).
+            // A conversation's rows are its questions and answers: a click picks an answer (`SessionText.chatChoice`).
             if self.composer.isQuestionChat, !self.composer.refineIsComposing {
-                guard let answer = Self.chatChoice(row: index) else { return }
+                guard let answer = SessionText.chatChoice(row: index) else { return }
                 self.perform(self.composer.choose(index: answer), client: nil)
                 return
             }
@@ -2124,7 +2109,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let client = client ?? clientOverride ?? self.client()
         notice = text
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(noticeExpired), object: nil)
-        perform(#selector(noticeExpired), with: nil, afterDelay: lasting ?? Self.noticeDuration(text, long: long))
+        perform(#selector(noticeExpired), with: nil, afterDelay: lasting ?? SessionText.noticeDuration(text, long: long))
         if composer.wantsPanel {
             showPanel(client)
         } else if !showTranslateChip(client), let client {  // under Translate as You Type's chip, if it's on here
@@ -2157,128 +2142,6 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// What the action key does to a sentence in `input`: "翻译成英文", "英文润色" …, plus " / 改写"
-    /// when rewrite styles are on.
-    static func actionText(input: Language, config: Config) -> String {
-        let output = config.outputLanguage
-        let name = output.name(chinese: true)
-        let action = input.matches(output) ? "\(name)润色" : "翻译成\(name)"
-        return action + (RewriteStyle.resolve(config.rewriteStyles).isEmpty ? "" : " / 改写")
-    }
-
-    /// The hint under a pending draft: "单按 ⌥ → 翻译成英文 / 改写", "Tap ⌥ → translate to English / rewrite" …
-    @MainActor
-    func draftHint(config: Config) -> String {
-        guard let command = composer.draftCommand else { return "" }  // a draft always starts with one
-        let key = composer.actionKey
-        let how = key != .space ? UIText.name(key)
-            : composer.spaceActs ? UIText.name(ActionKey.space) : tr("连按两次空格", "Space twice")
-        // A snippet: what it will insert, with the blanks typed so far.
-        if let preview = composer.snippetPreview { return "\(how) → “" + Self.selectionPreview(preview, limit: 80) + "”" }
-        // On the selection: what the action key does with it; `@improve` / `@translate` with something typed rewrite it as asked.
-        if let selected = composer.selectionInUse {
-            if command.kind == .convert, !WritingMode.parse(command, composer.sentText).text.isEmpty {
-                return "\(how) → " + tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
-            }
-            let text = composer.sentText.isEmpty ? selected : composer.sentText
-            return "\(how) → " + UIText.action(command, input: config.language(of: text), config: config, draft: composer.draft)
-        }
-        // @reply with nothing to reply to yet: what it takes.
-        if command == .reply, composer.sentText.isEmpty, composer.attachment == nil {
-            return tr("回复对方：⌃V 粘贴消息或截图", "Reply: ⌃V their message or a screenshot")
-        }
-        // A screenshot being read: the action key waits for it.
-        if composer.readingScreenshot { return composer.messages.reply.reading }
-        // A command with nothing after it yet: what to do (the action key alone only hints); with a screenshot or a
-        // message attached, what the action key does with it.
-        if composer.sentText.isEmpty, composer.attachment == nil {
-            return tr("写点内容，或按 ⌃V 粘贴", "Write something, or ⌃V to paste")
-        }
-        return "\(how) → " + UIText.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft)
-    }
-
-    /// The instructions the results shown were refined with, oldest first ("Refined: shorter · more formal"); Esc goes
-    /// back one. Nil before any.
-    @MainActor
-    func refineHeader() -> String? {
-        let history = composer.refineHistory
-        guard composer.isLevelTwo, !history.isEmpty, !composer.isQuestionChat else { return nil }
-        let steps = history.map { Self.preview($0, limit: 30) }.joined(separator: " · ")
-        return tr("已修改：", "Refined: ") + steps
-    }
-
-    /// The line about what the draft has attached (`Composer.attachment`): a screenshot being read or read (on this Mac:
-    /// only its text is sent), or the message copied into `@reply`.
-    @MainActor
-    func attachmentHeader() -> String? {
-        switch composer.attachment {
-        case .screenshot(.recognizing)?:
-            return composer.messages.reply.reading
-        case let .screenshot(.ready(text))?:
-            let lines = text.lineCount
-            return tr("截图 · \(lines) 行（本机识别）", "Screenshot · \(lines) lines (read on this Mac)") + "\n"
-                + tr("图片不会离开这台 Mac，只发送认出的文字", "The image stays on this Mac; only its text is sent")
-        case let .copiedText(message)?:
-            let count = message.count
-            return tr("复制的消息 · \(count) 字", "Copied message · \(count) characters")
-        case nil:
-            return nil
-        }
-    }
-
-    /// The line under the command being written on the selection (`Composer.selection`): what it works on, with its
-    /// start and length; or that the command doesn't use it, or that it's too long (either way it's left as it is).
-    @MainActor
-    func selectionHeader() -> String? {
-        guard let selection = composer.selection?.text else { return nil }
-        let count = selection.count
-        if composer.selectionTooLong {
-            return tr("选中的文字太长（\(count) 字，最多 \(Composer.maxSelectionLength) 字），命令不用它",
-                      "The selection is too long (\(count) characters, \(Composer.maxSelectionLength) at most): not used")
-        }
-        if let command = composer.draftCommand, !Composer.usesSelection(command) {
-            return tr("@\(command.name) 不用选中的文字，它保持原样", "@\(command.name) doesn't use the selection; it stays as it is")
-        }
-        return tr("对选中的文字：“\(Self.selectionPreview(selection))”（\(count) 字）",
-                  "On the selection: “\(Self.selectionPreview(selection))” (\(count) characters)")
-    }
-
-    /// The command being written on the selection, for the panel's input line: as it would be marked, with its caret
-    /// (`Composer.markedCursor`) while it's written.
-    @MainActor
-    func panelInput() -> String? {
-        guard composer.draftInPanel else { return nil }
-        let text = composer.markedText
-        guard !composer.isLevelTwo else { return text }
-        let at = min(max(composer.markedCursor, 0), text.count)
-        return String(text.prefix(at)) + "▏" + String(text.dropFirst(at))
-    }
-
-    /// The start of a selection on one line, for the panel: its first `limit` characters, line breaks shown as "↵".
-    static func selectionPreview(_ text: String, limit: Int = 60) -> String {
-        let line = text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline).joined(separator: " ↵ ")
-            .trimmingCharacters(in: .whitespaces)
-        return line.count > limit ? String(line.prefix(limit)) + "…" : line
-    }
-
-    /// A long answer as the panel shows it (the whole text is inserted).
-    static func preview(_ text: String, limit: Int = 280) -> String {
-        text.count > limit ? String(text.prefix(limit)) + "…" : text
-    }
-
-    /// An `@open` result's row, as you type and after ⏎: its name in the interface language (计算器 in a
-    /// Chinese one), and where it is: 「应用」, or its folder (a folder's ends in "/"), after 「内容 · 」 when it
-    /// was found by what is in it. A web address says it opens in the browser.
-    static func openRow(_ result: SearchResult) -> (text: String, comment: String) {
-        if result.webURL != nil { return (result.name, tr("在浏览器中打开", "open in the browser", key: "openRow.inBrowser")) }
-        let folder = ((result.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
-        let place = result.path.hasSuffix(".app") ? tr("应用", "app")
-            : result.isFolder && !folder.hasSuffix("/") ? folder + "/" : folder
-        // The Chinese name is the simplified one: Traditional Chinese has Finder's name, as the other languages.
-        return (InterfaceLanguage.isSimplifiedChinese(UIText.language) ? result.chineseName ?? result.name : result.name,
-                result.matchedContent ? tr("内容", "content") + " · " + place : place)
-    }
-
     /// Whether a list row can be picked (a click, the pointer over it): not a row of information.
     private static func picks(_ choice: Composer.Choice) -> Bool {
         if case let .item(item) = choice.kind { return item.valid }
@@ -2308,13 +2171,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 // Long rows (a pasted paragraph and its versions) are shortened here; the full text goes in.
                 switch choice.kind {
                 case .original:
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text), comment: tr("原文", "original"),
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(choice.text), comment: tr("原文", "original"),
                                              style: .original)
                 case .version:
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text), style: .translation,
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(choice.text), style: .translation,
                                              isComplete: choice.isComplete)
                 case let .translation(code):
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(choice.text),
                                              comment: UIText.name(OutputLanguage(code)), style: .translation,
                                              isComplete: choice.isComplete)
                 case let .rewrite(style):
@@ -2322,23 +2185,23 @@ final class AllInOneIMEInputController: IMKInputController {
                     let note = style == RewriteStyle.jargonName
                         ? JargonLibrary.annotation(for: choice.text, entries: LiveJargon.entries(for: config), chinese: UIText.chinese) : nil
                     let name = RewriteStyle.named(style).map(UIText.name) ?? style
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(choice.text),
                                              comment: note.map { "\(name) · \($0)" } ?? name,
                                              style: .translation, isComplete: choice.isComplete)
                 case .answer:
                     // A program's output may have several lines; they are inserted as printed. A script's summary
                     // has its detail beside it.
                     let text = choice.text.replacingOccurrences(of: "\n", with: " ↵ ")
-                    return CandidateView.Row(label: choice.label, text: Self.preview(text),
-                                             comment: choice.detail.map { Self.preview($0) } ?? UIText.answerLabel(composer.activeCommand),
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(text),
+                                             comment: choice.detail.map { SessionText.preview($0) } ?? UIText.answerLabel(composer.activeCommand),
                                              style: .translation, isComplete: choice.isComplete)
                 case .shown:
                     // What a `show` script printed: shown as it comes, never inserted (nor clicked).
-                    return CandidateView.Row(label: "", text: Self.preview(choice.text), comment: choice.detail.map { Self.preview($0) } ?? "",
+                    return CandidateView.Row(label: "", text: SessionText.preview(choice.text), comment: choice.detail.map { SessionText.preview($0) } ?? "",
                                              style: .candidate, pickable: false)
                 case let .item(item):
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
-                                             comment: choice.detail.map { Self.preview($0) } ?? "", style: .candidate, pickable: item.valid)
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(choice.text),
+                                             comment: choice.detail.map { SessionText.preview($0) } ?? "", style: .candidate, pickable: item.valid)
                 case let .file(path) where path.hasPrefix(SearchResult.agentPrefix):
                     // A background task: its last reply, shortened.
                     let reply = composer.searchResults.first { $0.path == path }?.detail ?? ""
@@ -2353,16 +2216,16 @@ final class AllInOneIMEInputController: IMKInputController {
                     // 「发给 张三（+1 555…）：…」: who it goes to and the text, to confirm.
                     let to = composer.messageRecipient.map { $0.name.isEmpty ? $0.handle : "\($0.name)（\($0.handle)）" } ?? ""
                     return CandidateView.Row(label: choice.label,
-                                             text: tr("发给 \(to)：", "Send to \(to): ") + Self.preview(choice.text.replacingOccurrences(of: "\n", with: " ↵ ")),
+                                             text: tr("发给 \(to)：", "Send to \(to): ") + SessionText.preview(choice.text.replacingOccurrences(of: "\n", with: " ↵ ")),
                                              style: .translation, isComplete: choice.isComplete,
                                              icon: composer.activeCommand.map(CommandIcons.icon(for:)))
                 case let .file(path):
                     // A file, folder, app or web address: drawn as when typing.
-                    let row = Self.openRow(composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path))
+                    let row = SessionText.openRow(composer.searchResults.first { $0.path == path } ?? SearchResult(name: choice.text, path: path))
                     return CandidateView.Row(label: choice.label, text: row.text, comment: row.comment, style: .candidate)
                 case let .reminder(reminder):
                     // To confirm: what to be reminded of, and when as read from the text (「明天 15:00」).
-                    return CandidateView.Row(label: choice.label, text: Self.preview(choice.text),
+                    return CandidateView.Row(label: choice.label, text: SessionText.preview(choice.text),
                                              comment: UIText.when(reminder), style: .candidate)
                 case .issue:
                     // To confirm: the issue's title (none: written on GitHub); what goes with it is the status below.
@@ -2391,7 +2254,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     : command?.kind == .message ? tr("运行句中的命令…", "Running the commands in the message…")
                     : polishing ? tr("AI 润色中…", "Polishing…") : tr("AI 翻译中…", "Translating…"))
                 let refining = composer.refineHistory.last.map {
-                    tr("按「\(Self.preview($0, limit: 40))」修改中…", "Refining: \(Self.preview($0, limit: 40))…")
+                    tr("按「\(SessionText.preview($0, limit: 40))」修改中…", "Refining: \(SessionText.preview($0, limit: 40))…")
                 }
                 model.status = choices.count <= 1 ? .loading(composer.isRefining ? refining ?? loading : loading) : .none
                 model.footer = command == .open ? tr("搜索中… · Esc 返回", "Searching… · Esc back")
@@ -2496,7 +2359,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 let action = UIText.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft)
                 model.footer = tr("空格 选词 · \(UIText.name(key)) \(action)", "Space picks · \(UIText.name(key)) to \(action)")
             } else {
-                model.footer = translateModeFooter() ?? tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
+                model.footer = SessionText.translateModeFooter(composer) ?? tr("空格 选词 · 开头打 @ 用命令", "Space picks · type @ first for commands")
             }
             if state.pageNumber > 0 || !state.isLastPage {
                 model.detail = tr("第 \(state.pageNumber + 1) 页", "page \(state.pageNumber + 1)")
@@ -2522,7 +2385,7 @@ final class AllInOneIMEInputController: IMKInputController {
             // A script's list as you type: its rows (those of information unnumbered and dimmed).
             let choices = Composer.itemChoicesForPanel(list.items)
             model.rows = choices.map {
-                CandidateView.Row(label: $0.label, text: Self.preview($0.text), comment: $0.detail.map { Self.preview($0) } ?? "",
+                CandidateView.Row(label: $0.label, text: SessionText.preview($0.text), comment: $0.detail.map { SessionText.preview($0) } ?? "",
                                   style: $0.label.isEmpty ? .original : .candidate, pickable: Self.picks($0))
             }
             model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
@@ -2532,7 +2395,7 @@ final class AllInOneIMEInputController: IMKInputController {
         } else if !composer.currentLiveResults.isEmpty {
             // "@open …" as you type: what matches now.
             model.rows = composer.currentLiveResults.map { result in
-                let row = Self.openRow(result)
+                let row = SessionText.openRow(result)
                 return CandidateView.Row(label: result.isFolder ? "›" : "", text: row.text, comment: row.comment, style: .candidate)
             }
             model.highlighted = composer.liveHighlight
@@ -2558,20 +2421,20 @@ final class AllInOneIMEInputController: IMKInputController {
             // shows its saved answer.
             let digits = composer.questionDigitsPick, key = UIText.name(composer.actionKey)
             model.rows = composer.questionMatches.enumerated().map { index, entry in
-                CandidateView.Row(label: digits ? String(index + 1) : "", text: Self.preview(entry.question.replacingOccurrences(of: "\n", with: " ")),
+                CandidateView.Row(label: digits ? String(index + 1) : "", text: SessionText.preview(entry.question.replacingOccurrences(of: "\n", with: " ")),
                                   comment: UIText.ago(entry.date), style: .candidate)
             }
             model.highlighted = composer.questionHighlight
             model.status = .hint(composer.sentText.isEmpty
                                  ? tr("最近问过的：选一个看当时的答案，或者写新问题", "Recently asked: pick one to see its answer again, or write a new question")
-                                 : draftHint(config: config.applying(app: activeApp)))
+                                 : SessionText.draftHint(composer, config: config.applying(app: activeApp)))
             model.footer = composer.questionHighlight != nil
                 ? tr("\(key) 看保存的答案 · ↑↓ 选择 · Esc 清除", "\(key) show the saved answer · ↑↓ choose · Esc clear")
                 : digits ? tr("数字 / ↑↓ 选一个看答案 · ⌃V 粘贴 · Esc 清除", "Digits / ↑↓ pick one to see its answer · ⌃V paste · Esc clear")
                 : tr("\(key) 问这个新问题 · ↑↓ 选一个看答案 · Esc 清除", "\(key) ask it · ↑↓ pick one to see its answer · Esc clear")
         } else if !composer.draft.isEmpty {
             // An @ command with what follows it (a command being typed is the palette, above).
-            model.status = .hint(draftHint(config: config.applying(app: activeApp)))
+            model.status = .hint(SessionText.draftHint(composer, config: config.applying(app: activeApp)))
             model.footer = composer.selection != nil
                 ? tr("⌃V 粘贴 · ⌫ 删字 · Esc 取消，选中的文字不变", "⌃V paste · ⌫ delete · Esc cancel, the selection stays")
                 : tr("⌃V 粘贴 · ⌫ 删字 · Esc 清除", "⌃V paste · ⌫ delete · Esc clear")
@@ -2579,8 +2442,8 @@ final class AllInOneIMEInputController: IMKInputController {
         // The refine instruction being typed, as a line of input with its caret, in place of the command's.
         // (An @question conversation's next question while its pinyin is typed.)
         let line = composer.isQuestionChat ? tr("追问 › ", "question › ") : tr("修改 › ", "refine › ")
-        model.input = composer.refineLine.map { line + $0 + "▏" } ?? panelInput()
-        let headers = [selectionHeader(), attachmentHeader(), refineHeader()].compactMap { $0 }
+        model.input = composer.refineLine.map { line + $0 + "▏" } ?? SessionText.panelInput(composer)
+        let headers = [SessionText.selectionHeader(composer), SessionText.attachmentHeader(composer), SessionText.refineHeader(composer)].compactMap { $0 }
         model.header = headers.isEmpty ? nil : headers.joined(separator: "\n")
         if let notice { model.detail = notice }
         // Translate as You Type's pinyin (or dictation): its chip on top.
@@ -2628,14 +2491,14 @@ final class AllInOneIMEInputController: IMKInputController {
         outputItem.submenu = outputs
         menu.addItem(outputItem)
 
-        let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + current.inputLanguages.map(Self.inputName).joined(separator: " + "),
+        let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + current.inputLanguages.map(SessionText.inputName).joined(separator: " + "),
                                    action: nil, keyEquivalent: "")
         let inputs = NSMenu()
         // The added input languages, the default one checked (a new text field starts in it).
         for language in current.inputLanguages {
             // One whose pack isn't there yet can't be typed: shown, greyed, with why.
             let usable = LanguagePackManager.shared.isUsable(language)
-            let title = Self.inputName(language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
+            let title = SessionText.inputName(language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
             let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.rawValue
@@ -2721,7 +2584,7 @@ final class AllInOneIMEInputController: IMKInputController {
             }
             do {
                 var config = try Config.load()
-                config.rewriteStyles = Self.toggled(name, in: config.rewriteStyles)
+                config.rewriteStyles = SessionText.toggled(name, in: config.rewriteStyles)
                 try config.write()
                 NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
                 log.notice("rewrite styles now \(config.rewriteStyles.joined(separator: ","), privacy: .public)")
@@ -2731,12 +2594,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// Turns a preset on or off, keeping the user's order: one turned on goes last.
-    static func toggled(_ name: String, in current: [String]) -> [String] {
-        let enabled = RewriteStyle.resolve(current).map(\.name)
-        if enabled.contains(name) { return enabled.filter { $0 != name } }
-        return enabled + [name]
-    }
+    /// Turns a preset on or off, keeping the user's order (`SessionText.toggled`).
+    static func toggled(_ name: String, in current: [String]) -> [String] { SessionText.toggled(name, in: current) }
 
     @objc func setOutputLanguage(_ sender: Any?) {
         MainActor.assumeIsolated {
@@ -2757,10 +2616,6 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
-    static func inputName(_ language: Language) -> String {
-        language == .chinese ? tr("中文（拼音）", "Chinese (pinyin)") : UIText.name(language)
-    }
 
     @objc func toggleImproveTranslates(_ sender: Any?) {
         MainActor.assumeIsolated {
@@ -2797,11 +2652,8 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    /// `languages` with `language` removed, or added at the end; the last one stays.
-    static func toggled(_ language: Language, in languages: [Language]) -> [Language] {
-        if languages.contains(language) { return languages == [language] ? languages : languages.filter { $0 != language } }
-        return languages + [language]
-    }
+    /// `languages` with `language` removed, or added at the end; the last one stays (`SessionText.toggled`).
+    static func toggled(_ language: Language, in languages: [Language]) -> [Language] { SessionText.toggled(language, in: languages) }
 
     @objc func openConfig(_ sender: Any?) {
         MainActor.assumeIsolated { Self.openConfigFile() }

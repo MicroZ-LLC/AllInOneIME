@@ -1505,53 +1505,6 @@
         }
       }
     },
-    "@%@ doesn't use the selection; it stays as it is" : {
-      "comment" : "@%@ 不用选中的文字，它保持原样 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@ verwendet die Auswahl nicht; sie bleibt unverändert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@ no usa la selección; se queda como está"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@ n’utilise pas la sélection ; elle reste telle quelle"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@は選択したテキストを使いません。選択はそのままです"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@은(는) 선택 영역을 사용하지 않고 그대로 둡니다"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@ não usa a seleção; ela fica como está"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@%@ 不使用選取的文字，選取內容保持不變"
-          }
-        }
-      }
-    },
     "@agent and @reply take the Chrome page along" : {
       "comment" : "@agent 和 @reply 带上 Chrome 里的网页 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -1642,53 +1595,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "@agent 交給"
-          }
-        }
-      }
-    },
-    "@agent's agent (%@)" : {
-      "comment" : "@agent 的 agent（%@） — Sources/AllInOneIME/QuestionChatPanel.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent von @agent (%@)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El agente de @agent (%@)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent de @agent (%@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@agentのエージェント（%@）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@agent의 에이전트 (%@)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agente do @agent (%@)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "@agent 的 agent（%@）"
           }
         }
       }
@@ -7668,53 +7574,6 @@
         }
       }
     },
-    "app" : {
-      "comment" : "应用 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "app"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "app"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "앱"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "app"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App"
-          }
-        }
-      }
-    },
     "Applied in a second or two: the dictionaries are deployed again." : {
       "comment" : "改完词库会重新部署，一两秒生效。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -8802,53 +8661,6 @@
         }
       }
     },
-    "ChatGPT (web)" : {
-      "comment" : "ChatGPT 网页版 — Sources/AllInOneIME/QuestionChatPanel.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT (Web)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT (web)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT (Web)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT（Web）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT (웹)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT (web)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT（網頁版）"
-          }
-        }
-      }
-    },
     "Check" : {
       "comment" : "检查 — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {
@@ -9225,53 +9037,6 @@
         }
       }
     },
-    "Chinese (pinyin)" : {
-      "comment" : "中文（拼音） — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chinesisch (Pinyin)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chino (pinyin)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chinois (pinyin)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "中国語（ピンイン）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "중국어 (병음)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chinês (pinyin)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "中文（拼音）"
-          }
-        }
-      }
-    },
     "Choose a folder of scripts or extension bundles" : {
       "comment" : "选择放脚本或扩展包的文件夹 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -9503,53 +9268,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇你的行話詞庫：文字檔，每行一個詞，可以附上解釋"
-          }
-        }
-      }
-    },
-    "Claude (web)" : {
-      "comment" : "Claude 网页版 — Sources/AllInOneIME/QuestionChatPanel.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude (Web)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude (web)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude (Web)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude（Web）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude (웹)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude (web)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude（網頁版）"
           }
         }
       }
@@ -10541,53 +10259,6 @@
         }
       }
     },
-    "content" : {
-      "comment" : "内容 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inhalt"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "contenido"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "contenu"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内容"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "내용"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "conteúdo"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "內容"
-          }
-        }
-      }
-    },
     "continue" : {
       "comment" : "接着聊 — Sources/AllInOneIME/QuestionChatPanel.swift",
       "localizations" : {
@@ -10729,100 +10400,6 @@
         }
       }
     },
-    "Copied message · %@ characters" : {
-      "comment" : "复制的消息 · %@ 字 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kopierte Nachricht · %@ Zeichen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mensaje copiado · %@ caracteres"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Message copié · %@ caractères"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コピーしたメッセージ · %@文字"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "복사한 메시지 · %@자"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mensagem copiada · %@ caracteres"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拷貝的訊息 · %@ 個字元"
-          }
-        }
-      }
-    },
-    "Copy" : {
-      "comment" : "复制 — Sources/AllInOneIME/QuestionChatPanel.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kopieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copier"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コピー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "복사"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拷貝"
-          }
-        }
-      }
-    },
     "Copy Command" : {
       "comment" : "复制命令 — Sources/AllInOneIME/AWSProfileSettings.swift",
       "localizations" : {
@@ -10866,53 +10443,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝指令"
-          }
-        }
-      }
-    },
-    "Copy the conversation" : {
-      "comment" : "复制对话 — Sources/AllInOneIME/QuestionChatPanel.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unterhaltung kopieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiar la conversación"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copier la conversation"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会話をコピー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "대화 복사"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiar a conversa"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拷貝對話"
           }
         }
       }
@@ -14967,53 +14497,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模糊音"
-          }
-        }
-      }
-    },
-    "Gemini (web)" : {
-      "comment" : "Gemini 网页版 — Sources/AllInOneIME/QuestionChatPanel.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini (Web)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini (web)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini (Web)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini（Web）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini (웹)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini (web)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemini（網頁版）"
           }
         }
       }
@@ -21946,53 +21429,6 @@
         }
       }
     },
-    "On the selection: “%@” (%@ characters)" : {
-      "comment" : "对选中的文字：“%@”（%@ 字） — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Für die Auswahl: „%@“ (%@ Zeichen)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sobre la selección: “%@” (%@ caracteres)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sur la sélection : « %@ » (%@ caractères)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択したテキスト：「%@」（%@文字）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택 영역에 적용: “%@” (%@자)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Na seleção: “%@” (%@ caracteres)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "針對選取的文字：「%@」（%@ 個字元）"
-          }
-        }
-      }
-    },
     "On this Mac" : {
       "comment" : "在这台 Mac 上 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -22694,59 +22130,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開系統設定"
-          }
-        }
-      }
-    },
-    "openRow.inBrowser" : {
-      "comment" : "在浏览器中打开 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "im Browser öffnen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "open in the browser"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "abrir en el navegador"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ouvrir dans le navigateur"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ブラウザで開く"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "브라우저에서 열기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "abrir no navegador"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在瀏覽器中打開"
           }
         }
       }
@@ -26053,53 +25436,6 @@
         }
       }
     },
-    "Refined: " : {
-      "comment" : "已修改： — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Verfeinert: "
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Refinado: "
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Affiné : "
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手直し済み："
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "수정됨: "
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Refinado: "
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已修改："
-          }
-        }
-      }
-    },
     "Refining: %@…" : {
       "comment" : "按「%@」修改中… — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
@@ -28225,53 +27561,6 @@
         }
       }
     },
-    "rewrite the selection as you asked" : {
-      "comment" : "按你写的要求改选中的文字 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auswahl wie gewünscht umformulieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "reescribir la selección como pediste"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "réécrire la sélection comme demandé"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "指示どおりに選択したテキストを書き換え"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "요청한 대로 선택 영역 다시 쓰기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "reescrever a seleção como você pediu"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "依你的要求改寫選取的文字"
-          }
-        }
-      }
-    },
     "Rewrites: " : {
       "comment" : "改写： — Sources/AllInOneIME/AppProfiles.swift",
       "localizations" : {
@@ -29537,53 +28826,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在儲存到%@⋯"
-          }
-        }
-      }
-    },
-    "Screenshot · %@ lines (read on this Mac)" : {
-      "comment" : "截图 · %@ 行（本机识别） — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildschirmfoto · %@ Zeilen (auf diesem Mac erkannt)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Captura de pantalla · %@ líneas (leída en este Mac)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture d’écran · %@ lignes (lue sur ce Mac)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリーンショット · %@行（このMacで読み取り）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크린샷 · %@줄 (이 Mac에서 인식)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Captura de tela · %@ linhas (lida neste Mac)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截圖 · %@ 行（在這台 Mac 上辨識）"
           }
         }
       }
@@ -31703,53 +30945,6 @@
         }
       }
     },
-    "Space picks · ⏎ translate to %@ and insert · ⇧⏎ as typed" : {
-      "comment" : "空格 选词 · ⏎ 翻译成%@上屏 · ⇧⏎ 原文上屏 — Sources/AllInOneIME/TranslateModeController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Leertaste wählt · ⏎ auf %@ übersetzen und einfügen · ⇧⏎ wie getippt"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espacio elige · ⏎ traducir a %@ e insertar · ⇧⏎ tal cual"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espace choisir · ⏎ traduire en %@ et insérer · ⇧⏎ tel quel"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スペース 選択 · ⏎ %@に翻訳して挿入 · ⇧⏎ 入力どおりに挿入"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Space 단어 선택 · ⏎ %@(으)로 번역해 입력 · ⇧⏎ 입력한 그대로"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espaço escolhe · ⏎ traduzir para %@ e inserir · ⇧⏎ como digitado"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空白鍵 選字 · ⏎ 翻譯成%@並插入 · ⇧⏎ 照原樣輸入"
-          }
-        }
-      }
-    },
     "Space picks · type @ first for commands" : {
       "comment" : "空格 选词 · 开头打 @ 用命令 — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
@@ -31887,53 +31082,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空白鍵 重試 · ⏎ 插入原文 · Esc 返回"
-          }
-        }
-      }
-    },
-    "Space twice" : {
-      "comment" : "连按两次空格 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zweimal Leertaste"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espacio dos veces"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deux fois Espace"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スペース2回"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Space 두 번"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Espaço duas vezes"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按兩次空白鍵"
           }
         }
       }
@@ -33683,53 +32831,6 @@
         }
       }
     },
-    "The image stays on this Mac; only its text is sent" : {
-      "comment" : "图片不会离开这台 Mac，只发送认出的文字 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Bild bleibt auf diesem Mac; nur der erkannte Text wird gesendet"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La imagen no sale de este Mac; solo se envía su texto"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L’image reste sur ce Mac ; seul son texte est envoyé"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "画像はこのMacの外に送信されません。送信されるのはテキストのみです"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이미지는 이 Mac 밖으로 나가지 않으며 텍스트만 전송됨"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A imagem fica neste Mac; só o texto dela é enviado"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "影像不會離開這台 Mac；只傳送辨識出的文字"
-          }
-        }
-      }
-    },
     "The input method goes into ~/Library/Input Methods and \"AllInOneIME Settings\" into ~/Applications, and AllInOneIME is added to your input sources. For this user only; no administrator password needed." : {
       "comment" : "输入法装到 ~/Library/Input Methods，「AllInOneIME 设置」装到 ~/Applications，并把 AllInOneIME 加进你的输入法列表。只装给当前用户，不需要管理员密码。 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -34290,53 +33391,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rime 使用者檔案夾中有你自己的 %@：未做更改，因此模糊音沒有開啟。"
-          }
-        }
-      }
-    },
-    "The selection is too long (%@ characters, %@ at most): not used" : {
-      "comment" : "选中的文字太长（%@ 字，最多 %@ 字），命令不用它 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Auswahl ist zu lang (%@ Zeichen, höchstens %@): nicht verwendet"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La selección es demasiado larga (%@ caracteres, %@ como máximo): no se usa"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La sélection est trop longue (%@ caractères, %@ au maximum) : non utilisée"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択したテキストが長すぎます（%@文字、最大%@文字）：使用しません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택 영역이 너무 김 (%@자, 최대 %@자): 사용하지 않음"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A seleção é longa demais (%@ caracteres, no máximo %@): não usada"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選取的文字太長（%@ 個字元，最多 %@ 個）：未使用"
           }
         }
       }
@@ -38432,53 +37486,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在下方填寫它的指令。"
-          }
-        }
-      }
-    },
-    "Write something, or ⌃V to paste" : {
-      "comment" : "写点内容，或按 ⌃V 粘贴 — Sources/AllInOneIME/InputController.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schreib etwas oder setze mit ⌃V ein"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escribe algo o pulsa ⌃V para pegar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Écrivez quelque chose, ou ⌃V pour coller"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "何か書くか、⌃Vでペースト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "내용을 입력하거나 ⌃V로 붙여넣기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escreva algo ou use ⌃V para colar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輸入一些內容，或按 ⌃V 貼上"
           }
         }
       }

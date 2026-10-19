@@ -388,14 +388,4 @@ extension AllInOneIMEInputController {
         let stream = converter.translateMode(input, target: session.target, app: app)
         return Self.isTerminal(clientOverride ?? client()) ? Self.oneLine(stream) : stream
     }
-
-    // MARK: The footer
-
-    /// The candidate panel's footer while pinyin is typed in the mode: what ⏎ and ⇧⏎ do.
-    @MainActor
-    func translateModeFooter() -> String? {
-        guard composer.inModeComposition, let target = composer.translateMode?.target else { return nil }
-        let name = UIText.name(target)
-        return tr("空格 选词 · ⏎ 翻译成\(name)上屏 · ⇧⏎ 原文上屏", "Space picks · ⏎ translate to \(name) and insert · ⇧⏎ as typed")
-    }
 }
