@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// The settings for a settings window in another process (Windows' Settings app, over the wire): the document of what
 /// there is to set (`document`), one change at a time (`set`), the actions (`perform`: a key saved, a provider tested, a

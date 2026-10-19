@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // The settings' Test buttons: Test Connection (the AI provider), the web search's and the Notion link's. Each works on
 // what it is given (a copy of the config, the key as kept), off whatever thread or actor shows its answer.
