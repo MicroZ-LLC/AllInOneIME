@@ -107,6 +107,22 @@ struct WindowsPlatformTests {
         #expect(throws: WindowsLaunchError.self) { try run(folder.file("notes.txt", "text")) }
     }
 
+    /// Every argument in quotes: Git Bash's bash (MSYS2's runtime, like Cygwin's) expands none of `*`, `~`, `@file`
+    /// and `'` in a word that isn't, as a shell would.
+    @Test(.enabled(if: WindowsPrograms.gitBash(nil) != nil, "no Git Bash"))
+    func msysProgramsGetTheirArgumentsAsGiven() throws {
+        let folder = try Folder()
+        try folder.file("x", "read from the file\n")  // what `@x` would be replaced with
+        try folder.file("other.txt", "")  // what `*` would match
+        let sh = try folder.file("args.sh", "printf '%s|' \"$@\"\n")
+        let arguments = ["*", "~", "it's", "@x", "*.txt", "~/x", "o?her.txt", "[o]ther.txt", "{a,b}", "'quoted'", #"a\b"#]
+        let (output, status) = try run(sh, arguments, directory: folder.url)
+        #expect(status == 0)
+        #expect(output == arguments.map { $0 + "|" }.joined())
+        let line = try WindowsCommandLine.make(["tool.exe", "plain", "*"])
+        #expect(line == #""tool.exe" "plain" "*""#)
+    }
+
     // MARK: Stopping
 
     /// `terminate` ends what the program started too: a batch file's child, which would write a file 2 s later, doesn't.
