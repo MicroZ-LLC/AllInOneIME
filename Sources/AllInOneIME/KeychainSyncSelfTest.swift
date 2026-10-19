@@ -62,10 +62,13 @@ extension SelfTest {
               "the synced item deleted with kSecAttrSynchronizableAny: gone")
     }
 
-    /// The controller's moves, with stores in memory: key sync off (nothing moves), turned on and off, the keys-synced
+    /// The controller's moves, with stores in memory: key sync off (nothing moves), iCloud sync turned on with its keys
+    /// row left off, the default (nothing moves: S32's controller half), the row turned on and off, the keys-synced
     /// marker through a turn on that stops halfway (acceptance S21's controller half), a replaced copy that can't be
-    /// kept (S23's), a config that can't be read (nothing changes), and a copy-back that left keys: the marker lists
-    /// their accounts, Remove… takes one off, and the retry copies the rest alone (S28's).
+    /// kept (S23's), a config that can't be read (nothing changes), a copy-back that left keys: the marker lists their
+    /// accounts, Remove… takes one off, and the retry copies the rest alone (S28's), a copy-back that throws midway
+    /// (it started by listing every synced account; Remove… and a save here take theirs off: S30's and S31's), and
+    /// one whose synced keys can't be listed (it doesn't start).
     private static func testKeySyncMoves() {
         let sync = ICloudSyncController.shared
         let fm = FileManager.default
@@ -77,7 +80,19 @@ extension SelfTest {
             store.kind = kind
             return store
         }
-        let login = store(.legacy)
+        // The login keychain, whose writes of some accounts can be made to fail (locked, say), and the marker as it was
+        // when each key was written there.
+        let loginFails = Locked<Set<String>>(initialState: [])
+        let markerURL = sync.keysSyncedURL
+        let markerAtLoginWrites = Locked<[String?]>(initialState: [])
+        var login = store(.legacy)
+        let loginItems = login
+        login.write = { account, key, label, comment, ending, saved in
+            let marker = (try? Data(contentsOf: markerURL)).map { String(decoding: $0, as: UTF8.self) }
+            markerAtLoginWrites.withLock { $0.append(marker) }
+            return loginFails.withLock { $0.contains(account) } ? .failed(-25308)
+                : loginItems.write(account, key, label, comment, ending, saved)
+        }
         // The replaced copies, which can be made to fail.
         let replacedFails = Locked<Bool>(initialState: false)
         var replaced = store(.legacy)
@@ -86,9 +101,9 @@ extension SelfTest {
             replacedFails.withLock { $0 } ? .failed(-25293) : replacedItems.write(account, key, label, comment, ending, saved)
         }
         // iCloud Keychain, with keys that can be made unreadable (not there yet, say) or read back garbled once written,
-        // and the marker as it was when each key was written there.
+        // items that can be made impossible to list, and the marker as it was when each key was written there.
         let unreadable = Locked<Set<String>>(initialState: []), garbled = Locked<Set<String>>(initialState: [])
-        let markerURL = sync.keysSyncedURL
+        let unlisted = Locked<Bool>(initialState: false)
         let markerAtWrites = Locked<[String?]>(initialState: [])
         var synced = store(.synced)
         let syncedItems = synced
@@ -100,6 +115,10 @@ extension SelfTest {
             let marker = (try? Data(contentsOf: markerURL)).map { String(decoding: $0, as: UTF8.self) }
             markerAtWrites.withLock { $0.append(marker) }
             return syncedItems.write(account, key, label, comment, ending, saved)
+        }
+        synced.listing = {
+            if unlisted.withLock({ $0 }) { throw APIKeys.KeychainError(status: -25308) }
+            return syncedItems.accounts()
         }
         let stores = KeySync.Stores(login: login, synced: synced, replaced: replaced)
         sync.keys = stores
@@ -119,20 +138,28 @@ extension SelfTest {
         _ = login.write("openai", openAI, "AllInOneIME: OpenAI-compatible API", "api.openai.com", APIKeys.ending(of: openAI), Date())
         _ = login.write("hosted", hosted, "AllInOneIME: AllInOneIME Cloud", "", APIKeys.ending(of: hosted), Date())
         _ = login.write("gemini", gemini, "AllInOneIME: Gemini API", "", APIKeys.ending(of: gemini), nil)  // 0.6.4's
-        edit { $0.enabled = false }
+        edit { $0 = ICloudSyncSettings() }  // a new config's
         sync.applyKeySync()
         check(!stores.syncing && login.read("openai") == openAI && login.read("gemini") == gemini
               && syncedItems.accounts().isEmpty && replacedItems.accounts().isEmpty && sync.keysSynced == nil
               && stores.store.read("gemini") == gemini,
               "key sync off: the keys stay in the login keychain, nothing moved")
 
+        // iCloud sync turned on, and nothing else: "API keys and passwords" is off by default, so no key moves.
         edit { $0.enabled = true }
+        sync.applyKeySync()
+        check((try? Config.load(from: configURL))?.iCloudSync.keys == false && !stores.syncing && sync.keysSynced == nil
+              && login.read("openai") == openAI && login.read("gemini") == gemini && syncedItems.accounts().isEmpty
+              && replacedItems.accounts().isEmpty && stores.store.read("openai") == openAI,
+              "iCloud sync turned on with its keys row left off (the default): no key moved, nothing marked")
+
+        edit { $0.keys = true }
         sync.applyKeySync()
         check(stores.syncing && synced.read("openai") == openAI && synced.read("gemini") == gemini
               && login.attributes("openai") == nil && login.attributes("gemini") == nil
               && synced.attributes("openai")?.comment == "api.openai.com"
               && synced.attributes("gemini")?.label == "AllInOneIME: Gemini API",
-              "sync turned on: the login keychain's keys moved into iCloud Keychain, with their hosts and labels")
+              "\"API keys and passwords\" turned on: the login keychain's keys moved into iCloud Keychain, with their hosts and labels")
         check(replacedItems.read("openai") == openAI && replacedItems.attributes("gemini")?.label == "AllInOneIME: Gemini API (replaced)",
               "each key that went into iCloud Keychain also kept as a replaced copy, named so (\(replacedItems.attributes("gemini")?.label ?? "none"))")
         check(login.read("hosted") == hosted && synced.attributes("hosted") == nil,
@@ -232,6 +259,55 @@ extension SelfTest {
         check(sync.keysSynced == nil && login.read("perplexity") == late && login.attributes("mistral") == nil
               && login.read("openai") == openAI,
               "the retry copies back the account left alone: the removed key doesn't come back, nor another Mac's change")
+
+        // Turned on again, then off with the login keychain refusing gemini's write (locked): the copy-back throws
+        // midway, after anthropic. It started by listing every synced account (hosted, which never syncs, left out),
+        // before the first key was copied back, and keeps that list.
+        edit { $0.keys = true }
+        sync.applyKeySync()
+        check(sync.keysSynced == .done && stores.syncing, "turned on again: done (\(sync.keysSynced.map(\.text) ?? "none"))")
+        _ = syncedItems.write("hosted", hosted, "AllInOneIME: AllInOneIME Cloud", "", APIKeys.ending(of: hosted), Date())
+        let all = syncedItems.accounts().filter { $0 != "hosted" }
+        markerAtLoginWrites.withLock { $0 = [] }
+        loginFails.withLock { $0 = ["gemini"] }
+        edit { $0.keys = false }
+        sync.applyKeySync()
+        let atFirstCopy = markerAtLoginWrites.withLock { $0.first ?? nil }.map(KeySync.Marker.init(text:))
+        check(atFirstCopy == .copyingBack(all) && all.count == 5,
+              "the copy-back lists every synced account but hosted before it copies a key back (\(atFirstCopy.map(\.text) ?? "none"))")
+        check(!stores.syncing && sync.keysSynced == .copyingBack(all) && login.read("anthropic") == anthropic
+              && login.attributes("gemini") == nil,
+              "a copy-back that throws midway keeps its list (\(sync.keysSynced.map(\.text) ?? "none"))")
+        // Remove… of anthropic, copied back already, and a new openai key saved here, both with key sync off: off the
+        // list.
+        _ = stores.store.delete("anthropic")
+        let mine = "sk-selftest-saved-here-0008"
+        _ = stores.store.write("openai", mine, "AllInOneIME: OpenAI-compatible API", "", APIKeys.ending(of: mine), Date())
+        check(sync.keysSynced == .copyingBack(all.filter { $0 != "anthropic" && $0 != "openai" }) && login.read("openai") == mine,
+              "Remove… and a save with key sync off take their accounts off the list (\(sync.keysSynced.map(\.text) ?? "none"))")
+        loginFails.withLock { $0 = [] }
+        sync.applyKeySync()
+        check(sync.keysSynced == nil && login.attributes("anthropic") == nil && login.read("openai") == mine
+              && login.read("gemini") == gemini && login.read("hosted") == hosted && stores.store.read("anthropic") == nil,
+              "the retry copies back the rest alone: the key removed here doesn't come back, the one saved here stays")
+        _ = stores.store.write("mistral", since, "AllInOneIME: test", "", APIKeys.ending(of: since), Date())
+        check(sync.keysSynced == nil, "a save with no copy-back left marks nothing")
+
+        // Turned on, then off while iCloud Keychain's items can't be listed: nothing is copied back, and the marker stays
+        // (never taken for a copy-back with nothing to copy); once they list, the copy-back runs.
+        edit { $0.keys = true }
+        sync.applyKeySync()
+        check(sync.keysSynced == .done && login.attributes("openai") == nil, "turned on once more: done")
+        unlisted.withLock { $0 = true }
+        markerAtLoginWrites.withLock { $0 = [] }
+        edit { $0.keys = false }
+        sync.applyKeySync()
+        check(sync.keysSynced == .done && markerAtLoginWrites.withLock { $0.isEmpty } && login.attributes("openai") == nil,
+              "iCloud Keychain's keys can't be listed: no copy-back, the marker as it was (\(sync.keysSynced.map(\.text) ?? "none"))")
+        unlisted.withLock { $0 = false }
+        sync.applyKeySync()
+        check(sync.keysSynced == nil && !stores.syncing && login.read("openai") == mine && login.read("gemini") == gemini,
+              "listed again: copied back, and the marker gone")
 
         // A marker from an earlier build (empty) is done.
         try? Data().write(to: markerURL)

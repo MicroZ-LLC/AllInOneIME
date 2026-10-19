@@ -279,8 +279,20 @@ final class ICloudSyncController: ObservableObject {
         }
     }
 
-    /// Remove… took `account` off this Mac while key sync was off: off the accounts an incomplete copy-back left, so
-    /// that the retry doesn't bring it back (the marker goes with the last one).
+    /// A copy-back that left `remaining`: the marker (the list it started from) lists those alone, but never one taken
+    /// off the list meanwhile (`dropFromCopyBack`; the marker gone: all of them were). When this can't be written, the
+    /// list before stays: it has these accounts too.
+    nonisolated static func narrowCopyBack(to remaining: [String], at url: URL) {
+        markerLock.withLock {
+            guard case let .copyingBack(listed)? = KeySync.Marker.read(at: url) else { return }
+            let left = remaining.filter(listed.contains)
+            _ = writeMarker(left.isEmpty ? nil : .copyingBack(left), at: url)
+        }
+    }
+
+    /// Remove… took `account` off this Mac, or a save wrote it here, while key sync was off: off the accounts the
+    /// copy-back still has to copy, so that the retry doesn't bring the removed key back, nor write iCloud Keychain's
+    /// over the one saved here (the marker goes with the last one).
     nonisolated static func dropFromCopyBack(_ account: String, at url: URL) {
         markerLock.withLock {
             guard case let .copyingBack(accounts)? = KeySync.Marker.read(at: url), accounts.contains(account) else { return }
@@ -295,13 +307,16 @@ final class ICloudSyncController: ObservableObject {
     /// Keychain for the other Macs (`KeySync.Stores.turn`). The marker (`keysSynced`) says "moving" before turning on
     /// moves a key (nothing moves when it can't be written), and "done" once every key moved; turning off copies the
     /// synced keys back whenever there is a marker, even one left "moving" (keys moved before a move stopped are in iCloud
-    /// Keychain alone), and removes it only once every key is copied. A move that failed, or left a key behind (one that
-    /// couldn't be read, whose copy didn't read back as written, whose replaced copy couldn't be kept, or that would have
-    /// gone over a key that couldn't be read), is tried again on the next run; a copy-back that left keys behind lists
-    /// their accounts in the marker, and is tried again for those alone (Remove… on this Mac takes one off the list). At
-    /// launch (`atLaunch`) with key sync on, the move is made even when the marker says "done": a key left behind for its
-    /// first use, or one an earlier version saved in the login keychain since, moves then. When the config can't be read
-    /// (a typo while editing it by hand), nothing changes: no move, no copy-back, the routing as it was.
+    /// Keychain alone), and removes it only once every key is copied. Before a copy-back that starts from "moving" or
+    /// "done" copies a key, the marker lists every synced account ("copying back", `KeySync.Stores.listCopyBack`); when
+    /// that list can't be made or written, nothing is copied back (the routing as it was), to be tried again on the next
+    /// run. A move that failed, or left a key behind (one that couldn't be read, whose copy didn't read back as written,
+    /// whose replaced copy couldn't be kept, or that would have gone over a key that couldn't be read), is tried again on
+    /// the next run; a copy-back that throws midway keeps its list, and one that left keys behind lists their accounts:
+    /// it is tried again for the listed accounts alone (Remove… or a save on this Mac takes one off the list). At launch
+    /// (`atLaunch`) with key sync on, the move is made even when the marker says "done": a key left behind for its first
+    /// use, or one an earlier version saved in the login keychain since, moves then. When the config can't be read (a
+    /// typo while editing it by hand), nothing changes: no move, no copy-back, the routing as it was.
     func applyKeySync(atLaunch: Bool = false) {
         guard let keys else { return }
         let url = keysSyncedURL
@@ -318,11 +333,27 @@ final class ICloudSyncController: ObservableObject {
         }
         if wanted, !markKeysSynced(.moving) { return }
         var only: Set<String>?
-        if !wanted, case let .copyingBack(accounts)? = marker { only = Set(accounts) }
+        if !wanted {
+            if case let .copyingBack(accounts)? = marker {
+                only = Set(accounts)
+            } else {
+                // From "moving" or "done": every synced account listed before any is copied back, so that one copied
+                // before the copy-back throws, then removed here, isn't copied back again by the retry.
+                let accounts: [String]
+                do {
+                    accounts = try keys.listCopyBack()
+                } catch {
+                    log.error("keys not copied back out of iCloud Keychain, tried again later: its keys can't be listed: \(String(describing: error), privacy: .public)")
+                    return
+                }
+                guard markKeysSynced(.copyingBack(accounts)) else { return }
+                only = Set(accounts)
+            }
+        }
         do {
             let moves = try keys.turn(syncing: wanted, only: only)
             guard moves.isComplete else {
-                if !wanted { markKeysSynced(.copyingBack(moves.remaining)) }
+                if !wanted { Self.narrowCopyBack(to: moves.remaining, at: keysSyncedURL) }
                 log.error("keys not all moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain, tried again later: \(moves.waiting.count) unreadable, \(moves.mismatched.count) left as they were")
                 return
             }
