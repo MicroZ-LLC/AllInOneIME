@@ -75,17 +75,31 @@ public final class SettingsService: @unchecked Sendable {
                 return .failure(SettingsProblem(.notChangeable, field: id, message: Self.notChangeable))
             }
             if let problem = Self.check(value, for: field) { return .failure(problem) }
-            do {
-                try setter(value)
-            } catch let problem as SettingsProblem {
-                return .failure(problem)
-            } catch {
-                return .failure(SettingsProblem(.failed, field: id, message: UIText.describe(error)))
+            return saving(id) {
+                do {
+                    try setter(value)
+                } catch let problem as SettingsProblem {
+                    return problem
+                } catch {
+                    return SettingsProblem(.failed, field: id, message: UIText.describe(error))
+                }
+                return nil
             }
-            store.save()
-            if let error = store.saveError { return .failure(SettingsProblem(.failed, field: id, message: error)) }
-            return .success(())
         }
+    }
+
+    /// `change` (a problem: refused), then saved: `failed` when a save it made, or the one after it, failed (the store
+    /// went back to the file as it was, and its `saveError` says why). A change that saves nothing clears an earlier
+    /// failure: the file has what is shown.
+    private func saving(_ id: String?, _ change: () -> SettingsProblem?) -> Result<Void, SettingsProblem> {
+        let failures = store.failedSaves
+        if let problem = change() { return .failure(problem) }
+        // A rule that saved and failed has nothing left to save: saving again would clear its error.
+        if store.failedSaves == failures { store.save() }
+        guard store.failedSaves == failures else {
+            return .failure(SettingsProblem(.failed, field: id, message: store.saveError ?? ""))
+        }
+        return .success(())
     }
 
     /// Whether an action runs a while (a test, a download): `perform` it; any other is done at once (`performNow`).
@@ -284,8 +298,10 @@ public final class SettingsService: @unchecked Sendable {
             guard let name = action.item, store.config.customCommands.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
             }
-            store.deleteCommand(named: name)
-            return store.saveError.map { .failure(SettingsProblem(.failed, field: action.field, message: $0)) } ?? .success(SettingsActionOutcome())
+            return saving(action.field) {
+                store.deleteCommand(named: name)
+                return nil
+            }.map { SettingsActionOutcome() }
         }
         guard let value = action.value, let data = try? JSONEncoder().encode(value),
               let command = try? JSONDecoder().decode(CustomCommand.self, from: data) else {
@@ -296,10 +312,10 @@ public final class SettingsService: @unchecked Sendable {
                                          unread: store.config.unreadCustomCommandNames) {
             return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(problem)))
         }
-        guard store.saveCommand(command, editing: action.item) else {
-            return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(.nameTaken)))
-        }
-        return store.saveError.map { .failure(SettingsProblem(.failed, field: action.field, message: $0)) } ?? .success(SettingsActionOutcome())
+        return saving(action.field) {
+            store.saveCommand(command, editing: action.item)
+                ? nil : SettingsProblem(.badValue, field: action.field, message: UIText.describe(.nameTaken))
+        }.map { SettingsActionOutcome() }
     }
 
     // MARK: Checks

@@ -114,6 +114,36 @@ struct SettingsServiceTests {
         #expect(try Config.load(from: url).maxTokens == 1500)
     }
 
+    /// A change whose save fails is refused (`failed`), and the document shows the file as it is, with why; the next
+    /// change of something else doesn't write it; and a change that saves nothing after it isn't refused for it. A rule
+    /// that saves on its own (the style order) and fails is refused too.
+    @Test func aSaveThatFails() throws {
+        let (service, url) = try service(#"{"maxTokens": 1000}"#)
+        let folder = url.deletingLastPathComponent()
+        var result: Result<Void, SettingsProblem> = .success(())
+        guard try whileReadOnly(folder, { result = service.set("maxTokens", to: .number(1500)) }) else { return }
+        guard case let .failure(problem) = result else { Issue.record("a change not saved was taken"); return }
+        var document = service.document()
+        #expect(problem.code == .failed && problem.message == document.saveError)
+        #expect(document.field("maxTokens")?.value == .number(1000))
+        // Writable again: another change, saved alone.
+        #expect((try? service.set("typeOut", to: .bool(true)).get()) != nil)
+        let config = try Config.load(from: url)
+        #expect(config.typeOut && config.maxTokens == 1000 && service.document().saveError == nil)
+        // Failed; then a change to what it is: taken, nothing left to show.
+        _ = try whileReadOnly(folder) { _ = service.set("maxTokens", to: .number(2000)) }
+        #expect(service.document().saveError != nil)
+        #expect((try? service.set("maxTokens", to: .number(1000)).get()) != nil)
+        #expect(service.document().saveError == nil)
+        // The style order saves itself.
+        let styles = try #require(service.document().field("rewriteStyles")?.value)
+        let reordered = AIConfig.JSONValue.array((styles.strings ?? []).reversed().map(AIConfig.JSONValue.string))
+        _ = try whileReadOnly(folder) { result = service.set("rewriteStyles", to: reordered) }
+        if case let .failure(problem) = result { #expect(problem.code == .failed) } else { Issue.record("a failed save was taken") }
+        document = service.document()
+        #expect(document.field("rewriteStyles")?.value == styles && document.saveError != nil)
+    }
+
     /// The rules each change follows are the store's: the first input language is the default, a style list is
     /// resolved, the interface language is applied at once.
     @Test func theStoresRules() throws {

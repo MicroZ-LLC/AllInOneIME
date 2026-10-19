@@ -40,10 +40,14 @@ public final class SettingsStore {
         didSet { if loadError != oldValue { notify(.status) } }
     }
 
-    /// Why the last save failed; nil once one works.
+    /// Why the last save failed; nil once one works, or once there is nothing to save (the file has what is shown).
     public private(set) var saveError: String? {
         didSet { if saveError != oldValue { notify(.status) } }
     }
+
+    /// How many saves have failed: whether one failed while a caller made its change (a change may save more than once:
+    /// a rule that saves, then the caller's `save`), when `saveError` alone can't tell an earlier failure from its own.
+    public private(set) var failedSaves = 0
 
     public let configURL: URL
     /// False for previews and screenshots: nothing is ever written, no key saved or removed.
@@ -53,7 +57,8 @@ public final class SettingsStore {
     /// shell deletes the questions it keeps.
     public var questionsForgotten: () -> Void = {}
 
-    /// The config as the file has it (read or last written here): a save writes only what differs from it.
+    /// The config as the file has it (read or last written here): a save writes only what differs from it, and a save
+    /// that fails goes back to it.
     private var written: Config?
     /// When the config file was last read or written here: changed since (an input method's menu, an editor, sync), it
     /// is read again (`reloadIfChanged`).
@@ -117,9 +122,17 @@ public final class SettingsStore {
     /// down to an app's profile and each switch of hiding sensitive information: a value written meanwhile by sync
     /// through iCloud, the Assistant or by hand that hasn't been read yet stays as it is, and so do keys this version
     /// doesn't know. Nothing is written when nothing changed (a window opened, moved through, ⏎ on a field left as it
-    /// was, closed). `config` is then the file as it now is.
+    /// was, closed; `saveError` is cleared then: the file has what is shown). `config` is then the file as it now is.
+    ///
+    /// A save that fails (a folder that can't be written) puts `config` back to the file as it was read or last written
+    /// here, and `saveError` says why: what couldn't be saved isn't shown as if it were, and isn't written by the next
+    /// save of something else.
     public func save() {
-        guard canSave, persists, config != written else { return }
+        guard canSave, persists else { return }
+        guard config != written else {
+            saveError = nil
+            return
+        }
         do {
             if let written {
                 try AIConfig.writing(config, from: written, keys: AIConfig.changedKeys(written, config), at: configURL)
@@ -132,7 +145,9 @@ public final class SettingsStore {
             fileDate = Self.modificationDate(configURL)
             saveError = nil
         } catch {
+            failedSaves += 1
             saveError = tr("保存失败：", "Couldn't save: ") + error.localizedDescription
+            if let written { config = written }
         }
     }
 
@@ -211,11 +226,13 @@ public final class SettingsStore {
 
     // MARK: Switches with more to them
 
-    /// The interface language (`Config.uiLanguage`; nil: follow the system), switched at once and saved.
+    /// The interface language (`Config.uiLanguage`; nil: follow the system), switched at once and saved. Not saved (a
+    /// save that failed): back to the one the file has.
     public func setUILanguage(_ language: String?) {
         UIText.choice = language  // before the change is published, so that what shows it redraws in it
         config.uiLanguage = language
         save()
+        if config.uiLanguage != language { UIText.choice = config.uiLanguage }
     }
 
     /// The menu bar icon's switch, saved (the Mac shows or removes the icon).

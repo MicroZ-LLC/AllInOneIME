@@ -160,6 +160,50 @@ struct SettingsStoreTests {
         #expect(store.config.maxTokens == 800)
     }
 
+    /// A save that fails (a folder that can't be written) says why and goes back to the file as it is: what wasn't saved
+    /// isn't shown as saved, nor written by the next save of something else. A save with nothing to save after it
+    /// clears the error: the file has what is shown.
+    @Test func aFailedSaveGoesBack() throws {
+        let url = try file(Self.handWritten)
+        let store = SettingsStore(configURL: url)
+        var heard: [SettingsStore.Change] = []
+        let observation = store.observe { heard.append($0) }
+        defer { observation.cancel() }
+        let failed = try whileReadOnly(url.deletingLastPathComponent()) {
+            store.config.maxTokens = 1500
+            store.save()
+        }
+        guard failed else { return }  // a folder nothing keeps from being written (run as root)
+        #expect(store.saveError != nil && store.failedSaves == 1)
+        #expect(store.config.maxTokens == 1000 && heard == [.config, .status, .config])
+        #expect(try text(url) == Self.handWritten)
+        // Writable again: the next change is saved, and only it.
+        store.config.typeOut = true
+        store.save()
+        #expect(store.saveError == nil)
+        let now = try Config.load(from: url)
+        #expect(now.typeOut && now.maxTokens == 1000)
+        // Failed again; then nothing left to save: no error.
+        _ = try whileReadOnly(url.deletingLastPathComponent()) {
+            store.config.maxTokens = 2000
+            store.save()
+        }
+        #expect(store.saveError != nil && store.failedSaves == 2)
+        store.save()
+        #expect(store.saveError == nil && store.config.maxTokens == 1000)
+    }
+
+    /// The interface language not saved: back to the one the file has, in the process too.
+    @Test func anInterfaceLanguageNotSaved() throws {
+        let url = try file(#"{"uiLanguage": "en"}"#)
+        let store = SettingsStore(configURL: url)
+        try withInterfaceLanguage("en") { () throws in
+            let failed = try whileReadOnly(url.deletingLastPathComponent()) { store.setUILanguage("fr") }
+            guard failed else { return }
+            #expect(store.saveError != nil && store.config.uiLanguage == "en" && UIText.choice == "en")
+        }
+    }
+
     // MARK: Lists
 
     /// Commands are saved and deleted by name in the list as the file has it now (sync may have changed it); a name
@@ -311,4 +355,14 @@ struct SettingsStoreTests {
         #expect(KeyState(APIKeys.Source.none, ending: nil).text(missing: "none") == "none")
         #expect(KeyState(nil, ending: nil) == .loading)
     }
+}
+
+/// `body` with `folder` read-only (a save into it fails), then writable again. False, `body` not run, where that keeps
+/// nothing from writing there (root).
+func whileReadOnly(_ folder: URL, _ body: () throws -> Void) throws -> Bool {
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+    guard !FileManager.default.isWritableFile(atPath: folder.path) else { return false }
+    try body()
+    return true
 }
