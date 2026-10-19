@@ -563,14 +563,19 @@ given and sends back what the user did. It opens no sessions.
 | `integer` | number | a whole number in `min`…`max`, in steps of `step` from `min` |
 | `number` | number, or null when `optional` | a number in `min`…`max`; null when `optional` (`step`: a slider's) |
 | `text` | string or null | a string; null when `optional`. `choices`, if any, are suggestions |
-| `choice` | one of `choices`' values | one of them, not `disabled` (null when a choice's value is null) |
-| `choices` | an array of `choices`' values | each once, `minCount`…`maxCount` of them; `ordered`: the order matters (the first is the default) |
+| `choice` | one of `choices`' values | one of them, not `disabled` unless it is the value now (null when a choice's value is null) |
+| `choices` | an array of `choices`' values | each once, `minCount`…`maxCount` of them; `ordered`: the order matters (the first is the default); a `disabled` one only if the value has it |
 | `words` | an array of strings | an array of strings |
 | `secret` | — (never) | — : `status`, `isSet`; changed with `setKey` / `removeKey` |
 | `items` | — | — : each item's `actions`, and the field's |
 | `info` | text to show | — |
 | `button` | — | — : its `actions` (one); `status`: what the last run said |
 
+- **Values outside the choices:** a `choice` or `choices` value the field doesn't offer (another platform's, a later
+  version's rewrite style, a translation language only `config.json` names, a thinking level written by hand) is in
+  `choices` too, `disabled`, labelled as well as the engine can. It is kept as it is: sent back (in a `choices` list,
+  moved), it is taken; left out of a `choices` list, it stays where it was; it is never picked anew. The field can
+  always be changed.
 - **Which fields apply:** only those that apply *now* are in the document: a provider's own fields while it is the one
   in use, the typing speed while typing out is on, fuzzy pinyin with Chinese among the input languages. After a
   change, draw the new document: fields come and go.

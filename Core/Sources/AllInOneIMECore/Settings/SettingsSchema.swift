@@ -57,13 +57,32 @@ struct SettingsSchema {
     /// Whether a field only some platforms have is on this one.
     func on(_ platforms: [SettingsPlatform]?) -> Bool { platforms.map { $0.contains(platform) } ?? true }
 
-    /// A field, if it is on this platform; `set` (nil: shown, not changed) is how it is set.
+    /// A field, if it is on this platform; `set` (nil: shown, not changed) is how it is set. A `choice` or `choices`
+    /// field's value that isn't among its choices (a later version's, one only the file names) is shown as a choice of
+    /// its own, `disabled`: kept as it is, not picked (`SettingsService.check`).
     mutating func add(_ field: Field, to fields: inout [Field], set: ((JSON) throws -> Void)? = nil) {
         guard on(field.platforms) else { return }
         var field = field
         if field.value == .null { field.value = nil }  // null is left out, as every default is
+        if field.kind == .choice || field.kind == .choices {
+            let values = field.kind == .choice ? [field.value ?? .null] : field.value?.array ?? []
+            for value in values where field.choices?.contains(where: { $0.value == value }) != true {
+                field.choices = (field.choices ?? []) + [Choice(value: value, label: value.string ?? "", disabled: true)]
+            }
+        }
         fields.append(field)
         if let set { setters[field.id] = set }
+    }
+
+    /// A `choices` field's new value, `list`, with what it `had` that this version doesn't know (`known` false: a later
+    /// version's style, a language only the file names) put back where it was when `list` leaves it out: shown
+    /// `disabled`, it is kept as it is, never dropped from here.
+    static func keepingUnknown(_ list: [String], had: [String], known: (String) -> Bool) -> [String] {
+        var kept = list
+        for (index, item) in had.enumerated() where !known(item) && !kept.contains(item) {
+            kept.insert(item, at: min(index, kept.count))
+        }
+        return kept
     }
 
     func toggle(_ id: String, _ label: String, _ help: String? = nil, _ value: Bool, platforms: [SettingsPlatform]? = nil) -> Field {
@@ -227,23 +246,31 @@ struct SettingsSchema {
     mutating func writing() -> [Field] {
         var fields: [Field] = []
         let store = store
+        // A language the file names that the catalog doesn't (added by hand): kept, under its own name.
+        let codes = config.outputLanguages.map(\.code)
+        let inCatalog = { (code: String) in OutputLanguage.catalog.contains { $0.code == code } }
         var languages = Field(id: "outputLanguages", kind: .choices, label: tr("翻译语言", "Languages"),
                               help: tr("每种一行，拖动排序", "A line in each; drag to reorder"),
-                              value: .array(config.outputLanguages.map { .string($0.code) }))
+                              value: .array(codes.map(JSON.string)))
         languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0)) }
+            + config.outputLanguages.filter { !inCatalog($0.code) }.map { Choice(value: .string($0.code), label: UIText.name($0), disabled: true) }
         (languages.ordered, languages.minCount) = (true, 1)
         add(languages, to: &fields) { value in
-            let codes = Self.strings(value)
-            store.config.setOrder(codes.compactMap { code in OutputLanguage.catalog.first { $0.code == code } })
+            let kept = Self.keepingUnknown(Self.strings(value), had: codes, known: inCatalog)
+            store.config.setOrder(kept.map { code in OutputLanguage.catalog.first { $0.code == code } ?? OutputLanguage(code) })
         }
-        let on = RewriteStyle.resolve(config.rewriteStyles)
+        // The styles on, in their order: a name this version doesn't know (a later version's style) too, as it is.
+        var seen = Set<String>()
+        let on = config.rewriteStyles.map { RewriteStyle.named($0)?.name ?? $0 }.filter { seen.insert($0).inserted }
         var styles = Field(id: "rewriteStyles", kind: .choices, label: tr("风格", "Styles"),
                            help: config.rewriteStyles.isEmpty ? tr("没有风格时只出 1–3 行", "With none, lines 1–3 only")
                                : tr("用你写的语言改写，拖动排序", "In the language you wrote; drag to reorder"),
-                           value: .array(on.map { .string($0.name) }))
+                           value: .array(on.map(JSON.string)))
         styles.choices = RewriteStyle.catalog.map { Choice($0.name, UIText.name($0), note: UIText.summary($0)) }
         styles.ordered = true
-        add(styles, to: &fields) { store.setStyleOrder(Self.strings($0)) }
+        add(styles, to: &fields) { value in
+            store.setStyleOrder(Self.keepingUnknown(Self.strings(value), had: on, known: { RewriteStyle.named($0) != nil }))
+        }
         add(toggle("improveTranslates", tr("@improve 同时翻译", "@improve also translates"), nil, config.improveTranslates),
             to: &fields) { store.config.improveTranslates = Self.bool($0) }
         add(text("jargonFile", tr("黑话库", "Jargon list"), tr("你团队自己的说法", "Your team's own terms"),

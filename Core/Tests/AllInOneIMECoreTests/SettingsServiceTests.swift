@@ -167,6 +167,44 @@ struct SettingsServiceTests {
         #expect(!providers.contains("apple") && !providers.contains("hosted") && providers.contains("anthropic"))
     }
 
+    /// A value the choices don't have (a language only the file names, a later version's style, a thinking level of the
+    /// file's own) is shown as a choice of its own, `disabled`: the field can still be changed, and it is kept as it is,
+    /// never dropped, nor picked once it is gone.
+    @Test func valuesOutsideTheChoices() throws {
+        let (service, url) = try service(#"""
+            {"provider": "anthropic", "anthropic": {"effort": "max"},
+             "outputLanguages": ["en", "nl", "zh"], "rewriteStyles": ["简洁", "STYLE_OF_LATER", "POLISH"]}
+            """#)
+        func problem(_ id: String, _ value: AIConfig.JSONValue) -> SettingsProblem.Code? {
+            if case let .failure(problem) = service.set(id, to: value) { return problem.code }
+            return nil
+        }
+        func strings(_ values: String...) -> AIConfig.JSONValue { .array(values.map(AIConfig.JSONValue.string)) }
+        let document = service.document()
+        let nl = try #require(document.field("outputLanguages")?.choices?.first { $0.value == .string("nl") })
+        #expect(nl.disabled == true && nl.label == UIText.name(OutputLanguage("nl")))
+        // Reordered with it: taken. Left out: kept where it was. One nobody has: refused.
+        #expect(problem("outputLanguages", strings("zh", "nl", "en")) == nil)
+        #expect(try Config.load(from: url).outputLanguages.map(\.code) == ["zh", "nl", "en"])
+        #expect(problem("outputLanguages", strings("en", "zh")) == nil)
+        #expect(try Config.load(from: url).outputLanguages.map(\.code) == ["en", "nl", "zh"])
+        #expect(problem("outputLanguages", strings("en", "nl", "zh", "xx")) == .badValue)
+        // A later version's style: on, in its place, disabled; kept through a reorder and when left out.
+        let styles = try #require(document.field("rewriteStyles"))
+        #expect(styles.value == strings("简洁", "STYLE_OF_LATER", "润色"))
+        #expect(styles.choices?.first { $0.value == .string("STYLE_OF_LATER") }?.disabled == true)
+        #expect(problem("rewriteStyles", strings("润色", "STYLE_OF_LATER", "简洁")) == nil)
+        #expect(try Config.load(from: url).rewriteStyles == ["润色", "STYLE_OF_LATER", "简洁"])
+        #expect(problem("rewriteStyles", strings("正式")) == nil)
+        #expect(try Config.load(from: url).rewriteStyles == ["正式", "STYLE_OF_LATER"])
+        // A single choice: sent back as it is, taken; another picked; then it is gone, and not to be picked again.
+        let effort = try #require(document.field("anthropic.effort"))
+        #expect(effort.value == .string("max") && effort.choices?.last == SettingsDocument.Choice(value: .string("max"), label: "max", disabled: true))
+        #expect(problem("anthropic.effort", .string("max")) == nil)
+        #expect(problem("anthropic.effort", .string("low")) == nil && problem("anthropic.effort", .string("max")) == .badValue)
+        #expect(try Config.load(from: url).anthropic.effort == "low")
+    }
+
     /// A file that can't be read: shown read-only, saying why, and left as it is.
     @Test func aBrokenFile() throws {
         let (service, url) = try service("{ nope")

@@ -354,11 +354,17 @@ public final class SettingsService: @unchecked Sendable {
             return nil
         case .text:
             return value.string == nil ? bad() : nil
+        // A `disabled` choice (another platform's, one this version doesn't offer) may be kept, not picked: only as
+        // the value now, or among it.
         case .choice:
-            return field.choices?.contains(where: { $0.value == value && $0.disabled != true }) == true ? nil : bad()
+            return field.choices?.contains(where: { $0.value == value && ($0.disabled != true || value == field.value ?? .null) }) == true
+                ? nil : bad()
         case .choices:
+            let now = field.value?.array ?? []
             guard case let .array(values) = value, Set(values.compactMap(\.string)).count == values.count,
-                  values.allSatisfy({ value in field.choices?.contains { $0.value == value && $0.disabled != true } == true }) else {
+                  values.allSatisfy({ value in
+                      field.choices?.contains { $0.value == value && ($0.disabled != true || now.contains(value)) } == true
+                  }) else {
                 return bad()
             }
             let low = field.minCount ?? 0, high = field.maxCount ?? Int.max
@@ -416,4 +422,8 @@ extension AIConfig.JSONValue {
         return nil
     }
 
+    var array: [AIConfig.JSONValue]? {
+        if case let .array(values) = self { return values }
+        return nil
+    }
 }
